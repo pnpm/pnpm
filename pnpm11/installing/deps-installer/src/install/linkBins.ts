@@ -6,6 +6,7 @@ import type { DependenciesGraph, DependenciesGraphNode } from '@pnpm/installing.
 import { logger } from '@pnpm/logger'
 import type { DependencyManifest, DepPath, HoistedDependencies } from '@pnpm/types'
 import { safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
+import { pathExists } from 'path-exists'
 import pLimit from 'p-limit'
 import { props } from 'ramda'
 
@@ -49,7 +50,7 @@ export async function linkBinsOfResolvedProjects (step: LinkContext, built: Buil
   const { ctx, opts, projects, resolution } = step
   const { builtDepPaths, builtPackageDirs, newDepPaths } = built
   if (!opts.virtualStoreOnly) {
-    const packagesToLink = getPackagesToLink(resolution.dependenciesGraph, {
+    const packagesToLink = await getPackagesToLink(resolution.dependenciesGraph, {
       builtDepPaths,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       newDepPaths,
@@ -70,7 +71,7 @@ export async function linkBinsOfResolvedProjects (step: LinkContext, built: Buil
   if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project) => linkBinsOfProject(step, project, built)))
 }
 
-function getPackagesToLink (
+async function getPackagesToLink (
   dependenciesGraph: DependenciesGraph,
   opts: {
     builtDepPaths: ReadonlySet<DepPath> | undefined
@@ -79,11 +80,17 @@ function getPackagesToLink (
     optional: boolean
     skipped: ReadonlySet<DepPath>
   }
-): DependenciesGraphNode[] {
+): Promise<DependenciesGraphNode[]> {
   if (opts.enableGlobalVirtualStore) {
-    return (Object.entries(dependenciesGraph) as Array<[DepPath, DependenciesGraphNode]>)
-      .filter(([depPath, node]) => !opts.skipped.has(depPath) && hasBinsToLink(node, dependenciesGraph, opts.optional))
-      .map(([, node]) => node)
+    const candidates = (Object.entries(dependenciesGraph) as Array<[DepPath, DependenciesGraphNode]>)
+      .filter(([depPath]) => !opts.skipped.has(depPath))
+    const results = await Promise.all(candidates.map(async ([, node]) => ({
+      node,
+      hasBins: hasBinsToLink(node, dependenciesGraph, opts.optional) || await pathExists(path.join(node.dir, 'node_modules/.bin')),
+    })))
+    return results
+      .filter(({ hasBins }) => hasBins)
+      .map(({ node }) => node)
   }
   if (!opts.newDepPaths?.length) return []
   return selectPackagesToLink(dependenciesGraph, {
