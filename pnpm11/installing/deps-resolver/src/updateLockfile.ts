@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { localSpecPath } from '@pnpm/resolving.local-resolver'
+import { localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DepPath, ProjectManifest, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
@@ -306,6 +306,7 @@ function getLinkedPackageRef (
   if (lockfileDir == null) return depPath
   const depNode = depGraph[depPath]
   if (depNode?.resolution.type === 'directory') {
+    if (recordedLocalPath(depPath.slice(5), lockfileDir) === depNode.resolution.directory) return depPath
     return createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string
   }
   const linkSpec = depPath.slice(5)
