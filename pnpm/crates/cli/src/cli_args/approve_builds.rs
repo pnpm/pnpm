@@ -422,7 +422,12 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
     install_dir: &Path,
     settings_dir: &Path,
 ) -> miette::Result<()> {
-    let pending = get_automatically_ignored_builds(config)?.names.filter(|names| !names.is_empty());
+    let pending = get_automatically_ignored_builds(config)?.names
+        .map(|mut names| {
+            names.retain(|name| config.allow_builds.get(name) != Some(&false));
+            names
+        })
+        .filter(|names| !names.is_empty());
     if pending.is_none() {
         return Ok(());
     }

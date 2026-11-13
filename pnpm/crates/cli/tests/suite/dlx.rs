@@ -1,4 +1,7 @@
-use crate::_utils::{append_workspace_yaml_key, flatten_report};
+use crate::_utils::{
+    append_workspace_yaml_key, bravo_mature_bravo_dep_1_1_0_immature_minimum_release_age,
+    flatten_report,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -305,18 +308,20 @@ fn dlx_does_not_reuse_the_cache_across_node_majors() {
     drop(root);
 }
 
-/// The dlx cache install inherits the caller project's `overrides` (pnpm's
-/// dlx runs its install with the invoking project's already-loaded config),
-/// so a `catalog:` value in them must resolve against the caller's catalogs
-/// even though the cache install itself has no workspace. Regression test
-/// for `ERR_PNPM_CATALOG_IN_OVERRIDES` failing every dlx invocation from
-/// such a project. `catalogMode: strict` is included because it is likewise
-/// inherited and must not break the throwaway install.
+/// A caller workspace's `overrides` (including `catalog:` entries) and
+/// `catalogMode: strict` must not fail a `dlx` invocation, and `catalog:`
+/// entries in explicit `PNPM_CONFIG_OVERRIDES` resolve against the caller's
+/// catalogs before the cache install severs its workspace anchor.
 #[cfg(unix)]
 #[test]
 fn dlx_resolves_caller_catalog_references_in_overrides() {
-    let CommandTempCwd { pacquet, root, workspace, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     std::fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -333,6 +338,19 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
     assert!(
         workspace.join("touch.txt").exists(),
         "the package's bin should run in the process cwd and write `touch.txt`",
+    );
+    std::fs::remove_file(workspace.join("touch.txt")).expect("remove first touch.txt");
+
+    pacquet_in(&workspace, &npmrc_info)
+        .with_env("PNPM_CONFIG_OVERRIDES", r#"{"is-positive":"catalog:"}"#)
+        .with_arg("dlx")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("touch.txt").exists(),
+        "explicit PNPM_CONFIG_OVERRIDES with `catalog:` must resolve against caller catalogs",
     );
 
     drop(root);
@@ -638,5 +656,281 @@ fn dlx_ignores_the_caller_projects_tag_setting() {
         .clone();
 
     assert!(String::from_utf8_lossy(&output).contains("Hello world!"));
+    drop(root);
+}
+
+#[cfg(unix)]
+fn pacquet_in(
+    cwd: &std::path::Path,
+    npmrc_info: &pnpm_testing_utils::bin::AddMockedRegistry,
+) -> std::process::Command {
+    use pnpm_testing_utils::command_env::CommandTestExt;
+    std::process::Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(cwd)
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url())
+        .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
+        .with_env("PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE", "false")
+}
+
+/// Regression test for `zkochan/pnpm-tasks#107`:
+/// 1. A caller repository's `pnpm-workspace.yaml` `overrides` must not alter
+///    or poison the shared `dlx` cache across directories.
+/// 2. Explicit `PNPM_CONFIG_OVERRIDES` / `--config.overrides` apply to `dlx`
+///    under their own cache keys without polluting clean `dlx` invocations.
+#[cfg(unix)]
+#[test]
+fn dlx_isolates_caller_workspace_overrides_and_keys_explicit_overrides() {
+    let CommandTempCwd { root, npmrc_info, .. } = CommandTempCwd::init().add_mocked_registry();
+
+    let ws_with_override = root.path().join("ws-with-override");
+    let clean_dir = root.path().join("clean-dir");
+    std::fs::create_dir(&ws_with_override).expect("create ws-with-override");
+    std::fs::create_dir(&clean_dir).expect("create clean-dir");
+    std::fs::write(
+        ws_with_override.join("pnpm-workspace.yaml"),
+        "catalog:\n  '@pnpm.e2e/bravo-dep': 1.0.1\noverrides:\n  '@pnpm.e2e/bravo-dep': 1.0.0\n",
+    )
+    .expect("write workspace overrides");
+
+    let print_bravo_dep = concat!(
+        r#"node -p ""#,
+        "const p=require('path'),nm=p.dirname(process.env.PATH.split(p.delimiter)[0]);",
+        "const b=require.resolve('@pnpm.e2e/bravo/package.json',{paths:[nm]});",
+        "require(require.resolve('@pnpm.e2e/bravo-dep/package.json',{paths:[b]})).version",
+        r#"""#,
+    );
+
+    let from_ws = pacquet_in(&ws_with_override, &npmrc_info)
+        .with_args(["dlx", "--package", "@pnpm.e2e/bravo@1.0.0", "-c", print_bravo_dep])
+        .output()
+        .expect("run dlx inside workspace with overrides");
+    assert!(from_ws.status.success(), "stderr: {}", String::from_utf8_lossy(&from_ws.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&from_ws.stdout).trim(),
+        "1.1.0",
+        "caller pnpm-workspace.yaml overrides must not hijack dlx transitive resolution",
+    );
+
+    let with_env_override = pacquet_in(&clean_dir, &npmrc_info)
+        .with_env("PNPM_CONFIG_OVERRIDES", r#"{"@pnpm.e2e/bravo-dep":"1.0.0"}"#)
+        .with_args(["dlx", "--package", "@pnpm.e2e/bravo@1.0.0", "-c", print_bravo_dep])
+        .output()
+        .expect("run dlx with PNPM_CONFIG_OVERRIDES");
+    assert!(
+        with_env_override.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&with_env_override.stderr),
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&with_env_override.stdout).trim(),
+        "1.0.0",
+        "explicit PNPM_CONFIG_OVERRIDES must apply to dlx",
+    );
+
+    let with_cli_catalog_override = pacquet_in(&ws_with_override, &npmrc_info)
+        .with_args([
+            r#"--config.overrides={"@pnpm.e2e/bravo-dep":"catalog:"}"#,
+            "dlx",
+            "--package",
+            "@pnpm.e2e/bravo@1.0.0",
+            "-c",
+            print_bravo_dep,
+        ])
+        .output()
+        .expect("run dlx with CLI catalog override");
+    assert!(
+        with_cli_catalog_override.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&with_cli_catalog_override.stderr),
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&with_cli_catalog_override.stdout).trim(),
+        "1.0.1",
+        "CLI --config.overrides with catalog: must resolve against caller catalog",
+    );
+
+    let from_clean = pacquet_in(&clean_dir, &npmrc_info)
+        .with_args(["dlx", "--package", "@pnpm.e2e/bravo@1.0.0", "-c", print_bravo_dep])
+        .output()
+        .expect("run clean dlx after overridden runs");
+    assert!(from_clean.status.success(), "stderr: {}", String::from_utf8_lossy(&from_clean.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&from_clean.stdout).trim(),
+        "1.1.0",
+        "explicit override runs must not poison the clean dlx cache entry",
+    );
+
+    let cache_entries =
+        std::fs::read_dir(npmrc_info.cache_dir.join("dlx")).expect("read dlx cache").count();
+    assert_eq!(cache_entries, 3, "clean, env-overridden, and catalog-overridden keys are distinct");
+
+    drop(root);
+}
+
+/// Regression test for `zkochan/pnpm-tasks#107`: a cached `dlx` entry created
+/// without `minimumReleaseAge` must not be reused when a later invocation
+/// enforces `minimumReleaseAge`.
+#[cfg(unix)]
+#[test]
+fn dlx_does_not_reuse_unverified_cache_under_minimum_release_age() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let cutoff = bravo_mature_bravo_dep_1_1_0_immature_minimum_release_age();
+    let cutoff_flag = format!("--config.minimum-release-age={cutoff}");
+
+    let print_bravo_dep = concat!(
+        r#"node -p ""#,
+        "const p=require('path'),nm=p.dirname(process.env.PATH.split(p.delimiter)[0]);",
+        "const b=require.resolve('@pnpm.e2e/bravo/package.json',{paths:[nm]});",
+        "require(require.resolve('@pnpm.e2e/bravo-dep/package.json',{paths:[b]})).version",
+        r#"""#,
+    );
+
+    let unguarded_transitive = pacquet_in(&workspace, &npmrc_info)
+        .with_args(["dlx", "--package", "@pnpm.e2e/bravo@1.0.0", "-c", print_bravo_dep])
+        .output()
+        .expect("populate dlx cache without minimumReleaseAge");
+    assert!(unguarded_transitive.status.success());
+    assert_eq!(String::from_utf8_lossy(&unguarded_transitive.stdout).trim(), "1.1.0");
+
+    let guarded_transitive = pacquet_in(&workspace, &npmrc_info)
+        .with_args([
+            cutoff_flag.as_str(),
+            "dlx",
+            "--package",
+            "@pnpm.e2e/bravo@1.0.0",
+            "-c",
+            print_bravo_dep,
+        ])
+        .output()
+        .expect("run dlx with minimumReleaseAge after unguarded cache");
+    assert!(
+        guarded_transitive.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&guarded_transitive.stderr),
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&guarded_transitive.stdout).trim(),
+        "1.0.1",
+        "minimumReleaseAge must not reuse the cached install with immature bravo-dep@1.1.0",
+    );
+
+    pacquet_in(&workspace, &npmrc_info)
+        .with_args(["dlx", "--package", "@pnpm.e2e/bravo-dep@1.1.0", "-c", "node -e 1"])
+        .assert()
+        .success();
+
+    let guarded_direct = pacquet_in(&workspace, &npmrc_info)
+        .with_args([
+            cutoff_flag.as_str(),
+            "dlx",
+            "--package",
+            "@pnpm.e2e/bravo-dep@1.1.0",
+            "-c",
+            "node -e 1",
+        ])
+        .output()
+        .expect("run dlx for immature direct package under minimumReleaseAge");
+    let stderr = String::from_utf8_lossy(&guarded_direct.stderr);
+    assert!(
+        !guarded_direct.status.success(),
+        "immature direct package must fail under minimumReleaseAge rather than hit cache",
+    );
+    assert!(stderr.contains("ERR_PNPM_NO_MATURE_MATCHING_VERSION"), "stderr:\n{stderr}");
+
+    drop(root);
+}
+
+/// Regression test for `zkochan/pnpm-tasks#107`: `--allow-build=!pkg` denies
+/// lifecycle scripts on both the executed package and transitive dependencies
+/// without prompting, and an empty `--allow-build=!` is rejected.
+#[cfg(unix)]
+#[test]
+fn dlx_allow_build_negation_skips_postinstall_and_prompt() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let missing_pkg = pacquet_in(&workspace, &npmrc_info)
+        .with_args(["dlx", "--allow-build=!", "@pnpm.e2e/hello-world-js-bin"])
+        .output()
+        .expect("run dlx with empty negated allow-build");
+    let missing_stderr = String::from_utf8_lossy(&missing_pkg.stderr);
+    assert!(!missing_pkg.status.success());
+    assert!(
+        missing_stderr.contains("ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE"),
+        "stderr:\n{missing_stderr}",
+    );
+
+    let marker = root.path().join("pwned");
+    let demo_pkg = root.path().join("demo-pkg");
+    std::fs::create_dir(&demo_pkg).expect("create demo-pkg");
+    std::fs::write(
+        demo_pkg.join("package.json"),
+        serde_json::json!({
+            "name": "demo-pkg",
+            "version": "1.0.0",
+            "bin": { "demo-pkg": "bin.js" },
+            "scripts": {
+                "postinstall": format!(
+                    r#"node -e 'require("fs").writeFileSync({}, "ran")'"#,
+                    serde_json::to_string(&marker.display().to_string()).unwrap(),
+                ),
+            },
+        })
+        .to_string(),
+    )
+    .expect("write demo-pkg manifest");
+    std::fs::write(demo_pkg.join("bin.js"), "#!/usr/bin/env node\nconsole.log('ok');\n")
+        .expect("write demo-pkg bin");
+
+    let denied_top = pacquet_in(&workspace, &npmrc_info)
+        .with_env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS", "1")
+        .with_arg("dlx")
+        .with_arg("--allow-build=!demo-pkg")
+        .with_arg(&demo_pkg)
+        .output()
+        .expect("run dlx with negated top-level package");
+    assert!(denied_top.status.success(), "stderr: {}", String::from_utf8_lossy(&denied_top.stderr));
+    assert_eq!(String::from_utf8_lossy(&denied_top.stdout).trim(), "ok");
+    assert!(
+        !marker.exists(),
+        "`--allow-build=!demo-pkg` must skip postinstall on the executed package",
+    );
+
+    pacquet_in(&workspace, &npmrc_info)
+        .with_env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS", "1")
+        .with_args([
+            "dlx",
+            "--allow-build=!@pnpm.e2e/install-script-example",
+            "@pnpm.e2e/has-bin-and-needs-build",
+        ])
+        .assert()
+        .success();
+
+    let mut saw_approved_sibling = false;
+    for entry in std::fs::read_dir(npmrc_info.cache_dir.join("dlx")).expect("read dlx cache") {
+        let pkg_link = entry
+            .expect("dir entry")
+            .path()
+            .join("pkg");
+        let denied_artifact = pkg_link.join(
+            "node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js",
+        );
+        assert!(
+            !denied_artifact.exists(),
+            "explicitly denied transitive build must stay unbuilt even under auto-approval",
+        );
+        let sibling_artifact = pkg_link.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+        );
+        if sibling_artifact.exists() {
+            saw_approved_sibling = true;
+        }
+    }
+    assert!(saw_approved_sibling, "undecided sibling build should still be auto-approved");
+
     drop(root);
 }

@@ -575,3 +575,111 @@ test('dlx with catalog', async () => {
 
   verifyDlxCache(createCacheKey('shx@0.3.4'))
 })
+
+test('dlx --allow-build=!pkg denies build scripts and rejects empty negated selectors', async () => {
+  prepareEmpty()
+
+  await expect(
+    dlx.handler({
+      ...DEFAULT_OPTS,
+      allowBuild: ['!'],
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+    }, ['shx@0.3.4', 'echo', 'hi'])
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE' })
+
+  const marker = path.resolve('postinstall-ran')
+  const demoPkgDir = path.resolve('demo-pkg')
+  fs.mkdirSync(demoPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(demoPkgDir, 'package.json'), JSON.stringify({
+    name: 'demo-pkg',
+    version: '1.0.0',
+    bin: { 'demo-pkg': 'bin.js' },
+    scripts: {
+      postinstall: `node -e "require('fs').writeFileSync(${JSON.stringify(marker)}, 'ran')"`,
+    },
+  }))
+  fs.writeFileSync(path.join(demoPkgDir, 'bin.js'), '#!/usr/bin/env node\nrequire("fs").writeFileSync("bin-ran", "ok")\n', { mode: 0o755 })
+
+  const prevAutoApprove = process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
+  process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = '1'
+  try {
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      enableGlobalVirtualStore: false,
+      allowBuild: ['!demo-pkg'],
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, [demoPkgDir], { 'approve-builds': approveBuilds.handler })
+
+    expect(fs.existsSync('bin-ran')).toBe(true)
+    expect(fs.existsSync(marker)).toBe(false)
+
+    const allowBuild = ['!@pnpm.e2e/install-script-example']
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      enableGlobalVirtualStore: false,
+      allowBuild,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
+
+    const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey({
+      packages: ['@pnpm.e2e/has-bin-and-needs-build@1.0.0'],
+      allowBuild,
+      registriesByScope: DEFAULT_OPTS.registriesByScope,
+      supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
+    }), 'pkg')
+    const approvedSibling = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+    const deniedDep = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
+    expect(fs.existsSync(path.join(approvedSibling, 'generated-by-postinstall.js'))).toBe(true)
+    expect(fs.existsSync(path.join(deniedDep, 'generated-by-install.js'))).toBe(false)
+  } finally {
+    if (prevAutoApprove === undefined) {
+      delete process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
+    } else {
+      process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = prevAutoApprove
+    }
+  }
+})
+
+test('dlx does not reuse a cached install when overrides or minimumReleaseAge change', async () => {
+  prepareEmpty()
+
+  const spy = jest.mocked(add.handler)
+  spy.mockClear()
+  const baseOpts = {
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }
+
+  await dlx.handler(baseOpts, ['shx@0.3.4', 'touch', 'clean-run'])
+  expect(spy).toHaveBeenCalledTimes(1)
+  spy.mockClear()
+
+  await dlx.handler({
+    ...baseOpts,
+    overrides: { shelljs: '0.8.5' },
+  }, ['shx@0.3.4', 'touch', 'override-run'])
+  expect(spy).toHaveBeenCalledTimes(1)
+  spy.mockClear()
+
+  await dlx.handler({
+    ...baseOpts,
+    minimumReleaseAge: 60,
+  }, ['shx@0.3.4', 'touch', 'age-run'])
+  expect(spy).toHaveBeenCalledTimes(1)
+  spy.mockClear()
+
+  await dlx.handler(baseOpts, ['shx@0.3.4', 'touch', 'clean-hit'])
+  expect(spy).not.toHaveBeenCalled()
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(3)
+})

@@ -367,6 +367,20 @@ fn workspace_selectors(
 /// `settings_dir`'s `pnpm-workspace.yaml`, and enable them for this
 /// install. `settings_dir` is the workspace root, or the project
 /// directory outside a workspace. Mirrors pnpm's `add` handler.
+pub(crate) fn parse_allow_build_selectors(
+    allow_build: &[String],
+) -> Result<Vec<(&str, bool)>, AllowBuildError> {
+    allow_build
+        .iter()
+        .map(|selector| {
+            let (name, allowed) = parse_allow_build_selector(selector);
+            (!name.is_empty())
+                .then_some((name, allowed))
+                .ok_or(AllowBuildError::MissingPackage)
+        })
+        .collect()
+}
+
 pub(crate) fn apply_allow_build(
     config: &mut Config,
     allow_build: &[String],
@@ -375,21 +389,12 @@ pub(crate) fn apply_allow_build(
     if allow_build.is_empty() {
         return Ok(());
     }
-    let mut allow_build_map: Vec<(&str, bool)> = Vec::with_capacity(allow_build.len());
-    let mut allowed_only: Vec<&str> = Vec::new();
-    for pkg in allow_build {
-        let (name, allowed) = parse_allow_build_selector(pkg);
-        if name.is_empty() {
-            return Err(AllowBuildError::MissingPackage.into());
-        }
-        allow_build_map.push((name, allowed));
-        if allowed {
-            allowed_only.push(name);
-        }
-    }
-    let overlap: Vec<&str> = allowed_only
-        .into_iter()
-        .filter(|pkg| config.allow_builds.get(*pkg) == Some(&false))
+    let allow_build_map = parse_allow_build_selectors(allow_build)?;
+    let overlap: Vec<&str> = allow_build_map
+        .iter()
+        .filter_map(|&(pkg, allowed)| {
+            (allowed && config.allow_builds.get(pkg) == Some(&false)).then_some(pkg)
+        })
         .collect();
     if !overlap.is_empty() {
         return Err(AllowBuildError::OverridingIgnoredBuiltDependencies {

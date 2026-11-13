@@ -1,9 +1,17 @@
 use super::{DlxArgs, DlxError, get_bin_name, scopeless};
-use crate::cli_args::dlx::{
-    cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir},
-    clean::clean_expired_dlx_cache,
+use crate::cli_args::{
+    add::{AllowBuildError, parse_allow_build_selectors},
+    dlx::{
+        cache::{
+            apply_dlx_build_policy, create_cache_key, get_prepare_dir, get_valid_cache_dir,
+            key::{CacheKeyInputs, CachePolicyInputs, MinimumReleaseAgeInput, TrustPolicyInput},
+        },
+        clean::clean_expired_dlx_cache,
+    },
 };
 use clap::Parser;
+use indexmap::IndexMap;
+use pnpm_config::Config;
 use pnpm_fs::force_symlink_dir;
 use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use std::{
@@ -13,6 +21,19 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tempfile::tempdir;
+
+impl<'a> CacheKeyInputs<'a> {
+    fn new(pkgs: &'a [String], registries: &'a BTreeMap<String, String>) -> Self {
+        Self {
+            pkgs,
+            registries,
+            allow_build: &[],
+            supported_architectures: None,
+            engine: None,
+            policy: CachePolicyInputs::default(),
+        }
+    }
+}
 
 /// Parses `DlxArgs` as a flattened leaf so the architecture flags can be
 /// exercised against the trailing `command` positional.
@@ -89,52 +110,201 @@ fn regs(default: &str) -> BTreeMap<String, String> {
 
 #[test]
 fn create_cache_key_is_order_independent_and_deterministic() {
-    let registry = "https://registry.npmjs.org/";
-    let key_forward =
-        create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[], None, None);
-    let key_reversed =
-        create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[], None, None);
+    let registries = regs("https://registry.npmjs.org/");
+    let forward = ["a".to_string(), "b".to_string()];
+    let reversed = ["b".to_string(), "a".to_string()];
+    let key_forward = create_cache_key(&CacheKeyInputs::new(&forward, &registries));
+    let key_reversed = create_cache_key(&CacheKeyInputs::new(&reversed, &registries));
     assert_eq!(key_forward, key_reversed, "the key must not depend on spec order");
 
-    let key_versioned = create_cache_key(&["a@1".to_string()], &regs(registry), &[], None, None);
+    let versioned = ["a@1".to_string()];
+    let key_versioned = create_cache_key(&CacheKeyInputs::new(&versioned, &registries));
     assert_ne!(key_forward, key_versioned, "different specs must produce different keys");
 }
 
 #[test]
 fn create_cache_key_depends_on_registry() {
     let pkgs = ["cowsay".to_string()];
-    let key_default =
-        create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[], None, None);
-    let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[], None, None);
+    let default_regs = regs("https://registry.npmjs.org/");
+    let custom_regs = regs("https://example.test/");
+    let key_default = create_cache_key(&CacheKeyInputs::new(&pkgs, &default_regs));
+    let key_custom = create_cache_key(&CacheKeyInputs::new(&pkgs, &custom_regs));
     assert_ne!(key_default, key_custom, "a different registry must produce a different key");
 }
 
 #[test]
-fn create_cache_key_changes_with_allow_build() {
+fn create_cache_key_changes_with_allow_build_and_negation() {
     let pkgs = ["cowsay".to_string()];
-    let registry = "https://registry.npmjs.org/";
-    let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[], None, None);
-    let key_with_allow =
-        create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()], None, None);
-    assert_ne!(key_no_allow, key_with_allow, "allow_build must change the key");
+    let registries = regs("https://registry.npmjs.org/");
+    let key_none = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
+    let key_allowed = create_cache_key(&CacheKeyInputs {
+        allow_build: &[("cowsay", true)],
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+    let key_denied = create_cache_key(&CacheKeyInputs {
+        allow_build: &[("cowsay", false)],
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+    assert_ne!(key_none, key_allowed, "allow_build must change the key");
+    assert_ne!(key_none, key_denied, "negated allow_build must change the key");
+    assert_ne!(key_allowed, key_denied, "`pkg` and `!pkg` must produce different keys");
+
+    let key_overridden_to_deny = create_cache_key(&CacheKeyInputs {
+        allow_build: &[("cowsay", true), ("cowsay", false)],
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+    assert_eq!(key_denied, key_overridden_to_deny, "last selector verdict wins per package");
 }
 
 #[test]
 fn create_cache_key_allow_build_is_order_independent() {
     let pkgs = ["cowsay".to_string()];
-    let registry = "https://registry.npmjs.org/";
-    let key_forward =
-        create_cache_key(&pkgs, &regs(registry), &["a".to_string(), "b".to_string()], None, None);
-    let key_reversed =
-        create_cache_key(&pkgs, &regs(registry), &["b".to_string(), "a".to_string()], None, None);
+    let registries = regs("https://registry.npmjs.org/");
+    let key_forward = create_cache_key(&CacheKeyInputs {
+        allow_build: &[("a", true), ("b", false)],
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+    let key_reversed = create_cache_key(&CacheKeyInputs {
+        allow_build: &[("b", false), ("a", true)],
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
     assert_eq!(key_forward, key_reversed, "allow_build order must not affect the key");
+}
+
+#[test]
+fn create_cache_key_changes_with_overrides_and_ignores_entry_order() {
+    let pkgs = ["cowsay".to_string()];
+    let registries = regs("https://registry.npmjs.org/");
+    let base = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
+
+    let forward = IndexMap::from([
+        ("alpha".to_string(), "1.0.0".to_string()),
+        ("beta".to_string(), "2.0.0".to_string()),
+    ]);
+    let reversed = IndexMap::from([
+        ("beta".to_string(), "2.0.0".to_string()),
+        ("alpha".to_string(), "1.0.0".to_string()),
+    ]);
+    let changed = IndexMap::from([
+        ("alpha".to_string(), "1.0.1".to_string()),
+        ("beta".to_string(), "2.0.0".to_string()),
+    ]);
+    let key_with = |overrides| {
+        create_cache_key(&CacheKeyInputs {
+            policy: CachePolicyInputs {
+                overrides: Some(overrides),
+                ..CachePolicyInputs::default()
+            },
+            ..CacheKeyInputs::new(&pkgs, &registries)
+        })
+    };
+    assert_ne!(base, key_with(&forward), "overrides must change the cache key");
+    assert_eq!(key_with(&forward), key_with(&reversed), "override insertion order must not matter");
+    assert_ne!(key_with(&forward), key_with(&changed), "different override versions must differ");
+}
+
+#[test]
+fn create_cache_key_changes_with_release_age_and_trust_policies() {
+    let pkgs = ["cowsay".to_string()];
+    let registries = regs("https://registry.npmjs.org/");
+    let base = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
+    let key_for = |policy| {
+        create_cache_key(&CacheKeyInputs { policy, ..CacheKeyInputs::new(&pkgs, &registries) })
+    };
+
+    let age_strict = key_for(CachePolicyInputs {
+        minimum_release_age: Some(MinimumReleaseAgeInput {
+            minutes: 1440,
+            exclude: &[],
+            strict: true,
+            ignore_missing_time: false,
+        }),
+        ..CachePolicyInputs::default()
+    });
+    let age_non_strict = key_for(CachePolicyInputs {
+        minimum_release_age: Some(MinimumReleaseAgeInput {
+            minutes: 1440,
+            exclude: &[],
+            strict: false,
+            ignore_missing_time: false,
+        }),
+        ..CachePolicyInputs::default()
+    });
+    let excludes_first = ["a".to_string(), "b".to_string()];
+    let excludes_reversed = ["b".to_string(), "a".to_string()];
+    let age_excluded_first = key_for(CachePolicyInputs {
+        minimum_release_age: Some(MinimumReleaseAgeInput {
+            minutes: 1440,
+            exclude: &excludes_first,
+            strict: true,
+            ignore_missing_time: false,
+        }),
+        ..CachePolicyInputs::default()
+    });
+    let age_excluded_reversed = key_for(CachePolicyInputs {
+        minimum_release_age: Some(MinimumReleaseAgeInput {
+            minutes: 1440,
+            exclude: &excludes_reversed,
+            strict: true,
+            ignore_missing_time: false,
+        }),
+        ..CachePolicyInputs::default()
+    });
+    assert_ne!(base, age_strict);
+    assert_ne!(age_strict, age_non_strict);
+    assert_ne!(age_strict, age_excluded_first);
+    assert_eq!(age_excluded_first, age_excluded_reversed);
+
+    let trust = key_for(CachePolicyInputs {
+        trust_policy: Some(TrustPolicyInput { exclude: &[], ignore_after: None }),
+        ..CachePolicyInputs::default()
+    });
+    let trust_ignore_after = key_for(CachePolicyInputs {
+        trust_policy: Some(TrustPolicyInput { exclude: &[], ignore_after: Some(60) }),
+        ..CachePolicyInputs::default()
+    });
+    let trust_lockfile =
+        key_for(CachePolicyInputs { trust_lockfile: true, ..CachePolicyInputs::default() });
+    let allow_exotic =
+        key_for(CachePolicyInputs { block_exotic_subdeps: false, ..CachePolicyInputs::default() });
+    assert_ne!(base, trust);
+    assert_ne!(trust, trust_ignore_after);
+    assert_ne!(base, trust_lockfile);
+    assert_ne!(base, allow_exotic);
+}
+
+#[test]
+fn apply_dlx_build_policy_honors_negated_and_missing_selectors() {
+    for invalid in [[String::new()], ["!".to_string()]] {
+        assert!(
+            matches!(parse_allow_build_selectors(&invalid), Err(AllowBuildError::MissingPackage)),
+            "empty selector {invalid:?} must fail with AllowBuildError::MissingPackage",
+        );
+    }
+
+    let raw = ["!demo-pkg".to_string(), "extra-dep".to_string(), "!denied-dep".to_string()];
+    let parsed = parse_allow_build_selectors(&raw).expect("parse selectors");
+    let mut config = Config { dangerously_allow_all_builds: true, ..Config::default() };
+    config.allow_builds.insert("caller-pkg".to_string(), true);
+
+    apply_dlx_build_policy(&mut config, &["demo-pkg@1.0.0".to_string()], &parsed);
+
+    assert!(!config.dangerously_allow_all_builds);
+    assert_eq!(config.allow_builds.get("caller-pkg"), None, "caller allowBuilds must not leak");
+    assert_eq!(
+        config.allow_builds.get("demo-pkg"),
+        Some(&false),
+        "`!demo-pkg` must override the default true for the executed package",
+    );
+    assert_eq!(config.allow_builds.get("extra-dep"), Some(&true));
+    assert_eq!(config.allow_builds.get("denied-dep"), Some(&false));
 }
 
 #[test]
 fn create_cache_key_changes_with_supported_architectures() {
     let pkgs = ["cowsay".to_string()];
-    let registry = "https://registry.npmjs.org/";
-    let base = create_cache_key(&pkgs, &regs(registry), &[], None, None);
+    let registries = regs("https://registry.npmjs.org/");
+    let base = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
 
     let arm = SupportedArchitectures::Axes(ArchitectureAxes {
         cpu: Some(vec!["arm64".to_string()]),
@@ -144,8 +314,14 @@ fn create_cache_key_changes_with_supported_architectures() {
         cpu: Some(vec!["x64".to_string()]),
         ..Default::default()
     });
-    let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm), None);
-    let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64), None);
+    let key_arm = create_cache_key(&CacheKeyInputs {
+        supported_architectures: Some(&arm),
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+    let key_x64 = create_cache_key(&CacheKeyInputs {
+        supported_architectures: Some(&x64),
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
 
     assert_ne!(base, key_arm, "an architecture override must change the key");
     assert_ne!(key_arm, key_x64, "different --cpu values must produce different keys");
@@ -156,7 +332,10 @@ fn create_cache_key_changes_with_supported_architectures() {
     });
     assert_eq!(
         key_arm,
-        create_cache_key(&pkgs, &regs(registry), &[], Some(&arm_dup), None),
+        create_cache_key(&CacheKeyInputs {
+            supported_architectures: Some(&arm_dup),
+            ..CacheKeyInputs::new(&pkgs, &registries)
+        }),
         "duplicate cpu values must not change the key",
     );
 }
@@ -164,8 +343,8 @@ fn create_cache_key_changes_with_supported_architectures() {
 #[test]
 fn create_cache_key_changes_with_the_platforms_it_names() {
     let pkgs = ["cowsay".to_string()];
-    let registry = "https://registry.npmjs.org/";
-    let base = create_cache_key(&pkgs, &regs(registry), &[], None, None);
+    let registries = regs("https://registry.npmjs.org/");
+    let base = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
     let listed = |platforms: &[&str]| {
         SupportedArchitectures::Platforms(
             platforms
@@ -174,7 +353,12 @@ fn create_cache_key_changes_with_the_platforms_it_names() {
                 .collect(),
         )
     };
-    let key = |supported| create_cache_key(&pkgs, &regs(registry), &[], Some(supported), None);
+    let key = |supported| {
+        create_cache_key(&CacheKeyInputs {
+            supported_architectures: Some(supported),
+            ..CacheKeyInputs::new(&pkgs, &registries)
+        })
+    };
 
     let linux = listed(&["linux-x64"]);
     let darwin = listed(&["darwin-arm64"]);

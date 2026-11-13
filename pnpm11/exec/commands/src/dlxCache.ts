@@ -4,8 +4,9 @@ import path from 'node:path'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import { isError } from '@pnpm/error'
+import { add } from '@pnpm/installing.commands'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { SupportedArchitectures } from '@pnpm/types'
+import type { SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 export interface DlxCache {
   cacheLink: string
@@ -13,15 +14,30 @@ export interface DlxCache {
   cachedDir: string
 }
 
-export function findCache (opts: {
+export interface DlxCacheKeyOptions {
   packages: string[]
-  cacheDir: string
-  dlxCacheMaxAge: number
   registriesByScope: Record<string, string>
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
   nodeVersion?: string
-}): DlxCache {
+  overrides?: Record<string, string>
+  minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeIgnoreMissingTime?: boolean
+  minimumReleaseAgeStrict?: boolean
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
+  trustLockfile?: boolean
+  blockExoticSubdeps?: boolean
+}
+
+export interface FindDlxCacheOptions extends DlxCacheKeyOptions {
+  cacheDir: string
+  dlxCacheMaxAge: number
+}
+
+export function findCache (opts: FindDlxCacheOptions): DlxCache {
   const dlxCommandCacheDir = createDlxCommandCacheDir(opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
   const cachedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
@@ -33,14 +49,7 @@ export function findCache (opts: {
 }
 
 function createDlxCommandCacheDir (
-  opts: {
-    packages: string[]
-    registriesByScope: Record<string, string>
-    cacheDir: string
-    allowBuild?: string[]
-    supportedArchitectures?: SupportedArchitectures
-    nodeVersion?: string
-  }
+  opts: FindDlxCacheOptions
 ): string {
   const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
   const cacheKey = createCacheKey(opts)
@@ -49,18 +58,13 @@ function createDlxCommandCacheDir (
   return cachePath
 }
 
-export function createCacheKey (opts: {
-  packages: string[]
-  registriesByScope: Record<string, string>
-  allowBuild?: string[]
-  supportedArchitectures?: SupportedArchitectures
-  nodeVersion?: string
-}): string {
+export function createCacheKey (opts: DlxCacheKeyOptions): string {
   const sortedPkgs = [...opts.packages].sort(lexCompare)
   const sortedRegistries = Object.entries(opts.registriesByScope).sort(([k1], [k2]) => lexCompare(k1, k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
-  if (opts.allowBuild?.length) {
-    args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })
+  const normalizedAllowBuild = normalizeAllowBuild(opts.allowBuild)
+  if (normalizedAllowBuild.length) {
+    args.push({ allowBuild: normalizedAllowBuild })
   }
   if (opts.supportedArchitectures) {
     const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
@@ -69,11 +73,12 @@ export function createCacheKey (opts: {
       if (!value?.length) continue
       args.push({
         supportedArchitectures: {
-          [key]: [...new Set(value)].sort(lexCompare),
+          [key]: sortUnique(value),
         },
       })
     }
   }
+  appendPolicyCacheKeyInputs(args, opts)
   // Packages built by lifecycle scripts, native addons especially, only load
   // on the platform, architecture, and Node.js major they were built for.
   args.push({ engine: engineName(opts.nodeVersion) })
@@ -84,6 +89,70 @@ export function createCacheKey (opts: {
   // make lifecycle scripts fail with a `spawn cmd.exe ENOENT` (the cwd no
   // longer resolves). 128 bits is ample collision resistance for a cache key.
   return createShortHash(hashStr)
+}
+
+function normalizeAllowBuild (allowBuild: string[] | undefined): string[] {
+  if (!allowBuild?.length) return []
+  const verdicts = new Map<string, boolean>()
+  for (const selector of allowBuild) {
+    const { name, allowed } = add.parseAllowBuildSelector(selector)
+    verdicts.set(name, allowed)
+  }
+  return Array.from(verdicts, ([name, allowed]) => allowed ? name : `!${name}`).sort(lexCompare)
+}
+
+function appendPolicyCacheKeyInputs (args: unknown[], opts: DlxCacheKeyOptions): void {
+  const overrideEntries = opts.overrides
+    ? Object.entries(opts.overrides).sort(([k1], [k2]) => lexCompare(k1, k2))
+    : []
+  if (overrideEntries.length) {
+    args.push({ overrides: overrideEntries })
+  }
+  const minimumReleaseAge = buildMinimumReleaseAgeInput(opts)
+  if (minimumReleaseAge != null) {
+    args.push({ minimumReleaseAge })
+  }
+  const trustPolicy = buildTrustPolicyInput(opts)
+  if (trustPolicy != null) {
+    args.push({ trustPolicy })
+  }
+  if (opts.trustLockfile === true) {
+    args.push({ trustLockfile: true })
+  }
+  if (opts.blockExoticSubdeps === false) {
+    args.push({ blockExoticSubdeps: false })
+  }
+}
+
+function buildMinimumReleaseAgeInput (opts: DlxCacheKeyOptions): Record<string, unknown> | undefined {
+  if (opts.minimumReleaseAge == null || opts.minimumReleaseAge <= 0) return undefined
+  const entry: Record<string, unknown> = {
+    minutes: opts.minimumReleaseAge,
+    strict: opts.minimumReleaseAgeStrict ?? true,
+    ignoreMissingTime: Boolean(opts.minimumReleaseAgeIgnoreMissingTime),
+  }
+  if (opts.minimumReleaseAgeExclude?.length) {
+    entry.exclude = sortUnique(opts.minimumReleaseAgeExclude)
+  }
+  return entry
+}
+
+function buildTrustPolicyInput (opts: DlxCacheKeyOptions): Record<string, unknown> | undefined {
+  if (opts.trustPolicy !== 'no-downgrade') return undefined
+  const entry: Record<string, unknown> = {
+    policy: opts.trustPolicy,
+  }
+  if (opts.trustPolicyExclude?.length) {
+    entry.exclude = sortUnique(opts.trustPolicyExclude)
+  }
+  if (opts.trustPolicyIgnoreAfter != null) {
+    entry.ignoreAfter = opts.trustPolicyIgnoreAfter
+  }
+  return entry
+}
+
+function sortUnique (values: string[]): string[] {
+  return [...new Set(values)].sort(lexCompare)
 }
 
 export function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {
