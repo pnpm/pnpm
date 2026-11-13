@@ -1,11 +1,8 @@
 use super::{
-    Arc, DistStats, HashMap, JsonValue, Package, PublishedAtTimeMap, TrustEvidence, TrustHistory,
-    TrustHistoryProjection,
+    Arc, DistStats, HashMap, JsonValue, Package, Pipe, PublishedAtTimeMap, TrustEvidence,
+    TrustHistory, TrustHistoryProjection,
 };
-use crate::{
-    attested_time::load_attested_times, mirror::ATTESTED_TIME_DIR,
-    trust_checks::get_policy_trust_evidence,
-};
+use crate::trust_checks::get_policy_trust_evidence;
 
 /// Project a packument to what [`fail_if_trust_downgraded`] reads from it.
 ///
@@ -88,14 +85,13 @@ pub(super) fn project_abbreviated_meta(
     // `time` also carries package-level `created`/`modified` keys; keeping
     // them is harmless (lookups are by exact version) and cheaper than
     // filtering against the versions map.
-    let version_time = meta.time
-        .as_ref()
-        .filter(|_| include_time)
-        .map(|time| {
-            time.iter()
-                .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
-                .collect()
-        });
+    let version_time = include_time.then(|| {
+        meta.time
+            .iter()
+            .flatten()
+            .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
+            .collect()
+    });
     crate::lookup_context::AbbreviatedMetaProjection {
         modified: meta.modified.clone(),
         version_artifacts: Some(version_artifacts),
@@ -104,48 +100,27 @@ pub(super) fn project_abbreviated_meta(
     }
 }
 
-/// The per-version publish times the scoped cache holds, keyed by version:
-/// those of the full mirror, and the [attested] ones for the versions it
-/// does not date. `None` when the cache holds neither.
-///
-/// [attested]: crate::attested_time
+/// The per-version publish times of the scoped on-disk mirror, keyed by
+/// version. `None` without a mirror or a `time` payload.
 pub(super) async fn load_local_meta_time(
     cache_dir: &std::path::Path,
     scope: &pnpm_network::MetadataCacheScope,
     registry: &str,
     name: &str,
 ) -> Option<Arc<PublishedAtTimeMap>> {
-    let mut times = match attested_time_path(cache_dir, scope, registry, name) {
-        Some(path) => tokio::task::spawn_blocking(move || load_attested_times(&path))
-            .await
-            .unwrap_or_default(),
-        None => PublishedAtTimeMap::new(),
-    };
     let meta_dir = crate::mirror::scoped_meta_dir(scope, crate::mirror::FULL_META_DIR);
     let mirror_path = crate::mirror::get_pkg_mirror_path(cache_dir, &meta_dir, registry, name).ok();
-    let mirrored = crate::mirror::load_meta_async(mirror_path.as_deref()).await;
-    if let Some(raw) = mirrored.as_ref().and_then(|pkg| pkg.time.as_ref()) {
-        times.extend(
-            raw.iter()
-                .filter_map(|(version, value)| {
-                    Some((version.clone(), value.as_str()?.to_string()))
-                }),
-        );
-    }
-    (!times.is_empty()).then(|| Arc::new(times))
-}
-
-/// Where the scoped cache keeps the [attested publish times] of `name`.
-///
-/// [attested publish times]: crate::attested_time
-pub(super) fn attested_time_path(
-    cache_dir: &std::path::Path,
-    scope: &pnpm_network::MetadataCacheScope,
-    registry: &str,
-    name: &str,
-) -> Option<std::path::PathBuf> {
-    let meta_dir = crate::mirror::scoped_meta_dir(scope, ATTESTED_TIME_DIR);
-    crate::mirror::get_pkg_mirror_path(cache_dir, &meta_dir, registry, name).ok()
+    let pkg = crate::mirror::load_meta_async(mirror_path.as_deref()).await?;
+    let raw = pkg.time.as_ref()?;
+    raw.iter()
+        .filter_map(|(version, value)| {
+            value
+                .as_str()
+                .map(|ts| (version.clone(), ts.to_string()))
+        })
+        .collect::<PublishedAtTimeMap>()
+        .pipe(Arc::new)
+        .pipe(Some)
 }
 
 pub(super) fn project_artifact_history(

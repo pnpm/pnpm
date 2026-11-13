@@ -1,9 +1,9 @@
 use super::{
     Arc, FetchAttestationOptions, FetchFullMetadataCachedOptions, NpmResolutionVerifier, OnceCell,
-    Package, Pipe, PkgName, PublishedAtTimeMap, TrustHistoryProjection, append_attested_time,
-    attested_time_path, fetch_attestation_published_at, fetch_full_metadata_cached,
-    fetch_full_metadata_projected, load_local_meta_time, package_key, project_abbreviated_meta,
-    project_trust_meta, redact_url_credentials, render_fetch_metadata_error,
+    Package, Pipe, PkgName, PublishedAtTimeMap, TrustHistoryProjection,
+    fetch_attestation_published_at, fetch_full_metadata_cached, fetch_full_metadata_projected,
+    load_local_meta_time, package_key, project_abbreviated_meta, project_trust_meta,
+    redact_url_credentials, render_fetch_metadata_error,
 };
 
 impl NpmResolutionVerifier {
@@ -124,10 +124,11 @@ impl NpmResolutionVerifier {
             .filter(|meta| meta.name == name_str)
     }
 
-    /// Per-`(registry, name)` read of the publish times the cache holds
-    /// (see [`load_local_meta_time`]). Returns `None` when it holds none
-    /// or no `cache_dir` was supplied — the caller then falls through to
-    /// the next layer of [`Self::resolve_published_at`].
+    /// Per-`(registry, name)` on-disk mirror read of the full
+    /// packument's per-version `time` map. Returns `None` when no
+    /// mirror exists yet, no `cache_dir` was supplied, or the mirror
+    /// has no `time` payload — the caller then falls through to the
+    /// next layer of [`Self::resolve_published_at`].
     pub(super) async fn read_local_meta_time(
         &self,
         registry: &str,
@@ -170,45 +171,8 @@ impl NpmResolutionVerifier {
             http_client: &self.metadata.http_client,
             auth_headers: &self.metadata.auth_headers,
         };
-        let published_at = fetch_attestation_published_at(&name.to_string(), version, &opts)
-            .await
-            .map_err(|err| redact_url_credentials(&err.to_string()))?;
-        if let Some(published_at) = &published_at {
-            self.record_attested_time(registry, name, version, published_at).await;
-        }
-        Ok(published_at)
-    }
-
-    /// Keep an attested publish time for the verifications that cannot
-    /// reach the attestation endpoint. A failed write costs only that.
-    async fn record_attested_time(
-        &self,
-        registry: &str,
-        name: &PkgName,
-        version: &str,
-        published_at: &str,
-    ) {
-        let Some(cache_dir) = self.metadata.cache_dir.as_deref() else {
-            return;
-        };
-        let name = name.to_string();
-        let url = crate::registry_url::to_registry_url(registry, &name);
-        let scope = self.metadata.auth_headers.metadata_scope(&url, Some(&name));
-        let Some(path) = attested_time_path(cache_dir, &scope, registry, &name) else {
-            return;
-        };
-        let (version, published_at) = (version.to_string(), published_at.to_string());
-        let written = tokio::task::spawn_blocking(move || {
-            append_attested_time(&path, &version, &published_at)
-        })
-        .await;
-        if let Ok(Err(error)) = written {
-            tracing::debug!(
-                target: "pnpm_resolving_npm_resolver::attestation",
-                ?error,
-                "failed to record an attested publish time",
-            );
-        }
+        fetch_attestation_published_at(&name.to_string(), version, &opts).await
+            .map_err(|err| redact_url_credentials(&err.to_string()))
     }
 
     pub(super) async fn fetch_full_meta_time(

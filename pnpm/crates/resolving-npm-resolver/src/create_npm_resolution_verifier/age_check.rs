@@ -186,10 +186,9 @@ impl NpmResolutionVerifier {
     ///    that serve `time` in abbreviated metadata (Verdaccio 5.15.1+,
     ///    pnpr) do, and so does a mirror the resolver upgraded to the
     ///    full document for its own release-age check.
-    /// 3. **On-disk publish times.** The per-version timestamp of the
-    ///    full-meta mirror a previous verification populated, or the
-    ///    [attested](crate::attested_time) one a previous step 4
-    ///    recorded, with no network.
+    /// 3. **On-disk full-meta mirror.** If a previous verification
+    ///    populated `<cache_dir>/v12/metadata-full/.../<name>.jsonl`,
+    ///    take the per-version timestamp from there with no network.
     /// 4. **Npm attestation endpoint.** Small payload, just this
     ///    version's Sigstore-anchored timestamp. Wins on cold cache
     ///    when the package was published with provenance.

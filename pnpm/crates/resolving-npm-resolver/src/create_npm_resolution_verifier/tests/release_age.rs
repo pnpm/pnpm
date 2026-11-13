@@ -448,62 +448,6 @@ async fn min_age_shortcut_falls_through_when_version_not_listed() {
     assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
 }
 
-/// The pin's package was modified inside the cutoff window, so only a
-/// per-version publish time can pass it. Online that time comes from the
-/// attestation endpoint. The offline verifier shares the cache directory
-/// and nothing else, so its pass proves the attested time was kept.
-#[tokio::test]
-async fn offline_reuses_the_attested_time_an_online_verification_read() {
-    let mut server = mockito::Server::new_async().await;
-    let registry = format!("{}/", server.url());
-    let abbreviated_mock = server
-        .mock("GET", "/acme")
-        .with_status(200)
-        .with_body(
-            abbreviated_packument_json("acme", "1.0.0", "2025-11-30T23:30:00.000Z").to_string(),
-        )
-        .expect(1)
-        .create_async()
-        .await;
-    let attestation_mock = server
-        .mock("GET", "/-/npm/v1/attestations/acme@1.0.0")
-        .with_status(200)
-        .with_body(
-            serde_json::json!({
-                "attestations": [{ "bundle": { "verificationMaterial": {
-                    // 2024-01-01T00:00:00Z
-                    "tlogEntries": [{ "integratedTime": "1704067200" }],
-                } } }],
-            })
-            .to_string(),
-        )
-        .expect(1)
-        .create_async()
-        .await;
-    let cache_dir = TempDir::new().expect("tempdir");
-    let name: PkgName = "acme".parse().expect("parse");
-    let opts_for = |offline: bool| {
-        let mut opts = default_opts(&registry);
-        opts.release_age.minimum_minutes = Some(60 * 24);
-        opts.now = Some(now_at("2025-12-01T00:00:00Z"));
-        opts.metadata.cache_dir = Some(cache_dir.path().to_path_buf());
-        opts.metadata.offline = offline;
-        opts
-    };
-
-    let online = create_npm_resolution_verifier(opts_for(false));
-    let result = online.verify(&registry_resolution(), ctx(&name, "1.0.0")).await;
-    assert_eq!(result, ResolutionVerification::Ok);
-    abbreviated_mock.assert_async().await;
-    attestation_mock.assert_async().await;
-
-    let offline = create_npm_resolution_verifier(opts_for(true));
-    let result = offline.verify(&registry_resolution(), ctx(&name, "1.0.0")).await;
-    assert_eq!(result, ResolutionVerification::Ok);
-    abbreviated_mock.assert_async().await;
-    attestation_mock.assert_async().await;
-}
-
 /// The resolver's release-age upgrade stores the full document, `time`
 /// included, in the abbreviated mirror. An offline verification has no
 /// other source for the pin's publish time.

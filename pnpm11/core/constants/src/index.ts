@@ -42,6 +42,4 @@ export const BUILTIN_REGISTRIES_BY_PREFIX: Readonly<Record<string, string>> = Ob
 export const ABBREVIATED_META_DIR = 'v12/metadata'
 export const FULL_META_DIR = 'v12/metadata-full'
 export const FULL_FILTERED_META_DIR = 'v12/metadata-full-filtered'
-// Publish times read from the attestation endpoint, one JSON line per version.
-export const ATTESTED_TIME_DIR = 'v12/metadata-attested-time'
 

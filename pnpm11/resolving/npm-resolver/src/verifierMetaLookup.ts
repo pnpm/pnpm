@@ -1,9 +1,7 @@
 import { FULL_META_DIR } from '@pnpm/constants'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
-import { logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 
-import { appendAttestedTime, loadAttestedTimes } from './attestedTime.js'
 import type { CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
 import { fetchAttestationPublishedAt } from './fetchAttestationPublishedAt.js'
@@ -231,9 +229,9 @@ function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
  *    carries a `time` map, it already holds the per-version timestamp.
  *    A mirror the resolver upgraded to the full document for its own
  *    release-age check does.
- * 3. **On-disk publish times.** The per-version timestamp of the
- *    `FULL_META_DIR` mirror a previous verification populated, or the
- *    attested one a previous step 4 recorded (see `loadAttestedTimes`).
+ * 3. **On-disk full-metadata mirror.** If a previous verification
+ *    populated `FULL_META_DIR`, take the per-version timestamp from
+ *    there.
  * 4. **npm attestation endpoint.** Small payload, just this version's
  *    Sigstore-anchored timestamp. Wins on cold cache when the package
  *    was published with provenance.
@@ -277,31 +275,11 @@ async function resolvePublishedAt (
       registry,
       authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
     })
-    if (attestationTime != null) {
-      await recordAttestedTime(context, { registry, name, version, publishedAt: attestationTime })
-      return attestationTime
-    }
+    if (attestationTime != null) return attestationTime
   }
 
   const fullMetaTime = await fetchFullMetaTime(context, registry, name)
   return fullMetaTime?.[version]
-}
-
-/**
- * Keeps an attested publish time for the verifications that cannot reach
- * the attestation endpoint. A failed write costs only that.
- */
-async function recordAttestedTime (
-  context: PublishedAtLookupContext,
-  attested: { registry: string, name: string, version: string, publishedAt: string }
-): Promise<void> {
-  if (!context.cacheDir) return
-  const { registry, name, ...record } = attested
-  try {
-    await appendAttestedTime({ cacheDir: context.cacheDir, registry, name }, record)
-  } catch (err: unknown) {
-    logger.debug({ message: `Failed to record the attested publish time of ${name}@${record.version}`, err })
-  }
 }
 
 /**
@@ -486,11 +464,8 @@ async function loadLocalMetaTime (
   name: string
 ): Promise<PublishedAtTimeMap | undefined> {
   const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registry, name)
-  const [cached, attestedTimes] = await Promise.all([
-    loadMeta(pkgMirror),
-    loadAttestedTimes({ cacheDir, registry, name }),
-  ])
-  return { ...attestedTimes, ...cached?.time }
+  const cached = await loadMeta(pkgMirror)
+  return cached?.time
 }
 
 export function fetchFullMetaTime (

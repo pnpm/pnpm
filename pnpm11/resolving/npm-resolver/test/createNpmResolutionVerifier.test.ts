@@ -134,39 +134,6 @@ test('createNpmResolutionVerifier() verifies tarball URLs from cached metadata i
   getMockAgent().assertNoPendingInterceptors()
 })
 
-test('createNpmResolutionVerifier() reuses offline the attested publish time an online verification read', async () => {
-  const cacheDir = temporaryDirectory()
-  // Modified inside the cutoff window, so only a per-version publish time
-  // can pass the pin.
-  const meta = {
-    name: 'attested-pkg',
-    'dist-tags': { latest: '1.0.0' },
-    versions: {
-      '1.0.0': {
-        name: 'attested-pkg',
-        version: '1.0.0',
-        dist: { tarball: 'https://registry.npmjs.org/attested-pkg/-/attested-pkg-1.0.0.tgz', shasum: 'aa' },
-      },
-    },
-    modified: '2025-12-31T23:00:00.000Z',
-  }
-  const integratedTime = String(Date.UTC(2024, 0, 1) / 1000)
-  const pool = getMockAgent().get('https://registry.npmjs.org')
-  pool.intercept({ path: '/attested-pkg', method: 'GET' }).reply(200, meta)
-  pool.intercept({ path: '/-/npm/v1/attestations/attested-pkg@1.0.0', method: 'GET' }).reply(200, {
-    attestations: [{ bundle: { verificationMaterial: { tlogEntries: [{ integratedTime }] } } }],
-  })
-  const resolution = { integrity: FAKE_INTEGRITY } as unknown as Resolution
-  const pkg = { name: 'attested-pkg', version: '1.0.0' }
-
-  const online = createNpmResolutionVerifier(makeVerifierOpts({ cacheDir, minimumReleaseAge: 1440 }))
-  expect(await online.verify(resolution, pkg)).toStrictEqual({ ok: true })
-  getMockAgent().assertNoPendingInterceptors()
-
-  const offline = createNpmResolutionVerifier(makeVerifierOpts({ cacheDir, minimumReleaseAge: 1440, offline: true }))
-  expect(await offline.verify(resolution, pkg)).toStrictEqual({ ok: true })
-})
-
 test('createNpmResolutionVerifier() reads a version publish time offline from an upgraded abbreviated mirror', async () => {
   // The resolver's release-age upgrade stores the full document, `time`
   // included, in the abbreviated mirror.

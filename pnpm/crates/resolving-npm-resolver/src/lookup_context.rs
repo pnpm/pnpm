@@ -48,7 +48,8 @@ pub(crate) struct AbbreviatedMetaProjection {
     /// [`ObservedDistStats`]: crate::ObservedDistStats
     pub version_dist_stats: Option<HashMap<String, crate::DistStats>>,
     /// version → publish timestamp from the document's `time` map.
-    /// `None` when the document has none.
+    /// `None` for a pnpr document whose clamped dates cannot answer the
+    /// release-age window.
     pub version_time: Option<HashMap<String, String>>,
 }
 

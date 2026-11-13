@@ -44,9 +44,7 @@ use artifact_binding::{
 mod metadata_projection;
 
 mod variations;
-use metadata_projection::{
-    attested_time_path, load_local_meta_time, project_abbreviated_meta, project_trust_meta,
-};
+use metadata_projection::{load_local_meta_time, project_abbreviated_meta, project_trust_meta};
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -75,9 +73,7 @@ use tokio::sync::OnceCell;
 
 use crate::{
     FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustEvidence,
-    TrustHistory, TrustViolation,
-    attested_time::append_attested_time,
-    fetch_attestation_published_at, fetch_full_metadata_cached,
+    TrustHistory, TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
     fetch_full_metadata_cached::fetch_full_metadata_projected,
     lookup_context::{
         PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,

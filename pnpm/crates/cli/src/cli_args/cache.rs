@@ -4,9 +4,9 @@ use miette::IntoDiagnostic;
 use pnpm_config::{Config, ResolutionMode};
 use pnpm_fs::lexical_normalize;
 use pnpm_resolving_npm_resolver::mirror::{
-    ABBREVIATED_META_DIR, ATTESTED_TIME_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR,
-    LEGACY_META_DIRS, LEGACY_PRIVATE_META_ROOT, PNPR_META_DIR, RELEASE_RECORDS_DIR,
-    decode_registry_name, get_registry_name, is_unreadable_registry_key, load_meta,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, LEGACY_META_DIRS,
+    LEGACY_PRIVATE_META_ROOT, PNPR_META_DIR, RELEASE_RECORDS_DIR, decode_registry_name,
+    get_registry_name, is_unreadable_registry_key, load_meta,
 };
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
@@ -46,8 +46,8 @@ pub enum CacheCommand {
 }
 
 /// Every metadata root this version of pnpm reads and writes.
-const META_DIRS: [&str; 5] =
-    [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR, PNPR_META_DIR, ATTESTED_TIME_DIR];
+const META_DIRS: [&str; 4] =
+    [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR, PNPR_META_DIR];
 
 impl CacheCommand {
     fn meta_dir(config: &Config) -> &'static str {

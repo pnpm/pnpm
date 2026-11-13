@@ -41,8 +41,7 @@ pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_
 pub use infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 pub use lookup_context::VerifierLookups;
 pub use mirror::{
-    ABBREVIATED_META_DIR, ATTESTED_TIME_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, PNPR_META_DIR,
-    RELEASE_RECORDS_DIR,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, PNPR_META_DIR, RELEASE_RECORDS_DIR,
 };
 pub use named_registry::{
     BUILTIN_REGISTRIES_BY_PREFIX, MergeNamedRegistriesError, merge_named_registries,
@@ -86,7 +85,6 @@ pub use trust_checks::{
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
 pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};
 
-mod attested_time;
 mod calc_specifier;
 mod calc_specifier_for_workspace_dep;
 mod create_npm_resolution_verifier;
