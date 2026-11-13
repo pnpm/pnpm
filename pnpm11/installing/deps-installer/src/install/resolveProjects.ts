@@ -212,6 +212,7 @@ function describeResolutionTarget (ctx: PnpmContext, opts: InstallInContextOptio
     ignoreScripts: opts.ignoreScripts,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
     lockfileDir: opts.lockfileDir,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     nodeVersion: opts.nodeVersion,
     checkEnginesAgainstRootRuntime: opts.nodeVersion == null || opts.nodeVersionFromEnginesRuntime === true,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
