@@ -301,3 +301,112 @@ test('pnpm clean runs built-in in workspace subdir when root has no clean script
   const result = execPnpmSync(['clean'], { cwd: path.resolve('project-a') })
   expect(result.status).toBe(0)
 })
+
+test.each(['clean', 'purge'])('pnpm %s does not delete files in external modulesDir', (command) => {
+  for (const useAbsolute of [false, true]) {
+    tempDir()
+    const externalTarget = path.resolve('..', 'external-target')
+    fs.mkdirSync(path.join(externalTarget, 'lodash'), { recursive: true })
+    fs.writeFileSync(path.join(externalTarget, 'keep.txt'), 'keep')
+    fs.writeFileSync(path.join(externalTarget, 'lodash', 'package.json'), '{}')
+
+    writeJsonFile('package.json', { name: 'demo-app', version: '1.0.0' })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      modulesDir: useAbsolute ? externalTarget : '../external-target',
+    })
+
+    const result = execPnpmSync([command])
+    expect(result.status).toBe(0)
+    expect(fs.existsSync(path.join(externalTarget, 'keep.txt'))).toBe(true)
+    expect(fs.existsSync(path.join(externalTarget, 'lodash', 'package.json'))).toBe(true)
+  }
+})
+
+test('pnpm clean rejects self, symlinked parent, and sibling modulesDir escapes', () => {
+  tempDir()
+  const outsideSub = path.resolve('..', 'outside', 'sub')
+  fs.mkdirSync(path.join(outsideSub, 'nm'), { recursive: true })
+  fs.writeFileSync(path.join(outsideSub, 'nm', 'keep.txt'), 'keep')
+  fs.symlinkSync(outsideSub, 'escape', process.platform === 'win32' ? 'junction' : 'dir')
+
+  fs.mkdirSync('keep-dir', { recursive: true })
+  fs.writeFileSync(path.join('keep-dir', 'keep.txt'), 'keep')
+  writeJsonFile('package.json', { name: 'demo-app', version: '1.0.0' })
+
+  const drivePrefix = path.parse(process.cwd()).root.slice(0, 2)
+  const escapeCases = [
+    '.',
+    '. ',
+    '.. ',
+    'escape/nm',
+    'escape/../keep-dir',
+    ...(process.platform === 'win32'
+      ? ['escape\\nm', 'escape\\..\\keep-dir', `${drivePrefix}escape\\..\\keep-dir`]
+      : []),
+  ]
+  for (const modulesDir of escapeCases) {
+    writeYamlFileSync('pnpm-workspace.yaml', { modulesDir })
+    const result = execPnpmSync(['clean'])
+    expect(result.status).toBe(0)
+    expect(fs.existsSync('package.json')).toBe(true)
+    expect(fs.existsSync(path.join(outsideSub, 'nm', 'keep.txt'))).toBe(true)
+    expect(fs.existsSync(path.join('keep-dir', 'keep.txt'))).toBe(true)
+  }
+
+  preparePackages([
+    { location: 'packages/project-a', package: { name: 'project-a', version: '1.0.0' } },
+    { location: 'packages/project-b', package: { name: 'project-b', version: '1.0.0' } },
+  ])
+  writeJsonFile('package.json', { name: 'root', version: '1.0.0' })
+  fs.writeFileSync(path.join('packages', 'project-b', 'keep.txt'), 'keep')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    modulesDir: '../project-b',
+  })
+
+  const wsResult = execPnpmSync(['clean'])
+  expect(wsResult.status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'project-b', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'project-b', 'keep.txt'))).toBe(true)
+})
+
+test.each(['clean', 'purge'])('pnpm %s unlinks symlinked node_modules without deleting target contents', (command) => {
+  tempDir()
+  const externalTarget = path.resolve('..', 'external-target')
+  fs.mkdirSync(path.join(externalTarget, '.pnpm'), { recursive: true })
+  fs.mkdirSync(path.join(externalTarget, 'lodash'), { recursive: true })
+  fs.writeFileSync(path.join(externalTarget, 'keep.txt'), 'keep')
+  fs.writeFileSync(path.join(externalTarget, 'lodash', 'package.json'), '{}')
+
+  writeJsonFile('package.json', { name: 'demo-app', version: '1.0.0' })
+  fs.symlinkSync(externalTarget, 'node_modules', process.platform === 'win32' ? 'junction' : 'dir')
+
+  const result = execPnpmSync([command])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('Removing node_modules')
+  expect(() => fs.lstatSync('node_modules')).toThrow()
+  expect(fs.existsSync(path.join(externalTarget, 'keep.txt'))).toBe(true)
+  expect(fs.existsSync(path.join(externalTarget, '.pnpm'))).toBe(true)
+  expect(fs.existsSync(path.join(externalTarget, 'lodash', 'package.json'))).toBe(true)
+})
+
+test('pnpm clean keeps project root and rejects symlinked parent for virtual-store-dir', () => {
+  tempDir()
+  const outsideStore = path.resolve('..', 'outside', 'store')
+  fs.mkdirSync(outsideStore, { recursive: true })
+  fs.writeFileSync(path.join(outsideStore, 'keep.txt'), 'keep')
+  fs.symlinkSync(path.dirname(outsideStore), 'escape', process.platform === 'win32' ? 'junction' : 'dir')
+  writeJsonFile('package.json', { name: 'demo-app', version: '1.0.0' })
+
+  fs.mkdirSync('pnpm-lock.yaml', { recursive: true })
+  fs.writeFileSync(path.join('pnpm-lock.yaml', 'keep.txt'), 'keep')
+
+  for (const virtualStoreDir of ['.', '. ', '.. ', 'escape/store']) {
+    writeYamlFileSync('pnpm-workspace.yaml', { virtualStoreDir })
+    const result = execPnpmSync(['clean', '--lockfile'])
+    expect(result.status).toBe(0)
+    expect(fs.existsSync('package.json')).toBe(true)
+    expect(fs.existsSync(path.join(outsideStore, 'keep.txt'))).toBe(true)
+    expect(fs.existsSync(path.join('pnpm-lock.yaml', 'keep.txt'))).toBe(true)
+  }
+})
