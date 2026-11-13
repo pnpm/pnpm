@@ -1046,3 +1046,40 @@ test('getOptionsFromPnpmSettings() refuses registry aliases, which only a pnpr r
     },
   })).toThrow(/aliases" setting is not a known registry setting/)
 })
+
+test('getOptionsFromPnpmSettings() accepts valid strictSsl and localAddress', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    strictSsl: false,
+    localAddress: '127.0.0.1',
+  })
+  expect(options.strictSsl).toBe(false)
+  expect(options.localAddress).toBe('127.0.0.1')
+})
+
+test('getOptionsFromPnpmSettings() treats null strictSsl and localAddress as unset', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    strictSsl: null as unknown as boolean,
+    localAddress: null as unknown as string,
+  })
+  expect(options.strictSsl).toBeUndefined()
+  expect(options.localAddress).toBeUndefined()
+})
+
+test.each([
+  ['strictSsl', 123, 'number'],
+  ['strictSsl', 'false', 'string'],
+  ['strictSsl', ['true'], 'array'],
+  ['strictSsl', {}, 'object'],
+  ['localAddress', 123, 'number'],
+  ['localAddress', true, 'boolean'],
+  ['localAddress', ['127.0.0.1'], 'array'],
+  ['localAddress', {}, 'object'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedType) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: `The "${settingName}" setting should be a ${settingName === 'strictSsl' ? 'boolean' : 'string'}, but got ${expectedType}`,
+  }))
+})
+
