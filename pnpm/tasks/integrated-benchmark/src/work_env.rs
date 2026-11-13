@@ -19,7 +19,9 @@ mod injected_workspace;
 mod linked_workspace;
 mod unlocked_deps;
 
+mod registries_home;
 mod revision_auth;
+mod revision_mock;
 mod server_config;
 use server_config::{
     PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,

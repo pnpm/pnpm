@@ -7,8 +7,9 @@ use super::{
     fixtures::peer_heavy_package_name,
     may_create_lockfile,
     measurements::PhaseEvent,
-    non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
-    requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
+    non_trivial_cold_batch, read_phase_events,
+    registries_home::RegistriesHome,
+    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
     server_config::{
         cold_mock_config_yaml, pnpr_auth_config_key, pnpr_benchmark_config_yaml,
         serves_npm_under_base_path,
@@ -410,6 +411,7 @@ fn pnpr_benchmark_config_declares_local_registry_public() {
         &storage,
         &["http://localhost:4873/", "http://127.0.0.1:61824/"],
         serde_json::json!({"users": {"file": "users.json", "maxUsers": -1}}),
+        RegistriesHome::ConfigFile,
     );
 
     assert!(yaml.contains("registry: http://localhost:4873/"));
@@ -423,7 +425,12 @@ fn pnpr_benchmark_config_declares_local_registry_public() {
 fn pnpr_benchmark_config_relies_on_the_builtin_npm_route() {
     let storage = std::env::temp_dir().join("pnpr-benchmark-config-test-storage");
 
-    let yaml = pnpr_benchmark_config_yaml(&storage, &[], serde_json::json!({}));
+    let yaml = pnpr_benchmark_config_yaml(
+        &storage,
+        &[],
+        serde_json::json!({}),
+        RegistriesHome::ConfigFile,
+    );
 
     // No operator-declared public routes: npmjs resolution comes from the
     // built-in route, so the config never spells out an npmjs registry rule.
@@ -435,7 +442,7 @@ fn pnpr_benchmark_config_relies_on_the_builtin_npm_route() {
 fn cold_mock_config_declares_public_upstream_under_registries() {
     let storage = std::env::temp_dir().join("cold-mock-config-test-storage");
 
-    let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873");
+    let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873", RegistriesHome::ConfigFile);
 
     assert!(yaml.contains("registries:"));
     assert!(yaml.contains("type: upstream"));
@@ -765,15 +772,18 @@ fn registry_directory_reports_where_npm_is_served() {
 fn cold_mock_cleanup_preserves_server_metadata_and_empties_the_configured_cache() {
     let temp = tempfile::TempDir::new().unwrap();
     let storage = temp.path().join("cold-mock-storage");
-    let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873");
+    let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873", RegistriesHome::ConfigFile);
     let config: serde_json::Value = serde_saphyr::from_str(&yaml).unwrap();
     let cache = Path::new(config["cache"].as_str().unwrap());
     let server = super::server_config::cold_revision_mock_command(
-        "HEAD",
-        Path::new("pnpr"),
-        temp.path(),
-        4873,
-        "http://127.0.0.1:4873",
+        &super::server_config::RevisionMockLaunch {
+            revision: "HEAD",
+            binary: Path::new("pnpr"),
+            bench_dir: temp.path(),
+            port: 4873,
+            public_url: "http://127.0.0.1:4873",
+            registries: RegistriesHome::ConfigFile,
+        },
         "http://127.0.0.1:4874",
     );
     let args: Vec<_> = server.get_args().collect();

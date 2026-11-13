@@ -6413,6 +6413,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "sysinfo",
+ "tempfile",
  "tokio",
  "walkdir",
 ]
