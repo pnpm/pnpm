@@ -24,6 +24,11 @@ interface TreeNode {
   edgesOut: Map<string, Edge>
 }
 
+interface WorkspaceContext {
+  prefix: string
+  workspaces: string[]
+}
+
 const ALTERNATE_MANIFEST_NAMES = ['package.yaml', 'package.json5']
 
 /**
@@ -38,6 +43,25 @@ const ALTERNATE_MANIFEST_NAMES = ['package.yaml', 'package.json5']
  * ones that point outside the package.
  */
 class PackWalker extends VanishedEntriesWalker {
+  private readonly workspace?: WorkspaceContext
+
+  constructor (tree: ConstructorParameters<typeof npmPacklist.Walker>[0], opts?: Record<string, unknown> & { workspace?: WorkspaceContext }) {
+    super(tree, opts)
+    this.workspace = opts?.workspace
+  }
+
+  // A workspace package inherits the ignore files of the workspace
+  // directories above it unless the walk read an .npmignore in its root.
+  override filterEntries (): void {
+    if (this.workspace != null && this.ignoreRules['.npmignore'] == null) {
+      // The constructor injects only the default rules, which include the
+      // workspace's ignore files when given prefix and workspaces.
+      const workspaceWalker = new npmPacklist.Walker(this.tree, { ...this.workspace, path: this.path, isPackage: true })
+      Object.assign(this.ignoreRules, workspaceWalker.ignoreRules)
+    }
+    super.filterEntries()
+  }
+
   override onReaddir (entries: string[]): void {
     if (this.isPackage) {
       entries = entries.filter((entry) => !isLockfileStagingFile(entry))
@@ -163,27 +187,16 @@ export async function packlistWithSources (pkgDir: string, opts?: PacklistOption
   const boundary = hasWorkspaceContext ? workspaceDir : path.resolve(opts?.bundledDependenciesDir ?? resolvedPkgDir)
   const boundaries = getBoundaries(boundary, resolvedPkgDir)
   const { tree, packedDirs } = buildRootTree(resolvedPkgDir, pkg, boundaries)
-  const packlistOpts = hasWorkspaceContext && !await hasNpmIgnoreFile(resolvedPkgDir)
-    ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
-    : undefined
-  const files = (await walkPackage(tree, packlistOpts))
+  const workspace = hasWorkspaceContext ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] } : undefined
+  const files = (await walkPackage(tree, workspace))
     .map((file) => file.replace(/^\.[/\\]/, ''))
     .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file, boundaries))
   return mapToPackedPaths(resolvedPkgDir, files, packedDirs)
 }
 
-async function hasNpmIgnoreFile (pkgDir: string): Promise<boolean> {
-  try {
-    return (await fs.promises.stat(path.join(pkgDir, '.npmignore'))).isFile()
-  } catch (err: unknown) {
-    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-    return false
-  }
-}
-
-async function walkPackage (tree: TreeNode, packlistOpts: Record<string, unknown> | undefined): Promise<string[]> {
+async function walkPackage (tree: TreeNode, workspace: WorkspaceContext | undefined): Promise<string[]> {
   return new Promise<string[]>((resolve, reject) => {
-    new PackWalker(tree, { ...packlistOpts, isPackage: true })
+    new PackWalker(tree, { workspace, isPackage: true })
       .on('done', resolve)
       .on('error', reject)
       .start()
