@@ -73,6 +73,7 @@ fn reads_moves_and_unusual_paths_and_stops_before_a_shallow_boundary() {
 
 #[cfg(unix)]
 #[test]
+#[cfg_attr(target_os = "macos", ignore = "APFS rejects a file name that is not UTF-8")]
 fn reads_a_path_that_is_not_utf8() {
     use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
 
