@@ -268,7 +268,7 @@ async function repairGlobalVirtualStoreBinShimsIfNeeded (opts: InstallDepsOption
   const extraNodePaths = getExtraNodePaths({
     extendNodePath: opts.extendNodePath,
     hoistPattern: opts.hoistPattern,
-    nodeLinker: opts.nodeLinker,
+    nodeLinker: opts.nodeLinker ?? 'isolated',
     hoistedModulesDir: path.join(modulesDir, '.pnpm', 'node_modules'),
   })
   await repairGlobalVirtualStoreBinShims({
