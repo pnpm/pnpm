@@ -6,14 +6,17 @@ use super::{
     super::{
         SqlDatabase,
         adapter::{Connection, ReadSource, WriteTransaction},
-        schema::{self, LEGACY_AUTH_MARKER, LEGACY_MARKER, MARKER, SCHEMA_VERSION, Step, TABLES},
+        schema::{
+            self, ALPHA_TABLE, LEGACY_AUTH_MARKER, LEGACY_MARKER, MARKER, SCHEMA_VERSION, Step,
+            TABLES,
+        },
     },
     Db,
 };
 use pnpr_error::{RegistryError, Result};
 use std::{sync::Arc, time::Duration};
 
-pub(super) const PAYLOAD_TABLES: [&str; 9] = [
+pub(super) const PAYLOAD_TABLES: [&str; 11] = [
     "packages",
     "accepted_manifests",
     "release_records",
@@ -23,6 +26,8 @@ pub(super) const PAYLOAD_TABLES: [&str; 9] = [
     "cargo_versions",
     "pypi_files",
     "oci_manifests",
+    "version_notes",
+    "publication_notes",
 ];
 
 const V1_TABLES: &str = include_str!("fixtures/v1_tables.sql");
@@ -196,8 +201,7 @@ async fn an_empty_database_initializes(db: Db) {
     open(&db).await.unwrap();
     let tables = tables(&db).await;
     for table in schema::table_names(TABLES.sqlite) {
-        let dropped = schema::DROPPED_IN_STEP_3.contains(&table.as_str());
-        assert_eq!(tables.contains(&table), !dropped, "{table} in {tables:?}");
+        assert!(tables.contains(&table), "{table} not in {tables:?}");
     }
     assert!(tables.contains(&MARKER.to_string()));
     assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
@@ -376,13 +380,7 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
 
     let adapter = db.instance_adapter();
     tokio::task::spawn_blocking(move || {
-        let steps: &[Step] = &[
-            schema::step_1,
-            schema::step_2,
-            schema::step_3,
-            future_step_ddl,
-            future_step_data_fix,
-        ];
+        let steps: &[Step] = &[schema::step_1, future_step_ddl, future_step_data_fix];
         let refused = schema::prepare_adapter_with_steps(&*adapter, steps)?;
         assert_eq!(refused, None);
         Ok::<_, RegistryError>(())
@@ -391,7 +389,7 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
     .unwrap()
     .unwrap();
 
-    assert_eq!(marker(&db).await, [1, 2, 3, 4, 5]);
+    assert_eq!(marker(&db).await, [1, 2, 3]);
     assert_migrated_v1_fixture_rows(&db).await;
 }
 
@@ -459,7 +457,7 @@ async fn a_failed_step_is_not_recorded_and_can_be_rerun(db: Db) {
 }
 
 fn step_2_increment_generation(connection: &dyn Connection) -> Result<()> {
-    schema::step_2(connection)?;
+    connection.execute_ddl("ALTER TABLE auth_counters ADD COLUMN note TEXT")?;
     std::thread::sleep(Duration::from_millis(25));
     connection.execute(
         "UPDATE record_generation SET generation = generation + 1 WHERE singleton = 1",
@@ -618,12 +616,12 @@ async fn a_pre_1_0_auth_migrations_table_is_refused(db: Db) {
 async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
     open(&db).await.unwrap();
     // A wipe that drops metadata or auth tables but leaves the marker.
-    execute(&db, &["DROP TABLE namespaces", "DROP TABLE notes", "DROP TABLE users"]).await;
+    execute(&db, &["DROP TABLE namespaces", "DROP TABLE version_notes", "DROP TABLE users"]).await;
     let reason = refused(&db).await;
     assert!(
         reason.contains(&format!(
             "holds schema version {SCHEMA_VERSION} without the tables namespaces, \
-             notes, users,"
+             version_notes, users,"
         )),
         "{reason}",
     );
@@ -703,46 +701,55 @@ async fn auth_tables_without_a_marker_are_refused(db: Db) {
     );
 }
 
-/// MySQL commits each DDL statement, so an interrupted step 3 can leave a
-/// version-2 database without some of the tables it drops.
-async fn an_interrupted_step_3_reruns(db: Db) {
+async fn a_pre_1_0_alpha_database_is_refused(db: Db) {
+    execute(
+        &db,
+        &[
+            &format!("CREATE TABLE {ALPHA_TABLE} (namespace TEXT NOT NULL)"),
+            "CREATE TABLE schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL)",
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (1, 1), (2, 1), (3, 1)",
+        ],
+    )
+    .await;
+    let reason = refused(&db).await;
+    assert!(reason.contains(&format!("holds a pre-1.0 alpha {ALPHA_TABLE} table,")), "{reason}");
+    assert!(reason.contains("wipe pnpr's tables"), "{reason}");
+    assert!(!reason.contains("Upgrade pnpr"), "{reason}");
+}
+
+/// Every backend orders text keys by their bytes, as `SQLite` does.
+async fn text_keys_sort_by_bytes(db: Db) {
+    open(&db).await.unwrap();
+    execute(
+        &db,
+        &[
+            "INSERT INTO namespaces (namespace, generation) VALUES ('b', 1), ('B', 1), ('a-b', 1), ('ab', 1), ('a', 1)",
+        ],
+    )
+    .await;
     let adapter = db.adapter();
-    tokio::task::spawn_blocking(move || {
-        adapter.write(&mut |connection| {
-            let transaction = WriteTransaction::begin(connection)?;
-            for statement in schema::statements(TABLES.get(transaction.dialect())) {
-                transaction.execute_ddl(&statement)?;
-            }
-            transaction.execute(schema::MARKER_TABLE.get(transaction.dialect()), params![])?;
-            schema::STEPS[1](&*transaction)?;
-            for version in 1..=2 {
-                transaction.execute(
-                    &format!("INSERT INTO {MARKER} (version, applied_at) VALUES (?1, 1)"),
-                    params![version],
-                )?;
-            }
-            transaction.execute_ddl(&format!("DROP TABLE {}", schema::DROPPED_IN_STEP_3[0]))?;
-            transaction.commit()
-        })
+    let order = tokio::task::spawn_blocking(move || {
+        let mut order = Vec::new();
+        adapter.read(ReadSource::Primary, &mut |connection| {
+            order = connection
+                .query("SELECT namespace FROM namespaces ORDER BY namespace", params![])?
+                .into_iter()
+                .map(|mut row| row.get::<String>(0))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(())
+        })?;
+        Ok::<_, RegistryError>(order)
     })
     .await
     .unwrap()
     .unwrap();
-
-    open(&db).await.unwrap();
-    assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
-    let tables = tables(&db).await;
-    for created in schema::CREATED_IN_STEP_3 {
-        assert!(tables.contains(&(*created).to_string()), "{created} not in {tables:?}");
-    }
-    for retired in schema::DROPPED_IN_STEP_3 {
-        assert!(!tables.contains(&(*retired).to_string()), "{retired} in {tables:?}");
-    }
+    assert_eq!(order, ["B", "a", "a-b", "ab", "b"]);
 }
 
 conformance! {
-    an_interrupted_step_3_reruns,
     an_empty_database_initializes,
+    a_pre_1_0_alpha_database_is_refused,
+    text_keys_sort_by_bytes,
     unused_metadata_objects_are_absent,
     applying_every_step_matches_the_fresh_schema,
     applying_from_each_released_version_fixture_preserves_data_and_advances,
@@ -768,7 +775,9 @@ fn every_schema_table_is_known() {
     let tables = schema::table_names(TABLES.sqlite);
     assert_eq!(tables.len(), TABLES.sqlite.matches("CREATE TABLE").count(), "{tables:?}");
     assert!(tables.contains(&"namespaces".to_string()));
-    assert!(tables.contains(&"notes".to_string()));
+    assert!(tables.contains(&"version_notes".to_string()));
+    assert!(tables.contains(&"publication_notes".to_string()));
+    assert!(!tables.contains(&ALPHA_TABLE.to_string()));
     assert!(tables.contains(&"removed_oci_manifests".to_string()));
     assert!(!tables.contains(&"note_history".to_string()));
     assert!(tables.contains(&"users".to_string()));

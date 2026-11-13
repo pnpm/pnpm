@@ -255,21 +255,21 @@ fn record_removed_all_oci_digests(
 }
 
 const RECORD_REMOVED_MANIFESTS: DialectSql = DialectSql {
-    sqlite: "INSERT INTO removed_oci_manifests (namespace, name, artifact, generation)
-             SELECT ?1, ?2, value, ?4
-             FROM (SELECT value FROM json_each(?3)) AS removed
+    sqlite: "INSERT INTO removed_oci_manifests (namespace, ecosystem, name, artifact, generation)
+             SELECT ?1, ?2, ?3, value, ?5
+             FROM (SELECT value FROM json_each(?4)) AS removed
              WHERE value != ''
-             ON CONFLICT (namespace, name, artifact) DO UPDATE SET
+             ON CONFLICT (namespace, ecosystem, name, artifact) DO UPDATE SET
                generation = excluded.generation",
-    postgres: "INSERT INTO removed_oci_manifests (namespace, name, artifact, generation)
-               SELECT ?1, ?2, value, ?4
-               FROM (SELECT value FROM json_array_elements_text(CAST(?3 AS JSON)) AS elements(value)) AS removed
+    postgres: "INSERT INTO removed_oci_manifests (namespace, ecosystem, name, artifact, generation)
+               SELECT ?1, ?2, ?3, value, ?5
+               FROM (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value)) AS removed
                WHERE value != ''
-               ON CONFLICT (namespace, name, artifact) DO UPDATE SET
+               ON CONFLICT (namespace, ecosystem, name, artifact) DO UPDATE SET
                  generation = excluded.generation",
-    mysql: "INSERT INTO removed_oci_manifests (namespace, name, artifact, generation)
-            SELECT ?1, ?2, value, ?4
-            FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?3, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
+    mysql: "INSERT INTO removed_oci_manifests (namespace, ecosystem, name, artifact, generation)
+            SELECT ?1, ?2, ?3, value, ?5
+            FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
             WHERE value != ''
             ON DUPLICATE KEY UPDATE generation = VALUES(generation)",
 };
@@ -287,11 +287,11 @@ pub(super) fn record_removed_oci_digests<'digests>(
     if removed.is_empty() {
         return Ok(());
     }
-    let (namespace, _, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let removed = super::blobs::json_array(&removed);
     connection.execute(
         RECORD_REMOVED_MANIFESTS.get(connection.dialect()),
-        params![namespace, name, removed, to_column(generation)],
+        params![namespace, ecosystem, name, removed, to_column(generation)],
     )
 }
 

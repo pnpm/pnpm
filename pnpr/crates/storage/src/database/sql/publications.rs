@@ -67,6 +67,7 @@ pub(super) fn claim_query<'query>(
                                OR (member.ecosystem = 'oci' AND EXISTS (
                                    SELECT 1 FROM removed_oci_manifests AS removed
                                    WHERE removed.namespace = member.namespace
+                                     AND removed.ecosystem = member.ecosystem
                                      AND removed.name = member.name
                                      AND removed.artifact = member.artifact
                                      AND removed.generation > outcome.generation

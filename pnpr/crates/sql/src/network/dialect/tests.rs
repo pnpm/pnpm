@@ -30,7 +30,7 @@ fn the_mysql_marker_table_carries_the_init_comment() {
 }
 
 /// The tables, columns, keys, and indexes `sql` creates, with column types
-/// mapped to `SQLite`'s. A partial index compares by its columns alone,
+/// and collations mapped to `SQLite`'s. A partial index compares by its columns alone,
 /// because `MySQL` has none.
 fn schema_contract(sql: &str) -> Vec<String> {
     crate::schema::statements(sql)
@@ -47,6 +47,7 @@ fn schema_contract(sql: &str) -> Vec<String> {
                 .replace("LONGBLOB", "BLOB")
                 .replace("BYTEA", "BLOB")
                 .replace("BIGINT", "INTEGER")
+                .replace(" COLLATE \"C\"", "")
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" ")

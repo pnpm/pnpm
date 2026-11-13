@@ -181,9 +181,8 @@ their version in `schema_migrations` after completing on MySQL.
 
 pnpr refuses a database from a newer release. It refuses a database whose
 `schema_migrations` table cannot be read, or that records a version but lacks
-some of pnpr's tables. It also refuses a pre-1.0 database without
-`schema_migrations` (such as one holding `schema_version`,
-`auth_schema_migrations`, or unmarked tables) before changing anything in it.
+some of pnpr's tables. It also refuses a database created by a pre-1.0 release,
+including the `0.1.0-alpha` releases, before changing anything in it.
 To replace a pre-1.0 database, drop its pnpr tables (or delete the SQLite file
 and its `-wal` and `-shm` files) together with the hosted store, or move to a
 fresh hosted store (such as a new storage directory or bucket prefix) and a

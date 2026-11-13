@@ -58,7 +58,7 @@ fn assert_timestamps(connection: &dyn Connection, before: i64) -> pnpr_error::Re
         ("versions", "published_at"),
         ("publications", "committed_at"),
         ("tag_history", "changed_at"),
-        ("notes", "modified_at"),
+        ("version_notes", "modified_at"),
     ] {
         assert_timestamp_column(connection, columns, before)?;
     }
@@ -102,7 +102,8 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
                 ("publications", "committed_at"),
                 ("publication_outcomes", "committed_at"),
                 ("tag_history", "changed_at"),
-                ("notes", "modified_at"),
+                ("version_notes", "modified_at"),
+                ("publication_notes", "modified_at"),
                 ("blobs", "changed_at"),
                 ("artifact_blobs", "mapped_at"),
                 ("staged_archives", "staged_at"),
