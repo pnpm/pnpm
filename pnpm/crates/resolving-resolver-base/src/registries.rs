@@ -119,7 +119,6 @@ pub struct RegistryPrefixes {
 }
 
 impl RegistryPrefixes {
-    /// `prefix` followed by `aliases`.
     pub fn iter(&self) -> impl Iterator<Item = &str> {
         self.prefix
             .as_deref()

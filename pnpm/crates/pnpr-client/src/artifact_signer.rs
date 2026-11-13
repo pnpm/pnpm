@@ -42,10 +42,9 @@ impl ArtifactSigner {
             builder_id: required(settings.builder_id, "builderId")?,
             builder_profile: BuilderProfile {
                 image_digest: settings.image_digest.map(str::to_owned),
-                architecture_baseline: settings.architecture_baseline.map_or_else(
-                    || pnpm_graph_hasher::host_arch().to_string(),
-                    str::to_owned,
-                ),
+                architecture_baseline: settings.architecture_baseline
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| pnpm_graph_hasher::host_arch().to_string()),
                 environment: settings.build_env.cloned().unwrap_or_default(),
             },
         })
