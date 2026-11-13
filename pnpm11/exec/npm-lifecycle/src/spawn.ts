@@ -92,21 +92,41 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
 
 function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw: ChildProcess, watchdog?: ProcessGroupWatchdog } {
   if (!options.detached || process.platform === 'win32') return { raw: spawnProcess(cmd, args, options) }
-  const executable = resolveScript(cmd, options)
-  const usesBash = path.basename(cmd) === 'bash'
-  const sh = which.sync('sh', { nothrow: true })
-  const shell = usesBash ? executable : sh
-  const command = usesBash ? preserveBashOptions(cmd, args, options.env ?? process.env) : [cmd, ...args]
-  if (sh == null || shell == null || executable == null || command == null) {
-    return { raw: spawnProcess(cmd, args, options) }
-  }
+  const launch = planLaunch(cmd, args, options)
   const stdio = scriptStdio(options.stdio)
   // POSIX shells only guarantee single-digit descriptors.
-  if (stdio.length > 8) return { raw: spawnProcess(cmd, args, options) }
-  const watch = prepareProcessGroupWatchdog()
+  const watch = launch == null || stdio.length > 8 ? undefined : prepareProcessGroupWatchdog()
+  if (launch == null || watch == null) return { raw: spawnProcess(cmd, args, options) }
   const descriptor = stdio.length
   const receipt = descriptor + 1
-  const registration = [
+  const raw = spawnProcess(path.resolve(launch.shell), [...launch.flags, registrationScript(descriptor, receipt), launch.shell, ...launch.command], {
+    ...options,
+    stdio: [...stdio, watch.lifeline, 'pipe'],
+  })
+  if (raw.pid != null) recoverScriptRegistration(raw, receipt, () => watch.recover(raw.pid!))
+  return { raw, watchdog: raw.pid == null ? undefined : watch.watch(raw.pid) }
+}
+
+interface Launch {
+  shell: string
+  flags: string[]
+  command: string[]
+}
+
+function planLaunch (cmd: string, args: string[], options: SpawnOptions): Launch | undefined {
+  const executable = resolveScript(cmd, options)
+  // The watchdog itself runs on sh.
+  const sh = which.sync('sh', { nothrow: true })
+  const launcher = executable == null || sh == null ? undefined : selectLauncher(cmd, { executable, sh })
+  if (launcher == null) return undefined
+  if (!launcher.bash) return { shell: launcher.shell, flags: ['-c'], command: [cmd, ...args] }
+  const command = preserveBashOptions(cmd, args, options.env ?? process.env)
+  // Bash -p preserves exported functions without loading BASH_ENV before registration.
+  return command == null ? undefined : { shell: launcher.shell, flags: ['-p', '-c'], command }
+}
+
+function registrationScript (descriptor: number, receipt: number): string {
+  return [
     "trap '' PIPE",
     `if ! printf '+%s\\n' "$$" >&${descriptor} 2>/dev/null; then`,
     `  printf 'retry\\n' >&${receipt} || exit $?`,
@@ -117,14 +137,20 @@ function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw
     'trap - PIPE',
     'exec "$@"',
   ].join('\n')
-  // Bash -p preserves exported functions without loading BASH_ENV before registration.
-  const shellFlags = usesBash ? ['-p', '-c'] : ['-c']
-  const raw = spawnProcess(path.resolve(shell), [...shellFlags, registration, shell, ...command], {
-    ...options,
-    stdio: [...stdio, watch.lifeline, 'pipe'],
-  })
-  if (raw.pid != null) recoverScriptRegistration(raw, receipt, () => watch.recover(raw.pid!))
-  return { raw, watchdog: raw.pid == null ? undefined : watch.watch(raw.pid) }
+}
+
+/**
+ * The shell that registers the script before exec. sh is used only for an sh
+ * script: dash drops environment variables whose names are not identifiers,
+ * so any other script registers through Bash, or without a launcher when
+ * there is no Bash.
+ */
+function selectLauncher (cmd: string, shells: { executable: string, sh: string }): { shell: string, bash: boolean } | undefined {
+  const name = path.basename(cmd)
+  if (name === 'sh' || name === 'dash') return { shell: shells.sh, bash: false }
+  if (name === 'bash') return { shell: shells.executable, bash: true }
+  const bash = which.sync('bash', { nothrow: true })
+  return bash == null ? undefined : { shell: bash, bash: true }
 }
 
 function preserveBashOptions (cmd: string, args: string[], environment: NodeJS.ProcessEnv): string[] | undefined {

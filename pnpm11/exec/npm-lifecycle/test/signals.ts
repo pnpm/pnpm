@@ -52,6 +52,41 @@ testOnPosix.each([
   }
 }, 15_000)
 
+testOnPosix('a script run by a shell other than sh keeps environment variables that are not identifiers', () => {
+  const directory = temporaryDirectory()
+  try {
+    fs.symlinkSync(which.sync('dash', { nothrow: true }) ?? '/bin/sh', path.join(directory, 'sh'))
+    fs.symlinkSync('/bin/bash', path.join(directory, 'other-shell'))
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'bash.mjs'), directory, path.join(directory, 'other-shell'), 'non-identifier'], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        PATH: `${directory}${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}`,
+        'NON-IDENTIFIER': 'kept',
+      },
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect({ status: result.status, stderr: result.stderr }).toStrictEqual({ status: 0, stderr: '' })
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
+
+testOnPosix('a script runs when the watchdog cannot be started', () => {
+  const directory = temporaryDirectory()
+  try {
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'unavailable.mjs'), directory, 'runner'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect({ status: result.status, stderr: result.stderr }).toStrictEqual({ status: 0, stderr: '' })
+    expect(fs.readFileSync(path.join(directory, 'ran'), 'utf8')).toBe('ran')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
+
 testOnPosix.each(['observed', 'pending', 'destroyed'])('a script starts after its inherited watchdog pipe loses its reader (%s replacement)', (replacement) => {
   const directory = temporaryDirectory()
   try {

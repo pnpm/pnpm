@@ -368,9 +368,13 @@ export interface ProcessGroupWatchdog {
 const watchedLeaders: number[] = []
 let watchdogLifeline: Writable | undefined
 
-/** The child writes its registration before exec and closes its copy of the lifeline. */
-export function prepareProcessGroupWatchdog (): PreparedProcessGroupWatchdog {
+/**
+ * The child writes its registration before exec and closes its copy of the
+ * lifeline. Returns `undefined` when no watchdog can be started.
+ */
+export function prepareProcessGroupWatchdog (): PreparedProcessGroupWatchdog | undefined {
   const lifeline = getWatchdogLifeline()
+  if (lifeline == null) return undefined
   return {
     lifeline,
     watch: (leader) => {
@@ -403,13 +407,14 @@ async function recoverProcessGroupWatchdog (lifeline: Writable, leader: number):
   return flushWatchdogRegistration()
 }
 
-function flushWatchdogRegistration (): Promise<void> {
-  return writeWatchdogRegistration(getWatchdogLifeline(), '')
+async function flushWatchdogRegistration (): Promise<void> {
+  const lifeline = getWatchdogLifeline()
+  if (lifeline != null) await writeWatchdogRegistration(lifeline, '')
 }
 
-function getWatchdogLifeline (): Writable {
+function getWatchdogLifeline (): Writable | undefined {
   if (watchdogLifeline == null || watchdogLifeline.destroyed) startWatchdog()
-  return watchdogLifeline!
+  return watchdogLifeline
 }
 
 function writeWatchdogRegistration (lifeline: Writable, line: string): Promise<void> {
@@ -437,7 +442,7 @@ function writeWatchdogRegistration (lifeline: Writable, line: string): Promise<v
 export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
   const lifeline = getWatchdogLifeline()
   watchedLeaders.push(leader)
-  lifeline.write(`+${leader}\n`)
+  lifeline?.write(`+${leader}\n`)
   return createProcessGroupWatch(leader)
 }
 
@@ -466,6 +471,11 @@ function startWatchdog (): void {
     detached: true,
     stdio: ['pipe', 'ignore', 'ignore'],
   })
+  // A failed spawn still returns a stdin that cannot be passed to a child.
+  if (watchdog.pid == null) {
+    watchdog.on('error', () => {})
+    return
+  }
   const lifeline = watchdog.stdin!
   watchdogLifeline = lifeline
   const forget = (): void => {
