@@ -2,6 +2,7 @@ import { globalWarn } from '@pnpm/logger'
 import {
   type DependenciesField,
   type EngineDependency,
+  isPlainObject,
   type ProjectManifest,
   RUNTIME_NAMES,
 } from '@pnpm/types'
@@ -38,6 +39,9 @@ function addRuntimeDependency (
     return
   }
   const deps = (manifest[dependenciesFieldName] ??= {})
+  if (!isPlainObject(deps)) {
+    return
+  }
   // Use Object.defineProperty so a future RUNTIME_NAMES entry that
   // happens to match an inherited property name (`__proto__`,
   // `constructor`, `prototype`) becomes a regular own data property
@@ -72,7 +76,7 @@ export function applyRuntimeOnFailOverride (
 }
 
 function removeRuntimeDependencies (deps: Record<string, string> | undefined, runtimes: EngineDependency[]): void {
-  if (!deps) return
+  if (!isPlainObject(deps)) return
   for (const runtimeName of RUNTIME_NAMES) {
     if (
       runtimes.some(runtime => runtime.name === runtimeName) &&

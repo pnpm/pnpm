@@ -3,6 +3,14 @@ import * as utils from '@pnpm/workspace.project-manifest-reader'
 
 import { packageIsInstallable } from './packageIsInstallable.js'
 
+export {
+  type RawProjectManifest,
+  readRawProjectManifest,
+  readRawProjectManifestOnly,
+  type ReadRawProjectManifestResult,
+  type WriteRawProjectManifest,
+} from '@pnpm/workspace.project-manifest-reader'
+
 export interface ReadProjectManifestOpts {
   engineStrict?: boolean
   nodeVersion?: string

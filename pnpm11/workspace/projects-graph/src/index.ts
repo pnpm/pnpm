@@ -4,7 +4,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import npa from '@pnpm/npm-package-arg'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/resolving.npm-resolver'
-import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
+import { type BaseManifest, isPlainObject, type ProjectRootDir } from '@pnpm/types'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { map as mapValues } from 'ramda'
 
@@ -59,15 +59,20 @@ interface GraphResolutionContext {
 
 function resolveProjectDependencies (project: BaseProject, ctx: GraphResolutionContext): string[] {
   const dependencies = {
-    ...project.manifest.peerDependencies,
-    ...(!ctx.ignoreDevDeps && project.manifest.devDependencies),
-    ...project.manifest.optionalDependencies,
-    ...project.manifest.dependencies,
+    ...plainDependencyMap(project.manifest.peerDependencies),
+    ...(!ctx.ignoreDevDeps && plainDependencyMap(project.manifest.devDependencies)),
+    ...plainDependencyMap(project.manifest.optionalDependencies),
+    ...plainDependencyMap(project.manifest.dependencies),
   }
 
   return Object.entries(dependencies)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     .map(([depName, rawSpec]) => resolveDepToProject(project, depName, rawSpec, ctx))
     .filter((rootDir): rootDir is string => Boolean(rootDir))
+}
+
+function plainDependencyMap (value: unknown): Record<string, unknown> | undefined {
+  return isPlainObject(value) ? value : undefined
 }
 
 function resolveDepToProject (
@@ -156,7 +161,7 @@ function resolveVersionDependency ({
   const candidates = ctx.projectMapByManifestName.get(depName)
   if (!candidates || candidates.length === 0) return ''
 
-  const versions = candidates.filter(({ manifest }) => manifest.version)
+  const versions = candidates.filter(({ manifest }) => typeof manifest.version === 'string' && manifest.version)
     .map(candidate => candidate.manifest.version) as string[]
 
   if (ctx.linkWorkspacePackages === false && !isWorkspaceSpec) {
@@ -235,7 +240,7 @@ function getProjectMapByManifestName (projectMapValues: BaseProject[]): Map<stri
   const projectMapByManifestName = new Map<string, BaseProject[]>()
   for (const project of projectMapValues) {
     const { name } = project.manifest
-    if (!name) continue
+    if (typeof name !== 'string' || !name) continue
     const projects = projectMapByManifestName.get(name)
     if (projects == null) {
       projectMapByManifestName.set(name, [project])

@@ -73,3 +73,22 @@ test('applyRuntimeOnFailOverride(ignore) preserves explicit runtime dependencies
 
   expect(manifest.devDependencies?.node).toBe('runtime:22.20.0')
 })
+
+test('convertEnginesRuntimeToDependencies() skips non-object dependency fields', () => {
+  const manifest = {
+    devDependencies: 'invalid',
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      },
+    },
+  } as unknown as ProjectManifest
+
+  expect(() => {
+    convertEnginesRuntimeToDependencies(manifest, 'devEngines', 'devDependencies')
+    applyRuntimeOnFailOverride(manifest, 'ignore')
+  }).not.toThrow()
+  expect(manifest.devDependencies).toBe('invalid')
+})
