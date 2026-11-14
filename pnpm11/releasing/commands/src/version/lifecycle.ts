@@ -100,24 +100,36 @@ export async function runVersionLifecycleHook (
     return
   }
   const reportOnlyOnFailure = opts.loglevel === 'warn' || opts.loglevel === 'error'
-  await runPipedLifecycleHookToStderr(stage, manifest, lifecycleOpts, reportOnlyOnFailure)
+  await runPipedLifecycleHookToStderr({ stage, manifest, lifecycleOpts, reportOnlyOnFailure })
+}
+
+const MAX_BUFFERED_LIFECYCLE_LINES = 1000
+
+interface RunPipedLifecycleHookOptions {
+  stage: 'preversion' | 'version' | 'postversion'
+  manifest: ProjectManifest
+  lifecycleOpts: RunLifecycleHookOptions
+  reportOnlyOnFailure: boolean
 }
 
 /**
  * Runs a piped lifecycle hook and forwards its captured output lines to
  * `stderr`, since `--json` disables the CLI reporter to keep `stdout` pure.
- * At `warn` and `error` log levels, output is buffered and written only when
- * the hook fails.
+ * At `warn` and `error` log levels, up to {@link MAX_BUFFERED_LIFECYCLE_LINES}
+ * trailing lines are buffered and written only when the hook fails.
  */
-async function runPipedLifecycleHookToStderr (
-  stage: 'preversion' | 'version' | 'postversion',
-  manifest: ProjectManifest,
-  lifecycleOpts: RunLifecycleHookOptions,
-  reportOnlyOnFailure: boolean
-): Promise<void> {
+async function runPipedLifecycleHookToStderr ({
+  stage,
+  manifest,
+  lifecycleOpts,
+  reportOnlyOnFailure,
+}: RunPipedLifecycleHookOptions): Promise<void> {
   const bufferedLines: string[] = []
   const handler: LifecycleLineHandler = reportOnlyOnFailure
     ? (line) => {
+      if (bufferedLines.length >= MAX_BUFFERED_LIFECYCLE_LINES) {
+        bufferedLines.shift()
+      }
       bufferedLines.push(line)
     }
     : (line) => {
