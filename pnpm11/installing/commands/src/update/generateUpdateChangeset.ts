@@ -9,7 +9,7 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import type { Project, ProjectManifest, ProjectRootDir, VersioningSettings } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -20,6 +20,7 @@ export interface CaptureUpdateChangesetContextOptions {
   allProjects?: Project[]
   dir: string
   engineStrict?: boolean
+  versioning?: VersioningSettings
   workspaceDir?: string
   workspacePackagePatterns?: string[]
 }
@@ -32,6 +33,7 @@ export interface UpdateChangesetContext {
   rootDirs: ProjectRootDir[]
   depSpecsBefore: Map<ProjectRootDir, UpdateDepSpecs | null>
   catalogsBefore: Catalogs
+  versioning?: VersioningSettings
 }
 
 /**
@@ -62,6 +64,7 @@ export async function captureUpdateChangesetContext (opts: CaptureUpdateChangese
     rootDirs,
     depSpecsBefore: new Map(depSpecsEntries),
     catalogsBefore: getCatalogsFromWorkspaceManifest(workspaceManifest),
+    versioning: opts.versioning ?? workspaceManifest?.versioning,
   }
 }
 
@@ -75,25 +78,52 @@ export async function captureUpdateChangesetContext (opts: CaptureUpdateChangese
  */
 export async function generateUpdateChangeset (ctx: UpdateChangesetContext): Promise<void> {
   const changesetDir = path.join(ctx.workspaceDir, '.changeset')
-  await ensureChangesetDirIsSafe(changesetDir)
-  const changesetConfigPath = path.join(changesetDir, 'config.json')
-  const changesetConfig = await readChangesetConfig(changesetConfigPath)
-  if (changesetConfig == null) {
-    globalWarn(`No changeset was generated because ${changesetConfigPath} does not exist`)
+  const inputs = await loadChangesetInputs(ctx, changesetDir)
+  if (!inputs) {
+    globalWarn(`No changeset was generated because ${changesetDir} does not exist and versioning is not configured in pnpm-workspace.yaml`)
     return
   }
-  const catalogsAfter = getCatalogsFromWorkspaceManifest(await readWorkspaceManifest(ctx.workspaceDir))
-  const changedCatalogEntries = findChangedCatalogEntries(ctx.catalogsBefore, catalogsAfter)
-  const isIgnored = createMatcher(Array.isArray(changesetConfig.ignore) ? changesetConfig.ignore : [])
-  const releases = (await Promise.all(
-    ctx.rootDirs.map(async (rootDir) => detectRelease({ ctx, rootDir, isIgnored, changedCatalogEntries }))
-  )).filter((release) => release != null)
+  const releases = await collectAffectedReleases(ctx, inputs)
   if (releases.length === 0) {
     globalInfo('No changeset was generated because the update did not change the production or peer dependencies of any workspace package')
     return
   }
-  releases.sort((a, b) => lexCompare(a.name, b.name))
+  releases.sort((left, right) => lexCompare(left.name, right.name))
   await writeChangeset(changesetDir, releases)
+}
+
+interface ChangesetInputs {
+  changedCatalogEntries: Map<string, Set<string>>
+  isIgnored: (name: string, projectDir: string) => boolean
+}
+
+async function loadChangesetInputs (ctx: UpdateChangesetContext, changesetDir: string): Promise<ChangesetInputs | null> {
+  const changesetDirExists = await ensureChangesetDirIsSafe(changesetDir)
+  const changesetConfig = await readChangesetConfig(path.join(changesetDir, 'config.json'))
+  const workspaceManifestAfter = await readWorkspaceManifest(ctx.workspaceDir)
+  const versioning = ctx.versioning ?? workspaceManifestAfter?.versioning
+  if (!changesetDirExists && changesetConfig == null && versioning == null) return null
+  return {
+    changedCatalogEntries: findChangedCatalogEntries(ctx.catalogsBefore, getCatalogsFromWorkspaceManifest(workspaceManifestAfter)),
+    isIgnored: createIgnoredProjectChecker(changesetConfig, versioning),
+  }
+}
+
+async function collectAffectedReleases (ctx: UpdateChangesetContext, inputs: ChangesetInputs): Promise<Release[]> {
+  const manifests = await Promise.all(
+    ctx.rootDirs.map(async (rootDir) => [rootDir, await safeReadProjectManifestOnly(rootDir)] as const)
+  )
+  const nameCounts = countPackageNames(manifests)
+  return manifests
+    .map(([rootDir, manifest]) => detectRelease({
+      ctx,
+      rootDir,
+      manifest,
+      isIgnored: inputs.isIgnored,
+      nameCounts,
+      changedCatalogEntries: inputs.changedCatalogEntries,
+    }))
+    .filter((release): release is Release => release != null)
 }
 
 interface Release {
@@ -104,25 +134,72 @@ interface Release {
 interface DetectReleaseOptions {
   ctx: UpdateChangesetContext
   rootDir: ProjectRootDir
-  isIgnored: (name: string) => boolean
+  manifest: ProjectManifest | null
+  isIgnored: (name: string, projectDir: string) => boolean
+  nameCounts: Map<string, number>
   changedCatalogEntries: Map<string, Set<string>>
 }
 
-async function detectRelease ({ ctx, rootDir, isIgnored, changedCatalogEntries }: DetectReleaseOptions): Promise<Release | undefined> {
-  const manifest = await safeReadProjectManifestOnly(rootDir)
-  if (!manifest?.name || manifest.private || isIgnored(manifest.name)) return undefined
+function detectRelease ({ ctx, rootDir, manifest, isIgnored, nameCounts, changedCatalogEntries }: DetectReleaseOptions): Release | undefined {
+  const projectDir = normalizeProjectDir(path.relative(ctx.workspaceDir, rootDir))
+  if (!manifest?.name || manifest.private || isIgnored(manifest.name, projectDir)) return undefined
+  const reference = (nameCounts.get(manifest.name) ?? 0) > 1 ? `./${projectDir}` : manifest.name
   const depSpecs = pickUpdateDepSpecs(manifest)
   const depSpecsBefore = ctx.depSpecsBefore.get(rootDir)
   const peerDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'peerDependencies') ||
     usesChangedCatalogEntry([depSpecs.peerDependencies], changedCatalogEntries)
-  if (peerDependenciesChanged) return { name: manifest.name, type: 'major' }
+  if (peerDependenciesChanged) return { name: reference, type: 'major' }
   const productionDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'dependencies') ||
     dependencyGroupChanged(depSpecsBefore, depSpecs, 'optionalDependencies') ||
     usesChangedCatalogEntry([depSpecs.dependencies, depSpecs.optionalDependencies], changedCatalogEntries)
-  return productionDependenciesChanged ? { name: manifest.name, type: 'patch' } : undefined
+  return productionDependenciesChanged ? { name: reference, type: 'patch' } : undefined
+}
+
+function createIgnoredProjectChecker (
+  changesetConfig: ChangesetConfig | null,
+  versioning: VersioningSettings | undefined
+): (name: string, projectDir: string) => boolean {
+  const matchesConfigIgnore = createMatcher(Array.isArray(changesetConfig?.ignore) ? changesetConfig.ignore : [])
+  const ignoredNames = new Set<string>()
+  const ignoredDirs = new Set<string>()
+  for (const entry of versioning?.ignore ?? []) {
+    if (entry.startsWith('./')) {
+      ignoredDirs.add(normalizeProjectDir(entry))
+    } else {
+      ignoredNames.add(entry)
+    }
+  }
+  return (name, projectDir) => matchesConfigIgnore(name) || ignoredNames.has(name) || ignoredDirs.has(projectDir)
+}
+
+function countPackageNames (manifests: ReadonlyArray<readonly [ProjectRootDir, ProjectManifest | null]>): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const [, manifest] of manifests) {
+    if (manifest?.name != null) {
+      counts.set(manifest.name, (counts.get(manifest.name) ?? 0) + 1)
+    }
+  }
+  return counts
+}
+
+function normalizeProjectDir (dir: string): string {
+  let normalized = dir.replaceAll('\\', '/')
+  while (normalized.startsWith('./')) {
+    normalized = normalized.slice(2)
+  }
+  return normalized.replace(/\/+$/, '')
 }
 
 async function writeChangeset (changesetDir: string, releases: Release[]): Promise<void> {
+  if (!(await ensureChangesetDirIsSafe(changesetDir))) {
+    try {
+      await fs.promises.mkdir(changesetDir)
+    } catch (err: unknown) {
+      if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) {
+        throw err
+      }
+    }
+  }
   await ensureChangesetDirIsSafe(changesetDir)
   const changesetPath = path.join(changesetDir, `pnpm-update-${crypto.randomBytes(4).toString('hex')}.md`)
   await fs.promises.writeFile(changesetPath, formatChangeset(releases), { flag: 'wx' })
@@ -148,13 +225,13 @@ async function readChangesetConfig (configPath: string): Promise<ChangesetConfig
   }
 }
 
-async function ensureChangesetDirIsSafe (changesetDir: string): Promise<void> {
+async function ensureChangesetDirIsSafe (changesetDir: string): Promise<boolean> {
   let stat
   try {
     stat = await fs.promises.lstat(changesetDir)
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') {
-      return
+      return false
     }
     throw new PnpmError(
       'UNSAFE_CHANGESET_DIR',
@@ -165,6 +242,7 @@ async function ensureChangesetDirIsSafe (changesetDir: string): Promise<void> {
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
     throw new PnpmError('UNSAFE_CHANGESET_DIR', `Refusing to use changeset directory at ${changesetDir} because it is a symlink or not a directory`)
   }
+  return true
 }
 
 function pickUpdateDepSpecs (manifest: ProjectManifest): UpdateDepSpecs {

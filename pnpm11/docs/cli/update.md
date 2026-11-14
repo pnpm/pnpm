@@ -143,7 +143,7 @@ Don't update the ranges in `package.json`.
 
 Added in: v11.16.0
 
-After the update completes, write a [change intent](../versioning.md) (a changesets-compatible `.changeset/*.md` file) declaring a `patch` bump for every workspace package whose `dependencies` or `optionalDependencies` were changed by the update, and a `major` bump when its `peerDependencies` changed. Packages that consume an updated catalog entry via the `catalog:` protocol are included. Private packages, packages without a name, and packages listed in the `ignore` array of `.changeset/config.json` are skipped. If `.changeset/config.json` does not exist, a warning is printed and no changeset is generated.
+After the update completes, write a [change intent](../versioning.md) (a changesets-compatible `.changeset/*.md` file) declaring a `patch` bump for every workspace package whose `dependencies` or `optionalDependencies` were changed by the update, and a `major` bump when its `peerDependencies` changed. Packages that consume an updated catalog entry via the `catalog:` protocol are included. Private packages, packages without a name, and packages listed in [`versioning.ignore`](../settings/versioning.md#versioningignore) or in the `ignore` array of `.changeset/config.json` are skipped. If neither the `.changeset` directory nor `versioning` in `pnpm-workspace.yaml` exists, a warning is printed and no changeset is generated.
 
 Set [`update.changeset`](../settings/dependency-resolution.md#updatechangeset) to `true` in `pnpm-workspace.yaml` to enable this behavior by default, and use `--no-changeset` to override the setting for one update.
 

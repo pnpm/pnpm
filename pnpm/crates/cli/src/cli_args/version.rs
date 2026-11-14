@@ -91,7 +91,7 @@ impl VersionArgs {
         recursive: bool,
     ) -> miette::Result<()> {
         match self.params.first().map(String::as_str) {
-            None if recursive => self.release_from_intents(config, dir).await,
+            None if recursive => self.release_from_intents::<Reporter>(config, dir).await,
             _ if self.release_notes.is_some() => {
                 Err(VersionError::ReleaseNotesWithoutIntents.into())
             }

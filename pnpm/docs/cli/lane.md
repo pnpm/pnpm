@@ -63,7 +63,7 @@ A package on a lane releases `X.Y.Z-<lane>.N`, where `X.Y.Z` is the stable versi
 
 `N` restarts at `0` whenever the stable target changes. When a bump escalates the target (a `major` intent while the lane was building a minor), the target is recomputed and the counter resets.
 
-Packages in the same [fixed group](../versioning.md#fixed-groups) must move between lanes together.
+Packages in the same [fixed group](../versioning.md#fixed-groups) must move between lanes together. Moving only part of a fixed group fails with `ERR_PNPM_VERSIONING_CONFLICTING_CONFIG`.
 
 ## Options
 

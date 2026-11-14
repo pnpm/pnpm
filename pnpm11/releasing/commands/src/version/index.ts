@@ -11,6 +11,7 @@ import {
   type ApplyReleasePlanOptions,
   assembleReleasePlan,
   changelogStorage,
+  type PlannedRelease,
   privateProjectDirs,
   readChangeIntents,
   readLedger,
@@ -36,6 +37,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'commit-hooks',
     'git-checks',
     'git-tag-version',
+    'ignore-scripts',
     'message',
     'sign-git-tag',
     'tag-version-prefix',
@@ -190,10 +192,41 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
   }
 
   if (opts.dryRun) {
+    if (opts.json) {
+      const planned: AppliedRelease[] = plan.releases.map((release) => ({
+        name: release.name,
+        currentVersion: release.currentVersion,
+        newVersion: release.newVersion,
+      }))
+      return JSON.stringify(planned, null, 2)
+    }
     return renderReleasePlan(plan)
   }
 
-  return renderAppliedReleases(await applyReleasePlan(plan, applyOpts), opts.json)
+  const lifecycleOpts: VersionLifecycleOptions = { ...opts, modulesDirFor: createProjectModulesDirResolver(opts) }
+  await runReleaseLifecycleHooks('preversion', plan.releases, lifecycleOpts)
+  const applied = await applyReleasePlan(plan, applyOpts)
+  await runReleaseLifecycleHooks('version', plan.releases, lifecycleOpts)
+  await runReleaseLifecycleHooks('postversion', plan.releases, lifecycleOpts)
+  return renderAppliedReleases(applied, opts.json)
+}
+
+async function runReleaseLifecycleHooks (
+  stage: 'preversion' | 'version' | 'postversion',
+  releases: PlannedRelease[],
+  opts: VersionLifecycleOptions
+): Promise<void> {
+  for (const release of releases) {
+    const newVersion = stage === 'preversion' ? release.currentVersion : release.newVersion
+    // eslint-disable-next-line no-await-in-loop -- lifecycle scripts run one project at a time, in release plan order
+    await runVersionLifecycleHook(stage, {
+      name: release.name,
+      currentVersion: release.currentVersion,
+      newVersion,
+      path: release.rootDir,
+      manifestPath: path.join(release.rootDir, 'package.json'),
+    }, opts)
+  }
 }
 
 interface IntentReleasePlan {
