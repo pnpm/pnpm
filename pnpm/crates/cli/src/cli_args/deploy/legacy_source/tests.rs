@@ -1,6 +1,4 @@
 use std::fs;
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
 
 use pnpm_lockfile::{ImporterDepVersion, Lockfile};
 use pnpm_package_manifest::PackageManifest;
@@ -53,7 +51,7 @@ fn select_first(projects: Vec<Project>) -> SelectedProject {
 }
 
 #[test]
-fn rebase_ignores_publish_directory_that_escapes_importer_root_or_mismatches_manifest() {
+fn rebase_ignores_escaping_publish_directory_absent_from_project_manifest() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let workspace = tmp.path().join("workspace");
     let outside = tmp.path().join("outside");
@@ -65,12 +63,8 @@ fn rebase_ignores_publish_directory_that_escapes_importer_root_or_mismatches_man
     fs::create_dir_all(&lib_dir).expect("create lib_dir");
 
     let app = project(app_dir, json!({ "name": "app", "dependencies": { "lib": "workspace:*" } }));
-    // Even if `lib`'s manifest also declared `../../../outside`, containment rejects it.
-    let lib_escaping = project(
-        lib_dir,
-        json!({ "name": "lib", "publishConfig": { "directory": "../../../outside" } }),
-    );
-    let selected = select_first(vec![app, lib_escaping]);
+    let lib = project(lib_dir, json!({ "name": "lib" }));
+    let selected = select_first(vec![app, lib]);
     let lockfile: Lockfile = serde_json::from_value(json!({
         "lockfileVersion": "9.0",
         "importers": {
@@ -94,7 +88,7 @@ fn rebase_ignores_publish_directory_that_escapes_importer_root_or_mismatches_man
         !packages
             .keys()
             .any(|key| key.to_string().contains("outside")),
-        "escaping publishDirectory must not synthesize a directory package: {packages:?}",
+        "a publishDirectory only the lockfile records must not synthesize a directory package: {packages:?}",
     );
     let lib_version = &source.lockfile.importers["."].dependencies
         .as_ref()
@@ -102,12 +96,51 @@ fn rebase_ignores_publish_directory_that_escapes_importer_root_or_mismatches_man
         .version;
     assert!(
         matches!(lib_version, ImporterDepVersion::Link(_)),
-        "escaping link must remain a Link rather than becoming an Alias copy: {lib_version:?}",
+        "the link must remain a Link rather than becoming an Alias copy: {lib_version:?}",
     );
 }
 
 #[test]
-fn rebase_ignores_publish_directory_absent_from_project_manifest_and_keeps_contained_one() {
+fn rebase_keeps_manifest_declared_publish_directory_outside_the_project() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let workspace = tmp.path().join("workspace");
+    let app_dir = workspace.join("packages/app");
+    let lib_dir = workspace.join("packages/lib");
+    let deploy_dir = workspace.join("deploy");
+    fs::create_dir_all(&app_dir).expect("create app_dir");
+    fs::create_dir_all(&lib_dir).expect("create lib_dir");
+
+    let app = project(app_dir, json!({ "name": "app" }));
+    let lib =
+        project(lib_dir, json!({ "name": "lib", "publishConfig": { "directory": "../lib-dist" } }));
+    let selected = select_first(vec![app, lib]);
+    let lockfile: Lockfile = serde_json::from_value(json!({
+        "lockfileVersion": "9.0",
+        "importers": {
+            "packages/app": {},
+            "packages/lib": { "publishDirectory": "../lib-dist" },
+        },
+    }))
+    .expect("parse lockfile");
+
+    let mut source = LegacyDeploySource { lockfile, path: workspace.join("pnpm-lock.yaml") };
+    source.rebase(&selected, &deploy_dir, &workspace).expect("rebase");
+
+    let keys: Vec<String> = source.lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
+    assert!(
+        keys.iter()
+            .any(|key| key == "lib@file:../packages/lib-dist"),
+        "a publishDirectory the manifest declares must be kept: {keys:?}",
+    );
+}
+
+#[test]
+fn rebase_ignores_publish_directory_absent_from_project_manifest_and_keeps_declared_one() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let workspace = tmp.path().join("workspace");
     let app_dir = workspace.join("packages/app");
@@ -120,7 +153,6 @@ fn rebase_ignores_publish_directory_absent_from_project_manifest_and_keeps_conta
 
     let app = project(app_dir, json!({ "name": "app" }));
     let stale_lib = project(stale_lib_dir, json!({ "name": "stale-lib" }));
-    // `built-lib/dist` is not yet created on disk, verifying unbuilt contained publish dirs work.
     let built_lib = project(
         built_lib_dir,
         json!({ "name": "built-lib", "publishConfig": { "directory": "dist" } }),
@@ -154,49 +186,6 @@ fn rebase_ignores_publish_directory_absent_from_project_manifest_and_keeps_conta
     assert!(
         keys.iter()
             .any(|key| key == "built-lib@file:../packages/built-lib/dist"),
-        "manifest-declared contained publishDirectory must be kept: {keys:?}",
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn rebase_ignores_publish_directory_that_traverses_a_symlink() {
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let workspace = tmp.path().join("workspace");
-    let outside = tmp.path().join("outside");
-    let app_dir = workspace.join("packages/app");
-    let lib_dir = workspace.join("packages/lib");
-    let deploy_dir = workspace.join("deploy");
-    fs::create_dir_all(&outside).expect("create outside");
-    fs::create_dir_all(&app_dir).expect("create app_dir");
-    fs::create_dir_all(&lib_dir).expect("create lib_dir");
-    symlink(&outside, lib_dir.join("dist")).expect("symlink dist -> outside");
-
-    let app = project(app_dir, json!({ "name": "app" }));
-    let lib = project(lib_dir, json!({ "name": "lib", "publishConfig": { "directory": "dist" } }));
-    let selected = select_first(vec![app, lib]);
-    let lockfile: Lockfile = serde_json::from_value(json!({
-        "lockfileVersion": "9.0",
-        "importers": {
-            "packages/app": {},
-            "packages/lib": { "publishDirectory": "dist" },
-        },
-    }))
-    .expect("parse lockfile");
-
-    let mut source = LegacyDeploySource { lockfile, path: workspace.join("pnpm-lock.yaml") };
-    source.rebase(&selected, &deploy_dir, &workspace).expect("rebase");
-
-    let keys: Vec<String> = source.lockfile.packages
-        .as_ref()
-        .expect("packages")
-        .keys()
-        .map(ToString::to_string)
-        .collect();
-    assert!(
-        !keys
-            .iter()
-            .any(|key| key.contains("packages/lib/dist")),
-        "symlinked publishDirectory must not synthesize a directory package: {keys:?}",
+        "manifest-declared publishDirectory must be kept: {keys:?}",
     );
 }

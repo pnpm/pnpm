@@ -1,6 +1,7 @@
 use crate::fast_update_lockfile::{prune_unreachable_packages, recompute_optional_flags};
 use pnpm_lockfile::{
-    Lockfile, ProjectSnapshot, prune_undeclared_importer_deps, reconcile_merged_importer_metadata,
+    Lockfile, ProjectSnapshot, importer_link_target, prune_undeclared_importer_deps,
+    reconcile_merged_importer_metadata, restore_moved_links,
 };
 use pnpm_package_manifest::PackageManifest;
 use std::collections::HashMap;
@@ -30,6 +31,13 @@ pub(crate) fn prune_merged_branch_lockfile(
     auto_install_peers: bool,
 ) -> Option<Lockfile> {
     let mut pruned = lockfile.clone();
+    let merged_link_targets: HashMap<String, String> = manifests
+        .iter()
+        .filter_map(|(importer_id, _)| {
+            let importer = pruned.importers.get(importer_id)?;
+            Some((importer_id.clone(), importer_link_target(importer_id, importer)))
+        })
+        .collect();
     let mut deps_dropped = false;
     let mut metadata_reconciled = false;
     for (importer_id, manifest) in manifests {
@@ -42,6 +50,12 @@ pub(crate) fn prune_merged_branch_lockfile(
             metadata_reconciled |= reconciliation.changed;
         }
     }
+    metadata_reconciled |= restore_moved_links(
+        &mut pruned.importers,
+        pre_merge_importers,
+        &merged_link_targets,
+        manifests,
+    );
     if !deps_dropped && !metadata_reconciled {
         return None;
     }

@@ -313,3 +313,53 @@ snapshots:
     assert!(pruned.packages.as_ref().is_none_or(HashMap::is_empty));
     assert!(pruned.snapshots.as_ref().is_none_or(HashMap::is_empty));
 }
+
+#[test]
+fn restores_a_link_to_the_reconciled_publish_directory_of_a_workspace_dependency() {
+    let merged = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/app:
+    dependencies:
+      dep:
+        specifier: workspace:*
+        version: link:../dep/build
+      other:
+        specifier: workspace:*
+        version: link:../moved-other
+  packages/dep:
+    publishDirectory: build
+",
+    );
+    let pre_merge = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/app:
+    dependencies:
+      dep:
+        specifier: workspace:*
+        version: link:../dep/dist
+      other:
+        specifier: workspace:*
+        version: link:../other
+  packages/dep:
+    publishDirectory: dist
+",
+    );
+    let app = manifest(json!({ "dependencies": { "dep": "workspace:*", "other": "workspace:*" } }));
+    let dep = manifest(json!({ "name": "dep", "publishConfig": { "directory": "dist" } }));
+    let manifests = [("packages/app".to_string(), &app), ("packages/dep".to_string(), &dep)];
+
+    let pruned = prune_merged_branch_lockfile(&merged, &pre_merge.importers, &manifests, true)
+        .expect("reconciled lockfile");
+
+    assert_eq!(pruned.importers["packages/dep"].publish_directory.as_deref(), Some("dist"));
+    let app_deps =
+        pruned.importers["packages/app"].dependencies.as_ref().expect("app dependencies");
+    let version_of =
+        |name: &str| app_deps[&name.parse().expect("package name")].version.to_string();
+    assert_eq!(version_of("dep"), "link:../dep/dist");
+    assert_eq!(version_of("other"), "link:../moved-other");
+}

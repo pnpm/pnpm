@@ -124,63 +124,27 @@ fn package_dirs(root_dir: &Path, linked_publish_dir: Option<&Path>) -> Vec<PathB
         .collect()
 }
 
-fn own_publish_relative_path<'path>(
-    root_dir: &Path,
-    publish_dir: &'path Path,
-) -> Option<&'path Path> {
-    let relative = publish_dir.strip_prefix(root_dir).ok()?;
+/// Whether `publish_dir` is a real directory inside `root_dir`, reached
+/// through no symlink and no `node_modules`. `node_modules` matches in any
+/// case, as a case-insensitive file system resolves every spelling to it.
+/// An unreadable path does not qualify, so the approval fails closed.
+fn is_own_publish_dir(root_dir: &Path, publish_dir: &Path) -> bool {
+    let Ok(relative) = publish_dir.strip_prefix(root_dir) else {
+        return false;
+    };
     if relative.as_os_str().is_empty()
         || relative
             .components()
             .any(|component| component.as_os_str().eq_ignore_ascii_case("node_modules"))
     {
-        return None;
-    }
-    Some(relative)
-}
-
-/// Whether `publish_dir` is a real directory inside `root_dir`, reached
-/// through no symlink and no `node_modules`. `node_modules` matches in any
-/// case, as a case-insensitive file system resolves every spelling to it.
-/// An unreadable path does not qualify, so the approval fails closed.
-pub(super) fn is_own_publish_dir(root_dir: &Path, publish_dir: &Path) -> bool {
-    let Some(relative) = own_publish_relative_path(root_dir, publish_dir) else {
         return false;
-    };
+    }
     match (fs::canonicalize(root_dir), fs::canonicalize(publish_dir)) {
         (Ok(real_root_dir), Ok(real_publish_dir)) => {
             real_publish_dir == real_root_dir.join(relative)
         }
         _ => false,
     }
-}
-
-/// Like [`is_own_publish_dir`], while also accepting an unbuilt publish
-/// directory whose existing prefix inside `root_dir` crosses no symlink.
-pub(super) fn is_contained_publish_dir(root_dir: &Path, publish_dir: &Path) -> bool {
-    if is_own_publish_dir(root_dir, publish_dir) {
-        return true;
-    }
-    let Some(relative) = own_publish_relative_path(root_dir, publish_dir) else {
-        return false;
-    };
-    let Ok(real_root_dir) = fs::canonicalize(root_dir) else {
-        return false;
-    };
-    let mut current = root_dir.to_path_buf();
-    let mut expected_real = real_root_dir;
-    for component in relative.components() {
-        current.push(component);
-        expected_real.push(component);
-        match fs::symlink_metadata(&current) {
-            Ok(meta) if meta.file_type().is_symlink() => return false,
-            Ok(_) if fs::canonicalize(&current).ok().as_ref() == Some(&expected_real) => {}
-            Ok(_) => return false,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return true,
-            Err(_) => return false,
-        }
-    }
-    false
 }
 
 fn workspace_project_of_package<'ctx>(

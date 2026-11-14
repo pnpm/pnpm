@@ -9,6 +9,8 @@ import {
 } from '@pnpm/types'
 import { equals } from 'ramda'
 
+import { getDeclaredSpec, getLinkTarget, isLinkRef, restoreMovedLinks } from './movedLinks.js'
+
 interface InjectedResolutionContext {
   manifest: ProjectManifest
   reconciledInjected: Set<string>
@@ -24,6 +26,13 @@ export function maybePruneMergedImporters (opts: {
 }): LockfileObject {
   const { wantedLockfile, preMergeImporters, projects, autoInstallPeers } = opts
   if (preMergeImporters == null) return wantedLockfile
+  const mergedLinkTargets = new Map<ProjectId, string>()
+  for (const project of projects) {
+    const importer = wantedLockfile.importers[project.id]
+    if (importer != null) {
+      mergedLinkTargets.set(project.id, getLinkTarget(project.id, importer))
+    }
+  }
   let prunedAnyImporter = false
   for (const project of projects) {
     prunedAnyImporter = pruneMergedDependencies({
@@ -33,6 +42,7 @@ export function maybePruneMergedImporters (opts: {
       autoInstallPeers,
     }) || prunedAnyImporter
   }
+  restoreMovedLinks({ wantedLockfile, preMergeImporters, projects, mergedLinkTargets })
   return prunedAnyImporter ? pruneSharedLockfile(wantedLockfile) : wantedLockfile
 }
 
@@ -267,22 +277,6 @@ function reconcileDepInjectedResolution (opts: {
   return true
 }
 
-function getDeclaredSpec (
-  manifest: ProjectManifest,
-  depField: DependenciesField,
-  depName: string
-): string | undefined {
-  const fieldDeps = manifest[depField]
-  if (fieldDeps != null && Object.hasOwn(fieldDeps, depName)) {
-    return fieldDeps[depName]
-  }
-  const peerDeps = manifest.peerDependencies
-  if (depField === 'dependencies' && peerDeps != null && Object.hasOwn(peerDeps, depName)) {
-    return peerDeps[depName]
-  }
-  return undefined
-}
-
 function shouldRestorePreResolution (opts: {
   isInjected: boolean
   wasMergedInjected: boolean
@@ -294,10 +288,6 @@ function shouldRestorePreResolution (opts: {
     return isLinkRef(mergedRef) && !isLinkRef(preRef)
   }
   return wasMergedInjected && isFileRef(mergedRef) && isLinkRef(preRef)
-}
-
-function isLinkRef (ref: string): boolean {
-  return ref.startsWith('link:')
 }
 
 function isFileRef (ref: string): boolean {
