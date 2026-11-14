@@ -139,7 +139,6 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     Ok(hooks)
 }
 
-<<<<<<< HEAD
 async fn execute_update_config_hooks<Reporter: self::Reporter>(
     pnpmfiles: &[PathBuf],
     hooks: &[Arc<dyn PnpmfileHooks>],
@@ -173,7 +172,7 @@ fn update_config_hook_error(pnpmfile: &Path, err: pnpm_hooks::HookError) -> miet
             )
         }
     }
-fn legacy_registries_warning(input: &Value, current: &Value) -> Option<String> {
+pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Option<String> {
     if input.get("registries") == current.get("registries")
         || input.get("registriesByScope") != current.get("registriesByScope")
     {
