@@ -1,7 +1,10 @@
-use super::{hooks::legacy_registries_warning, resolve_engine_version, run_update_config_hooks};
+use super::{
+    hooks::{legacy_registries_warning, warn_legacy_registries},
+    resolve_engine_version, run_update_config_hooks,
+};
 use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
-use pnpm_reporter::SilentReporter;
-use std::{fs, path::Path};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use std::{fs, path::Path, sync::Mutex};
 
 #[test]
 fn legacy_registries_warning_names_routes_left_unchanged() {
@@ -10,14 +13,48 @@ fn legacy_registries_warning_names_routes_left_unchanged() {
         "registriesByScope": { "@zz": "https://registry-a/", "@other": "https://registry-a/" }
     });
     let after = serde_json::json!({
-        "registries": { "default": "https://registry-b/" },
+        "registries": { "default": "https://registry-b/", "@zz": "https://registry-b/" },
         "registriesByScope": { "@zz": "https://registry-a/", "@other": "https://registry-a/" }
     });
 
     let warning = legacy_registries_warning(&before, &after).expect("legacy routes warning");
 
     assert!(warning.contains("@other"));
+    assert!(!warning.contains("@zz"));
     assert!(warning.contains("registriesByScope"));
+}
+
+#[test]
+fn legacy_registries_warning_uses_the_global_log_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+
+    warn_legacy_registries::<RecordingReporter>(&before, &after);
+
+    assert!(matches!(
+        EVENTS.lock().unwrap().as_slice(),
+        [LogEvent::Global(GlobalLog { level: LogLevel::Warn, message })]
+            if message.contains("@acme")
+    ));
 }
 
 #[test]

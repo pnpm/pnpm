@@ -2,9 +2,9 @@ pub use self::package_settings::apply_config_dependency_settings;
 
 use self::apply::apply_hook_delta;
 use super::{
-    Arc, BTreeMap, Config, HashMap, HookContext, HookLog, Host, IntoDiagnostic, LogEvent, LogFn,
-    LogLevel, Path, PathBuf, PnpmLog, PnpmfileHooks, Reporter, Result, TrustedSettings, Value,
-    WorkspaceSettings, apply_store_dir_override, default_state_dir, finder,
+    Arc, BTreeMap, Config, GlobalLog, HashMap, HookContext, HookLog, Host, IntoDiagnostic,
+    LogEvent, LogFn, LogLevel, Path, PathBuf, PnpmfileHooks, Reporter, Result, TrustedSettings,
+    Value, WorkspaceSettings, apply_store_dir_override, default_state_dir, finder,
     get_catalogs_from_workspace_manifest, install_config_deps, is_known_setting_key,
     resolve_configured_state_dir,
 };
@@ -126,7 +126,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let current =
         execute_update_config_hooks::<Reporter>(&pnpmfiles, &hooks, input.clone(), root_dir).await?;
     let prefix = root_dir.to_string_lossy().into_owned();
-    warn_legacy_registries::<Reporter>(&input, &current, &prefix);
+    warn_legacy_registries::<Reporter>(&input, &current);
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
@@ -184,10 +184,7 @@ pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Optio
     }
     let unchanged_scopes = routes
         .iter()
-        .filter(|(scope, route)| {
-            scope.as_str() != "default"
-                && legacy_routes.get(*scope).and_then(Value::as_str) != route.as_str()
-        })
+        .filter(|(scope, route)| scope.as_str() != "default" && !legacy_routes.contains_key(*scope))
         .map(|(scope, _)| scope.as_str())
         .collect::<Vec<_>>();
     if unchanged_scopes.is_empty() {
@@ -199,26 +196,11 @@ pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Optio
     ))
 }
 
-fn warn_legacy_registries<Reporter: self::Reporter>(input: &Value, current: &Value, prefix: &str) {
+fn warn_legacy_registries<Reporter: self::Reporter>(input: &Value, current: &Value) {
     let Some(message) = legacy_registries_warning(input, current) else {
         return;
     };
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message,
-        prefix: prefix.to_string(),
-    }));
-}
-
-fn warn_legacy_registries<Reporter: self::Reporter>(input: &Value, current: &Value, prefix: &str) {
-    let Some(message) = legacy_registries_warning(input, current) else {
-        return;
-    };
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message,
-        prefix: prefix.to_string(),
-    }));
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
 fn warn_ignored_hooks<Reporter: self::Reporter>(
