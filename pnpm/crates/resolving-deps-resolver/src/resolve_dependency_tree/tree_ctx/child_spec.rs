@@ -15,11 +15,10 @@ pub(in crate::resolve_dependency_tree) fn opts_for_child_spec<'a>(
     fallback_dir: Option<&Path>,
 ) -> Cow<'a, ResolveOptions> {
     let spec = wanted.bare_specifier.as_deref().unwrap_or_default();
-    if parent_dir.is_none()
-        && let Some(fallback_dir) = fallback_dir
+    if let Some(base_dir) = parent_dir.or(fallback_dir)
         && (spec.starts_with("link:") || pnpm_local_spec::bare_path_is_unambiguous(spec))
         && let Some(spec) =
-            relative_local_child_specifier(spec, fallback_dir, &opts.project.project_dir)
+            relative_local_child_specifier(spec, base_dir, &opts.project.project_dir)
     {
         wanted.bare_specifier = Some(spec);
         return Cow::Borrowed(opts);
@@ -42,25 +41,11 @@ pub(in crate::resolve_dependency_tree) fn opts_for_child_spec<'a>(
 
 fn relative_local_child_specifier(
     spec: &str,
-    lockfile_dir: &Path,
+    base_dir: &Path,
     importer_dir: &Path,
 ) -> Option<String> {
-    let (protocol, path) = spec
-        .strip_prefix("link:")
-        .map_or(("", spec), |path| ("link:", path));
-    let path = Path::new(path);
-    if path.is_absolute() || path.starts_with("~/") {
-        return None;
-    }
-    let target = pnpm_fs::lexical_normalize(&lockfile_dir.join(path));
-    let relative = pathdiff::diff_paths(target, importer_dir)?;
-    Some(format!(
-        "{protocol}{}",
-        relative
-            .display()
-            .to_string()
-            .replace('\\', "/"),
-    ))
+    pnpm_local_spec::LocalSpec::parse_filesystem(spec, base_dir)
+        .map(|spec| spec.render(Some(importer_dir)))
 }
 
 #[cfg(test)]
