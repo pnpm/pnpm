@@ -17,6 +17,7 @@ import {
   install,
   type InstallOptions,
   mutateModules,
+  type PreparedFrozenMutation,
   verifyPatchesOfLockfiles,
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
@@ -53,7 +54,7 @@ type ActionOpts =
   & OptionsFromRootManifest
   & Project
   & Pick<Config, 'bin'>
-  & { rangeSpecStyle: RangeSpecStyle }
+  & { rangeSpecStyle: RangeSpecStyle, _preparedFrozen?: PreparedFrozenMutation }
 
 interface ActionResult {
   updatedCatalogs?: Catalogs
@@ -180,7 +181,8 @@ async function installProject (
     return 'passed'
   }
   state.result[rootDir] = { status: 'running' }
-  const hooks = await loadProjectHooks(ctx.opts, rootDir)
+  const hooks = ctx.opts._preparedCi?.projectHooksByRootDir.get(rootDir) ??
+    await loadProjectHooks(ctx.opts, rootDir)
   const { manifest, writeProjectManifest } = ctx.manifestsByPath[rootDir]
   const updateTargets = selectUpdateTargets(ctx, manifest)
   if (ctx.updateMatch != null && updateTargets.length === 0) {
@@ -196,6 +198,7 @@ async function installProject (
     ...ctx.installOpts,
     ...localConfig,
     ...ctx.opts.allProjectsGraph[rootDir]?.package,
+    _preparedFrozen: ctx.opts._preparedCi?.preparedByLockfileDir.get(rootDir),
     bin: binDirOf(rootDir, localConfig.modulesDir ?? ctx.opts.modulesDir),
     dir: rootDir,
     hooks,
@@ -211,7 +214,7 @@ async function installProject (
   return 'passed'
 }
 
-async function loadProjectHooks (opts: RecursiveOptions, rootDir: ProjectRootDir): Promise<InstallOptions['hooks']> {
+export async function loadProjectHooks (opts: RecursiveOptions, rootDir: ProjectRootDir): Promise<InstallOptions['hooks']> {
   if (opts.ignorePnpmfile) return {}
   // The workspace root's pnpmfile is the one `opts.hooks` was loaded from.
   if (opts.workspaceDir != null && path.resolve(rootDir) === path.resolve(opts.workspaceDir)) return opts.hooks ?? {}

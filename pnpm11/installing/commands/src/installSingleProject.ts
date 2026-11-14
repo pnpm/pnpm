@@ -97,7 +97,7 @@ export async function installSingleProject (
   return installAllDependencies(ctx, selection)
 }
 
-async function createSingleProjectInstallContext (
+export async function createSingleProjectInstallContext (
   target: SingleProjectInstallTarget,
   userNamedDeps: boolean
 ): Promise<SingleProjectInstallContext> {
@@ -328,8 +328,11 @@ async function installAllDependencies (
   selection: DependencySelection
 ): Promise<DryRunInstallResult | undefined> {
   const { opts, allProjects } = ctx
+  const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
+  const preparedFrozen = opts._preparedCi?.preparedByLockfileDir.get(opts.lockfileDir ?? rootDir)
   const installResult = await install(ctx.manifest, {
     ...ctx.installOpts,
+    _preparedFrozen: preparedFrozen,
     updatePackageManifest: selection.updatePackageManifest,
     updateMatching: selection.updateMatching,
   })

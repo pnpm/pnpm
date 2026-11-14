@@ -6,6 +6,7 @@ import { omit } from 'ramda'
 import { parseEnvVars, type Schema } from '../env.js'
 import { types } from '../types.js'
 import type { ConfigBuildState } from './configBuildState.js'
+import { anchorRawLockfileDir } from './rawLockfileDir.js'
 import type { ProxySettings } from './registries.js'
 import { applySideEffectsCacheDeclaration } from './sideEffectsCache.js'
 
@@ -154,6 +155,9 @@ function applyEnvSetting ({ explicitlySetKeys, pnpmConfig }: ConfigBuildState, k
   // @ts-expect-error -- the value's type depends on which key this is
   pnpmConfig[key] = value
   explicitlySetKeys.add(key)
+  if (key === 'lockfileDir' && typeof value === 'string') {
+    pnpmConfig.rawLockfileDir = anchorRawLockfileDir(pnpmConfig.dir, value)
+  }
 
   // The environment is not repository-controlled, so it reaches the
   // package-manager bootstrap as `registry` does below.

@@ -206,6 +206,7 @@ pub(super) fn global_group_config(
     // the environment set cannot redirect it — pnpm deletes the setting
     // under `--global`.
     cfg.lockfile = true;
+    cfg.configured_lockfile_dir = None;
     cfg.lockfile_dir = None;
     // Pin the group's workspace root to its own install dir (pnpm's
     // `rootProjectManifestDir: installDir`, `workspaceDir: undefined`). The

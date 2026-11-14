@@ -24,7 +24,10 @@ export interface CommandInvocation {
  */
 export function enableRecursiveByDefault (invocation: CommandInvocation, config: Config): void {
   const { cmd, cliOptions, workspaceDir } = invocation
-  if (cmd == null || !recursiveByDefaultCommands.has(cmd) || typeof workspaceDir !== 'string') {
+  if (enableFilteredClean(cmd, cliOptions, config)) {
+    return
+  }
+  if (!isRecursiveCommand(cmd) || typeof workspaceDir !== 'string') {
     return
   }
   const hasExplicitRecursive = cliOptions['recursive'] === true
@@ -40,6 +43,21 @@ export function enableRecursiveByDefault (invocation: CommandInvocation, config:
   } else if (!config.recursiveInstall && !config.filter && !config.filterProd) {
     config.filter = ['{.}...']
   }
+}
+
+function enableFilteredClean (
+  cmd: string | null,
+  cliOptions: CommandInvocation['cliOptions'],
+  config: Config
+): boolean {
+  const hasFilter = Boolean(config.filter?.length || config.filterProd?.length)
+  if (!hasFilter || (cmd !== 'clean' && cmd !== 'purge')) return false
+  cliOptions['recursive'] = true
+  return true
+}
+
+function isRecursiveCommand (cmd: string | null): cmd is string {
+  return cmd != null && recursiveByDefaultCommands.has(cmd)
 }
 
 function staysSingleProjectInSubdirectory (

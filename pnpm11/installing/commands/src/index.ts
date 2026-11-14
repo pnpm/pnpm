@@ -9,5 +9,6 @@ import * as prune from './prune.js'
 import * as remove from './remove.js'
 import * as unlink from './unlink.js'
 import * as update from './update/index.js'
+import { type PreparedCiInstall, validateCiFrozenInstall } from './validateCiFrozenInstall.js'
 
-export { add, dedupe, fetch, importCommand, install, type InstallCommandOptions, link, prune, remove, unlink, update }
+export { add, dedupe, fetch, importCommand, install, type InstallCommandOptions, link, type PreparedCiInstall, prune, remove, unlink, update, validateCiFrozenInstall }

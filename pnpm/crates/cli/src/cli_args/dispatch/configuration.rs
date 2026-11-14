@@ -209,6 +209,7 @@ impl StoreUse {
 pub(super) struct ProjectSelectors<'a> {
     pub(super) recursive: bool,
     pub(super) recursive_from_command_line: bool,
+    pub(super) no_recursive_from_command_line: bool,
     pub(super) recursive_by_default_command: bool,
     pub(super) filter: &'a [String],
     pub(super) filter_prod: &'a [String],
@@ -221,6 +222,9 @@ pub(super) fn apply_project_selectors(cfg: &mut Config, selectors: &ProjectSelec
     cfg.filter = selectors.filter.to_vec();
     cfg.filter_prod = selectors.filter_prod.to_vec();
     cfg.filter_order = selectors.filter_order.to_vec();
+    if selectors.recursive_from_command_line || selectors.no_recursive_from_command_line {
+        cfg.cli_settings.insert("recursive".to_string());
+    }
     if !cfg.filter.is_empty() {
         cfg.cli_settings.insert("filter".to_string());
     }

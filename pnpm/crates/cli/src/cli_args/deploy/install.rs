@@ -83,6 +83,7 @@ pub(super) fn create_deploy_install_config(
     // legacy path. Pinning it keeps the source workspace, found above the
     // deploy directory or set by `lockfileDir`, from becoming the root its
     // importers are placed against.
+    deploy_config.configured_lockfile_dir = None;
     deploy_config.lockfile_dir = Some(deploy_dir.to_path_buf());
     deploy_config.global_virtual_store_dir = deploy_config.install_state_dir.clone();
     deploy_config.enable_global_virtual_store = false;

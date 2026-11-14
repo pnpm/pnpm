@@ -1,5 +1,7 @@
 pub(crate) use fast_path::{check_strict_dep_builds_for_fast_path, register_workspace_in_store};
 pub(crate) use manifests::hook_one_manifest;
+pub(crate) use validate_frozen::PreparedFrozenRun;
+pub use validate_frozen::{FrozenVirtualStoreClean, PreparedFrozenInstall};
 
 mod fast_path;
 use fast_path::{
@@ -39,6 +41,7 @@ mod settled;
 mod time_machine_capture;
 mod uninstall_hooks;
 mod up_to_date_scripts;
+mod validate_frozen;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
 use super::{

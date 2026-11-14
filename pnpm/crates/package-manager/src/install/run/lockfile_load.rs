@@ -27,9 +27,9 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     workspace: &InstallWorkspace<'a>,
     scope: &InstallScope<'a>,
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
-    discovery: (&HashSet<PathBuf>, Option<&[pnpm_workspace::Project]>),
+    discovery: (&mut super::super::InstallManifestOptions<'_>, Option<&[pnpm_workspace::Project]>),
 ) -> Result<Loaded<'a>, InstallError> {
-    let (pre_hooked_paths, loaded_workspace_projects) = discovery;
+    let (manifest_options, loaded_workspace_projects) = discovery;
     let StartedLockfiles {
         wanted,
         current_lockfile_task,
@@ -44,7 +44,7 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     )?;
     announce_manifest_load::<Reporter>(install);
     let (pnpmfile_hook, manifests) =
-        load_hooked_manifests::<Reporter>(install, owned, workspace, scope, pre_hooked_paths)
+        resolve_or_load_manifests::<Reporter>(install, owned, workspace, scope, manifest_options)
             .await?;
     Ok(Loaded {
         wanted,
@@ -58,6 +58,34 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
         pnpmfile_hook,
         manifests,
     })
+}
+
+async fn resolve_or_load_manifests<Reporter: self::Reporter + 'static>(
+    install: InstallView<'_>,
+    owned: &mut InstallOwned,
+    workspace: &InstallWorkspace<'_>,
+    scope: &InstallScope<'_>,
+    manifest_options: &mut super::super::InstallManifestOptions<'_>,
+) -> Result<(Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>, HookedManifests), InstallError> {
+    if let Some(manifests) = manifest_options.prepared_frozen
+        .as_mut()
+        .and_then(|prepared| prepared.manifests.take())
+    {
+        let pnpmfile_hook = resolve_pnpmfile_hook(
+            install.context.config,
+            &workspace.dirs.workspace_root,
+            owned.projects.pnpmfile_hook_override.take(),
+        )?;
+        return Ok((pnpmfile_hook, manifests));
+    }
+    load_hooked_manifests::<Reporter>(
+        install,
+        owned,
+        workspace,
+        scope,
+        &manifest_options.hooked_paths,
+    )
+    .await
 }
 pub(super) type CurrentLockfileLoad =
     tokio::task::JoinHandle<Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError>>;
@@ -250,7 +278,7 @@ pub(super) fn load_current_lockfile<Reporter: self::Reporter>(
     }
 }
 
-async fn load_hooked_manifests<Reporter: self::Reporter + 'static>(
+pub(super) async fn load_hooked_manifests<Reporter: self::Reporter + 'static>(
     install: InstallView<'_>,
     owned: &mut InstallOwned,
     workspace: &InstallWorkspace<'_>,

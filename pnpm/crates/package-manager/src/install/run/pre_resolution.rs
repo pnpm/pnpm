@@ -4,11 +4,35 @@ use super::{
     super::{Arc, InstallError, Lockfile, Path, Reporter},
     InstallView,
     lockfile_load::Loaded,
+    validate_frozen::PreparedFrozenRun,
     wanted::WantedLockfile,
     workspace::InstallWorkspace,
 };
 use pnpm_reporter::{HookLog, LogEvent, LogLevel};
 use serde_json::Value;
+
+pub(super) async fn apply_or_run_pre_resolution_hook<Reporter: self::Reporter>(
+    install: InstallView<'_>,
+    workspace: &InstallWorkspace<'_>,
+    loaded: &mut Loaded<'_>,
+    wanted: &mut WantedLockfile<'_>,
+    prepared_frozen: Option<&mut PreparedFrozenRun>,
+) -> Result<(), InstallError> {
+    if let Some(pre_resolution) =
+        prepared_frozen.and_then(|prepared| prepared.pre_resolution.take())
+    {
+        if let Some(hooked_wanted) = pre_resolution.hooked_wanted {
+            wanted.set_hooked(hooked_wanted);
+        }
+        if let Some(hooked_current) = pre_resolution.hooked_current {
+            loaded.current = Some(hooked_current);
+        }
+        return Ok(());
+    }
+    run_pre_resolution_hook::<Reporter>(install, workspace, loaded, wanted)
+        .await
+        .map(|_| ())
+}
 
 /// Run the `preResolution` hook on the settled lockfiles, before the install
 /// decides whether the wanted lockfile is up to date. The install continues
@@ -21,12 +45,12 @@ pub(super) async fn run_pre_resolution_hook<Reporter: self::Reporter>(
     workspace: &InstallWorkspace<'_>,
     loaded: &mut Loaded<'_>,
     wanted: &mut WantedLockfile<'_>,
-) -> Result<(), InstallError> {
-    let Some(hook) = loaded.pnpmfile_hook.clone() else { return Ok(()) };
+) -> Result<Option<Lockfile>, InstallError> {
+    let Some(hook) = loaded.pnpmfile_hook.clone() else { return Ok(None) };
     if install.lockfile_policy.ignore_manifest_check
         || !hook.has_pre_resolution().await.map_err(InstallError::PreResolutionHook)?
     {
-        return Ok(());
+        return Ok(None);
     }
     let config = install.context.config;
     let lockfile_dir = &workspace.dirs.workspace_root;
@@ -57,9 +81,11 @@ pub(super) async fn run_pre_resolution_hook<Reporter: self::Reporter>(
         wanted.set_hooked(parse_hooked_lockfile("wantedLockfile", hooked.wanted_lockfile)?);
     }
     if hooked.current_lockfile != current_json {
-        loaded.current = Some(parse_hooked_lockfile("currentLockfile", hooked.current_lockfile)?);
+        let parsed = parse_hooked_lockfile("currentLockfile", hooked.current_lockfile)?;
+        loaded.current = Some(parsed.clone());
+        return Ok(Some(parsed));
     }
-    Ok(())
+    Ok(None)
 }
 
 /// The hook sees a missing lockfile as `{}`.

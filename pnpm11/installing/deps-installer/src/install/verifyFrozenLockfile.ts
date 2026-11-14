@@ -78,7 +78,7 @@ export async function checkProjectsAgainstLockfile (run: MutationRun, frozenLock
   return skippedOptionalDependencies
 }
 
-function createNoLockfileError (): PnpmError {
+export function createNoLockfileError (): PnpmError {
   return new PnpmError('NO_LOCKFILE',
     `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
       hint: FROZEN_LOCKFILE_HINT,
@@ -238,7 +238,7 @@ export async function verifyLockedTarballIntegrity ({ ctx, opts, projects }: Mut
     include: opts.include,
     currentEngine: getCurrentEngine(opts),
     ...installabilityUnderForce(opts),
-    failOnMissingDependencies: false,
+    failOnMissingDependencies: true,
     lockfileDir: opts.lockfileDir,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped,

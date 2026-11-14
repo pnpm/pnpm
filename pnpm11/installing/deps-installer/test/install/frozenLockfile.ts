@@ -5,8 +5,10 @@ import { expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   install,
+  type InstallOptions,
   type MutatedProject,
   mutateModules,
+  validateFrozenInstall,
 } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -495,4 +497,303 @@ test('frozen-lockfile: a project with no dependencies installs from a lockfile w
   await install({}, testDefaults({ frozenLockfile: true }))
 
   expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8').startsWith(`---\n${envDocument}---\n`)).toBe(true)
+})
+
+test('validateFrozenInstall runs preResolution once when wanted lockfile is absent in a dependency-free project', async () => {
+  prepareEmpty()
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'empty-pkg', version: '1.0.0' }))
+  const rootDir = process.cwd() as ProjectRootDir
+  let calls = 0
+  const preResolution = jest.fn(async () => {
+    calls += 1
+  })
+  const opts = testDefaults({
+    frozenLockfile: true,
+    hooks: { preResolution: [preResolution] },
+  })
+  const validated = await validateFrozenInstall([{ mutation: 'install', rootDir }], opts)
+  expect(calls).toBe(1)
+  await install({ name: 'empty-pkg', version: '1.0.0' }, {
+    ...opts,
+    _preparedFrozen: validated?.prepared,
+  })
+  expect(calls).toBe(1)
+})
+
+test('validateFrozenInstall preserves preResolution mutations to currentLockfile and verifies conflicted hooked wantedLockfile', async () => {
+  prepareEmpty()
+  const manifest: ProjectManifest = {
+    name: 'hook-replay-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(manifest))
+  const rootDir = process.cwd() as ProjectRootDir
+  await install(manifest, testDefaults())
+
+  // Remove the direct link while leaving `.pnpm/lock.yaml` intact: if `preResolution` clears
+  // `currentLockfile.packages` when `_cleansVirtualStore: false`, `mutateModules` must replay that
+  // mutated `currentLockfile` so the link step restores `is-positive` without re-running the hook.
+  fs.rmSync(path.join('node_modules', 'is-positive'), { recursive: true, force: true })
+  let calls = 0
+  const clearCurrentHook = jest.fn(async (ctx: { currentLockfile: { packages?: Record<string, unknown>, importers: Record<string, unknown> } }) => {
+    calls += 1
+    ctx.currentLockfile.packages = {}
+    ctx.currentLockfile.importers = { '.': { specifiers: {}, dependencies: {} } }
+  })
+  const replayOpts = testDefaults({
+    frozenLockfile: true,
+    hooks: { preResolution: [clearCurrentHook] },
+  })
+  const projects: MutatedProject[] = [{ mutation: 'install', rootDir }]
+  const validated = await validateFrozenInstall(projects, {
+    ...replayOpts,
+    _cleansVirtualStore: false,
+  })
+  expect(calls).toBe(1)
+  expect(validated?.prepared?.hookedCurrentLockfile?.packages).toStrictEqual({})
+  await mutateModules(projects, {
+    ...replayOpts,
+    _preparedFrozen: validated?.prepared,
+  })
+  expect(calls).toBe(1)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive', 'package.json'))).toBe(true)
+
+  // Now create a Git-conflict-merged `pnpm-lock.yaml` (`lockfileHadConflicts === true`) and verify
+  // that `prepareUnverifiedLockfile` enforces `resolutionVerifiers` on `preResolution`-mutated entries.
+  const cleanLock = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  const conflictedLock = `<<<<<<< HEAD\n${cleanLock}=======\n${cleanLock}>>>>>>> branch\n`
+  fs.writeFileSync(WANTED_LOCKFILE, conflictedLock)
+
+  let verifiedNames: string[] = []
+  const policyOpts: InstallOptions = {
+    ...testDefaults({
+      frozenLockfile: true,
+      hooks: {
+        preResolution: [
+          async (ctx: { wantedLockfile: { packages?: Record<string, unknown> } }) => {
+            ctx.wantedLockfile.packages = {
+              ...ctx.wantedLockfile.packages,
+              'blocked-by-hook@1.0.0': {
+                resolution: { integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' },
+              },
+            }
+          },
+        ],
+      },
+    }),
+    resolutionVerifiers: [
+      {
+        policy: { testBlockPolicy: true },
+        canTrustPastCheck: () => false,
+        verify: async (_resolution, { name, version }) => {
+          verifiedNames.push(name)
+          if (name === 'blocked-by-hook') {
+            return {
+              ok: false,
+              code: 'TEST_REJECT',
+              reason: `${name}@${version} blocked by test policy`,
+            }
+          }
+          return { ok: true }
+        },
+      },
+    ],
+  }
+  verifiedNames = []
+  await expect(validateFrozenInstall(projects, policyOpts)).rejects.toMatchObject({
+    code: 'ERR_PNPM_TEST_REJECT',
+  })
+  expect(verifiedNames).toContain('blocked-by-hook')
+})
+
+test('validateFrozenInstall does not bypass resolutionVerifiers via stat cache when mergeGitBranchLockfiles is enabled', async () => {
+  prepareEmpty()
+  const rootDir = process.cwd() as ProjectRootDir
+  const cacheDir = path.resolve('verification-cache')
+
+  // Generate a branch lockfile containing `is-negative@1.0.0`, then restore a primary lockfile
+  // containing only `is-positive@1.0.0`.
+  const mergedManifest: ProjectManifest = {
+    name: 'merge-branch-cache-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(mergedManifest))
+  await install(mergedManifest, testDefaults())
+  const branchLockfileContent = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  fs.rmSync(WANTED_LOCKFILE)
+  fs.rmSync('node_modules', { recursive: true, force: true })
+
+  const primaryManifest: ProjectManifest = {
+    name: 'merge-branch-cache-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(primaryManifest))
+  await install(primaryManifest, testDefaults())
+
+  const verifiedNames: string[] = []
+  const verifierOpts: InstallOptions = {
+    ...testDefaults({
+      cacheDir,
+      frozenLockfile: true,
+    }),
+    resolutionVerifiers: [
+      {
+        policy: { blockIsNegative: true },
+        canTrustPastCheck: () => true,
+        verify: async (_resolution, { name, version }) => {
+          verifiedNames.push(name)
+          if (name === 'is-negative') {
+            return {
+              ok: false,
+              code: 'TEST_REJECT',
+              reason: `${name}@${version} blocked by test policy`,
+            }
+          }
+          return { ok: true }
+        },
+      },
+    ],
+  }
+  const projects: MutatedProject[] = [{ mutation: 'install', rootDir }]
+
+  // Seed the stat-shortcut cache entry for the untouched primary `pnpm-lock.yaml`.
+  await validateFrozenInstall(projects, verifierOpts)
+  expect(verifiedNames).toStrictEqual(['is-positive'])
+
+  // Add `pnpm-lock.feature.yaml` without modifying `pnpm-lock.yaml` (preserving its stat/inode/mtime).
+  fs.writeFileSync('package.json', JSON.stringify(mergedManifest))
+  fs.writeFileSync('pnpm-lock.feature.yaml', branchLockfileContent)
+  verifiedNames.length = 0
+
+  await expect(validateFrozenInstall(projects, {
+    ...verifierOpts,
+    mergeGitBranchLockfiles: true,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_TEST_REJECT',
+  })
+  expect(verifiedNames).toContain('is-negative')
+})
+
+test('validateFrozenInstall rejects lockfile settings mutated by preResolution hooks', async () => {
+  prepareEmpty()
+  const manifest: ProjectManifest = {
+    name: 'pre-resolution-settings-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(manifest))
+  const rootDir = process.cwd() as ProjectRootDir
+  await install(manifest, testDefaults({ autoInstallPeers: true }))
+
+  await expect(
+    validateFrozenInstall([{ mutation: 'install', rootDir }], testDefaults({
+      autoInstallPeers: true,
+      frozenLockfile: true,
+      hooks: {
+        preResolution: [
+          async (ctx: { wantedLockfile: { settings?: { autoInstallPeers?: boolean } } }) => {
+            ctx.wantedLockfile.settings = {
+              ...ctx.wantedLockfile.settings,
+              autoInstallPeers: false,
+            }
+          },
+        ],
+      },
+    }))
+  ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
+})
+
+test('mutateModules re-runs resolutionVerifiers and preResolution hooks if pnpm-lock.yaml changes after validateFrozenInstall', async () => {
+  prepareEmpty()
+  const rootDir = process.cwd() as ProjectRootDir
+  const cacheDir = path.resolve('tamper-verification-cache')
+
+  const secondManifest: ProjectManifest = {
+    name: 'post-preflight-change-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(secondManifest))
+  await install(secondManifest, testDefaults())
+  const secondLockfile = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  fs.rmSync('node_modules', { recursive: true, force: true })
+
+  const firstManifest: ProjectManifest = {
+    name: 'post-preflight-change-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(firstManifest))
+  await install(firstManifest, testDefaults())
+  fs.rmSync('node_modules', { recursive: true, force: true })
+
+  let hookCalls = 0
+  const verifiedNames: string[] = []
+  const makeOpts = (manifest: ProjectManifest): InstallOptions => ({
+    ...testDefaults({
+      allProjects: [{ buildIndex: 0, manifest, rootDir }],
+      cacheDir,
+      frozenLockfile: true,
+      hooks: {
+        preResolution: [
+          async () => {
+            hookCalls += 1
+          },
+        ],
+      },
+    }),
+    resolutionVerifiers: [
+      {
+        policy: { rejectIsNegative: true },
+        canTrustPastCheck: () => true,
+        verify: async (_resolution, { name, version }) => {
+          verifiedNames.push(name)
+          if (name === 'is-negative') {
+            return {
+              ok: false,
+              code: 'TEST_REJECT',
+              reason: `${name}@${version} blocked by test policy`,
+            }
+          }
+          return { ok: true }
+        },
+      },
+    ],
+  })
+
+  const projects: MutatedProject[] = [{ mutation: 'install', rootDir }]
+  const validated = await validateFrozenInstall(projects, makeOpts(firstManifest))
+  expect(hookCalls).toBe(1)
+  expect(verifiedNames).toStrictEqual(['is-positive'])
+
+  // Swap `pnpm-lock.yaml` after preflight: `mutateModules` must detect the mismatch against
+  // `validatedInputLockfile`, rerun `preResolution`, bypass the stat shortcut, and reject `is-negative`.
+  fs.writeFileSync('package.json', JSON.stringify(secondManifest))
+  fs.writeFileSync(WANTED_LOCKFILE, secondLockfile)
+  verifiedNames.length = 0
+
+  await expect(mutateModules(projects, {
+    ...makeOpts(secondManifest),
+    _preparedFrozen: validated?.prepared,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_TEST_REJECT',
+  })
+  expect(hookCalls).toBe(2)
+  expect(verifiedNames).toContain('is-negative')
 })

@@ -1,8 +1,9 @@
+pub(crate) use arguments::InstallEntryMode;
 pub use arguments::{
     InstallFetchArgs, InstallLockfileArgs, InstallMaterializationArgs, LockfileUpdateArgs,
 };
 
-pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target};
+pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target, uses_pnpr_server};
 pub(crate) use pnpr_resolution::{
     install_selected_via_pnpr, install_via_pnpr, resolves_locally_after,
 };
@@ -220,21 +221,31 @@ impl InstallArgs {
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        Box::pin(self.run_inner::<Reporter>(state, None)).await
+        Box::pin(self.run_inner::<Reporter>(state, None, None)).await
     }
 
-    pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
+    pub(crate) async fn run_prepared<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        prepared: Option<pnpm_package_manager::PreparedFrozenInstall>,
+    ) -> miette::Result<()> {
+        Box::pin(self.run_inner::<Reporter>(state, None, prepared)).await
+    }
+
+    pub(crate) async fn run_selected_prepared<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         selection: InstallFamilySelection,
+        prepared: Option<pnpm_package_manager::PreparedFrozenInstall>,
     ) -> miette::Result<()> {
-        Box::pin(self.run_inner::<Reporter>(state, Some(selection))).await
+        Box::pin(self.run_inner::<Reporter>(state, Some(selection), prepared)).await
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         selection: Option<InstallFamilySelection>,
+        prepared: Option<pnpm_package_manager::PreparedFrozenInstall>,
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let frozen_lockfile = self.resolve_frozen_lockfile(&state)?;
@@ -256,12 +267,12 @@ impl InstallArgs {
                 Err(error) if resolves_locally_after::<Reporter>(&error, server) => {
                     let link =
                         self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
-                    self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
+                    self.run_local::<Reporter>(&state, link, selection.as_ref(), prepared).await?;
                 }
                 installed => installed?,
             }
         } else {
-            self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
+            self.run_local::<Reporter>(&state, link, selection.as_ref(), prepared).await?;
         }
         // Resolution watch senders must close inline; only inert manifest and lockfile data
         // may outlive the command through background destruction.
@@ -313,53 +324,63 @@ impl InstallArgs {
         )
     }
 
-    async fn run_local<Reporter: self::Reporter + 'static>(
+    fn build_local_install<'a>(
         &self,
-        state: &State,
-        link: PnprLink<'_>,
-        selection: Option<&InstallFamilySelection>,
-    ) -> miette::Result<()> {
+        state: &'a State,
+        link: PnprLink<'a>,
+    ) -> pnpm_package_manager::Install<'a, Vec<DependencyGroup>> {
         let install_lockfile = if self.lockfile.fix {
             MaybeLazyLockfile::Repair(&state.lockfile)
         } else {
             MaybeLazyLockfile::Lazy(&state.lockfile)
         };
-        let install = {
-            let mut base_install = state.install(link.dependency_groups);
-            base_install.lockfile_policy.frozen = link.lockfile.frozen;
-            base_install.lockfile_policy.prefer_frozen = self.prefer_frozen_override();
-            base_install.lockfile_policy.ignore_manifest_check =
-                link.lockfile.ignore_manifest_check;
-            base_install.lockfile_policy.trust = link.lockfile.trust;
-            base_install.lockfile_policy.update_checksums = self
-                .lockfile_updates
-                .update_checksums;
-            base_install.lockfile_policy.excludes = PolicyExcludes::Persist;
-            // A trust flag reaches only these options, while the repeat check
-            // compares the configured `trustLockfile`, so it cannot vouch for
-            // an install whose flag overrides the setting.
-            base_install.lockfile_policy.disable_optimistic_repeat =
-                self.materialization.verify_deps_before_run_install
-                    || link.lockfile.trust != state.config.trust_lockfile;
-            base_install.execution.skip_runtimes = link.skip_runtimes;
-            base_install.execution.node_linker = link.node_linker;
-            base_install.execution.lockfile_only = link.lockfile.only;
-            base_install.execution.dry_run = self.materialization.dry_run;
-            base_install.resolution.update_seed_policy = if self.lockfile.fix {
-                UpdateSeedPolicy::FixLockfile
-            } else {
-                UpdateSeedPolicy::KeepAll
-            };
-            base_install.context.lockfile_path = link.lockfile_path;
-            base_install.context.lockfile = install_lockfile;
-            base_install.projects.supported_architectures = link.supported_architectures;
-            base_install
+        let mut base_install = state.install(link.dependency_groups);
+        base_install.lockfile_policy.frozen = link.lockfile.frozen;
+        base_install.lockfile_policy.prefer_frozen = self.prefer_frozen_override();
+        base_install.lockfile_policy.ignore_manifest_check = link.lockfile.ignore_manifest_check;
+        base_install.lockfile_policy.trust = link.lockfile.trust;
+        base_install.lockfile_policy.update_checksums = self.lockfile_updates.update_checksums;
+        base_install.lockfile_policy.excludes = PolicyExcludes::Persist;
+        // A trust flag reaches only these options, while the repeat check
+        // compares the configured `trustLockfile`, so it cannot vouch for
+        // an install whose flag overrides the setting. `pnpm ci` cleans
+        // before installing, so it never takes the repeat check either.
+        base_install.lockfile_policy.disable_optimistic_repeat =
+            self.materialization.entry_mode.is_clean_install()
+                || self.materialization.verify_deps_before_run_install
+                || link.lockfile.trust != state.config.trust_lockfile;
+        base_install.execution.skip_runtimes = link.skip_runtimes;
+        base_install.execution.node_linker = link.node_linker;
+        base_install.execution.lockfile_only = link.lockfile.only;
+        base_install.execution.dry_run = self.materialization.dry_run;
+        base_install.resolution.update_seed_policy = if self.lockfile.fix {
+            UpdateSeedPolicy::FixLockfile
+        } else {
+            UpdateSeedPolicy::KeepAll
         };
+        base_install.context.lockfile_path = link.lockfile_path;
+        base_install.context.lockfile = install_lockfile;
+        base_install.projects.supported_architectures = link.supported_architectures;
+        base_install
+    }
+
+    async fn run_local<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &State,
+        link: PnprLink<'_>,
+        selection: Option<&InstallFamilySelection>,
+        prepared: Option<pnpm_package_manager::PreparedFrozenInstall>,
+    ) -> miette::Result<()> {
+        let install = self.build_local_install(state, link);
         match selection {
             Some(selection) => {
-                install.run_selected::<Reporter>(workspace_install_selection(selection)).await
+                install.run_selected_prepared::<Reporter>(
+                    workspace_install_selection(selection),
+                    prepared,
+                )
+                .await
             }
-            None => install.run::<Reporter>().await,
+            None => install.run_prepared::<Reporter>(prepared).await,
         }
         .wrap_err("installing dependencies")
     }
@@ -481,6 +502,8 @@ fn prefer_frozen_lockfile_override(
 mod tests;
 
 mod fast_path;
+
+mod frozen_validation;
 
 mod pnpr_config_validation;
 

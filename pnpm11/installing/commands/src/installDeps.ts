@@ -29,6 +29,7 @@ import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 
 import { installSingleProject } from './installSingleProject.js'
 import { makeRunPacquet, type MakeRunPacquetOpts } from './runPacquet.js'
+import type { PreparedCiInstall } from './validateCiFrozenInstall.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
 import { preferNonvulnerablePackageVersions } from './vulnerabilityPreferences.js'
 import { warnAboutNestedWorkspaceManifests } from './warnAboutNestedWorkspaceManifests.js'
@@ -176,6 +177,7 @@ export type InstallDepsOptions = Pick<Config,
   isInstallCommand?: boolean
   /** See `RegistryContext.lockedRegistriesByScope`; read from the workspace state by `installDeps`. */
   lockedRegistriesByScope?: Record<string, string>
+  _preparedCi?: PreparedCiInstall
 } & Partial<Pick<Config, 'dangerouslyAllowAllBuilds' | 'dryRun' | 'frozenLockfile' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
 
 export async function installDeps (
@@ -189,14 +191,14 @@ export async function installDeps (
   }
   // A copy, because the store controller writes the resolved store into its
   // options, and the workspace state must record the configured `storeDir`.
-  const store = await createStoreController({ ...opts })
+  const store = opts._preparedCi?.store ?? await createStoreController({ ...opts })
   const runPacquet = await createPacquetRunner(opts)
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
   }
-  const allProjects = await readAllProjects(opts)
+  const allProjects = opts._preparedCi?.allProjects ?? await readAllProjects(opts)
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
@@ -253,7 +255,7 @@ function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): 
   return !opts.update && !opts.dedupe && !opts.force && !opts.pruneDirectDependencies && !opts.pruneStore
 }
 
-function applyWorkspaceOption (opts: InstallDepsOptions): void {
+export function applyWorkspaceOption (opts: InstallDepsOptions): void {
   if (opts.latest) {
     throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
   }
@@ -310,7 +312,7 @@ function findDeclaredPacquetConfigDepName (configDependencies: InstallDepsOption
   return undefined
 }
 
-async function readAllProjects (opts: InstallDepsOptions): Promise<Project[]> {
+export async function readAllProjects (opts: InstallDepsOptions): Promise<Project[]> {
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
       ? await findWorkspaceProjects(opts.workspaceDir, {
@@ -364,7 +366,7 @@ async function installWorkspaceProjects (
   )
 }
 
-function failOrWarnOnWorkspaceCycles (
+export function failOrWarnOnWorkspaceCycles (
   opts: Pick<InstallDepsOptions, 'ignoreWorkspaceCycles' | 'disallowWorkspaceCycles'>,
   { workspaceDir, selectedProjectsGraph }: { workspaceDir: string, selectedProjectsGraph: ProjectsGraph }
 ): void {
@@ -384,7 +386,7 @@ function failOrWarnOnWorkspaceCycles (
   })
 }
 
-function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
+export function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
   return { [project.rootDir]: { dependencies: [], package: project } }

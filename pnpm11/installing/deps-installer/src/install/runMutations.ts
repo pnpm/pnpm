@@ -121,13 +121,13 @@ async function removeDepsFromContextProject (ctx: PnpmContext, project: MutatedP
  * established: a suffix shown to disagree, or one that could not be judged at all. A lockfile
  * whose conflicts were autofixed falls through to resolution instead.
  */
-function throwOnInconsistentFrozenPatchHashes (ctx: PnpmContext, frozenLockfile: boolean): void {
+export function throwOnInconsistentFrozenPatchHashes (ctx: PnpmContext, frozenLockfile: boolean): void {
   if (!frozenLockfile || ctx.lockfileHadConflicts) return
   if (ctx.patchedDepPathsStatus === 'stale') throw new InconsistentPatchHashError()
   if (ctx.patchedDepPathsStatus === 'indeterminate') throw new UncheckablePatchHashError()
 }
 
-function requiresFullResolution (
+export function requiresFullResolution (
   { ctx, forceResolutionFromHook, opts }: MutationRun,
   { outdatedLockfileSettings, upToDateLockfileMajorVersion }: { outdatedLockfileSettings: boolean, upToDateLockfileMajorVersion: boolean }
 ): boolean {

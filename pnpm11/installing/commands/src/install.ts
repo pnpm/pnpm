@@ -223,7 +223,11 @@ export type InstallCommandOptions = Pick<Config,
   pnpmfile: string[]
 } & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'strictDepBuilds' | 'useLockfile' | 'symlink'>>
 
-export async function handler (opts: InstallCommandOptions & { _calledFromLink?: boolean }, _params?: string[], commands?: CommandHandlerMap): Promise<void | string> {
+export async function handler (
+  opts: InstallCommandOptions & { _calledFromLink?: boolean, _preparedCi?: import('./validateCiFrozenInstall.js').PreparedCiInstall },
+  _params?: string[],
+  commands?: CommandHandlerMap
+): Promise<void | string> {
   if (opts.global && !opts._calledFromLink) {
     throw new PnpmError('GLOBAL_INSTALL_NOT_SUPPORTED',
       '"pnpm install -g" is not supported. Use "pnpm add -g <pkg>" to install global packages.')

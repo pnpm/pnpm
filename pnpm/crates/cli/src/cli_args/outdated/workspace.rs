@@ -55,6 +55,7 @@ pub(super) fn isolated_global_config(config: &Config) -> &'static Config {
     let mut isolated_config = config.clone();
     isolated_config.workspace_dir = None;
     isolated_config.shared_workspace_lockfile = false;
+    isolated_config.configured_lockfile_dir = None;
     isolated_config.lockfile_dir = None;
     isolated_config.lockfile = true;
     Config::leak(isolated_config)
