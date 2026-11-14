@@ -11,12 +11,14 @@ use super::{
     paths::{check_ancestors, check_input_directories, validate_relative_path},
 };
 use crate::process::Command;
+use fs_ops::{remove_output_file, replace_output_file};
 use inputs::{HashedFile, compile_globs};
 use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{
     create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file, create_short_hash,
 };
+use pnpm_lockfile::{Lockfile, WantedLockfileSelection};
 use pnpm_workspace_task_scheduler::TaskNode;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -59,12 +61,13 @@ pub struct TaskCache {
     tasks_dir: PathBuf,
     state_dir: PathBuf,
     workspace_root: PathBuf,
-    lockfile_hashes: Mutex<HashMap<PathBuf, String>>,
+    lockfile_hashes: Mutex<HashMap<(PathBuf, WantedLockfileSelection), String>>,
     runtime_fingerprint: String,
     /// Per-project tracked-file hashes, shared by every task of the
     /// project: enumeration and hashing run once, per-task input specs
     /// filter the shared list.
     project_files: Mutex<HashMap<PathBuf, ProjectFiles>>,
+    additive_files: Mutex<HashMap<PathBuf, Option<String>>>,
 }
 
 /// A project's file set, or why it has none.
@@ -114,8 +117,9 @@ struct RecordedFile {
 pub struct TaskKeyInputs<'a> {
     pub node: &'a TaskNode,
     pub settings: Option<&'a TaskSettings>,
-    /// The wanted lockfile path governing this project.
-    pub lockfile_path: &'a Path,
+    /// The lockfile directory and wanted-lockfile selection governing this project.
+    pub lockfile_dir: &'a Path,
+    pub lockfile_selection: &'a WantedLockfileSelection,
     /// The cache keys of the tasks this task depends on, sorted.
     pub dependency_keys: &'a [&'a str],
     /// `(stage, body)` of every script the task runs, in run order.
@@ -151,6 +155,7 @@ impl TaskCache {
             lockfile_hashes: Mutex::new(HashMap::new()),
             runtime_fingerprint,
             project_files: Mutex::new(HashMap::new()),
+            additive_files: Mutex::new(HashMap::new()),
         })
     }
 
@@ -385,32 +390,6 @@ fn remove_stale_outputs(
     Ok(())
 }
 
-/// Unlink an existing output file before overwriting or pruning it, so
-/// read-only (`0444`) outputs do not fail `fs::copy` with `EACCES` and
-/// hard-linked outputs are never mutated in place.
-fn remove_output_file(target: &Path) -> io::Result<()> {
-    let metadata = match fs::symlink_metadata(target) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    if metadata.is_dir() {
-        let target_display = target.display();
-        return Err(io::Error::other(format!("output path is a directory: {target_display}")));
-    }
-    #[cfg(windows)]
-    if metadata.permissions().readonly() {
-        let mut permissions = metadata.permissions();
-        #[expect(
-            clippy::permissions_set_readonly_false,
-            reason = "Windows Permissions holds only FILE_ATTRIBUTE_READONLY, cleared immediately before unlinking"
-        )]
-        permissions.set_readonly(false);
-        fs::set_permissions(target, permissions)?;
-    }
-    fs::remove_file(target)
-}
-
 /// Copy the artifact's outputs into the project, returning what to
 /// record as this run's output set.
 fn copy_cached_outputs(
@@ -422,17 +401,13 @@ fn copy_cached_outputs(
         let source = stored.entry_dir.join("outputs").join(rel_path);
         let target = project_dir.join(rel_path);
         validate_output_path(project_dir, rel_path)?;
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-        }
-        remove_output_file(&target).map_err(|error| format!("removing {rel_path}: {error}"))?;
-        if let Err(error) = fs::copy(&source, &target) {
-            return Err(format!("copying {rel_path}: {error}"));
-        }
-        record.push(RecordedFile {
-            path: rel_path.clone(),
-            hash: create_hex_hash_from_file(&source).unwrap_or_default(),
-        });
+        replace_output_file(&source, &target)
+            .map_err(|error| format!("copying {rel_path}: {error}"))?;
+        let hash = stored.hashes
+            .get(rel_path)
+            .cloned()
+            .unwrap_or_else(|| create_hex_hash_from_file(&source).unwrap_or_default());
+        record.push(RecordedFile { path: rel_path.clone(), hash });
     }
     Ok(record)
 }
@@ -495,4 +470,5 @@ fn stage_output_files(
     Ok(record)
 }
 
+mod fs_ops;
 mod inputs;

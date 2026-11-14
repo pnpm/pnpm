@@ -1,6 +1,6 @@
 use super::{
-    FileIterator, Glob, HashedFile, IntoDiagnostic, Path, PathBuf, Program, check_ancestors,
-    check_input_directories, hash_input, io, validate_relative_path,
+    FileIterator, Glob, HashedFile, IntoDiagnostic, Path, PathBuf, Program, TaskCache,
+    check_ancestors, check_input_directories, io, is_excluded_input, validate_relative_path,
 };
 use std::path::Component;
 use wax::walk::{Entry, GlobEntry, WalkError};
@@ -77,13 +77,40 @@ impl ParentGlob {
         })
     }
 
-    pub(super) fn matches_rel_path(&self, rel_path: &str) -> bool {
-        let (depth, rest) = split_parent_segments(rel_path);
-        if depth == self.parent_depth {
-            return self.glob.is_match(rest);
+    pub(super) fn matches_rel_path(&self, project: &Path, rel_path: &str) -> bool {
+        let (file_up, file_tail) = split_parent_segments(rel_path);
+        if let Some(rebased) = rebase_to_ancestor(project, file_up, file_tail, self.parent_depth) {
+            return self.glob.is_match(rebased.as_str());
         }
-        self.parent_depth == 0 && self.unanchored && self.glob.is_match(rest)
+        self.parent_depth == 0 && self.unanchored && self.glob.is_match(file_tail)
     }
+}
+
+fn rebase_to_ancestor(
+    project: &Path,
+    file_up: usize,
+    file_tail: &str,
+    excl_up: usize,
+) -> Option<String> {
+    if excl_up < file_up {
+        return None;
+    }
+    if excl_up == file_up {
+        return Some(file_tail.to_string());
+    }
+    let file_root = project.ancestors().nth(file_up)?;
+    let excl_root = file_root
+        .ancestors()
+        .nth(excl_up - file_up)?;
+    let prefix = file_root.strip_prefix(excl_root).ok()?;
+    let mut out = String::new();
+    for component in prefix.components() {
+        let Component::Normal(segment) = component else { return None };
+        out.push_str(segment.to_str()?);
+        out.push('/');
+    }
+    out.push_str(file_tail);
+    Some(out)
 }
 
 fn strip_cur_dir_prefixes(mut pattern: &str) -> &str {
@@ -104,10 +131,14 @@ fn split_parent_segments(pattern: &str) -> (usize, &str) {
 }
 
 fn validate_glob_body(raw: &str, body: &str) -> miette::Result<()> {
-    if body.is_empty() || body.starts_with('/') || Path::new(body).has_root() {
+    if body.is_empty() || body.starts_with(['/', '\\']) || Path::new(body).has_root() {
         return Err(miette::miette!("invalid cache input glob {raw:?}"));
     }
-    if body.split('/').any(is_disallowed_glob_segment) {
+    let invalid_segment = body.split('/').any(str::is_empty)
+        || body
+            .split(['/', '\\'])
+            .any(is_disallowed_glob_segment);
+    if invalid_segment {
         return Err(miette::miette!(
             "cache input glob cannot contain '.', '..', '.git', or 'node_modules': {raw:?}",
         ));
@@ -116,8 +147,7 @@ fn validate_glob_body(raw: &str, body: &str) -> miette::Result<()> {
 }
 
 fn is_disallowed_glob_segment(segment: &str) -> bool {
-    segment.is_empty()
-        || segment == "."
+    segment == "."
         || segment == ".."
         || segment.eq_ignore_ascii_case(".git")
         || segment.eq_ignore_ascii_case("node_modules")
@@ -137,31 +167,39 @@ fn literal_directory_prefix(body: &str) -> PathBuf {
     segments[..dir_count].iter().collect()
 }
 
+struct AdditiveWalk<'a> {
+    cache: &'a TaskCache,
+    project: &'a Path,
+    output_globs: &'a [Glob<'a>],
+    exclude: &'a [ParentGlob],
+}
+
 pub(super) fn walk_additive_inputs(
-    workspace_root: &Path,
+    cache: &TaskCache,
     project: &Path,
-    globs: &[ParentGlob],
+    output_globs: &[Glob<'_>],
+    configured: &ConfiguredInputs<'_>,
 ) -> miette::Result<Vec<HashedFile>> {
+    let walk = AdditiveWalk { cache, project, output_globs, exclude: &configured.exclude };
     let mut files = Vec::new();
-    for glob in globs {
-        walk_single_additive_glob(workspace_root, project, glob, &mut files)?;
+    for glob in &configured.add {
+        walk_single_additive_glob(&walk, glob, &mut files)?;
     }
     Ok(files)
 }
 
 fn walk_single_additive_glob(
-    workspace_root: &Path,
-    project: &Path,
+    walk: &AdditiveWalk<'_>,
     glob: &ParentGlob,
     files: &mut Vec<HashedFile>,
 ) -> miette::Result<()> {
-    let walk_root = resolve_walk_root(workspace_root, project, glob)?;
+    let walk_root = resolve_walk_root(&walk.cache.workspace_root, walk.project, glob)?;
     let entries = glob.glob
         .walk(&walk_root)
         .not(wax::any(["**/node_modules/**", "**/.git/**"]))
         .map_err(|error| miette::miette!("invalid ignore glob: {error}"))?;
     for entry in entries {
-        if let Some(hashed) = hash_walk_entry(&walk_root, project, &glob.raw, entry)? {
+        if let Some(hashed) = hash_walk_entry(walk, &walk_root, &glob.raw, entry)? {
             files.push(hashed);
         }
     }
@@ -219,23 +257,27 @@ fn verify_workspace_containment(
 }
 
 fn hash_walk_entry(
+    walk: &AdditiveWalk<'_>,
     walk_root: &Path,
-    project: &Path,
     raw_pattern: &str,
     entry: Result<GlobEntry, WalkError>,
 ) -> miette::Result<Option<HashedFile>> {
     let entry = match entry {
         Ok(entry) => entry,
-        Err(walk_error) => return handle_walk_error(raw_pattern, project, walk_error),
+        Err(walk_error) => return handle_walk_error(raw_pattern, walk.project, walk_error),
     };
-    if entry.file_type().is_dir() {
+    if !entry.file_type().is_file() && !entry.file_type().is_symlink() {
         return Ok(None);
     }
     let entry_path = entry.into_path();
-    let rel_path = relative_from_project(project, walk_root, &entry_path)?;
-    let hash = hash_input(&entry_path)
+    let rel_path = relative_from_project(walk.project, walk_root, &entry_path)?;
+    if is_excluded_input(walk.project, &rel_path, walk.output_globs, walk.exclude) {
+        return Ok(None);
+    }
+    let hash = walk.cache
+        .hash_additive_input(&entry_path)
         .map_err(|error| {
-            let project_display = project.display();
+            let project_display = walk.project.display();
             miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
         })?;
     Ok(hash.map(|hash| HashedFile { rel_path, hash }))

@@ -50,7 +50,10 @@ use report::RunReport;
 
 use cache_tiers::CacheTiers;
 use remote_cache::RemoteTaskCache;
-use reporting::{StatusCounts, compute_task_keys, print_dry_run, record_task_outcome};
+use reporting::{
+    StatusCounts, TaskCachePlan, compute_task_keys, print_dry_run, record_task_outcome,
+    reported_task_keys,
+};
 use selection::{
     SelectAffectedOptions, build_full_graph, git_stdout, select_affected_projects,
     workspace_identity,
@@ -288,7 +291,7 @@ impl<'a> PipelineRun<'a> {
         sequenced_tasks: &[TaskKey],
         plan: &PipelinePlan<'_, '_>,
         cache: &TaskCache,
-    ) -> miette::Result<HashMap<TaskKey, Option<String>>> {
+    ) -> miette::Result<HashMap<TaskKey, TaskCachePlan>> {
         if self.invocation.no_cache {
             return Ok(HashMap::new());
         }
@@ -299,12 +302,12 @@ impl<'a> PipelineRun<'a> {
         &self,
         plan: &PipelinePlan<'_, '_>,
         statuses: &IndexMap<String, ExecutionStatus>,
-        task_keys: &HashMap<TaskKey, Option<String>>,
+        task_keys: &HashMap<TaskKey, TaskCachePlan>,
     ) -> miette::Result<PipelineOutcome> {
         let counts = StatusCounts::of(statuses);
         let hits = plan.report.cache_hits();
 
-        plan.report.finish(statuses, task_keys, self.workspace_root);
+        plan.report.finish(statuses, &reported_task_keys(task_keys), self.workspace_root);
         self.conclude(
             plan.report,
             Some(format!(
@@ -375,7 +378,7 @@ struct TaskRunner<'a, 'graph> {
     run: &'a PipelineRun<'a>,
     graph: &'a ProjectGraph<GraphPkg<'graph>>,
     cache: CacheTiers<'a>,
-    task_keys: &'a HashMap<TaskKey, Option<String>>,
+    task_keys: &'a HashMap<TaskKey, TaskCachePlan>,
     report: &'a RunReport,
     environment: PipelineEnvironment,
     results: PipelineResults,
@@ -415,7 +418,7 @@ impl TaskRunner<'_, '_> {
             config: self.run.config,
             invocation: self.run.invocation,
             cache: self.cache,
-            task_key: self.task_keys.get(&key).and_then(Option::as_deref),
+            cache_plan: self.task_keys.get(&key),
             environment: crate::cli_args::pipeline::execution::TaskEnvironment {
                 init_cwd: &self.environment.init_cwd,
                 extra_env: &self.environment.extra_env,

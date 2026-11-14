@@ -1,7 +1,11 @@
-use super::{InputsUnavailable, RecordedFile, TaskCache, TaskKeyInputs, collect_output_files};
+use super::{
+    InputsUnavailable, RecordedFile, TaskCache, TaskKeyInputs, collect_output_files,
+    fs_ops::replace_output_file,
+};
 use pnpm_config::TaskSettings;
 #[cfg(unix)]
 use pnpm_crypto_hash::{create_hex_hash_bytes, create_hex_hash_from_file};
+use pnpm_lockfile::WantedLockfileSelection;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use pnpm_workspace_task_scheduler::TaskNode;
 use std::{collections::HashMap, fs, path::Path};
@@ -483,7 +487,23 @@ fn key_for_inputs(
     workspace_root: &Path,
     project: &Path,
     inputs: Option<Vec<String>>,
-    lockfile_path: &Path,
+    lockfile_dir: &Path,
+) -> miette::Result<String> {
+    key_for_inputs_with_selection(
+        workspace_root,
+        project,
+        inputs,
+        lockfile_dir,
+        &WantedLockfileSelection::default(),
+    )
+}
+
+fn key_for_inputs_with_selection(
+    workspace_root: &Path,
+    project: &Path,
+    inputs: Option<Vec<String>>,
+    lockfile_dir: &Path,
+    lockfile_selection: &WantedLockfileSelection,
 ) -> miette::Result<String> {
     let storage = tempfile::tempdir().unwrap();
     let cache = TaskCache::open(storage.path(), workspace_root)?;
@@ -497,7 +517,8 @@ fn key_for_inputs(
         .compute_task_key(&TaskKeyInputs {
             node: &node,
             settings: Some(&settings),
-            lockfile_path,
+            lockfile_dir,
+            lockfile_selection,
             dependency_keys: &[],
             environment: &environment,
             script_bodies: &script_bodies,
@@ -509,14 +530,13 @@ fn key_for_inputs(
 fn empty_inputs_hashes_zero_files_while_omitted_inputs_hashes_tracked_files() {
     let (root, repo, _cache) = setup_input_cache();
     let project = root.path().join("inputs-src");
-    let lockfile = project.join("pnpm-lock.yaml");
-    let empty_before = key_for_inputs(&project, &project, Some(Vec::new()), &lockfile).unwrap();
-    let default_before = key_for_inputs(&project, &project, None, &lockfile).unwrap();
+    let empty_before = key_for_inputs(&project, &project, Some(Vec::new()), &project).unwrap();
+    let default_before = key_for_inputs(&project, &project, None, &project).unwrap();
 
     repo.write_file("input", "modified");
     repo.write_file("extra.txt", "extra");
-    let empty_after = key_for_inputs(&project, &project, Some(Vec::new()), &lockfile).unwrap();
-    let default_after = key_for_inputs(&project, &project, None, &lockfile).unwrap();
+    let empty_after = key_for_inputs(&project, &project, Some(Vec::new()), &project).unwrap();
+    let default_after = key_for_inputs(&project, &project, None, &project).unwrap();
 
     assert_eq!(empty_before, empty_after);
     assert_ne!(default_before, default_after);
@@ -528,7 +548,6 @@ fn additive_and_excluded_input_globs_cover_gitignored_and_sibling_files() {
     let repo = GitRepoFixture::init(root.path(), "ws");
     let workspace = root.path().join("ws-src");
     let project = workspace.join("packages/app");
-    let lockfile = workspace.join("pnpm-lock.yaml");
     repo.write_file(".gitignore", ".env.local\ndist/\n");
     repo.write_file("packages/app/src/index.js", "v1");
     repo.write_file("packages/app/README.md", "docs-v1");
@@ -537,20 +556,20 @@ fn additive_and_excluded_input_globs_cover_gitignored_and_sibling_files() {
     let _ = repo.commit("workspace fixture");
 
     let env_only_spec = || Some(vec![String::from("+.env.local")]);
-    let without_env = key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    let without_env = key_for_inputs(&workspace, &project, env_only_spec(), &workspace).unwrap();
     fs::write(project.join(".env.local"), "MODE=1").unwrap();
-    let with_env_v1 = key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    let with_env_v1 = key_for_inputs(&workspace, &project, env_only_spec(), &workspace).unwrap();
     fs::write(project.join(".env.local"), "MODE=2").unwrap();
-    let with_env_v2 = key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    let with_env_v2 = key_for_inputs(&workspace, &project, env_only_spec(), &workspace).unwrap();
     fs::remove_file(project.join(".env.local")).unwrap();
-    let after_delete = key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    let after_delete = key_for_inputs(&workspace, &project, env_only_spec(), &workspace).unwrap();
     assert_ne!(without_env, with_env_v1);
     assert_ne!(with_env_v1, with_env_v2);
     assert_eq!(without_env, after_delete);
 
     repo.write_file("packages/app/src/index.js", "v2");
     let after_tracked_edit =
-        key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+        key_for_inputs(&workspace, &project, env_only_spec(), &workspace).unwrap();
     assert_ne!(without_env, after_tracked_edit);
 
     let combined = || {
@@ -560,12 +579,55 @@ fn additive_and_excluded_input_globs_cover_gitignored_and_sibling_files() {
             String::from("!../shared/*.bak"),
         ])
     };
-    let baseline = key_for_inputs(&workspace, &project, combined(), &lockfile).unwrap();
+    let baseline = key_for_inputs(&workspace, &project, combined(), &workspace).unwrap();
     repo.write_file("packages/app/README.md", "docs-v2");
     repo.write_file("packages/shared/ignored.bak", "bak-v2");
-    assert_eq!(baseline, key_for_inputs(&workspace, &project, combined(), &lockfile).unwrap());
+    assert_eq!(baseline, key_for_inputs(&workspace, &project, combined(), &workspace).unwrap());
     repo.write_file("packages/shared/common.txt", "shared-v2");
-    assert_ne!(baseline, key_for_inputs(&workspace, &project, combined(), &lockfile).unwrap());
+    assert_ne!(baseline, key_for_inputs(&workspace, &project, combined(), &workspace).unwrap());
+
+    let parent_excl = || Some(vec![String::from("+../**"), String::from("!../app/README.md")]);
+    let parent_excl_base = key_for_inputs(&workspace, &project, parent_excl(), &workspace).unwrap();
+    repo.write_file("packages/app/README.md", "docs-v3");
+    assert_eq!(
+        parent_excl_base,
+        key_for_inputs(&workspace, &project, parent_excl(), &workspace).unwrap(),
+    );
+    repo.write_file("packages/app/src/index.js", "v3");
+    assert_ne!(
+        parent_excl_base,
+        key_for_inputs(&workspace, &project, parent_excl(), &workspace).unwrap(),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn additive_input_globs_skip_fifos_without_blocking() {
+    let (root, _repo, _cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    fs::create_dir(project.join(".runtime")).unwrap();
+    fs::write(project.join(".runtime/config.json"), "v1").unwrap();
+    let fifo_status = std::process::Command::new("mkfifo")
+        .arg(project.join(".runtime/daemon.pipe"))
+        .status()
+        .unwrap();
+    assert!(fifo_status.success());
+
+    let spec = || Some(vec![String::from("+.runtime/**")]);
+    let first = key_for_inputs(&project, &project, spec(), &project).unwrap();
+    fs::write(project.join(".runtime/config.json"), "v2").unwrap();
+    let second = key_for_inputs(&project, &project, spec(), &project).unwrap();
+    assert_ne!(first, second);
+}
+
+#[test]
+fn replace_output_file_keeps_existing_target_when_source_is_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("out.txt");
+    fs::write(&target, "intact").unwrap();
+    make_readonly(&target);
+    assert!(replace_output_file(&dir.path().join("missing.txt"), &target).is_err());
+    assert_eq!(fs::read_to_string(&target).unwrap(), "intact");
 }
 
 #[test]
@@ -574,15 +636,21 @@ fn additive_input_globs_reject_workspace_escape_and_invalid_paths() {
     let repo = GitRepoFixture::init(root.path(), "ws");
     let workspace = root.path().join("ws-src");
     let project = workspace.join("packages/app");
-    let lockfile = workspace.join("pnpm-lock.yaml");
     repo.write_file("packages/app/src/index.js", "v1");
     fs::write(root.path().join("outside.txt"), "secret").unwrap();
     let _ = repo.commit("workspace fixture");
 
-    for invalid in ["+../../../outside.txt", "+/etc/passwd", "+../.git/HEAD", "+../node_modules/a"]
-    {
+    for invalid in [
+        "+../../../outside.txt",
+        r"+..\..\..\outside.txt",
+        "+/etc/passwd",
+        r"+\etc\passwd",
+        "+../.git/HEAD",
+        "+../node_modules/a",
+        r"+..\node_modules\a",
+    ] {
         let result =
-            key_for_inputs(&workspace, &project, Some(vec![invalid.to_string()]), &lockfile);
+            key_for_inputs(&workspace, &project, Some(vec![invalid.to_string()]), &workspace);
         assert!(result.is_err(), "expected {invalid} to be rejected");
     }
     #[cfg(unix)]
@@ -590,26 +658,139 @@ fn additive_input_globs_reject_workspace_escape_and_invalid_paths() {
         let outside_dir = tempfile::tempdir().unwrap();
         fs::write(outside_dir.path().join("secret.txt"), "secret").unwrap();
         std::os::unix::fs::symlink(outside_dir.path(), project.join("linked")).unwrap();
-        let result =
-            key_for_inputs(&workspace, &project, Some(vec![String::from("+linked/**")]), &lockfile);
+        let result = key_for_inputs(
+            &workspace,
+            &project,
+            Some(vec![String::from("+linked/**")]),
+            &workspace,
+        );
         assert!(result.is_err(), "symlinked additive directory must be rejected");
+    }
+    #[cfg(windows)]
+    {
+        let outside_dir = tempfile::tempdir().unwrap();
+        fs::write(outside_dir.path().join("secret.txt"), "secret").unwrap();
+        pnpm_fs::symlink_dir(outside_dir.path(), &project.join("linked")).unwrap();
+        let result = key_for_inputs(
+            &workspace,
+            &project,
+            Some(vec![String::from("+linked/**")]),
+            &workspace,
+        );
+        assert!(result.is_err(), "junction additive directory must be rejected");
     }
 }
 
 #[test]
-fn lockfile_path_hashes_each_configured_lockfile_independently() {
+fn lockfile_selection_hashes_per_dir_and_branch_lockfile_fallbacks() {
     let (root, _repo, _cache) = setup_input_cache();
     let project = root.path().join("inputs-src");
-    let first_lockfile = root.path().join("first-lock.yaml");
-    let second_lockfile = root.path().join("second-lock.yaml");
-    fs::write(&first_lockfile, "lockfileVersion: '9.0'\nimporters: {}\n").unwrap();
-    fs::write(&second_lockfile, "lockfileVersion: '9.0'\nimporters: {}\n").unwrap();
-
-    let initial = key_for_inputs(&project, &project, None, &first_lockfile).unwrap();
-    assert_eq!(initial, key_for_inputs(&project, &project, None, &second_lockfile).unwrap());
-
-    fs::write(&first_lockfile, "lockfileVersion: '9.0'\nsettings: { autoInstallPeers: false }\n")
+    let first_dir = root.path().join("lock-a");
+    let second_dir = root.path().join("lock-b");
+    fs::create_dir_all(&first_dir).unwrap();
+    fs::create_dir_all(&second_dir).unwrap();
+    fs::write(first_dir.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\nimporters: {}\n").unwrap();
+    fs::write(second_dir.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\nimporters: {}\n")
         .unwrap();
-    assert_ne!(initial, key_for_inputs(&project, &project, None, &first_lockfile).unwrap());
-    assert_eq!(initial, key_for_inputs(&project, &project, None, &second_lockfile).unwrap());
+
+    let initial = key_for_inputs(&project, &project, None, &first_dir).unwrap();
+    assert_eq!(initial, key_for_inputs(&project, &project, None, &second_dir).unwrap());
+
+    fs::write(
+        first_dir.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nsettings: { autoInstallPeers: false }\n",
+    )
+    .unwrap();
+    assert_ne!(initial, key_for_inputs(&project, &project, None, &first_dir).unwrap());
+    assert_eq!(initial, key_for_inputs(&project, &project, None, &second_dir).unwrap());
+
+    let new_branch = WantedLockfileSelection {
+        file_name: "pnpm-lock.feat.yaml".to_string(),
+        merge_git_branch_lockfiles: false,
+        branch_lockfile_candidates: Vec::new(),
+    };
+    let fallback_key = key_for_inputs_with_selection(
+        &project,
+        &project,
+        Some(Vec::new()),
+        &second_dir,
+        &new_branch,
+    )
+    .unwrap();
+    fs::write(
+        second_dir.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nsettings: { autoInstallPeers: true }\n",
+    )
+    .unwrap();
+    let after_shared_edit = key_for_inputs_with_selection(
+        &project,
+        &project,
+        Some(Vec::new()),
+        &second_dir,
+        &new_branch,
+    )
+    .unwrap();
+    assert_ne!(fallback_key, after_shared_edit);
+
+    let detached_dir = root.path().join("lock-detached");
+    fs::create_dir_all(&detached_dir).unwrap();
+    fs::write(detached_dir.join("pnpm-lock.feat.yaml"), "lockfileVersion: '9.0'\nimporters: {}\n")
+        .unwrap();
+    let detached = WantedLockfileSelection {
+        file_name: "pnpm-lock.yaml".to_string(),
+        merge_git_branch_lockfiles: false,
+        branch_lockfile_candidates: vec!["pnpm-lock.feat.yaml".to_string()],
+    };
+    let detached_before = key_for_inputs_with_selection(
+        &project,
+        &project,
+        Some(Vec::new()),
+        &detached_dir,
+        &detached,
+    )
+    .unwrap();
+    fs::write(
+        detached_dir.join("pnpm-lock.feat.yaml"),
+        "lockfileVersion: '9.0'\nsettings: { autoInstallPeers: false }\n",
+    )
+    .unwrap();
+    let detached_after = key_for_inputs_with_selection(
+        &project,
+        &project,
+        Some(Vec::new()),
+        &detached_dir,
+        &detached,
+    )
+    .unwrap();
+    assert_ne!(detached_before, detached_after);
+
+    let merge_mode = WantedLockfileSelection {
+        file_name: "pnpm-lock.yaml".to_string(),
+        merge_git_branch_lockfiles: true,
+        branch_lockfile_candidates: Vec::new(),
+    };
+    fs::write(detached_dir.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\nimporters: {}\n")
+        .unwrap();
+    let merge_before = key_for_inputs_with_selection(
+        &project,
+        &project,
+        Some(Vec::new()),
+        &detached_dir,
+        &merge_mode,
+    )
+    .unwrap();
+    fs::write(
+        detached_dir.join("pnpm-lock.feat.yaml"),
+        "lockfileVersion: '9.0'\nsettings: { autoInstallPeers: true }\n",
+    )
+    .unwrap();
+    let merge_after = key_for_inputs_with_selection(
+        &project,
+        &project,
+        Some(Vec::new()),
+        &detached_dir,
+        &merge_mode,
+    )
+    .unwrap();
+    assert_ne!(merge_before, merge_after);
 }

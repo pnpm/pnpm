@@ -1,12 +1,12 @@
 mod globs;
 
 use super::{
-    Arc, Command, FileIterator, Glob, InputsUnavailable, IntoDiagnostic, Path, PathBuf,
+    Arc, Command, FileIterator, Glob, InputsUnavailable, IntoDiagnostic, Lockfile, Path, PathBuf,
     ProjectFiles, ProjectInputHashes, TaskCache, TaskKeyInputs, TaskNode, TaskSettings,
-    check_ancestors, check_input_directories, create_hex_hash, create_hex_hash_bytes,
-    create_hex_hash_from_file, env, fs, io, validate_relative_path,
+    WantedLockfileSelection, check_ancestors, check_input_directories, create_hex_hash,
+    create_hex_hash_bytes, create_hex_hash_from_file, env, fs, io, validate_relative_path,
 };
-use globs::{ConfiguredInputs, InputSelection, parse_inputs, walk_additive_inputs};
+use globs::{ConfiguredInputs, InputSelection, ParentGlob, parse_inputs, walk_additive_inputs};
 use wax::Program;
 
 #[derive(Debug, Clone)]
@@ -38,6 +38,9 @@ fn hash_input(path: &Path) -> io::Result<Option<String>> {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error),
         };
+    }
+    if !metadata.file_type().is_file() && !metadata.file_type().is_dir() {
+        return Ok(None);
     }
     match create_hex_hash_from_file(path) {
         Ok(hash) => Ok(Some(hash)),
@@ -139,7 +142,7 @@ impl TaskCache {
     /// The task's cache key: `pnpm-pipeline-task:v1` over the components
     /// the RFC names, NUL-separated and hashed.
     pub fn compute_task_key(&self, inputs: &TaskKeyInputs<'_>) -> miette::Result<Option<String>> {
-        let lockfile_hash = self.lockfile_hash(inputs.lockfile_path);
+        let lockfile_hash = self.lockfile_hash(inputs.lockfile_dir, inputs.lockfile_selection);
         let mut components: Vec<String> = vec![
             "pnpm-pipeline-task:v1".to_string(),
             platform_cache_component(),
@@ -170,21 +173,41 @@ impl TaskCache {
         Ok(Some(create_hex_hash(&components.join("\0"))))
     }
 
-    pub(super) fn lockfile_hash(&self, lockfile_path: &Path) -> String {
+    pub(super) fn lockfile_hash(
+        &self,
+        lockfile_dir: &Path,
+        selection: &WantedLockfileSelection,
+    ) -> String {
+        let cache_key = (lockfile_dir.to_path_buf(), selection.clone());
         if let Some(hash) = self.lockfile_hashes
             .lock()
             .expect("lockfile-hashes lock is not poisoned")
-            .get(lockfile_path)
+            .get(&cache_key)
         {
             return hash.clone();
         }
-        let hash =
-            create_hex_hash_from_file(lockfile_path).unwrap_or_else(|_| "no-lockfile".to_string());
+        let hash = hash_wanted_lockfile(lockfile_dir, selection);
         self.lockfile_hashes
             .lock()
             .expect("lockfile-hashes lock is not poisoned")
-            .insert(lockfile_path.to_path_buf(), hash.clone());
+            .insert(cache_key, hash.clone());
         hash
+    }
+
+    pub(super) fn hash_additive_input(&self, path: &Path) -> io::Result<Option<String>> {
+        if let Some(cached) = self.additive_files
+            .lock()
+            .expect("additive-files lock is not poisoned")
+            .get(path)
+        {
+            return Ok(cached.clone());
+        }
+        let hashed = hash_input(path)?;
+        self.additive_files
+            .lock()
+            .expect("additive-files lock is not poisoned")
+            .insert(path.to_path_buf(), hashed.clone());
+        Ok(hashed)
     }
 
     pub fn project_rel(&self, project: &Path) -> String {
@@ -216,13 +239,9 @@ impl TaskCache {
         let files = match selection {
             InputSelection::Default => filter_default_inputs(&all, &output_globs),
             InputSelection::Empty => Vec::new(),
-            InputSelection::Configured(configured) => resolve_configured_inputs(
-                &self.workspace_root,
-                &node.project,
-                &all,
-                &output_globs,
-                &configured,
-            )?,
+            InputSelection::Configured(configured) => {
+                resolve_configured_inputs(self, &node.project, &all, &output_globs, &configured)?
+            }
         };
         Ok(Some(Arc::new(files)))
     }
@@ -265,7 +284,7 @@ fn filter_default_inputs(all: &[HashedFile], output_globs: &[Glob<'_>]) -> Vec<H
 }
 
 fn resolve_configured_inputs(
-    workspace_root: &Path,
+    cache: &TaskCache,
     project: &Path,
     all: &[HashedFile],
     output_globs: &[Glob<'_>],
@@ -274,23 +293,59 @@ fn resolve_configured_inputs(
     let mut files: Vec<HashedFile> = all
         .iter()
         .filter(|file| {
-            configured.replace.is_empty()
+            (configured.replace.is_empty()
                 || configured.replace
                     .iter()
-                    .any(|glob| glob.is_match(file.rel_path.as_str()))
+                    .any(|glob| glob.is_match(file.rel_path.as_str())))
+                && !is_excluded_input(project, &file.rel_path, output_globs, &configured.exclude)
         })
         .cloned()
         .collect();
-    files.extend(walk_additive_inputs(workspace_root, project, &configured.add)?);
+    files.extend(walk_additive_inputs(cache, project, output_globs, configured)?);
     files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
     files.dedup_by(|left, right| left.rel_path == right.rel_path);
-    files.retain(|file| {
-        !matches_project_output(&file.rel_path, output_globs)
-            && !configured.exclude
-                .iter()
-                .any(|glob| glob.matches_rel_path(&file.rel_path))
-    });
     Ok(files)
+}
+
+fn is_excluded_input(
+    project: &Path,
+    rel_path: &str,
+    output_globs: &[Glob<'_>],
+    exclude: &[ParentGlob],
+) -> bool {
+    matches_project_output(rel_path, output_globs)
+        || exclude
+            .iter()
+            .any(|glob| glob.matches_rel_path(project, rel_path))
+}
+
+fn hash_wanted_lockfile(lockfile_dir: &Path, selection: &WantedLockfileSelection) -> String {
+    let Some(base_name) =
+        selection.read_order().find(|file_name| Lockfile::wanted_exists(lockfile_dir, file_name))
+    else {
+        return "no-lockfile".to_string();
+    };
+    let Ok(base_hash) = create_hex_hash_from_file(&lockfile_dir.join(base_name)) else {
+        return "no-lockfile".to_string();
+    };
+    if !selection.merge_git_branch_lockfiles {
+        return base_hash;
+    }
+    let branch_files = Lockfile::git_branch_lockfiles(lockfile_dir).unwrap_or_default();
+    if branch_files.is_empty() {
+        return base_hash;
+    }
+    let mut parts = vec![format!("base:{base_name}={base_hash}")];
+    for branch_path in branch_files {
+        let name = branch_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy();
+        let hash =
+            create_hex_hash_from_file(&branch_path).unwrap_or_else(|_| "unreadable".to_string());
+        parts.push(format!("branch:{name}={hash}"));
+    }
+    create_hex_hash(&parts.join("\0"))
 }
 
 fn matches_project_output(rel_path: &str, output_globs: &[Glob<'_>]) -> bool {

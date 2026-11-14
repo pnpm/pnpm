@@ -734,3 +734,69 @@ fn per_project_lockfile_and_lockfile_dir_invalidate_task_cache() {
     run_pipeline_cmd(custom.path(), &storage, &[], &["pipeline", "--full"]);
     assert_eq!(fs::read_to_string(custom.path().join("runs")).unwrap(), "xx");
 }
+
+#[test]
+fn git_branch_lockfile_fallback_and_detached_head_invalidate_task_cache() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let workspace = root.path().join("ws-src");
+    let storage = root.path().join("storage");
+    let script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/out.txt','built');fs.appendFileSync('runs','x')""#;
+    repo.write_file(".gitignore", "node_modules/\ndist/\nruns\n");
+    repo.write_file(
+        "package.json",
+        &serde_json::json!({
+            "name": "branch-lock-probe",
+            "version": "1.0.0",
+            "scripts": { "build": script }
+        })
+        .to_string(),
+    );
+    repo.write_file(
+        "pnpm-workspace.yaml",
+        "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: ['dist/**']\n",
+    );
+    run_pipeline_cmd(&workspace, &storage, &[], &["install"]);
+    repo.write_file(
+        "pnpm-workspace.yaml",
+        "packages: []\nincludeWorkspaceRoot: true\ngitBranchLockfile: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: ['dist/**']\n",
+    );
+    let _ = repo.commit("shared lockfile before branch checkout");
+
+    Command::new("git")
+        .current_dir(&workspace)
+        .args(["checkout", "-b", "feat/new-branch"])
+        .assert()
+        .success();
+    assert!(!workspace.join("pnpm-lock.feat!new-branch.yaml").exists());
+
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "x");
+
+    let shared_lock = workspace.join("pnpm-lock.yaml");
+    let mut shared_text = fs::read_to_string(&shared_lock).unwrap();
+    shared_text.push_str("# invalidate shared fallback\n");
+    fs::write(&shared_lock, &shared_text).unwrap();
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "xx");
+
+    fs::rename(&shared_lock, workspace.join("pnpm-lock.feat!new-branch.yaml")).unwrap();
+    let _ = repo.commit("branch lockfile committed");
+    Command::new("git")
+        .current_dir(&workspace)
+        .args(["checkout", "--detach", "HEAD"])
+        .assert()
+        .success();
+
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "xx");
+
+    let branch_lock = workspace.join("pnpm-lock.feat!new-branch.yaml");
+    let mut branch_text = fs::read_to_string(&branch_lock).unwrap();
+    branch_text.push_str("# invalidate detached candidate\n");
+    fs::write(&branch_lock, branch_text).unwrap();
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "xxx");
+}
