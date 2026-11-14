@@ -1,8 +1,10 @@
-use super::{Discovery, InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare};
+use super::{
+    Discovery, InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare,
+    workspace::Workspace,
+};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use std::{
     collections::BTreeSet,
-    fs,
     path::{Path, PathBuf},
 };
 
@@ -60,6 +62,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             .flat_map(|membership| membership.members)
             .collect();
         let discovery = discovery.reread(config, &members).await?;
+        let workspace = discovery.workspace.clone();
         let mut prepared = prepare::<Reporter>(
             context,
             discovery,
@@ -68,7 +71,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             selected.clone(),
         )
         .await?;
-        save_added(&mut prepared, config, &options, &selected)?;
+        save_added(&mut prepared, config, &workspace, &options, &selected)?;
         Ok(prepared)
     };
     Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
@@ -120,6 +123,7 @@ pub fn writable_project(root: &Path) -> Result<PathBuf> {
 fn save_added(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
+    workspace: &Workspace,
     options: &AddOptions,
     edited: &BTreeSet<PathBuf>,
 ) -> Result<()> {
@@ -132,30 +136,16 @@ fn save_added(
             pin_to_locked_version(&mut requirement, &lock, options, prefix)?;
             requirements.push(requirement.to_string());
         }
-        let mut recorded = Vec::new();
         for member in &project.members {
-            let path = member.join("pyproject.toml");
             if edited.contains(member) {
-                manifest::add(&path, &requirements, options.development)?;
+                manifest::add(&member.join("pyproject.toml"), &requirements, options.development)?;
             }
-            recorded.extend(read_requirements(&path, config)?);
         }
+        let recorded = workspace.recorded_requirements(config, &project.members)?;
         lock.tool.pnpm.set_requirements(&recorded);
         project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     }
     Ok(())
-}
-
-fn read_requirements(
-    path: &Path,
-    config: &pnpm_config::Config,
-) -> Result<Vec<pep508_rs::Requirement>> {
-    let manifest = manifest::Manifest::parse(
-        &fs::read_to_string(path)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("read {}", path.display()))?,
-    )?;
-    manifest.requirements(config, manifest::DependencySelection::ALL)
 }
 
 /// Give a requirement the version the lockfile resolved, when the command

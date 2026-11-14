@@ -365,11 +365,18 @@ async fn update_at_a_virtual_shared_workspace_root_updates_member_manifests_and_
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     let _beta = serve(&mut server, "beta", &[("1.0", wheel("beta", "1.0", "", &[]))]).await;
     shared_workspace(root.path(), &server.url());
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['packages/*']\n\n[tool.uv.sources]\n\
+         lib = { workspace = true }\n\n[tool.pnpm.python]\nshared-environment = true\n",
+    )
+    .unwrap();
     python_project(
         &root.path().join("packages/lib"),
         "lib",
         "dependencies = ['alpha>=1.0,<2.0']\n\n[dependency-groups]\ndev = ['beta>=1.0']",
     );
+    python_project(&root.path().join("packages/app"), "app", "dependencies = ['lib>=0.1.0']");
 
     pacquet_in(root.path())
         .arg("install")
@@ -394,7 +401,7 @@ async fn update_at_a_virtual_shared_workspace_root_updates_member_manifests_and_
     .await;
 
     // Targeted `pnpm update pypi:alpha` from the virtual root updates `alpha` in `packages/lib`
-    // while keeping `beta` pinned at `1.0`.
+    // while keeping `beta` pinned at `1.0` and `lib` linked from the workspace.
     pacquet_in(root.path())
         .args(["update", "pypi:alpha"])
         .assert()
@@ -403,23 +410,30 @@ async fn update_at_a_virtual_shared_workspace_root_updates_member_manifests_and_
     assert!(lib_manifest.contains("alpha>=1.5,<2.0"), "{lib_manifest}");
     assert!(lib_manifest.contains("beta>=1.0"), "{lib_manifest}");
     python(root.path())
-        .args(["-c", "import alpha, beta; assert alpha.VERSION == '1.5' and beta.VERSION == '1.0'"])
+        .args([
+            "-c",
+            "import alpha, beta, lib, app; assert alpha.VERSION == '1.5' and beta.VERSION == '1.0'",
+        ])
         .assert()
         .success();
 
-    // Bare `pnpm update` from the virtual root updates `beta` across member dependency groups.
+    // Bare `pnpm update` from the virtual root updates `beta` across member dependency groups
+    // without touching `lib` inherited from root `[tool.uv.sources]`.
     pacquet_in(root.path())
         .arg("update")
         .assert()
         .success();
     let lib_manifest = fs::read_to_string(root.path().join("packages/lib/pyproject.toml")).unwrap();
+    let app_manifest = fs::read_to_string(root.path().join("packages/app/pyproject.toml")).unwrap();
     assert!(lib_manifest.contains("beta>=1.5"), "{lib_manifest}");
+    assert!(app_manifest.contains("lib>=0.1.0"), "{app_manifest}");
     python(root.path())
         .args(["-c", "import alpha, beta; assert alpha.VERSION == '1.5' and beta.VERSION == '1.5'"])
         .assert()
         .success();
 
-    // `--latest` bumps across the upper bound, and undeclared packages still report an error.
+    // `--latest` bumps across the upper bound, `install --frozen-lockfile` replays cleanly,
+    // and undeclared packages still report an error.
     pacquet_in(root.path())
         .args(["update", "--latest", "pypi:alpha"])
         .assert()
@@ -428,6 +442,10 @@ async fn update_at_a_virtual_shared_workspace_root_updates_member_manifests_and_
     assert!(lib_manifest.contains("alpha>=2.0"), "{lib_manifest}");
     python(root.path())
         .args(["-c", "import alpha; assert alpha.VERSION == '2.0'"])
+        .assert()
+        .success();
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
 

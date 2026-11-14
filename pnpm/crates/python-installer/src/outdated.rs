@@ -77,26 +77,43 @@ pub fn declared_dependencies(pyproject_path: &Path) -> Result<Vec<DeclaredPython
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", pyproject_path.display()))?;
     let manifest = super::manifest::Manifest::parse(&contents)?;
-    let non_index = non_index_sources(&manifest);
+    let non_index = non_index_sources(pyproject_path, &manifest);
     let raw: RawPyproject = toml::from_str(&contents).into_diagnostic()?;
     collect_declared_deps(raw, &non_index)
 }
 
-fn non_index_sources(manifest: &super::manifest::Manifest) -> BTreeSet<PackageName> {
-    manifest.tool.uv.sources
+pub(crate) fn non_index_sources(
+    pyproject_path: &Path,
+    manifest: &super::manifest::Manifest,
+) -> BTreeSet<PackageName> {
+    let mut names = manifest.tool.uv.sources
         .iter()
-        .filter(|(_, decl)| {
-            decl.sources()
-                .iter()
-                .any(|source| {
-                    source.workspace
-                        || source.path.is_some()
-                        || source.git.is_some()
-                        || source.url.is_some()
-                })
-        })
+        .filter(|(_, decl)| is_non_index_source(decl))
         .map(|(name, _)| name.clone())
-        .collect()
+        .collect::<BTreeSet<_>>();
+    if manifest.tool.uv.workspace.is_none()
+        && let Some(project_dir) = pyproject_path.parent()
+        && let Some(inherited) =
+            super::workspace::members::inherited_workspace_manifest(project_dir)
+    {
+        for (name, decl) in &inherited.tool.uv.sources {
+            if !manifest.tool.uv.sources.contains_key(name) && is_non_index_source(decl) {
+                names.insert(name.clone());
+            }
+        }
+    }
+    names
+}
+
+fn is_non_index_source(decl: &super::manifest::SourceDeclaration) -> bool {
+    decl.sources()
+        .iter()
+        .any(|source| {
+            source.workspace
+                || source.path.is_some()
+                || source.git.is_some()
+                || source.url.is_some()
+        })
 }
 
 fn collect_declared_deps(

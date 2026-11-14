@@ -9,7 +9,10 @@ use miette::{IntoDiagnostic, Result, WrapErr};
 use pep508_rs::{PackageName, Requirement};
 use pnpm_python_resolver::parse_requirement;
 
-use crate::{manifest, outdated::PythonDependencyGroup};
+use crate::{
+    manifest,
+    outdated::{PythonDependencyGroup, non_index_sources},
+};
 
 type TomlTable = toml::Spanned<BTreeMap<String, toml::Spanned<toml::Value>>>;
 
@@ -20,7 +23,8 @@ pub(super) fn rewrite_pyproject(
     let original = fs::read_to_string(path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", path.display()))?;
-    let non_index = non_index_sources(&original)?;
+    let parsed = manifest::Manifest::parse(&original)?;
+    let non_index = non_index_sources(path, &parsed);
     let document: BTreeMap<String, TomlTable> = toml::from_str(&original).into_diagnostic()?;
     let mut edits = collect_pyproject_edits(&document, &non_index, &mut transform)?;
     if edits.is_empty() {
@@ -33,24 +37,6 @@ pub(super) fn rewrite_pyproject(
     }
     manifest::Manifest::parse(&updated)?;
     pnpm_fs::write_atomic(path, updated.as_bytes()).into_diagnostic()
-}
-
-fn non_index_sources(original: &str) -> Result<BTreeSet<PackageName>> {
-    let parsed = manifest::Manifest::parse(original)?;
-    Ok(parsed.tool.uv.sources
-        .iter()
-        .filter(|(_, decl)| {
-            decl.sources()
-                .iter()
-                .any(|source| {
-                    source.workspace
-                        || source.path.is_some()
-                        || source.git.is_some()
-                        || source.url.is_some()
-                })
-        })
-        .map(|(name, _)| name.clone())
-        .collect())
 }
 
 fn collect_pyproject_edits(

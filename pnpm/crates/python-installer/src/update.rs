@@ -2,6 +2,7 @@ use super::{
     Discovery, InstallOptions, Prepared, Reporter, manifest,
     outdated::{PythonDependencyGroup, declared_dependencies},
     prepare,
+    workspace::Workspace,
 };
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep508_rs::{PackageName, Requirement, VersionOrUrl};
@@ -11,7 +12,7 @@ use specifiers::compute_saved_specifiers;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 mod rewrite;
@@ -102,6 +103,7 @@ async fn run_update_prepare<Reporter: self::Reporter + 'static>(
         .collect();
     let originals = snapshot_manifests(&members)?;
     let config = context.config;
+    let workspace = discovery.workspace.clone();
     let mut prepared = stage_and_prepare::<Reporter>(
         context,
         discovery,
@@ -114,7 +116,7 @@ async fn run_update_prepare<Reporter: self::Reporter + 'static>(
     .inspect_err(|_| {
         let _ = restore_manifests(&originals);
     })?;
-    finalize_updated(&mut prepared, config, &options, &selected, &originals)?;
+    finalize_updated(&mut prepared, config, &workspace, &options, &selected, &originals)?;
     Ok(prepared)
 }
 
@@ -251,13 +253,14 @@ fn stage_requirement(
 fn finalize_updated(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
+    workspace: &Workspace,
     options: &UpdateOptions,
     selected: &BTreeSet<PathBuf>,
     originals: &BTreeMap<PathBuf, String>,
 ) -> Result<()> {
     restore_manifests(originals)?;
     for project in prepared {
-        finalize_prepared_project(project, config, options, selected)?;
+        finalize_prepared_project(project, config, workspace, options, selected)?;
     }
     Ok(())
 }
@@ -265,31 +268,23 @@ fn finalize_updated(
 fn finalize_prepared_project(
     project: &mut Prepared,
     config: &pnpm_config::Config,
+    workspace: &Workspace,
     options: &UpdateOptions,
     selected: &BTreeSet<PathBuf>,
 ) -> Result<()> {
     let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
-    let mut recorded = Vec::new();
-    for member in &project.members {
-        let path = member.join("pyproject.toml");
-        if !options.no_save && selected.contains(member) {
-            rewrite_pyproject(&path, |group, req| {
-                finalize_requirement(group, req, options, &lock)
-            })?;
-        }
-        recorded.extend(read_all_requirements(&path, config)?);
+    for member in project.members
+        .iter()
+        .filter(|member| !options.no_save && selected.contains(*member))
+    {
+        rewrite_pyproject(&member.join("pyproject.toml"), |group, req| {
+            finalize_requirement(group, req, options, &lock)
+        })?;
     }
+    let recorded = workspace.recorded_requirements(config, &project.members)?;
     lock.tool.pnpm.set_requirements(&recorded);
     project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     Ok(())
-}
-
-fn read_all_requirements(path: &Path, config: &pnpm_config::Config) -> Result<Vec<Requirement>> {
-    let contents = fs::read_to_string(path)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read {}", path.display()))?;
-    let manifest = manifest::Manifest::parse(&contents)?;
-    manifest.requirements(config, manifest::DependencySelection::ALL)
 }
 
 fn finalize_requirement(

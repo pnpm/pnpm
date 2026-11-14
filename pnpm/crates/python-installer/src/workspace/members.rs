@@ -273,6 +273,26 @@ pub fn in_declared_workspace(workspace: &Path, project: &Path) -> bool {
         .any(|ancestor| workspace_declaration(ancestor).is_some())
 }
 
+/// The manifest of the nearest enclosing `[tool.uv.workspace]` that
+/// contains `project_dir`, when `project_dir` does not declare a
+/// workspace of its own.
+pub(crate) fn inherited_workspace_manifest(project_dir: &Path) -> Option<Manifest> {
+    let dir = canonical(project_dir);
+    for ancestor in dir.ancestors().skip(1) {
+        let Ok(contents) = std::fs::read_to_string(ancestor.join("pyproject.toml")) else {
+            continue;
+        };
+        let Ok(manifest) = Manifest::parse(&contents) else {
+            continue;
+        };
+        let Some(declaration) = manifest.tool.uv.workspace.as_ref() else {
+            continue;
+        };
+        return Patterns::of(declaration).contain(ancestor, &dir).then_some(manifest);
+    }
+    None
+}
+
 /// The path with links resolved, or as given where that fails: a path
 /// that cannot be resolved is still the one the caller means.
 fn canonical(path: &Path) -> PathBuf {
