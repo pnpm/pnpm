@@ -7,10 +7,10 @@ exclude = ["vendor/tar"]
 authors = ["Yagiz Nizipli <yagiz@nizipli.com"]
 description = "Pacquet"
 edition = "2024"
-homepage = "https://github.com/pnpm/pacquet"
+homepage = "https://pnpm.io"
 keywords = ["nodejs", "package", "manager", "pnpm", "npm"]
 license = "MIT"
-repository = "https://github.com/pnpm/pacquet"
+repository = "https://github.com/pnpm/pnpm"
 
 [workspace.dependencies]
 # Crates
@@ -27,7 +27,6 @@ pnpm-catalogs-config = { path = "pnpm/crates/catalogs-config" }
 pnpm-catalogs-protocol-parser = { path = "pnpm/crates/catalogs-protocol-parser" }
 pnpm-catalogs-resolver = { path = "pnpm/crates/catalogs-resolver" }
 pnpm-catalogs-types = { path = "pnpm/crates/catalogs-types" }
-pnpm-cli = { path = "pnpm/crates/cli" }
 pnpm-cmd-shim = { path = "pnpm/crates/cmd-shim" }
 pnpm-crypto-hash = { path = "pnpm/crates/crypto-hash" }
 pnpm-crypto-shasums-file = { path = "pnpm/crates/crypto-shasums-file" }
@@ -64,7 +63,6 @@ pnpm-lockfile-preferred-versions = { path = "pnpm/crates/lockfile-preferred-vers
 pnpm-lockfile-verification = { path = "pnpm/crates/lockfile-verification" }
 pnpm-modules-yaml = { path = "pnpm/crates/modules-yaml" }
 pnpm-network = { path = "pnpm/crates/network" }
-pnpm-napi = { path = "pnpm/crates/napi" }
 pnpm-network-web-auth = { path = "pnpm/crates/network-web-auth" }
 pnpm-network-web-auth-testing = { path = "pnpm/crates/network-web-auth-testing" }
 pnpm-config = { path = "pnpm/crates/config" }
@@ -340,6 +338,11 @@ allow_branch = "main"
 # though it's never set off-dylint.
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfectionist"))'] }
+
+[workspace.lints.cargo]
+redundant_homepage = "deny"
+unused_dependencies = "deny"
+unused_workspace_dependencies = "deny"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

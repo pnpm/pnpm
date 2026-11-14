@@ -14,7 +14,6 @@ repository.workspace = true
 pnpr-package-name = { workspace = true }
 derive_more = { workspace = true }
 indexmap = { workspace = true }
-wax = { workspace = true }
 
 [lints]
 workspace = true
