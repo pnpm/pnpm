@@ -219,3 +219,147 @@ snapshots:
     let snapshots = pruned.snapshots.as_ref().expect("snapshots");
     assert!(snapshots[&"foo@1.1.0".parse().expect("package key")].optional);
 }
+
+#[test]
+fn reconciles_importer_metadata_even_when_no_dependency_edge_was_dropped() {
+    let merged = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    publishDirectory: dist
+    linkDirectory: false
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+    dependenciesMeta:
+      foo:
+        injected: true
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+snapshots:
+  foo@1.1.0: {}
+",
+    );
+    let manifest = manifest(json!({ "dependencies": { "foo": "^1.0.0" } }));
+    let pruned = prune_merged_branch_lockfile(
+        &merged,
+        &pre_merge_without_bar(),
+        &[(".".to_string(), &manifest)],
+        true,
+    )
+    .expect("fold-introduced metadata is reconciled");
+    let root = &pruned.importers["."];
+    assert_eq!(root.publish_directory, None);
+    assert_eq!(root.link_directory, None);
+    assert_eq!(root.dependencies_meta, None);
+}
+
+#[test]
+fn prunes_unreachable_injected_package_when_reconciling_back_to_link() {
+    let pre_merge = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      dep:
+        specifier: workspace:*
+        version: link:packages/dep
+  packages/dep: {}
+",
+    );
+    let merged = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      dep:
+        specifier: workspace:*
+        version: file:packages/dep
+    dependenciesMeta:
+      dep:
+        injected: true
+  packages/dep: {}
+packages:
+  dep@file:packages/dep:
+    resolution:
+      type: directory
+      directory: packages/dep
+snapshots:
+  dep@file:packages/dep: {}
+",
+    );
+    let manifest = manifest(json!({ "dependencies": { "dep": "workspace:*" } }));
+    let pruned = prune_merged_branch_lockfile(
+        &merged,
+        &pre_merge.importers,
+        &[(".".to_string(), &manifest)],
+        true,
+    )
+    .expect("injected file edge is reconciled and pruned");
+    let root = &pruned.importers["."];
+    assert_eq!(root.dependencies_meta, None);
+    assert_eq!(
+        root.dependencies.as_ref().expect("dependencies")[&"dep".parse().expect("pkg name")]
+            .version
+            .to_string(),
+        "link:packages/dep",
+    );
+    assert!(pruned.packages.as_ref().is_none_or(HashMap::is_empty));
+    assert!(pruned.snapshots.as_ref().is_none_or(HashMap::is_empty));
+}
+
+#[test]
+fn restores_a_link_to_the_reconciled_publish_directory_of_a_workspace_dependency() {
+    let merged = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/app:
+    dependencies:
+      dep:
+        specifier: workspace:*
+        version: link:../dep/build
+      other:
+        specifier: workspace:*
+        version: link:../moved-other
+  packages/dep:
+    publishDirectory: build/
+",
+    );
+    let pre_merge = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/app:
+    dependencies:
+      dep:
+        specifier: workspace:*
+        version: link:../dep/dist
+      other:
+        specifier: workspace:*
+        version: link:../other
+  packages/dep:
+    publishDirectory: dist/
+",
+    );
+    let app = manifest(json!({ "dependencies": { "dep": "workspace:*", "other": "workspace:*" } }));
+    let dep = manifest(json!({ "name": "dep", "publishConfig": { "directory": "dist/" } }));
+    let manifests = [("packages/app".to_string(), &app), ("packages/dep".to_string(), &dep)];
+
+    let pruned = prune_merged_branch_lockfile(&merged, &pre_merge.importers, &manifests, true)
+        .expect("reconciled lockfile");
+
+    assert_eq!(pruned.importers["packages/dep"].publish_directory.as_deref(), Some("dist/"));
+    let app_deps =
+        pruned.importers["packages/app"].dependencies.as_ref().expect("app dependencies");
+    let version_of =
+        |name: &str| app_deps[&name.parse().expect("package name")].version.to_string();
+    assert_eq!(version_of("dep"), "link:../dep/dist");
+    assert_eq!(version_of("other"), "link:../moved-other");
+}

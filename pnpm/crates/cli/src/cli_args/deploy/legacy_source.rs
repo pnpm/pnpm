@@ -156,7 +156,7 @@ impl LegacyDeploySource {
                 continue;
             }
             let snapshot = workspace_snapshot(importer, ctx, &root)?;
-            for directory in importer_package_dirs(&root, importer) {
+            for directory in importer_package_dirs(&root, importer, ctx.projects_by_path) {
                 let key = relative_file_key(
                     &create_file_url_key(&directory, "", ctx.projects_by_path, None)?,
                     ctx,
