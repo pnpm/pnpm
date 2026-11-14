@@ -38,9 +38,42 @@ pub(crate) fn lockfile_from_solution(
         configured,
         preferred_versions,
     )?;
-    let mut packages = Vec::new();
+    let mut packages = registry_packages(
+        &selected,
+        registry,
+        solution,
+        feature_selections,
+        &sources,
+        preferred_versions,
+    )?;
+    packages.extend(workspace_packages(
+        metadata,
+        registry,
+        solution,
+        &sources,
+        preferred_versions,
+    )?);
+    packages.sort();
+    let lockfile = Lockfile {
+        version: ResolveVersion::V4,
+        packages,
+        root: None,
+        metadata: Metadata::default(),
+        patch: Patch::default(),
+    };
+    Ok(lockfile.to_string())
+}
 
-    for (key, version) in &selected {
+fn registry_packages(
+    selected: &BTreeMap<&PackageKey, &Version>,
+    registry: &Registry,
+    solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
+    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
+    sources: &BTreeMap<PackageKey, String>,
+    preferred_versions: &PreferredVersions,
+) -> Result<Vec<Package>> {
+    let mut packages = Vec::new();
+    for (key, version) in selected {
         let PackageKey::Registry { name, .. } = key else {
             continue;
         };
@@ -67,23 +100,7 @@ pub(crate) fn lockfile_from_solution(
         });
     }
 
-    packages.extend(workspace_packages(
-        metadata,
-        registry,
-        solution,
-        &sources,
-        preferred_versions,
-    )?);
-
-    packages.sort();
-    let lockfile = Lockfile {
-        version: ResolveVersion::V4,
-        packages,
-        root: None,
-        metadata: Metadata::default(),
-        patch: Patch::default(),
-    };
-    Ok(lockfile.to_string())
+    Ok(packages)
 }
 
 /// The lock entries for the workspace's own members.

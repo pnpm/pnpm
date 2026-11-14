@@ -168,8 +168,26 @@ pub fn resolve_lockfile_until_with_preferences(
     let registry = Registry::new_until(index_files, source, should_cancel)?;
     let preferred_versions = parse_preferred_versions(preferred_versions)?;
     let root_dependencies = root_dependencies(&metadata)?;
+    resolve_with_feature_convergence(
+        &metadata,
+        &registry,
+        &root_dependencies,
+        source,
+        &preferred_versions,
+        should_cancel,
+    )
+}
+
+fn resolve_with_feature_convergence(
+    metadata: &crate::model::CargoMetadata,
+    registry: &Registry,
+    root_dependencies: &[RegistryDependency],
+    source: &str,
+    preferred_versions: &PreferredVersions,
+    should_cancel: &(dyn Fn() -> bool + Send + Sync),
+) -> Result<String> {
     let mut feature_selections =
-        root_feature_selections(&registry, &root_dependencies, &preferred_versions)?;
+        root_feature_selections(registry, root_dependencies, preferred_versions)?;
     let mut previous_selections = Vec::new();
 
     loop {
@@ -178,38 +196,64 @@ pub fn resolve_lockfile_until_with_preferences(
             return Err(miette::miette!("Cargo feature resolution did not converge"));
         }
         previous_selections.push(feature_selections.clone());
-        let solution = resolve_with_features(
-            &registry,
-            &root_dependencies,
+        let (lockfile, selected_features) = resolve_feature_iteration(
+            metadata,
+            registry,
+            root_dependencies,
+            source,
             &feature_selections,
-            &preferred_versions,
+            preferred_versions,
             should_cancel,
         )?;
-        let selected_features = feature_selections_for_solution(
-            &registry,
-            &root_dependencies,
-            &solution,
-            &preferred_versions,
-        )?;
-        if let Some(validated_solution) = validate_selected_graph(
-            &registry,
-            &root_dependencies,
-            &solution,
-            &selected_features,
-            &preferred_versions,
-            should_cancel,
-        )? {
-            return lockfile_from_solution(
-                &metadata,
-                &registry,
-                &validated_solution,
-                &selected_features,
-                source,
-                &preferred_versions,
-            );
+        if let Some(lockfile) = lockfile {
+            return Ok(lockfile);
         }
         feature_selections = selected_features;
     }
+}
+
+fn resolve_feature_iteration(
+    metadata: &crate::model::CargoMetadata,
+    registry: &Registry,
+    root_dependencies: &[RegistryDependency],
+    source: &str,
+    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
+    preferred_versions: &PreferredVersions,
+    should_cancel: &(dyn Fn() -> bool + Send + Sync),
+) -> Result<(Option<String>, BTreeMap<PackageKey, FeatureSelection>)> {
+    let solution = resolve_with_features(
+        registry,
+        root_dependencies,
+        feature_selections,
+        preferred_versions,
+        should_cancel,
+    )?;
+    let selected_features = feature_selections_for_solution(
+        registry,
+        root_dependencies,
+        &solution,
+        preferred_versions,
+    )?;
+    let lockfile = validate_selected_graph(
+        registry,
+        root_dependencies,
+        &solution,
+        &selected_features,
+        preferred_versions,
+        should_cancel,
+    )?
+    .map(|validated| {
+        lockfile_from_solution(
+            metadata,
+            registry,
+            &validated,
+            &selected_features,
+            source,
+            preferred_versions,
+        )
+    })
+    .transpose()?;
+    Ok((lockfile, selected_features))
 }
 
 fn package_name(package: &PackageKey) -> Option<&str> {
