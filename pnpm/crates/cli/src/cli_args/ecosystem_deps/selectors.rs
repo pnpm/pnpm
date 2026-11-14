@@ -316,6 +316,14 @@ fn push_python_update_selector(
     let parsed_req = pnpm_python_resolver::parse_requirement(req)?;
     match mode {
         SelectorMode::Include => {
+            if matches!(
+                parsed_req.version_or_url,
+                Some(pnpm_python_installer::VersionOrUrl::Url(_)),
+            ) {
+                miette::bail!(
+                    "direct URL requirements are not supported by pnpm update; use pnpm add instead",
+                );
+            }
             let version_spec = parsed_req.version_or_url.as_ref().map(ToString::to_string);
             parsed.python_requests.push(PythonUpdateSelector {
                 name: parsed_req.name.to_string(),

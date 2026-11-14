@@ -95,6 +95,15 @@ impl Discovery {
             .map(|(root, _)| root.as_path())
     }
 
+    /// The project directories a command targeting `dir` acts on: all
+    /// members of the shared environment rooted at `dir` when `dir`
+    /// declares one, `dir` itself when it declares a `[project]`, or none
+    /// for an unshared virtual workspace root.
+    #[must_use]
+    pub fn target_projects(&self, dir: &Path) -> Vec<PathBuf> {
+        self.workspace.target_projects(dir)
+    }
+
     /// Read the manifests of `edited` again, for a command that changed
     /// them. Only those are read: the rest were parsed once and say the
     /// same thing they said then.

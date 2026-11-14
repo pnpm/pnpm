@@ -178,4 +178,31 @@ impl super::Workspace {
             .collect();
         Ok(())
     }
+
+    /// Every requirement `members` record in `pylock.toml`, including direct
+    /// URLs synthesized from `[tool.uv.sources]`.
+    pub(crate) fn recorded_requirements(
+        &self,
+        config: &pnpm_config::Config,
+        members: &[std::path::PathBuf],
+    ) -> Result<Vec<Requirement>> {
+        let mut recorded = Vec::new();
+        for member in members {
+            let manifest = super::load(member)?;
+            let all = manifest.selected_requirements(config)?.all;
+            recorded.extend(self.requirements(member, &manifest, all)?);
+        }
+        Ok(recorded)
+    }
+
+    /// Package names whose `[tool.uv.sources]` declaration (own or inherited
+    /// from the discovered workspace root) resolves outside the index.
+    pub(crate) fn non_index_sources(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+    ) -> std::collections::BTreeSet<PackageName> {
+        let inherited = self.inherited.get(root).map(|(_, root_manifest)| root_manifest.as_ref());
+        manifest.non_index_sources(inherited)
+    }
 }

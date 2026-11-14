@@ -266,12 +266,12 @@ fn purl_python_specifier(purl: &Purl, source: Shown<'_>) -> Result<String> {
     reject_namespace(purl, source)?;
     let name = pypi_project_name(purl, source)?;
     let Some(version) = &purl.version else {
-        return python_requirement(name);
+        return python_requirement(name, source);
     };
     if version.parse::<pep440_rs::Version>().is_err() {
         return Err(miette::miette!("{source} does not carry a valid PyPI version"));
     }
-    python_requirement(&format!("{name}=={version}"))
+    python_requirement(&format!("{name}=={version}"), source)
 }
 
 /// A project name as PEP 508 spells it: ASCII alphanumerics joined by
@@ -307,22 +307,54 @@ fn python_specifier(requirement: String) -> ParsedSpecifier {
     ParsedSpecifier::Ecosystem(EcosystemPackageSpecifier::Python(requirement))
 }
 
-/// A `pypi:` specifier as a PEP 508 requirement. pnpm spells a pinned
-/// version `name@version`, which becomes an exact pin unless the version
+/// A `pypi:` specifier as a PEP 508 requirement. Direct URL references
+/// (`name @ <url>`, `name[extra] @ <url> ; marker`) stay PEP 508 URL
+/// requirements; `name@version` becomes an exact pin unless the version
 /// already carries its own comparison operator.
 fn parse_python_specifier(specifier: &str, source: Shown<'_>) -> Result<String> {
-    let Some((name, version)) = specifier.rsplit_once('@') else {
-        return python_requirement(specifier);
+    let marker_start = specifier.find(';');
+    let at_pos = specifier.find('@');
+    let Some(at) = at_pos.filter(|&at| marker_start.is_none_or(|semi| at < semi)) else {
+        return python_requirement(specifier, source);
     };
-    if version.is_empty() {
+    let (head, rest) = (&specifier[..at], &specifier[at + 1..]);
+    let trimmed = rest.trim_start();
+    if trimmed.is_empty() || trimmed.starts_with(';') {
         return Err(miette::miette!("missing version after `@` in {source}"));
     }
-    let operator = if version.starts_with(['<', '>', '=', '!', '~']) { "" } else { "==" };
-    python_requirement(&format!("{name}{operator}{version}"))
+    if starts_with_url_scheme(trimmed) {
+        return python_requirement(specifier, source);
+    }
+    let operator = if trimmed.starts_with(['<', '>', '=', '!', '~']) { "" } else { "==" };
+    python_requirement(&format!("{}{operator}{trimmed}", head.trim_end()), source)
 }
 
-fn python_requirement(requirement: &str) -> Result<String> {
-    Ok(pnpm_python_resolver::parse_requirement(requirement)?.to_string())
+fn starts_with_url_scheme(text: &str) -> bool {
+    let Some((scheme, _)) = text.split_once(':') else {
+        return false;
+    };
+    let mut chars = scheme.chars();
+    chars.next().is_some_and(|first| first.is_ascii_alphabetic())
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
+}
+
+fn python_requirement(requirement: &str, source: Shown<'_>) -> Result<String> {
+    pnpm_python_resolver::parse_requirement(requirement)
+        .and_then(|parsed| {
+            if let Some(pnpm_python_installer::VersionOrUrl::Url(url)) = &parsed.version_or_url {
+                pnpm_python_resolver::Source::parse(url.as_str())?;
+            }
+            Ok(parsed.to_string())
+        })
+        .map_err(|error| {
+            let decoded = percent_decode_str(source.0).decode_utf8_lossy();
+            let redacted = pnpm_network::redact_and_sanitize(&decoded);
+            if before_embedded_userinfo(&redacted).is_some() {
+                return miette::miette!("invalid Python requirement in {source}");
+            }
+            let sanitized = pnpm_network::redact_and_sanitize(&error.to_string());
+            miette::miette!("{sanitized}")
+        })
 }
 
 /// A crates.io package name: ASCII alphanumerics joined by `-` or `_`.

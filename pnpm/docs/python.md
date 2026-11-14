@@ -143,7 +143,7 @@ shared-environment = true
 
 Two members that require versions of one distribution no release satisfies at once are refused, with an error naming the distribution and both members. Two members whose own `[project]` tables name the same distribution are refused too, because one environment holds one distribution of a name. Members may require the same dependencies freely; the environment holds each once.
 
-Selecting any member with [`--filter`](./filtering.md) installs the whole shared environment. `pnpm add` in a member writes that member's `pyproject.toml` and the shared `pylock.toml`. [`pnpm run`](./cli/run.md) and [`pnpm exec`](./cli/exec.md) in a member, or in any directory under one, use the `.venv` at the workspace root.
+Selecting any member with [`--filter`](./filtering.md) installs the whole shared environment. `pnpm add` in a member writes that member's `pyproject.toml` and the shared `pylock.toml`. `pnpm update` at the workspace root updates matching member manifests and the shared `pylock.toml`. [`pnpm run`](./cli/run.md) and [`pnpm exec`](./cli/exec.md) in a member, or in any directory under one, use the `.venv` at the workspace root.
 
 Sharing is decided per workspace, so a repository can share an environment where its projects agree and keep independent ones where they do not.
 

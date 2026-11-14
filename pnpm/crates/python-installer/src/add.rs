@@ -1,8 +1,11 @@
-use super::{Discovery, InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare};
+use super::{
+    Discovery, InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare,
+    workspace::Workspace,
+};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use pnpm_python_resolver::LockIndex;
 use std::{
     collections::BTreeSet,
-    fs,
     path::{Path, PathBuf},
 };
 
@@ -60,6 +63,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             .flat_map(|membership| membership.members)
             .collect();
         let discovery = discovery.reread(config, &members).await?;
+        let workspace = discovery.workspace.clone();
         let mut prepared = prepare::<Reporter>(
             context,
             discovery,
@@ -68,7 +72,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             selected.clone(),
         )
         .await?;
-        save_added(&mut prepared, config, &options, &selected)?;
+        save_added(&mut prepared, config, &workspace, &options, &selected)?;
         Ok(prepared)
     };
     Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
@@ -120,64 +124,55 @@ pub fn writable_project(root: &Path) -> Result<PathBuf> {
 fn save_added(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
+    workspace: &Workspace,
     options: &AddOptions,
     edited: &BTreeSet<PathBuf>,
 ) -> Result<()> {
     let prefix = options.prefix.as_deref().unwrap_or(">=");
     for project in prepared {
         let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
+        let lock_index = lock.index()?;
         let mut requirements = Vec::new();
         for requirement in &options.requirements {
             let mut requirement = pnpm_python_resolver::parse_requirement(requirement)?;
-            pin_to_locked_version(&mut requirement, &lock, options, prefix)?;
+            pin_to_locked_version(&mut requirement, &lock_index, options, prefix)?;
             requirements.push(requirement.to_string());
         }
-        let mut recorded = Vec::new();
         for member in &project.members {
-            let path = member.join("pyproject.toml");
             if edited.contains(member) {
-                manifest::add(&path, &requirements, options.development)?;
+                manifest::add(&member.join("pyproject.toml"), &requirements, options.development)?;
             }
-            recorded.extend(read_requirements(&path, config)?);
         }
+        let recorded = workspace.recorded_requirements(config, &project.members)?;
         lock.tool.pnpm.set_requirements(&recorded);
         project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     }
     Ok(())
 }
 
-fn read_requirements(
-    path: &Path,
-    config: &pnpm_config::Config,
-) -> Result<Vec<pep508_rs::Requirement>> {
-    let manifest = manifest::Manifest::parse(
-        &fs::read_to_string(path)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("read {}", path.display()))?,
-    )?;
-    manifest.requirements(config, manifest::DependencySelection::ALL)
-}
-
 /// Give a requirement the version the lockfile resolved, when the command
 /// line left it unversioned or `--save-exact` overrides what it asked for.
 fn pin_to_locked_version(
     requirement: &mut pep508_rs::Requirement,
-    lock: &Lockfile,
+    lock_index: &LockIndex<'_>,
     options: &AddOptions,
     prefix: &str,
 ) -> Result<()> {
+    if matches!(requirement.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_))) {
+        return Ok(());
+    }
     if !options.exact && requirement.version_or_url.is_some() {
         return Ok(());
     }
-    let Some(package) = lock.packages
-        .iter()
-        .find(|package| package.name == requirement.name)
-    else {
+    let Some(version) = lock_index.agreed_version(requirement) else {
         return Ok(());
     };
     let prefix = if options.exact { "==" } else { prefix };
     requirement.version_or_url = Some(pep508_rs::VersionOrUrl::VersionSpecifier(
-        format!("{prefix}{}", package.version).parse().into_diagnostic()?,
+        format!("{prefix}{version}").parse().into_diagnostic()?,
     ));
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

@@ -356,3 +356,95 @@ async fn an_add_outside_the_declared_workspace_reads_the_project_alone() {
         .assert()
         .failure();
 }
+
+#[tokio::test]
+async fn update_at_a_virtual_shared_workspace_root_updates_member_manifests_and_shared_env() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    let _beta = serve(&mut server, "beta", &[("1.0", wheel("beta", "1.0", "", &[]))]).await;
+    shared_workspace(root.path(), &server.url());
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['packages/*']\n\n[tool.uv.sources]\n\
+         lib = { workspace = true }\n\n[tool.pnpm.python]\nshared-environment = true\n",
+    )
+    .unwrap();
+    python_project(
+        &root.path().join("packages/lib"),
+        "lib",
+        "dependencies = ['alpha>=1.0,<2.0']\n\n[dependency-groups]\ndev = ['beta>=1.0']",
+    );
+    python_project(&root.path().join("packages/app"), "app", "dependencies = ['lib>=0.1.0']");
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+
+    let _alpha = serve(
+        &mut server,
+        "alpha",
+        &[
+            ("1.0", wheel("alpha", "1.0", "", &[])),
+            ("1.5", wheel("alpha", "1.5", "", &[])),
+            ("2.0", wheel("alpha", "2.0", "", &[])),
+        ],
+    )
+    .await;
+    let _beta = serve(
+        &mut server,
+        "beta",
+        &[("1.0", wheel("beta", "1.0", "", &[])), ("1.5", wheel("beta", "1.5", "", &[]))],
+    )
+    .await;
+
+    pacquet_in(root.path())
+        .args(["update", "pypi:alpha"])
+        .assert()
+        .success();
+    let lib_manifest = fs::read_to_string(root.path().join("packages/lib/pyproject.toml")).unwrap();
+    assert!(lib_manifest.contains("alpha>=1.5,<2.0"), "{lib_manifest}");
+    assert!(lib_manifest.contains("beta>=1.0"), "{lib_manifest}");
+    python(root.path())
+        .args([
+            "-c",
+            "import alpha, beta, lib, app; assert alpha.VERSION == '1.5' and beta.VERSION == '1.0'",
+        ])
+        .assert()
+        .success();
+
+    pacquet_in(root.path())
+        .arg("update")
+        .assert()
+        .success();
+    let lib_manifest = fs::read_to_string(root.path().join("packages/lib/pyproject.toml")).unwrap();
+    let app_manifest = fs::read_to_string(root.path().join("packages/app/pyproject.toml")).unwrap();
+    assert!(lib_manifest.contains("beta>=1.5"), "{lib_manifest}");
+    assert!(app_manifest.contains("lib>=0.1.0"), "{app_manifest}");
+    python(root.path())
+        .args(["-c", "import alpha, beta; assert alpha.VERSION == '1.5' and beta.VERSION == '1.5'"])
+        .assert()
+        .success();
+
+    pacquet_in(root.path())
+        .args(["update", "--latest", "pypi:alpha"])
+        .assert()
+        .success();
+    let lib_manifest = fs::read_to_string(root.path().join("packages/lib/pyproject.toml")).unwrap();
+    assert!(lib_manifest.contains("alpha>=2.0"), "{lib_manifest}");
+    python(root.path())
+        .args(["-c", "import alpha; assert alpha.VERSION == '2.0'"])
+        .assert()
+        .success();
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["update", "pypi:missing"]),
+        "package missing is not a declared dependency in pyproject.toml",
+    );
+}

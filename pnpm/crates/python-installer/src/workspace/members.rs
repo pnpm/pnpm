@@ -130,6 +130,29 @@ impl Workspace {
         }
         Membership { root: lock_root.to_path_buf(), members, shared: true }
     }
+
+    /// The project directories a command targeting `dir` acts on: all
+    /// members of the shared environment rooted at `dir` when `dir`
+    /// declares one, `dir` itself when it declares a `[project]`, or none
+    /// for an unshared virtual workspace root.
+    pub(crate) fn target_projects(&self, dir: &Path) -> Vec<PathBuf> {
+        let target =
+            if self.manifests.contains_key(dir) { dir.to_path_buf() } else { canonical(dir) };
+        let Some(manifest) = self.manifests.get(&target) else {
+            return Vec::new();
+        };
+        if manifest.shares_environment() {
+            return self.shared
+                .iter()
+                .filter(|(_, root)| **root == target)
+                .map(|(member, _)| member.clone())
+                .collect();
+        }
+        if manifest.project.is_some() {
+            return vec![target];
+        }
+        Vec::new()
+    }
 }
 
 /// The distributions a workspace contains, which is what a member may
@@ -248,6 +271,34 @@ pub fn in_declared_workspace(workspace: &Path, project: &Path) -> bool {
         .ancestors()
         .take_while(|ancestor| ancestor.starts_with(&stop))
         .any(|ancestor| workspace_declaration(ancestor).is_some())
+}
+
+/// The manifest of the nearest enclosing `[tool.uv.workspace]` up to
+/// `workspace` that contains `project_dir`, when `project_dir` does not
+/// declare a workspace of its own.
+pub(crate) fn inherited_workspace_manifest(
+    workspace: Option<&Path>,
+    project_dir: &Path,
+) -> Option<Manifest> {
+    let stop = canonical(workspace?);
+    let dir = canonical(project_dir);
+    for ancestor in dir
+        .ancestors()
+        .skip(1)
+        .take_while(|ancestor| ancestor.starts_with(&stop))
+    {
+        let Ok(contents) = std::fs::read_to_string(ancestor.join("pyproject.toml")) else {
+            continue;
+        };
+        let Ok(manifest) = Manifest::parse(&contents) else {
+            continue;
+        };
+        let Some(declaration) = manifest.tool.uv.workspace.as_ref() else {
+            continue;
+        };
+        return Patterns::of(declaration).contain(ancestor, &dir).then_some(manifest);
+    }
+    None
 }
 
 /// The path with links resolved, or as given where that fails: a path
