@@ -1,12 +1,17 @@
 import path from 'node:path'
 
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
+import { barePathIsUnambiguous, isTarballFilename } from '@pnpm/resolving.local-resolver'
 import { findWorkspaceLinkTarget, type WorkspaceLinkContext } from '@pnpm/resolving.npm-resolver'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import semver from 'semver'
 
 export function isWorkspaceRangeSpec (spec: string): boolean {
   return spec.startsWith('workspace:') && !isWorkspacePath(spec.slice(10))
+}
+
+export function usesInjectionSetting (spec: string): boolean {
+  return spec.startsWith('workspace:') || (barePathIsUnambiguous(spec) && !isTarballFilename(spec))
 }
 
 /**

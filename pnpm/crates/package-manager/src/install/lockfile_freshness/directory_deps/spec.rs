@@ -32,8 +32,15 @@ pub(super) fn spec_satisfies_snapshot_dep(
     local_dep_dir: &Path,
     dep_name: &str,
     spec: &str,
+    injected: Option<bool>,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
+    if let Some(injected) = injected
+        && uses_injection_setting(spec)
+        && lockfile_dep.as_link_target().is_none() != injected
+    {
+        return Some(false);
+    }
     if let Some(matches) =
         file_or_link_spec_satisfies(dirs.lockfile_dir, local_dep_dir, spec, lockfile_dep)
     {
@@ -53,6 +60,11 @@ pub(super) fn spec_satisfies_snapshot_dep(
         return Some(false);
     }
     npm_or_registry_spec_satisfies(dirs.registries, dep_name, spec, lockfile_dep)
+}
+
+fn uses_injection_setting(spec: &str) -> bool {
+    spec.starts_with("workspace:")
+        || (bare_path_is_unambiguous(spec) && !pnpm_local_spec::is_tarball_filename(spec))
 }
 
 /// Whether a spec that names one exact source, a tarball URL or a git

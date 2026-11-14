@@ -62,6 +62,32 @@ test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'un
   expect(output).toContain(tarball)
 })
 
+test('a local tarball child link resolves from the lockfile directory', () => {
+  prepareEmpty()
+  fs.mkdirSync('packages/app', { recursive: true })
+  fs.mkdirSync('packages/child', { recursive: true })
+  fs.mkdirSync('tarball-src')
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', version: '1.0.0' }))
+  fs.writeFileSync('packages/child/package.json', JSON.stringify({ name: 'child', version: '1.0.0' }))
+  fs.writeFileSync('tarball-src/package.json', JSON.stringify({
+    name: 'tar-package',
+    version: '1.0.0',
+    dependencies: { child: 'link:child' },
+  }))
+  execPnpmSync(['pack', '--pack-destination', '..'], { cwd: path.resolve('tarball-src'), expectSuccess: true })
+  fs.writeFileSync('packages/app/package.json', JSON.stringify({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: { 'tar-package': 'file:../../tar-package-1.0.0.tgz' },
+  }))
+
+  execPnpmSync(['install'], { cwd: path.resolve('packages/app'), expectSuccess: true })
+
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  expect(lockfile).toContain('child: link:child')
+})
+
 function packLocalTarball (packageDir: string, tarball: string): void {
   execPnpmSync(['pack', '--pack-destination', '..'], { cwd: packageDir, expectSuccess: true })
   fs.rmSync(tarball, { force: true })

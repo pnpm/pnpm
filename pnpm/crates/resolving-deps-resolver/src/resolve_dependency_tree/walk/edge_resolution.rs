@@ -8,7 +8,7 @@ use super::{
     current_pkg_from_lockfile, dependencies_named_as_peers, emit_deprecation_if_needed,
     ensure_same_registry_revision, failed_edge::SkippedOptionalReport, is_exotic_resolved_via,
     is_update_target, keeps_locked_runtime, keeps_locked_version, lock_recoverable, node_alias,
-    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest, overlay_version_view,
+    node_depends_on_changed_direct_dep, opts_for_child_spec, overlay_version_view,
     package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
     pin_locked_version, pin_patched_revision, project_relative_cache_scope,
     register_shadowable_dep_names, resolve_wanted_cached, resolves_children_through_catalogs,
@@ -165,7 +165,8 @@ where
         return Ok(Some(Arc::new(result)));
     }
     let base = edge_opts(ctx, wanted, edge, prior_key);
-    let opts = opts_relative_to_declaring_manifest(&base, wanted, edge.parent_dir);
+    let fallback_dir = (edge.depth > 0).then_some(ctx.lockfile_dir());
+    let opts = opts_for_child_spec(&base, wanted, edge.parent_dir, fallback_dir);
     let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
     match resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)
         .await

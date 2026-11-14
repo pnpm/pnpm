@@ -4,6 +4,9 @@
 //! `workspace:` path specifiers resolved against their declaring
 //! manifest's directory.
 
+pub(super) use child_spec::opts_for_child_spec;
+mod child_spec;
+
 use chrono::{DateTime, Utc};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_hooks::PnpmfileHooks;
@@ -13,7 +16,6 @@ use pnpm_resolving_resolver_base::{
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
-    borrow::Cow,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
@@ -91,30 +93,6 @@ pub(crate) fn resolves_from_declaring_manifest(spec: &str) -> bool {
     spec.starts_with("file:") || pnpm_workspace_spec::is_workspace_path_specifier(spec)
 }
 
-/// Point a specifier matching [`resolves_from_declaring_manifest`] at
-/// its declaring manifest's directory. Every other specifier keeps the
-/// caller's options.
-pub(super) fn opts_relative_to_declaring_manifest<'a>(
-    opts: &'a ResolveOptions,
-    wanted: &WantedDependency,
-    parent_dir: Option<&Path>,
-) -> Cow<'a, ResolveOptions> {
-    match parent_dir {
-        Some(parent_dir)
-            if wanted.bare_specifier.as_deref().is_some_and(resolves_from_declaring_manifest) =>
-        {
-            Cow::Owned(ResolveOptions {
-                project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-                    project_dir: parent_dir.to_path_buf(),
-                    ..opts.project.clone()
-                },
-                ..opts.clone()
-            })
-        }
-        _ => Cow::Borrowed(opts),
-    }
-}
-
 /// Mutable workspace for an in-flight tree walk. The orchestrator
 /// (`resolve_importer`) holds one of these across hoist iterations and
 /// extends it via [`extend_tree`] so newly-hoisted peer dependencies
@@ -149,6 +127,16 @@ pub struct TreeCtx {
         Arc<super::workspace_ctx::WorkspaceResolutionOptionsKey>,
     pub(super) options: ResolutionDepthOptions,
     pub(super) importer: TreeImporterContext,
+}
+
+impl TreeCtx {
+    pub(super) fn lockfile_dir(&self) -> &Path {
+        if self.options.base.project.lockfile_dir.as_os_str().is_empty() {
+            self.catalogs_dir.as_deref().unwrap_or(&self.importer.lockfile_dir)
+        } else {
+            &self.options.base.project.lockfile_dir
+        }
+    }
 }
 
 pub(super) struct ResolutionDepthOptions {
