@@ -92,3 +92,41 @@ fn workspace_membership_discovers_implicit_path_dependency_members() {
         .expect("matched workspace key determines crate name");
     assert_eq!(by_key_takes_precedence.package_name, "foo");
 }
+
+#[test]
+fn workspace_lookup_honors_package_workspace_outside_ancestor_chain() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dir.path().join("ws");
+    let external = dir.path().join("external");
+    let uninvited = dir.path().join("uninvited");
+    for path in [&ws, &external, &uninvited] {
+        fs::create_dir_all(path).unwrap();
+    }
+    fs::write(
+        ws.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"../external\"]\n\n[workspace.dependencies]\nshared = { package = \"real_shared\", path = \"crates/shared\" }\n",
+    )
+    .unwrap();
+    fs::write(
+        external.join("Cargo.toml"),
+        "[package]\nname = \"external\"\nversion = \"0.1.0\"\nworkspace = \"../ws\"\n",
+    )
+    .unwrap();
+    fs::write(
+        uninvited.join("Cargo.toml"),
+        "[package]\nname = \"uninvited\"\nversion = \"0.1.0\"\nworkspace = \"../ws\"\n",
+    )
+    .unwrap();
+
+    assert!(workspace_includes_member(&ws, &external));
+    assert!(!workspace_includes_member(&ws, &uninvited));
+    assert_eq!(find_cargo_workspace_root(&external, Some(dir.path())), ws);
+    assert_eq!(find_cargo_workspace_root(&uninvited, Some(dir.path())), uninvited);
+
+    let resolved = workspace_dependency_spec(&external, "shared", None)
+        .expect("resolve workspace dependency via package.workspace");
+    assert_eq!(resolved.workspace_root, ws);
+    assert_eq!(resolved.package_name, "real_shared");
+    assert_eq!(resolved.path.as_deref(), Some("crates/shared"));
+    assert!(workspace_dependency_spec(&uninvited, "shared", None).is_none());
+}

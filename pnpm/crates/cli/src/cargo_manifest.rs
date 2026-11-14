@@ -1,8 +1,8 @@
 pub(crate) mod workspace;
 
 pub(crate) use workspace::{
-    lookup_inherited_workspace_entry, workspace_dependency_spec, workspace_dependency_table,
-    workspace_includes_member,
+    ConfiguredWorkspace, configured_workspace_state, lookup_inherited_workspace_entry,
+    resolve_local_path, workspace_dependency_spec, workspace_includes_member,
 };
 
 mod inheritance;
@@ -97,8 +97,13 @@ pub(crate) fn upsert_dependency_in_dir(
                 table: deps_table,
                 key_text: &contents[dep_key.span()],
             });
-        let ctx =
-            UpdateContext { contents, manifest_dir, header_spans: &header_spans, inline_parent };
+        let ctx = UpdateContext {
+            contents,
+            doc: doc.get_ref(),
+            manifest_dir,
+            header_spans: &header_spans,
+            inline_parent,
+        };
         return update_existing_dependency(&ctx, dep_val, name, version_spec);
     }
 
@@ -148,6 +153,7 @@ struct InlineParent<'a, 'i> {
 #[derive(Clone, Copy)]
 struct UpdateContext<'a, 'i> {
     contents: &'a str,
+    doc: &'a DeTable<'i>,
     manifest_dir: Option<&'a Path>,
     header_spans: &'a [Range<usize>],
     inline_parent: Option<InlineParent<'a, 'i>>,
@@ -213,24 +219,24 @@ fn update_table_dependency(
             ensure_string_version(ver_val, name)?;
             Ok(replace_range(ctx.contents, ver_val.span(), &quoted(version_spec)))
         }
-        (None, Some((ws_key, ws_val))) => Ok(replace_workspace_entry(
+        (None, Some((ws_key, ws_val))) => replace_workspace_entry(
             ctx,
             span,
             subtable,
             shape,
             ws_key.span().start..ws_val.span().end,
             (name, version_spec),
-        )),
+        ),
         (Some((_, ver_val)), Some((ws_key, ws_val))) => {
             ensure_string_version(ver_val, name)?;
-            Ok(replace_version_and_workspace(
+            replace_version_and_workspace(
                 ctx,
                 span,
                 subtable,
                 shape,
                 (ver_val.span(), ws_key.span().start..ws_val.span().end),
                 (name, version_spec),
-            ))
+            )
         }
         (None, None) => {
             Ok(insert_missing_version(ctx.contents, span, subtable, shape, version_spec))
@@ -245,8 +251,8 @@ fn replace_workspace_entry(
     shape: TableShape<'_, '_>,
     ws_span: Range<usize>,
     (name, version_spec): (&str, &str),
-) -> String {
-    let detached = resolve_detached_inheritance(ctx.manifest_dir, subtable, name);
+) -> Result<String> {
+    let detached = resolve_detached_inheritance(ctx.manifest_dir, ctx.doc, subtable, name)?;
     let replacement = format_detached_replacement(
         ctx.contents,
         span,
@@ -259,7 +265,7 @@ fn replace_workspace_entry(
     if let Some(feat_edit) = detached.merged_features_edit {
         edits.push(feat_edit);
     }
-    apply_edits(ctx.contents, edits)
+    Ok(apply_edits(ctx.contents, edits))
 }
 
 fn replace_version_and_workspace(
@@ -269,8 +275,8 @@ fn replace_version_and_workspace(
     shape: TableShape<'_, '_>,
     (ver_span, ws_span): (Range<usize>, Range<usize>),
     (name, version_spec): (&str, &str),
-) -> String {
-    let detached = resolve_detached_inheritance(ctx.manifest_dir, subtable, name);
+) -> Result<String> {
+    let detached = resolve_detached_inheritance(ctx.manifest_dir, ctx.doc, subtable, name)?;
     let ws_edit = if detached.extra_fields.is_empty() {
         (workspace_removal_range(ctx.contents, span, subtable, shape, ws_span), String::new())
     } else {
@@ -288,7 +294,7 @@ fn replace_version_and_workspace(
     if let Some(feat_edit) = detached.merged_features_edit {
         edits.push(feat_edit);
     }
-    apply_edits(ctx.contents, edits)
+    Ok(apply_edits(ctx.contents, edits))
 }
 
 fn workspace_removal_range(

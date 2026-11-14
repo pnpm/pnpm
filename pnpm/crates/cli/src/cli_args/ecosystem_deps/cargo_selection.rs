@@ -36,7 +36,7 @@ fn match_cargo_dep<'a>(
     options: &'a CargoUpdateOptions<'a>,
 ) -> Option<SelectedCargoDep<'a>> {
     if !options.step.include_groups.contains(&dep.group)
-        || options.step.ignore_matcher.is_some_and(|matcher| dep.matches_pattern(matcher))
+        || options.step.ignore_matcher.is_some_and(|matcher| dep.is_ignored(matcher))
         || options.exclusions
             .iter()
             .any(|name| dep.matches_name(name))

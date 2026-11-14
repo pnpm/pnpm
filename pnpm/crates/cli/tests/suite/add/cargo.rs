@@ -1,3 +1,5 @@
+mod detach;
+
 use super::{
     Command, CommandExtra, TempDir, assert_eq, cache_foo_index, cargo_add_project, prod_spec,
 };
@@ -349,6 +351,7 @@ fn add_crate_preserves_multiline_arrays_and_replaces_workspace_inheritance() {
 
     let updated =
         std::fs::read_to_string(member.join("Cargo.toml")).expect("read updated member Cargo.toml");
+    eprintln!("UPDATED:\n{updated}\n");
     let parsed: toml::Table = toml::from_str(&updated).expect("updated Cargo.toml is valid TOML");
     assert_eq!(parsed["dependencies"]["foo"]["version"].as_str(), Some("1.0.0"));
     assert_eq!(parsed["dependencies"]["foo"]["default-features"].as_bool(), Some(false));

@@ -1,7 +1,12 @@
-use super::{apply_manifest_edits, declared_cargo_deps, format_cargo_saved_spec};
-use crate::cli_args::ecosystem_deps::{
-    cargo::validate_explicit_cargo_requests, selectors::CargoUpdateSelector,
+use super::{
+    apply_manifest_edits, declared_cargo_deps, format_cargo_saved_spec, has_matching_cargo_deps,
 };
+use crate::cli_args::{
+    ecosystem_deps::{cargo::validate_explicit_cargo_requests, selectors::CargoUpdateSelector},
+    outdated::{OutdatedQuery, TargetVersion},
+};
+use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_package_manifest::DependencyGroup;
 use semver::Version;
 use std::fs;
 
@@ -150,4 +155,57 @@ fn declared_cargo_deps_and_manifest_edits_resolve_renamed_workspace_dependencies
     assert_eq!(ws_deps["my_ryu"]["package"].as_str(), Some("ryu"));
     assert_eq!(ws_deps.get("my_itoa"), None);
     assert_eq!(ws_deps.get("other_ryu"), None);
+}
+
+fn make_outdated_query<'a>(
+    include_direct: &'a [DependencyGroup],
+    match_names: Option<&'a Matcher>,
+    ignore_names: Option<&'a Matcher>,
+) -> OutdatedQuery<'a> {
+    OutdatedQuery {
+        target_version: TargetVersion::WithinRange,
+        include_direct,
+        match_names,
+        ignore_names,
+        include_deprecated: false,
+        full_metadata: false,
+    }
+}
+
+#[test]
+fn outdated_query_exclusions_apply_across_all_merged_cargo_identities() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let member = root.join("crates/app");
+    fs::create_dir_all(&member).unwrap();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/*\"]\n\n[workspace.dependencies]\nmy_ryu = { package = \"ryu\", version = \"1.0.0\" }\n",
+    )
+    .unwrap();
+    fs::write(
+        member.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\nmy_ryu = { workspace = true }\nother_ryu = { package = \"my_ryu\", workspace = true }\n",
+    )
+    .unwrap();
+
+    let deps = declared_cargo_deps(&member, Some(root)).unwrap();
+    assert_eq!(deps.len(), 1);
+    let ryu = &deps[0];
+    let groups = [DependencyGroup::Prod];
+
+    let include_secondary = create_matcher(&["other_ryu".to_string()]);
+    assert!(ryu.matches_query(&make_outdated_query(&groups, Some(&include_secondary), None)));
+
+    for ignored_name in ["other_ryu", "my_ryu", "ryu"] {
+        let ignore = create_matcher(&[ignored_name.to_string()]);
+        let query = make_outdated_query(&groups, None, Some(&ignore));
+        assert!(!ryu.matches_query(&query), "ignore_names should reject {ignored_name}");
+        assert!(!has_matching_cargo_deps(&member, Some(root), &query).unwrap());
+        let both = make_outdated_query(&groups, Some(&include_secondary), Some(&ignore));
+        assert!(!ryu.matches_query(&both), "ignore_names must override match_names");
+    }
+
+    let negated_alias = create_matcher(&["!other_ryu".to_string()]);
+    assert!(!ryu.matches_query(&make_outdated_query(&groups, Some(&negated_alias), None)));
 }

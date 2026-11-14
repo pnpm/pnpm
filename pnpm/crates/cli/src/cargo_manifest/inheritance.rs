@@ -1,8 +1,12 @@
 use super::{
     spans::{dotted_prefix, find_entry, line_start, quoted},
-    workspace_dependency_table,
+    workspace::{rebase_workspace_path, resolve_local_path, resolve_workspace_dep_for_detach},
 };
-use std::{ops::Range, path::Path};
+use miette::{Result, bail};
+use std::{
+    ops::Range,
+    path::{Path, PathBuf},
+};
 use toml::{
     Spanned,
     de::{DeTable, DeValue},
@@ -24,31 +28,164 @@ pub(super) struct DetachedInheritance {
 
 pub(super) fn resolve_detached_inheritance(
     manifest_dir: Option<&Path>,
+    doc: &DeTable<'_>,
     subtable: &DeTable<'_>,
     name: &str,
-) -> DetachedInheritance {
-    let is_inherited = find_entry(subtable, "workspace")
-        .is_some_and(|(_, val)| matches!(val.get_ref(), DeValue::Boolean(true)));
+) -> Result<DetachedInheritance> {
+    let is_inherited = parse_workspace_flag(subtable, name)?;
     let Some(dir) = manifest_dir.filter(|_| is_inherited) else {
-        return DetachedInheritance::default();
+        return Ok(DetachedInheritance::default());
     };
-    let dep_package = find_entry(subtable, "package").and_then(|(_, val)| val.get_ref().as_str());
-    let Some(ws_table) = workspace_dependency_table(dir, name, dep_package) else {
-        return DetachedInheritance::default();
-    };
+    let configured_ws = extract_package_workspace(dir, doc, name)?;
+    let dep_package = extract_member_package(subtable, name)?;
+    let (workspace_root, ws_val) =
+        resolve_workspace_dep_for_detach(dir, configured_ws, name, dep_package)?;
+    if ws_val.is_str() {
+        return Ok(DetachedInheritance::default());
+    }
+    let ws_table = ws_val
+        .as_table()
+        .ok_or_else(|| {
+            miette::miette!(
+                "cannot detach crate {name}: workspace dependency is not a string or table"
+            )
+        })?;
 
     let mut out = DetachedInheritance::default();
+    copy_inherited_package(subtable, ws_table, name, &mut out)?;
+    copy_inherited_source((dir, &workspace_root), subtable, ws_table, name, &mut out)?;
+    if disables_default_features(ws_table) && !member_sets_default_features(subtable) {
+        out.extra_fields.push(("default-features", "false".to_string()));
+    }
+    merge_inherited_features(subtable, ws_table, &mut out);
+    Ok(out)
+}
+
+fn parse_workspace_flag(subtable: &DeTable<'_>, name: &str) -> Result<bool> {
+    let Some((_, val)) = find_entry(subtable, "workspace") else {
+        return Ok(false);
+    };
+    match val.get_ref() {
+        DeValue::Boolean(flag) => Ok(*flag),
+        _ => Err(miette::miette!(
+            "cannot update crate {name}: `workspace` in Cargo.toml is not a boolean"
+        )),
+    }
+}
+
+fn extract_package_workspace(
+    member_dir: &Path,
+    doc: &DeTable<'_>,
+    name: &str,
+) -> Result<Option<PathBuf>> {
+    let Some((_, pkg_val)) = find_entry(doc, "package") else {
+        return Ok(None);
+    };
+    let Some(pkg_table) = pkg_val.get_ref().as_table() else {
+        return Ok(None);
+    };
+    let Some((_, ws_val)) = find_entry(pkg_table, "workspace") else {
+        return Ok(None);
+    };
+    let Some(rel) = ws_val.get_ref().as_str() else {
+        bail!("cannot detach crate {name}: `package.workspace` in Cargo.toml is not a string");
+    };
+    Ok(Some(resolve_local_path(&member_dir.join(rel))))
+}
+
+fn extract_member_package<'i>(subtable: &'i DeTable<'i>, name: &str) -> Result<Option<&'i str>> {
+    let Some((_, val)) = find_entry(subtable, "package") else {
+        return Ok(None);
+    };
+    val.get_ref()
+        .as_str()
+        .map(Some)
+        .ok_or_else(|| {
+            miette::miette!("cannot detach crate {name}: `package` in Cargo.toml is not a string")
+        })
+}
+
+fn copy_inherited_package(
+    subtable: &DeTable<'_>,
+    ws_table: &toml::Table,
+    name: &str,
+    out: &mut DetachedInheritance,
+) -> Result<()> {
     if find_entry(subtable, "package").is_none()
-        && let Some(pkg) = ws_table.get("package").and_then(toml::Value::as_str)
+        && let Some(pkg) = optional_string_field(ws_table, "package", name)?
         && pkg != name
     {
         out.extra_fields.push(("package", quoted(pkg)));
     }
-    if disables_default_features(&ws_table) && !member_sets_default_features(subtable) {
-        out.extra_fields.push(("default-features", "false".to_string()));
+    Ok(())
+}
+
+fn copy_inherited_source(
+    (member_dir, workspace_root): (&Path, &Path),
+    subtable: &DeTable<'_>,
+    ws_table: &toml::Table,
+    name: &str,
+    out: &mut DetachedInheritance,
+) -> Result<()> {
+    if ws_table.contains_key("base") {
+        bail!("cannot detach crate {name}: workspace dependency uses `base` path resolution");
     }
-    merge_inherited_features(subtable, &ws_table, &mut out);
-    out
+    if !member_sets_registry(subtable) {
+        for field in ["registry", "registry-index"] {
+            if let Some(val) = optional_string_field(ws_table, field, name)? {
+                out.extra_fields.push((field, quoted(val)));
+            }
+        }
+    }
+    if find_entry(subtable, "git").is_none() && find_entry(subtable, "path").is_none() {
+        copy_git_or_path_source((member_dir, workspace_root), subtable, ws_table, name, out)?;
+    }
+    Ok(())
+}
+
+fn copy_git_or_path_source(
+    (member_dir, workspace_root): (&Path, &Path),
+    subtable: &DeTable<'_>,
+    ws_table: &toml::Table,
+    name: &str,
+    out: &mut DetachedInheritance,
+) -> Result<()> {
+    if let Some(git_url) = optional_string_field(ws_table, "git", name)? {
+        out.extra_fields.push(("git", quoted(git_url)));
+        for selector in ["branch", "tag", "rev"] {
+            if find_entry(subtable, selector).is_none()
+                && let Some(val) = optional_string_field(ws_table, selector, name)?
+            {
+                out.extra_fields.push((selector, quoted(val)));
+            }
+        }
+    }
+    if let Some(raw_path) = optional_string_field(ws_table, "path", name)? {
+        let rebased = rebase_workspace_path(workspace_root, member_dir, raw_path);
+        out.extra_fields.push(("path", quoted(&rebased)));
+    }
+    Ok(())
+}
+
+fn optional_string_field<'a>(
+    ws_table: &'a toml::Table,
+    field: &str,
+    name: &str,
+) -> Result<Option<&'a str>> {
+    let Some(val) = ws_table.get(field) else {
+        return Ok(None);
+    };
+    val.as_str()
+        .map(Some)
+        .ok_or_else(|| {
+            miette::miette!(
+                "cannot detach crate {name}: `{field}` in `[workspace.dependencies]` is not a string"
+            )
+        })
+}
+
+fn member_sets_registry(subtable: &DeTable<'_>) -> bool {
+    find_entry(subtable, "registry").is_some() || find_entry(subtable, "registry-index").is_some()
 }
 
 fn disables_default_features(ws_table: &toml::Table) -> bool {

@@ -3,7 +3,8 @@ mod saved_spec;
 
 use crate::{
     cargo_manifest::{
-        lookup_inherited_workspace_entry, upsert_dependency, workspace_includes_member,
+        ConfiguredWorkspace, configured_workspace_state, lookup_inherited_workspace_entry,
+        resolve_local_path, upsert_dependency, workspace_includes_member,
     },
     cli_args::outdated::OutdatedQuery,
 };
@@ -57,22 +58,36 @@ impl DeclaredCargoDep {
             .any(|alias| alias == name)
     }
 
+    pub(crate) fn identities(&self) -> Vec<&str> {
+        let mut ids = vec![self.package_name.as_str(), self.manifest_key.as_str()];
+        for alias in &self.aliases {
+            if !ids.contains(&alias.as_str()) {
+                ids.push(alias.as_str());
+            }
+        }
+        ids
+    }
+
     pub(crate) fn matches_name(&self, name: &str) -> bool {
         self.package_name == name || self.manifest_key == name || self.has_alias(name)
     }
 
+    pub(crate) fn is_ignored(&self, matcher: &Matcher) -> bool {
+        matcher.matches_any(&self.identities())
+    }
+
     pub(crate) fn matches_pattern(&self, matcher: &Matcher) -> bool {
-        self.aliases
+        let aliases: Vec<&str> = self.aliases
             .iter()
-            .any(|alias| matcher.matches(alias))
+            .map(String::as_str)
+            .collect();
+        matcher.matches_any(&aliases)
     }
 
     pub(crate) fn matches_query(&self, query: &OutdatedQuery<'_>) -> bool {
-        query.matches_name(&self.package_name)
-            || query.matches_name(&self.manifest_key)
-            || self.aliases
-                .iter()
-                .any(|alias| query.matches_name(alias))
+        let ids = self.identities();
+        query.match_names.is_none_or(|matcher| matcher.matches_any(&ids))
+            && !query.ignore_names.is_some_and(|matcher| matcher.matches_any(&ids))
     }
 }
 
@@ -110,6 +125,22 @@ pub(crate) fn find_cargo_workspace_root(
     if has_workspace_section(project_dir) {
         return project_dir.to_path_buf();
     }
+    match configured_workspace_state(project_dir) {
+        ConfiguredWorkspace::Path(ws_dir) => {
+            let within_limit =
+                workspace_limit.is_none_or(|limit| ws_dir.starts_with(resolve_local_path(limit)));
+            if within_limit && workspace_includes_member(&ws_dir, project_dir) {
+                ws_dir
+            } else {
+                project_dir.to_path_buf()
+            }
+        }
+        ConfiguredWorkspace::Invalid => project_dir.to_path_buf(),
+        ConfiguredWorkspace::Unset => find_ancestor_workspace_root(project_dir, workspace_limit),
+    }
+}
+
+fn find_ancestor_workspace_root(project_dir: &Path, workspace_limit: Option<&Path>) -> PathBuf {
     let mut current = project_dir;
     while workspace_limit.is_none_or(|limit| current != limit) {
         let Some(parent) = current.parent() else {
