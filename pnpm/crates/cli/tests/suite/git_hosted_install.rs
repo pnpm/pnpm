@@ -1227,8 +1227,6 @@ fn lockfile_update_reuses_the_locked_commit_of_a_git_dependency_with_peers() {
     drop((root, npmrc_info));
 }
 
-/// A locked git package with peers keeps an aliased git child when an
-/// unrelated dependency changes.
 #[cfg(unix)]
 #[test]
 fn lockfile_update_keeps_the_aliased_git_child_of_a_git_dependency_with_peers() {
