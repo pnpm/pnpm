@@ -87,13 +87,13 @@ fn registry_packages(
             &selection,
             registry,
             solution,
-            &sources,
+            sources,
             preferred_versions,
         )?;
         packages.push(Package {
             name: Name::from_str(name).into_diagnostic()?,
             version: (*version).clone(),
-            source: Some(package_source(&sources, key)?),
+            source: Some(package_source(sources, key)?),
             checksum: Some(Checksum::from_str(&registry_version.checksum).into_diagnostic()?),
             dependencies,
             replace: None,
