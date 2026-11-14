@@ -143,8 +143,8 @@ pub(super) fn link_dep_path(
     alias: &str,
 ) -> String {
     let pkg_name = manifest_package_name(package_dir).unwrap_or_else(|| alias.to_string());
-    let rel =
-        pnpm_fs::relative_path(workspace_root, expected_dir).to_string_lossy().replace('\\', "/");
+    let root = pnpm_fs::lexical_normalize(workspace_root);
+    let rel = pnpm_fs::relative_path(&root, expected_dir).to_string_lossy().replace('\\', "/");
     let rel = if rel.is_empty() { "." } else { rel.as_str() };
     format!("{pkg_name}@link:{rel}")
 }

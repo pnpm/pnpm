@@ -62,9 +62,22 @@ fn links_to_a_package_skill(path: &Path) -> bool {
     else {
         return false;
     };
-    skills_idx > 0
-        && is_valid_skill_segment(components[skills_idx - 1])
-        && is_valid_skill_subpath(&components[skills_idx + 1..])
+    is_local_package_skill(&components, skills_idx)
+}
+
+fn is_local_package_skill(components: &[Component<'_>], skills_idx: usize) -> bool {
+    let before = &components[..skills_idx];
+    let valid_parent = match before.last().copied() {
+        Some(Component::ParentDir) => {
+            before.len() >= 2
+                && before
+                    .iter()
+                    .all(|component| matches!(component, Component::ParentDir))
+        }
+        Some(component) => is_valid_skill_segment(component),
+        None => false,
+    };
+    valid_parent && is_valid_skill_subpath(&components[skills_idx + 1..])
 }
 
 fn is_modules_package_skill(package: &[Component<'_>]) -> bool {
