@@ -129,8 +129,13 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
 
 function isRelativeToDeclaringManifest (ctx: ResolutionContext, parentPkg: ParentPkg, wantedDependency: WantedDependency): boolean {
   const { bareSpecifier } = wantedDependency
-  if (bareSpecifier.startsWith('file:')) return true
-  if (parentPkg.pkgId.startsWith('file:') && (bareSpecifier.startsWith('link:') || barePathIsUnambiguous(bareSpecifier))) return true
+  if (bareSpecifier.startsWith('file:') || isLinkedWorkspacePath(ctx, wantedDependency)) return true
+  return (bareSpecifier.startsWith('link:') || barePathIsUnambiguous(bareSpecifier)) &&
+    ctx.resolvedPkgsById[parentPkg.pkgId]?.resolution.type === 'directory'
+}
+
+function isLinkedWorkspacePath (ctx: ResolutionContext, wantedDependency: WantedDependency): boolean {
+  const { bareSpecifier } = wantedDependency
   // A linked workspace: path keeps its lockfile-relative id, which the linked node is registered under.
   return bareSpecifier.startsWith('workspace:.') && (wantedDependency.injected === true || ctx.injectWorkspacePackages === true)
 }
