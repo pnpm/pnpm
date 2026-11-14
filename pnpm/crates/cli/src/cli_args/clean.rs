@@ -254,39 +254,39 @@ fn raw_configured_lockfile_dir(
     root_dir: &Path,
     cli_lockfile_dir: Option<&Path>,
 ) -> Option<PathBuf> {
-    let candidate = raw_lockfile_dir_candidate(config, cli_dir, root_dir, cli_lockfile_dir);
-    match (&candidate, &config.lockfile_dir) {
-        (Some(raw), Some(resolved)) if &pnpm_fs::lexical_normalize(raw) == resolved => candidate,
-        _ => config.lockfile_dir.clone(),
-    }
+    let resolved = config.lockfile_dir.as_ref()?;
+    raw_lockfile_dir_candidates(config, cli_dir, root_dir, cli_lockfile_dir)
+        .into_iter()
+        .find(|candidate| &pnpm_fs::lexical_normalize(candidate) == resolved)
+        .or_else(|| Some(resolved.clone()))
 }
 
-fn raw_lockfile_dir_candidate(
+fn raw_lockfile_dir_candidates(
     config: &Config,
     cli_dir: &Path,
     root_dir: &Path,
     cli_lockfile_dir: Option<&Path>,
-) -> Option<PathBuf> {
+) -> Vec<PathBuf> {
     if let Some(cli_lockfile_dir) = cli_lockfile_dir {
-        return Some(anchor_raw_path(cli_lockfile_dir, cli_dir));
+        return vec![anchor_raw_path(cli_lockfile_dir, cli_dir)];
     }
-    let explicit = config.explicit_settings.get("lockfileDir").and_then(Value::as_str);
-    if config.cli_settings.contains("lockfileDir")
-        && let Some(raw) = explicit
-    {
-        return Some(anchor_raw_path(Path::new(raw), cli_dir));
+    let Some(raw) = config.explicit_settings.get("lockfileDir").and_then(Value::as_str) else {
+        return Vec::new();
+    };
+    let raw_path = Path::new(raw);
+    if config.cli_settings.contains("lockfileDir") {
+        return vec![anchor_raw_path(raw_path, cli_dir)];
     }
-    if let Some(env_raw) = env_lockfile_dir() {
-        return Some(anchor_raw_path(Path::new(&env_raw), cli_dir));
+    if env_lockfile_dir_is_set() {
+        return vec![anchor_raw_path(raw_path, cli_dir), anchor_raw_path(raw_path, root_dir)];
     }
-    explicit.map(|raw| anchor_raw_path(Path::new(raw), root_dir))
+    vec![anchor_raw_path(raw_path, root_dir)]
 }
 
-fn env_lockfile_dir() -> Option<String> {
+fn env_lockfile_dir_is_set() -> bool {
     std::env::var("PNPM_CONFIG_LOCKFILE_DIR")
         .or_else(|_| std::env::var("pnpm_config_lockfile_dir"))
-        .ok()
-        .filter(|value| !value.is_empty())
+        .is_ok_and(|value| !value.is_empty())
 }
 
 fn anchor_raw_path(raw: &Path, anchor: &Path) -> PathBuf {

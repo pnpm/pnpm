@@ -208,3 +208,53 @@ fn clean_lockfile_resolves_env_lockfile_dir_relative_to_cli_dir() {
 
     drop(root);
 }
+
+#[test]
+fn clean_lockfile_enforces_symlink_containment_after_env_var_substitution_and_hook_override() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"app"}"#).expect("write package.json");
+    let outside = root.path().join("outside");
+    fs::create_dir_all(outside.join("sub")).expect("create outside/sub");
+    pnpm_fs::symlink_dir(&outside.join("sub"), &workspace.join("escape"))
+        .expect("symlink escape -> outside/sub");
+    let keep_dir = workspace.join("keep-dir");
+    fs::create_dir_all(&keep_dir).expect("create keep-dir");
+    fs::write(keep_dir.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
+        .expect("write keep-dir lockfile");
+
+    let env_subst = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_env("ESCAPE_DIR", "escape/../keep-dir")
+        .with_env("PNPM_CONFIG_LOCKFILE_DIR", "${ESCAPE_DIR}")
+        .with_args(["clean", "--lockfile"])
+        .output()
+        .expect("run clean with substituted PNPM_CONFIG_LOCKFILE_DIR");
+    assert!(env_subst.status.success(), "{env_subst:?}");
+    assert!(
+        keep_dir.join("pnpm-lock.yaml").exists(),
+        "substituted PNPM_CONFIG_LOCKFILE_DIR must not bypass symlink-parent containment",
+    );
+
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig(cfg) { cfg.lockfileDir = 'escape/../keep-dir'; return cfg } } }\n",
+    )
+    .expect("write .pnpmfile.cjs");
+    let hook_override = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_CONFIG_LOCKFILE_DIR", "env-lock")
+        .with_args(["clean", "--lockfile"])
+        .output()
+        .expect("run clean with updateConfig overriding PNPM_CONFIG_LOCKFILE_DIR");
+    assert!(hook_override.status.success(), "{hook_override:?}");
+    assert!(
+        keep_dir.join("pnpm-lock.yaml").exists(),
+        "updateConfig overriding PNPM_CONFIG_LOCKFILE_DIR must not bypass symlink-parent containment",
+    );
+
+    drop(root);
+}

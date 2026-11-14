@@ -371,14 +371,14 @@ async function getProjectDirs (
   opts: CleanOptions,
   { narrowed, realRootDir, rootDir }: { narrowed: boolean, realRootDir: string, rootDir: string }
 ): Promise<string[]> {
+  if (!opts.workspaceDir) {
+    return opts.selectedProjectsGraph != null ? Object.keys(opts.selectedProjectsGraph) : [opts.dir]
+  }
   if (narrowed) {
     if (opts.selectedProjectsGraph != null) {
       return Object.keys(opts.selectedProjectsGraph)
     }
     return opts.workspaceRoot ? [rootDir] : []
-  }
-  if (!opts.workspaceDir) {
-    return [opts.dir]
   }
   const pkgs = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {
     patterns: opts.workspacePackagePatterns,

@@ -325,3 +325,22 @@ test('pnpm ci preserves node_modules when pnprServer conflicts with frozenStore'
   expect(fs.existsSync(markerPath)).toBe(true)
   expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
 })
+
+test('pnpm ci cleans node_modules in a single project even when pnpm_config_filter is set in env', () => {
+  prepare({
+    name: 'single-app',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  const stalePkg = path.join('node_modules', 'stale-pkg')
+  fs.mkdirSync(stalePkg, { recursive: true })
+
+  const res = execPnpmSync(['ci'], { env: { pnpm_config_filter: 'single-app' } })
+  expect(res.status).toBe(0)
+  expect(fs.existsSync(stalePkg)).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
+})
