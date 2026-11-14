@@ -269,3 +269,48 @@ async fn a_frozen_store_keeps_generations_beside_the_project() {
         .assert()
         .success();
 }
+
+#[tokio::test]
+async fn outdated_reports_divergent_platform_locked_versions() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(
+        &mut server,
+        "alpha",
+        &[
+            ("1.0", wheel("alpha", "1.0", "", &[])),
+            ("2.0", wheel("alpha", "2.0", "", &[])),
+            ("3.0", wheel("alpha", "3.0", "", &[])),
+        ],
+    )
+    .await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    std::fs::write(
+        root.path().join("pylock.toml"),
+        concat!(
+            "lock-version = '1.0'\n",
+            "environments = [\"sys_platform == 'linux'\", \"sys_platform == 'win32'\"]\n",
+            "created-by = 'pnpm'\n",
+            "[[packages]]\nname = 'alpha'\nversion = '1.0'\nmarker = \"sys_platform == 'linux'\"\n",
+            "wheels = [{ name = 'alpha-1.0-py3-none-any.whl', url = 'https://example.test/alpha-1.0-py3-none-any.whl', hashes = { sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } }]\n",
+            "[[packages]]\nname = 'alpha'\nversion = '2.0'\nmarker = \"sys_platform == 'win32'\"\n",
+            "wheels = [{ name = 'alpha-2.0-py3-none-any.whl', url = 'https://example.test/alpha-2.0-py3-none-any.whl', hashes = { sha256 = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' } }]\n",
+        ),
+    )
+    .unwrap();
+    let output = pacquet_in(root.path())
+        .args(["outdated", "pypi:alpha", "--format", "json"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["alpha@1.0"]["current"], "1.0");
+    assert_eq!(report["alpha@1.0"]["latest"], "3.0");
+    assert_eq!(report["alpha@2.0"]["current"], "2.0");
+    assert_eq!(report["alpha@2.0"]["latest"], "3.0");
+}

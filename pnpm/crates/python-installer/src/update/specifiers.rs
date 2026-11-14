@@ -27,6 +27,16 @@ pub(super) fn compute_saved_specifiers_for_pins(
     if effective.is_none_or(|specifiers| admits_all_pins(specifiers, pins)) {
         return Ok(candidate);
     }
+    if let Some(base_specs) = effective.filter(|specifiers| {
+        pins.iter()
+            .all(|pin| specifiers.contains(pin.version))
+    }) {
+        let with_pre: VersionSpecifiers =
+            format!("{base_specs},>=0a0").parse().into_diagnostic()?;
+        return Ok((existing != Some(&with_pre) && admits_all_pins(&with_pre, pins)).then_some(
+            with_pre,
+        ));
+    }
     if latest || explicit_spec.is_some() {
         return widened_floor_for_pins(min_version, pins, existing);
     }
@@ -47,19 +57,11 @@ fn widened_floor_for_pins(
     existing: Option<&VersionSpecifiers>,
 ) -> Result<Option<VersionSpecifiers>> {
     let base = min_version.clone().without_local();
-    let floor = if !min_version.any_prerelease()
-        && let Some(pre) = pins
-            .iter()
-            .map(|pin| pin.version)
-            .filter(|ver| ver.any_prerelease())
-            .min()
-    {
-        format!(">={base},>={}", pre.clone().without_local())
-    } else {
-        format!(">={base}")
-    };
+    let needs_prerelease =
+        !min_version.any_prerelease() && pins.iter().any(|pin| pin.version.any_prerelease());
+    let floor = if needs_prerelease { format!(">=0a0,>={base}") } else { format!(">={base}") };
     let parsed: VersionSpecifiers = floor.parse().into_diagnostic()?;
-    Ok((existing != Some(&parsed)).then_some(parsed))
+    Ok((existing != Some(&parsed) && admits_all_pins(&parsed, pins)).then_some(parsed))
 }
 
 fn compute_saved_specifiers(

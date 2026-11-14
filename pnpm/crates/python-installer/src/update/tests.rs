@@ -309,6 +309,33 @@ fn finalize_requirement_saves_ranges_when_platforms_resolve_different_versions()
     .unwrap()
     .unwrap();
     assert_eq!(saved_latest.to_string(), "foo>=2.0");
+
+    let pre_lock = sample_lock(
+        vec![
+            "python_version == '3.12' and sys_platform == 'linux'",
+            "python_version == '3.12' and sys_platform == 'win32'",
+        ],
+        vec![
+            locked_pkg("foo", "2.0", Some("sys_platform == 'linux'")),
+            locked_pkg("foo", "3.0rc1", Some("sys_platform == 'win32'")),
+        ],
+    );
+    let pre_index = pre_lock.index().unwrap();
+    let saved_pre = finalize_requirement(
+        PythonDependencyGroup::Prod,
+        "foo==1.0".parse().unwrap(),
+        &latest_opts,
+        &pre_index,
+    )
+    .unwrap()
+    .unwrap();
+    let Some(pep508_rs::VersionOrUrl::VersionSpecifier(specs)) = saved_pre.version_or_url else {
+        panic!("expected version specifiers");
+    };
+    assert!(specs.contains(&"2.0".parse().unwrap()));
+    assert!(specs.contains(&"3.0rc1".parse().unwrap()));
+    assert!(!specs.contains(&"1.9".parse().unwrap()));
+    assert!(specs.iter().any(pep440_rs::VersionSpecifier::any_prerelease));
 }
 
 fn write_pyproject(dir: &Path, contents: &str) {

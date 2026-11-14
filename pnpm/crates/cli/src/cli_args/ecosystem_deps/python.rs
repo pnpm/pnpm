@@ -91,6 +91,14 @@ pub(crate) async fn collect_python_outdated(
         return Ok(Vec::new());
     }
     let locked = LockedPythonPackages::read(&pylock_path)?;
+    let ctx = OutdatedPythonContext {
+        locked: &locked,
+        workspace_name: workspace_name.as_deref(),
+        query,
+        config,
+        http_client,
+    };
+    let mut seen = BTreeSet::new();
     let mut outdated = Vec::new();
     for dep in declared {
         let group = map_python_group(dep.group);
@@ -98,24 +106,44 @@ pub(crate) async fn collect_python_outdated(
         if !query.include_direct.contains(&group) || !query.matches_name(&name_str) {
             continue;
         }
-        let Some(current) = locked.agreed_version(&dep.requirement) else {
+        collect_outdated_for_dep(&dep, group, &ctx, &mut seen, &mut outdated).await?;
+    }
+    Ok(outdated)
+}
+
+struct OutdatedPythonContext<'a> {
+    locked: &'a LockedPythonPackages,
+    workspace_name: Option<&'a str>,
+    query: &'a OutdatedQuery<'a>,
+    config: &'a Config,
+    http_client: &'a ThrottledClient,
+}
+
+type SeenOutdatedKey = (PythonDependencyGroup, String, String, String, String);
+
+async fn collect_outdated_for_dep(
+    dep: &DeclaredPythonDep,
+    group: DependencyGroup,
+    ctx: &OutdatedPythonContext<'_>,
+    seen: &mut BTreeSet<SeenOutdatedKey>,
+    outdated: &mut Vec<OutdatedPackage>,
+) -> Result<()> {
+    for current in ctx.locked.matching_versions(&dep.requirement) {
+        let Some(pkg) = resolve_outdated_python_dep(dep, group, current, ctx).await? else {
             continue;
         };
-        if let Some(pkg) = resolve_outdated_python_dep(
-            &dep,
-            group,
-            current,
-            workspace_name.as_deref(),
-            query,
-            config,
-            http_client,
-        )
-        .await?
-        {
+        let key = (
+            dep.group,
+            pkg.package_name.clone(),
+            pkg.current_str().to_string(),
+            pkg.wanted_str().to_string(),
+            pkg.target_str().to_string(),
+        );
+        if seen.insert(key) {
             outdated.push(pkg);
         }
     }
-    Ok(outdated)
+    Ok(())
 }
 
 pub(super) fn map_python_group(group: PythonDependencyGroup) -> DependencyGroup {
@@ -130,19 +158,16 @@ async fn resolve_outdated_python_dep(
     dep: &DeclaredPythonDep,
     group: DependencyGroup,
     current: &Pep440Version,
-    workspace_name: Option<&str>,
-    query: &OutdatedQuery<'_>,
-    config: &Config,
-    http_client: &ThrottledClient,
+    ctx: &OutdatedPythonContext<'_>,
 ) -> Result<Option<OutdatedPackage>> {
-    let wanted = resolve_target_version(config, http_client, &dep.requirement, true)
+    let wanted = resolve_target_version(ctx.config, ctx.http_client, &dep.requirement, true)
         .await?
         .unwrap_or_else(|| current.clone());
-    let target = match query.target_version {
+    let target = match ctx.query.target_version {
         TargetVersion::WithinRange => wanted.clone(),
         TargetVersion::Latest => {
             let Some(latest) =
-                resolve_target_version(config, http_client, &dep.requirement, false).await?
+                resolve_target_version(ctx.config, ctx.http_client, &dep.requirement, false).await?
             else {
                 return Ok(None);
             };
@@ -164,7 +189,7 @@ async fn resolve_outdated_python_dep(
         metadata: OutdatedMetadata {
             deprecated: None,
             homepage: Some(format!("https://pypi.org/project/{name_str}/")),
-            workspace: workspace_name.map(str::to_string),
+            workspace: ctx.workspace_name.map(str::to_string),
             display_versions: Some(Box::new(OutdatedDisplayVersions {
                 current: current.to_string(),
                 target: target.to_string(),

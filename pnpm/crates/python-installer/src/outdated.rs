@@ -270,23 +270,20 @@ impl LockedPythonPackages {
         Ok(Self { by_name })
     }
 
-    /// The single locked version across every environment overlapping
-    /// `requirement`, or `None` when none match or versions disagree.
+    /// Distinct locked versions across every environment overlapping
+    /// `requirement`, in ascending version order.
     #[must_use]
-    pub fn agreed_version(&self, requirement: &Requirement) -> Option<&Version> {
+    pub fn matching_versions(&self, requirement: &Requirement) -> Vec<&Version> {
+        let Some(entries) = self.by_name.get(&requirement.name) else {
+            return Vec::new();
+        };
         let wanted = requirement.marker.clone().simplify_extras_with(|_| true);
-        let mut agreed: Option<&Version> = None;
-        for (version, active) in self.by_name.get(&requirement.name)? {
-            if active.is_disjoint(&wanted) {
-                continue;
-            }
-            match agreed {
-                None => agreed = Some(version),
-                Some(prev) if prev == version => {}
-                Some(_) => return None,
-            }
-        }
-        agreed
+        let distinct: BTreeSet<&Version> = entries
+            .iter()
+            .filter(|(_, active)| !active.is_disjoint(&wanted))
+            .map(|(version, _)| version)
+            .collect();
+        distinct.into_iter().collect()
     }
 }
 
