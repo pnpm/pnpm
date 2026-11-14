@@ -70,12 +70,7 @@ impl CleanRun<'_> {
         // junctions) and defeat the relative-path computation.
         let cwd = std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_default();
         let planned = self.plan(dirs);
-        for (modules_dir, mode) in &planned.modules_targets {
-            clean_modules_dir(&cwd, modules_dir, *mode)?;
-        }
-        if let Some(shared_modules) = planned.shared_modules_dir.as_deref() {
-            invalidate_workspace_state(self.real_root_dir, shared_modules)?;
-        }
+        planned.execute_modules(&cwd, self.real_root_dir)?;
         if matches!(self.lockfile_removal, LockfileRemoval::Remove) {
             let resolved_lockfile_dir = self.raw_lockfile_dir.and_then(|lockfile_dir| {
                 resolve_configured_lockfile_dir(self.real_root_dir, lockfile_dir)
@@ -89,15 +84,7 @@ impl CleanRun<'_> {
                 resolved_lockfile_dir.as_deref(),
             )?;
         }
-        if let Some(virtual_store_in_project) = planned
-            .external_virtual_store_dir
-            .as_deref()
-            && inspect_existing_path(virtual_store_in_project)?.is_some()
-        {
-            print_removing(&cwd, virtual_store_in_project);
-            remove_path(virtual_store_in_project)?;
-        }
-        Ok(())
+        planned.execute_external_virtual_store(&cwd)
     }
 
     fn cleans_root(&self, dirs: &[PathBuf]) -> bool {
@@ -141,9 +128,43 @@ impl CleanRun<'_> {
         (candidate == self.real_root_dir).then_some(self.root_dir)
     }
 
-    fn is_cleanable_modules_dir(&self, candidate: &Path, cleaned: &HashSet<PathBuf>) -> bool {
+    fn is_cleanable_modules_dir(
+        &self,
+        candidate: &Path,
+        owner_dir: Option<&Path>,
+        cleaned: &HashSet<PathBuf>,
+    ) -> bool {
         !cleaned.contains(candidate)
-            && !self.protected_member_dirs.iter().any(|member_dir| is_subdir(candidate, member_dir))
+            && !self.protected_member_dirs
+                .iter()
+                .any(|member_dir| {
+                    is_subdir(candidate, member_dir)
+                        || (owner_dir != Some(member_dir.as_path())
+                            && is_subdir(member_dir, candidate))
+                })
+    }
+
+    fn preserved_shared_virtual_store_entry(
+        &self,
+        resolved_lockfile_dir: Option<&Path>,
+        shared_modules_dir: Option<&Path>,
+    ) -> Option<std::ffi::OsString> {
+        let shared = shared_modules_dir?;
+        let root_dir = self.config.workspace_dir.as_deref().unwrap_or(self.real_root_dir);
+        let anchor_dir = self.shared_anchor_dir(resolved_lockfile_dir).unwrap_or(root_dir);
+        let vs_dir = resolve_inside(
+            self.real_root_dir,
+            &configured_virtual_store_dir(anchor_dir, self.config),
+        )?;
+        match vs_dir
+            .strip_prefix(shared)
+            .ok()?
+            .components()
+            .next()?
+        {
+            std::path::Component::Normal(first) => Some(first.to_os_string()),
+            _ => None,
+        }
     }
 
     fn collect_modules_targets(
@@ -153,16 +174,25 @@ impl CleanRun<'_> {
         resolved_lockfile_dir: Option<&Path>,
         shared_modules_dir: Option<&Path>,
     ) -> Vec<(PathBuf, ModulesCleanMode)> {
+        let preserved_entry =
+            self.preserved_shared_virtual_store_entry(resolved_lockfile_dir, shared_modules_dir);
         let mut cleaned_modules_dirs = HashSet::new();
         let mut targets = Vec::new();
         for dir in dirs {
             let project_leaf = modules_leaf_for_project(self.config, dir, modules_leaf);
+            let real_owner = dunce::canonicalize(dir).ok();
             if let Some(modules_in_project) =
                 resolve_project_modules_dir(self.real_root_dir, dir, &project_leaf)
-                && self.is_cleanable_modules_dir(&modules_in_project, &cleaned_modules_dirs)
+                && self.is_cleanable_modules_dir(
+                    &modules_in_project,
+                    real_owner.as_deref(),
+                    &cleaned_modules_dirs,
+                )
             {
                 let mode = if shared_modules_dir == Some(modules_in_project.as_path()) {
-                    ModulesCleanMode::PreserveSharedVirtualStore
+                    ModulesCleanMode::PreserveSharedVirtualStore {
+                        preserved_entry: preserved_entry.clone(),
+                    }
                 } else {
                     ModulesCleanMode::AllEntries
                 };
@@ -174,7 +204,7 @@ impl CleanRun<'_> {
             && let Some(lockfile_dir) = resolved_lockfile_dir
             && let Some(lockfile_modules_dir) =
                 resolve_project_modules_dir(self.real_root_dir, lockfile_dir, modules_leaf)
-            && self.is_cleanable_modules_dir(&lockfile_modules_dir, &cleaned_modules_dirs)
+            && self.is_cleanable_modules_dir(&lockfile_modules_dir, None, &cleaned_modules_dirs)
         {
             targets.push((lockfile_modules_dir, ModulesCleanMode::AllEntries));
         }
@@ -188,9 +218,7 @@ impl CleanRun<'_> {
             resolve_inside(self.real_root_dir, &resolved_virtual_store_dir)?;
         if resolve_inside(self.real_root_dir, &root_dir.join(modules_leaf))
             .is_some_and(|root_modules_dir| is_subdir(&root_modules_dir, &virtual_store_in_project))
-            || self.protected_member_dirs
-                .iter()
-                .any(|member_dir| is_subdir(&virtual_store_in_project, member_dir))
+            || !self.is_cleanable_modules_dir(&virtual_store_in_project, None, &HashSet::new())
         {
             return None;
         }
@@ -310,14 +338,14 @@ pub(super) fn configured_virtual_store_dir(root_dir: &Path, config: &Config) -> 
 pub(super) fn clean_modules_dir(
     cwd: &Path,
     modules_dir: &Path,
-    mode: ModulesCleanMode,
+    mode: &ModulesCleanMode,
 ) -> miette::Result<()> {
     let Some(metadata) = inspect_existing_path(modules_dir)? else {
         return Ok(());
     };
     if is_symlink_metadata(&metadata) {
         match mode {
-            ModulesCleanMode::PreserveSharedVirtualStore => return Ok(()),
+            ModulesCleanMode::PreserveSharedVirtualStore { .. } => return Ok(()),
             ModulesCleanMode::AllEntries => {
                 print_removing(cwd, modules_dir);
                 return remove_path(modules_dir);
@@ -339,7 +367,7 @@ pub(super) fn clean_modules_dir(
 
 fn removable_modules_entries(
     modules_dir: &Path,
-    mode: ModulesCleanMode,
+    mode: &ModulesCleanMode,
 ) -> miette::Result<Vec<PathBuf>> {
     let entries = match std::fs::read_dir(modules_dir) {
         Ok(entries) => entries,
@@ -350,13 +378,12 @@ fn removable_modules_entries(
                 .wrap_err_with(|| format!("reading {}", modules_dir.display()));
         }
     };
-    let hidden_entries = mode.hidden_entries();
     let mut removable = Vec::new();
     for entry in entries {
         let entry = entry
             .into_diagnostic()
             .wrap_err_with(|| format!("reading {}", modules_dir.display()))?;
-        if is_pnpm_entry(&entry.file_name().to_string_lossy(), hidden_entries) {
+        if mode.should_remove_dir_entry(&entry.file_name()) {
             removable.push(entry.path());
         }
     }

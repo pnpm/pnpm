@@ -198,7 +198,8 @@ fn protected_members_if_needed(
 }
 
 fn has_custom_clean_dirs(workspace_dir: &Path, config: &Config) -> bool {
-    !custom_root_clean_dirs(workspace_dir, config).is_empty()
+    config.lockfile_dir.is_some()
+        || !custom_root_clean_dirs(workspace_dir, config).is_empty()
         || config.package_configs
             .as_ref()
             .is_some_and(|configs| {

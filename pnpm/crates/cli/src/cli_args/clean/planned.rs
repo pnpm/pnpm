@@ -7,36 +7,38 @@ use super::{
 };
 use pnpm_fs::{is_subdir, is_symlink_metadata};
 use std::{
-    borrow::Cow,
-    path::{Path, PathBuf},
+    ffi::{OsStr, OsString},
+    path::{Component, Path, PathBuf},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) enum ModulesCleanMode {
     AllEntries,
-    PreserveSharedVirtualStore,
+    PreserveSharedVirtualStore { preserved_entry: Option<OsString> },
 }
 
 impl ModulesCleanMode {
-    pub(super) fn hidden_entries(self) -> &'static [&'static str] {
+    pub(super) fn should_remove_dir_entry(&self, name: &OsStr) -> bool {
+        let lossy = name.to_string_lossy();
         match self {
-            Self::AllEntries => PNPM_HIDDEN_ENTRIES,
-            Self::PreserveSharedVirtualStore => PNPM_NARROWED_SHARED_HIDDEN_ENTRIES,
+            Self::AllEntries => is_pnpm_entry(&lossy, PNPM_HIDDEN_ENTRIES),
+            Self::PreserveSharedVirtualStore { preserved_entry } => {
+                preserved_entry.as_deref() != Some(name)
+                    && is_pnpm_entry(&lossy, PNPM_NARROWED_SHARED_HIDDEN_ENTRIES)
+            }
         }
     }
 
-    fn removes_entry(self, modules_dir: &Path, entry_name: &str) -> bool {
-        if inspect_existing_path(modules_dir)
-            .ok()
-            .flatten()
-            .is_some_and(|metadata| is_symlink_metadata(&metadata))
+    fn removes_entry(&self, modules_dir: &Path, entry_name: &OsStr) -> miette::Result<bool> {
+        if let Some(metadata) = inspect_existing_path(modules_dir)?
+            && is_symlink_metadata(&metadata)
         {
-            return match self {
+            return Ok(match self {
                 Self::AllEntries => true,
-                Self::PreserveSharedVirtualStore => false,
-            };
+                Self::PreserveSharedVirtualStore { .. } => false,
+            });
         }
-        is_pnpm_entry(entry_name, self.hidden_entries())
+        Ok(self.should_remove_dir_entry(entry_name))
     }
 }
 
@@ -48,12 +50,21 @@ pub(super) struct PlannedClean {
 
 impl PlannedClean {
     pub(super) fn execute(&self, cwd: &Path, real_root_dir: &Path) -> miette::Result<()> {
+        self.execute_modules(cwd, real_root_dir)?;
+        self.execute_external_virtual_store(cwd)
+    }
+
+    pub(super) fn execute_modules(&self, cwd: &Path, real_root_dir: &Path) -> miette::Result<()> {
         for (modules_dir, mode) in &self.modules_targets {
-            clean_modules_dir(cwd, modules_dir, *mode)?;
+            clean_modules_dir(cwd, modules_dir, mode)?;
         }
         if let Some(shared_modules) = self.shared_modules_dir.as_deref() {
             invalidate_workspace_state(real_root_dir, shared_modules)?;
         }
+        Ok(())
+    }
+
+    pub(super) fn execute_external_virtual_store(&self, cwd: &Path) -> miette::Result<()> {
         if let Some(virtual_store_in_project) = self.external_virtual_store_dir.as_deref()
             && inspect_existing_path(virtual_store_in_project)?.is_some()
         {
@@ -67,50 +78,66 @@ impl PlannedClean {
         &self,
         real_root_dir: &Path,
         install_state_dir: &Path,
-    ) -> bool {
-        if self.removes_via_ancestor(real_root_dir, install_state_dir) {
-            return true;
+    ) -> miette::Result<bool> {
+        if self.removes_via_ancestor(real_root_dir, install_state_dir)? {
+            return Ok(true);
         }
         let Some(real_state_dir) = resolve_inside(real_root_dir, install_state_dir) else {
-            return false;
+            return Ok(false);
         };
         if self.external_virtual_store_dir
             .as_ref()
             .is_some_and(|vs_dir| is_subdir(vs_dir, &real_state_dir))
         {
-            return true;
+            return Ok(true);
         }
-        self.modules_targets
-            .iter()
-            .any(|(dir, mode)| removes_subpath_in_modules(dir, *mode, &real_state_dir))
+        for (dir, mode) in &self.modules_targets {
+            if removes_subpath_in_modules(dir, mode, &real_state_dir)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
-    fn removes_via_ancestor(&self, real_root_dir: &Path, install_state_dir: &Path) -> bool {
+    fn removes_via_ancestor(
+        &self,
+        real_root_dir: &Path,
+        install_state_dir: &Path,
+    ) -> miette::Result<bool> {
         let mut current = install_state_dir;
         while let (Some(parent), Some(name)) = (current.parent(), current.file_name()) {
-            let entry_name = name.to_string_lossy();
             if let Some(resolved_parent) = resolve_inside(real_root_dir, parent)
-                && self.modules_targets
-                    .iter()
-                    .any(|(dir, mode)| {
-                        *dir == resolved_parent && mode.removes_entry(dir, &entry_name)
-                    })
+                && self.target_removes_child(&resolved_parent, name)?
             {
-                return true;
+                return Ok(true);
             }
             current = parent;
         }
-        false
+        Ok(false)
+    }
+
+    fn target_removes_child(&self, resolved_parent: &Path, name: &OsStr) -> miette::Result<bool> {
+        for (dir, mode) in &self.modules_targets {
+            if dir == resolved_parent && mode.removes_entry(dir, name)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }
 
-fn removes_subpath_in_modules(modules_dir: &Path, mode: ModulesCleanMode, target: &Path) -> bool {
+fn removes_subpath_in_modules(
+    modules_dir: &Path,
+    mode: &ModulesCleanMode,
+    target: &Path,
+) -> miette::Result<bool> {
     let Ok(rel) = target.strip_prefix(modules_dir) else {
-        return false;
+        return Ok(false);
     };
     let entry_name = rel
         .components()
         .next()
-        .map_or(Cow::Borrowed("lock.yaml"), |first| first.as_os_str().to_string_lossy());
-    mode.removes_entry(modules_dir, &entry_name)
+        .map(Component::as_os_str)
+        .unwrap_or_else(|| OsStr::new("lock.yaml"));
+    mode.removes_entry(modules_dir, entry_name)
 }

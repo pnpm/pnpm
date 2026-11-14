@@ -657,3 +657,60 @@ test('pnpm ci in rootless workspace with modulesDir overlapping member packages 
     .map((line) => JSON.parse(line) as { exists: boolean, hasPackages: boolean })
   expect(entries).toStrictEqual([{ exists: true, hasPackages: true }])
 })
+
+test('pnpm ci in shared workspace preserves non-hidden virtualStoreDir inside root node_modules on narrowed runs', () => {
+  tempDir()
+  fs.mkdirSync('packages/pkg-a', { recursive: true })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.', 'packages/*'],
+    enableGlobalVirtualStore: false,
+    virtualStoreDir: 'node_modules/custom-store',
+  })
+  fs.writeFileSync('.pnpmfile.cjs', [
+    'const fs = require("fs")',
+    'const path = require("path")',
+    'module.exports = {',
+    '  hooks: {',
+    '    preResolution (ctx) {',
+    '      const hasPackages = Boolean(ctx.currentLockfile?.packages && Object.keys(ctx.currentLockfile.packages).length > 0)',
+    '      fs.appendFileSync(path.join(__dirname, "pre-res.jsonl"), JSON.stringify({ exists: ctx.existsCurrentLockfile, hasPackages }) + "\\n")',
+    '    },',
+    '  },',
+    '}',
+  ].join('\n'))
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root-pkg',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+  fs.writeFileSync('packages/pkg-a/package.json', JSON.stringify({
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+  }))
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  const readPreRes = (): Array<{ exists: boolean, hasPackages: boolean }> =>
+    fs.readFileSync('pre-res.jsonl', 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { exists: boolean, hasPackages: boolean })
+
+  fs.unlinkSync('pre-res.jsonl')
+  expect(execPnpmSync(['--filter', 'pkg-a', 'ci']).status).toBe(0)
+  expect(readPreRes()).toStrictEqual([{ exists: true, hasPackages: true }])
+
+  fs.writeFileSync('node_modules/custom-store/preserved-marker', 'keep-for-narrowed')
+  fs.mkdirSync('node_modules/stale-root-pkg', { recursive: true })
+  fs.unlinkSync('pre-res.jsonl')
+  expect(execPnpmSync(['-w', 'ci']).status).toBe(0)
+  expect(fs.existsSync('node_modules/stale-root-pkg')).toBe(false)
+  expect(fs.existsSync('node_modules/custom-store/preserved-marker')).toBe(true)
+  expect(fs.existsSync('packages/pkg-a/node_modules/is-negative/package.json')).toBe(true)
+  expect(readPreRes()).toStrictEqual([{ exists: true, hasPackages: true }])
+
+  fs.unlinkSync('pre-res.jsonl')
+  expect(execPnpmSync(['ci']).status).toBe(0)
+  expect(fs.existsSync('node_modules/custom-store/preserved-marker')).toBe(false)
+  expect(readPreRes()).toStrictEqual([{ exists: false, hasPackages: false }])
+})

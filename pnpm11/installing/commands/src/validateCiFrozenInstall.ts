@@ -223,13 +223,7 @@ async function validateSharedLockfileWorkspace (
 ): Promise<void> {
   const mutatedImporters = await prepareSharedLockfileImporters(ctx)
   if (mutatedImporters == null) return
-  const cleansVirtualStore = !isNarrowedWorkspaceCi(opts) &&
-    (ctx.opts.lockfileDir == null || await (opts._cleansModulesDir?.(ctx.opts.lockfileDir, opts.modulesDir) ?? cleansAnchoredModulesDir({
-      allProjects: ctx.allProjects,
-      anchorDir: ctx.opts.lockfileDir,
-      cleanupRootDir: ctx.opts.workspaceDir,
-      modulesDir: opts.modulesDir,
-    })))
+  const cleansVirtualStore = await cleansSharedWorkspaceVirtualStore(ctx, opts)
   const validated = await validateFrozenInstall(mutatedImporters, {
     ...ctx.installOpts,
     _cleansVirtualStore: cleansVirtualStore,
@@ -239,6 +233,23 @@ async function validateSharedLockfileWorkspace (
   if (validated?.prepared != null && ctx.opts.lockfileDir != null) {
     preparedCi.preparedByLockfileDir.set(ctx.opts.lockfileDir, validated.prepared)
   }
+}
+
+async function cleansSharedWorkspaceVirtualStore (
+  ctx: RecursiveContext,
+  opts: CiInstallDepsOptions
+): Promise<boolean> {
+  if (ctx.opts.lockfileDir == null) return !isNarrowedWorkspaceCi(opts)
+  if (opts._cleansModulesDir != null) {
+    return opts._cleansModulesDir(ctx.opts.lockfileDir, opts.modulesDir)
+  }
+  if (isNarrowedWorkspaceCi(opts)) return false
+  return cleansAnchoredModulesDir({
+    allProjects: ctx.allProjects,
+    anchorDir: ctx.opts.lockfileDir,
+    cleanupRootDir: ctx.opts.workspaceDir,
+    modulesDir: opts.modulesDir,
+  })
 }
 
 async function validateDedicatedLockfilesWorkspace (
@@ -376,17 +387,24 @@ async function cleansAnchoredModulesDir (
   if (!allowRootModulesTarget && realProjectDir != null && !isStrictSubdir(realProjectDir, resolved)) {
     return false
   }
-  return !(await overlapsProtectedMember(resolved, realCleanupRoot, allProjects))
+  return !(await overlapsProtectedMember(resolved, { allProjects, realCleanupRoot, realOwnerDir: realProjectDir }))
 }
 
 async function overlapsProtectedMember (
   resolved: string,
-  realCleanupRoot: string,
-  allProjects: Project[] | undefined
+  { allProjects, realCleanupRoot, realOwnerDir }: {
+    allProjects: Project[] | undefined
+    realCleanupRoot: string
+    realOwnerDir: string | undefined
+  }
 ): Promise<boolean> {
   if (!allProjects?.length) return false
   const realMemberDirs = await Promise.all(allProjects.map(async ({ rootDir }) => realpathIfExists(rootDir)))
-  return realMemberDirs.some((dir) => dir != null && dir !== realCleanupRoot && isSubdir(resolved, dir))
+  return realMemberDirs.some((dir) => (
+    dir != null &&
+    dir !== realCleanupRoot &&
+    (isSubdir(resolved, dir) || (dir !== realOwnerDir && isSubdir(dir, resolved)))
+  ))
 }
 
 async function realpathIfExists (targetPath: string): Promise<string | undefined> {

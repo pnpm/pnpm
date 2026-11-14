@@ -200,7 +200,7 @@ fn ci_rootless_workspace_with_protected_modules_dir_preserves_current_lockfile()
 }
 
 #[test]
-fn ci_shared_workspace_root_filter_accounts_for_nonhidden_virtual_store_in_modules() {
+fn ci_shared_workspace_preserves_nonhidden_virtual_store_on_narrowed_runs() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let store_dir = root.path().join("store");
     fs::write(
@@ -213,6 +213,15 @@ fn ci_shared_workspace_root_filter_accounts_for_nonhidden_virtual_store_in_modul
     .expect("write pnpm-workspace.yaml");
     write_pre_resolution_logger(&workspace);
     write_pkg_with_local_dep(&workspace);
+    let dep_b = workspace.join("deps/dep-b");
+    fs::create_dir_all(&dep_b).expect("create dep-b");
+    fs::write(dep_b.join("package.json"), r#"{"name":"dep-b","version":"1.0.0"}"#)
+        .expect("write dep-b manifest");
+    fs::write(
+        workspace.join("packages/pkg-a/package.json"),
+        r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"dep-b":"file:../../deps/dep-b"}}"#,
+    )
+    .expect("write pkg-a manifest");
     fs::write(
         workspace.join("package.json"),
         r#"{"name":"root-pkg","version":"1.0.0","dependencies":{"dep-a":"file:deps/dep-a"}}"#,
@@ -227,8 +236,7 @@ fn ci_shared_workspace_root_filter_accounts_for_nonhidden_virtual_store_in_modul
         .output()
         .expect("run initial install");
     assert!(initial.status.success(), "{initial:?}");
-    let custom_lock = workspace.join("node_modules/custom-store/lock.yaml");
-    assert!(custom_lock.is_file(), "custom-store lock.yaml written");
+    assert!(workspace.join("node_modules/custom-store/lock.yaml").is_file());
 
     let _ = fs::remove_file(workspace.join("pre-res.jsonl"));
     let member_ci = Command::cargo_bin("pnpm")
@@ -244,8 +252,9 @@ fn ci_shared_workspace_root_filter_accounts_for_nonhidden_virtual_store_in_modul
         vec![serde_json::json!({ "exists": true, "hasPackages": true })],
     );
 
-    fs::write(workspace.join("node_modules/custom-store/stale-marker"), "remove-me")
-        .expect("write stale marker");
+    fs::write(workspace.join("node_modules/custom-store/preserved-marker"), "keep-for-narrowed")
+        .expect("write preserved marker");
+    fs::create_dir_all(workspace.join("node_modules/stale-root-pkg")).expect("create stale pkg");
     let _ = fs::remove_file(workspace.join("pre-res.jsonl"));
     let root_ci = Command::cargo_bin("pnpm")
         .expect("find pnpm")
@@ -256,13 +265,77 @@ fn ci_shared_workspace_root_filter_accounts_for_nonhidden_virtual_store_in_modul
         .expect("run root-filtered pnpm ci");
     assert!(root_ci.status.success(), "{root_ci:?}");
     assert!(
-        !workspace.join("node_modules/custom-store/stale-marker").exists(),
-        "non-hidden custom-store inside root node_modules was cleaned",
+        !workspace.join("node_modules/stale-root-pkg").exists(),
+        "root direct entries were cleaned",
+    );
+    assert!(
+        workspace.join("node_modules/custom-store/preserved-marker").is_file(),
+        "shared custom-store inside root node_modules survives narrowed -w ci",
+    );
+    assert!(
+        workspace.join("packages/pkg-a/node_modules/dep-b/package.json").is_file(),
+        "unselected member dependency inside custom-store stays intact",
+    );
+    assert_eq!(
+        read_pre_res_entries(&workspace),
+        vec![serde_json::json!({ "exists": true, "hasPackages": true })],
+    );
+
+    let _ = fs::remove_file(workspace.join("pre-res.jsonl"));
+    let full_ci = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_arg("ci")
+        .output()
+        .expect("run unfiltered pnpm ci");
+    assert!(full_ci.status.success(), "{full_ci:?}");
+    assert!(
+        !workspace.join("node_modules/custom-store/preserved-marker").exists(),
+        "unfiltered pnpm ci cleans custom-store",
     );
     assert_eq!(
         read_pre_res_entries(&workspace),
         vec![serde_json::json!({ "exists": false, "hasPackages": false })],
     );
+
+    drop(root);
+}
+
+#[test]
+fn clean_rejects_virtual_store_and_root_modules_dir_inside_workspace_member() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pkg_b_src = workspace.join("packages/pkg-b/src");
+    fs::create_dir_all(&pkg_b_src).expect("create pkg-b/src");
+    fs::write(
+        workspace.join("packages/pkg-b/package.json"),
+        r#"{"name":"pkg-b","version":"1.0.0"}"#,
+    )
+    .expect("write pkg-b manifest");
+    fs::write(pkg_b_src.join("index.js"), "export const answer = 42;\n")
+        .expect("write pkg-b source");
+    fs::write(workspace.join("package.json"), r#"{"name":"root-pkg","version":"1.0.0"}"#)
+        .expect("write root manifest");
+
+    for setting in ["virtualStoreDir: packages/pkg-b/src", "modulesDir: packages/pkg-b/src"] {
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - .\n  - packages/*\n{setting}\n"),
+        )
+        .expect("write pnpm-workspace.yaml");
+        let output = Command::cargo_bin("pnpm")
+            .expect("find pnpm")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_arg("clean")
+            .output()
+            .expect("run pnpm clean");
+        assert!(output.status.success(), "{setting}: {output:?}");
+        assert!(
+            pkg_b_src.join("index.js").is_file(),
+            "member source must survive clean under `{setting}`",
+        );
+    }
 
     drop(root);
 }

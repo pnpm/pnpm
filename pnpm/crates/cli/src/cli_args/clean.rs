@@ -73,14 +73,17 @@ pub(crate) struct CiCleanPlan {
 
 impl CiCleanPlan {
     /// Whether [`Self::execute`] removes `<install_state_dir>/lock.yaml`.
-    pub(crate) fn virtual_store_clean(&self, install_state_dir: &Path) -> FrozenVirtualStoreClean {
+    pub(crate) fn virtual_store_clean(
+        &self,
+        install_state_dir: &Path,
+    ) -> miette::Result<FrozenVirtualStoreClean> {
         let (Some(real_root_dir), Some(planned)) = (&self.real_root_dir, &self.planned) else {
-            return FrozenVirtualStoreClean::PreservesVirtualStore;
+            return Ok(FrozenVirtualStoreClean::PreservesVirtualStore);
         };
-        if planned.removes_install_state(real_root_dir, install_state_dir) {
-            FrozenVirtualStoreClean::RemovesVirtualStore
+        if planned.removes_install_state(real_root_dir, install_state_dir)? {
+            Ok(FrozenVirtualStoreClean::RemovesVirtualStore)
         } else {
-            FrozenVirtualStoreClean::PreservesVirtualStore
+            Ok(FrozenVirtualStoreClean::PreservesVirtualStore)
         }
     }
 

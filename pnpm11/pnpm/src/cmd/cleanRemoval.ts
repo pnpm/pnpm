@@ -8,7 +8,41 @@ import { isSubdir, strict as isStrictSubdir } from 'is-subdir'
 const PNPM_HIDDEN_ENTRIES = new Set(['.bin', '.modules.yaml', '.pnpm', '.pnpm-workspace-state-v1.json'])
 const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES = new Set(['.bin', '.pnpm-workspace-state-v1.json'])
 
-export type ModulesCleanMode = 'all' | 'preserve-shared-virtual-store'
+export type ModulesCleanMode =
+  | { kind: 'all' }
+  | { kind: 'preserve-shared-virtual-store', preservedEntry?: string }
+
+export interface PlannedModulesTarget {
+  dir: string
+  mode: ModulesCleanMode
+}
+
+export function shouldRemoveModulesEntry (name: string, mode: ModulesCleanMode): boolean {
+  switch (mode.kind) {
+    case 'all':
+      return name[0] !== '.' || PNPM_HIDDEN_ENTRIES.has(name)
+    case 'preserve-shared-virtual-store':
+      return name !== mode.preservedEntry &&
+        (name[0] !== '.' || PNPM_NARROWED_SHARED_HIDDEN_ENTRIES.has(name))
+  }
+}
+
+export async function removesEntryInModulesDir (
+  modulesDir: string,
+  mode: ModulesCleanMode,
+  entryName: string
+): Promise<boolean> {
+  const stat = await lstatIfExists(modulesDir)
+  if (stat?.isSymbolicLink()) {
+    switch (mode.kind) {
+      case 'all':
+        return true
+      case 'preserve-shared-virtual-store':
+        return false
+    }
+  }
+  return shouldRemoveModulesEntry(entryName, mode)
+}
 
 export async function resolveProjectModulesDir (
   opts: {
@@ -54,11 +88,33 @@ export async function resolveSharedAnchorDir (
 export function isCleanableModulesDir (
   resolved: string | undefined,
   seen: Set<string>,
-  protectedMemberDirs: string[]
+  opts: { ownerDir?: string, protectedMemberDirs: string[] }
 ): resolved is string {
   return resolved != null &&
     !seen.has(resolved) &&
-    !protectedMemberDirs.some((memberDir) => isSubdir(resolved, memberDir))
+    !opts.protectedMemberDirs.some((memberDir) => (
+      isSubdir(resolved, memberDir) ||
+      (opts.ownerDir !== memberDir && isSubdir(memberDir, resolved))
+    ))
+}
+
+export async function resolvePreservedVirtualStoreEntry (
+  opts: {
+    anchorDir: string | undefined
+    realRootDir: string
+    sharedModulesDir: string | undefined
+    virtualStoreDir: string | undefined
+  }
+): Promise<string | undefined> {
+  if (opts.sharedModulesDir == null || opts.anchorDir == null || !opts.virtualStoreDir) {
+    return undefined
+  }
+  const resolvedVs = await resolveInside(opts.realRootDir, path.resolve(opts.anchorDir, opts.virtualStoreDir))
+  if (resolvedVs == null || !isStrictSubdir(opts.sharedModulesDir, resolvedVs)) {
+    return undefined
+  }
+  const firstSegment = path.relative(opts.sharedModulesDir, resolvedVs).split(path.sep)[0]
+  return firstSegment || undefined
 }
 
 export async function dirsIncludeRoot (dirs: string[], realRootDir: string): Promise<boolean> {
@@ -75,7 +131,7 @@ export async function cleanModulesDir (cwd: string, modulesDir: string, mode: Mo
   const stat = await lstatIfExists(modulesDir)
   if (stat == null) return
   if (stat.isSymbolicLink()) {
-    if (mode === 'preserve-shared-virtual-store') return
+    if (mode.kind === 'preserve-shared-virtual-store') return
     printRemoving(cwd, modulesDir)
     await rimraf(modulesDir)
     return
@@ -95,11 +151,8 @@ async function removableModulesEntries (modulesDir: string, mode: ModulesCleanMo
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return []
     throw err
   }
-  const hiddenEntries = mode === 'preserve-shared-virtual-store'
-    ? PNPM_NARROWED_SHARED_HIDDEN_ENTRIES
-    : PNPM_HIDDEN_ENTRIES
   return items
-    .filter((item) => item[0] !== '.' || hiddenEntries.has(item))
+    .filter((item) => shouldRemoveModulesEntry(item, mode))
     .map((item) => path.join(modulesDir, item))
 }
 
@@ -118,22 +171,33 @@ export async function invalidateWorkspaceState (realRootDir: string, sharedModul
   await rimraf(statePath)
 }
 
-export async function removeExternalVirtualStore (
+export async function resolveExternalVirtualStoreTarget (
   opts: {
-    cwd: string
     modulesDir: string
     protectedMemberDirs: string[]
     rootDir: string
     virtualStoreDir: string
   }
-): Promise<void> {
+): Promise<string | undefined> {
   const virtualStoreInProject = await resolveInside(opts.rootDir, opts.virtualStoreDir)
-  if (!isCleanableModulesDir(virtualStoreInProject, new Set(), opts.protectedMemberDirs)) return
+  if (!isCleanableModulesDir(virtualStoreInProject, new Set(), { protectedMemberDirs: opts.protectedMemberDirs })) {
+    return undefined
+  }
   const rootModulesDir = await resolveInside(opts.rootDir, opts.modulesDir)
-  if (rootModulesDir != null && isSubdir(rootModulesDir, virtualStoreInProject)) return
-  if (await lstatIfExists(virtualStoreInProject) == null) return
-  printRemoving(opts.cwd, virtualStoreInProject)
-  await rimraf(virtualStoreInProject)
+  if (rootModulesDir != null && isSubdir(rootModulesDir, virtualStoreInProject)) return undefined
+  return virtualStoreInProject
+}
+
+export async function removeExternalVirtualStore (
+  opts: {
+    cwd: string
+    externalVirtualStoreDir: string | undefined
+  }
+): Promise<void> {
+  if (opts.externalVirtualStoreDir == null) return
+  if (await lstatIfExists(opts.externalVirtualStoreDir) == null) return
+  printRemoving(opts.cwd, opts.externalVirtualStoreDir)
+  await rimraf(opts.externalVirtualStoreDir)
 }
 
 export async function resolveInside (rootDir: string, targetSpec: string): Promise<string | undefined> {

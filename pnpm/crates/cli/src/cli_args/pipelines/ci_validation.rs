@@ -128,7 +128,14 @@ impl NodeInstallJob {
             lockfile.take(),
             Arc::clone(http_client),
         )?;
-        let virtual_store_clean = clean_plan.virtual_store_clean(&state.config.install_state_dir);
+        let virtual_store_clean =
+            match clean_plan.virtual_store_clean(&state.config.install_state_dir) {
+                Ok(clean) => clean,
+                Err(err) => {
+                    *lockfile = Some(state.lockfile);
+                    return Err(err);
+                }
+            };
         let prepared =
             Box::pin(self.args.prepare_for_ci::<Reporter>(&state, selection, virtual_store_clean))
                 .await;
@@ -163,7 +170,7 @@ async fn validate_dedicated_projects<Reporter: self::Reporter + 'static>(
                 )?
                 .into_dedicated_project(caches, None, Some(projects.workspace.clone()));
                 let virtual_store_clean =
-                    clean_plan.virtual_store_clean(&state.config.install_state_dir);
+                    clean_plan.virtual_store_clean(&state.config.install_state_dir)?;
                 if let Some(install) =
                     Box::pin(args.prepare_for_ci::<Reporter>(&state, None, virtual_store_clean))
                         .await?

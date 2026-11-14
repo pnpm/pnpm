@@ -820,4 +820,17 @@ test('pnpm clean protects members matched via wildcard globs above modulesDir an
   expect(fs.existsSync(path.join(pkgC, 'packages', 'seeded-dep'))).toBe(false)
   expect(fs.existsSync(path.join(pkgB, 'package.json'))).toBe(true)
   expect(fs.existsSync(path.join(pkgB, 'src', 'index.js'))).toBe(true)
+
+  // Configured `virtualStoreDir` or root `modulesDir` inside a workspace member never erases member source
+  writeJsonFile('package.json', { name: 'root-pkg', version: '1.0.0', private: true })
+  for (const extra of [{ virtualStoreDir: 'packages/pkg-c/src' }, { modulesDir: 'packages/pkg-c/src' }]) {
+    fs.mkdirSync(path.join(pkgC, 'src'), { recursive: true })
+    fs.writeFileSync(path.join(pkgC, 'src', 'index.js'), 'module.exports = 4\n')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      packages: ['.', 'packages/*'],
+      ...extra,
+    })
+    expect(execPnpmSync(['clean']).status).toBe(0)
+    expect(fs.existsSync(path.join(pkgC, 'src', 'index.js'))).toBe(true)
+  }
 })
