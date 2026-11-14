@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/pnpm-workspace.json
 patchedDependencies:
   '@tybys/wasm-util@0.10.4': '@tybys__wasm-util@0.10.4.patch'
   deepmerge@4.3.1: deepmerge@4.3.1.patch

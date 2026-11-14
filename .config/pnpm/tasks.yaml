@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/pnpm-workspace.json
 # Every `ci:*` script lives in the root manifest only, so the workflows run
 # these pipelines with `--include-workspace-root --full`; the test runners do
 # their own package selection and file sharding. The workflows also pass
