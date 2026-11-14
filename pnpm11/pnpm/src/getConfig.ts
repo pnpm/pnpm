@@ -193,9 +193,9 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
     const updateConfigResult = updateConfig(config)
     config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop -- each hook receives the config the previous one returned
   }
+  applyRegistryRoutingChanges(config, routingBeforeHooks)
   const warning = legacyRegistriesWarning(routingBeforeHooks, config)
   if (warning) globalWarn(warning)
-  applyRegistryRoutingChanges(config, routingBeforeHooks)
   rebaseHookFilters(config, context, filtersBeforeHooks)
   restoreCliSettings(config, cliSettings)
   if (config.lockfileDir !== lockfileDirBeforeHooks) {
@@ -218,7 +218,11 @@ function legacyRegistriesWarning (
   const legacyRoutes = registries
   if (!isPlainObject(legacyRoutes) || !isLegacyRegistryRoutes(legacyRoutes)) return undefined
   const unchangedScopes = Object.entries(before.registriesByScope)
-    .filter(([scope, route]) => scope !== 'default' && legacyRoutes[scope] !== route)
+    .filter(([scope]) => {
+      if (scope === 'default') return false
+      const expectedRoute = legacyRoutes[scope] ?? legacyRoutes.default
+      return typeof expectedRoute === 'string' && config.registriesByScope[scope] !== expectedRoute
+    })
     .map(([scope]) => scope)
   if (unchangedScopes.length === 0) return undefined
   return `The updateConfig hook changed the \`registries\` setting, but ${unchangedScopes.join(', ')} still use their configured registry. Return \`registriesByScope\` to replace scope routing.`
