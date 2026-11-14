@@ -5042,6 +5042,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "yaml_serde",
 ]
 
 [[package]]

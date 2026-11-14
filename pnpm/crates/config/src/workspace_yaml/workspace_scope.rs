@@ -1,5 +1,153 @@
 use super::{IndexMap, RegistryEntry, WorkspaceSettings};
 
+macro_rules! define_workspace_only_groups {
+    ($( $clear_fn:ident { $( $field:ident ),* $(,)? } )+) => {
+        impl WorkspaceSettings {
+            $(
+                pub(super) fn $clear_fn(&mut self) {
+                    $( self.$field = None; )*
+                }
+            )+
+
+            /// The camelCase keys [`Self::clear_workspace_only_fields`] zeroes,
+            /// derived from the same field list so the two cannot drift.
+            #[cfg(test)]
+            pub(crate) fn workspace_only_keys() -> &'static super::HashSet<String> {
+                static SET: std::sync::OnceLock<super::HashSet<String>> =
+                    std::sync::OnceLock::new();
+                SET.get_or_init(|| {
+                    [
+                        $( $( super::to_camel_case(stringify!($field)), )* )+
+                    ]
+                    .into_iter()
+                    .collect()
+                })
+            }
+        }
+    };
+}
+
+define_workspace_only_groups! {
+    clear_workspace_project_fields {
+        versioning,
+        publish_branch,
+        cargo,
+        python,
+        packages,
+        catalog,
+        catalogs,
+        boot_config,
+        // Task declarations and pipelines describe the workspace's own scripts.
+        tasks,
+        pipelines,
+        required_scripts,
+        pipeline_base,
+        enable_pre_post_scripts,
+        workspace_concurrency,
+        include_workspace_root,
+        fail_if_no_match,
+        ignore_workspace_cycles,
+        disallow_workspace_cycles,
+        ignore_workspace,
+        stream,
+        aggregate_output,
+        reporter_hide_prefix,
+        // A pnpmfile belongs to the project that ships it; honoring
+        // `ignorePnpmfile` globally would drop a repository's hooks on one
+        // machine and resolve a different graph.
+        ignore_pnpmfile,
+        only_built_dependencies,
+        never_built_dependencies,
+        ignored_built_dependencies,
+    }
+    clear_workspace_layout_fields {
+        hoist,
+        embed_readme,
+        ignore_workspace_root_check,
+        pending,
+        recursive_install,
+        reverse,
+        skip_manifest_obfuscation,
+        sort,
+        hoist_pattern,
+        public_hoist_pattern,
+        shamefully_hoist,
+        modules_dir,
+        package_configs,
+        node_linker,
+        symlink,
+        virtual_store_only,
+        peers_suffix_max_length,
+        lockfile,
+        lockfile_dir,
+        frozen_lockfile,
+        deploy_all_files,
+        force_legacy_deploy,
+        shared_workspace_lockfile,
+        git_branch_lockfile,
+        merge_git_branch_lockfiles,
+        merge_git_branch_lockfiles_branch_pattern,
+        offline,
+        lockfile_include_tarball_url,
+        strict_store_pkg_content_check,
+        runtime,
+    }
+    clear_workspace_resolution_fields {
+        auto_install_peers,
+        auto_install_peers_from_highest_match,
+        hoist_workspace_packages,
+        link_workspace_packages,
+        save_workspace_protocol,
+        inject_workspace_packages,
+        dedupe_peer_dependents,
+        dedupe_peers,
+        auto_dedupe,
+        dedupe_direct_deps,
+        prefer_workspace_packages,
+        dedupe_injected_deps,
+        strict_peer_dependencies,
+        ignore_compatibility_db,
+        add_missing_peer_types,
+        resolve_peers_from_workspace_root,
+        project_scoped_optional_peers,
+        hoisting_limits,
+        external_dependencies,
+        catalog_mode,
+        catalog_prune,
+        cleanup_unused_catalogs,
+        save_types,
+        allowed_deprecated_versions,
+        update,
+        update_config,
+        peer_dependency_rules,
+        minimum_release_age_exclude_prune,
+        trust_policy_exclude_prune,
+        audit,
+        audit_level,
+        audit_config,
+    }
+    clear_workspace_hooks_fields {
+        patched_dependencies,
+        patches_dir,
+        pnpmfile,
+        config_dependencies,
+        allow_builds,
+        permissions,
+        skills,
+        supported_architectures,
+        ignored_optional_dependencies,
+        overrides,
+        package_extensions,
+        test_pattern,
+        changed_files_ignore_pattern,
+        legacy_dir_filtering,
+        sync_injected_deps_after_scripts,
+        allow_unused_patches,
+        save_catalog_name,
+        save_peer,
+    }
+}
+
 impl WorkspaceSettings {
     /// Zero out the release-age and trust policies for `self-update`.
     ///
@@ -27,13 +175,10 @@ impl WorkspaceSettings {
 
     /// Zero out fields not permitted in the global `config.yaml`.
     ///
-    /// Every field listed here is a key excluded from the global
-    /// config, plus the programmatic-only and workspace-only knobs
-    /// that pnpm only reads
-    /// from `pnpm-workspace.yaml` or the legacy `package.json#pnpm`
-    /// field. Without this filter a user could put `nodeLinker:
-    /// hoisted` in `~/.config/pnpm/config.yaml` and pacquet would
-    /// honor it while pnpm wouldn't — anti-parity.
+    /// Matches [`crate::config_types::is_config_file_key`]: every field listed
+    /// in `define_workspace_only_groups!` is a workspace-only or CLI-only knob
+    /// that pnpm reads from `pnpm-workspace.yaml`, the environment, or the
+    /// command line, never from the global `config.yaml`.
     pub fn clear_workspace_only_fields(&mut self) {
         // Only the layout half of a registry declaration is workspace-only: it
         // decides which tarball URLs are omitted from the lockfile, so a
@@ -49,108 +194,5 @@ impl WorkspaceSettings {
         self.clear_workspace_layout_fields();
         self.clear_workspace_resolution_fields();
         self.clear_workspace_hooks_fields();
-    }
-
-    /// `tools` is deliberately absent: a mirror answers "what can this
-    /// machine reach", which is the user's to say and belongs in their
-    /// global config, the same way `nodeDownloadMirrors` does. Clearing
-    /// it here would leave a repository as the only party able to say
-    /// where pnpm downloads a runtime from.
-    pub(super) fn clear_workspace_project_fields(&mut self) {
-        self.versioning = None;
-        self.publish_branch = None;
-        self.cargo = None;
-        self.python = None;
-        self.packages = None;
-        self.catalog = None;
-        self.boot_config = None;
-        // Task declarations describe the workspace's own scripts; pnpm's
-        // config-file key filter drops them from the global file too. The
-        // same holds for the pipelines built from them.
-        self.tasks = None;
-        self.pipelines = None;
-        self.required_scripts = None;
-        self.pipeline_base = None;
-        // A pnpmfile belongs to the project that ships it, and pnpm reads
-        // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
-        // not from here. Honoring it globally would silently drop a
-        // repository's hooks on one machine and resolve a different graph.
-        self.ignore_pnpmfile = None;
-        self.catalogs = None;
-        self.only_built_dependencies = None;
-        self.never_built_dependencies = None;
-        self.ignored_built_dependencies = None;
-    }
-
-    pub(super) fn clear_workspace_layout_fields(&mut self) {
-        self.hoist = None;
-        self.embed_readme = None;
-        self.ignore_workspace_root_check = None;
-        self.pending = None;
-        self.recursive_install = None;
-        self.reverse = None;
-        self.skip_manifest_obfuscation = None;
-        self.sort = None;
-        self.hoist_pattern = None;
-        self.public_hoist_pattern = None;
-        self.shamefully_hoist = None;
-        self.modules_dir = None;
-        self.package_configs = None;
-        self.node_linker = None;
-        self.symlink = None;
-        self.lockfile = None;
-        self.frozen_lockfile = None;
-        self.deploy_all_files = None;
-        self.force_legacy_deploy = None;
-        self.shared_workspace_lockfile = None;
-        self.git_branch_lockfile = None;
-        self.merge_git_branch_lockfiles = None;
-        self.merge_git_branch_lockfiles_branch_pattern = None;
-        self.offline = None;
-        self.lockfile_include_tarball_url = None;
-        self.runtime = None;
-    }
-
-    pub(super) fn clear_workspace_resolution_fields(&mut self) {
-        self.auto_install_peers = None;
-        self.auto_install_peers_from_highest_match = None;
-        self.exclude_links_from_lockfile = None;
-        self.hoist_workspace_packages = None;
-        self.link_workspace_packages = None;
-        self.save_workspace_protocol = None;
-        self.inject_workspace_packages = None;
-        self.dedupe_peer_dependents = None;
-        self.dedupe_peers = None;
-        self.auto_dedupe = None;
-        self.dedupe_direct_deps = None;
-        self.prefer_workspace_packages = None;
-        self.dedupe_injected_deps = None;
-        self.strict_peer_dependencies = None;
-        self.ignore_compatibility_db = None;
-        self.add_missing_peer_types = None;
-        self.resolve_peers_from_workspace_root = None;
-        self.project_scoped_optional_peers = None;
-        self.block_exotic_subdeps = None;
-        self.hoisting_limits = None;
-        self.external_dependencies = None;
-    }
-
-    pub(super) fn clear_workspace_hooks_fields(&mut self) {
-        self.patched_dependencies = None;
-        self.pnpmfile = None;
-        self.config_dependencies = None;
-        self.allow_builds = None;
-        self.permissions = None;
-        self.supported_architectures = None;
-        self.ignored_optional_dependencies = None;
-        self.overrides = None;
-        self.package_extensions = None;
-        self.test_pattern = None;
-        self.changed_files_ignore_pattern = None;
-        self.legacy_dir_filtering = None;
-        self.sync_injected_deps_after_scripts = None;
-        self.allow_unused_patches = None;
-        self.save_catalog_name = None;
-        self.save_peer = None;
     }
 }

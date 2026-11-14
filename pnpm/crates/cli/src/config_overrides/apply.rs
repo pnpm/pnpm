@@ -308,9 +308,12 @@ impl ConfigOverrides {
         // command line carries both.
         if let Some(value) = self.maxsockets {
             config.max_sockets = Some(value);
+            config.explicit_settings.insert("maxsockets".to_string(), value.into());
+            config.explicit_settings.insert("maxSockets".to_string(), value.into());
         }
         if let Some(value) = self.max_sockets {
             config.max_sockets = Some(value);
+            config.explicit_settings.insert("maxsockets".to_string(), value.into());
             config.explicit_settings.insert("maxSockets".to_string(), value.into());
         }
         // pnpm seeds `explicitlySetKeys` from the command line as well as

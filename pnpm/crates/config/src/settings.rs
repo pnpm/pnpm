@@ -438,7 +438,7 @@ pub struct Config {
     /// virtual-store paths stay under the OS component-name limit.
     ///
     /// Configurable via `peersSuffixMaxLength` in
-    /// `pnpm-workspace.yaml`, global `config.yaml`, or
+    /// `pnpm-workspace.yaml` or
     /// `PNPM_CONFIG_PEERS_SUFFIX_MAX_LENGTH`. The same value is
     /// persisted into the lockfile's `settings.peersSuffixMaxLength`
     /// (omitted when it equals the default) so subsequent installs
@@ -1321,8 +1321,8 @@ pub struct Config {
     #[default(_code = "default_child_concurrency()")]
     pub child_concurrency: u32,
 
-    /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
-    /// `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`, overridable
+    /// `workspaceConcurrency` from `pnpm-workspace.yaml` /
+    /// `PNPM_CONFIG_WORKSPACE_CONCURRENCY`, overridable
     /// per-invocation by the `--workspace-concurrency` CLI flag. The
     /// maximum number of workspace projects pnpm processes in parallel
     /// during a recursive operation. Resolved through

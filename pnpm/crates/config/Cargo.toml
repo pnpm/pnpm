@@ -45,6 +45,7 @@ same-file = { workspace = true }
 smart-default = { workspace = true }
 tracing = { workspace = true }
 url = { workspace = true }
+yaml_serde = { workspace = true }
 
 [target.'cfg(all(unix, not(target_os = "cygwin")))'.dependencies]
 libc = { workspace = true }

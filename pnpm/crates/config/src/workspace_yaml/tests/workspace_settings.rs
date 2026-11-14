@@ -1067,3 +1067,57 @@ fn remote_cache_environment_overrides_the_files() {
     assert_eq!(remote.build_env, None);
     assert_eq!(remote.publish, Some(true));
 }
+
+#[test]
+fn load_global_retains_global_resolution_and_machine_tools_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("config.yaml"),
+        r"
+blockExoticSubdeps: true
+excludeLinksFromLockfile: true
+tools:
+  node:
+    mirror: https://mirror.example.com/node/download
+",
+    )
+    .unwrap();
+
+    let loaded = crate::TrustedSettings::load_global(dir.path())
+        .expect("parse global config.yaml")
+        .expect("global config.yaml exists");
+    assert_eq!(loaded.settings.block_exotic_subdeps, Some(true));
+    assert_eq!(loaded.settings.exclude_links_from_lockfile, Some(true));
+    assert_eq!(
+        loaded.machine.tools
+            .as_ref()
+            .and_then(|tools| tools.get(&crate::Tool::Node)),
+        Some(&crate::ToolSettings {
+            mirror: Some("https://mirror.example.com/node/download".to_string()),
+            channels: None,
+        }),
+    );
+
+    let mut config = Config::new();
+    config.record_explicit_settings(&loaded);
+    loaded.apply_to(&mut config, dir.path());
+    assert!(config.block_exotic_subdeps);
+    assert!(config.exclude_links_from_lockfile);
+    assert_eq!(
+        config.explicit_settings.get("blockExoticSubdeps"),
+        Some(&serde_json::Value::Bool(true)),
+    );
+    assert_eq!(
+        config.explicit_settings.get("excludeLinksFromLockfile"),
+        Some(&serde_json::Value::Bool(true)),
+    );
+    assert_eq!(
+        config.explicit_settings.get("tools"),
+        Some(&serde_json::json!({
+            "node": {
+                "mirror": "https://mirror.example.com/node/download",
+                "channels": null
+            }
+        })),
+    );
+}

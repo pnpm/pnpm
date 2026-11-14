@@ -147,9 +147,9 @@ pub struct WorkspaceSettings {
     pub virtual_store_dir_max_length: Option<u64>,
     pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<LockfileSetting>,
-    /// `lockfileDir` from `pnpm-workspace.yaml` or the global
-    /// `config.yaml`. Resolved against the workspace dir like the other
-    /// path-valued fields. See [`Config::lockfile_dir`](crate::settings::Config::lockfile_dir).
+    /// `lockfileDir` from `pnpm-workspace.yaml`. Resolved against the
+    /// workspace dir like the other path-valued fields. See
+    /// [`Config::lockfile_dir`](crate::settings::Config::lockfile_dir).
     pub lockfile_dir: Option<String>,
     pub prefer_frozen_lockfile: Option<bool>,
 
@@ -470,12 +470,9 @@ pub struct WorkspaceSettings {
     /// `parallelism - |value|`) round-trip cleanly.
     pub child_concurrency: Option<i32>,
 
-    /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
-    /// `config.yaml`. Resolved through
-    /// [`crate::resolve_child_concurrency`] in `apply_to`, the same
-    /// way `childConcurrency` is.
-    /// A genuine config-file key (so it is kept, not cleared, in
-    /// [`Self::clear_workspace_only_fields`]).
+    /// `workspaceConcurrency` from `pnpm-workspace.yaml`. Resolved through
+    /// [`crate::resolve_child_concurrency`] in `apply_to`, the same way
+    /// `childConcurrency` is.
     pub workspace_concurrency: Option<i32>,
 
     /// `concurrencyGroups` from `pnpm-workspace.yaml` / global
@@ -627,7 +624,7 @@ pub struct WorkspaceSettings {
     /// [`Config::init_version`]: crate::Config::init_version
     pub init_version: Option<String>,
 
-    /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
+    /// `pmOnFail` from `pnpm-workspace.yaml` / global `config.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
 
     /// `verifyDepsBeforeRun` from `pnpm-workspace.yaml` /
@@ -824,9 +821,7 @@ impl WorkspaceSettings {
                 path: path.to_path_buf(),
                 source,
             })?;
-        settings.validate_registries()?;
-        settings.validate_tasks()?;
-        settings.validate_pipelines()?;
+        settings.validate_all_sections()?;
         settings.reject_repo_controlled_trust_material(path)?;
         Ok(settings)
     }

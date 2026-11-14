@@ -51,7 +51,11 @@ impl TrustedSettings {
                 MachineSettings::default()
             },
         };
-        settings.settings.validate_sections(settings_read.skips_unreadable())?;
+        if settings_read.skips_unreadable() {
+            settings.settings.drop_invalid_sections();
+        } else {
+            settings.settings.validate_all_sections()?;
+        }
         settings.settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))
