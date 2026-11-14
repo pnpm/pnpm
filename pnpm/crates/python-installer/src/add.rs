@@ -166,18 +166,21 @@ fn pin_to_locked_version(
     options: &AddOptions,
     prefix: &str,
 ) -> Result<()> {
+    if matches!(requirement.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_))) {
+        return Ok(());
+    }
     if !options.exact && requirement.version_or_url.is_some() {
         return Ok(());
     }
-    let Some(package) = lock.packages
-        .iter()
-        .find(|package| package.name == requirement.name)
-    else {
+    let Some(version) = lock.resolved_version(requirement, false)? else {
         return Ok(());
     };
     let prefix = if options.exact { "==" } else { prefix };
     requirement.version_or_url = Some(pep508_rs::VersionOrUrl::VersionSpecifier(
-        format!("{prefix}{}", package.version).parse().into_diagnostic()?,
+        format!("{prefix}{version}").parse().into_diagnostic()?,
     ));
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

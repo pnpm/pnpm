@@ -1,6 +1,6 @@
 use pep440_rs::{Version, VersionSpecifiers};
 
-use super::updated_existing_specifiers;
+use super::specifiers::updated_existing_specifiers;
 
 fn update(existing: &str, version: &str, force_bump: bool) -> Option<String> {
     let existing: VersionSpecifiers = existing.parse().unwrap();

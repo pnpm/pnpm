@@ -32,10 +32,22 @@ pub(crate) async fn discover_around(
     inventory: &EcosystemWorkspaceInventory,
     project: &Path,
 ) -> Result<Discovery> {
+    discover_around_projects(config, inventory, &[project.to_path_buf()]).await
+}
+
+/// [`discover_around`] for a batch of target directories sharing one
+/// workspace inventory.
+pub(crate) async fn discover_around_projects(
+    config: &'static Config,
+    inventory: &EcosystemWorkspaceInventory,
+    projects: &[PathBuf],
+) -> Result<Discovery> {
     let mut manifests = workspace_manifests(inventory).await?;
-    let manifest = project.join("pyproject.toml");
-    if !manifests.contains(&manifest) {
-        manifests.push(manifest);
+    for project in projects {
+        let manifest = project.join("pyproject.toml");
+        if !manifests.contains(&manifest) {
+            manifests.push(manifest);
+        }
     }
     pnpm_python_installer::discover(config, inventory.workspace_root(), &manifests).await
 }

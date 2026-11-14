@@ -414,7 +414,8 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
 type TomlTable = toml::Spanned<BTreeMap<String, toml::Spanned<toml::Value>>>;
 
 /// Add each requirement to `entries`, replacing an entry that already
-/// names the same package rather than declaring it twice.
+/// names the same package for the same environment marker rather than
+/// declaring it twice.
 fn merge_requirements(entries: &mut Vec<toml::Value>, requirements: &[String]) -> Result<()> {
     for requirement in requirements {
         let parsed = parse_requirement(requirement)?;
@@ -424,7 +425,7 @@ fn merge_requirements(entries: &mut Vec<toml::Value>, requirements: &[String]) -
                 entry
                     .as_str()
                     .and_then(|value| value.parse::<Requirement>().ok())
-                    .is_some_and(|entry| entry.name == parsed.name)
+                    .is_some_and(|entry| entry.name == parsed.name && entry.marker == parsed.marker)
             });
         if let Some(index) = existing {
             entries[index] = toml::Value::String(requirement.clone());

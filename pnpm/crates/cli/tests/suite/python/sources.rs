@@ -786,3 +786,80 @@ async fn offline_git_cache_errors_redact_ssh_userinfo() {
     assert!(stderr.contains("is not cached for offline"), "{stderr}");
     assert!(!stderr.contains("secret-token"), "{stderr}");
 }
+
+#[tokio::test]
+async fn add_supports_pep508_direct_wheel_and_git_urls_and_preserves_disjoint_markers() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = tempfile::tempdir().unwrap();
+    let (git_url, commit) = repository(repo.path());
+    let mut server = mockito::Server::new_async().await;
+    let _backends = serve_backends(&mut server).await;
+    let archive = wheel(
+        "alpha",
+        "1.0",
+        "Provides-Extra: fast\nRequires-Dist: helper>=1 ; extra == 'fast'\n",
+        &[],
+    );
+    let digest = format!("{:x}", Sha256::digest(&archive));
+    let artifact = server
+        .mock("GET", "/files/alpha-1.0-py3-none-any.whl")
+        .with_body(archive)
+        .expect(1)
+        .create_async()
+        .await;
+    let _helper = serve(&mut server, "helper", &[("1.0", wheel("helper", "1.0", "", &[]))]).await;
+    let _beta = serve(
+        &mut server,
+        "beta",
+        &[("1.0", wheel("beta", "1.0", "", &[])), ("2.0", wheel("beta", "2.0", "", &[]))],
+    )
+    .await;
+    project(root.path(), &server.url(), &["beta==1.0 ; sys_platform == 'nowhere'"]);
+    approve(root.path(), "fork");
+
+    let url = format!("{}/files/alpha-1.0-py3-none-any.whl#sha256={digest}", server.url());
+    pacquet_in(root.path())
+        .args(["add", "--save-exact", &format!("pypi:alpha[fast] @ {url}")])
+        .assert()
+        .success();
+
+    pacquet_in(root.path())
+        .args(["add", &format!("pypi:fork @ git+{git_url}@{commit}")])
+        .assert()
+        .success();
+
+    let active_platform = if cfg!(windows) {
+        "win32"
+    } else if cfg!(target_os = "macos") {
+        "darwin"
+    } else {
+        "linux"
+    };
+    pacquet_in(root.path())
+        .args(["add", &format!("pypi:beta>=2.0 ; sys_platform == '{active_platform}'")])
+        .assert()
+        .success();
+
+    let pyproject: toml::Value =
+        toml::from_str(&fs::read_to_string(root.path().join("pyproject.toml")).unwrap()).unwrap();
+    let deps = pyproject["project"]["dependencies"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry.as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        deps,
+        vec![
+            "beta==1.0 ; sys_platform == 'nowhere'",
+            &format!("alpha[fast] @ {url}"),
+            &format!("fork @ git+{git_url}@{commit}"),
+            &format!("beta>=2.0 ; sys_platform == '{active_platform}'"),
+        ],
+    );
+    artifact.assert_async().await;
+    python(root.path())
+        .args(["-c", "import alpha, helper, fork, beta; assert beta.VERSION == '2.0'"])
+        .assert()
+        .success();
+}

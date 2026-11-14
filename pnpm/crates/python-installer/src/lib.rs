@@ -15,7 +15,7 @@ pub use outdated::{
     DeclaredPythonDep, PythonDependencyGroup, declared_dependencies, locked_versions,
     lockfile_dir_for, project_name, resolve_target_version,
 };
-pub use pep508_rs::PackageName;
+pub use pep508_rs::{PackageName, VersionOrUrl};
 pub use update::{UpdateOptions, plan_update};
 pub use workspace::members::in_declared_workspace;
 

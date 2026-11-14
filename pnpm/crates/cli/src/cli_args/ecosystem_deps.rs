@@ -28,9 +28,9 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use python::{
-    PythonUpdateOptions, collect_python_outdated, declared_python_dep_names,
-    has_matching_python_deps, has_python_lockfile, python_project_name, update_python_project,
-    validate_explicit_python_requests,
+    PythonUpdateOptions, PythonUpdateUnit, collect_python_outdated, declared_python_dep_names,
+    has_matching_python_deps, has_python_lockfile, python_project_name,
+    resolve_python_update_units, update_python_projects, validate_explicit_python_requests,
 };
 use selectors::{
     is_cargo_prefixed, is_python_prefixed, parse_update_selectors, updates_all_except_exclusions,
@@ -253,12 +253,19 @@ async fn run_ecosystem_updates_on_targets<Reporter: self::Reporter + 'static>(
             remaining_node_selectors: parsed.node_selectors,
         });
     }
-    validate_explicit_requests(target_dirs, config, &parsed)?;
+    let python_units = resolve_python_update_units(target_dirs, config).await?;
+    validate_explicit_requests(target_dirs, &python_units, config, &parsed)?;
+    let python_dirs: Vec<PathBuf> = python_units
+        .iter()
+        .flat_map(PythonUpdateUnit::project_dirs)
+        .cloned()
+        .collect();
     let restrict = !options.selectors.is_empty();
     let bare_matcher =
         (!parsed.bare_patterns.is_empty()).then(|| create_matcher(&parsed.bare_patterns));
     let updated_any = update_ecosystem_targets::<Reporter>(
         target_dirs,
+        python_units,
         EcosystemUpdateContext {
             config,
             http_client,
@@ -269,22 +276,35 @@ async fn run_ecosystem_updates_on_targets<Reporter: self::Reporter + 'static>(
         },
     )
     .await?;
-    let remaining_node_selectors =
-        filter_remaining_node_selectors(target_dirs, manifests, config, &parsed.node_selectors)?;
+    let remaining_node_selectors = filter_remaining_node_selectors(
+        target_dirs,
+        &python_dirs,
+        manifests,
+        config,
+        &parsed.node_selectors,
+    )?;
     Ok(EcosystemUpdateOutcome { updated_any, remaining_node_selectors })
 }
 
 async fn update_ecosystem_targets<Reporter: self::Reporter + 'static>(
     target_dirs: &[PathBuf],
+    python_units: Vec<PythonUpdateUnit>,
     run: EcosystemUpdateContext<'_, '_>,
 ) -> Result<bool> {
+    let update_all_except_exclusions =
+        updates_all_except_exclusions(run.options.selectors, run.parsed);
     let cargo_opts = CargoUpdateOptions {
         requests: &run.parsed.cargo_requests,
         exclusions: &run.parsed.cargo_exclusions,
-        update_all_except_exclusions: updates_all_except_exclusions(
-            run.options.selectors,
-            run.parsed,
-        ),
+        update_all_except_exclusions,
+        bare_matcher: run.bare_matcher,
+        restrict_to_selectors: run.restrict_to_selectors,
+        step: run.options,
+    };
+    let py_opts = PythonUpdateOptions {
+        requests: &run.parsed.python_requests,
+        exclusions: &run.parsed.python_exclusions,
+        update_all_except_exclusions,
         bare_matcher: run.bare_matcher,
         restrict_to_selectors: run.restrict_to_selectors,
         step: run.options,
@@ -295,30 +315,16 @@ async fn update_ecosystem_targets<Reporter: self::Reporter + 'static>(
         lockfile_only: run.options.lockfile_only,
         frozen_lockfile: false,
     };
-    let mut updated =
-        update_cargo_projects::<Reporter>(target_dirs, install_context, &cargo_opts).await?;
-    for project_dir in target_dirs {
-        let context = InstallContext {
-            config: run.config,
-            http_client: Arc::clone(run.http_client),
-            lockfile_only: run.options.lockfile_only,
-            frozen_lockfile: false,
-        };
-        updated |= update_project_ecosystems::<Reporter>(
-            project_dir,
-            context,
-            run.options,
-            run.parsed,
-            run.bare_matcher,
-            run.restrict_to_selectors,
-        )
-        .await?;
-    }
-    Ok(updated)
+    let cargo_updated =
+        update_cargo_projects::<Reporter>(target_dirs, install_context.clone(), &cargo_opts).await?;
+    let py_updated =
+        update_python_projects::<Reporter>(python_units, install_context, &py_opts).await?;
+    Ok(cargo_updated || py_updated)
 }
 
 fn validate_explicit_requests(
     target_dirs: &[PathBuf],
+    python_units: &[PythonUpdateUnit],
     config: &Config,
     parsed: &selectors::ParsedUpdateSelectors,
 ) -> Result<()> {
@@ -330,33 +336,14 @@ fn validate_explicit_requests(
         )?;
     }
     if config.python.enabled {
-        validate_explicit_python_requests(target_dirs, &parsed.python_requests)?;
+        validate_explicit_python_requests(python_units, &parsed.python_requests)?;
     }
     Ok(())
 }
 
-async fn update_project_ecosystems<Reporter: self::Reporter + 'static>(
-    project_dir: &Path,
-    context: InstallContext,
-    options: &EcosystemUpdateStepOptions<'_>,
-    parsed: &selectors::ParsedUpdateSelectors,
-    bare_matcher: Option<&Matcher>,
-    restrict_to_selectors: bool,
-) -> Result<bool> {
-    let py_opts = PythonUpdateOptions {
-        requests: &parsed.python_requests,
-        exclusions: &parsed.python_exclusions,
-        update_all_except_exclusions: updates_all_except_exclusions(options.selectors, parsed),
-        bare_matcher,
-        restrict_to_selectors,
-        step: options,
-    };
-    let py_updated = update_python_project::<Reporter>(project_dir, context, &py_opts).await?;
-    Ok(py_updated)
-}
-
 fn filter_remaining_node_selectors(
     target_dirs: &[PathBuf],
+    python_dirs: &[PathBuf],
     manifests: &[&PackageManifest],
     config: &Config,
     node_selectors: &[String],
@@ -364,15 +351,48 @@ fn filter_remaining_node_selectors(
     if node_selectors.is_empty() {
         return Ok(Vec::new());
     }
+    let eco_names = collect_declared_eco_names(target_dirs, python_dirs, config)?;
+    if eco_names.is_empty() {
+        return Ok(node_selectors.to_vec());
+    }
+    let node_deps = collect_declared_node_names(manifests);
+    Ok(node_selectors
+        .iter()
+        .filter(|selector| {
+            if is_cargo_prefixed(selector) || is_python_prefixed(selector) {
+                return false;
+            }
+            let parsed = parse_wanted_dependency(selector);
+            parsed.alias
+                .as_deref()
+                .is_none_or(|name| node_deps.contains(name) || !eco_names.contains(name))
+        })
+        .cloned()
+        .collect())
+}
+
+fn collect_declared_eco_names(
+    target_dirs: &[PathBuf],
+    python_dirs: &[PathBuf],
+    config: &Config,
+) -> Result<HashSet<String>> {
     let all_groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     let mut eco_names = HashSet::new();
     for dir in target_dirs {
         eco_names.extend(declared_ecosystem_dep_names(dir, config, &all_groups)?);
     }
-    if eco_names.is_empty() {
-        return Ok(node_selectors.to_vec());
+    if config.python.enabled {
+        for py_dir in python_dirs {
+            for name in declared_python_dep_names(py_dir, &all_groups)? {
+                eco_names.extend([format!("pypi:{name}"), name]);
+            }
+        }
     }
-    let node_deps: HashSet<String> = manifests
+    Ok(eco_names)
+}
+
+fn collect_declared_node_names(manifests: &[&PackageManifest]) -> HashSet<String> {
+    manifests
         .iter()
         .flat_map(|manifest| {
             manifest.dependencies([
@@ -383,21 +403,7 @@ fn filter_remaining_node_selectors(
             ])
         })
         .map(|(name, _)| name.to_string())
-        .collect();
-    Ok(node_selectors
-        .iter()
-        .filter(|selector| {
-            if is_cargo_prefixed(selector) || is_python_prefixed(selector) {
-                return false;
-            }
-            let parsed = parse_wanted_dependency(selector);
-            let Some(name) = parsed.alias.as_deref() else {
-                return true;
-            };
-            node_deps.contains(name) || !eco_names.contains(name)
-        })
-        .cloned()
-        .collect())
+        .collect()
 }
 
 mod cargo_selection;

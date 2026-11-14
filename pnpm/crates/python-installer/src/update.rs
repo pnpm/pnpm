@@ -1,22 +1,21 @@
+use super::{
+    Discovery, InstallOptions, Prepared, Reporter, manifest,
+    outdated::{PythonDependencyGroup, declared_dependencies},
+    prepare,
+};
+use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use pep508_rs::{PackageName, Requirement, VersionOrUrl};
+use pnpm_python_resolver::Lockfile;
+use rewrite::rewrite_pyproject;
+use specifiers::compute_saved_specifiers;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
 
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pep440_rs::{Operator, Version, VersionSpecifier, VersionSpecifiers};
-use pep508_rs::{PackageName, Requirement, VersionOrUrl};
-use pnpm_python_resolver::Lockfile;
-use rewrite::rewrite_pyproject;
-
-use super::{
-    Discovery, InstallOptions, Prepared, Reporter, manifest,
-    outdated::{PythonDependencyGroup, locked_versions},
-    prepare,
-};
-
 mod rewrite;
+mod specifiers;
 #[cfg(test)]
 mod tests;
 
@@ -67,16 +66,27 @@ fn update_metadata_paths(
     projects: &[PathBuf],
     selected: &BTreeSet<PathBuf>,
 ) -> Vec<PathBuf> {
+    let memberships = discovery.workspace.memberships(selected);
     projects
         .iter()
+        .chain(memberships.iter().flat_map(|membership| &membership.members))
         .map(|root| root.join("pyproject.toml"))
         .chain(
-            discovery.workspace
-                .memberships(selected)
+            memberships
                 .iter()
                 .map(|membership| membership.root.join("pylock.toml")),
         )
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect()
+}
+
+struct StageContext<'a> {
+    discovery: &'a Discovery,
+    selected: &'a BTreeSet<PathBuf>,
+    updated_names: BTreeSet<PackageName>,
+    options: &'a UpdateOptions,
+    locks: BTreeMap<PathBuf, Lockfile>,
 }
 
 async fn run_update_prepare<Reporter: self::Reporter + 'static>(
@@ -91,37 +101,63 @@ async fn run_update_prepare<Reporter: self::Reporter + 'static>(
         .flat_map(|membership| membership.members.iter().cloned())
         .collect();
     let originals = snapshot_manifests(&members)?;
-    let locked = collect_existing_locks(&memberships);
-    if let Err(err) = stage_manifests_for_resolution(&selected, &options, &locked) {
-        let _ = restore_manifests(&originals);
-        return Err(err);
-    }
     let config = context.config;
-    let reread = discovery.reread(config, &members).await;
-    let discovery = match reread {
-        Ok(d) => d,
-        Err(err) => {
-            let _ = restore_manifests(&originals);
-            return Err(err);
-        }
+    let mut prepared = stage_and_prepare::<Reporter>(
+        context,
+        discovery,
+        &memberships,
+        &members,
+        &selected,
+        &options,
+    )
+    .await
+    .inspect_err(|_| {
+        let _ = restore_manifests(&originals);
+    })?;
+    finalize_updated(&mut prepared, config, &options, &selected, &originals)?;
+    Ok(prepared)
+}
+
+async fn stage_and_prepare<Reporter: self::Reporter + 'static>(
+    context: InstallOptions,
+    discovery: Discovery,
+    memberships: &[super::workspace::members::Membership],
+    members: &BTreeSet<PathBuf>,
+    selected: &BTreeSet<PathBuf>,
+    options: &UpdateOptions,
+) -> Result<Vec<Prepared>> {
+    let stage = StageContext {
+        discovery: &discovery,
+        selected,
+        updated_names: collect_updated_names(selected, options)?,
+        options,
+        locks: collect_existing_locks(memberships),
     };
-    let prepared = prepare::<Reporter>(
+    stage_manifests_for_resolution(members, &stage)?;
+    let discovery = discovery.reread(context.config, members).await?;
+    prepare::<Reporter>(
         context,
         discovery,
         true,
         manifest::DependencySelection::ALL,
         selected.clone(),
     )
-    .await;
-    let mut prepared = match prepared {
-        Ok(p) => p,
-        Err(err) => {
-            let _ = restore_manifests(&originals);
-            return Err(err);
+    .await
+}
+
+fn collect_updated_names(
+    selected: &BTreeSet<PathBuf>,
+    options: &UpdateOptions,
+) -> Result<BTreeSet<PackageName>> {
+    let mut names = BTreeSet::new();
+    for root in selected {
+        for dep in declared_dependencies(&root.join("pyproject.toml"))? {
+            if options.selects(dep.group, &dep.name) {
+                names.insert(dep.name);
+            }
         }
-    };
-    finalize_updated(&mut prepared, config, &options, &selected, &originals)?;
-    Ok(prepared)
+    }
+    Ok(names)
 }
 
 fn snapshot_manifests(members: &BTreeSet<PathBuf>) -> Result<BTreeMap<PathBuf, String>> {
@@ -147,25 +183,30 @@ fn restore_manifests(originals: &BTreeMap<PathBuf, String>) -> Result<()> {
 
 fn collect_existing_locks(
     memberships: &[super::workspace::members::Membership],
-) -> BTreeMap<PackageName, Version> {
-    let mut map = BTreeMap::new();
+) -> BTreeMap<PathBuf, Lockfile> {
+    let mut locks = BTreeMap::new();
     for membership in memberships {
         let lock_path = membership.root.join("pylock.toml");
-        if let Ok(versions) = locked_versions(&lock_path) {
-            map.extend(versions);
+        if let Ok(contents) = fs::read_to_string(&lock_path)
+            && let Ok(lock) = toml::from_str::<Lockfile>(&contents)
+        {
+            locks.insert(membership.root.clone(), lock);
         }
     }
-    map
+    locks
 }
 
 fn stage_manifests_for_resolution(
-    selected: &BTreeSet<PathBuf>,
-    options: &UpdateOptions,
-    locked: &BTreeMap<PackageName, Version>,
+    members: &BTreeSet<PathBuf>,
+    stage: &StageContext<'_>,
 ) -> Result<()> {
-    for root in selected {
-        let path = root.join("pyproject.toml");
-        rewrite_pyproject(&path, |group, req| stage_requirement(group, req, options, locked))?;
+    for member in members {
+        let is_selected = stage.selected.contains(member);
+        let lock = stage.locks.get(stage.discovery.workspace.lock_root(member));
+        let path = member.join("pyproject.toml");
+        rewrite_pyproject(&path, |group, req| {
+            stage_requirement(group, req, is_selected, stage, lock)
+        })?;
     }
     Ok(())
 }
@@ -173,25 +214,32 @@ fn stage_manifests_for_resolution(
 fn stage_requirement(
     group: PythonDependencyGroup,
     mut req: Requirement,
-    options: &UpdateOptions,
-    locked: &BTreeMap<PackageName, Version>,
+    is_selected: bool,
+    stage: &StageContext<'_>,
+    lock: Option<&Lockfile>,
 ) -> Result<Option<Requirement>> {
     if matches!(req.version_or_url, Some(VersionOrUrl::Url(_))) {
         return Ok(None);
     }
-    if options.selects(group, &req.name) {
-        if let Some(Some(explicit_spec)) = options.targets.get(&req.name) {
+    if is_selected && stage.options.selects(group, &req.name) {
+        if let Some(Some(explicit_spec)) = stage.options.targets.get(&req.name) {
             req.version_or_url =
                 Some(VersionOrUrl::VersionSpecifier(explicit_spec.parse().into_diagnostic()?));
             return Ok(Some(req));
         }
-        if options.latest {
+        if stage.options.latest {
             req.version_or_url = None;
             return Ok(Some(req));
         }
         return Ok(None);
     }
-    if let Some(locked_ver) = locked.get(&req.name) {
+    if !is_selected && stage.updated_names.contains(&req.name) {
+        return Ok(None);
+    }
+    if let Some(locked_ver) = lock
+        .and_then(|lock| lock.resolved_version(&req, true).ok())
+        .flatten()
+    {
         req.version_or_url = Some(VersionOrUrl::VersionSpecifier(
             format!("=={locked_ver}").parse().into_diagnostic()?,
         ));
@@ -221,17 +269,12 @@ fn finalize_prepared_project(
     selected: &BTreeSet<PathBuf>,
 ) -> Result<()> {
     let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
-    let resolved: BTreeMap<PackageName, Version> = lock.packages
-        .iter()
-        .filter(|pkg| !pkg.wheels.is_empty() || pkg.sdist.is_some())
-        .map(|pkg| (pkg.name.clone(), pkg.version.clone()))
-        .collect();
     let mut recorded = Vec::new();
     for member in &project.members {
         let path = member.join("pyproject.toml");
         if !options.no_save && selected.contains(member) {
             rewrite_pyproject(&path, |group, req| {
-                finalize_requirement(group, req, options, &resolved)
+                finalize_requirement(group, req, options, &lock)
             })?;
         }
         recorded.extend(read_all_requirements(&path, config)?);
@@ -253,124 +296,21 @@ fn finalize_requirement(
     group: PythonDependencyGroup,
     mut req: Requirement,
     options: &UpdateOptions,
-    resolved: &BTreeMap<PackageName, Version>,
+    lock: &Lockfile,
 ) -> Result<Option<Requirement>> {
     if !options.selects(group, &req.name)
         || matches!(req.version_or_url, Some(VersionOrUrl::Url(_)))
     {
         return Ok(None);
     }
-    let Some(version) = resolved.get(&req.name) else {
+    let Some(version) = lock.resolved_version(&req, true)? else {
         return Ok(None);
     };
     let explicit_spec = options.targets.get(&req.name).and_then(Option::as_deref);
-    let new_specifiers = compute_saved_specifiers(&req, version, explicit_spec, options.latest)?;
-    let Some(specifiers) = new_specifiers else {
+    let Some(specifiers) = compute_saved_specifiers(&req, version, explicit_spec, options.latest)?
+    else {
         return Ok(None);
     };
     req.version_or_url = Some(VersionOrUrl::VersionSpecifier(specifiers));
     Ok(Some(req))
-}
-
-fn compute_saved_specifiers(
-    req: &Requirement,
-    version: &Version,
-    explicit_spec: Option<&str>,
-    latest: bool,
-) -> Result<Option<VersionSpecifiers>> {
-    if let Some(spec) = explicit_spec
-        && !spec.starts_with("==")
-    {
-        return Ok(Some(spec.parse().into_diagnostic()?));
-    }
-    let Some(VersionOrUrl::VersionSpecifier(existing)) = &req.version_or_url else {
-        return explicit_spec
-            .map(|_| format!(">={version}").parse().into_diagnostic())
-            .transpose();
-    };
-    updated_existing_specifiers(existing, version, latest || explicit_spec.is_some())
-}
-
-/// The lower bound of a `~=` requirement updated to `version`, with as many
-/// release segments as `spec` so its upper bound keeps the same precision.
-/// The pre-release marker stays, so the requirement still admits `version`,
-/// and the bound does not drop below `spec`'s while `spec` admits `version`.
-fn compatible_release_floor(spec: &VersionSpecifier, version: &Version) -> Version {
-    let segments = spec.version().release().len();
-    let floor = version
-        .clone()
-        .without_local()
-        .with_release(padded_release(version, segments));
-    if spec.contains(version) { floor.max(spec.version().clone()) } else { floor }
-}
-
-/// `version`'s epoch and first `segments` release numbers, zero-padded.
-fn release_prefix(version: &Version, segments: usize) -> Version {
-    Version::new(padded_release(version, segments)).with_epoch(version.epoch())
-}
-
-fn padded_release(version: &Version, segments: usize) -> Vec<u64> {
-    let mut release = version.release().to_vec();
-    release.resize(segments, 0);
-    release
-}
-
-/// Updates `existing` for `version`. The resolver admits a pre-release only
-/// when a clause names one, so a selected pre-release that the result does not
-/// name gets a `>=version` clause.
-fn updated_existing_specifiers(
-    existing: &VersionSpecifiers,
-    version: &Version,
-    force_bump: bool,
-) -> Result<Option<VersionSpecifiers>> {
-    let updated = updated_primary_specifiers(existing, version, force_bump)?;
-    let saved = updated.as_ref().unwrap_or(existing);
-    if !version.any_prerelease() || saved.iter().any(VersionSpecifier::any_prerelease) {
-        return Ok(updated.filter(|updated| updated != existing));
-    }
-    let saved: VersionSpecifiers =
-        format!("{saved},>={}", version.clone().without_local()).parse().into_diagnostic()?;
-    Ok(Some(saved))
-}
-
-fn updated_primary_specifiers(
-    existing: &VersionSpecifiers,
-    version: &Version,
-    force_bump: bool,
-) -> Result<Option<VersionSpecifiers>> {
-    if existing.len() == 1 {
-        let spec = &existing[0];
-        let formatted = match *spec.operator() {
-            Operator::Equal => force_bump.then(|| format!("=={version}")),
-            Operator::ExactEqual => force_bump.then(|| format!("==={version}")),
-            Operator::TildeEqual => Some(format!("~={}", compatible_release_floor(spec, version))),
-            Operator::GreaterThanEqual => Some(format!(">={version}")),
-            Operator::EqualStar => (force_bump && !existing.contains(version)).then(|| {
-                format!("=={}.*", release_prefix(version, spec.version().release().len()))
-            }),
-            _ => (force_bump && !existing.contains(version)).then(|| format!(">={version}")),
-        };
-        return formatted
-            .map(|text| text.parse().into_diagnostic())
-            .transpose();
-    }
-    if force_bump && !existing.contains(version) {
-        return Ok(Some(format!(">={version}").parse().into_diagnostic()?));
-    }
-    let clauses: Vec<String> = existing
-        .iter()
-        .map(|clause| {
-            if *clause.operator() == Operator::GreaterThanEqual {
-                format!(">={version}")
-            } else {
-                clause.to_string()
-            }
-        })
-        .collect();
-    Ok(Some(
-        clauses
-            .join(",")
-            .parse()
-            .into_diagnostic()?,
-    ))
 }

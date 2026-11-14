@@ -130,6 +130,29 @@ impl Workspace {
         }
         Membership { root: lock_root.to_path_buf(), members, shared: true }
     }
+
+    /// The project directories a command targeting `dir` acts on: all
+    /// members of the shared environment rooted at `dir` when `dir`
+    /// declares one, `dir` itself when it declares a `[project]`, or none
+    /// for an unshared virtual workspace root.
+    pub(crate) fn target_projects(&self, dir: &Path) -> Vec<PathBuf> {
+        let target =
+            if self.manifests.contains_key(dir) { dir.to_path_buf() } else { canonical(dir) };
+        let Some(manifest) = self.manifests.get(&target) else {
+            return Vec::new();
+        };
+        if manifest.shares_environment() {
+            return self.shared
+                .iter()
+                .filter(|(_, root)| **root == target)
+                .map(|(member, _)| member.clone())
+                .collect();
+        }
+        if manifest.project.is_some() {
+            return vec![target];
+        }
+        Vec::new()
+    }
 }
 
 /// The distributions a workspace contains, which is what a member may
