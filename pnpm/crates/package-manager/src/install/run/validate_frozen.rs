@@ -5,25 +5,34 @@
 //! hooked manifests and `preResolution` result so the subsequent install runs
 //! each hook once.
 
+mod checks;
+
 use super::{
     super::{
-        Arc, CheckLockfileSettingsDriftOptions, DependencyGroup, Install, InstallError,
-        InstallManifestOptions, InstallRunOptions, Lockfile, LogEvent, PackageManifest, Path,
-        PathBuf, PnpmfileChecksumCheck, VerifyLockfileResolutionsOptions,
-        check_lockfile_settings_drift, parse_config_overrides, verify_lockfile_resolutions,
+        Arc, DependencyGroup, Install, InstallError, InstallManifestOptions, InstallRunOptions,
+        Lockfile, LogEvent, PackageManifest, PathBuf,
     },
     HookedManifests, InstallScope, InstallWorkspace, Loaded, RunExecution, RunMode, Verification,
-    dispatch::{FrozenDispatch, decide_frozen_path},
-    frozen_local_tarballs::local_tarballs_keep_frozen_path,
-    lockfile_load::{load_hooked_manifests, load_wanted_lockfile},
-    manifests::resolve_pnpmfile_hook,
+    lockfile_load::{
+        join_current_lockfile_load, load_hooked_manifests, load_wanted_lockfile,
+        spawn_current_lockfile_load,
+    },
     pre_resolution::run_pre_resolution_hook,
     reject_frozen_with_update_checksums, settle_wanted_lockfile,
     settled::Settled,
     workspace::{report_install_scope_cycles, workspace_projects},
 };
 use crate::{LockfileVerificationOverride, WorkspaceInstallSelection};
+use checks::verify_settled_frozen_path;
 use std::marker::PhantomData;
+
+/// Whether `pnpm ci`'s cleanup step removes or preserves the virtual store's
+/// current lockfile (`<install_state_dir>/lock.yaml`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrozenVirtualStoreClean {
+    RemovesVirtualStore,
+    PreservesVirtualStore,
+}
 
 /// Hooked manifests, `preResolution` output, and verification state produced
 /// by [`Install::prepare_frozen`], consumed by [`Install::run_prepared`] or
@@ -69,8 +78,12 @@ where
         self,
         selection: Option<WorkspaceInstallSelection<'_>>,
     ) -> Result<(), InstallError> {
-        self.prepare_frozen::<SilentReporter>(selection).await
-            .map(|_| ())
+        self.prepare_frozen::<SilentReporter>(
+            selection,
+            FrozenVirtualStoreClean::RemovesVirtualStore,
+        )
+        .await
+        .map(|_| ())
     }
 
     /// Validate non-frozen preflight invariants (mode compatibility, workspace
@@ -108,6 +121,7 @@ where
     pub async fn prepare_frozen<Reporter: pnpm_reporter::Reporter + 'static>(
         mut self,
         selection: Option<WorkspaceInstallSelection<'_>>,
+        virtual_store_clean: FrozenVirtualStoreClean,
     ) -> Result<PreparedFrozenInstall, InstallError> {
         self.lockfile_policy.frozen = true;
         self.execution.dry_run = false;
@@ -131,7 +145,7 @@ where
                 options,
                 loaded_workspace_projects: loaded_workspace_projects.as_deref(),
             }
-            .prepare_frozen::<Reporter>(),
+            .prepare_frozen::<Reporter>(virtual_store_clean),
         )
         .await
     }
@@ -201,9 +215,11 @@ impl<'a> RunExecution<'a> {
 
     async fn prepare_frozen<Reporter: pnpm_reporter::Reporter + 'static>(
         mut self,
+        virtual_store_clean: FrozenVirtualStoreClean,
     ) -> Result<PreparedFrozenInstall, InstallError> {
         let scope = self.select_scope();
-        let mut loaded = self.load_for_frozen_validation::<Reporter>(&scope).await?;
+        let mut loaded =
+            self.load_for_frozen_validation::<Reporter>(&scope, virtual_store_clean).await?;
         let manifests = std::mem::take(&mut loaded.manifests);
         let (pre_resolution, lockfile_verified) = {
             let project_manifests = manifests.view(&scope.project_manifests);
@@ -221,12 +237,15 @@ impl<'a> RunExecution<'a> {
     async fn load_for_frozen_validation<Reporter: pnpm_reporter::Reporter + 'static>(
         &mut self,
         scope: &InstallScope<'_>,
+        virtual_store_clean: FrozenVirtualStoreClean,
     ) -> Result<Loaded<'a>, InstallError> {
         reject_frozen_with_update_checksums(
             self.install.lockfile_policy.update_checksums,
             self.install.lockfile_policy.frozen,
         )?;
         self.validate_preflight_only()?;
+        let current_task = (virtual_store_clean == FrozenVirtualStoreClean::PreservesVirtualStore)
+            .then(|| spawn_current_lockfile_load(self.install.context.config));
         let wanted = load_wanted_lockfile::<SilentReporter>(
             self.install.context.lockfile,
             self.install.lockfile_policy.frozen,
@@ -241,67 +260,18 @@ impl<'a> RunExecution<'a> {
             &self.options.manifests.hooked_paths,
         )
         .await?;
-        Ok(Loaded { wanted, current: None, early_host_detection: None, pnpmfile_hook, manifests })
-    }
-
-    /// Reject missing, structurally invalid, or settings-drifted lockfiles
-    /// before spawning `.pnpmfile.cjs` hooks.
-    async fn validate_raw_wanted_before_hooks(
-        &mut self,
-        scope: &InstallScope<'_>,
-        lockfile: Option<&Lockfile>,
-    ) -> Result<(), InstallError> {
-        let Some(lockfile) = lockfile else {
-            if scope.project_manifests
-                .iter()
-                .any(|(_, manifest)| crate::install_state::manifest_has_runtime_deps(manifest))
-            {
-                return Err(InstallError::NoLockfile);
+        let current = match current_task {
+            Some(task) => {
+                join_current_lockfile_load::<HookOnlyReporter<Reporter>>(
+                    task,
+                    self.install.context.config,
+                    &self.workspace.prefix,
+                )
+                .await
             }
-            return Ok(());
+            None => None,
         };
-        verify_lockfile_offline_and_policies(
-            lockfile,
-            &[],
-            None,
-            &self.install.context.config.cache_dir,
-        )
-        .await?;
-        self.check_pre_hook_settings_drift(lockfile).await
-    }
-
-    async fn check_pre_hook_settings_drift(
-        &mut self,
-        lockfile: &Lockfile,
-    ) -> Result<(), InstallError> {
-        let pnpmfile_hook = resolve_pnpmfile_hook(
-            self.install.context.config,
-            &self.workspace.dirs.workspace_root,
-            self.owned.projects.pnpmfile_hook_override.take(),
-        )?;
-        let pre_hook_checksum = pnpm_hooks::current_pnpmfile_checksum(
-            pnpmfile_hook.as_ref(),
-            lockfile.pnpmfile_checksum.as_deref(),
-        )
-        .await;
-        let skip_checksum = self.install.context.config.ignore_pnpmfile && pnpmfile_hook.is_none();
-        self.owned.projects.pnpmfile_hook_override = pnpmfile_hook;
-        let parsed_overrides =
-            parse_config_overrides(self.install.context.config, &self.workspace.catalogs)?;
-        check_lockfile_settings_drift(
-            lockfile,
-            self.install.context.config,
-            &self.workspace.catalogs,
-            CheckLockfileSettingsDriftOptions {
-                parsed_overrides: parsed_overrides.as_deref(),
-                pnpmfile_checksum: if skip_checksum {
-                    PnpmfileChecksumCheck::Skip
-                } else {
-                    PnpmfileChecksumCheck::Current(pre_hook_checksum.as_deref())
-                },
-            },
-        )?;
-        Ok(())
+        Ok(Loaded { wanted, current, early_host_detection: None, pnpmfile_hook, manifests })
     }
 
     async fn verify_settled_frozen<Reporter: pnpm_reporter::Reporter + 'static>(
@@ -321,7 +291,7 @@ impl<'a> RunExecution<'a> {
         )
         .await?;
         let verification = Verification::set_up(&self, &lockfiles, (scope, project_manifests))?;
-        run_pre_resolution_hook::<HookOnlyReporter<Reporter>>(
+        let hooked_current = run_pre_resolution_hook::<HookOnlyReporter<Reporter>>(
             self.install,
             &self.workspace,
             loaded,
@@ -336,50 +306,8 @@ impl<'a> RunExecution<'a> {
             );
             verify_settled_frozen_path(settled).await?
         };
-        let pre_resolution = PreparedPreResolution {
-            hooked_wanted: lockfiles.wanted.take_hooked(),
-            hooked_current: loaded.current.take(),
-        };
+        let pre_resolution =
+            PreparedPreResolution { hooked_wanted: lockfiles.wanted.take_hooked(), hooked_current };
         Ok((pre_resolution, lockfile_verified))
     }
-}
-
-async fn verify_settled_frozen_path(settled: Settled<'_, '_>) -> Result<bool, InstallError> {
-    let take_frozen_path =
-        decide_frozen_path::<SilentReporter>(&FrozenDispatch::new(settled, None)).await?;
-    if take_frozen_path && !settled.mode.lockfile_only {
-        local_tarballs_keep_frozen_path(settled).await?;
-    }
-    if take_frozen_path && let Some(lockfile) = settled.lockfiles.wanted.get() {
-        verify_lockfile_offline_and_policies(
-            lockfile,
-            &settled.verification.resolution_verifiers,
-            settled.verification.derived_lockfile_path.as_deref(),
-            &settled.install.context.config.cache_dir,
-        )
-        .await?;
-        return Ok(true);
-    }
-    Ok(false)
-}
-
-async fn verify_lockfile_offline_and_policies(
-    lockfile: &Lockfile,
-    verifiers: &[Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>],
-    lockfile_path: Option<&Path>,
-    cache_dir: &Path,
-) -> Result<(), InstallError> {
-    verify_lockfile_resolutions::<SilentReporter>(
-        lockfile,
-        verifiers,
-        &VerifyLockfileResolutionsOptions {
-            concurrency: None,
-            lockfile_path,
-            cache_dir: Some(cache_dir),
-            replaced: None,
-            repairs_lockfile: false,
-        },
-    )
-    .await
-    .map_err(InstallError::LockfileVerification)
 }

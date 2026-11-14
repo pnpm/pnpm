@@ -125,6 +125,7 @@ impl Config {
     }
 
     pub(crate) fn set_lockfile_dir(&mut self, dir: &Path) {
+        self.configured_lockfile_dir = Some(dir.to_path_buf());
         self.lockfile_dir = Some(pnpm_fs::lexical_normalize(dir));
     }
 

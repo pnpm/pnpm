@@ -69,17 +69,15 @@ export async function validateFrozenInstall (
     await validateFixLockfilePreflight(rawCtx, { maybeOpts, opts, projects, usesPnpr })
     return undefined
   }
+  const cleansVirtualStore = maybeOpts._cleansVirtualStore !== false
+  const validationCtx = { cleansVirtualStore, maybeOpts, opts, projects, usesPnpr }
   if (!rawCtx.existsWantedLockfile) {
-    return validateWithoutWantedLockfile(rawCtx, opts)
+    return validateWithoutWantedLockfile(rawCtx, validationCtx)
   }
   if (rawCtx.lockfileHadConflicts) {
-    const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
-    return {
-      wantedLockfile: rawCtx.wantedLockfile,
-      prepared: { hookedProjects, verifiedLockfile: false },
-    }
+    return prepareUnverifiedLockfile(rawCtx, validationCtx)
   }
-  return verifyFrozenMutationRun(rawCtx, { maybeOpts, opts, projects, usesPnpr })
+  return verifyFrozenMutationRun(rawCtx, validationCtx)
 }
 
 export function assertProjectManifestsExist (ctx: PnpmContext, ignorePackageManifest: boolean): void {
@@ -111,7 +109,7 @@ export async function applyPreparedOrRunPreResolutionHooks (
   ctx: PnpmContext,
   prepared: MutateModulesOptions['_preparedFrozen']
 ): Promise<void> {
-  if (prepared == null) {
+  if (!prepared?.preResolutionRan) {
     await runPreResolutionHooks(opts, ctx)
     return
   }
@@ -136,19 +134,53 @@ async function validateFixLockfilePreflight (
   }
 }
 
+interface FrozenValidationContext {
+  cleansVirtualStore: boolean
+  maybeOpts: MutateModulesOptions
+  opts: StrictInstallOptions
+  projects: MutatedProject[]
+  usesPnpr: boolean
+}
+
 async function validateWithoutWantedLockfile (
   rawCtx: PnpmContext,
-  opts: StrictInstallOptions
+  { cleansVirtualStore, maybeOpts, opts, projects, usesPnpr }: FrozenValidationContext
 ): Promise<ValidatedFrozenInstall | undefined> {
   if (Object.values(rawCtx.projects).some((project) => pkgHasDependencies(project.manifest))) {
     throw createNoLockfileError()
   }
+  await verifyRawLockfileBeforeHooks(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
   if (Object.values(rawCtx.projects).some((project) => pkgHasDependencies(project.manifest))) {
     throw createNoLockfileError()
   }
+  const hookedWantedLockfile = await runPreResolutionForValidation(rawCtx, opts, cleansVirtualStore)
   return {
-    prepared: { hookedProjects, verifiedLockfile: false },
+    wantedLockfile: rawCtx.wantedLockfile,
+    prepared: {
+      hookedProjects,
+      hookedWantedLockfile,
+      preResolutionRan: true,
+      verifiedLockfile: false,
+    },
+  }
+}
+
+async function prepareUnverifiedLockfile (
+  rawCtx: PnpmContext,
+  { cleansVirtualStore, maybeOpts, opts, projects, usesPnpr }: FrozenValidationContext
+): Promise<ValidatedFrozenInstall> {
+  await verifyRawLockfileBeforeHooks(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
+  const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
+  const hookedWantedLockfile = await runPreResolutionForValidation(rawCtx, opts, cleansVirtualStore)
+  return {
+    wantedLockfile: rawCtx.wantedLockfile,
+    prepared: {
+      hookedProjects,
+      hookedWantedLockfile,
+      preResolutionRan: true,
+      verifiedLockfile: false,
+    },
   }
 }
 
@@ -222,7 +254,8 @@ async function reopenMergedLockfileContextIfNeeded (
 
 async function verifyFrozenMutationRun (
   rawCtx: PnpmContext,
-  { maybeOpts, opts, projects, usesPnpr }: {
+  { cleansVirtualStore, maybeOpts, opts, projects, usesPnpr }: {
+    cleansVirtualStore: boolean
     maybeOpts: MutateModulesOptions
     opts: StrictInstallOptions
     projects: MutatedProject[]
@@ -238,7 +271,7 @@ async function verifyFrozenMutationRun (
   })
   const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
   const ctx = await reopenMergedLockfileContextIfNeeded(rawCtx, opts, hookedProjects)
-  const hookedWantedLockfile = await runPreResolutionForValidation(ctx, opts, maybeOpts._cleansVirtualStore !== false)
+  const hookedWantedLockfile = await runPreResolutionForValidation(ctx, opts, cleansVirtualStore)
   const installsOnly = allMutationsAreInstalls(projects)
   const run = buildValidationRun(ctx, { installsOnly, maybeOpts, opts, projects })
   if (!opts.ignorePackageManifest) {
@@ -255,6 +288,7 @@ async function verifyFrozenMutationRun (
     prepared: {
       hookedProjects,
       hookedWantedLockfile,
+      preResolutionRan: true,
       verifiedLockfile: !opts.trustLockfile,
     },
   }

@@ -624,3 +624,51 @@ test('pnpm clean preserves shared .pnpm on -w and --no-recursive and honors pack
   expect(execPnpmSync(['clean']).status).toBe(0)
   expect(fs.existsSync(path.join('packages', 'pkg-a', 'custom_nm', 'seeded'))).toBe(false)
 })
+
+test('pnpm clean protects rootless workspace member dirs when modulesDir overlaps and preserves shared .pnpm on --lockfile-dir .', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+      },
+    },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'src'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'src', 'index.js'), 'module.exports = 1\n')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    modulesDir: 'packages',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
+
+  // Shared workspace with explicit `--lockfile-dir .` preserves `.pnpm` and `.modules.yaml` on filtered root clean
+  writeJsonFile('package.json', {
+    name: 'root-pkg',
+    version: '1.0.0',
+    private: true,
+    dependencies: { 'is-positive': '1.0.0' },
+  })
+  writeJsonFile(path.join('packages', 'pkg-a', 'package.json'), {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(execPnpmSync(['--filter', 'root-pkg', '--lockfile-dir', '.', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.pnpm'))).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', '.modules.yaml'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative', 'package.json'))).toBe(true)
+})

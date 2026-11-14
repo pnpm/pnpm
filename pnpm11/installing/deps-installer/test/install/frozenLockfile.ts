@@ -7,6 +7,7 @@ import {
   install,
   type MutatedProject,
   mutateModules,
+  validateFrozenInstall,
 } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -495,4 +496,25 @@ test('frozen-lockfile: a project with no dependencies installs from a lockfile w
   await install({}, testDefaults({ frozenLockfile: true }))
 
   expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8').startsWith(`---\n${envDocument}---\n`)).toBe(true)
+})
+
+test('validateFrozenInstall runs preResolution once when wanted lockfile is absent in a dependency-free project', async () => {
+  prepareEmpty()
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'empty-pkg', version: '1.0.0' }))
+  const rootDir = process.cwd() as ProjectRootDir
+  let calls = 0
+  const preResolution = jest.fn(async () => {
+    calls += 1
+  })
+  const opts = testDefaults({
+    frozenLockfile: true,
+    hooks: { preResolution: [preResolution] },
+  })
+  const validated = await validateFrozenInstall([{ mutation: 'install', rootDir }], opts)
+  expect(calls).toBe(1)
+  await install({ name: 'empty-pkg', version: '1.0.0' }, {
+    ...opts,
+    _preparedFrozen: validated?.prepared,
+  })
+  expect(calls).toBe(1)
 })

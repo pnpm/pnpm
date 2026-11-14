@@ -49,6 +49,7 @@ impl LockfileDirArg {
         if self.lockfile_dir.is_some() {
             return Err(LockfileDirWithGlobal);
         }
+        config.configured_lockfile_dir = None;
         config.lockfile_dir = None;
         Ok(())
     }

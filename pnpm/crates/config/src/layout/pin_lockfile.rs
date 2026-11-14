@@ -11,6 +11,7 @@ impl Config {
     ///
     /// [`lockfile_dir`]: Self::lockfile_dir
     pub fn pin_lockfile_dir(&mut self, dir: &Path, project_dir: &Path) {
+        self.configured_lockfile_dir = Some(dir.to_path_buf());
         let dir = pnpm_fs::lexical_normalize(dir);
         if self.lockfile_dir_is_default(&dir, project_dir) {
             self.clear_lockfile_dir_pin(project_dir);

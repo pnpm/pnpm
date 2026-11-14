@@ -62,6 +62,7 @@ export interface PreparedFrozenProjectHook {
 export interface PreparedFrozenMutation {
   hookedProjects: Map<ProjectRootDir, PreparedFrozenProjectHook>
   hookedWantedLockfile?: LockfileObject
+  preResolutionRan: boolean
   verifiedLockfile: boolean
 }
 

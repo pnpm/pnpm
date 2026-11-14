@@ -50,7 +50,7 @@ pub(in super::super) fn clean<'a>(
     }
     lockfile_dir.apply_to(config, ctx.locations.dir);
     let removal = if lockfile { LockfileRemoval::Remove } else { LockfileRemoval::Keep };
-    clean_builtin(ctx, config, removal, lockfile_dir.lockfile_dir.as_deref())?;
+    clean_builtin(ctx, config, removal)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

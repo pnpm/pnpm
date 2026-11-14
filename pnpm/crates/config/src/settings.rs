@@ -466,6 +466,11 @@ pub struct Config {
     /// goes through [`Config::pin_lockfile_dir`].
     pub lockfile_dir: Option<PathBuf>,
 
+    /// The resolved `lockfileDir` setting before [`pnpm_fs::lexical_normalize`]
+    /// collapses `..` or `.` segments or clears a default pin, so containment
+    /// checks still see symlinked parent segments in the configured path.
+    pub configured_lockfile_dir: Option<PathBuf>,
+
     /// When set to true and the available pnpm-lock.yaml satisfies the package.json dependencies
     /// directive, a headless installation is performed. A headless installation skips all
     /// dependency resolution as it does not need to modify the lockfile.

@@ -1,21 +1,16 @@
+mod discovery;
+mod fs_ops;
 mod removal;
 
 use super::{
-    dispatch::RunCtx,
-    lockfile_dir::LockfileDirArg,
-    pipelines::InstallFamilyPlan,
-    recursive::{
-        AutoExcludeRoot, discover_workspace_projects, notice_workspace_dir,
-        print_no_projects_matched, select_recursive_projects, selectors_narrow_the_run,
-    },
+    dispatch::RunCtx, lockfile_dir::LockfileDirArg, pipelines::InstallFamilyPlan,
+    recursive::selectors_narrow_the_run,
 };
-use miette::Context;
+use discovery::{ci_clean_targets, select_clean_targets};
 use pnpm_config::Config;
-use pnpm_fs::to_native_separators;
-use pnpm_workspace::{FindWorkspaceProjectsOpts, find_workspace_projects};
+use pnpm_package_manager::FrozenVirtualStoreClean;
 use removal::CleanRun;
-use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// `pnpm clean` / `pnpm purge`: safely remove the `node_modules`
 /// directories of the current project (or the selected workspace projects)
@@ -49,26 +44,24 @@ pub(super) fn run(
     ctx: &RunCtx<'_>,
     config: &Config,
     lockfile_removal: LockfileRemoval,
-    cli_lockfile_dir: Option<&Path>,
 ) -> miette::Result<()> {
     let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.locations.dir);
     let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
         return Ok(());
     };
-    let Some((dirs, scope)) = select_clean_targets(ctx, config, root_dir, &real_root_dir)? else {
+    let Some(targets) = select_clean_targets(ctx, config, root_dir, &real_root_dir)? else {
         return Ok(());
     };
-    let raw_lockfile_dir =
-        raw_configured_lockfile_dir(config, ctx.locations.dir, root_dir, cli_lockfile_dir);
     CleanRun {
         config,
         root_dir,
         real_root_dir: &real_root_dir,
         lockfile_removal,
-        scope,
-        raw_lockfile_dir: raw_lockfile_dir.as_deref(),
+        scope: targets.scope,
+        raw_lockfile_dir: raw_configured_lockfile_dir(config),
+        protected_member_dirs: &targets.protected_member_dirs,
     }
-    .clean_dirs(&dirs)
+    .clean_dirs(&targets.dirs)
 }
 
 /// Clean the `node_modules` directories `pnpm ci` is about to reinstall,
@@ -77,225 +70,55 @@ pub(crate) fn run_for_ci(
     config: &Config,
     prefix: &Path,
     plan: &InstallFamilyPlan,
-    cli_lockfile_dir: Option<&Path>,
 ) -> miette::Result<()> {
     let root_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
     let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
         return Ok(());
     };
-    let scope = if selectors_narrow_the_run(config) {
+    let scope = if is_narrowed_workspace_clean(config) {
         CleanScope::Narrowed
     } else {
         CleanScope::WholeWorkspace
     };
-    let dirs = ci_clean_dirs(config, prefix, root_dir, &real_root_dir, plan, scope)?;
-    let raw_lockfile_dir = raw_configured_lockfile_dir(config, prefix, root_dir, cli_lockfile_dir);
+    let targets = ci_clean_targets(config, prefix, root_dir, &real_root_dir, plan, scope)?;
     CleanRun {
         config,
         root_dir,
         real_root_dir: &real_root_dir,
         lockfile_removal: LockfileRemoval::Keep,
-        scope,
-        raw_lockfile_dir: raw_lockfile_dir.as_deref(),
+        scope: targets.scope,
+        raw_lockfile_dir: raw_configured_lockfile_dir(config),
+        protected_member_dirs: &targets.protected_member_dirs,
     }
-    .clean_dirs(&dirs)
+    .clean_dirs(&targets.dirs)
 }
 
-fn select_clean_targets(
-    ctx: &RunCtx<'_>,
-    config: &Config,
-    root_dir: &Path,
-    real_root_dir: &Path,
-) -> miette::Result<Option<(Vec<PathBuf>, CleanScope)>> {
-    if !config.filter.is_empty()
-        || !config.filter_prod.is_empty()
-        || (config.workspace_root && config.recursive)
-    {
-        return select_narrowed_clean_targets(ctx, config);
-    }
-    if config.workspace_root {
-        return Ok(Some((vec![root_dir.to_path_buf()], CleanScope::Narrowed)));
-    }
-    if config.workspace_dir.is_some()
-        && !config.recursive
-        && config.cli_settings.contains("recursive")
-    {
-        return Ok(Some((vec![ctx.locations.dir.to_path_buf()], CleanScope::Narrowed)));
-    }
-    if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
-        let dirs = workspace_dirs_with_root(
-            workspace_dir,
-            real_root_dir,
-            projects.into_iter().map(|project| project.root_dir),
-        );
-        return Ok(Some((dirs, CleanScope::WholeWorkspace)));
-    }
-    Ok(Some((vec![ctx.locations.dir.to_path_buf()], CleanScope::WholeWorkspace)))
-}
-
-fn select_narrowed_clean_targets(
-    ctx: &RunCtx<'_>,
-    config: &Config,
-) -> miette::Result<Option<(Vec<PathBuf>, CleanScope)>> {
-    let projects = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        discover_workspace_projects(workspace_dir, config)?.0
-    } else {
-        find_workspace_projects(
-            ctx.locations.dir,
-            &FindWorkspaceProjectsOpts {
-                patterns: Some(vec![".".to_string()]),
-                ignored_directories: config.managed_directories(),
-            },
-        )
-        .wrap_err("finding workspace projects")?
+/// Whether [`run_for_ci`] removes or preserves `<install_state_dir>/lock.yaml`
+/// on a shared-lockfile or single-project `pnpm ci` run.
+pub(crate) fn ci_virtual_store_clean(config: &Config, prefix: &Path) -> FrozenVirtualStoreClean {
+    let root_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
+    let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
+        return FrozenVirtualStoreClean::PreservesVirtualStore;
     };
-    let selection =
-        select_recursive_projects(&projects, config, ctx.locations.dir, AutoExcludeRoot::Disabled)?;
-    if selection.selected.is_empty() {
-        if projects.is_empty() {
-            pnpm_diagnostics::println!(
-                r#"No projects found in "{}""#,
-                notice_workspace_dir(config, ctx.locations.dir).display(),
-            );
-        } else {
-            print_no_projects_matched(config, ctx.locations.dir);
-        }
-        return Ok(None);
+    if is_narrowed_workspace_clean(config)
+        && config.workspace_dir.is_some()
+        && config.shares_one_lockfile()
+    {
+        return FrozenVirtualStoreClean::PreservesVirtualStore;
     }
-    Ok(Some((
-        selection.selected
-            .keys()
-            .cloned()
-            .collect(),
-        CleanScope::Narrowed,
-    )))
+    if fs_ops::resolve_inside(&real_root_dir, &config.install_state_dir).is_none() {
+        return FrozenVirtualStoreClean::PreservesVirtualStore;
+    }
+    FrozenVirtualStoreClean::RemovesVirtualStore
 }
 
-fn ci_clean_dirs(
-    config: &Config,
-    prefix: &Path,
-    root_dir: &Path,
-    real_root_dir: &Path,
-    plan: &InstallFamilyPlan,
-    scope: CleanScope,
-) -> miette::Result<Vec<PathBuf>> {
-    match scope {
-        CleanScope::Narrowed => Ok(ci_narrowed_dirs(prefix, plan)),
-        CleanScope::WholeWorkspace => {
-            ci_whole_workspace_dirs(config, prefix, root_dir, real_root_dir, plan)
-        }
-    }
+pub(super) fn is_narrowed_workspace_clean(config: &Config) -> bool {
+    selectors_narrow_the_run(config)
+        || (config.workspace_dir.is_some()
+            && !config.recursive
+            && config.cli_settings.contains("recursive"))
 }
 
-fn ci_narrowed_dirs(prefix: &Path, plan: &InstallFamilyPlan) -> Vec<PathBuf> {
-    match plan {
-        InstallFamilyPlan::Shared(selection) => selection.ordered_dirs
-            .iter()
-            .filter(|dir| selection.selected_dirs.contains(*dir))
-            .cloned()
-            .collect(),
-        InstallFamilyPlan::PerProject(projects) => projects.dependencies
-            .keys()
-            .cloned()
-            .collect(),
-        InstallFamilyPlan::Single => vec![prefix.to_path_buf()],
-    }
-}
-
-fn ci_whole_workspace_dirs(
-    config: &Config,
-    prefix: &Path,
-    root_dir: &Path,
-    real_root_dir: &Path,
-    plan: &InstallFamilyPlan,
-) -> miette::Result<Vec<PathBuf>> {
-    match plan {
-        InstallFamilyPlan::Shared(selection) => Ok(workspace_dirs_with_root(
-            &selection.workspace_root,
-            real_root_dir,
-            selection.projects.iter().map(|project| project.root_dir.clone()),
-        )),
-        InstallFamilyPlan::PerProject(projects) => Ok(workspace_dirs_with_root(
-            root_dir,
-            real_root_dir,
-            projects.workspace
-                .projects()
-                .iter()
-                .map(|project| project.root_dir.clone()),
-        )),
-        InstallFamilyPlan::Single => {
-            let Some(workspace_dir) = config.workspace_dir.as_deref() else {
-                return Ok(vec![prefix.to_path_buf()]);
-            };
-            let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
-            Ok(workspace_dirs_with_root(
-                workspace_dir,
-                real_root_dir,
-                projects.into_iter().map(|project| project.root_dir),
-            ))
-        }
-    }
-}
-
-fn workspace_dirs_with_root(
-    workspace_dir: &Path,
-    real_root_dir: &Path,
-    project_dirs: impl IntoIterator<Item = PathBuf>,
-) -> Vec<PathBuf> {
-    let project_dirs: Vec<PathBuf> = project_dirs.into_iter().collect();
-    let includes_root = project_dirs
-        .iter()
-        .any(|dir| dunce::canonicalize(dir).ok().as_deref() == Some(real_root_dir));
-    if includes_root {
-        project_dirs
-    } else {
-        std::iter::once(workspace_dir.to_path_buf()).chain(project_dirs).collect()
-    }
-}
-
-fn raw_configured_lockfile_dir(
-    config: &Config,
-    cli_dir: &Path,
-    root_dir: &Path,
-    cli_lockfile_dir: Option<&Path>,
-) -> Option<PathBuf> {
-    let resolved = config.lockfile_dir.as_ref()?;
-    raw_lockfile_dir_candidates(config, cli_dir, root_dir, cli_lockfile_dir)
-        .into_iter()
-        .find(|candidate| &pnpm_fs::lexical_normalize(candidate) == resolved)
-        .or_else(|| Some(resolved.clone()))
-}
-
-fn raw_lockfile_dir_candidates(
-    config: &Config,
-    cli_dir: &Path,
-    root_dir: &Path,
-    cli_lockfile_dir: Option<&Path>,
-) -> Vec<PathBuf> {
-    if let Some(cli_lockfile_dir) = cli_lockfile_dir {
-        return vec![anchor_raw_path(cli_lockfile_dir, cli_dir)];
-    }
-    let Some(raw) = config.explicit_settings.get("lockfileDir").and_then(Value::as_str) else {
-        return Vec::new();
-    };
-    let raw_path = Path::new(raw);
-    if config.cli_settings.contains("lockfileDir") {
-        return vec![anchor_raw_path(raw_path, cli_dir)];
-    }
-    if env_lockfile_dir_is_set() {
-        return vec![anchor_raw_path(raw_path, cli_dir), anchor_raw_path(raw_path, root_dir)];
-    }
-    vec![anchor_raw_path(raw_path, root_dir)]
-}
-
-fn env_lockfile_dir_is_set() -> bool {
-    std::env::var("PNPM_CONFIG_LOCKFILE_DIR")
-        .or_else(|_| std::env::var("pnpm_config_lockfile_dir"))
-        .is_ok_and(|value| !value.is_empty())
-}
-
-fn anchor_raw_path(raw: &Path, anchor: &Path) -> PathBuf {
-    let raw_path = to_native_separators(raw);
-    if raw_path.is_absolute() { raw_path.into_owned() } else { anchor.join(raw_path) }
+fn raw_configured_lockfile_dir(config: &Config) -> Option<&Path> {
+    config.configured_lockfile_dir.as_deref().or(config.lockfile_dir.as_deref())
 }

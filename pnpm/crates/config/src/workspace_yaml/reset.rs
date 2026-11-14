@@ -45,6 +45,12 @@ fn reanchor_lockfile_paths(config: &mut Config, base_dir: &Path) {
     config.anchor_lockfile_paths(&dir);
 }
 
+fn reset_lockfile_dir(config: &mut Config, base_dir: &Path) {
+    config.configured_lockfile_dir = None;
+    config.lockfile_dir = None;
+    reanchor_lockfile_paths(config, base_dir);
+}
+
 /// `lockfile` follows `packageLock` while nothing sets it, as it does when
 /// the config is built.
 fn derive_lockfile(config: &mut Config) {
@@ -201,10 +207,7 @@ impl WorkspaceSettings {
         match key {
             "macosBackup" => config.macos_backup.clone_from(&defaults.macos_backup),
             "storeDir" => config.reset_store_dir_to_default::<Sys>(base_dir),
-            "lockfileDir" => {
-                config.lockfile_dir = None;
-                reanchor_lockfile_paths(config, base_dir);
-            }
+            "lockfileDir" => reset_lockfile_dir(config, base_dir),
             "modulesDir" | "virtualStoreDir" => reanchor_lockfile_paths(config, base_dir),
             // Derived from the virtual store directory once that is settled.
             "globalVirtualStoreDir" => {}

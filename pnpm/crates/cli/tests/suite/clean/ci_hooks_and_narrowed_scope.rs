@@ -274,3 +274,88 @@ fn clean_and_ci_honor_per_package_modules_dir_in_package_configs() {
 
     drop(root);
 }
+
+#[test]
+fn ci_filter_passes_existing_current_lockfile_to_pre_resolution_while_unfiltered_ci_clears_it() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let store_dir = root.path().join("store");
+    write_shared_workspace_with_root_and_member(&workspace, &store_dir);
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "const fs = require('node:fs');\n\
+         const path = require('node:path');\n\
+         module.exports = {\n\
+           hooks: {\n\
+             preResolution(ctx) {\n\
+               const hasPackages = Boolean(ctx.currentLockfile?.packages && Object.keys(ctx.currentLockfile.packages).length > 0);\n\
+               fs.writeFileSync(path.join(__dirname, 'pre-res.json'), JSON.stringify({ exists: ctx.existsCurrentLockfile, hasPackages }));\n\
+             },\n\
+           },\n\
+         };\n",
+    )
+    .expect("write .pnpmfile.cjs");
+    assert!(run_pnpm(&workspace, &["install"]).status.success(), "initial install");
+
+    let filtered = run_pnpm(&workspace, &["ci", "--filter", "pkg-a"]);
+    assert!(filtered.status.success(), "{filtered:?}");
+    let filtered_obs: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("pre-res.json")).expect("read"))
+            .expect("parse filtered pre-res.json");
+    assert_eq!(filtered_obs["exists"], serde_json::json!(true), "{filtered_obs}");
+    assert_eq!(filtered_obs["hasPackages"], serde_json::json!(true), "{filtered_obs}");
+
+    let unfiltered = run_pnpm(&workspace, &["ci"]);
+    assert!(unfiltered.status.success(), "{unfiltered:?}");
+    let unfiltered_obs: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("pre-res.json")).expect("read"))
+            .expect("parse unfiltered pre-res.json");
+    assert_eq!(unfiltered_obs["exists"], serde_json::json!(false), "{unfiltered_obs}");
+
+    drop(root);
+}
+
+#[test]
+fn clean_preserves_members_when_rootless_workspace_sets_modules_dir_to_member_parent() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nmodulesDir: packages\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let pkg_a = workspace.join("packages/pkg-a");
+    fs::create_dir_all(pkg_a.join("src")).expect("create pkg-a/src");
+    fs::write(pkg_a.join("package.json"), r#"{"name":"pkg-a","version":"1.0.0"}"#)
+        .expect("write pkg-a manifest");
+    fs::write(pkg_a.join("src/index.js"), "module.exports = 1;\n").expect("write pkg-a source");
+
+    for args in [&["clean", "--filter", "pkg-a"][..], &["clean"][..]] {
+        seed_package(&pkg_a.join("packages"), "seeded-dep");
+        let out = run_pnpm(&workspace, args);
+        assert!(out.status.success(), "{args:?} failed: {out:?}");
+        assert!(!pkg_a.join("packages/seeded-dep").exists(), "{args:?} removed member modulesDir");
+        assert!(pkg_a.join("package.json").exists(), "{args:?} preserved member manifest");
+        assert!(pkg_a.join("src/index.js").exists(), "{args:?} preserved member source");
+    }
+
+    drop(root);
+}
+
+#[test]
+fn clean_filter_root_with_dot_lockfile_dir_preserves_shared_virtual_store() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let store_dir = root.path().join("store");
+    write_shared_workspace_with_root_and_member(&workspace, &store_dir);
+    assert!(run_pnpm(&workspace, &["install"]).status.success(), "initial install");
+
+    let clean_out = run_pnpm(&workspace, &["clean", "--filter", "root-pkg", "--lockfile-dir", "."]);
+    assert!(clean_out.status.success(), "{clean_out:?}");
+    assert!(!workspace.join("node_modules/dep-a").exists(), "root direct link removed");
+    assert!(workspace.join("node_modules/.pnpm").exists(), "shared .pnpm preserved");
+    assert!(workspace.join("node_modules/.modules.yaml").exists(), ".modules.yaml preserved");
+    assert!(
+        workspace.join("packages/pkg-a/node_modules/dep-b/package.json").exists(),
+        "unselected member link into .pnpm still resolves",
+    );
+
+    drop(root);
+}

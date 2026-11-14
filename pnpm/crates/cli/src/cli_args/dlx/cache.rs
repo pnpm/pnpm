@@ -354,6 +354,7 @@ pub(super) fn configure_cache_install(
     config.workspace_dir = Some(prepare_dir.to_path_buf());
     // Same reasoning for a pinned `lockfileDir`: it names the caller's
     // lockfile, which the throwaway install must not touch.
+    config.configured_lockfile_dir = None;
     config.lockfile_dir = None;
     // The caller's patches never apply to the throwaway install (pnpm's
     // dlx installs the package unpatched too). Their paths are relative

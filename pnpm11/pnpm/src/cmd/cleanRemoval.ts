@@ -8,6 +8,8 @@ import { isSubdir, strict as isStrictSubdir } from 'is-subdir'
 const PNPM_HIDDEN_ENTRIES = new Set(['.bin', '.modules.yaml', '.pnpm', '.pnpm-workspace-state-v1.json'])
 const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES = new Set(['.bin', '.pnpm-workspace-state-v1.json'])
 
+export type ModulesCleanMode = 'all' | 'preserve-shared-virtual-store'
+
 export async function resolveProjectModulesDir (
   opts: {
     modulesDir: string
@@ -35,23 +37,57 @@ export async function resolveConfiguredLockfileDir (
     : undefined
 }
 
-export async function cleanModulesDir (cwd: string, modulesDir: string, preserveShared: boolean): Promise<void> {
+export async function resolveSharedAnchorDir (
+  ctx: {
+    rawLockfileSpec: string | undefined
+    realRootDir: string
+    resolvedLockfileDir: string | undefined
+    rootDir: string
+  }
+): Promise<string | undefined> {
+  if (ctx.rawLockfileSpec == null) return ctx.rootDir
+  if (ctx.resolvedLockfileDir != null) return ctx.resolvedLockfileDir
+  const candidate = await resolveRealPathFrom(ctx.rootDir, ctx.rawLockfileSpec)
+  return candidate === ctx.realRootDir ? ctx.rootDir : undefined
+}
+
+export function isCleanableModulesDir (
+  resolved: string | undefined,
+  seen: Set<string>,
+  protectedMemberDirs: string[]
+): resolved is string {
+  return resolved != null &&
+    !seen.has(resolved) &&
+    !protectedMemberDirs.some((memberDir) => isSubdir(resolved, memberDir))
+}
+
+export async function dirsIncludeRoot (dirs: string[], realRootDir: string): Promise<boolean> {
+  const realDirs = await Promise.all(dirs.map(async (dir) => tryRealpath(dir)))
+  return realDirs.includes(realRootDir)
+}
+
+export async function collectNonRootRealDirs (dirs: string[], realRootDir: string): Promise<string[]> {
+  const realDirs = await Promise.all(dirs.map(async (dir) => tryRealpath(dir)))
+  return realDirs.filter((dir): dir is string => dir != null && dir !== realRootDir)
+}
+
+export async function cleanModulesDir (cwd: string, modulesDir: string, mode: ModulesCleanMode): Promise<void> {
   const stat = await lstatIfExists(modulesDir)
   if (stat == null) return
   if (stat.isSymbolicLink()) {
-    if (preserveShared) return
+    if (mode === 'preserve-shared-virtual-store') return
     printRemoving(cwd, modulesDir)
     await rimraf(modulesDir)
     return
   }
   if (!stat.isDirectory()) return
-  const entries = await removableModulesEntries(modulesDir, preserveShared)
+  const entries = await removableModulesEntries(modulesDir, mode)
   if (entries.length === 0) return
   printRemoving(cwd, modulesDir)
   await Promise.all(entries.map(async (entry) => rimraf(entry)))
 }
 
-async function removableModulesEntries (modulesDir: string, preserveShared: boolean): Promise<string[]> {
+async function removableModulesEntries (modulesDir: string, mode: ModulesCleanMode): Promise<string[]> {
   let items: string[]
   try {
     items = await fs.readdir(modulesDir)
@@ -59,7 +95,9 @@ async function removableModulesEntries (modulesDir: string, preserveShared: bool
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return []
     throw err
   }
-  const hiddenEntries = preserveShared ? PNPM_NARROWED_SHARED_HIDDEN_ENTRIES : PNPM_HIDDEN_ENTRIES
+  const hiddenEntries = mode === 'preserve-shared-virtual-store'
+    ? PNPM_NARROWED_SHARED_HIDDEN_ENTRIES
+    : PNPM_HIDDEN_ENTRIES
   return items
     .filter((item) => item[0] !== '.' || hiddenEntries.has(item))
     .map((item) => path.join(modulesDir, item))
@@ -110,6 +148,16 @@ export async function resolveInside (rootDir: string, targetSpec: string): Promi
   return isStrictSubdir(realRoot, resolved) ? resolved : undefined
 }
 
+export async function resolveRealPathFrom (rootDir: string, targetSpec: string): Promise<string | undefined> {
+  const realRoot = await tryRealpath(rootDir)
+  if (realRoot == null) return undefined
+  const candidatePath = normalizeTargetSpec(realRoot, targetSpec)
+  if (candidatePath == null) return undefined
+  const parsed = path.parse(candidatePath)
+  const segments = candidatePath.slice(parsed.root.length).split(path.sep).filter((segment) => segment !== '' && segment !== '.')
+  return reduceSegments(tryRealpath(parsed.root), segments)
+}
+
 async function resolveParentDir (realRoot: string, parsed: ParsedPath): Promise<string | undefined> {
   if (parsed.dir === realRoot) return realRoot
   if (!parsed.dir.split(path.sep).some(needsStepwiseResolution)) {
@@ -125,13 +173,19 @@ function needsStepwiseResolution (segment: string): boolean {
 async function resolveParentSegments (realRoot: string, parsed: ParsedPath): Promise<string | undefined> {
   const rootPrefix = appendPathSep(realRoot)
   const underRealRoot = parsed.dir.startsWith(rootPrefix)
-  const anchor = underRealRoot ? realRoot : await tryRealpath(parsed.root)
-  if (anchor == null) return undefined
+  const anchorPromise = underRealRoot ? Promise.resolve(realRoot) : tryRealpath(parsed.root)
   const tail = underRealRoot ? parsed.dir.slice(rootPrefix.length) : parsed.dir.slice(parsed.root.length)
   const segments = tail.split(path.sep).filter((segment) => segment !== '' && segment !== '.')
+  return reduceSegments(anchorPromise, segments)
+}
+
+async function reduceSegments (
+  anchorPromise: Promise<string | undefined>,
+  segments: string[]
+): Promise<string | undefined> {
   return segments.reduce<Promise<string | undefined>>(
     async (currentPromise, segment) => stepParentSegment(await currentPromise, segment),
-    Promise.resolve(anchor)
+    anchorPromise
   )
 }
 

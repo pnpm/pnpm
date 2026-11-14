@@ -109,6 +109,7 @@ pub(super) fn hardened_install_config(
     }
     install_config.node_linker = NodeLinker::Isolated;
     install_config.workspace_dir = Some(environment_dir.to_path_buf());
+    install_config.configured_lockfile_dir = None;
     install_config.lockfile_dir = Some(environment_dir.to_path_buf());
     install_config.virtual_store_only = false;
     install_config.symlink = true;

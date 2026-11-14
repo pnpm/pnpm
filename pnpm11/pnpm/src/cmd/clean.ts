@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { docsUrl } from '@pnpm/cli.utils'
 import { anchorRawLockfileDir, types as allTypes } from '@pnpm/config.reader'
 import type { ProjectsGraph } from '@pnpm/types'
@@ -11,12 +9,17 @@ import { renderHelp } from 'render-help'
 
 import {
   cleanModulesDir,
+  collectNonRootRealDirs,
+  dirsIncludeRoot,
   invalidateWorkspaceState,
+  isCleanableModulesDir,
+  type ModulesCleanMode,
   removeExternalVirtualStore,
   removeLockfilePath,
   resolveConfiguredLockfileDir,
   resolveInside,
   resolveProjectModulesDir,
+  resolveSharedAnchorDir,
   tryRealpath,
 } from './cleanRemoval.js'
 
@@ -105,6 +108,7 @@ interface CleanRunScope {
   dirs: string[]
   modulesDir: string
   narrowed: boolean
+  protectedMemberDirs: string[]
   realRootDir: string
   resolvedLockfileDir: string | undefined
   rootDir: string
@@ -116,7 +120,7 @@ export async function cleanProjects (opts: CleanOptions & { removeLockfile: bool
   const scope = await buildCleanRunScope(opts)
   if (scope == null) return
   const modulesTargets = await collectModulesTargets(opts, scope)
-  await Promise.all(modulesTargets.map(async ({ dir, preserveShared }) => cleanModulesDir(scope.cwd, dir, preserveShared)))
+  await Promise.all(modulesTargets.map(async ({ dir, mode }) => cleanModulesDir(scope.cwd, dir, mode)))
   if (scope.sharedModulesDir != null) {
     await invalidateWorkspaceState(scope.realRootDir, scope.sharedModulesDir)
   }
@@ -139,11 +143,9 @@ async function buildCleanRunScope (opts: CleanOptions): Promise<CleanRunScope | 
   const realRootDir = await tryRealpath(rootDir)
   if (realRootDir == null) return undefined
   const modulesDir = opts.modulesDir ?? 'node_modules'
-  const cwd = await tryRealpath(process.cwd()) ?? process.cwd()
   const narrowed = isNarrowedRun(opts)
-  const targets = await getProjectTargets(opts, { narrowed, realRootDir, rootDir })
-  const dirs = targets.map((target) => target.dir)
-  const cleansRoot = !narrowed || await dirsIncludeRoot(dirs, realRootDir)
+  const targetGroup = await getProjectTargets(opts, { modulesDir, narrowed, realRootDir, rootDir })
+  const dirs = targetGroup.targets.map((target) => target.dir)
   const rawLockfileSpec = readRawLockfileDirSpec(opts, rootDir)
   const resolvedLockfileDir = rawLockfileSpec != null
     ? await resolveConfiguredLockfileDir(rawLockfileSpec, rootDir, realRootDir)
@@ -157,16 +159,17 @@ async function buildCleanRunScope (opts: CleanOptions): Promise<CleanRunScope | 
     rootDir,
   })
   return {
-    cleansRoot,
-    cwd,
+    cleansRoot: !narrowed || await dirsIncludeRoot(dirs, realRootDir),
+    cwd: await tryRealpath(process.cwd()) ?? process.cwd(),
     dirs,
     modulesDir,
     narrowed,
+    protectedMemberDirs: targetGroup.protectedMemberDirs,
     realRootDir,
     resolvedLockfileDir,
     rootDir,
     sharedModulesDir,
-    targets,
+    targets: targetGroup.targets,
   }
 }
 
@@ -202,24 +205,10 @@ async function resolveSharedWorkspaceModulesDir (
   })
 }
 
-async function resolveSharedAnchorDir (
-  ctx: {
-    rawLockfileSpec: string | undefined
-    realRootDir: string
-    resolvedLockfileDir: string | undefined
-    rootDir: string
-  }
-): Promise<string | undefined> {
-  if (ctx.rawLockfileSpec == null) return ctx.rootDir
-  if (ctx.resolvedLockfileDir != null) return ctx.resolvedLockfileDir
-  const candidate = await tryRealpath(path.resolve(ctx.rootDir, ctx.rawLockfileSpec))
-  return candidate === ctx.realRootDir ? ctx.rootDir : undefined
-}
-
 async function collectModulesTargets (
   opts: CleanOptions,
   scope: CleanRunScope
-): Promise<Array<{ dir: string, preserveShared: boolean }>> {
+): Promise<Array<{ dir: string, mode: ModulesCleanMode }>> {
   const candidateModules = await Promise.all(scope.targets.map(async (target) => resolveProjectModulesDir({
     modulesDir: resolveModulesLeafForProject(opts, target.name, scope.modulesDir),
     projectDir: target.dir,
@@ -233,11 +222,14 @@ async function collectModulesTargets (
     }))
   }
   const seen = new Set<string>()
-  const unique: Array<{ dir: string, preserveShared: boolean }> = []
+  const unique: Array<{ dir: string, mode: ModulesCleanMode }> = []
   for (const resolved of candidateModules) {
-    if (resolved != null && !seen.has(resolved)) {
+    if (isCleanableModulesDir(resolved, seen, scope.protectedMemberDirs)) {
       seen.add(resolved)
-      unique.push({ dir: resolved, preserveShared: resolved === scope.sharedModulesDir })
+      unique.push({
+        dir: resolved,
+        mode: resolved === scope.sharedModulesDir ? 'preserve-shared-virtual-store' : 'all',
+      })
     }
   }
   return unique
@@ -272,11 +264,6 @@ async function collectLockfileTargets (scope: CleanRunScope): Promise<string[]> 
   return Array.from(new Set(resolvedPaths.filter((item): item is string => item != null)))
 }
 
-async function dirsIncludeRoot (dirs: string[], realRootDir: string): Promise<boolean> {
-  const realDirs = await Promise.all(dirs.map(async (dir) => tryRealpath(dir)))
-  return realDirs.includes(realRootDir)
-}
-
 function readRawLockfileDirSpec (opts: CleanOptions, rootDir: string): string | undefined {
   if (typeof opts.rawLockfileDir === 'string') {
     return opts.rawLockfileDir
@@ -293,15 +280,25 @@ function readRawLockfileDirSpec (opts: CleanOptions, rootDir: string): string | 
 
 async function getProjectTargets (
   opts: CleanOptions,
-  { narrowed, realRootDir, rootDir }: { narrowed: boolean, realRootDir: string, rootDir: string }
-): Promise<CleanTarget[]> {
+  { modulesDir, narrowed, realRootDir, rootDir }: {
+    modulesDir: string
+    narrowed: boolean
+    realRootDir: string
+    rootDir: string
+  }
+): Promise<{ targets: CleanTarget[], protectedMemberDirs: string[] }> {
   if (!opts.workspaceDir) {
-    return opts.selectedProjectsGraph != null
+    const targets = opts.selectedProjectsGraph != null
       ? targetsFromGraph(opts.selectedProjectsGraph)
       : [{ dir: opts.dir, name: await readTargetNameIfNeeded(opts, opts.dir) }]
+    return { targets, protectedMemberDirs: [] }
   }
   if (narrowed) {
-    return getNarrowedWorkspaceTargets(opts, rootDir)
+    const targets = await getNarrowedWorkspaceTargets(opts, rootDir)
+    const protectedMemberDirs = modulesDir !== 'node_modules' || hasPerProjectModulesDirs(opts)
+      ? await readProtectedMemberDirs(opts, opts.workspaceDir, realRootDir)
+      : []
+    return { targets, protectedMemberDirs }
   }
   return getWholeWorkspaceTargets(opts, opts.workspaceDir, realRootDir)
 }
@@ -325,20 +322,37 @@ async function getWholeWorkspaceTargets (
   opts: CleanOptions,
   workspaceDir: string,
   realRootDir: string
-): Promise<CleanTarget[]> {
+): Promise<{ targets: CleanTarget[], protectedMemberDirs: string[] }> {
   const pkgs = await findWorkspaceProjectsNoCheck(workspaceDir, {
     patterns: opts.workspacePackagePatterns,
     modulesDir: opts.modulesDir,
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
   })
   const projectTargets: CleanTarget[] = pkgs.map((pkg) => ({ dir: pkg.rootDir, name: pkg.manifest.name }))
+  const realMemberDirs = await collectNonRootRealDirs(projectTargets.map((target) => target.dir), realRootDir)
   if (await dirsIncludeRoot(projectTargets.map((target) => target.dir), realRootDir)) {
-    return projectTargets
+    return { targets: projectTargets, protectedMemberDirs: realMemberDirs }
   }
-  return [
-    { dir: workspaceDir, name: await readTargetNameIfNeeded(opts, workspaceDir) },
-    ...projectTargets,
-  ]
+  return {
+    targets: [
+      { dir: workspaceDir, name: await readTargetNameIfNeeded(opts, workspaceDir) },
+      ...projectTargets,
+    ],
+    protectedMemberDirs: realMemberDirs,
+  }
+}
+
+async function readProtectedMemberDirs (
+  opts: CleanOptions,
+  workspaceDir: string,
+  realRootDir: string
+): Promise<string[]> {
+  const pkgs = await findWorkspaceProjectsNoCheck(workspaceDir, {
+    patterns: opts.workspacePackagePatterns,
+    modulesDir: opts.modulesDir,
+    modulesDirsByProjectName: opts.modulesDirsByProjectName,
+  })
+  return collectNonRootRealDirs(pkgs.map((pkg) => pkg.rootDir), realRootDir)
 }
 
 function targetsFromGraph (graph: ProjectsGraph): CleanTarget[] {

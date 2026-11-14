@@ -24,7 +24,10 @@ pub(crate) use modules_state::{
     modules_layout_consistent_with, moved_tree_is_reusable, project_requires_lifecycle_scripts,
     tree_may_move,
 };
-pub use run::{InstallExecution, InstallLockfilePolicy, PreparedFrozenInstall, ResolutionInputs};
+pub use run::{
+    FrozenVirtualStoreClean, InstallExecution, InstallLockfilePolicy, PreparedFrozenInstall,
+    ResolutionInputs,
+};
 pub(crate) use run::{
     PreparedFrozenRun, check_strict_dep_builds_for_fast_path, hook_one_manifest,
     register_workspace_in_store,

@@ -5,7 +5,7 @@ use super::{
     install::{NodeInstallJob, discover_dedicated_workspace_projects, init_shared_state},
 };
 use futures_util::stream::{StreamExt as _, TryStreamExt as _};
-use pnpm_package_manager::PreparedFrozenInstall;
+use pnpm_package_manager::{FrozenVirtualStoreClean, PreparedFrozenInstall};
 use std::{collections::HashMap, sync::Mutex};
 
 #[derive(Default)]
@@ -32,12 +32,7 @@ impl NodeInstallJob {
             return Ok(PreparedCiValidation::default());
         }
         let prepared = self.validate_plan::<Reporter>(plan, lockfile, http_client).await?;
-        crate::cli_args::clean::run_for_ci(
-            self.cfg,
-            &self.prefix,
-            plan,
-            self.args.lockfile.directory.lockfile_dir.as_deref(),
-        )?;
+        crate::cli_args::clean::run_for_ci(self.cfg, &self.prefix, plan)?;
         Ok(prepared)
     }
 
@@ -111,6 +106,8 @@ impl NodeInstallJob {
         lockfile: &mut Option<pnpm_lockfile::LazyLockfile>,
         http_client: &Arc<ThrottledClient>,
     ) -> miette::Result<Option<PreparedFrozenInstall>> {
+        let virtual_store_clean =
+            crate::cli_args::clean::ci_virtual_store_clean(self.cfg, &self.prefix);
         let state = init_shared_state(
             self.manifest_path.clone(),
             self.cfg,
@@ -118,7 +115,9 @@ impl NodeInstallJob {
             lockfile.take(),
             Arc::clone(http_client),
         )?;
-        let prepared = Box::pin(self.args.prepare_for_ci::<Reporter>(&state, selection)).await;
+        let prepared =
+            Box::pin(self.args.prepare_for_ci::<Reporter>(&state, selection, virtual_store_clean))
+                .await;
         *lockfile = Some(state.lockfile);
         prepared
     }
@@ -148,8 +147,12 @@ async fn validate_dedicated_projects<Reporter: self::Reporter + 'static>(
                     Some(Arc::clone(http_client)),
                 )?
                 .into_dedicated_project(caches, None, Some(projects.workspace.clone()));
-                if let Some(prepared) =
-                    Box::pin(args.prepare_for_ci::<Reporter>(&state, None)).await?
+                if let Some(prepared) = Box::pin(args.prepare_for_ci::<Reporter>(
+                    &state,
+                    None,
+                    FrozenVirtualStoreClean::RemovesVirtualStore,
+                ))
+                .await?
                 {
                     per_project
                         .lock()

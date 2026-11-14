@@ -471,3 +471,55 @@ test('pnpm ci cleans per-package modulesDir configured via packageConfigs', () =
   expect(fs.existsSync(staleDir)).toBe(false)
   expect(fs.existsSync(path.join('packages', 'pkg-a', 'custom_nm', 'is-positive', 'package.json'))).toBe(true)
 })
+
+test('pnpm ci validates missing lockfile with pnpmfile and runs preResolution once on conflict-merged lockfiles before cleaning', () => {
+  prepare({
+    name: 'ci-early-pre-resolution',
+    version: '1.0.0',
+  })
+  const marker = path.join('node_modules', 'keep-marker.txt')
+  fs.mkdirSync('node_modules', { recursive: true })
+  fs.writeFileSync(marker, 'keep')
+
+  // Local .pnpmfile.cjs without pnpm-lock.yaml fails checksum validation before cleaning or running hooks
+  fs.writeFileSync('.pnpmfile.cjs', [
+    'const fs = require("fs")',
+    'module.exports = {',
+    '  hooks: {',
+    '    preResolution () {',
+    '      fs.appendFileSync("hooks.log", "preResolution\\n")',
+    '      if (process.env.FAIL_HOOK === "1") throw new Error("abort before clean")',
+    '    },',
+    '  },',
+    '}',
+  ].join('\n'))
+  const mismatchRes = execPnpmSync(['ci'])
+  expect(mismatchRes.status).not.toBe(0)
+  expect(mismatchRes.stdout.toString() + mismatchRes.stderr.toString()).toContain('ERR_PNPM_LOCKFILE_CONFIG_MISMATCH')
+  expect(fs.existsSync('hooks.log')).toBe(false)
+  expect(fs.existsSync(marker)).toBe(true)
+
+  // Conflict-marked lockfile (`lockfileHadConflicts`) runs preResolution before clean and reuses it once
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'ci-early-pre-resolution',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+  expect(execPnpmSync(['install']).status).toBe(0)
+  fs.writeFileSync(marker, 'keep')
+  const cleanLockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  const conflictedLockfile = `<<<<<<< HEAD\n${cleanLockfile}=======\n${cleanLockfile}>>>>>>> next\n`
+  fs.writeFileSync('pnpm-lock.yaml', conflictedLockfile)
+  if (fs.existsSync('hooks.log')) fs.unlinkSync('hooks.log')
+
+  const failedRes = execPnpmSync(['ci'], { env: { FAIL_HOOK: '1' } })
+  expect(failedRes.status).not.toBe(0)
+  expect(fs.existsSync(marker)).toBe(true)
+
+  fs.unlinkSync('hooks.log')
+  const okRes = execPnpmSync(['ci'])
+  expect(okRes.status).toBe(0)
+  expect(fs.existsSync(marker)).toBe(false)
+  const lines = fs.readFileSync('hooks.log', 'utf8').trim().split('\n')
+  expect(lines).toStrictEqual(['preResolution'])
+})

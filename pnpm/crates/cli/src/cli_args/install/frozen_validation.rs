@@ -4,7 +4,7 @@ use super::{
 };
 use crate::State;
 use miette::Context;
-use pnpm_package_manager::PreparedFrozenInstall;
+use pnpm_package_manager::{FrozenVirtualStoreClean, PreparedFrozenInstall};
 
 impl InstallArgs {
     /// Validate pre-clean invariants and prepare frozen-lockfile hook/verification
@@ -13,6 +13,7 @@ impl InstallArgs {
         &self,
         state: &State,
         selection: Option<&InstallFamilySelection>,
+        virtual_store_clean: FrozenVirtualStoreClean,
     ) -> miette::Result<Option<PreparedFrozenInstall>> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         if state.config.pnpr_server.is_some() && self.materialization.dry_run {
@@ -34,7 +35,7 @@ impl InstallArgs {
             return Ok(None);
         }
         install
-            .prepare_frozen::<Reporter>(ws_selection)
+            .prepare_frozen::<Reporter>(ws_selection, virtual_store_clean)
             .await
             .map(Some)
             .wrap_err("validating frozen lockfile")
