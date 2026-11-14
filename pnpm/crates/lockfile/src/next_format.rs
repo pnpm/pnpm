@@ -37,6 +37,7 @@ mod catalogs;
 mod document;
 mod importer;
 mod linked;
+mod normalize;
 mod package;
 mod parse;
 mod read;
@@ -288,6 +289,19 @@ impl Lockfile {
     #[must_use]
     pub fn is_next_format(&self) -> bool {
         self.lockfile_version.major == NEXT_LOCKFILE_MAJOR
+    }
+
+    /// Rebuild peer keys after pruning changes a graph's peer bindings.
+    ///
+    /// Only snapshot identities and references to them may change. Unequal
+    /// snapshots that would acquire the same key are rejected, and an error
+    /// leaves this lockfile unchanged. Ordinary next-format writes still
+    /// require an exact round trip without normalizing their input.
+    pub fn normalize_peer_keys_for_next_format(&mut self) -> Result<(), NextFormatError> {
+        let normalized = crate::parallel_parse::pool().install(|| normalize::normalize(self))?;
+        self.importers = normalized.importers;
+        self.snapshots = normalized.snapshots;
+        Ok(())
     }
 
     /// The `importers` and `snapshots` of the next format.

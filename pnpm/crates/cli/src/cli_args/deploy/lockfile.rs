@@ -412,6 +412,9 @@ fn finish_deploy_files(
 ) -> miette::Result<DeployFiles> {
     let (workspace_manifest, workspace_config) =
         deploy_workspace_settings(lockfile, config, ctx, &mut deploy_lockfile)?;
+    if deploy_lockfile.is_next_format() {
+        deploy_lockfile.normalize_peer_keys_for_next_format()?;
+    }
 
     Ok(DeployFiles {
         manifest,

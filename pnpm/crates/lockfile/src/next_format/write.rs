@@ -12,12 +12,12 @@ use std::collections::{HashMap, HashSet};
 
 mod importers;
 mod peers;
-mod snapshots;
+pub(super) mod snapshots;
 
 /// Reading back can need a reference with peer groups only where an earlier
 /// round wrote another reference with them, so the rounds are few. This
 /// bounds them for a lockfile that cannot be represented.
-const MAX_ROUNDS: usize = 8;
+pub(super) const MAX_ROUNDS: usize = 8;
 
 /// The next format's sections, read back and checked against the lockfile.
 pub(super) fn next_sections(lockfile: &Lockfile) -> Result<NextSections, NextFormatError> {
@@ -61,6 +61,18 @@ pub(super) struct Explicit {
 }
 
 impl Explicit {
+    /// Preserve the supplied transitive names while rebuilding identities.
+    pub(super) fn for_normalization(lockfile: &Lockfile) -> Self {
+        Self {
+            unbound_peer_names: lockfile.snapshots
+                .iter()
+                .flatten()
+                .map(|(key, _)| key.clone())
+                .collect(),
+            ..Self::default()
+        }
+    }
+
     fn mark_unbound_peer_names(
         &mut self,
         lockfile: &Lockfile,
@@ -148,7 +160,7 @@ pub(super) fn check_round_trip(
 }
 
 /// Equal, comparing transitive peer names as a set.
-fn same_entry(left: &SnapshotEntry, right: &SnapshotEntry) -> bool {
+pub(super) fn same_entry(left: &SnapshotEntry, right: &SnapshotEntry) -> bool {
     left.id == right.id
         && left.dependencies == right.dependencies
         && left.optional_dependencies == right.optional_dependencies

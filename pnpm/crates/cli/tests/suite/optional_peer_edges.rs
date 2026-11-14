@@ -8,6 +8,7 @@ use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_lockfil
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_lockfile::Lockfile;
 use serde_json::Value;
 use std::{
     fs,
@@ -300,9 +301,12 @@ fn fetch_prod_leaves_out_an_optional_peer_only_a_dev_dependency_provides() {
 fn deploy_workspace(
     root: ManifestDeps<'_>,
     app_dev: &[(&'static str, &'static str)],
+    format: &str,
 ) -> WorkspaceFixture {
     let fixture = WorkspaceFixture::new();
-    fixture.append_workspace_yaml("injectWorkspacePackages: true\n");
+    fixture.append_workspace_yaml(&format!(
+        "injectWorkspacePackages: true\nlockfile:\n  format: {format}\n",
+    ));
     fixture.write_root_manifest("root", root);
     fixture.project(
         "app",
@@ -347,10 +351,21 @@ fn deploy_prod_keeps_an_optional_peer_a_package_resolved_as_its_own_dependency()
 }
 
 fn assert_deploy_leaves_out_the_optional_peer(fixture: &WorkspaceFixture) {
+    let wanted = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    assert!(
+        wanted.snapshots
+            .iter()
+            .flatten()
+            .any(|(key, _)| {
+                key.to_string().starts_with(ABC) && key.to_string().contains(PEER_C)
+            }),
+        "the source graph must bind the optional peer: {wanted:#?}",
+    );
     pnpm(fixture, &["--filter", "app", "deploy", "--prod", "deploy"]);
 
     let deploy_dir = fixture.workspace.join("deploy");
-    let deployed = read_lockfile(&deploy_dir.join("pnpm-lock.yaml"));
+    let deployed = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    assert_eq!(deployed.lockfile_version, wanted.lockfile_version);
     let keys = deployed.snapshots
         .iter()
         .flatten()
@@ -368,11 +383,26 @@ fn assert_deploy_leaves_out_the_optional_peer(fixture: &WorkspaceFixture) {
     );
     assert!(!has_slot(&deploy_dir, PEER_C, "1.0.0"));
     assert!(!links(&abc_slot(&deploy_dir), PEER_C));
+    assert!(links(&abc_slot(&deploy_dir), PEER_A));
+    assert!(
+        !deployed.packages
+            .iter()
+            .flatten()
+            .any(|(key, _)| key.to_string().starts_with(PEER_C)),
+        "the deployed metadata must not retain the excluded provider: {deployed:#?}",
+    );
+
+    let lockfile_path = deploy_dir.join("pnpm-lock.yaml");
+    let before = fs::read(&lockfile_path).unwrap();
+    pnpm_at(fixture, &deploy_dir, &["install", "--prod", "--frozen-lockfile"]);
+    assert_eq!(fs::read(&lockfile_path).unwrap(), before);
+    assert!(!links(&abc_slot(&deploy_dir), PEER_C));
+    assert!(links(&abc_slot(&deploy_dir), PEER_A));
 }
 
 #[test]
 fn deploy_prod_leaves_out_an_optional_peer_the_project_dev_dependencies_provide() {
-    let fixture = deploy_workspace(ManifestDeps::default(), &[(PEER_C, "1.0.0")]);
+    let fixture = deploy_workspace(ManifestDeps::default(), &[(PEER_C, "1.0.0")], "v9");
     assert_deploy_leaves_out_the_optional_peer(&fixture);
 }
 
@@ -381,8 +411,73 @@ fn deploy_prod_leaves_out_an_optional_peer_the_workspace_root_provides() {
     let fixture = deploy_workspace(
         ManifestDeps { dev: &[(PEER_C, "1.0.0")], ..ManifestDeps::default() },
         &[],
+        "v9",
     );
     assert_deploy_leaves_out_the_optional_peer(&fixture);
+}
+
+#[test]
+fn deploy_prod_leaves_out_a_project_dev_provided_optional_peer_with_v13() {
+    let fixture = deploy_workspace(ManifestDeps::default(), &[(PEER_C, "1.0.0")], "v13");
+    assert_deploy_leaves_out_the_optional_peer(&fixture);
+}
+
+#[test]
+fn deploy_prod_leaves_out_a_root_dev_provided_optional_peer_with_v13() {
+    let fixture = deploy_workspace(
+        ManifestDeps { dev: &[(PEER_C, "1.0.0")], ..ManifestDeps::default() },
+        &[],
+        "v13",
+    );
+    assert_deploy_leaves_out_the_optional_peer(&fixture);
+}
+
+#[test]
+fn deploy_prod_prunes_optional_peers_and_preserves_patches_with_v13() {
+    let fixture = deploy_workspace(
+        ManifestDeps { dev: &[(PEER_C, "1.0.0")], ..ManifestDeps::default() },
+        &[],
+        "v13",
+    );
+    let patches = fixture.workspace.join("patches");
+    fs::create_dir_all(&patches).unwrap();
+    fs::write(
+        patches.join("abc.patch"),
+        concat!(
+            "diff --git a/PATCH.txt b/PATCH.txt\n",
+            "new file mode 100644\n",
+            "index 0000000..1111111\n",
+            "--- /dev/null\n",
+            "+++ b/PATCH.txt\n",
+            "@@ -0,0 +1 @@\n",
+            "+patched\n",
+        ),
+    )
+    .unwrap();
+    fixture.append_workspace_yaml(&format!(
+        "patchedDependencies:\n  '{ABC}@1.0.0': patches/abc.patch\n",
+    ));
+    fixture.run(["install"]);
+
+    assert_deploy_leaves_out_the_optional_peer(&fixture);
+
+    let deploy_dir = fixture.workspace.join("deploy");
+    assert_eq!(
+        fs::read_to_string(
+            deploy_dir
+                .join("node_modules")
+                .join(ABC)
+                .join("PATCH.txt")
+        )
+        .unwrap(),
+        "patched\n",
+    );
+    let deployed = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    assert!(
+        deployed.patched_dependencies
+            .unwrap()
+            .contains_key(&format!("{ABC}@1.0.0"))
+    );
 }
 
 fn listed_abc_children(fixture: &WorkspaceFixture, extra_args: &[&str]) -> Vec<String> {
@@ -524,9 +619,19 @@ fn sbom_prod_leaves_out_an_optional_peer_only_a_dev_dependency_provides() {
 /// not make the peer edge a dev-only one: the deploy still ships it.
 #[test]
 fn deploy_prod_ships_an_optional_peer_the_workspace_root_lists_as_a_production_dependency() {
+    assert_deploy_ships_a_root_production_peer("v9");
+}
+
+#[test]
+fn deploy_prod_ships_a_root_production_optional_peer_with_v13() {
+    assert_deploy_ships_a_root_production_peer("v13");
+}
+
+fn assert_deploy_ships_a_root_production_peer(format: &str) {
     let fixture = deploy_workspace(
         ManifestDeps { prod: &[(PEER_C, "1.0.0")], ..ManifestDeps::default() },
         &[],
+        format,
     );
 
     pnpm(&fixture, &["--filter", "app", "deploy", "--prod", "deploy"]);
