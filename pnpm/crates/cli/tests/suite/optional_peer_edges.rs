@@ -476,7 +476,7 @@ fn deploy_prod_prunes_optional_peers_and_preserves_patches_with_v13() {
     assert!(
         deployed.patched_dependencies
             .unwrap()
-            .contains_key(&format!("{ABC}@1.0.0"))
+            .contains_key(&format!("{ABC}@1.0.0")),
     );
 }
 

@@ -137,7 +137,7 @@ snapshots:
     ] {
         assert_eq!(
             entries.as_ref().unwrap()[&name(alias)].version.resolved_key(&name(alias)),
-            Some(expected.clone())
+            Some(expected.clone()),
         );
     }
     let snapshots = lockfile.snapshots.as_ref().unwrap();
@@ -146,19 +146,19 @@ snapshots:
         wrapper.dependencies.as_ref().unwrap()[&name("consumer-alias")].resolve(&name(
             "consumer-alias"
         )),
-        Some(consumer.clone())
+        Some(consumer.clone()),
     );
     assert_eq!(
         wrapper.optional_dependencies.as_ref().unwrap()[&name("provider-alias")].resolve(&name(
             "provider-alias"
         )),
-        Some(provider.clone())
+        Some(provider.clone()),
     );
     assert_eq!(
         snapshots[&consumer].dependencies.as_ref().unwrap()[&name("renamed")].resolve(&name(
             "renamed"
         )),
-        Some(provider)
+        Some(provider),
     );
     assert_round_trip(&lockfile);
 }
@@ -195,7 +195,7 @@ snapshots:
     for alias in ["first", "second"] {
         assert_eq!(
             entries[&name(alias)].version.resolved_key(&name(alias)),
-            Some(key("consumer@1.0.0"))
+            Some(key("consumer@1.0.0")),
         );
     }
     assert_round_trip(&lockfile);
@@ -234,7 +234,7 @@ snapshots:
 
     assert!(
         error.to_string().contains("unequal snapshots would share the rebuilt key consumer@1.0.0"),
-        "{error}"
+        "{error}",
     );
     assert_eq!(lockfile, before);
 }
