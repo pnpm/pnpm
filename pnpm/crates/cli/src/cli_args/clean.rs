@@ -26,13 +26,13 @@ pub struct CleanArgs {
     pub lockfile_dir: LockfileDirArg,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(super) enum LockfileRemoval {
     Keep,
     Remove,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum CleanScope {
     WholeWorkspace,
     Narrowed,

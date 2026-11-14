@@ -2,11 +2,11 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { anchorRawLockfileDir, types as allTypes } from '@pnpm/config.reader'
 import type { ProjectsGraph } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { strict as isStrictSubdir } from 'is-subdir'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
+import { discoverWorkspacePackagesForClean } from './cleanDiscovery.js'
 import {
   cleanModulesDir,
   collectNonRootRealDirs,
@@ -323,10 +323,11 @@ async function getWholeWorkspaceTargets (
   workspaceDir: string,
   realRootDir: string
 ): Promise<{ targets: CleanTarget[], protectedMemberDirs: string[] }> {
-  const pkgs = await findWorkspaceProjectsNoCheck(workspaceDir, {
-    patterns: opts.workspacePackagePatterns,
+  const pkgs = await discoverWorkspacePackagesForClean(workspaceDir, {
+    hasPerProjectModulesDirs: hasPerProjectModulesDirs(opts),
     modulesDir: opts.modulesDir,
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
+    patterns: opts.workspacePackagePatterns,
   })
   const projectTargets: CleanTarget[] = pkgs.map((pkg) => ({ dir: pkg.rootDir, name: pkg.manifest.name }))
   const realMemberDirs = await collectNonRootRealDirs(projectTargets.map((target) => target.dir), realRootDir)
@@ -347,10 +348,11 @@ async function readProtectedMemberDirs (
   workspaceDir: string,
   realRootDir: string
 ): Promise<string[]> {
-  const pkgs = await findWorkspaceProjectsNoCheck(workspaceDir, {
-    patterns: opts.workspacePackagePatterns,
+  const pkgs = await discoverWorkspacePackagesForClean(workspaceDir, {
+    hasPerProjectModulesDirs: hasPerProjectModulesDirs(opts),
     modulesDir: opts.modulesDir,
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
+    patterns: opts.workspacePackagePatterns,
   })
   return collectNonRootRealDirs(pkgs.map((pkg) => pkg.rootDir), realRootDir)
 }

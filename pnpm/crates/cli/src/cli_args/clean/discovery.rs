@@ -1,22 +1,21 @@
+mod modules_overlap;
+
 use super::{
     super::{
         dispatch::RunCtx,
         pipelines::InstallFamilyPlan,
         recursive::{
-            AutoExcludeRoot, discover_workspace_projects, notice_workspace_dir,
-            print_no_projects_matched, select_recursive_projects,
+            AutoExcludeRoot, notice_workspace_dir, print_no_projects_matched,
+            select_recursive_projects,
         },
     },
     CleanScope, is_narrowed_workspace_clean,
-    removal::{configured_modules_leaf, modules_leaf_for_project},
 };
 use miette::Context;
+use modules_overlap::discover_workspace_for_clean;
 use pnpm_config::Config;
 use pnpm_workspace::{FindWorkspaceProjectsOpts, Project, find_workspace_projects};
-use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 pub(super) struct CleanTargets {
     pub(super) dirs: Vec<PathBuf>,
@@ -46,7 +45,7 @@ pub(super) fn select_clean_targets(
         }));
     }
     if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        let projects = discover_workspace_for_clean(workspace_dir, real_root_dir, config)?;
+        let projects = discover_workspace_for_clean(workspace_dir, config)?;
         let protected_member_dirs = collect_non_root_real_dirs(&projects, real_root_dir);
         let dirs = workspace_dirs_with_root(
             workspace_dir,
@@ -72,7 +71,7 @@ fn select_filtered_clean_targets(
     real_root_dir: &Path,
 ) -> miette::Result<Option<CleanTargets>> {
     let projects = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        discover_workspace_for_clean(workspace_dir, real_root_dir, config)?
+        discover_workspace_for_clean(workspace_dir, config)?
     } else {
         find_workspace_projects(
             ctx.locations.dir,
@@ -169,7 +168,7 @@ fn ci_whole_workspace_dirs(
             let Some(workspace_dir) = config.workspace_dir.as_deref() else {
                 return Ok(vec![prefix.to_path_buf()]);
             };
-            let projects = discover_workspace_for_clean(workspace_dir, real_root_dir, config)?;
+            let projects = discover_workspace_for_clean(workspace_dir, config)?;
             Ok(workspace_dirs_with_root(
                 workspace_dir,
                 real_root_dir,
@@ -189,76 +188,8 @@ fn protected_members_if_needed(
     if !has_custom_modules_dirs(workspace_dir, config) {
         return Ok(Vec::new());
     }
-    let projects = discover_workspace_for_clean(workspace_dir, real_root_dir, config)?;
+    let projects = discover_workspace_for_clean(workspace_dir, config)?;
     Ok(collect_non_root_real_dirs(&projects, real_root_dir))
-}
-
-fn discover_workspace_for_clean(
-    workspace_dir: &Path,
-    real_root_dir: &Path,
-    config: &Config,
-) -> miette::Result<Vec<Project>> {
-    let (mut projects, patterns) = discover_workspace_projects(workspace_dir, config)?;
-    let includes_root = projects
-        .iter()
-        .any(|project| {
-            dunce::canonicalize(&project.root_dir).ok().as_deref() == Some(real_root_dir)
-        });
-    if includes_root || config.modules_dir == workspace_dir.join("node_modules") {
-        return Ok(projects);
-    }
-    let ignored_directories = config
-        .managed_directories()
-        .into_iter()
-        .filter(|dir| dir != &config.modules_dir && dir != &config.install_state_dir)
-        .collect();
-    let unowned_candidates = find_workspace_projects(
-        workspace_dir,
-        &FindWorkspaceProjectsOpts { patterns, ignored_directories },
-    )
-    .wrap_err("finding workspace projects")?;
-    merge_projects_outside_owned_modules(&mut projects, unowned_candidates, config);
-    Ok(projects)
-}
-
-fn merge_projects_outside_owned_modules(
-    known: &mut Vec<Project>,
-    found: Vec<Project>,
-    config: &Config,
-) {
-    let default_leaf = configured_modules_leaf(config);
-    let known_dirs: HashSet<PathBuf> = known
-        .iter()
-        .map(|project| project.root_dir.clone())
-        .collect();
-    let mut owned_modules_dirs = HashMap::new();
-    for project in known.iter().chain(found.iter()) {
-        let leaf = modules_leaf_for_project(config, &project.root_dir, &default_leaf);
-        if !leaf.is_absolute() {
-            owned_modules_dirs.insert(project.root_dir.clone(), project.root_dir.join(leaf));
-        }
-    }
-    for candidate in found {
-        if !known_dirs.contains(&candidate.root_dir)
-            && !is_inside_owned_modules_dir(&candidate.root_dir, &owned_modules_dirs)
-        {
-            known.push(candidate);
-        }
-    }
-}
-
-fn is_inside_owned_modules_dir(dir: &Path, owned_modules_dirs: &HashMap<PathBuf, PathBuf>) -> bool {
-    let mut current = dir.parent();
-    while let Some(ancestor) = current {
-        if owned_modules_dirs
-            .get(ancestor)
-            .is_some_and(|modules_dir| dir.starts_with(modules_dir) && dir != modules_dir)
-        {
-            return true;
-        }
-        current = ancestor.parent();
-    }
-    false
 }
 
 fn has_custom_modules_dirs(workspace_dir: &Path, config: &Config) -> bool {

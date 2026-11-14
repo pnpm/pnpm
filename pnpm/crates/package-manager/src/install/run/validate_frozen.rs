@@ -28,7 +28,7 @@ use std::marker::PhantomData;
 
 /// Whether `pnpm ci`'s cleanup step removes or preserves the virtual store's
 /// current lockfile (`<install_state_dir>/lock.yaml`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub enum FrozenVirtualStoreClean {
     RemovesVirtualStore,
     PreservesVirtualStore,
@@ -244,8 +244,12 @@ impl<'a> RunExecution<'a> {
             self.install.lockfile_policy.frozen,
         )?;
         self.validate_preflight_only()?;
-        let current_task = (virtual_store_clean == FrozenVirtualStoreClean::PreservesVirtualStore)
-            .then(|| spawn_current_lockfile_load(self.install.context.config));
+        let current_task = match virtual_store_clean {
+            FrozenVirtualStoreClean::PreservesVirtualStore => {
+                Some(spawn_current_lockfile_load(self.install.context.config))
+            }
+            FrozenVirtualStoreClean::RemovesVirtualStore => None,
+        };
         let wanted = load_wanted_lockfile::<SilentReporter>(
             self.install.context.lockfile,
             self.install.lockfile_policy.frozen,
@@ -260,17 +264,12 @@ impl<'a> RunExecution<'a> {
             &self.options.manifests.hooked_paths,
         )
         .await?;
-        let current = match current_task {
-            Some(task) => {
-                join_current_lockfile_load::<HookOnlyReporter<Reporter>>(
-                    task,
-                    self.install.context.config,
-                    &self.workspace.prefix,
-                )
-                .await
-            }
-            None => None,
-        };
+        let current = finish_current_lockfile_load::<Reporter>(
+            current_task,
+            self.install.context.config,
+            &self.workspace.prefix,
+        )
+        .await;
         Ok(Loaded { wanted, current, early_host_detection: None, pnpmfile_hook, manifests })
     }
 
@@ -310,4 +309,15 @@ impl<'a> RunExecution<'a> {
             PreparedPreResolution { hooked_wanted: lockfiles.wanted.take_hooked(), hooked_current };
         Ok((pre_resolution, lockfile_verified))
     }
+}
+
+async fn finish_current_lockfile_load<Reporter: pnpm_reporter::Reporter + 'static>(
+    current_task: Option<
+        tokio::task::JoinHandle<Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError>>,
+    >,
+    config: &pnpm_config::Config,
+    prefix: &str,
+) -> Option<Lockfile> {
+    let task = current_task?;
+    join_current_lockfile_load::<HookOnlyReporter<Reporter>>(task, config, prefix).await
 }

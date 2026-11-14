@@ -56,6 +56,10 @@ impl WantedLockfile<'_> {
         self.hooked = Some(lockfile);
     }
 
+    pub(super) fn is_hooked(&self) -> bool {
+        self.hooked.is_some()
+    }
+
     pub(super) fn take_hooked(&mut self) -> Option<Lockfile> {
         self.hooked.take()
     }

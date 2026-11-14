@@ -3,9 +3,9 @@ import path from 'node:path'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { LOCKFILE_MAJOR_VERSION, LOCKFILE_VERSION } from '@pnpm/constants'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
-import { createLockfileObject, getWantedLockfileName, type LockfileObject } from '@pnpm/lockfile.fs'
+import { createLockfileObject, getWantedLockfileName, isEmptyLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
 import type { ProjectRootDir } from '@pnpm/types'
-import { clone } from 'ramda'
+import { clone, equals } from 'ramda'
 
 import { extendOptions, type ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
 import { allMutationsAreInstalls, isCheckOnlyInstall, pkgHasDependencies } from './installPredicates.js'
@@ -116,6 +116,13 @@ export async function applyPreparedOrRunPreResolutionHooks (
   if (prepared.hookedWantedLockfile != null) {
     ctx.wantedLockfile = prepared.hookedWantedLockfile
   }
+  if (prepared.hookedCurrentLockfile != null) {
+    ctx.currentLockfile = prepared.hookedCurrentLockfile
+  }
+  if (prepared.hookedWantedLockfile != null || prepared.hookedCurrentLockfile != null) {
+    ctx.currentLockfileIsUpToDate = equals(ctx.currentLockfile, ctx.wantedLockfile)
+    ctx.existsNonEmptyWantedLockfile = ctx.existsWantedLockfile && !isEmptyLockfile(ctx.wantedLockfile)
+  }
 }
 
 async function validateFixLockfilePreflight (
@@ -130,7 +137,7 @@ async function validateFixLockfilePreflight (
   if (!rawCtx.existsWantedLockfile || rawCtx.lockfileHadConflicts) return
   await verifyRawLockfileBeforeHooks(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(rawCtx, opts)
+    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: false })
   }
 }
 
@@ -154,14 +161,18 @@ async function validateWithoutWantedLockfile (
   if (Object.values(rawCtx.projects).some((project) => pkgHasDependencies(project.manifest))) {
     throw createNoLockfileError()
   }
-  const hookedWantedLockfile = await runPreResolutionForValidation(rawCtx, opts, cleansVirtualStore)
+  const preResolution = await runPreResolutionForValidation(rawCtx, opts, cleansVirtualStore)
+  if (!opts.trustLockfile) {
+    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
+  }
   return {
     wantedLockfile: rawCtx.wantedLockfile,
     prepared: {
+      hookedCurrentLockfile: preResolution.hookedCurrentLockfile,
       hookedProjects,
-      hookedWantedLockfile,
+      hookedWantedLockfile: preResolution.hookedWantedLockfile,
       preResolutionRan: true,
-      verifiedLockfile: false,
+      verifiedLockfile: !opts.trustLockfile,
     },
   }
 }
@@ -172,14 +183,18 @@ async function prepareUnverifiedLockfile (
 ): Promise<ValidatedFrozenInstall> {
   await verifyRawLockfileBeforeHooks(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
-  const hookedWantedLockfile = await runPreResolutionForValidation(rawCtx, opts, cleansVirtualStore)
+  const preResolution = await runPreResolutionForValidation(rawCtx, opts, cleansVirtualStore)
+  if (!opts.trustLockfile) {
+    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
+  }
   return {
     wantedLockfile: rawCtx.wantedLockfile,
     prepared: {
+      hookedCurrentLockfile: preResolution.hookedCurrentLockfile,
       hookedProjects,
-      hookedWantedLockfile,
+      hookedWantedLockfile: preResolution.hookedWantedLockfile,
       preResolutionRan: true,
-      verifiedLockfile: false,
+      verifiedLockfile: !opts.trustLockfile,
     },
   }
 }
@@ -271,7 +286,7 @@ async function verifyFrozenMutationRun (
   })
   const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
   const ctx = await reopenMergedLockfileContextIfNeeded(rawCtx, opts, hookedProjects)
-  const hookedWantedLockfile = await runPreResolutionForValidation(ctx, opts, cleansVirtualStore)
+  const preResolution = await runPreResolutionForValidation(ctx, opts, cleansVirtualStore)
   const installsOnly = allMutationsAreInstalls(projects)
   const run = buildValidationRun(ctx, { installsOnly, maybeOpts, opts, projects })
   if (!opts.ignorePackageManifest) {
@@ -281,25 +296,33 @@ async function verifyFrozenMutationRun (
     await verifyLockedTarballIntegrity(run)
   }
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(ctx, opts)
+    await verifyLockfilePolicies(ctx, opts, { wantedMutated: preResolution.wantedMutated })
   }
   return {
     wantedLockfile: ctx.wantedLockfile,
     prepared: {
+      hookedCurrentLockfile: preResolution.hookedCurrentLockfile,
       hookedProjects,
-      hookedWantedLockfile,
+      hookedWantedLockfile: preResolution.hookedWantedLockfile,
       preResolutionRan: true,
       verifiedLockfile: !opts.trustLockfile,
     },
   }
 }
 
+interface PreparedPreResolutionLockfiles {
+  hookedCurrentLockfile?: LockfileObject
+  hookedWantedLockfile?: LockfileObject
+  wantedMutated: boolean
+}
+
 async function runPreResolutionForValidation (
   ctx: PnpmContext,
   opts: StrictInstallOptions,
   cleansVirtualStore: boolean
-): Promise<LockfileObject | undefined> {
-  if (!opts.hooks.preResolution?.length) return undefined
+): Promise<PreparedPreResolutionLockfiles> {
+  if (!opts.hooks.preResolution?.length) return { wantedMutated: false }
+  const wantedBefore = clone(ctx.wantedLockfile)
   const importerIds = Object.values(ctx.projects).map(({ id }) => id)
   const currentLockfile = cleansVirtualStore
     ? createLockfileObject(importerIds, {
@@ -308,24 +331,39 @@ async function runPreResolutionForValidation (
       lockfileVersion: LOCKFILE_VERSION,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
     })
-    : ctx.currentLockfile
-  await runPreResolutionHooks(opts, {
+    : clone(ctx.currentLockfile)
+  const hookCtx: PnpmContext = {
     ...ctx,
     currentLockfile,
     existsCurrentLockfile: cleansVirtualStore ? false : ctx.existsCurrentLockfile,
-  })
-  return ctx.wantedLockfile
+  }
+  await runPreResolutionHooks(opts, hookCtx)
+  ctx.wantedLockfile = hookCtx.wantedLockfile
+  return {
+    hookedCurrentLockfile: hookCtx.currentLockfile,
+    hookedWantedLockfile: hookCtx.wantedLockfile,
+    wantedMutated: !equals(wantedBefore, hookCtx.wantedLockfile),
+  }
 }
 
-async function verifyLockfilePolicies (ctx: PnpmContext, opts: StrictInstallOptions): Promise<void> {
-  const wantedLockfilePath = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
+async function verifyLockfilePolicies (
+  ctx: PnpmContext,
+  opts: StrictInstallOptions,
+  { wantedMutated }: { wantedMutated: boolean }
+): Promise<void> {
+  const canUseOnDiskCache = !wantedMutated &&
+    ctx.existsWantedLockfile &&
+    !ctx.lockfileHadConflicts &&
+    opts.cacheDir != null &&
+    opts.resolutionVerifiers.length > 0
+  const wantedLockfilePath = canUseOnDiskCache
     ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     }))
     : undefined
   await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-    cacheDir: opts.cacheDir,
+    cacheDir: wantedMutated ? undefined : opts.cacheDir,
     lockfilePath: wantedLockfilePath,
   })
 }

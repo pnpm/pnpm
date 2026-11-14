@@ -5,6 +5,7 @@ import { expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   install,
+  type InstallOptions,
   type MutatedProject,
   mutateModules,
   validateFrozenInstall,
@@ -517,4 +518,93 @@ test('validateFrozenInstall runs preResolution once when wanted lockfile is abse
     _preparedFrozen: validated?.prepared,
   })
   expect(calls).toBe(1)
+})
+
+test('validateFrozenInstall preserves preResolution mutations to currentLockfile and verifies conflicted hooked wantedLockfile', async () => {
+  prepareEmpty()
+  const manifest: ProjectManifest = {
+    name: 'hook-replay-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(manifest))
+  const rootDir = process.cwd() as ProjectRootDir
+  await install(manifest, testDefaults())
+
+  // Remove the direct link while leaving `.pnpm/lock.yaml` intact: if `preResolution` clears
+  // `currentLockfile.packages` when `_cleansVirtualStore: false`, `mutateModules` must replay that
+  // mutated `currentLockfile` so the link step restores `is-positive` without re-running the hook.
+  fs.rmSync(path.join('node_modules', 'is-positive'), { recursive: true, force: true })
+  let calls = 0
+  const clearCurrentHook = jest.fn(async (ctx: { currentLockfile: { packages?: Record<string, unknown>, importers: Record<string, unknown> } }) => {
+    calls += 1
+    ctx.currentLockfile.packages = {}
+    ctx.currentLockfile.importers = { '.': { specifiers: {}, dependencies: {} } }
+  })
+  const replayOpts = testDefaults({
+    frozenLockfile: true,
+    hooks: { preResolution: [clearCurrentHook] },
+  })
+  const projects: MutatedProject[] = [{ mutation: 'install', rootDir }]
+  const validated = await validateFrozenInstall(projects, {
+    ...replayOpts,
+    _cleansVirtualStore: false,
+  })
+  expect(calls).toBe(1)
+  expect(validated?.prepared?.hookedCurrentLockfile?.packages).toStrictEqual({})
+  await mutateModules(projects, {
+    ...replayOpts,
+    _preparedFrozen: validated?.prepared,
+  })
+  expect(calls).toBe(1)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive', 'package.json'))).toBe(true)
+
+  // Now create a Git-conflict-merged `pnpm-lock.yaml` (`lockfileHadConflicts === true`) and verify
+  // that `prepareUnverifiedLockfile` enforces `resolutionVerifiers` on `preResolution`-mutated entries.
+  const cleanLock = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  const conflictedLock = `<<<<<<< HEAD\n${cleanLock}=======\n${cleanLock}>>>>>>> branch\n`
+  fs.writeFileSync(WANTED_LOCKFILE, conflictedLock)
+
+  let verifiedNames: string[] = []
+  const policyOpts: InstallOptions = {
+    ...testDefaults({
+      frozenLockfile: true,
+      hooks: {
+        preResolution: [
+          async (ctx: { wantedLockfile: { packages?: Record<string, unknown> } }) => {
+            ctx.wantedLockfile.packages = {
+              ...ctx.wantedLockfile.packages,
+              'blocked-by-hook@1.0.0': {
+                resolution: { integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' },
+              },
+            }
+          },
+        ],
+      },
+    }),
+    resolutionVerifiers: [
+      {
+        policy: { testBlockPolicy: true },
+        canTrustPastCheck: () => false,
+        verify: async (_resolution, { name, version }) => {
+          verifiedNames.push(name)
+          if (name === 'blocked-by-hook') {
+            return {
+              ok: false,
+              code: 'TEST_REJECT',
+              reason: `${name}@${version} blocked by test policy`,
+            }
+          }
+          return { ok: true }
+        },
+      },
+    ],
+  }
+  verifiedNames = []
+  await expect(validateFrozenInstall(projects, policyOpts)).rejects.toMatchObject({
+    code: 'ERR_PNPM_TEST_REJECT',
+  })
+  expect(verifiedNames).toContain('blocked-by-hook')
 })

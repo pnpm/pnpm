@@ -29,7 +29,7 @@ const PNPM_HIDDEN_ENTRIES: &[&str] =
 /// short-circuit over the cleaned project.
 const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES: &[&str] = &[".bin", ".pnpm-workspace-state-v1.json"];
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum ModulesCleanMode {
     AllEntries,
     PreserveSharedVirtualStore,
@@ -59,27 +59,40 @@ impl CleanRun<'_> {
             resolve_configured_lockfile_dir(self.real_root_dir, lockfile_dir)
         });
         self.clean_all_modules(&cwd, dirs, &modules_leaf, resolved_lockfile_dir.as_deref())?;
-        if self.lockfile_removal == LockfileRemoval::Remove {
-            remove_lockfiles(
-                &cwd,
-                self.real_root_dir,
-                self.root_dir,
-                dirs,
-                cleans_root,
-                resolved_lockfile_dir.as_deref(),
-            )?;
+        match self.lockfile_removal {
+            LockfileRemoval::Remove => {
+                remove_lockfiles(
+                    &cwd,
+                    self.real_root_dir,
+                    self.root_dir,
+                    dirs,
+                    cleans_root,
+                    resolved_lockfile_dir.as_deref(),
+                )?;
+            }
+            LockfileRemoval::Keep => {}
         }
-        if self.scope == CleanScope::WholeWorkspace {
-            remove_external_virtual_store(&cwd, self.config, self.real_root_dir, &modules_leaf)?;
+        match self.scope {
+            CleanScope::WholeWorkspace => {
+                remove_external_virtual_store(
+                    &cwd,
+                    self.config,
+                    self.real_root_dir,
+                    &modules_leaf,
+                )?;
+            }
+            CleanScope::Narrowed => {}
         }
         Ok(())
     }
 
     fn cleans_root(&self, dirs: &[PathBuf]) -> bool {
-        self.scope == CleanScope::WholeWorkspace
-            || dirs
+        match self.scope {
+            CleanScope::WholeWorkspace => true,
+            CleanScope::Narrowed => dirs
                 .iter()
-                .any(|dir| dunce::canonicalize(dir).ok().as_deref() == Some(self.real_root_dir))
+                .any(|dir| dunce::canonicalize(dir).ok().as_deref() == Some(self.real_root_dir)),
+        }
     }
 
     fn shared_workspace_modules_dir(
@@ -87,10 +100,11 @@ impl CleanRun<'_> {
         modules_leaf: &Path,
         resolved_lockfile_dir: Option<&Path>,
     ) -> Option<PathBuf> {
-        if self.scope != CleanScope::Narrowed
-            || self.config.workspace_dir.is_none()
-            || !self.config.shares_one_lockfile()
-        {
+        match self.scope {
+            CleanScope::WholeWorkspace => return None,
+            CleanScope::Narrowed => {}
+        }
+        if self.config.workspace_dir.is_none() || !self.config.shares_one_lockfile() {
             return None;
         }
         let anchor = self.shared_anchor_dir(resolved_lockfile_dir)?;
@@ -161,8 +175,11 @@ impl CleanRun<'_> {
         resolved_lockfile_dir: Option<&Path>,
         cleaned_modules_dirs: &HashSet<PathBuf>,
     ) -> miette::Result<()> {
-        if self.scope == CleanScope::WholeWorkspace
-            && let Some(lockfile_dir) = resolved_lockfile_dir
+        match self.scope {
+            CleanScope::Narrowed => return Ok(()),
+            CleanScope::WholeWorkspace => {}
+        }
+        if let Some(lockfile_dir) = resolved_lockfile_dir
             && let Some(lockfile_modules_dir) =
                 resolve_project_modules_dir(self.real_root_dir, lockfile_dir, modules_leaf)
             && self.is_cleanable_modules_dir(&lockfile_modules_dir, cleaned_modules_dirs)
@@ -304,11 +321,13 @@ fn clean_modules_dir(cwd: &Path, modules_dir: &Path, mode: ModulesCleanMode) -> 
         return Ok(());
     };
     if is_symlink_metadata(&metadata) {
-        if mode == ModulesCleanMode::PreserveSharedVirtualStore {
-            return Ok(());
+        match mode {
+            ModulesCleanMode::PreserveSharedVirtualStore => return Ok(()),
+            ModulesCleanMode::AllEntries => {
+                print_removing(cwd, modules_dir);
+                return remove_path(modules_dir);
+            }
         }
-        print_removing(cwd, modules_dir);
-        return remove_path(modules_dir);
     }
     if !metadata.is_dir() {
         return Ok(());

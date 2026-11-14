@@ -35,7 +35,7 @@ impl RunExecution<'_> {
             lockfile,
             &[],
             None,
-            &self.install.context.config.cache_dir,
+            Some(&self.install.context.config.cache_dir),
         )
         .await?;
         self.check_pre_hook_settings_drift(lockfile).await
@@ -84,12 +84,17 @@ pub(super) async fn verify_settled_frozen_path(
     if take_frozen_path && !settled.mode.lockfile_only {
         local_tarballs_keep_frozen_path(settled).await?;
     }
-    if take_frozen_path && let Some(lockfile) = settled.lockfiles.wanted.get() {
+    if let Some(lockfile) = settled.lockfiles.wanted.get() {
+        let is_hooked = settled.lockfiles.wanted.is_hooked();
+        let lockfile_path = (!is_hooked && !settled.loaded.wanted.had_conflicts)
+            .then_some(settled.verification.derived_lockfile_path.as_deref())
+            .flatten();
+        let cache_dir = (!is_hooked).then_some(settled.install.context.config.cache_dir.as_path());
         verify_lockfile_offline_and_policies(
             lockfile,
             &settled.verification.resolution_verifiers,
-            settled.verification.derived_lockfile_path.as_deref(),
-            &settled.install.context.config.cache_dir,
+            lockfile_path,
+            cache_dir,
         )
         .await?;
         return Ok(true);
@@ -101,7 +106,7 @@ async fn verify_lockfile_offline_and_policies(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>],
     lockfile_path: Option<&Path>,
-    cache_dir: &Path,
+    cache_dir: Option<&Path>,
 ) -> Result<(), InstallError> {
     verify_lockfile_resolutions::<SilentReporter>(
         lockfile,
@@ -109,7 +114,7 @@ async fn verify_lockfile_offline_and_policies(
         &VerifyLockfileResolutionsOptions {
             concurrency: None,
             lockfile_path,
-            cache_dir: Some(cache_dir),
+            cache_dir,
             replaced: None,
             repairs_lockfile: false,
         },

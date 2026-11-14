@@ -672,3 +672,52 @@ test('pnpm clean protects rootless workspace member dirs when modulesDir overlap
   expect(fs.existsSync(path.join('node_modules', '.modules.yaml'))).toBe(true)
   expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative', 'package.json'))).toBe(true)
 })
+
+test('pnpm clean skips installed packages under root custom_nm in rootless ** workspace and protects members when root manifest exists', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+      },
+    },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+  fs.mkdirSync(path.join('custom_nm', 'lodash'), { recursive: true })
+  fs.writeFileSync(path.join('custom_nm', 'lodash', 'package.json'), '{"name":"lodash"}')
+  fs.mkdirSync(path.join('custom_nm', 'broken'), { recursive: true })
+  fs.writeFileSync(path.join('custom_nm', 'broken', 'package.json'), '{ invalid json')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'custom_nm', 'member-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'custom_nm', 'member-dep', 'package.json'), '{"name":"member-dep"}')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'custom_nm', 'broken'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'custom_nm', 'broken', 'package.json'), '{ invalid json')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    modulesDir: 'custom_nm',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('custom_nm', 'lodash'))).toBe(false)
+  expect(fs.existsSync(path.join('custom_nm', 'broken'))).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'custom_nm', 'member-dep'))).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+
+  // Workspace WITH root package.json and modulesDir overlapping packages/* preserves workspace members
+  writeJsonFile('package.json', { name: 'root-pkg', version: '1.0.0', private: true })
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'src'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'src', 'index.js'), 'module.exports = 1\n')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    modulesDir: 'packages',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
+})

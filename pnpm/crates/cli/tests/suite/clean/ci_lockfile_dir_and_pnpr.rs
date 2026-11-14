@@ -258,3 +258,76 @@ fn clean_lockfile_enforces_symlink_containment_after_env_var_substitution_and_ho
 
     drop(root);
 }
+
+#[test]
+fn clean_rootless_globstar_workspace_removes_custom_modules_dir_with_broken_manifests() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - '**'\nmodulesDir: custom_nm\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let pkg_a = workspace.join("packages/pkg-a");
+    fs::create_dir_all(&pkg_a).expect("create pkg-a");
+    fs::write(pkg_a.join("package.json"), r#"{"name":"pkg-a","version":"1.0.0"}"#)
+        .expect("write pkg-a manifest");
+    seed_package(&pkg_a.join("custom_nm"), "member-dep");
+    fs::create_dir_all(pkg_a.join("custom_nm/broken")).expect("create broken member dir");
+    fs::write(pkg_a.join("custom_nm/broken/package.json"), "{ invalid json")
+        .expect("write malformed member installed manifest");
+
+    let root_custom_nm = workspace.join("custom_nm");
+    seed_package(&root_custom_nm, "lodash");
+    fs::create_dir_all(root_custom_nm.join("broken")).expect("create broken installed dir");
+    fs::write(root_custom_nm.join("broken/package.json"), "{ invalid json")
+        .expect("write malformed installed manifest");
+
+    let out = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_arg("clean")
+        .output()
+        .expect("run clean");
+    assert!(out.status.success(), "{out:?}");
+    assert!(!root_custom_nm.join("lodash").exists(), "root custom_nm/lodash removed");
+    assert!(!root_custom_nm.join("broken").exists(), "root custom_nm/broken removed");
+    assert!(!pkg_a.join("custom_nm/member-dep").exists(), "member custom_nm removed");
+    assert!(pkg_a.join("package.json").exists(), "member manifest preserved");
+
+    drop(root);
+}
+
+#[test]
+fn clean_with_root_manifest_preserves_members_under_overlapping_modules_dir() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nmodulesDir: packages\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{"name":"root-pkg","version":"1.0.0"}"#)
+        .expect("write root manifest");
+    let pkg_a = workspace.join("packages/pkg-a");
+    fs::create_dir_all(pkg_a.join("src")).expect("create pkg-a/src");
+    fs::write(pkg_a.join("package.json"), r#"{"name":"pkg-a","version":"1.0.0"}"#)
+        .expect("write pkg-a manifest");
+    fs::write(pkg_a.join("src/index.js"), "module.exports = 1;\n").expect("write pkg-a source");
+
+    for args in [&["clean", "--filter", "pkg-a"][..], &["clean"][..]] {
+        seed_package(&pkg_a.join("packages"), "seeded-dep");
+        let out = Command::cargo_bin("pnpm")
+            .expect("find pnpm")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_args(args)
+            .output()
+            .expect("run clean");
+        assert!(out.status.success(), "{args:?} failed: {out:?}");
+        assert!(!pkg_a.join("packages/seeded-dep").exists(), "{args:?} removed member modulesDir");
+        assert!(pkg_a.join("package.json").exists(), "{args:?} preserved member manifest");
+        assert!(pkg_a.join("src/index.js").exists(), "{args:?} preserved member source");
+    }
+
+    drop(root);
+}
