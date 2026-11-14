@@ -816,6 +816,273 @@ fn windows_other_link_failures_are_not_blamed_on_a_share() {
     assert!(!error.to_string().contains("nodeLinker"), "a missing parent is not a refusal");
 }
 
+/// The `junction` crate prefixes `\??\` to the full path, so a plain UNC
+/// target goes to it in verbatim form (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_junction_target_for_a_unc_path_is_verbatim() {
+    use std::path::Path;
+
+    assert_eq!(
+        super::windows::junction_target(Path::new(r"\\server\share\project\node_modules\.pnpm")),
+        Path::new(r"\\?\UNC\server\share\project\node_modules\.pnpm"),
+    );
+    for unchanged in [
+        r"Z:\project\node_modules\.pnpm",
+        r"\\?\C:\project\node_modules\.pnpm",
+        r"\\?\UNC\server\share\project",
+    ] {
+        assert_eq!(super::windows::junction_target(Path::new(unchanged)), Path::new(unchanged));
+    }
+}
+
+/// A junction to a UNC path holds `\??\UNC\server\…`, which reads back as
+/// the UNC path. `\??\` put in front of the `\\server` form would read back
+/// as `\\?\\\server\…` and name nothing (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_junction_to_a_unc_path_holds_the_unc_target() {
+    let root = tempdir().expect("create temp dir");
+    let link = root.path().join("link");
+    let target = std::path::Path::new(r"\\server\share\project\node_modules\.pnpm\pkg");
+
+    super::windows::create_junction(target, &link).expect("create the junction");
+
+    assert_eq!(fs::read_link(&link).expect("read the junction"), target);
+}
+
+/// A symlink that an earlier install left on a share is found by its reparse
+/// tag, since the standard library reports a junction as a symlink too
+/// (pnpm/tasks#304). Creating the symlink needs Developer Mode or an
+/// elevated process, which CI has.
+#[cfg(windows)]
+#[test]
+fn windows_reparse_tag_tells_a_symlink_from_a_junction() {
+    const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
+    const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir(&target).expect("create target");
+    let junction = root.path().join("junction");
+    super::windows::create_junction(&target, &junction).expect("create the junction");
+
+    assert_eq!(super::windows::reparse_tag(&junction), Some(IO_REPARSE_TAG_MOUNT_POINT));
+    assert_eq!(super::windows::reparse_tag(&target), None, "a plain directory has no tag");
+    assert!(super::windows::is_link_kind_usable(&junction), "a local junction is reusable");
+
+    let symlink = root.path().join("symlink");
+    match std::os::windows::fs::symlink_dir(&target, &symlink) {
+        Ok(()) => assert_eq!(
+            super::windows::reparse_tag(&symlink),
+            Some(super::windows::IO_REPARSE_TAG_SYMLINK),
+        ),
+        Err(error) if error.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD) => {
+            eprintln!("skipping the symlink half: this process may not create symlinks");
+        }
+        Err(error) => panic!("create the symlink: {error}"),
+    }
+}
+
+/// The reuse check on a share reads a junction as `fs::read_link` does and
+/// fails for anything else, so a warm install tells a junction from a symlink
+/// without an extra open (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_read_junction_target_reads_only_junctions() {
+    const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir(&target).expect("create target");
+    let local = root.path().join("local");
+    super::windows::create_junction(&target, &local).expect("create a local junction");
+    let unc = root.path().join("unc");
+    super::windows::create_junction(std::path::Path::new(r"\\server\share\pkg"), &unc)
+        .expect("create a junction to a UNC path");
+
+    for junction in [&local, &unc] {
+        assert_eq!(
+            super::windows::read_junction_target(junction).expect("read the junction"),
+            fs::read_link(junction).expect("read_link the junction"),
+        );
+    }
+    super::windows::read_junction_target(&target).expect_err("a directory is not a junction");
+
+    let symlink = root.path().join("symlink");
+    match std::os::windows::fs::symlink_dir(&target, &symlink) {
+        Ok(()) => {
+            super::windows::read_junction_target(&symlink).expect_err("a symlink is not reusable");
+        }
+        Err(error) if error.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD) => {
+            eprintln!("skipping the symlink half: this process may not create symlinks");
+        }
+        Err(error) => panic!("create the symlink: {error}"),
+    }
+}
+
+/// Links on a real share: the kind of link that can be opened there is
+/// written, a matching link of the other kind left by an earlier install is
+/// replaced, and a package opens through the result. Where neither kind can
+/// be opened, the link fails and says what to do. No share is available in
+/// CI, so this runs only when `PNPM_TEST_NETWORK_SHARE_DIR` names a writable
+/// directory on one (a mapped drive or a UNC path):
+/// `PNPM_TEST_NETWORK_SHARE_DIR=Z:\tmp cargo nextest run -p pnpm-fs
+/// --run-ignored only -E 'test(on_a_real_share)'` (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+#[ignore = "needs a network share named by PNPM_TEST_NETWORK_SHARE_DIR"]
+fn windows_links_on_a_real_share_can_be_opened() {
+    use super::share_links::{ShareLinks, probe};
+
+    const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
+
+    let share = std::env::var_os("PNPM_TEST_NETWORK_SHARE_DIR")
+        .expect("set PNPM_TEST_NETWORK_SHARE_DIR to a directory on a network share");
+    let root = tempfile::tempdir_in(share).expect("create a temp dir on the share");
+    assert!(
+        crate::mapped_drive_path::network_share_cached(root.path()).is_some(),
+        "PNPM_TEST_NETWORK_SHARE_DIR must be on a network share",
+    );
+    let target = root.path().join(r"node_modules\.pnpm\pkg@1.0.0\node_modules\pkg");
+    fs::create_dir_all(&target).expect("create target");
+    fs::write(target.join("index.js"), "module.exports = 1").expect("write a package file");
+    let link = root.path().join(r"node_modules\pkg");
+    let kind = probe(root.path()).expect("probe the share");
+    eprintln!("links on this share: {kind:?}");
+    assert_eq!(
+        fs::read_dir(root.path()).expect("list the probed directory").count(),
+        1,
+        "the probe must leave nothing behind",
+    );
+
+    // What an earlier install wrote: a matching link of the other kind.
+    let (wanted_tag, stale_tag) = match kind {
+        ShareLinks::Junction => {
+            std::os::windows::fs::symlink_dir(relative_target_for(&target, &link), &link)
+                .expect(
+                    "create the symlink to replace (needs Developer Mode or the symlink privilege)",
+                );
+            (IO_REPARSE_TAG_MOUNT_POINT, super::windows::IO_REPARSE_TAG_SYMLINK)
+        }
+        ShareLinks::Symlink => {
+            super::windows::create_junction(&target, &link)
+                .expect("create the junction to replace");
+            (super::windows::IO_REPARSE_TAG_SYMLINK, IO_REPARSE_TAG_MOUNT_POINT)
+        }
+        ShareLinks::Unusable(_) => {
+            let error = force_symlink_dir(&target, &link).expect_err("no link can be opened here");
+            assert_eq!(error.kind(), std::io::ErrorKind::Unsupported);
+            let message = error.to_string();
+            assert!(message.contains("cannot be opened"), "{message}");
+            assert!(message.contains("nodeLinker: hoisted"), "{message}");
+            assert!(fs::symlink_metadata(&link).is_err(), "no link may be left behind");
+            return;
+        }
+    };
+    assert_eq!(super::windows::reparse_tag(&link), Some(stale_tag), "the starting link");
+
+    let outcome = force_symlink_dir(&target, &link).expect("link on the share");
+
+    assert!(!outcome.reused, "a link of the kind that can't be opened is replaced");
+    assert_eq!(super::windows::reparse_tag(&link), Some(wanted_tag));
+    assert_eq!(
+        fs::read_to_string(link.join("index.js")).expect("open a file through the link"),
+        "module.exports = 1",
+    );
+    let outcome = force_symlink_dir(&target, &link).expect("link again");
+    assert!(outcome.reused, "the link that can be opened is reused");
+}
+
+/// On a local drive a junction can be opened, so the probe picks it and
+/// removes what it created (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
+    use super::share_links::{ShareLinks, probe};
+
+    let root = tempdir().expect("create temp dir");
+
+    let kind = probe(root.path()).expect("probe a local directory");
+
+    assert!(matches!(kind, ShareLinks::Junction), "{kind:?}");
+    assert_eq!(
+        fs::read_dir(root.path()).expect("list the probed directory").count(),
+        0,
+        "the probe must leave nothing behind",
+    );
+}
+
+/// A directory that doesn't exist yet reports `NotFound`, which the caller
+/// answers by creating the link's parent and trying again.
+#[cfg(windows)]
+#[test]
+fn windows_share_link_probe_reports_a_missing_directory() {
+    let root = tempdir().expect("create temp dir");
+
+    let error = super::share_links::probe(&root.path().join("missing"))
+        .expect_err("the directory does not exist");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+}
+
+/// The error for a share where no link can be opened already says what to
+/// do, so it isn't wrapped in the advice for a refused link.
+#[cfg(windows)]
+#[test]
+fn windows_unusable_share_links_error_is_not_explained_twice() {
+    let link = std::path::Path::new(r"\\server\share\project\node_modules\pkg");
+    let unusable = super::share_links::UnusableShareLinksError {
+        junction: "junction failure".to_string(),
+        symlink: "symlink failure".to_string(),
+    };
+
+    let error = super::windows::explain_network_share_refusal(
+        link,
+        std::io::Error::new(std::io::ErrorKind::Unsupported, unusable),
+    );
+
+    let message = error.to_string();
+    assert!(
+        message.starts_with("Links created on this network share cannot be opened"),
+        "{message}"
+    );
+    assert!(
+        message.contains("junction failure") && message.contains("symlink failure"),
+        "{message}"
+    );
+    assert_eq!(message.matches("nodeLinker: hoisted").count(), 1, "{message}");
+}
+
+/// Relative targets are resolved before the UNC check, since a UNC working
+/// directory turns them into UNC paths.
+#[cfg(windows)]
+#[test]
+fn windows_junction_target_resolves_a_relative_path() {
+    let resolved = super::windows::junction_target(std::path::Path::new(r"pkg\dir"));
+    assert!(resolved.is_absolute(), "{resolved:?}");
+    assert!(resolved.ends_with(r"pkg\dir"), "{resolved:?}");
+}
+
+/// Links on a share get the kind that works on that share, so the per-link
+/// check must name the share of a UNC path without asking Windows, the same
+/// for every spelling of it, and a local drive must not count
+/// (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_links_on_a_share_are_recognized() {
+    use crate::mapped_drive_path::{NetworkShare, network_share_cached};
+    use std::path::Path;
+
+    let share = Some(NetworkShare::Unc(r"server\share".into()));
+    assert_eq!(network_share_cached(Path::new(r"\\server\share\project\node_modules\pkg")), share);
+    assert_eq!(
+        network_share_cached(Path::new(r"\\?\UNC\SERVER\Share\project\node_modules")),
+        share
+    );
+    assert_ne!(network_share_cached(Path::new(r"\\server\other\project")), share);
+    let local = tempdir().expect("create temp dir");
+    assert_eq!(network_share_cached(local.path()), None, "the temp dir is on a local drive");
+}
+
 #[test]
 fn distinguishes_non_links_from_ownership_read_failures() {
     assert!(super::is_non_link_read_error(&std::io::Error::from(std::io::ErrorKind::InvalidInput)));

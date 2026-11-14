@@ -26,7 +26,9 @@ use crate::retry::{
 /// (`std::os::windows::fs::symlink_dir`) and falls back to a junction
 /// on a privilege error (symbolic links may require elevated
 /// privileges; junctions don't). The first successful branch is cached
-/// process-wide so subsequent calls skip the privilege probe.
+/// process-wide so subsequent calls skip the privilege probe. A link on a
+/// network share is a junction, as in pnpm 11, where a junction can be
+/// opened, a symlink where only that can be, and an error where neither can.
 pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -243,7 +245,7 @@ fn force_symlink_inner(
     let Ok(existing) = read_symlink_dir(link) else {
         return replace_unreadable_occupant(target, link, tried, create_symlink, initial_err);
     };
-    if existing_symlink_up_to_date(target, link, &existing) {
+    if existing_link_reusable(target, link, &existing) {
         return Ok(ForceSymlinkOutcome { reused: true, warning: reuse_warning });
     }
     // The unlink below already reported this link gone once, and the create
@@ -326,6 +328,8 @@ fn is_reparse_point(path: &Path) -> bool {
 }
 
 #[cfg(windows)]
+mod share_links;
+#[cfg(windows)]
 mod windows;
 
 #[cfg(test)]
@@ -335,4 +339,4 @@ mod absolute;
 mod replace;
 mod reuse;
 use replace::{TriedOnce, replace_unreadable_occupant};
-use reuse::{existing_symlink_up_to_date, force_symlink};
+use reuse::{existing_link_reusable, force_symlink};

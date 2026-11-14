@@ -32,7 +32,103 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
 pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
-    is_unc_path(path) || drive_letter(path).is_some_and(|drive| mapped_drive(drive).is_some())
+    is_unc_path(path)
+        || drive_letter(path).is_some_and(|drive| is_mapped_drive(drive) == Some(true))
+}
+
+/// The network share a path is on.
+#[cfg(windows)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NetworkShare {
+    /// A drive letter mapped to a share, in upper case.
+    Drive(char),
+    /// The `server\share` of a UNC path, in ASCII lower case.
+    Unc(std::ffi::OsString),
+}
+
+/// The share [`is_on_network_drive`] finds `path` on, with whether each
+/// drive letter is mapped looked up once per process. An install asks this
+/// for every link it writes, and the drive mappings don't change during one.
+/// A lookup that fails says nothing about the drive, so it isn't cached.
+#[cfg(windows)]
+pub(crate) fn network_share_cached(path: &Path) -> Option<NetworkShare> {
+    use std::{
+        path::{Component, Prefix},
+        sync::atomic::{AtomicU8, Ordering},
+    };
+
+    const UNKNOWN: u8 = 0;
+    const LOCAL: u8 = 1;
+    const NETWORK: u8 = 2;
+    static DRIVES: [AtomicU8; 26] = [const { AtomicU8::new(UNKNOWN) }; 26];
+
+    let absolute = std::path::absolute(path);
+    let path = absolute.as_deref().unwrap_or(path);
+    let Some(Component::Prefix(prefix)) = path.components().next() else {
+        return None;
+    };
+    let drive = match prefix.kind() {
+        Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => {
+            let mut name = server.to_ascii_lowercase();
+            name.push(r"\");
+            name.push(share.to_ascii_lowercase());
+            return Some(NetworkShare::Unc(name));
+        }
+        Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
+            (letter as char).to_ascii_uppercase()
+        }
+        _ => return None,
+    };
+    if !drive.is_ascii_uppercase() {
+        return None;
+    }
+    let slot = &DRIVES[usize::from(drive as u8 - b'A')];
+    let network = match slot.load(Ordering::Relaxed) {
+        LOCAL => false,
+        NETWORK => true,
+        _ => match is_mapped_drive(drive) {
+            Some(network) => {
+                slot.store(if network { NETWORK } else { LOCAL }, Ordering::Relaxed);
+                network
+            }
+            None => false,
+        },
+    };
+    network.then_some(NetworkShare::Drive(drive))
+}
+
+/// Whether drive `letter` is mapped to a network share, or `None` when
+/// Windows can't tell.
+#[cfg(windows)]
+fn is_mapped_drive(letter: char) -> Option<bool> {
+    use windows_sys::Win32::NetworkManagement::WNet::WNetGetConnectionW;
+
+    let drive_name = [letter as u16, u16::from(b':'), 0];
+    let mut remote_name = [0u16; 260];
+    let mut length = remote_name.len() as u32;
+    // SAFETY: The buffers are writable for the lengths passed to WNetGetConnectionW.
+    let result = unsafe {
+        WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
+    };
+    drive_kind_from_connection_result(result)
+}
+
+/// What a `WNetGetConnectionW` result says about a drive. A persistent
+/// mapping that is disconnected counts as mapped: the first access through
+/// it reconnects it. Only `ERROR_NOT_CONNECTED` says the drive isn't
+/// redirected. Any other error, such as `ERROR_NO_NETWORK` (no network
+/// provider is running) or `ERROR_BAD_DEVICE`, says nothing about the drive.
+#[cfg(windows)]
+fn drive_kind_from_connection_result(result: u32) -> Option<bool> {
+    use windows_sys::Win32::Foundation::{
+        ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NOT_CONNECTED, NO_ERROR,
+    };
+
+    match result {
+        NO_ERROR | ERROR_MORE_DATA | ERROR_CONNECTION_UNAVAIL => Some(true),
+        ERROR_NOT_CONNECTED => Some(false),
+        _ => None,
+    }
 }
 
 #[cfg(windows)]
