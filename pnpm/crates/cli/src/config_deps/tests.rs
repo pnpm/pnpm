@@ -87,7 +87,7 @@ fn legacy_registries_warning_is_absent_when_scope_routes_are_updated() {
             &after,
             &BTreeMap::from([("@zz".to_string(), "https://registry-b/".to_string())]),
         ),
-        None
+        None,
     );
 }
 

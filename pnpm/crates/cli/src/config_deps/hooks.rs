@@ -129,9 +129,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
-    let mut final_routes = config.resolved_registry_lookups().registries_by_scope;
-    final_routes.insert("default".to_string(), config.registry.clone());
-    warn_legacy_registries::<Reporter>(&input, &current, &final_routes);
+    warn_legacy_registries_for_config::<Reporter>(&input, &current, config);
     Ok(hooks)
 }
 
@@ -220,6 +218,16 @@ pub(super) fn warn_legacy_registries<Reporter: self::Reporter>(
         return;
     };
     Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
+}
+
+fn warn_legacy_registries_for_config<Reporter: self::Reporter>(
+    input: &Value,
+    current: &Value,
+    config: &Config,
+) {
+    let mut final_routes = config.resolved_registry_lookups().registries_by_scope;
+    final_routes.insert("default".to_string(), config.registry.clone());
+    warn_legacy_registries::<Reporter>(input, current, &final_routes);
 }
 
 fn warn_ignored_hooks<Reporter: self::Reporter>(
