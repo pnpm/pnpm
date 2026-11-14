@@ -173,7 +173,7 @@ function warnMissingGlobalBins (opts: LinkContext['opts'], project: ImporterToUp
 }
 
 async function linkBinsOfDirectDependencies (
-  { ctx, opts, resolution }: LinkContext,
+  step: LinkContext,
   {
     builtPackageDirs,
     linkedCommandNames,
@@ -186,39 +186,49 @@ async function linkBinsOfDirectDependencies (
     projectModulesDir: string | undefined
   }
 ): Promise<string[]> {
-  const directPkgs = [
-    ...props<DepPath, DependenciesGraphNode>(
-      Array.from(resolution.dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
-      resolution.dependenciesGraph
-    ),
-    ...resolution.linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
-      dir: path.join(project.rootDir, pkgId.substring(5)),
-      fetching: undefined,
-    })),
-  ]
+  const directPkgs = await getDirectPkgsToLink(step, project, builtPackageDirs)
   return linkBinsOfPackages(
-    (
-      await Promise.all(
-        directPkgs.map(async (dep) => {
-          const bundledManifest = builtPackageDirs?.has(path.normalize(dep.dir))
-            ? undefined
-            : (await dep.fetching?.())?.bundledManifest
-          const manifest = bundledManifest ?? await safeReadPublishManifest(dep.dir)
-          return {
-            location: dep.dir,
-            manifest,
-          }
-        })
-      )
-    )
-      .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+    directPkgs,
     project.binsDir,
     {
-      extraNodePaths: ctx.extraNodePaths,
+      extraNodePaths: step.ctx.extraNodePaths,
       forceForPackages: builtPackageDirs,
       linkedCommandNames,
-      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      preferSymlinkedExecutables: step.opts.preferSymlinkedExecutables,
       projectModulesDir,
     }
   )
+}
+
+async function getDirectPkgsToLink (
+  { ctx, resolution }: LinkContext,
+  project: ImporterToUpdate,
+  builtPackageDirs?: ReadonlySet<string>
+): Promise<Array<{ location: string, manifest: DependencyManifest, warnOnMissingBin?: boolean }>> {
+  const regularDeps = props<DepPath, DependenciesGraphNode>(
+    Array.from(resolution.dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
+    resolution.dependenciesGraph
+  )
+  const linkedDeps = resolution.linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
+    dir: path.join(project.rootDir, pkgId.substring(5)),
+  }))
+
+  const [regularPkgs, linkedPkgs] = await Promise.all([
+    Promise.all(regularDeps.map(async (dep) => {
+      const bundledManifest = builtPackageDirs?.has(path.normalize(dep.dir))
+        ? undefined
+        : (await dep.fetching?.())?.bundledManifest
+      const manifest = bundledManifest ?? await safeReadPublishManifest(dep.dir)
+      return { location: dep.dir, manifest }
+    })),
+    Promise.all(linkedDeps.map(async (dep) => {
+      const manifest = await safeReadPublishManifest(dep.dir)
+      return { location: dep.dir, manifest, warnOnMissingBin: false }
+    })),
+  ])
+
+  return [
+    ...regularPkgs.filter(({ manifest }) => manifest != null),
+    ...linkedPkgs.filter(({ manifest }) => manifest != null),
+  ] as Array<{ location: string, manifest: DependencyManifest, warnOnMissingBin?: boolean }>
 }
