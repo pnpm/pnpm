@@ -153,3 +153,6 @@ pub(super) fn ensure_changeset_dir_is_safe(
     }
     Ok(ChangesetDirState::Present)
 }
+
+#[cfg(test)]
+mod tests;

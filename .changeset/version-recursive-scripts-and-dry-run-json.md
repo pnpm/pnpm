@@ -1,4 +1,6 @@
 ---
+"@pnpm/exec.lifecycle": patch
+"@pnpm/exec.npm-lifecycle": patch
 "@pnpm/releasing.commands": patch
 "pacquet": patch
 "pnpm": patch

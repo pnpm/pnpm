@@ -4,7 +4,7 @@ import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import { execPnpm, execPnpmSync, spawnPnpm, waitForPnpmExit } from './utils/index.js'
 
 test('version --recursive bumps every workspace package', async () => {
   preparePackages([
@@ -44,13 +44,13 @@ test('version --recursive --json prints an empty JSON array when there are no pe
   expect(result.stdout.toString().trim()).toBe('[]')
 })
 
-test('version --recursive --json keeps stdout parseable and forwards script output to stderr', async () => {
+test('version --recursive --json keeps stdout parseable, inherits stdin, and forwards script output to stderr', async () => {
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
       scripts: {
-        preversion: 'node -e "console.log(\'preversion-stdout\')"',
+        preversion: 'node -e "console.log(\'preversion-stdin:\' + require(\'node:fs\').readFileSync(0, \'utf8\'))"',
         version: 'node -e "console.log(\'version-stdout\')"',
         postversion: 'node -e "console.log(\'postversion-stdout\')"',
       },
@@ -58,19 +58,36 @@ test('version --recursive --json keeps stdout parseable and forwards script outp
   ])
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
 
-  const result = execPnpmSync(['version', '--recursive', 'patch', '--json', '--no-git-checks'])
+  const proc = spawnPnpm(['version', '--recursive', 'patch', '--json', '--no-git-checks'])
+  proc.stdin!.end('stdin-payload')
+  const result = await waitForPnpmExit(proc)
 
   expect(result.status).toBe(0)
   expect(JSON.parse(result.stdout.toString().trim())).toEqual([
     expect.objectContaining({ name: 'project-1', currentVersion: '1.0.0', newVersion: '1.0.1' }),
   ])
   const stderr = result.stderr.toString()
-  expect(stderr).toContain('preversion-stdout')
+  expect(stderr).toContain('preversion-stdin:stdin-payload')
   expect(stderr).toContain('version-stdout')
   expect(stderr).toContain('postversion-stdout')
 })
 
-test('version --recursive --json surfaces failing preversion output on stderr while keeping JSON error on stdout', async () => {
+test('version --recursive --json --loglevel=error suppresses passing script output and surfaces failing preversion output on stderr', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        preversion: 'node -e "console.log(\'quiet-success-line\')"',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const okResult = execPnpmSync(['version', '--recursive', 'patch', '--json', '--loglevel=error', '--no-git-checks'])
+  expect(okResult.status).toBe(0)
+  expect(okResult.stderr.toString()).not.toContain('quiet-success-line')
+
   preparePackages([
     {
       name: 'project-1',
@@ -82,11 +99,11 @@ test('version --recursive --json surfaces failing preversion output on stderr wh
   ])
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
 
-  const result = execPnpmSync(['version', '--recursive', 'patch', '--json', '--no-git-checks'])
+  const failResult = execPnpmSync(['version', '--recursive', 'patch', '--json', '--loglevel=error', '--no-git-checks'])
 
-  expect(result.status).not.toBe(0)
-  expect(result.stderr.toString()).toContain('preversion-failure-detail')
-  expect(JSON.parse(result.stdout.toString().trim())).toEqual({
+  expect(failResult.status).not.toBe(0)
+  expect(failResult.stderr.toString()).toContain('preversion-failure-detail')
+  expect(JSON.parse(failResult.stdout.toString().trim())).toEqual({
     error: expect.objectContaining({
       code: expect.any(String),
       message: expect.any(String),

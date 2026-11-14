@@ -709,6 +709,16 @@ test('update --changeset honors versioning.ignore with and without .changeset/co
       },
     },
     {
+      location: 'packages/ignored-by-win-dir',
+      package: {
+        name: 'ignored-pkg-in-win-dir',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/foo': '^100.0.0',
+        },
+      },
+    },
+    {
       name: 'ignored-by-config',
       version: '1.0.0',
       dependencies: {
@@ -719,7 +729,7 @@ test('update --changeset honors versioning.ignore with and without .changeset/co
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**'],
     versioning: {
-      ignore: ['ignored-by-name', './ignored-by-dir'],
+      ignore: ['ignored-by-name', './ignored-by-dir', './packages\\ignored-by-win-dir'],
     },
   })
 
@@ -765,6 +775,7 @@ Update dependencies.
     ['project-1', 'project-1'],
     ['ignored-by-name', 'ignored-by-name'],
     ['ignored-by-dir', 'ignored-pkg-in-dir'],
+    ['packages/ignored-by-win-dir', 'ignored-pkg-in-win-dir'],
     ['ignored-by-config', 'ignored-by-config'],
   ] as const) {
     fs.writeFileSync(path.join(dirName, 'package.json'), JSON.stringify({
