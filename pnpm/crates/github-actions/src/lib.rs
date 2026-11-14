@@ -19,6 +19,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use tokio::fs;
+use versions::{find_current, parse_comment_version, repo_versions};
 use workflow::discover;
 use yaml_serde::Value;
 use yamlpath::{Component, Document, QueryError, Route};
@@ -155,11 +156,7 @@ async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
 ) -> miette::Result<Vec<PlannedUpdate>> {
     let actions = discover(root).await?
         .into_iter()
-        .filter(|action| {
-            matcher.is_none_or(|matcher| {
-                matcher.matches(&action.name) || matcher.matches(&action.repo)
-            })
-        })
+        .filter(|action| matcher.is_none_or(|matcher| matcher.matches(&action.name)))
         .collect::<Vec<_>>();
     let repos = actions
         .iter()
@@ -250,104 +247,6 @@ fn plan_action_update(
     }))
 }
 
-fn repo_versions(refs: &HashMap<String, String>) -> Vec<RepoVersion> {
-    let mut versions = refs
-        .iter()
-        .filter_map(|(ref_, commit)| {
-            let tag = ref_.strip_prefix("refs/tags/")?;
-            if tag.ends_with("^{}") {
-                return None;
-            }
-            let version = parse_version(tag)?;
-            Some(RepoVersion {
-                commit: refs
-                    .get(&format!("{ref_}^{{}}"))
-                    .unwrap_or(commit)
-                    .clone(),
-                tag: tag.to_string(),
-                version,
-            })
-        })
-        .collect::<Vec<_>>();
-    versions.sort_by(|left, right| left.version.cmp(&right.version));
-    versions
-}
-
-fn find_current(action: &ActionReference, versions: &[RepoVersion]) -> Option<RepoVersion> {
-    if is_sha(&action.ref_)
-        && let Some(comment) = &action.source.comment_version
-        && let Some(version) = parse_version(comment)
-        && let Some(current) = versions
-            .iter()
-            .find(|candidate| candidate.commit == action.ref_ && candidate.version == version)
-    {
-        return Some(current.clone());
-    }
-    if let Some(version) = parse_version(&action.ref_) {
-        return versions
-            .iter()
-            .find(|candidate| candidate.version == version)
-            .cloned();
-    }
-    if let Ok(major) = action.ref_.trim_start_matches('v').parse::<u64>() {
-        return versions
-            .iter()
-            .rfind(|candidate| {
-                candidate.version.major == major
-                    && candidate.version.pre_release.is_empty()
-            })
-            .cloned();
-    }
-    if is_sha(&action.ref_) {
-        return versions
-            .iter()
-            .rfind(|candidate| candidate.commit == action.ref_)
-            .cloned();
-    }
-    None
-}
-
-fn render_target_ref(target: &RepoVersion) -> String {
-    target.commit.clone()
-}
-
-fn is_sha(value: &str) -> bool {
-    value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
-}
-
-fn render_target_value(action: &ActionReference, target: &RepoVersion) -> String {
-    let old_reference = format!("{}@{}", action.name, action.ref_);
-    let new_reference = format!("{}@{}", action.name, render_target_ref(target));
-    action.source.replace_reference(&old_reference, &new_reference, &target.tag)
-}
-
-impl WorkflowValue {
-    fn replace_reference(&self, old_reference: &str, new_reference: &str, tag: &str) -> String {
-        let mut value = self.original_value.replacen(old_reference, new_reference, 1);
-        if let Some(comment_version) = &self.comment_version {
-            value = value.replacen(comment_version, tag, 1);
-        } else if let Some(comment) = value.find(" #") {
-            value.insert_str(comment + 2, &format!("{tag} "));
-        } else if self.flow_style {
-            value.truncate(value.trim_end().len());
-            value.push_str(" # ");
-            value.push_str(tag);
-            value.push('\n');
-            value.push_str(&self.indentation);
-        } else {
-            value.push_str(" # ");
-            value.push_str(tag);
-        }
-        value
-    }
-}
-
-fn parse_version(input: &str) -> Option<Version> {
-    Version::parse(input)
-        .or_else(|_| Version::parse(input.trim_start_matches('v')))
-        .ok()
-}
-
 fn to_outdated(
     plans: Vec<PlannedUpdate>,
     latest: bool,
@@ -360,7 +259,7 @@ fn to_outdated(
             continue;
         }
         actions.insert(
-            plan.action.name.clone(),
+            (plan.action.name.clone(), plan.current.version.clone()),
             OutdatedGitHubAction {
                 current: plan.current.version,
                 homepage: redact_url_for_display(&format!("{server_url}/{}", plan.action.repo)),
@@ -418,4 +317,5 @@ mod tests;
 mod edits;
 mod release_age;
 mod selectors;
+mod versions;
 mod workflow;

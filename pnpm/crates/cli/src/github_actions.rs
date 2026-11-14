@@ -1,5 +1,6 @@
 use pnpm_config::Config;
 use pnpm_github_actions::ReleaseAge;
+use pnpm_matcher::Matcher;
 use pnpm_package_manager::PickPolicy;
 
 /// GitHub Actions dependencies are opt-in. Reading them means running `git
@@ -8,6 +9,30 @@ use pnpm_package_manager::PickPolicy;
 /// `--include-github-actions` or with `update.githubActions: true`.
 pub(crate) fn opted_in(include_github_actions: bool, config: &Config) -> bool {
     include_github_actions || config.update_config.github_actions == Some(true)
+}
+
+pub(crate) fn selector_matcher(enabled: bool, selectors: &[String]) -> Option<Matcher> {
+    enabled.then(|| pnpm_github_actions::selector_matcher(selectors)).flatten()
+}
+
+pub(crate) fn filter_package_selectors(
+    selectors: &[String],
+    include_github_actions: bool,
+) -> Vec<String> {
+    selectors
+        .iter()
+        .filter(|selector| !include_github_actions || !pnpm_github_actions::is_selector(selector))
+        .cloned()
+        .collect()
+}
+
+pub(crate) fn selects_actions_only(selectors: &[String], package_selectors: &[String]) -> bool {
+    package_selectors.is_empty()
+        && selectors
+            .iter()
+            .any(|selector| {
+                !selector.starts_with('!') && pnpm_github_actions::is_selector(selector)
+            })
 }
 
 /// The `minimumReleaseAge` policy GitHub Actions versions are held to: the

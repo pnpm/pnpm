@@ -6,6 +6,7 @@ import type { PackageVersionPolicy } from '@pnpm/types'
 import pLimit from 'p-limit'
 import semver from 'semver'
 
+import { parseCommentVersion, type ParsedCommentVersion } from './commentVersion.js'
 import { discoverActions } from './discoverActions.js'
 import { readTagDates } from './readTagDates.js'
 import { resolveServerUrl } from './resolveServerUrl.js'
@@ -52,7 +53,7 @@ export async function createUpdatePlan (opts: GitHubActionsOptions): Promise<Pla
 }
 
 function selectActions (actions: ActionReference[], match: ((name: string) => boolean) | undefined): ActionReference[] {
-  return match == null ? actions : actions.filter((action) => match(action.name) || match(action.repo))
+  return match == null ? actions : actions.filter((action) => match(action.name))
 }
 
 async function readReleaseAgePolicy ({ publishedBy, publishedByExclude, read, resolved }: {
@@ -187,13 +188,9 @@ function parseRepoVersions (refs: Record<string, string>): RepoVersion[] {
 function findCurrentVersion (action: ActionReference, versions: RepoVersion[]): RepoVersion | null {
   const annotated = findCommentAnnotatedVersion(action, versions)
   if (annotated != null) return annotated
-  const parsed = semver.parse(action.ref, { loose: true })
-  if (parsed != null) {
-    return versions.find(({ version }) => semver.eq(version, parsed)) ?? null
-  }
-  if (/^v?\d+$/.test(action.ref)) {
-    const major = Number(action.ref.replace(/^v/, ''))
-    return versions.filter(({ version }) => version.major === major && version.prerelease.length === 0).at(-1) ?? null
+  if (!SHA_PATTERN.test(action.ref)) {
+    const parsed = parseCommentVersion(action.ref)
+    if (parsed != null) return findMatchingRefVersion(parsed, versions) ?? null
   }
   if (SHA_PATTERN.test(action.ref)) {
     return versions.filter(({ commit }) => commit === action.ref).at(-1) ?? null
@@ -203,7 +200,25 @@ function findCurrentVersion (action: ActionReference, versions: RepoVersion[]): 
 
 function findCommentAnnotatedVersion (action: ActionReference, versions: RepoVersion[]): RepoVersion | undefined {
   if (!SHA_PATTERN.test(action.ref) || action.commentVersion == null) return undefined
-  const parsed = semver.parse(action.commentVersion, { loose: true })
+  const parsed = parseCommentVersion(action.commentVersion)
   if (parsed == null) return undefined
-  return versions.find(({ commit, version }) => commit === action.ref && semver.eq(version, parsed))
+  return findMatchingRefVersion(
+    parsed,
+    versions.filter(({ commit }) => commit === action.ref)
+  )
+}
+
+function findMatchingRefVersion (target: ParsedCommentVersion, versions: RepoVersion[]): RepoVersion | undefined {
+  switch (target.kind) {
+    case 'exact':
+      return versions.find(({ version }) => semver.eq(version, target.version))
+    case 'majorMinor':
+      return versions
+        .filter(({ version }) => version.major === target.major && version.minor === target.minor && version.prerelease.length === 0)
+        .at(-1)
+    case 'major':
+      return versions
+        .filter(({ version }) => version.major === target.major && version.prerelease.length === 0)
+        .at(-1)
+  }
 }

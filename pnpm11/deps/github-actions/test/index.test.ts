@@ -12,7 +12,9 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 
 const { globalWarn } = await import('@pnpm/logger')
 const {
+  expandGitHubActionSelectors,
   findOutdatedGitHubActions,
+  hasPositiveGitHubActionSelector,
   isGitHubActionSelector,
   normalizeGitHubActionSelector,
   updateGitHubActions,
@@ -44,16 +46,30 @@ afterEach(async () => {
 describe('GitHub Actions dependencies', () => {
   test('distinguishes action selectors from npm package selectors', () => {
     expect(isGitHubActionSelector('actions/checkout')).toBe(true)
+    expect(isGitHubActionSelector('!actions/cache/save')).toBe(true)
     expect(isGitHubActionSelector('@scope/package')).toBe(false)
     expect(isGitHubActionSelector('!@scope/package')).toBe(false)
+    expect(isGitHubActionSelector('pkg:npm/pkg-a')).toBe(false)
+    expect(isGitHubActionSelector('!pkg:npm/pkg-a')).toBe(false)
+    expect(isGitHubActionSelector('jsr:@std/path')).toBe(false)
     expect(isGitHubActionSelector('typescript')).toBe(false)
   })
 
-  test('normalizes action selectors without changing package selectors', () => {
+  test('normalizes and expands action selectors without changing package selectors', () => {
     expect(normalizeGitHubActionSelector('actions/checkout@v4')).toBe('actions/checkout')
     expect(normalizeGitHubActionSelector('!actions/checkout@v4')).toBe('!actions/checkout')
     expect(normalizeGitHubActionSelector('actions/checkout')).toBe('actions/checkout')
     expect(normalizeGitHubActionSelector('@scope/package')).toBe('@scope/package')
+    expect(normalizeGitHubActionSelector('pkg:npm/pkg-a@1.0.0')).toBe('pkg:npm/pkg-a@1.0.0')
+    expect(expandGitHubActionSelectors(['actions/cache@v4', '!actions/cache/save', '!actions/checkout'])).toEqual([
+      'actions/cache',
+      'actions/cache/*',
+      '!actions/cache/save',
+      '!actions/checkout',
+      '!actions/checkout/*',
+    ])
+    expect(hasPositiveGitHubActionSelector(['!actions/checkout'])).toBe(false)
+    expect(hasPositiveGitHubActionSelector(['actions/checkout'])).toBe(true)
   })
 
   test('finds actions in workflows and referenced local composite actions', async () => {
@@ -398,6 +414,80 @@ jobs:
       ]),
     })
     await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: owner/setup-v4.1.0@${'b'.repeat(40)} # v4.2.0`)
+  })
+
+  test('updates partial version comments and non-version comments without mangling', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@${'a'.repeat(40)} # v4
+      - uses: actions/checkout@${'a'.repeat(40)} # v4.1
+      - uses: actions/checkout@${'a'.repeat(40)} # 4
+      - uses: actions/checkout@${'a'.repeat(40)} # v4 — pin for CI
+      - uses: actions/checkout@${'a'.repeat(40)} # pinned manually
+      - uses: actions/checkout@${'a'.repeat(40)} #
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toBe(`jobs:
+  test:
+    steps:
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 — pin for CI
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 pinned manually
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+`)
+  })
+
+  test('preserves distinct outdated versions across workflows while collapsing duplicates', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4.1.0
+      - uses: actions/checkout@v4.1.0
+`,
+      '.github/workflows/release.yml': `jobs:
+  release:
+    steps:
+      - uses: actions/checkout@v3.6.0
+`,
+    })
+    const refs = repoRefs([
+      ['v3.6.0', '1'.repeat(40)],
+      ['v3.6.1', '2'.repeat(40)],
+      ['v4.1.0', 'a'.repeat(40)],
+      ['v4.2.0', 'b'.repeat(40)],
+      ['v5.0.0', 'c'.repeat(40)],
+    ])
+    await expect(findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => refs,
+    })).resolves.toEqual([
+      {
+        current: '3.6.0',
+        homepage: 'https://github.com/actions/checkout',
+        latest: '5.0.0',
+        name: 'actions/checkout',
+        wanted: '3.6.1',
+      },
+      {
+        current: '4.1.0',
+        homepage: 'https://github.com/actions/checkout',
+        latest: '5.0.0',
+        name: 'actions/checkout',
+        wanted: '4.2.0',
+      },
+    ])
   })
 
   test('pins an already-current floating major tag', async () => {

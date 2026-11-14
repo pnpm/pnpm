@@ -65,17 +65,21 @@ function isUnchanged (source: string, [start, end]: readonly [number, number], o
 function renderTargetValue (action: ActionReference, target: RepoVersion): string {
   const oldReference = `${action.name}@${action.ref}`
   const newReference = `${action.name}@${target.commit}`
-  const value = action.originalValue.replace(oldReference, newReference)
-  if (action.commentVersion != null) {
-    const referenceIndex = value.indexOf(newReference)
-    const commentSearchStart = referenceIndex === -1 ? 0 : referenceIndex + newReference.length
-    return value.slice(0, commentSearchStart) + value.slice(commentSearchStart).replace(action.commentVersion, target.tag)
+  const value = action.originalValue.replace(oldReference, () => newReference)
+  const referenceIndex = value.indexOf(newReference)
+  const searchStart = referenceIndex === -1 ? 0 : referenceIndex + newReference.length
+  const commentOffset = value.indexOf('#', searchStart)
+  if (commentOffset !== -1) {
+    const prefix = value.slice(0, commentOffset)
+    const commentBody = value.slice(commentOffset + 1).trimStart()
+    if (action.commentVersion != null && commentBody.startsWith(action.commentVersion)) {
+      return `${prefix}# ${target.tag}${commentBody.slice(action.commentVersion.length)}`
+    }
+    return commentBody.length === 0
+      ? `${prefix}# ${target.tag}`
+      : `${prefix}# ${target.tag} ${commentBody}`
   }
-  const comment = value.indexOf(' #')
-  if (comment === -1) {
-    return action.flowStyle
-      ? `${value.trimEnd()} # ${target.tag}\n${action.indentation}`
-      : `${value} # ${target.tag}`
-  }
-  return `${value.slice(0, comment + 2)}${target.tag} ${value.slice(comment + 2).trimStart()}`
+  return action.flowStyle
+    ? `${value.trimEnd()} # ${target.tag}\n${action.indentation}`
+    : `${value} # ${target.tag}`
 }

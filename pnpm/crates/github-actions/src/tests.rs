@@ -1,9 +1,12 @@
 use super::{
-    ActionReference, RepoVersion, find_current, find_outdated_with_runner, is_selector,
-    normalize_selector, render_target_ref, render_target_value,
-    repo_versions as versions_from_refs, selector_matcher, update_with_runner,
+    ActionReference, RepoVersion, find_outdated_with_runner, is_selector, normalize_selector,
+    selector_matcher, update_with_runner,
 };
-use crate::workflow::split_uses_value;
+use crate::{
+    edits::{render_target_ref, render_target_value},
+    versions::{find_current, repo_versions as versions_from_refs},
+    workflow::{comment_version_token, split_uses_value},
+};
 use node_semver::Version;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
 use pnpm_resolving_git_resolver::{GitCommandRunner, GitRunError};
@@ -37,9 +40,7 @@ fn action(original_value: &str) -> ActionReference {
         ref_: ref_.to_string(),
         repo: "actions/checkout".to_string(),
         source: crate::WorkflowValue {
-            comment_version: comment
-                .and_then(|comment| comment.split_whitespace().next())
-                .map(str::to_string),
+            comment_version: comment_version_token(comment),
             flow_style: false,
             indentation: String::new(),
             original_value: original_value.to_string(),
@@ -545,4 +546,5 @@ async fn rejects_a_server_url_that_is_not_http() {
 
 mod concurrent_edits;
 mod release_age;
+mod selectors_and_comments;
 mod server_urls;

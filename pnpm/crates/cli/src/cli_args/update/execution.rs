@@ -35,18 +35,6 @@ fn discovered_workspace_packages(
         .map(Option::flatten)
 }
 
-fn actions_selector_matcher(update_actions: bool, selectors: &[String]) -> Option<Matcher> {
-    update_actions.then(|| github_actions::selector_matcher(selectors)).flatten()
-}
-
-fn filter_package_selectors(packages: &[String], include_github_actions: bool) -> Vec<String> {
-    packages
-        .iter()
-        .filter(|selector| !include_github_actions || !github_actions::is_selector(selector))
-        .cloned()
-        .collect()
-}
-
 struct UpdateInputs {
     include_direct: Vec<DependencyGroup>,
     explicit_groups: pnpm_package_manager::UpdateExplicitGroups,
@@ -126,9 +114,10 @@ impl UpdateArgs {
         let action_matcher = if self.selection.interactive {
             github_actions::selector_matcher(&packages)
         } else {
-            actions_selector_matcher(inputs.update_actions, &self.packages)
+            crate::github_actions::selector_matcher(inputs.update_actions, &self.packages)
         };
-        let packages = filter_package_selectors(&packages, inputs.update_actions);
+        let packages =
+            crate::github_actions::filter_package_selectors(&packages, inputs.update_actions);
         let engine_outcome =
             self.run_engine_update_step(&mut state, selection.as_mut(), inputs, &packages).await?;
         let eco_outcome = self.run_ecosystem_update_step::<Reporter>(
@@ -268,11 +257,16 @@ impl UpdateArgs {
         selection: Option<&InstallFamilySelection>,
         inputs: &UpdateInputs,
     ) -> miette::Result<Option<Vec<String>>> {
-        let packages = filter_package_selectors(&self.packages, inputs.update_actions);
-        if !self.selection.interactive && !self.packages.is_empty() && packages.is_empty() {
+        let packages =
+            crate::github_actions::filter_package_selectors(&self.packages, inputs.update_actions);
+        if !self.selection.interactive
+            && inputs.update_actions
+            && crate::github_actions::selects_actions_only(&self.packages, &packages)
+        {
             self.update_github_actions::<Reporter>(
                 inputs,
-                actions_selector_matcher(inputs.update_actions, &self.packages).as_ref(),
+                crate::github_actions::selector_matcher(inputs.update_actions, &self.packages)
+                    .as_ref(),
                 state.config,
             )
             .await?;

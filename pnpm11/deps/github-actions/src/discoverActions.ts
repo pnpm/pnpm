@@ -3,9 +3,9 @@ import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import { isSubdir } from 'is-subdir'
-import semver from 'semver'
 import YAML, { isMap, isNode, isScalar, isSeq, type Node, type Scalar, type YAMLMap } from 'yaml'
 
+import { getCommentVersionToken } from './commentVersion.js'
 import { isErrorCode, workflowError } from './errors.js'
 import type { ActionFile, ActionReference } from './types.js'
 
@@ -201,8 +201,7 @@ function parseActionReference (value: string): Pick<ActionReference, 'name' | 'r
 }
 
 function getCommentVersion (node: Scalar<string>): string | undefined {
-  const candidate = node.comment?.trimStart().split(/\s/, 1)[0]
-  return candidate != null && semver.valid(candidate, { loose: true }) != null ? candidate : undefined
+  return getCommentVersionToken(node.comment)
 }
 
 function isFlowStyle (source: string, end: number): boolean {
