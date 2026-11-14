@@ -1,7 +1,9 @@
 ---
 "@pnpm/cli.utils": patch
 "@pnpm/pkg-manifest.commands": patch
+"@pnpm/pkg-manifest.utils": patch
 "@pnpm/workspace.project-manifest-reader": patch
+"@pnpm/workspace.projects-graph": patch
 "pnpm": patch
 "pacquet": patch
 ---

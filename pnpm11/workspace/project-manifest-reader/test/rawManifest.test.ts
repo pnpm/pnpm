@@ -87,4 +87,26 @@ test('readRawProjectManifestOnly() treats empty package.yaml as empty object and
   await expect(readRawProjectManifestOnly(invalidJsonDir)).rejects.toMatchObject({
     code: 'ERR_PNPM_INVALID_MANIFEST',
   })
+
+  const dateRootYamlDir = temporaryDirectory()
+  fs.writeFileSync(path.join(dateRootYamlDir, 'package.yaml'), '2020-01-01\n')
+  await expect(readRawProjectManifestOnly(dateRootYamlDir)).rejects.toMatchObject({
+    code: 'ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE',
+  })
+})
+
+test('readRawProjectManifest() writes edits replacing a YAML Date with an empty object', async () => {
+  const dir = temporaryDirectory()
+  const manifestPath = path.join(dir, 'package.yaml')
+  fs.writeFileSync(manifestPath, 'name: fixture\nmetadata:\n  date: 2020-01-01\n')
+
+  const { manifest, writeProjectManifest } = await readRawProjectManifest(dir)
+  ;(manifest.metadata as Record<string, unknown>).date = {}
+  await writeProjectManifest(manifest)
+
+  const reloaded = await readRawProjectManifestOnly(dir)
+  expect(reloaded).toStrictEqual({
+    name: 'fixture',
+    metadata: { date: {} },
+  })
 })

@@ -118,3 +118,49 @@ fn pkg_set_and_delete_preserve_runtime_and_empty_dependency_objects() {
     assert!(saved.get("devDependencies").is_none());
     drop(root);
 }
+
+#[test]
+fn recursive_pkg_fix_repairs_invalid_dependencies_alongside_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - \"packages/*\"\n")
+        .expect("write pnpm-workspace.yaml");
+    let runtime = json!({
+        "name": "node",
+        "version": "22.14.0",
+        "onFail": "download",
+    });
+    write_project(
+        &workspace,
+        &json!({
+            "name": "root",
+            "version": "1.0.0",
+            "devDependencies": "invalid",
+            "devEngines": { "runtime": runtime },
+        }),
+    );
+    write_project(
+        &workspace.join("packages/child"),
+        &json!({
+            "name": "child",
+            "version": "1.0.0",
+            "devDependencies": "invalid",
+            "devEngines": { "runtime": runtime },
+        }),
+    );
+
+    let output = command(&pacquet)
+        .args(["-r", "pkg", "fix"])
+        .output()
+        .expect("run pnpm -r pkg fix");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+
+    for manifest_path in
+        [workspace.join("package.json"), workspace.join("packages/child/package.json")]
+    {
+        let saved: Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        assert!(saved.get("devDependencies").is_none());
+        assert_eq!(saved["devEngines"]["runtime"]["version"], "22.14.0");
+    }
+    drop(root);
+}

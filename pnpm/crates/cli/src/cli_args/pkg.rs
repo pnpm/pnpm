@@ -253,7 +253,6 @@ fn report_identity(root_dir: &Path, manifest: &Value, workspace_root: &Path) -> 
     }
 }
 
-/// Read `manifest_path`, apply `edit` to its raw JSON value, and write it back.
 fn edit_manifest(
     manifest_path: &Path,
     edit: impl FnOnce(&mut Value) -> miette::Result<()>,

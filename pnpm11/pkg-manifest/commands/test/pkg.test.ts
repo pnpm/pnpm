@@ -601,4 +601,13 @@ describe('pkg command', () => {
       }, ['get'])).rejects.toMatchObject({ code: 'ERR_PNPM_PKG_RECURSIVE_NO_PACKAGES' })
     })
   })
+
+  test('replaces a YAML timestamp in package.yaml with an empty JSON object', async () => {
+    fs.writeFileSync(path.join(tmpDir, 'package.yaml'), 'name: yaml-pkg\nmetadata:\n  date: 2020-01-01\n')
+
+    await handler({ dir: tmpDir, json: true }, ['set', 'metadata.date={}'])
+
+    const output = await handler({ dir: tmpDir, json: true }, ['get', 'metadata.date'])
+    expect(JSON.parse(output!)).toStrictEqual({})
+  })
 })

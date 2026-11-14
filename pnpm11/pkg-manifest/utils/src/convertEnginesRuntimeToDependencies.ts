@@ -38,6 +38,9 @@ function addRuntimeDependency (
     return
   }
   const deps = (manifest[dependenciesFieldName] ??= {})
+  if (!isPlainObject(deps)) {
+    return
+  }
   // Use Object.defineProperty so a future RUNTIME_NAMES entry that
   // happens to match an inherited property name (`__proto__`,
   // `constructor`, `prototype`) becomes a regular own data property
@@ -72,7 +75,7 @@ export function applyRuntimeOnFailOverride (
 }
 
 function removeRuntimeDependencies (deps: Record<string, string> | undefined, runtimes: EngineDependency[]): void {
-  if (!deps) return
+  if (!isPlainObject(deps)) return
   for (const runtimeName of RUNTIME_NAMES) {
     if (
       runtimes.some(runtime => runtime.name === runtimeName) &&
@@ -82,6 +85,14 @@ function removeRuntimeDependencies (deps: Record<string, string> | undefined, ru
       delete deps[runtimeName]
     }
   }
+}
+
+function isPlainObject (value: unknown): value is Record<string, string> {
+  if (Object.prototype.toString.call(value) !== '[object Object]') {
+    return false
+  }
+  const proto = Object.getPrototypeOf(value)
+  return proto === null || Object.getPrototypeOf(proto) === null
 }
 
 function toRuntimeList (enginesFieldRuntime: EngineDependency | EngineDependency[] | undefined): EngineDependency[] | undefined {
