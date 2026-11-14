@@ -113,13 +113,67 @@ fn segment_glob_matches(pattern_seg: &str, target_seg: &str) -> bool {
     wax::Glob::new(&pat).is_ok_and(|glob| glob.is_match(Path::new(&seg)))
 }
 
+pub(super) fn literal_pattern_subpaths(patterns: &[String]) -> Vec<String> {
+    let mut negations = Vec::new();
+    let mut literals = Vec::new();
+    for pattern in patterns {
+        if let Some(negated) = pattern.strip_prefix('!') {
+            let trimmed = negated
+                .replace('\\', "/")
+                .trim_end_matches('/')
+                .to_string();
+            if !trimmed.is_empty() {
+                negations.push(trimmed);
+            }
+        } else {
+            literals.extend(expand_literal_branches(pattern));
+        }
+    }
+    literals
+        .into_iter()
+        .filter(|path| !is_negated_literal(path, &negations))
+        .collect()
+}
+
+fn expand_literal_branches(raw: &str) -> Vec<String> {
+    expand_braces(raw)
+        .into_iter()
+        .filter_map(|branch| normalize_literal_branch(&branch))
+        .collect()
+}
+
+fn normalize_literal_branch(branch: &str) -> Option<String> {
+    let normalized = lexical_normalize_posix(&branch.replace('\\', "/"));
+    let trimmed = normalized.trim_end_matches('/');
+    if trimmed.is_empty() || trimmed == "." || trimmed.starts_with('/') {
+        return None;
+    }
+    trimmed
+        .split('/')
+        .all(is_literal_glob_segment)
+        .then(|| trimmed.to_string())
+}
+
+fn is_negated_literal(path: &str, negations: &[String]) -> bool {
+    let candidate = if cfg!(any(windows, target_os = "macos")) {
+        path.to_ascii_lowercase()
+    } else {
+        path.to_string()
+    };
+    negations
+        .iter()
+        .any(|neg| {
+            let pat = if cfg!(any(windows, target_os = "macos")) {
+                neg.to_ascii_lowercase()
+            } else {
+                neg.clone()
+            };
+            wax::Glob::new(&pat).is_ok_and(|glob| glob.is_match(Path::new(&candidate)))
+        })
+}
+
 fn is_literal_glob_segment(seg: &str) -> bool {
-    !seg.is_empty()
-        && seg != "."
-        && seg != ".."
-        && !seg
-            .chars()
-            .any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}' | '\\'))
+    !seg.is_empty() && seg != "." && seg != ".." && wax::escape(seg) == seg
 }
 
 fn expand_braces(pattern: &str) -> Vec<String> {

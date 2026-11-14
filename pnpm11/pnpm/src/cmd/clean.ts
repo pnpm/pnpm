@@ -6,7 +6,7 @@ import { strict as isStrictSubdir } from 'is-subdir'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { discoverWorkspacePackagesForClean } from './cleanDiscovery.js'
+import { collectExplicitLiteralMemberDirs, discoverWorkspacePackagesForClean } from './cleanDiscovery.js'
 import {
   cleanModulesDir,
   collectNonRootRealDirs,
@@ -331,7 +331,13 @@ async function getWholeWorkspaceTargets (
     patterns: opts.workspacePackagePatterns,
   })
   const projectTargets: CleanTarget[] = pkgs.map((pkg) => ({ dir: pkg.rootDir, name: pkg.manifest.name }))
-  const realMemberDirs = await collectNonRootRealDirs(projectTargets.map((target) => target.dir), realRootDir)
+  const explicitDirs = hasCustomCleanDirs(opts)
+    ? await collectExplicitLiteralMemberDirs(workspaceDir, opts.workspacePackagePatterns)
+    : []
+  const realMemberDirs = await collectNonRootRealDirs(
+    [...projectTargets.map((target) => target.dir), ...explicitDirs],
+    realRootDir
+  )
   if (await dirsIncludeRoot(projectTargets.map((target) => target.dir), realRootDir)) {
     return { targets: projectTargets, protectedMemberDirs: realMemberDirs }
   }
@@ -349,13 +355,22 @@ async function readProtectedMemberDirs (
   workspaceDir: string,
   realRootDir: string
 ): Promise<string[]> {
-  const pkgs = await discoverWorkspacePackagesForClean(workspaceDir, {
-    hasPerProjectModulesDirs: hasPerProjectModulesDirs(opts),
-    modulesDir: opts.modulesDir,
-    modulesDirsByProjectName: opts.modulesDirsByProjectName,
-    patterns: opts.workspacePackagePatterns,
-  })
-  return collectNonRootRealDirs(pkgs.map((pkg) => pkg.rootDir), realRootDir)
+  const [pkgs, explicitDirs] = await Promise.all([
+    discoverWorkspacePackagesForClean(workspaceDir, {
+      hasPerProjectModulesDirs: hasPerProjectModulesDirs(opts),
+      modulesDir: opts.modulesDir,
+      modulesDirsByProjectName: opts.modulesDirsByProjectName,
+      patterns: opts.workspacePackagePatterns,
+    }),
+    collectExplicitLiteralMemberDirs(workspaceDir, opts.workspacePackagePatterns),
+  ])
+  return collectNonRootRealDirs([...pkgs.map((pkg) => pkg.rootDir), ...explicitDirs], realRootDir)
+}
+
+function hasCustomCleanDirs (opts: CleanOptions): boolean {
+  return (opts.modulesDir != null && opts.modulesDir !== 'node_modules') ||
+    hasPerProjectModulesDirs(opts) ||
+    Boolean(opts.virtualStoreDir)
 }
 
 function targetsFromGraph (graph: ProjectsGraph): CleanTarget[] {

@@ -13,7 +13,9 @@ use super::{
     CleanScope, is_narrowed_workspace_clean,
 };
 use miette::Context;
-use modules_overlap::{custom_root_clean_dirs, discover_workspace_for_clean};
+use modules_overlap::{
+    custom_root_clean_dirs, discover_workspace_for_clean, explicit_literal_member_dirs,
+};
 use pnpm_config::Config;
 use pnpm_workspace::{FindWorkspaceProjectsOpts, Project, find_workspace_projects};
 use std::path::{Path, PathBuf};
@@ -47,7 +49,8 @@ pub(super) fn select_clean_targets(
     }
     if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         let projects = discover_workspace_for_clean(workspace_dir, config)?;
-        let protected_member_dirs = collect_non_root_real_dirs(&projects, real_root_dir);
+        let protected_member_dirs =
+            collect_protected_member_dirs(workspace_dir, config, &projects, real_root_dir)?;
         let dirs = workspace_dirs_with_root(
             workspace_dir,
             real_root_dir,
@@ -83,11 +86,12 @@ fn select_filtered_clean_targets(
         )
         .wrap_err("finding workspace projects")?
     };
-    let protected_member_dirs = if config.workspace_dir.is_some() {
-        collect_non_root_real_dirs(&projects, real_root_dir)
-    } else {
-        Vec::new()
-    };
+    let protected_member_dirs =
+        if let Some(workspace_dir) = config.workspace_dir.as_deref() {
+            collect_protected_member_dirs(workspace_dir, config, &projects, real_root_dir)?
+        } else {
+            Vec::new()
+        };
     let selection =
         select_recursive_projects(&projects, config, ctx.locations.dir, AutoExcludeRoot::Disabled)?;
     if selection.selected.is_empty() {
@@ -190,7 +194,7 @@ fn protected_members_if_needed(
         return Ok(Vec::new());
     }
     let projects = discover_workspace_for_clean(workspace_dir, config)?;
-    Ok(collect_non_root_real_dirs(&projects, real_root_dir))
+    collect_protected_member_dirs(workspace_dir, config, &projects, real_root_dir)
 }
 
 fn has_custom_clean_dirs(workspace_dir: &Path, config: &Config) -> bool {
@@ -202,12 +206,27 @@ fn has_custom_clean_dirs(workspace_dir: &Path, config: &Config) -> bool {
             })
 }
 
-fn collect_non_root_real_dirs(projects: &[Project], real_root_dir: &Path) -> Vec<PathBuf> {
-    projects
+fn collect_protected_member_dirs(
+    workspace_dir: &Path,
+    config: &Config,
+    projects: &[Project],
+    real_root_dir: &Path,
+) -> miette::Result<Vec<PathBuf>> {
+    let explicit_dirs = if has_custom_clean_dirs(workspace_dir, config) {
+        explicit_literal_member_dirs(workspace_dir, config)?
+    } else {
+        Vec::new()
+    };
+    let mut protected: Vec<PathBuf> = projects
         .iter()
-        .filter_map(|project| dunce::canonicalize(&project.root_dir).ok())
+        .map(|project| &project.root_dir)
+        .chain(explicit_dirs.iter())
+        .filter_map(|dir| dunce::canonicalize(dir).ok())
         .filter(|dir| dir != real_root_dir)
-        .collect()
+        .collect();
+    protected.sort();
+    protected.dedup();
+    Ok(protected)
 }
 
 fn workspace_dirs_with_root(

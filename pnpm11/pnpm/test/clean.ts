@@ -790,4 +790,34 @@ test('pnpm clean protects members matched via wildcard globs above modulesDir an
   })
   expect(execPnpmSync(['clean']).status).toBe(0)
   expect(fs.existsSync(path.join('packages', 'modules', 'lodash'))).toBe(false)
+
+  // Extended glob prefix `@(packages|apps)/*` with overlapping `modulesDir: packages` recovers and protects members
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['@(packages|apps)/*'],
+    modulesDir: 'packages',
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
+
+  // Explicitly listed nested member under another member's custom `modulesDir` is preserved
+  const pkgB = path.join('packages', 'pkg-a', 'packages', 'pkg-b')
+  fs.mkdirSync(path.join(pkgB, 'src'), { recursive: true })
+  writeJsonFile(path.join(pkgB, 'package.json'), { name: 'pkg-b', version: '1.0.0' })
+  fs.writeFileSync(path.join(pkgB, 'src', 'index.js'), 'module.exports = 3\n')
+  const pkgC = path.join('packages', 'pkg-c')
+  fs.mkdirSync(path.join(pkgC, 'packages', 'seeded-dep'), { recursive: true })
+  writeJsonFile(path.join(pkgC, 'package.json'), { name: 'pkg-c', version: '1.0.0' })
+  fs.writeFileSync(path.join(pkgC, 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/pkg-a', 'packages/pkg-a/packages/pkg-b', 'packages/pkg-c'],
+    modulesDir: 'packages',
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join(pkgC, 'packages', 'seeded-dep'))).toBe(false)
+  expect(fs.existsSync(path.join(pkgB, 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join(pkgB, 'src', 'index.js'))).toBe(true)
 })

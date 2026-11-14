@@ -5,12 +5,12 @@ use super::{
             configured_modules_leaf, configured_virtual_store_dir, modules_leaf_for_project,
         },
     },
-    pattern_reachability::patterns_entering_root_dir,
+    pattern_reachability::{literal_pattern_subpaths, patterns_entering_root_dir},
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_fs::{is_symlink_metadata, lexical_normalize};
-use pnpm_modules_yaml::{Host, read_modules_manifest};
+use pnpm_modules_yaml::{Host, ReadModulesError, read_modules_manifest};
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts, Project, find_workspace_projects, read_workspace_manifest,
     workspace_package_patterns,
@@ -122,9 +122,10 @@ fn refine_projects(
     let default_leaf = configured_modules_leaf(config);
     let workspace_norm = lexical_normalize(workspace_dir);
     let entered_norm = entered_root_dir.map(lexical_normalize);
-    let hoisted_ignores = entered_root_dir
-        .map(|entered| hoisted_dirs_under_root(workspace_dir, entered))
-        .unwrap_or_default();
+    let hoisted_ignores = match entered_root_dir {
+        Some(entered) => hoisted_dirs_under_root(workspace_dir, entered)?,
+        None => Vec::new(),
+    };
     loop {
         let mut ignored_directories: Vec<PathBuf> = config
             .managed_directories()
@@ -150,20 +151,30 @@ fn refine_projects(
     }
 }
 
-fn hoisted_dirs_under_root(workspace_dir: &Path, root_modules_dir: &Path) -> Vec<PathBuf> {
-    let Some(manifest) = read_modules_manifest::<Host>(root_modules_dir).ok().flatten() else {
-        return Vec::new();
+fn hoisted_dirs_under_root(
+    workspace_dir: &Path,
+    root_modules_dir: &Path,
+) -> miette::Result<Vec<PathBuf>> {
+    let manifest = match read_modules_manifest::<Host>(root_modules_dir) {
+        Ok(Some(manifest)) => manifest,
+        Ok(None) => return Ok(Vec::new()),
+        Err(ReadModulesError::ReadFile { source, .. })
+            if source.kind() == std::io::ErrorKind::NotADirectory =>
+        {
+            return Ok(Vec::new());
+        }
+        Err(err) => return Err(err).into_diagnostic(),
     };
     let Some(locations) = manifest.hoisted_locations else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let root_norm = lexical_normalize(root_modules_dir);
-    locations
+    Ok(locations
         .into_values()
         .flatten()
         .map(|loc| lexical_normalize(&workspace_dir.join(loc)))
         .filter(|dir| dir.starts_with(&root_norm) && dir != &root_norm)
-        .collect()
+        .collect())
 }
 
 fn custom_relative_modules_leaves(config: &Config) -> Vec<String> {
@@ -293,4 +304,31 @@ fn is_inside_owned_modules_dir(dir: &Path, owned_modules_dirs: &HashMap<PathBuf,
         current = ancestor.parent();
     }
     false
+}
+
+pub(super) fn explicit_literal_member_dirs(
+    workspace_dir: &Path,
+    config: &Config,
+) -> miette::Result<Vec<PathBuf>> {
+    let Some(patterns) = resolve_workspace_patterns(workspace_dir, config)? else {
+        return Ok(Vec::new());
+    };
+    let mut dirs = Vec::new();
+    for subpath in literal_pattern_subpaths(&patterns) {
+        let candidate = workspace_dir.join(&subpath);
+        if !has_symlink_component_under(workspace_dir, &candidate) && has_manifest_file(&candidate)
+        {
+            dirs.push(candidate);
+        }
+    }
+    Ok(dirs)
+}
+
+fn has_manifest_file(dir: &Path) -> bool {
+    ["package.json", "package.json5", "package.yaml"]
+        .iter()
+        .any(|name| {
+            std::fs::symlink_metadata(dir.join(name))
+                .is_ok_and(|meta| !is_symlink_metadata(&meta) && meta.is_file())
+        })
 }

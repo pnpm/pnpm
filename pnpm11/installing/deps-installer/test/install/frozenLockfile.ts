@@ -683,3 +683,34 @@ test('validateFrozenInstall does not bypass resolutionVerifiers via stat cache w
   })
   expect(verifiedNames).toContain('is-negative')
 })
+
+test('validateFrozenInstall rejects lockfile settings mutated by preResolution hooks', async () => {
+  prepareEmpty()
+  const manifest: ProjectManifest = {
+    name: 'pre-resolution-settings-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(manifest))
+  const rootDir = process.cwd() as ProjectRootDir
+  await install(manifest, testDefaults({ autoInstallPeers: true }))
+
+  await expect(
+    validateFrozenInstall([{ mutation: 'install', rootDir }], testDefaults({
+      autoInstallPeers: true,
+      frozenLockfile: true,
+      hooks: {
+        preResolution: [
+          async (ctx: { wantedLockfile: { settings?: { autoInstallPeers?: boolean } } }) => {
+            ctx.wantedLockfile.settings = {
+              ...ctx.wantedLockfile.settings,
+              autoInstallPeers: false,
+            }
+          },
+        ],
+      },
+    }))
+  ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
+})

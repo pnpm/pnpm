@@ -13,12 +13,17 @@ export function pathsMatchOnHost (left: string, right: string): boolean {
     : left === right
 }
 
-export function patternsEnteringRootModulesDir (
-  relModules: string,
-  patterns: string[] | undefined,
-  customLeaves: string[],
+export interface RootModulesRecoveryPatternOptions {
+  customLeaves: string[]
   hoistedSubpaths: string[]
+  patterns?: string[]
+  relModules: string
+}
+
+export function patternsEnteringRootModulesDir (
+  opts: RootModulesRecoveryPatternOptions
 ): string[] | undefined {
+  const { customLeaves, hoistedSubpaths, patterns, relModules } = opts
   if (patterns == null) return undefined
   const targetSegments = relModules.split('/')
   const includes: string[] = []
@@ -47,6 +52,12 @@ function matchingRecoveryBranches (pattern: string, targetSegments: string[]): s
   return matched
 }
 
+interface PrefixMatchContext {
+  memo: Array<Array<boolean | undefined>>
+  pattern: string[]
+  target: string[]
+}
+
 function branchReachesTarget (branch: string, target: string[]): boolean {
   if (branch === '' || branch === '.' || branch.startsWith('/')) return false
   const segments = branch.split('/')
@@ -57,16 +68,15 @@ function branchReachesTarget (branch: string, target: string[]): boolean {
     { length: segments.length + 1 },
     () => new Array<boolean | undefined>(target.length + 1)
   )
-  return matchesPrefix(segments, target, 0, 0, memo)
+  return matchesPrefix({ memo, pattern: segments, target }, 0, 0)
 }
 
 function matchesPrefix (
-  pattern: string[],
-  target: string[],
+  ctx: PrefixMatchContext,
   pi: number,
-  mi: number,
-  memo: Array<Array<boolean | undefined>>
+  mi: number
 ): boolean {
+  const { memo, pattern, target } = ctx
   const cached = memo[pi][mi]
   if (cached !== undefined) return cached
   let matched: boolean
@@ -75,11 +85,11 @@ function matchesPrefix (
   } else if (pi === pattern.length) {
     matched = false
   } else if (pattern[pi] === '**') {
-    matched = matchesPrefix(pattern, target, pi + 1, mi, memo) ||
-      matchesPrefix(pattern, target, pi, mi + 1, memo)
+    matched = matchesPrefix(ctx, pi + 1, mi) ||
+      matchesPrefix(ctx, pi, mi + 1)
   } else {
     matched = segmentGlobMatches(pattern[pi], target[mi]) &&
-      matchesPrefix(pattern, target, pi + 1, mi + 1, memo)
+      matchesPrefix(ctx, pi + 1, mi + 1)
   }
   memo[pi][mi] = matched
   return matched
@@ -95,11 +105,51 @@ function segmentGlobMatches (patternSeg: string, targetSeg: string): boolean {
   return path.posix.matchesGlob(seg, pat)
 }
 
+export function literalPatternSubpaths (patterns: string[] | undefined): string[] {
+  if (patterns == null) return []
+  const negations: string[] = []
+  const literals: string[] = []
+  for (const pattern of patterns) {
+    if (pattern.startsWith('!')) {
+      const trimmed = pattern.slice(1).replaceAll('\\', '/').replace(/\/+$/u, '')
+      if (trimmed !== '') negations.push(trimmed)
+    } else {
+      literals.push(...expandLiteralBranches(pattern))
+    }
+  }
+  return literals.filter((subpath) => !isNegatedLiteral(subpath, negations))
+}
+
+function expandLiteralBranches (raw: string): string[] {
+  const out: string[] = []
+  for (const branch of expandBraces(raw)) {
+    const normalized = normalizeLiteralBranch(branch)
+    if (normalized != null) out.push(normalized)
+  }
+  return out
+}
+
+function normalizeLiteralBranch (branch: string): string | undefined {
+  const normalized = path.posix.normalize(branch.replaceAll('\\', '/')).replace(/\/+$/u, '')
+  if (normalized === '' || normalized === '.' || normalized.startsWith('/')) {
+    return undefined
+  }
+  return normalized.split('/').every(isLiteralGlobSegment) ? normalized : undefined
+}
+
+function isNegatedLiteral (subpath: string, negations: string[]): boolean {
+  const candidate = IS_CASE_INSENSITIVE_FS ? subpath.toLowerCase() : subpath
+  return negations.some((neg) => {
+    const pat = IS_CASE_INSENSITIVE_FS ? neg.toLowerCase() : neg
+    return path.posix.matchesGlob(candidate, pat)
+  })
+}
+
 function isLiteralGlobSegment (segment: string): boolean {
   return segment !== '' &&
     segment !== '.' &&
     segment !== '..' &&
-    !/[\\*?[\]{}]/u.test(segment)
+    !/[\\*?[\]{}()|@+!]/u.test(segment)
 }
 
 function expandBraces (pattern: string): string[] {
@@ -155,7 +205,7 @@ function stepBraceScan (state: BraceScanState, input: string, idx: number): Brac
     return undefined
   }
   if (stepBracketState(state, ch)) return undefined
-  return state.inBrackets ? undefined : stepBraceDelimiter(state, input, idx, ch)
+  return state.inBrackets ? undefined : stepBraceDelimiter(state, input, idx)
 }
 
 function stepBracketState (state: BraceScanState, ch: string): boolean {
@@ -173,9 +223,9 @@ function stepBracketState (state: BraceScanState, ch: string): boolean {
 function stepBraceDelimiter (
   state: BraceScanState,
   input: string,
-  idx: number,
-  ch: string
+  idx: number
 ): BraceGroup | undefined {
+  const ch = input[idx]
   if (ch === '{') {
     openBraceGroup(state, idx)
     return undefined
@@ -199,16 +249,16 @@ function closeBraceGroup (state: BraceScanState, input: string, closeIdx: number
   state.depth--
   if (state.depth > 0 || state.commas.length === 0) return undefined
   return {
-    alts: sliceBraceAlts(input, state.openIdx, closeIdx, state.commas),
+    alts: sliceBraceAlts(input, state, closeIdx),
     close: closeIdx,
     open: state.openIdx,
   }
 }
 
-function sliceBraceAlts (input: string, open: number, close: number, commas: number[]): string[] {
+function sliceBraceAlts (input: string, state: BraceScanState, close: number): string[] {
   const alts: string[] = []
-  let start = open + 1
-  for (const comma of commas) {
+  let start = state.openIdx + 1
+  for (const comma of state.commas) {
     alts.push(input.slice(start, comma))
     start = comma + 1
   }

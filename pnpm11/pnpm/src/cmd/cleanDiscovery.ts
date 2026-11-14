@@ -7,6 +7,7 @@ import { findWorkspaceProjectsNoCheck, type Project } from '@pnpm/workspace.proj
 
 import {
   escapeGlobPath,
+  literalPatternSubpaths,
   pathsMatchOnHost,
   patternsEnteringRootModulesDir,
 } from './cleanPatternReachability.js'
@@ -38,17 +39,22 @@ export async function discoverWorkspacePackagesForClean (
   })
   const customLeaves = collectCustomRelativeModulesLeaves(opts)
   const hoistedSubpaths = await readHoistedSubpathsUnderRootModules(workspaceDir, relModules)
-  const recoveryPatterns = patternsEnteringRootModulesDir(
-    relModules,
-    opts.patterns,
+  const recoveryPatterns = patternsEnteringRootModulesDir({
     customLeaves,
-    hoistedSubpaths
-  )
+    hoistedSubpaths,
+    patterns: opts.patterns,
+    relModules,
+  })
   if (recoveryPatterns == null) {
     return projects
   }
   const candidates = await findWorkspaceProjectsNoCheck(workspaceDir, { patterns: recoveryPatterns })
-  return mergeRecoveryCandidates(workspaceDir, projects, candidates, opts)
+  return mergeRecoveryCandidates({
+    found: candidates,
+    known: projects,
+    opts,
+    workspaceDir,
+  })
 }
 
 function relativeRootModulesPosix (workspaceDir: string, modulesDir: string | undefined): string | undefined {
@@ -92,8 +98,11 @@ async function readHoistedSubpathsUnderRootModules (
   try {
     const manifest = await readModulesManifest(resolvedRootModulesDir)
     hoistedLocations = manifest?.hoistedLocations
-  } catch {
-    return []
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOTDIR') {
+      return []
+    }
+    throw err
   }
   if (hoistedLocations == null) return []
   const subpaths = new Set<string>()
@@ -107,11 +116,15 @@ async function readHoistedSubpathsUnderRootModules (
   return Array.from(subpaths)
 }
 
-async function mergeRecoveryCandidates (
-  workspaceDir: string,
-  known: Project[],
-  found: Project[],
+interface MergeRecoveryCandidatesOptions {
+  found: Project[]
+  known: Project[]
   opts: CleanWorkspaceDiscoveryOptions
+  workspaceDir: string
+}
+
+async function mergeRecoveryCandidates (
+  { found, known, opts, workspaceDir }: MergeRecoveryCandidatesOptions
 ): Promise<Project[]> {
   const resolvedWorkspaceDir = path.resolve(workspaceDir)
   const knownDirs = new Set(known.map((project) => project.rootDir))
@@ -180,4 +193,34 @@ async function hasSymlinkComponentUnder (resolvedWorkspaceDir: string, targetDir
     }
   }))
   return stats.some((stat) => stat?.isSymbolicLink() === true)
+}
+
+export async function collectExplicitLiteralMemberDirs (
+  workspaceDir: string,
+  patterns: string[] | undefined
+): Promise<string[]> {
+  const subpaths = literalPatternSubpaths(patterns)
+  if (subpaths.length === 0) return []
+  const resolvedWorkspaceDir = path.resolve(workspaceDir)
+  const checks = await Promise.all(subpaths.map(async (subpath) => {
+    const candidate = path.join(resolvedWorkspaceDir, ...subpath.split('/'))
+    const keep = !await hasSymlinkComponentUnder(resolvedWorkspaceDir, candidate) &&
+      await hasRegularManifestFile(candidate)
+    return { candidate, keep }
+  }))
+  return checks.filter(({ keep }) => keep).map(({ candidate }) => candidate)
+}
+
+async function hasRegularManifestFile (dir: string): Promise<boolean> {
+  const stats = await Promise.all(['package.json', 'package.json5', 'package.yaml'].map(async (name) => {
+    try {
+      return await fs.lstat(path.join(dir, name))
+    } catch (err: unknown) {
+      if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) {
+        return undefined
+      }
+      throw err
+    }
+  }))
+  return stats.some((stat) => stat != null && !stat.isSymbolicLink() && stat.isFile())
 }

@@ -72,18 +72,22 @@ export async function validateCiFrozenInstall (opts: InstallCommandOptions): Pro
     await store.ctrl.close()
   }
   try {
-    return await validateWithStore(installDepsOptions, store, include, close)
+    return await validateWithStore({ close, include, installDepsOptions, store })
   } catch (err) {
     await close()
     throw err
   }
 }
 
-async function validateWithStore (
-  installDepsOptions: InstallDepsOptions,
-  store: StoreControllerAndDir,
-  include: IncludedDependencies,
+interface ValidateWithStoreOptions {
   close: () => Promise<void>
+  include: IncludedDependencies
+  installDepsOptions: InstallDepsOptions
+  store: StoreControllerAndDir
+}
+
+async function validateWithStore (
+  { close, include, installDepsOptions, store }: ValidateWithStoreOptions
 ): Promise<PreparedCiInstall> {
   const allProjects = await readAllProjects(installDepsOptions)
   const preparedCi: PreparedCiInstall = {
@@ -242,14 +246,18 @@ async function validateDedicatedLockfilesWorkspace (
     },
   })
   if (firstError != null) throw firstError
-  await verifyDedicatedWorkspacePatches(ctx, pkgPaths, validatedDirs, lockfilesByDir)
+  await verifyDedicatedWorkspacePatches(ctx, { lockfilesByDir, pkgPaths, validatedDirs })
+}
+
+interface DedicatedWorkspacePatchesInput {
+  lockfilesByDir: Map<ProjectRootDir, LockfileObject>
+  pkgPaths: ProjectRootDir[]
+  validatedDirs: Set<ProjectRootDir>
 }
 
 async function verifyDedicatedWorkspacePatches (
   ctx: RecursiveContext,
-  pkgPaths: ProjectRootDir[],
-  validatedDirs: Set<ProjectRootDir>,
-  lockfilesByDir: Map<ProjectRootDir, LockfileObject>
+  { lockfilesByDir, pkgPaths, validatedDirs }: DedicatedWorkspacePatchesInput
 ): Promise<void> {
   if (ctx.installOpts.useLockfile === false || ctx.opts.lockfile === false) return
   if (!ctx.allProjects.every(({ rootDir }) => validatedDirs.has(rootDir))) return
