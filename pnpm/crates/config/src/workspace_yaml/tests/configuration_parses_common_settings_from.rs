@@ -932,6 +932,24 @@ fn parses_task_priority() {
 }
 
 #[test]
+fn accepts_null_task_concurrency_and_priority() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: null\n    priority: null\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    let tasks = settings.tasks.as_ref().unwrap();
+    assert_eq!(tasks["build"].concurrency, None);
+    assert_eq!(tasks["build"].priority, None);
+}
+
+#[test]
 fn rejects_a_non_integer_task_priority() {
     for priority in ["1.5", "'2'", "2147483648"] {
         let dir = tempfile::tempdir().unwrap();
