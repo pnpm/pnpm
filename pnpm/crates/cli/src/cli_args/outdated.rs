@@ -245,7 +245,7 @@ impl OutdatedArgs {
     }
 
     pub(super) fn package_patterns(&self) -> Vec<String> {
-        crate::github_actions::filter_package_selectors(&self.packages, true)
+        crate::github_actions::without_action_selectors(&self.packages)
     }
 
     fn selects_github_actions_only(&self, package_patterns: &[String]) -> bool {

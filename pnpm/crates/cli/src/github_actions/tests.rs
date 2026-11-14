@@ -1,4 +1,4 @@
-use super::{filter_package_selectors, opted_in, selects_actions_only};
+use super::{opted_in, selects_actions_only, without_action_selectors};
 use pnpm_config::Config;
 
 fn strings(items: &[&str]) -> Vec<String> {
@@ -33,7 +33,7 @@ fn keeps_purl_selectors_as_package_selectors_when_github_actions_are_enabled() {
         "!actions/cache/save",
     ]);
     assert_eq!(
-        filter_package_selectors(&selectors, true),
+        without_action_selectors(&selectors),
         strings(&["pkg:npm/pkg-a", "!pkg:npm/pkg-b", "pkg:cargo/serde", "pkg:pypi/requests"]),
     );
 }
@@ -50,7 +50,7 @@ fn negated_action_selectors_do_not_skip_package_updates() {
         (&["actions/checkout", "lodash"][..], false),
     ] {
         let raw = strings(raw);
-        let packages = filter_package_selectors(&raw, true);
+        let packages = without_action_selectors(&raw);
         assert_eq!(selects_actions_only(&raw, &packages), actions_only, "raw: {raw:?}");
     }
 }

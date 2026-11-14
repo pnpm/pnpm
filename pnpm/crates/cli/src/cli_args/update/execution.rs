@@ -44,6 +44,20 @@ struct UpdateInputs {
     actions_root: std::path::PathBuf,
 }
 
+impl UpdateInputs {
+    fn action_matcher(&self, selectors: &[String]) -> Option<Matcher> {
+        self.update_actions.then(|| github_actions::selector_matcher(selectors)).flatten()
+    }
+
+    fn package_selectors(&self, selectors: &[String]) -> Vec<String> {
+        if self.update_actions {
+            crate::github_actions::without_action_selectors(selectors)
+        } else {
+            selectors.to_vec()
+        }
+    }
+}
+
 fn update_actions_root(
     state: &State,
     selection: Option<&InstallFamilySelection>,
@@ -114,10 +128,9 @@ impl UpdateArgs {
         let action_matcher = if self.selection.interactive {
             github_actions::selector_matcher(&packages)
         } else {
-            crate::github_actions::selector_matcher(inputs.update_actions, &self.packages)
+            inputs.action_matcher(&self.packages)
         };
-        let packages =
-            crate::github_actions::filter_package_selectors(&packages, inputs.update_actions);
+        let packages = inputs.package_selectors(&packages);
         let engine_outcome =
             self.run_engine_update_step(&mut state, selection.as_mut(), inputs, &packages).await?;
         let eco_outcome = self.run_ecosystem_update_step::<Reporter>(
@@ -257,16 +270,14 @@ impl UpdateArgs {
         selection: Option<&InstallFamilySelection>,
         inputs: &UpdateInputs,
     ) -> miette::Result<Option<Vec<String>>> {
-        let packages =
-            crate::github_actions::filter_package_selectors(&self.packages, inputs.update_actions);
+        let packages = inputs.package_selectors(&self.packages);
         if !self.selection.interactive
             && inputs.update_actions
             && crate::github_actions::selects_actions_only(&self.packages, &packages)
         {
             self.update_github_actions::<Reporter>(
                 inputs,
-                crate::github_actions::selector_matcher(inputs.update_actions, &self.packages)
-                    .as_ref(),
+                inputs.action_matcher(&self.packages).as_ref(),
                 state.config,
             )
             .await?;
