@@ -1165,4 +1165,66 @@ fn a_tag_shared_by_many_workspace_projects_is_looked_up_once() {
     drop((root, npmrc_info));
 }
 
+/// <https://github.com/pnpm/pnpm/issues/18104>
+#[cfg(unix)]
+#[test]
+fn lockfile_update_reuses_the_locked_commit_of_a_git_dependency_with_peers() {
+    use pnpm_testing_utils::git_repo::GitCommandLog;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "with-peer");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"with-peer","version":"1.0.0","dependencies":{"@pnpm.e2e/foo":"1.0.0"},"peerDependencies":{"@pnpm.e2e/peer-a":"^1.0.0"}}"#,
+    );
+    let commit = repo.commit("init");
+    repo.tag("v1.0.0");
+    let spec = repo.git_url_at("v1.0.0");
+    write_dependencies(
+        &workspace,
+        &[("with-peer", &spec), ("@pnpm.e2e/peer-a", "1.0.0"), ("@pnpm.e2e/bar", "100.0.0")],
+    );
+    pnpm_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let before = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    write_dependencies(
+        &workspace,
+        &[("with-peer", &spec), ("@pnpm.e2e/peer-a", "1.0.0"), ("@pnpm.e2e/bar", "100.1.0")],
+    );
+    let log = GitCommandLog::new(root.path());
+
+    pnpm_at(&workspace)
+        .with_args([
+            "install",
+            "--lockfile-only",
+            "--ignore-scripts",
+            "--ignore-pnpmfile",
+            "--no-frozen-lockfile",
+        ])
+        .env("PATH", prepend_to_path(log.bin.parent().unwrap()))
+        .assert()
+        .success();
+
+    assert_eq!(log.ls_remote_calls(), Vec::<String>::new());
+    assert_eq!(log.acquisitions(), Vec::<std::path::PathBuf>::new());
+    let after = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(git_resolution(&after, "with-peer").commit, commit);
+    assert_eq!(importer_version(&after, ".", "@pnpm.e2e/bar"), "100.1.0");
+    let with_peer_snapshots = |lockfile: &Lockfile| {
+        lockfile.snapshots
+            .as_ref()
+            .expect("lockfile has snapshots")
+            .iter()
+            .filter(|(key, _)| key.to_string().starts_with("with-peer@"))
+            .map(|(key, snapshot)| (key.to_string(), snapshot.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(with_peer_snapshots(&after), with_peer_snapshots(&before));
+    assert_eq!(sole_package(&after, "with-peer"), sole_package(&before, "with-peer"));
+
+    drop((root, npmrc_info));
+}
+
 mod builds;
