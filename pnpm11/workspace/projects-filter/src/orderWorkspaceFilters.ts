@@ -117,7 +117,11 @@ function isFilterProdFlag (flag: string): boolean {
 }
 
 function consumeCursor (cursor: CliFilterCursor, nextToken: string | undefined, target: WorkspaceFilter[]): boolean {
-  if (cursor.tokenIndex >= cursor.tokens.length || nextToken !== cursor.tokens[cursor.tokenIndex]) {
+  if (nextToken == null || cursor.tokenIndex >= cursor.tokens.length) {
+    return false
+  }
+  const expectedToken = cursor.tokens[cursor.tokenIndex]
+  if (nextToken !== expectedToken && nextToken.trim() !== expectedToken) {
     return false
   }
   cursor.tokenIndex++

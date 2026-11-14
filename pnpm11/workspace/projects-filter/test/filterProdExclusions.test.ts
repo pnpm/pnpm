@@ -148,6 +148,18 @@ describe('orderWorkspaceFilters', () => {
     ])
   })
 
+  test('preserves CLI order when nopt trims surrounding whitespace from cookedArgv tokens', () => {
+    expect(orderWorkspaceFilters({
+      filter: ['!lib-a'],
+      filterProd: ['app...'],
+      cliOptions: { filter: ['!lib-a'], 'filter-prod': ['app...'] },
+      cookedArgv: ['--filter', ' !lib-a ', '--filter-prod', ' app... ', 'run', 'check'],
+    })).toStrictEqual([
+      { filter: '!lib-a', followProdDepsOnly: false },
+      { filter: 'app...', followProdDepsOnly: true },
+    ])
+  })
+
   test('places positive filterProd before leading negated filter when CLI order is unavailable', () => {
     expect(orderWorkspaceFilters({
       filter: ['!lib-a'],

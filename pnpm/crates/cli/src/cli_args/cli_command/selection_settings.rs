@@ -58,7 +58,13 @@ pub fn extract_filter_order(
         if let Some(source) = classify_filter_token(token, &arity) {
             order.push(source);
         }
-        index += step_width(token, argv.get(index + 1), &arity, limit - index);
+        index += step_width(
+            token,
+            argv.get(index + 1)
+                .map(OsString::as_os_str),
+            &arity,
+            limit - index,
+        );
     }
     let filter_matches = order
         .iter()
@@ -103,10 +109,10 @@ fn classify_filter_token(token: &OsStr, arity: &ArgTable) -> Option<pnpm_config:
         .map(|_| pnpm_config::FilterSource::Filter)
 }
 
-fn step_width(token: &OsString, next: Option<&OsString>, arity: &ArgTable, rest: usize) -> usize {
+fn step_width(token: &OsStr, next: Option<&OsStr>, arity: &ArgTable, rest: usize) -> usize {
     token
         .to_str()
-        .and_then(|text| option_width(text, next.and_then(|next| next.to_str()), arity))
+        .and_then(|text| option_width(text, next.and_then(OsStr::to_str), arity))
         .unwrap_or(1)
         .min(rest)
 }
