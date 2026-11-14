@@ -714,3 +714,86 @@ test('validateFrozenInstall rejects lockfile settings mutated by preResolution h
     }))
   ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
 })
+
+test('mutateModules re-runs resolutionVerifiers and preResolution hooks if pnpm-lock.yaml changes after validateFrozenInstall', async () => {
+  prepareEmpty()
+  const rootDir = process.cwd() as ProjectRootDir
+  const cacheDir = path.resolve('tamper-verification-cache')
+
+  const secondManifest: ProjectManifest = {
+    name: 'post-preflight-change-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(secondManifest))
+  await install(secondManifest, testDefaults())
+  const secondLockfile = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  fs.rmSync('node_modules', { recursive: true, force: true })
+
+  const firstManifest: ProjectManifest = {
+    name: 'post-preflight-change-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(firstManifest))
+  await install(firstManifest, testDefaults())
+  fs.rmSync('node_modules', { recursive: true, force: true })
+
+  let hookCalls = 0
+  const verifiedNames: string[] = []
+  const makeOpts = (manifest: ProjectManifest): InstallOptions => ({
+    ...testDefaults({
+      allProjects: [{ buildIndex: 0, manifest, rootDir }],
+      cacheDir,
+      frozenLockfile: true,
+      hooks: {
+        preResolution: [
+          async () => {
+            hookCalls += 1
+          },
+        ],
+      },
+    }),
+    resolutionVerifiers: [
+      {
+        policy: { rejectIsNegative: true },
+        canTrustPastCheck: () => true,
+        verify: async (_resolution, { name, version }) => {
+          verifiedNames.push(name)
+          if (name === 'is-negative') {
+            return {
+              ok: false,
+              code: 'TEST_REJECT',
+              reason: `${name}@${version} blocked by test policy`,
+            }
+          }
+          return { ok: true }
+        },
+      },
+    ],
+  })
+
+  const projects: MutatedProject[] = [{ mutation: 'install', rootDir }]
+  const validated = await validateFrozenInstall(projects, makeOpts(firstManifest))
+  expect(hookCalls).toBe(1)
+  expect(verifiedNames).toStrictEqual(['is-positive'])
+
+  // Swap `pnpm-lock.yaml` after preflight: `mutateModules` must detect the mismatch against
+  // `validatedInputLockfile`, rerun `preResolution`, bypass the stat shortcut, and reject `is-negative`.
+  fs.writeFileSync('package.json', JSON.stringify(secondManifest))
+  fs.writeFileSync(WANTED_LOCKFILE, secondLockfile)
+  verifiedNames.length = 0
+
+  await expect(mutateModules(projects, {
+    ...makeOpts(secondManifest),
+    _preparedFrozen: validated?.prepared,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_TEST_REJECT',
+  })
+  expect(hookCalls).toBe(2)
+  expect(verifiedNames).toContain('is-negative')
+})

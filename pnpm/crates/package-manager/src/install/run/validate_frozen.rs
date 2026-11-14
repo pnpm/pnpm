@@ -6,6 +6,8 @@
 //! each hook once.
 
 mod checks;
+#[cfg(test)]
+mod tests;
 
 use super::{
     super::{
@@ -40,6 +42,13 @@ pub enum FrozenVirtualStoreClean {
 pub struct PreparedFrozenInstall {
     pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     manifests: HookedManifests,
+    pre_resolution: PreparedPreResolution,
+    verified_wanted: Option<Arc<Lockfile>>,
+    had_conflicts: bool,
+    lockfile_verified: bool,
+}
+
+struct VerifiedSettledFrozen {
     pre_resolution: PreparedPreResolution,
     lockfile_verified: bool,
 }
@@ -177,24 +186,46 @@ where
         let Some(prepared) = prepared else {
             return InstallRunOptions { selection, ..Default::default() };
         };
+        let same_lockfile = matches_verified_lockfile(self.context.lockfile, &prepared);
         if let Some(hook) = prepared.pnpmfile_hook {
             self.projects.pnpmfile_hook_override = Some(hook);
         }
-        let lockfile_verification_override = prepared.lockfile_verified.then(|| {
-            Box::pin(async { Ok(()) }) as LockfileVerificationOverride<'a>
-        });
+        let lockfile_verification_override =
+            (same_lockfile && prepared.lockfile_verified).then(|| {
+                Box::pin(async { Ok(()) }) as LockfileVerificationOverride<'a>
+            });
         InstallRunOptions {
             selection,
             lockfile_verification_override,
             manifests: InstallManifestOptions {
                 prepared_frozen: Some(PreparedFrozenRun {
                     manifests: Some(prepared.manifests),
-                    pre_resolution: Some(prepared.pre_resolution),
+                    pre_resolution: same_lockfile.then_some(prepared.pre_resolution),
                 }),
                 ..Default::default()
             },
             ..Default::default()
         }
+    }
+}
+
+fn matches_verified_lockfile(
+    source: pnpm_lockfile::MaybeLazyLockfile<'_>,
+    prepared: &PreparedFrozenInstall,
+) -> bool {
+    let Ok(merged_conflicts) = source.merged_conflict_files() else {
+        return false;
+    };
+    if (merged_conflicts > 0) != prepared.had_conflicts {
+        return false;
+    }
+    if let (Some(verified), Ok(Some(shared))) = (&prepared.verified_wanted, source.shared()) {
+        return Arc::ptr_eq(verified, &shared) || **verified == *shared;
+    }
+    match (&prepared.verified_wanted, source.get()) {
+        (Some(verified), Ok(Some(current))) => verified.as_ref() == current,
+        (None, Ok(None)) => true,
+        _ => false,
     }
 }
 
@@ -220,8 +251,13 @@ impl<'a> RunExecution<'a> {
         let scope = self.select_scope();
         let mut loaded =
             self.load_for_frozen_validation::<Reporter>(&scope, virtual_store_clean).await?;
+        let verified_wanted = loaded.wanted.shared
+            .as_ref()
+            .map(Arc::clone)
+            .or_else(|| loaded.wanted.lockfile.cloned().map(Arc::new));
+        let had_conflicts = loaded.wanted.had_conflicts;
         let manifests = std::mem::take(&mut loaded.manifests);
-        let (pre_resolution, lockfile_verified) = {
+        let VerifiedSettledFrozen { pre_resolution, lockfile_verified } = {
             let project_manifests = manifests.view(&scope.project_manifests);
             self.validate_project_manifests(&project_manifests)?;
             self.verify_settled_frozen::<Reporter>(&scope, &mut loaded, &project_manifests).await?
@@ -230,6 +266,8 @@ impl<'a> RunExecution<'a> {
             pnpmfile_hook: loaded.pnpmfile_hook,
             manifests,
             pre_resolution,
+            verified_wanted,
+            had_conflicts,
             lockfile_verified,
         })
     }
@@ -278,7 +316,7 @@ impl<'a> RunExecution<'a> {
         scope: &InstallScope<'_>,
         loaded: &mut Loaded<'_>,
         project_manifests: &[(PathBuf, &PackageManifest)],
-    ) -> Result<(PreparedPreResolution, bool), InstallError> {
+    ) -> Result<VerifiedSettledFrozen, InstallError> {
         let mut lockfiles = settle_wanted_lockfile::<SilentReporter>(
             self.install,
             &self.mode,
@@ -307,7 +345,7 @@ impl<'a> RunExecution<'a> {
         };
         let pre_resolution =
             PreparedPreResolution { hooked_wanted: lockfiles.wanted.take_hooked(), hooked_current };
-        Ok((pre_resolution, lockfile_verified))
+        Ok(VerifiedSettledFrozen { pre_resolution, lockfile_verified })
     }
 }
 

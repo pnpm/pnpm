@@ -359,3 +359,60 @@ fn clean_filter_root_with_dot_lockfile_dir_preserves_shared_virtual_store() {
 
     drop(root);
 }
+
+#[test]
+fn ci_dedicated_workspace_carries_verified_lockfile_into_install() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let store_dir = root.path().join("store");
+    write_local_dep(&workspace, "dep-a");
+    write_local_dep(&workspace, "dep-b");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nstoreDir: {}\n",
+            serde_json::to_string(&store_dir).expect("quote storeDir"),
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+    let pkg_a = workspace.join("packages/pkg-a");
+    fs::create_dir_all(&pkg_a).expect("create pkg-a");
+    fs::write(
+        pkg_a.join("package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": {
+                "dep-a": "file:../../deps/dep-a",
+            },
+            "scripts": {
+                "pnpm:devPreinstall": r#"node -e "if (process.env.TAMPER_LOCK === '1') { const fs = require('node:fs'); const p = 'pnpm-lock.yaml'; fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replaceAll('dep-a', 'dep-b')); }""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a manifest");
+
+    let initial = run_pnpm(&workspace, &["install"]);
+    assert!(initial.status.success(), "{initial:?}");
+    assert!(pkg_a.join("pnpm-lock.yaml").is_file(), "dedicated lockfile created");
+
+    let ci_out = Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .env("TAMPER_LOCK", "1")
+        .arg("ci")
+        .output()
+        .expect("run pnpm ci");
+    assert!(ci_out.status.success(), "{ci_out:?}");
+    assert!(
+        pkg_a.join("node_modules/dep-a/package.json").exists(),
+        "dedicated ci installed verified dep-a from in-memory preflight lockfile",
+    );
+    assert!(
+        !pkg_a.join("node_modules/dep-b").exists(),
+        "dedicated ci did not reopen tampered disk lockfile",
+    );
+
+    drop(root);
+}

@@ -1,11 +1,9 @@
 use super::{
-    Arc, Config, Context, DedicatedProjectRuns, DedicatedProjects, IndexMap, InstallArgs,
-    InstallFamily, InstallFamilyPlan, Path, PathBuf, Reporter, RuntimePolicy, State,
-    ThrottledClient, dedicated_project_name, discover_workspace_projects, ecosystem_install,
-    injected_source_dirs, pipelined_runs::early_starts, prepare_root_config, project_dependencies,
-    project_names, select_install_family,
+    Arc, Config, Context, InstallArgs, InstallFamily, InstallFamilyPlan, Path, PathBuf, Reporter,
+    RuntimePolicy, State, ThrottledClient,
+    dedicated_runs::{discover_dedicated_workspace_projects, run_dedicated_projects},
+    ecosystem_install, prepare_root_config, select_install_family,
 };
-use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use tracing::Instrument as _;
@@ -133,7 +131,7 @@ impl InstallPipeline {
             State::new_http_client(self.cfg).wrap_err("initialize the install network")?
         };
         if !ecosystem_install::is_enabled(self.cfg) {
-            let (job, _, _) = self.into_node_job();
+            let SplitInstallPipeline { job, .. } = self.into_node_job();
             let cfg = job.cfg;
             let prepared = job.validate_and_clean_if_needed::<Reporter>(
                 &family.plan,
@@ -153,7 +151,7 @@ impl InstallPipeline {
         mut lockfile: Option<pnpm_lockfile::LazyLockfile>,
         http_client: Arc<ThrottledClient>,
     ) -> miette::Result<&'static Config> {
-        let (job, config_root, frozen_lockfile) = self.into_node_job();
+        let SplitInstallPipeline { job, config_root, frozen_lockfile } = self.into_node_job();
         let cfg = job.cfg;
         let ecosystem = ecosystem_install::plan::<Reporter>(
             ecosystem_install::InstallContext {
@@ -185,7 +183,7 @@ impl InstallPipeline {
         Ok(cfg)
     }
 
-    fn into_node_job(self) -> (NodeInstallJob, PathBuf, bool) {
+    fn into_node_job(self) -> SplitInstallPipeline {
         let InstallPipeline {
             args,
             cfg,
@@ -196,11 +194,11 @@ impl InstallPipeline {
             frozen_lockfile,
             ..
         } = self;
-        (
-            NodeInstallJob { args, cfg, prefix, manifest_path, require_lockfile },
+        SplitInstallPipeline {
+            job: NodeInstallJob { args, cfg, prefix, manifest_path, require_lockfile },
             config_root,
             frozen_lockfile,
-        )
+        }
     }
 
     /// Whether the fast "Already up to date" return cannot fire, so the run
@@ -215,6 +213,12 @@ impl InstallPipeline {
                 || !pnpm_workspace_state::get_file_path(lockfile_dir).is_file()
         }
     }
+}
+
+struct SplitInstallPipeline {
+    job: NodeInstallJob,
+    config_root: PathBuf,
+    frozen_lockfile: bool,
 }
 
 pub(super) struct NodeInstallJob {
@@ -303,42 +307,6 @@ impl NodeInstallJob {
     }
 }
 
-async fn run_dedicated_projects<Reporter: self::Reporter + 'static>(
-    args: &InstallArgs,
-    cfg: &Config,
-    projects: DedicatedProjects,
-    require_lockfile: bool,
-    http_client: Arc<ThrottledClient>,
-    prepared_by_dir: Arc<
-        std::sync::Mutex<
-            std::collections::HashMap<PathBuf, pnpm_package_manager::PreparedFrozenInstall>,
-        >,
-    >,
-) -> miette::Result<()> {
-    DedicatedProjectRuns {
-        config: cfg,
-        projects,
-        require_lockfile,
-        http_client: Some(http_client),
-        prune_excludes: !args.materialization.dry_run,
-        sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
-        pipelined: true,
-    }
-    .run::<Reporter, _, _>(|state| {
-        let prepared = state.manifest
-            .path()
-            .parent()
-            .and_then(|dir| {
-                prepared_by_dir
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .remove(dir)
-            });
-        Box::pin(args.clone().run_prepared::<Reporter>(state, prepared))
-    })
-    .await
-}
-
 /// [`State::init`], consuming the pipeline's pre-built lockfile when
 /// there is one so an already-running prefetch isn't thrown away.
 pub(super) fn init_shared_state(
@@ -353,99 +321,3 @@ pub(super) fn init_shared_state(
     State::init_with_lockfile_and_http_client(manifest_path, config, lockfile, http_client)
         .wrap_err("initialize the state")
 }
-
-/// `sharedWorkspaceLockfile: false` workspace install: one independent
-/// single-project install per workspace project — each gets its own
-/// `pnpm-lock.yaml`, `node_modules`, and virtual store, mirroring
-/// pnpm's dedicated-lockfile per-project loop in its recursive
-/// dispatch. The workspace root participates when it has a manifest,
-/// matching the project set a shared-lockfile workspace install covers.
-/// Projects whose workspace dependencies have finished run concurrently
-/// under `workspaceConcurrency`, as a recursive install does.
-pub(in crate::cli_args) async fn run_dedicated_lockfile_workspace_install<
-    Reporter: self::Reporter + 'static,
->(
-    args: &super::super::install::InstallArgs,
-    cfg: &Config,
-    workspace_root: &Path,
-    require_lockfile: bool,
-    http_client: Arc<ThrottledClient>,
-) -> miette::Result<()> {
-    let projects = discover_dedicated_workspace_projects(cfg, workspace_root)?;
-    run_dedicated_projects::<Reporter>(
-        args,
-        cfg,
-        projects,
-        require_lockfile,
-        http_client,
-        Arc::default(),
-    )
-    .await
-}
-
-pub(super) fn discover_dedicated_workspace_projects(
-    cfg: &Config,
-    workspace_root: &Path,
-) -> miette::Result<DedicatedProjects> {
-    let (projects, _patterns) = discover_workspace_projects(workspace_root, cfg)?;
-    let mut names = project_names(cfg, &projects);
-    let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
-    let mut dependencies = IndexMap::with_capacity(projects.len() + 1);
-    let mut other_dirs = Vec::new();
-    if pnpm_package_manifest::project_manifest_path(workspace_root).is_file()
-        && !projects
-            .iter()
-            .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)
-    {
-        dependencies.insert(workspace_root.to_path_buf(), Vec::new());
-        other_dirs.push(workspace_root.to_path_buf());
-        // The root is installed alongside the discovered projects but is
-        // not one of them, so its name is not in the map yet.
-        if let Some(name) = dedicated_project_name(cfg, workspace_root) {
-            names.insert(workspace_root.to_path_buf(), name);
-        }
-    }
-    let injected_source_dirs = dedicated_injected_source_dirs(&projects, &other_dirs)?;
-    let selection =
-        select_recursive_projects(&projects, cfg, workspace_root, AutoExcludeRoot::Disabled)?;
-    dependencies.extend(project_dependencies(&selection, cfg.sort));
-    Ok(DedicatedProjects {
-        dependencies,
-        names,
-        covers_workspace: true,
-        injected_source_dirs,
-        early_starts: early_starts(cfg, &projects),
-        workspace: pnpm_package_manager::DiscoveredWorkspace::new(projects),
-    })
-}
-
-/// See [`injected_source_dirs`]. `other_dirs` are the directories installed
-/// alongside `projects` without being discovered, such as the workspace
-/// root. Their manifests are read here, before any lifecycle script runs.
-fn dedicated_injected_source_dirs(
-    projects: &[pnpm_workspace::Project],
-    other_dirs: &[PathBuf],
-) -> miette::Result<std::collections::HashSet<PathBuf>> {
-    let other_manifests = other_dirs
-        .iter()
-        .map(|dir| {
-            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)
-                .map_err(miette::Report::new)
-        })
-        .collect::<miette::Result<Vec<_>>>()?;
-    Ok(injected_source_dirs(
-        projects
-            .iter()
-            .map(|project| (project.root_dir.as_path(), Some(project.manifest.value())))
-            .chain(
-                other_dirs
-                    .iter()
-                    .map(PathBuf::as_path)
-                    .zip(other_manifests.iter().map(Option::as_ref)),
-            ),
-    ))
-}
-
-#[cfg(test)]
-#[path = "install_tests.rs"]
-mod install_tests;

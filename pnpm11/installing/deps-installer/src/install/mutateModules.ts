@@ -35,13 +35,13 @@ import type {
   MutationRunBase,
 } from './mutationTypes.js'
 import { canUsePnprForMutations, mutateModulesViaPnpr, pnprCanRunPnpmfile } from './pnpr.js'
-import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
-import { runMutations } from './runMutations.js'
 import {
   applyPreparedFrozenProjects,
-  applyPreparedOrRunPreResolutionHooks,
   assertProjectManifestsExist,
-} from './validateFrozenInstall.js'
+  settlePreparedMutationHooksAndVerification,
+} from './preparedFrozen.js'
+import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
+import { runMutations } from './runMutations.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
@@ -115,12 +115,10 @@ async function prepareMutationRun (base: MutationRunBase): Promise<MutationRun> 
   const { maybeOpts, opts } = base
   const openedRun = await openMutationRun(base)
   const { ctx } = openedRun
-  const prepared = maybeOpts._preparedFrozen
-  const { verifyLockfilePromise } = prepared?.verifiedLockfile
-    ? {}
-    : await startLockfileVerification(openedRun)
-
-  await applyPreparedOrRunPreResolutionHooks(opts, ctx, prepared)
+  const { verifyLockfilePromise } = await settlePreparedMutationHooksAndVerification(
+    openedRun,
+    maybeOpts._preparedFrozen
+  )
 
   const forceResolutionFromHook = await shouldForceResolutionFromHook(opts, ctx)
   const pruneVirtualStore = shouldPruneVirtualStore(opts, ctx)
@@ -346,10 +344,14 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
  * this function does not await the verification.
  */
 export async function startLockfileVerification (
-  { ctx, installsOnly, opts, projects }: Pick<OpenedMutationRun, 'ctx' | 'installsOnly' | 'opts' | 'projects'>
+  { ctx, installsOnly, opts, projects }: Pick<OpenedMutationRun, 'ctx' | 'installsOnly' | 'opts' | 'projects'>,
+  { skipStatShortcut = false }: { skipStatShortcut?: boolean } = {}
 ): Promise<{ verifyLockfilePromise?: Promise<void> }> {
   if (willDelegateToPacquet(opts, ctx, installsOnly) || opts.trustLockfile) return {}
-  const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
+  const cacheActive = !skipStatShortcut &&
+    !opts.mergeGitBranchLockfiles &&
+    opts.cacheDir != null &&
+    opts.resolutionVerifiers.length > 0
   const wantedLockfilePath = cacheActive
     ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
       useGitBranchLockfile: opts.useGitBranchLockfile,
@@ -384,7 +386,7 @@ export async function startLockfileVerification (
  * isn't known here — so verification still runs in that window, the
  * duplicate is bounded to it.
  */
-function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, installsOnly: boolean): boolean {
+export function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, installsOnly: boolean): boolean {
   return opts.runPacquet != null &&
     opts.useLockfile &&
     !opts.useGitBranchLockfile &&
