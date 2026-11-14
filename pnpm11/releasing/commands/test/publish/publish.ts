@@ -1153,3 +1153,55 @@ test('publish with -C <dir> resolves relative tarball and folder targets against
   await checkPkgExists(folderPkg.name, folderPkg.version)
 })
 
+const testOnPosix = isWindows() ? test.skip : test
+
+testOnPosix('publish preserves symlink parents before .. in relative tarball and folder targets', async () => {
+  const suffix = Date.now()
+  const tarballPkg = {
+    name: `@pnpmtest/test-symlink-tarball-${suffix}`,
+    version: '1.0.0',
+  }
+  const folderPkg = {
+    name: `@pnpmtest/test-symlink-folder-${suffix}`,
+    version: '1.0.0',
+  }
+  prepare({ private: true })
+  const baseDir = process.cwd()
+  const realReleaseDir = path.join(temporaryDirectory(), 'release')
+  const realBuildSub = path.join(realReleaseDir, 'build')
+  const realFolderPkg = path.join(realReleaseDir, 'pkg')
+  fs.mkdirSync(realBuildSub, { recursive: true })
+  fs.mkdirSync(realFolderPkg, { recursive: true })
+  fs.symlinkSync(realBuildSub, path.join(baseDir, 'link'))
+
+  fs.writeFileSync(path.join(realReleaseDir, 'package.json'), JSON.stringify(tarballPkg))
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: realReleaseDir,
+    extraBinPaths: [],
+    out: 'package.tgz',
+  })
+  fs.rmSync(path.join(realReleaseDir, 'package.json'))
+  fs.writeFileSync(path.join(realFolderPkg, 'package.json'), JSON.stringify(folderPkg))
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', 'link/../package.tgz', '--no-git-checks'] },
+    configByUri: CONFIG_BY_URI,
+    dir: baseDir,
+    gitChecks: false,
+  }, ['link/../package.tgz'])
+  await checkPkgExists(tarballPkg.name, tarballPkg.version)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', 'link/../pkg', '--no-git-checks'] },
+    configByUri: CONFIG_BY_URI,
+    dir: baseDir,
+    gitChecks: false,
+  }, ['link/../pkg'])
+  await checkPkgExists(folderPkg.name, folderPkg.version)
+})
+
+

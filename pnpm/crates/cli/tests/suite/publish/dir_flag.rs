@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, process::Command};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -89,4 +89,53 @@ fn publish_with_dir_flag_resolves_relative_folder_against_target_dir() {
         .expect("spawn pnpm --dir subdir publish ./nested-pkg");
     assert_success(&output);
     uploaded.assert();
+}
+
+#[test]
+fn publish_with_dir_flag_runs_git_checks_in_nested_target_repo() {
+    let caller = tempfile::tempdir().expect("caller dir");
+    let target_root = tempfile::tempdir().expect("target root");
+    let nested = target_root.path().join("nested");
+    fs::create_dir_all(&nested).expect("create nested dir");
+    write_project(
+        &nested,
+        "http://127.0.0.1:1/",
+        &json!({ "name": "test-nested-git-checks", "version": "1.0.0" }),
+    );
+
+    pnpm_testing_utils::git_repo::init_isolated_repo(caller.path());
+    fs::write(caller.path().join("README.md"), "clean caller\n").expect("write caller readme");
+    for args in [vec!["add", "."], vec!["commit", "-m", "init"]] {
+        Command::new("git")
+            .with_current_dir(caller.path())
+            .with_args(args)
+            .assert()
+            .success();
+    }
+
+    pnpm_testing_utils::git_repo::init_isolated_repo(&nested);
+    for args in [vec!["add", "."], vec!["commit", "-m", "init"]] {
+        Command::new("git")
+            .with_current_dir(&nested)
+            .with_args(args)
+            .assert()
+            .success();
+    }
+    fs::write(nested.join("LICENSE"), "dirty uncommitted change\n").expect("dirty nested repo");
+
+    let rejected = pacquet(caller.path())
+        .with_args([
+            "-C",
+            target_root
+                .path()
+                .to_str()
+                .expect("utf8 target root"),
+            "publish",
+            "nested",
+            "--dry-run",
+        ])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_GIT_UNCLEAN"), "stderr: {stderr}");
 }

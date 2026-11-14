@@ -10,7 +10,7 @@ import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-schedul
 
 import { publishedName } from '../publishedNames.js'
 import type { PackOptions, PackResultJson } from './pack.js'
-import { api, resolvePackOutput, toPackResultJson } from './packApi.js'
+import { api, resolvePackOutput, resolveRelativeTarget, toPackResultJson } from './packApi.js'
 
 export type PackDestinationLocker = (destination: string, write: () => Promise<void>) => Promise<void>
 
@@ -72,14 +72,10 @@ function selectPackablePkgDirs (selectedProjectsGraph: ProjectsGraph): Set<Proje
 }
 
 function resolvePackDestinationOptions (opts: PackOptions): PackOptions {
-  const resolvedOpts: PackOptions = {
+  return {
     ...opts,
-    outputBaseDir: path.resolve(opts.dir),
+    outputBaseDir: resolveRelativeTarget(process.cwd(), opts.dir),
   }
-  if (!opts.out && opts.packDestination) {
-    resolvedOpts.packDestination = path.resolve(opts.dir, opts.packDestination)
-  }
-  return resolvedOpts
 }
 
 interface PackGraphParams {
@@ -174,14 +170,14 @@ function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
   const publishedVersion = pkg.manifest.version
   if (!targetName || !publishedVersion) return undefined
   try {
-    return resolvePackOutput({
+    return path.normalize(resolvePackOutput({
       dir: pkg.rootDir,
       outputBaseDir: opts.outputBaseDir,
       out: opts.out,
       packDestination: opts.packDestination,
       publishedName: targetName,
       publishedVersion,
-    }).outputPath
+    }).outputPath)
   } catch {
     return undefined
   }

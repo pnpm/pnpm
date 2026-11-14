@@ -119,22 +119,28 @@ async function packProject ({ opts, dir, manifest, selectedManifestFileName, run
       })
       await runPostpack()
     }
-    await lockPackDestination(opts, path.resolve(outputPath), packAndRunPostpack)
+    await lockPackDestination(opts, destDir, tarballName, packAndRunPostpack)
   }
   return {
     publishedManifest: await withRegistryReadme(publishManifest, dir),
     contents: packedContents,
     tarballPath: opts.dir !== destDir
-      ? path.join(destDir, tarballName)
-      : path.relative(opts.dir, path.join(dir, tarballName)),
+      ? outputPath
+      : path.relative(opts.dir, resolveRelativeTarget(dir, tarballName)),
     unpackedSize,
   }
 }
 
-async function lockPackDestination (opts: PackOptions, destination: string, write: () => Promise<void>): Promise<void> {
+async function lockPackDestination (
+  opts: PackOptions,
+  destDir: string,
+  tarballName: string,
+  write: () => Promise<void>
+): Promise<void> {
   if (opts.packDestinationLocker == null) {
     await write()
   } else {
+    const destination = path.join(await fs.promises.realpath(destDir), tarballName)
     await opts.packDestinationLocker(destination, write)
   }
 }
@@ -311,8 +317,12 @@ export function resolvePackOutput (
     normalizedName,
     publishedVersion,
   })
-  const destDir = resolveDestDir(baseDir, destination)
-  return { destDir, outputPath: path.join(destDir, tarballName), tarballName }
+  const destDir = resolveRelativeTarget(baseDir, destination)
+  return {
+    destDir,
+    outputPath: resolveRelativeTarget(destDir, tarballName),
+    tarballName,
+  }
 }
 
 function resolveTarballAndDestination (
@@ -344,9 +354,19 @@ function resolveTarballAndDestination (
   }
 }
 
-function resolveDestDir (baseDir: string, destination: string | undefined): string {
-  if (!destination) return baseDir
-  return path.isAbsolute(destination) ? destination : path.join(baseDir, destination)
+/**
+ * Joins a relative `targetPath` onto `baseDir` without lexically collapsing
+ * `..` segments, so `symlink/..` resolves through the symlink target on
+ * filesystem access.
+ */
+export function resolveRelativeTarget (baseDir: string, targetPath: string | undefined): string {
+  if (!targetPath) return baseDir
+  if (path.isAbsolute(targetPath) || path.parse(targetPath).root !== '') return targetPath
+  const trimmedTarget = targetPath.replace(/^(?:\.[\\/]+)+/, '')
+  if (!trimmedTarget || trimmedTarget === '.') return baseDir
+  if (!baseDir || baseDir === '.') return trimmedTarget
+  const hasTrailingSep = baseDir.endsWith('/') || baseDir.endsWith('\\')
+  return hasTrailingSep ? `${baseDir}${trimmedTarget}` : `${baseDir}${path.sep}${trimmedTarget}`
 }
 
 /**

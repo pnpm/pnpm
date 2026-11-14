@@ -1966,3 +1966,39 @@ test.each([
   })
 })
 
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('pack: relative and absolute --pack-destination with symlink and .. follow symlink target', async () => {
+  const outer = tempDir()
+  const realParent = path.join(outer, 'real-parent')
+  const realSub = path.join(realParent, 'sub')
+  const pkgDir = path.join(outer, 'pkg')
+  fs.mkdirSync(realSub, { recursive: true })
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.symlinkSync(realSub, path.join(pkgDir, 'link'))
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.2.3' }))
+
+  const relResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    packDestination: 'link/../tarballs',
+  })
+  expect(fs.existsSync(path.join(realParent, 'tarballs', 'pkg-a-1.2.3.tgz'))).toBe(true)
+  expect(fs.existsSync(relResult.tarballPath)).toBe(true)
+  expect(fs.existsSync(path.join(pkgDir, 'tarballs'))).toBe(false)
+
+  const absResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    packDestination: `${pkgDir}/link/../abs-tarballs`,
+  })
+  expect(fs.existsSync(path.join(realParent, 'abs-tarballs', 'pkg-a-1.2.3.tgz'))).toBe(true)
+  expect(fs.existsSync(absResult.tarballPath)).toBe(true)
+  expect(fs.existsSync(path.join(pkgDir, 'abs-tarballs'))).toBe(false)
+})
+
+

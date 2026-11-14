@@ -169,7 +169,13 @@ impl PublishArgs {
         let publish_branch =
             configured_publish_branch(self.flags.git.publish_branch.as_deref(), config);
         let git_checks = config.git_checks && !self.flags.git.no_git_checks;
-        run_git_checks::<Host>(dir, git_checks, publish_branch, config.ci)?;
+        let target_dir = self.package
+            .as_deref()
+            .filter(|path| !recursive && !is_tarball_path(path))
+            .map(|path| dir.join(path))
+            .filter(|path| path.is_dir());
+        let git_checks_dir = target_dir.as_deref().unwrap_or(dir);
+        run_git_checks::<Host>(git_checks_dir, git_checks, publish_branch, config.ci)?;
 
         if recursive {
             let published =
