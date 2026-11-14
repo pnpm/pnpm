@@ -278,7 +278,7 @@ where
         .expect("publish manifest serializes to JSON")
         .into_bytes();
 
-    let dest_dir = resolve_dest_dir(&source.dir, pack_destination.as_deref());
+    let dest_dir = resolve_dest_dir(&source.dir, &opts.output, pack_destination.as_deref());
     if !opts.output.dry_run {
         create_dest_dir::<Sys>(&dest_dir)?;
     }

@@ -2,11 +2,13 @@ import path from 'node:path'
 
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
+import { publishedName } from '../publishedNames.js'
 import type { PackOptions, PackResultJson } from './pack.js'
 import { api, resolvePackOutput, toPackResultJson } from './packApi.js'
 
@@ -17,6 +19,9 @@ export type PackDestinationLocker = (destination: string, write: () => Promise<v
  * and returns their results in that order.
  */
 export async function packRecursively (opts: PackOptions): Promise<PackResultJson[]> {
+  if (opts.out && opts.packDestination) {
+    throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+  }
   const selectedProjectsGraph = opts.selectedProjectsGraph as ProjectsGraph
   const packedPkgDirs = selectPackablePkgDirs(selectedProjectsGraph)
 
@@ -67,13 +72,12 @@ function selectPackablePkgDirs (selectedProjectsGraph: ProjectsGraph): Set<Proje
 }
 
 function resolvePackDestinationOptions (opts: PackOptions): PackOptions {
-  const resolvedOpts = { ...opts }
-  if (opts.out) {
-    resolvedOpts.out = path.resolve(opts.dir, opts.out)
-  } else if (opts.packDestination) {
+  const resolvedOpts: PackOptions = {
+    ...opts,
+    outputBaseDir: path.resolve(opts.dir),
+  }
+  if (!opts.out && opts.packDestination) {
     resolvedOpts.packDestination = path.resolve(opts.dir, opts.packDestination)
-  } else {
-    resolvedOpts.packDestination = path.resolve(opts.dir)
   }
   return resolvedOpts
 }
@@ -166,14 +170,19 @@ function createPackDestinationLocker (): PackDestinationLocker {
 }
 
 function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
-  const publishedName = pkg.manifest.publishConfig?.name ?? pkg.manifest.name
+  const targetName = publishedName(pkg.manifest)
   const publishedVersion = pkg.manifest.version
-  if (publishedName == null || publishedVersion == null) return undefined
-  return resolvePackOutput({
-    dir: pkg.rootDir,
-    out: opts.out,
-    packDestination: opts.packDestination,
-    publishedName,
-    publishedVersion,
-  }).outputPath
+  if (!targetName || !publishedVersion) return undefined
+  try {
+    return resolvePackOutput({
+      dir: pkg.rootDir,
+      outputBaseDir: opts.outputBaseDir,
+      out: opts.out,
+      packDestination: opts.packDestination,
+      publishedName: targetName,
+      publishedVersion,
+    }).outputPath
+  } catch {
+    return undefined
+  }
 }

@@ -72,6 +72,13 @@ function assertPackableManifest (manifest: ProjectManifest, manifestFileName: st
   if (!manifest.version) {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
+  assertValidTarballVersion(manifest.version)
+}
+
+function assertValidTarballVersion (version: string, reportedVersion: string = version): void {
+  if (!version || version === '.' || version === '..' || version.includes('/') || version.includes('\\')) {
+    throw new PnpmError('INVALID_PACKAGE_VERSION', `Invalid package version "${reportedVersion}".`)
+  }
 }
 
 interface PackProjectOptions {
@@ -87,6 +94,7 @@ async function packProject ({ opts, dir, manifest, selectedManifestFileName, run
   const { publishManifest, publishedName } = await createPackedManifest(opts, dir, manifest)
   const { destDir, outputPath, tarballName } = resolvePackOutput({
     dir,
+    outputBaseDir: opts.outputBaseDir,
     out: opts.out,
     packDestination: opts.packDestination,
     publishedName,
@@ -152,7 +160,9 @@ async function createPackedManifest (
   // subject, which removes build metadata. Leaving it in here would mismatch the version embedded
   // in the tarball's package.json and cause the registry to reject the publish with a 422 when
   // verifying the sigstore provenance bundle. See https://github.com/pnpm/pnpm/issues/11518.
-  publishManifest.version = stripBuildMetadata(publishManifest.version!)
+  const rawPublishedVersion = publishManifest.version ?? ''
+  publishManifest.version = stripBuildMetadata(rawPublishedVersion)
+  assertValidTarballVersion(publishManifest.version, rawPublishedVersion)
   // Read back off the publish manifest so a `publishConfig.name` rename reaches
   // the filename too — the tarball name, the packed manifest, and the registry
   // metadata all name one artifact. The rename never went through the check on
@@ -285,33 +295,58 @@ async function summarizePackedEntries (
 export function resolvePackOutput (
   params: {
     dir: string
+    outputBaseDir?: string
     out?: string
     packDestination?: string
     publishedName: string
     publishedVersion: string
   }
 ): { destDir: string, outputPath: string, tarballName: string } {
-  const { dir, out, packDestination, publishedName } = params
-  const normalizedName = normalizePackageName(publishedName)
+  const baseDir = params.outputBaseDir ?? params.dir
+  const normalizedName = normalizePackageName(params.publishedName)
   const publishedVersion = stripBuildMetadata(params.publishedVersion)
-  let tarballName: string
-  let destination: string | undefined
-  if (out) {
-    if (packDestination) {
-      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
-    }
-    const preparedOut = out.replaceAll('%s', normalizedName).replaceAll('%v', publishedVersion)
-    const parsedOut = path.parse(preparedOut)
-    destination = parsedOut.dir || packDestination
-    tarballName = parsedOut.base
-  } else {
-    destination = packDestination
-    tarballName = `${normalizedName}-${publishedVersion}.tgz`
-  }
-  const destDir = destination
-    ? (path.isAbsolute(destination) ? destination : path.join(dir, destination))
-    : dir
+  const { tarballName, destination } = resolveTarballAndDestination({
+    out: params.out,
+    packDestination: params.packDestination,
+    normalizedName,
+    publishedVersion,
+  })
+  const destDir = resolveDestDir(baseDir, destination)
   return { destDir, outputPath: path.join(destDir, tarballName), tarballName }
+}
+
+function resolveTarballAndDestination (
+  params: {
+    out?: string
+    packDestination?: string
+    normalizedName: string
+    publishedVersion: string
+  }
+): { tarballName: string, destination?: string } {
+  const { out, packDestination, normalizedName, publishedVersion } = params
+  if (out == null) {
+    return {
+      destination: packDestination,
+      tarballName: `${normalizedName}-${publishedVersion}.tgz`,
+    }
+  }
+  if (packDestination) {
+    throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+  }
+  const preparedOut = out.replaceAll('%s', normalizedName).replaceAll('%v', publishedVersion)
+  const parsedOut = path.parse(preparedOut)
+  if (!parsedOut.base || parsedOut.base === '.' || parsedOut.base === '..') {
+    throw new PnpmError('INVALID_OPTION', `Invalid --out value "${out}": it does not resolve to a file name`)
+  }
+  return {
+    destination: parsedOut.dir || undefined,
+    tarballName: parsedOut.base,
+  }
+}
+
+function resolveDestDir (baseDir: string, destination: string | undefined): string {
+  if (!destination) return baseDir
+  return path.isAbsolute(destination) ? path.normalize(destination) : path.join(baseDir, destination)
 }
 
 /**

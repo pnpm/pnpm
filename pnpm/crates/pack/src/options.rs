@@ -63,6 +63,9 @@ pub struct PackOutputOptions {
     pub gzip_level: Option<u32>,
     /// Do everything except writing the tarball to disk.
     pub dry_run: bool,
+    /// Base directory relative `destination` / `out` paths (and the default
+    /// output directory) resolve against; `None` uses the packed directory.
+    pub base_dir: Option<PathBuf>,
     /// Directory to write the tarball into.
     pub destination: Option<String>,
     /// Custom output path template (`%s` = name, `%v` = version).

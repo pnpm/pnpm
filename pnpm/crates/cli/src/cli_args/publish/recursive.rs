@@ -338,8 +338,14 @@ pub(super) fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
     {
         return None;
     }
-    let name = manifest.get("name").and_then(Value::as_str)?;
-    let version = manifest.get("version").and_then(Value::as_str)?;
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())?;
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .filter(|version| !version.is_empty())?;
     Some((published_name(manifest).unwrap_or(name), version))
 }
 

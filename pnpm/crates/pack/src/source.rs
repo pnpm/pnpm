@@ -96,7 +96,7 @@ fn packed_identity(manifest: &Value) -> Result<&str, PackError> {
         .and_then(Value::as_str)
         .filter(|version| !version.is_empty())
         .ok_or(PackError::PackageVersionNotFound)?;
-    if version.contains('/') || version.contains('\\') {
+    if is_invalid_tarball_version(version) {
         return Err(PackError::InvalidPackageVersion { version: version.to_string() });
     }
     Ok(name)
@@ -108,22 +108,24 @@ fn packed_identity(manifest: &Value) -> Result<&str, PackError> {
 /// name, the packed manifest and any registry metadata all agree on the
 /// version. See [pnpm/pnpm#11518](https://github.com/pnpm/pnpm/issues/11518).
 ///
-/// The name is read back off the publish manifest so a `publishConfig.name`
-/// rename reaches the filename too. That rename never went through
-/// [`packed_identity`], so it is validated here: it lands in the tarball
-/// filename, where a separator would smuggle path components into the join and
-/// write outside `dest_dir`.
+/// The name and version are read back off the publish manifest so a
+/// `publishConfig.name` rename or a `beforePacking` hook modification reaches
+/// the filename too. Neither went through [`packed_identity`], so both are
+/// validated here: they land in the tarball path, where a separator or `.` /
+/// `..` segment would smuggle path components into the join and write outside
+/// `dest_dir`.
 fn published_identity(
     publish_manifest: &mut Value,
     name: &str,
 ) -> Result<(String, String), PackError> {
-    let published_version = strip_build_metadata(
-        publish_manifest
-            .get("version")
-            .and_then(Value::as_str)
-            .unwrap_or(""),
-    )
-    .to_string();
+    let raw_version = publish_manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let published_version = strip_build_metadata(raw_version).to_string();
+    if is_invalid_tarball_version(&published_version) {
+        return Err(PackError::InvalidPackageVersion { version: raw_version.to_string() });
+    }
     if let Some(object) = publish_manifest.as_object_mut() {
         object.insert("version".to_string(), Value::String(published_version.clone()));
     }
@@ -136,6 +138,14 @@ fn published_identity(
         return Err(PackError::InvalidPackageName { name: published_name.to_string() });
     }
     Ok((normalize_tarball_name(published_name), published_version))
+}
+
+fn is_invalid_tarball_version(version: &str) -> bool {
+    version.is_empty()
+        || version == "."
+        || version == ".."
+        || version.contains('/')
+        || version.contains('\\')
 }
 
 /// The readme is always reported as part of the published manifest, matching the npm CLI, so a

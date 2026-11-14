@@ -1906,3 +1906,62 @@ test('pack: preserves internal symlinks in package tarball and excludes external
   }
 })
 
+test('pack: recursive --out does not expand %s/%v placeholders in working directory path', async () => {
+  const outer = tempDir()
+  const dir = path.join(outer, 'dir-%s-%v-ws')
+  fs.mkdirSync(dir, { recursive: true })
+  prepare({ private: true }, { tempDir: dir })
+  preparePackages([
+    { name: 'pkg-a', version: '1.0.0' },
+    { name: 'pkg-b', version: '2.0.0' },
+  ], { tempDir: path.join(dir, 'packages') })
+  writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: ['pkg-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    out: '%s-%v.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+  })
+
+  expect(fs.existsSync(path.join(dir, 'pkg-a-1.0.0.tgz'))).toBe(true)
+  expect(fs.existsSync(path.join(dir, 'pkg-b-2.0.0.tgz'))).toBe(true)
+  expect(fs.existsSync(path.join(outer, 'dir-pkg-a-1.0.0-ws'))).toBe(false)
+  expect(fs.existsSync(path.join(outer, 'dir-pkg-b-2.0.0-ws'))).toBe(false)
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    out: 'artifact.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+  })
+  expect(fs.existsSync(path.join(dir, 'artifact.tgz'))).toBe(true)
+})
+
+test.each([
+  '.',
+  '..',
+  '+build',
+  '1.0.0/../../escape',
+])('pack: rejects invalid package version %j containing path segments', async (version) => {
+  prepare({
+    name: 'test-invalid-version-pkg',
+    version,
+  })
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_PACKAGE_VERSION',
+  })
+})
+

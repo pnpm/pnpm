@@ -121,6 +121,7 @@ pub struct PackArgs {
 
 struct PackSharedContext {
     catalogs: Catalogs,
+    output_base_dir: Option<PathBuf>,
     out: Option<String>,
     pack_destination: Option<String>,
     before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
@@ -149,6 +150,7 @@ impl PackArgs {
         } else {
             let shared = PackSharedContext {
                 catalogs: configured_catalogs(config)?,
+                output_base_dir: None,
                 out: self.out.clone(),
                 pack_destination: self.pack_destination.clone(),
                 before_packing_hooks,
@@ -253,6 +255,7 @@ impl PackArgs {
             output: pnpm_pack::PackOutputOptions {
                 gzip_level: self.pack_gzip_level,
                 dry_run: self.dry_run,
+                base_dir: shared.output_base_dir,
                 out: shared.out,
                 destination: shared.pack_destination,
                 injected_files: Vec::new(),
@@ -289,6 +292,7 @@ impl RecursivePack<'_, '_> {
         let project = self.graph[&root].package.project;
         let shared = PackSharedContext {
             catalogs: self.catalogs.clone(),
+            output_base_dir: Some(self.output.base_dir.clone()),
             out: self.output.out.clone(),
             pack_destination: self.output.destination.clone(),
             before_packing_hooks: self.before_packing_hooks.clone(),
@@ -353,13 +357,6 @@ pub(crate) async fn set_injected_changelog(
         options.output.injected_files = vec![("package/CHANGELOG.md".to_string(), changelog)];
     }
     Ok(())
-}
-
-/// Resolve `path` against `base` when it is relative, mirroring node's
-/// `path.resolve(base, path)`.
-fn absolute_against(base: &Path, path: &str) -> String {
-    let path = if Path::new(path).is_absolute() { PathBuf::from(path) } else { base.join(path) };
-    pnpm_fs::lexical_normalize(&path).to_string_lossy().into_owned()
 }
 
 mod recursive;

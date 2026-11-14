@@ -129,6 +129,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   }
   dryRun?: boolean
   engineStrict?: boolean
+  outputBaseDir?: string
   packDestination?: string
   out?: string
   packDestinationLocker?: PackDestinationLocker

@@ -195,13 +195,15 @@ export async function publish (
 
   opts = optionsWithOtpEnv(opts, process.env)
 
+  const baseDir = opts.dir ?? process.cwd()
   const dirInParams = (params.length > 0) ? params[0] : undefined
+  const resolvedTarget = dirInParams != null ? path.resolve(baseDir, dirInParams) : undefined
 
-  if (dirInParams != null && isTarballPath(dirInParams)) {
-    return publishTarball(dirInParams, opts)
+  if (dirInParams != null && isTarballPath(dirInParams) && resolvedTarget != null && isTarballPath(resolvedTarget)) {
+    return publishTarball(resolvedTarget, opts)
   }
 
-  return publishDir(dirInParams ?? opts.dir ?? process.cwd(), opts)
+  return publishDir(resolvedTarget ?? baseDir, opts)
 }
 
 async function runGitChecks (opts: Pick<PublishCommandOptions, 'ci' | 'gitChecks' | 'publishBranch'>): Promise<void> {

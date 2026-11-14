@@ -151,7 +151,7 @@ fn resolve_output_values(
 /// options. Recursive callers use this before dispatch to keep projects that
 /// share a destination from packing concurrently.
 pub fn pack_output_path(
-    project_dir: &Path,
+    base_dir: &Path,
     out: Option<&str>,
     pack_destination: Option<&str>,
     published_name: &str,
@@ -161,15 +161,28 @@ pub fn pack_output_path(
     let version = strip_build_metadata(published_version);
     let (tarball_name, destination) =
         resolve_output_values(out, pack_destination, &normalized_name, version)?;
-    Ok(lexical_normalize(&resolve_dest_dir(project_dir, destination.as_deref()).join(tarball_name)))
+    Ok(lexical_normalize(
+        &resolve_dest_dir_from_base(base_dir, destination.as_deref()).join(tarball_name),
+    ))
 }
 
 /// Resolve the directory the tarball is written into.
-pub(super) fn resolve_dest_dir(dir: &Path, pack_destination: Option<&str>) -> PathBuf {
+pub(super) fn resolve_dest_dir(
+    source_dir: &Path,
+    output: &PackOutputOptions,
+    pack_destination: Option<&str>,
+) -> PathBuf {
+    let base_dir = output.base_dir.as_deref().unwrap_or(source_dir);
+    resolve_dest_dir_from_base(base_dir, pack_destination)
+}
+
+fn resolve_dest_dir_from_base(base_dir: &Path, pack_destination: Option<&str>) -> PathBuf {
     match pack_destination {
-        Some(destination) if Path::new(destination).is_absolute() => PathBuf::from(destination),
-        Some(destination) => dir.join(destination),
-        None => dir.to_path_buf(),
+        Some(destination) if Path::new(destination).is_absolute() => {
+            lexical_normalize(Path::new(destination))
+        }
+        Some(destination) => lexical_normalize(&base_dir.join(destination)),
+        None => base_dir.to_path_buf(),
     }
 }
 

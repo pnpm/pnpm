@@ -1106,3 +1106,50 @@ test('publish inherits registry from workspace root .npmrc (pnpm/pnpm#7182)', as
   await checkPkgExists(pkgName, '1.0.0')
 })
 
+test('publish with -C <dir> resolves relative tarball and folder targets against <dir>', async () => {
+  const suffix = Date.now()
+  const tarballPkg = {
+    name: `@pnpmtest/test-c-flag-tarball-${suffix}`,
+    version: '1.0.0',
+  }
+  const folderPkg = {
+    name: `@pnpmtest/test-c-flag-folder-${suffix}`,
+    version: '1.0.0',
+  }
+  prepare({ private: true })
+  const outerDir = process.cwd()
+  const subDir = path.join(outerDir, 'subdir')
+  const nestedPkgDir = path.join(subDir, 'nested-pkg')
+  fs.mkdirSync(nestedPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(subDir, '.npmrc'), `registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/\n//localhost:${REGISTRY_MOCK_PORT}/:_authToken=${getRegistryMockToken()}\n`)
+  fs.writeFileSync(path.join(subDir, 'package.json'), JSON.stringify(tarballPkg))
+  fs.writeFileSync(path.join(nestedPkgDir, 'package.json'), JSON.stringify(folderPkg))
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: subDir,
+    extraBinPaths: [],
+    out: 'built.tgz',
+  })
+  fs.rmSync(path.join(subDir, 'package.json'))
+
+  const tarballResult = crossSpawn.sync(pnpmBin, ['-C', subDir, 'publish', './built.tgz', '--no-git-checks'], {
+    cwd: outerDir,
+    env: SPAWN_ENV,
+  })
+  if (tarballResult.status !== 0) {
+    throw new Error(`pnpm -C subdir publish ./built.tgz failed: ${tarballResult.stdout?.toString()}\n${tarballResult.stderr?.toString()}`)
+  }
+  await checkPkgExists(tarballPkg.name, tarballPkg.version)
+
+  const folderResult = crossSpawn.sync(pnpmBin, ['--dir', subDir, 'publish', './nested-pkg', '--no-git-checks'], {
+    cwd: outerDir,
+    env: SPAWN_ENV,
+  })
+  if (folderResult.status !== 0) {
+    throw new Error(`pnpm --dir subdir publish ./nested-pkg failed: ${folderResult.stdout?.toString()}\n${folderResult.stderr?.toString()}`)
+  }
+  await checkPkgExists(folderPkg.name, folderPkg.version)
+})
+
