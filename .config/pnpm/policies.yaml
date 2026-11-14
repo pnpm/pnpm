@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/pnpm-workspace.json
 allowBuilds:
   '@parcel/watcher': false
   core-js: false
