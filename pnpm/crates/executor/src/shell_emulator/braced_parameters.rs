@@ -38,7 +38,7 @@ pub(super) fn expand(script: &str, env: &HashMap<String, String>) -> String {
 /// likes, and the rewrite follows one level per recursion, so a lifecycle
 /// script could otherwise overflow the stack and abort the process. No real
 /// script comes near this; past it an expansion is left verbatim.
-pub(super) const MAX_EXPANSION_NESTING: u8 = 32;
+const MAX_EXPANSION_NESTING: u8 = 32;
 
 /// Rewrite `script` into `expanded`, stopping at `stop_at`, and return how
 /// many bytes of `script` were consumed.
@@ -332,7 +332,7 @@ impl Cursor<'_, '_> {
                     self.rewrite.of_a_word_at(self.mode),
                 );
             }
-            Some(b'(') if self.rewrite.depth < MAX_EXPANSION_NESTING => {
+            Some(b'(') if self.rewrite.depth <= MAX_EXPANSION_NESTING => {
                 self.index += 1;
                 self.expanded.push_str("$(");
                 self.index += rewrite_into(
@@ -347,7 +347,7 @@ impl Cursor<'_, '_> {
     }
 
     fn push_backticks(&mut self) {
-        if self.rewrite.depth >= MAX_EXPANSION_NESTING {
+        if self.rewrite.depth > MAX_EXPANSION_NESTING {
             self.expanded.push('`');
             return;
         }
@@ -370,7 +370,7 @@ impl Cursor<'_, '_> {
 }
 
 fn is_word_boundary(character: char) -> bool {
-    character.is_ascii_whitespace() || matches!(character, ';' | '&' | '|' | '(' | ')')
+    character.is_ascii_whitespace() || matches!(character, ';' | '&' | '|' | '<' | '>' | '(' | ')')
 }
 
 /// Append the replacement for the `${...}` that starts at `start` to

@@ -252,7 +252,8 @@ fn keeps_a_shell_operator_in_a_default_as_word_text() {
 fn keeps_an_operator_literal_behind_any_backslash_run() {
     let dir = tempdir().expect("create a temp dir");
 
-    for (operator, backslashes) in [';', '&', '|', '<', '>'].into_iter().flat_map(with_run_lengths)
+    for (operator, backslashes) in
+        [';', '&', '|', '<', '>', '(', ')'].into_iter().flat_map(with_run_lengths)
     {
         let run_of = r"\".repeat(backslashes);
         let script = format!("echo [${{MISSING:-a{run_of}{operator}b}}] && echo second");
@@ -444,6 +445,14 @@ fn tracks_quotes_across_command_substitutions_and_comments() {
         (r#"echo "${MISSING:-$(echo '}')}""#, "}"),
         (r#"echo ${MISSING:-"$(echo "}")"}"#, "}"),
         (r#"echo "${MISSING:-"$(echo "}")"}""#, "}"),
+        (r#"echo "${MISSING:-"${UNSET:-"}"}"}""#, "}"),
+        ("echo ${MISSING:-$(echo ${OUT_DIR:-)})}", "custom"),
+        ("echo ${MISSING:-$(echo ${UNSET:-)})}", ")"),
+        ("echo ${MISSING:-$(echo ${UNSET:-(})}", "("),
+        ("echo ${MISSING:-$(echo ${UNSET:-#fallback})}", "#fallback"),
+        ("echo ${MISSING:-$(echo ${OUT_DIR:-)}#tail)}", "custom#tail"),
+        (r#"echo "${MISSING:-$(echo "${OUT_DIR:-")"}")}""#, "custom"),
+        (r#"echo "${MISSING:-$(echo "${UNSET:-")"}")}""#, ")"),
         ("echo [${MISSING:-$(echo first && echo second)}]", "[first second]"),
         (r#"echo `echo "a\\"` '${UNSET:-literal}'"#, r"a\ ${UNSET:-literal}"),
         (r#"echo "`echo '${UNSET:-literal}'`""#, "${UNSET:-literal}"),

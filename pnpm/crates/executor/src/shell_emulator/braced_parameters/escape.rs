@@ -122,9 +122,6 @@ pub(super) fn push_unquoted_script_backslash(
 /// own, escaping shell operators so the parser reads them as the text POSIX
 /// says they are.
 pub(super) fn push_bare_word_char(expanded: &mut String, character: char) {
-    // Parentheses are not escaped: command substitution `$(...)` is handled
-    // before reaching here, and a stray literal `(` in a `word` fails loudly
-    // at parse time rather than quietly running something.
     match character {
         // A newline ends a command, where POSIX only splits the word on it.
         // The character itself does not survive the split, so a space stands
@@ -132,11 +129,13 @@ pub(super) fn push_bare_word_char(expanded: &mut String, character: char) {
         '\n' => expanded.push(' '),
         // Double quotes rather than a backslash: the parser reads a run of
         // backslashes before an operator by its own rules, so an escape here
-        // would depend on what the word happens to put in front of it. `#`
-        // joins them because it opens a comment at the start of a word, and a
-        // carriage return because the parser splits the word on it where POSIX
-        // keeps it as the ordinary character it is.
-        ';' | '&' | '|' | '<' | '>' | '#' | '\r' => {
+        // would depend on what the word happens to put in front of it.
+        // Command substitution `$(...)` is rewritten before reaching here, so
+        // bare parentheses are literal word text too. `#` joins them because
+        // it opens a comment at the start of a word, and a carriage return
+        // because the parser splits the word on it where POSIX keeps it as the
+        // ordinary character it is.
+        ';' | '&' | '|' | '<' | '>' | '(' | ')' | '#' | '\r' => {
             expanded.push('"');
             expanded.push(character);
             expanded.push('"');
