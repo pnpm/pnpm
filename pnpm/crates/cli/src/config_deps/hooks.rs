@@ -193,7 +193,10 @@ pub(super) fn legacy_registries_warning(
             if scope.as_str() == "default" {
                 return false;
             }
-            let expected_route = legacy_routes.get(*scope).and_then(Value::as_str).or(default_route);
+            let expected_route = legacy_routes
+                .get(*scope)
+                .and_then(Value::as_str)
+                .or_else(|| if scope.as_str() == "@jsr" { None } else { default_route });
             expected_route.is_some_and(|expected| {
                 final_routes.get(*scope).is_some_and(|route| route != expected)
             })

@@ -220,7 +220,7 @@ function legacyRegistriesWarning (
   const unchangedScopes = Object.entries(before.registriesByScope)
     .filter(([scope]) => {
       if (scope === 'default') return false
-      const expectedRoute = legacyRoutes[scope] ?? legacyRoutes.default
+      const expectedRoute = legacyRoutes[scope] ?? (scope === '@jsr' ? undefined : legacyRoutes.default)
       return typeof expectedRoute === 'string' && config.registriesByScope[scope] !== expectedRoute
     })
     .map(([scope]) => scope)

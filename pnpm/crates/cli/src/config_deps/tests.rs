@@ -10,11 +10,19 @@ use std::{collections::BTreeMap, fs, path::Path, sync::Mutex};
 fn legacy_registries_warning_names_routes_left_unchanged() {
     let before = serde_json::json!({
         "registries": { "default": "https://registry-a/" },
-        "registriesByScope": { "@zz": "https://registry-a/", "@other": "https://registry-a/" }
+        "registriesByScope": {
+            "@zz": "https://registry-a/",
+            "@other": "https://registry-a/",
+            "@jsr": "https://npm.jsr.io/"
+        }
     });
     let after = serde_json::json!({
         "registries": { "default": "https://registry-b/", "@zz": "https://registry-b/" },
-        "registriesByScope": { "@zz": "https://registry-a/", "@other": "https://registry-a/" }
+        "registriesByScope": {
+            "@zz": "https://registry-a/",
+            "@other": "https://registry-a/",
+            "@jsr": "https://npm.jsr.io/"
+        }
     });
 
     let warning = legacy_registries_warning(
@@ -23,6 +31,7 @@ fn legacy_registries_warning_names_routes_left_unchanged() {
         &BTreeMap::from([
             ("@zz".to_string(), "https://registry-b/".to_string()),
             ("@other".to_string(), "https://registry-a/".to_string()),
+            ("@jsr".to_string(), "https://npm.jsr.io/".to_string()),
         ]),
     )
     .expect("legacy routes warning");
@@ -30,6 +39,7 @@ fn legacy_registries_warning_names_routes_left_unchanged() {
     eprintln!("{warning}");
     assert!(warning.contains("@other"));
     assert!(!warning.contains("@zz"));
+    assert!(!warning.contains("@jsr"));
     assert!(warning.contains("registriesByScope"));
 }
 
