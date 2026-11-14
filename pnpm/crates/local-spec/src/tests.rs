@@ -311,3 +311,15 @@ fn recognizes_filespec_shapes() {
     assert!(!is_filespec("^1.0.0"));
     assert!(!is_filespec("*"));
 }
+
+#[test]
+fn distinguishes_unambiguous_bare_paths_from_registry_and_git_specs() {
+    use super::bare_path_is_unambiguous;
+
+    assert!(bare_path_is_unambiguous("../child.tgz"));
+    assert!(bare_path_is_unambiguous("./child"));
+    assert!(bare_path_is_unambiguous(r"..\child.tgz"));
+    assert!(!bare_path_is_unambiguous("release.tgz"));
+    assert!(!bare_path_is_unambiguous("user/repo.tgz"));
+    assert!(!bare_path_is_unambiguous("c:^1.0.0"));
+}

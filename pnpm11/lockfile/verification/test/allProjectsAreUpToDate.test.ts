@@ -1605,6 +1605,27 @@ describe('local file dependency', () => {
     expect(await checkFileDependencyOfLocalFile('file:/other-dir', 'file:other-dir')).toBeFalsy()
   })
 
+  test('allProjectsAreUpToDate(): accepts a link to a bare directory path of local file but not to a bare tarball path', async () => {
+    await mkdir('other-dir')
+    await writeFile('./other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    const check = async (spec: string, ref: string) => {
+      await writeLocalDirManifest({ dependencies: { other: spec } })
+      return allProjectsAreUpToDate(projects, {
+        ...options,
+        lockfileDir: process.cwd(),
+        wantedLockfile: {
+          ...options.wantedLockfile,
+          packages: {
+            'local@file:./local-dir': { ...localDirSnapshot, dependencies: { other: ref } },
+          } as LockfileObject['packages'],
+        },
+      })
+    }
+    expect(await check('../other-dir', 'link:other-dir')).toBeTruthy()
+    expect(await check('../other.tgz', 'link:other.tgz')).toBeFalsy()
+  })
+
   // Windows forbids a colon in a directory name.
   const testOnUnix = process.platform === 'win32' ? test.skip : test
   testOnUnix('allProjectsAreUpToDate(): reads the locked path of a file dependency of local file as a path', async () => {

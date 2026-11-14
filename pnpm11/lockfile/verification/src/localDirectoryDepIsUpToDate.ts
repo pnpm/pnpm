@@ -17,7 +17,7 @@ import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
-import { isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
+import { barePathIsUnambiguous, isLocalFilesystemSpecifier, isTarballFilename, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -364,7 +364,7 @@ async function localChildIsUpToDate (
 }
 
 function isLocalSpec (spec: string): boolean {
-  return spec.startsWith('link:') || spec.startsWith('file:') || spec.startsWith('workspace:')
+  return spec.startsWith('link:') || spec.startsWith('file:') || barePathIsUnambiguous(spec) || spec.startsWith('workspace:')
 }
 
 /**
@@ -433,15 +433,28 @@ async function localSpecIsUpToDate (
   if (currentSpec.startsWith('link:')) {
     return (
       lockfileDep.startsWith('link:') &&
-      localSpecPath(currentSpec, localDep.localDepDir) === recordedLocalPath(lockfileDep.slice(5), localDep.lockfileDir)
+      linkPathMatches(localDep, currentSpec, lockfileDep)
     )
   }
   const cleanLockfileDep = removeSuffix(lockfileDep)
   const lockfilePath = getLocalPath(cleanLockfileDep)
+  if (barePathIsUnambiguous(currentSpec)) {
+    if (lockfileDep.startsWith('link:')) {
+      // The resolver reads a bare tarball path as a file, never as a link.
+      return !isTarballFilename(currentSpec) && linkPathMatches(localDep, currentSpec, lockfileDep)
+    }
+    return localPathMatches(localDep, currentSpec, lockfilePath)
+  }
   if (currentSpec.startsWith('file:')) {
     return localPathMatches(localDep, currentSpec, lockfilePath)
   }
   return workspaceDependencyIsUpToDate(localDep, { depName, currentSpec, cleanLockfileDep, lockfilePath })
+}
+
+function linkPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfileDep: string): boolean {
+  const currentPath = localSpecPath(currentSpec, localDep.localDepDir)
+  const lockfilePath = lockfileDep.slice(5)
+  return currentPath === recordedLocalPath(lockfilePath, localDep.lockfileDir)
 }
 
 function localPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfilePath: string | null): boolean {

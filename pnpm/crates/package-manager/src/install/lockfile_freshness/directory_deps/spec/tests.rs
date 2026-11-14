@@ -368,6 +368,32 @@ fn a_recorded_local_path_is_not_read_as_a_specifier() {
 }
 
 #[test]
+fn a_bare_tarball_path_matches_a_file_lockfile_entry() {
+    let workspace_root = PathBuf::from("/workspace");
+    let lockfile_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/child.tgz".parse().unwrap();
+    assert!(local_spec_satisfies(
+        &dirs(&workspace_root, &workspace_root),
+        &workspace_root.join("packages/injected"),
+        "child",
+        "../child.tgz",
+        &lockfile_dep,
+    ));
+}
+
+#[test]
+fn a_bare_tarball_path_rejects_a_link_lockfile_entry() {
+    let workspace_root = PathBuf::from("/workspace");
+    let lockfile_dep: pnpm_lockfile::SnapshotDepRef = "link:packages/child.tgz".parse().unwrap();
+    assert!(!local_spec_satisfies(
+        &dirs(&workspace_root, &workspace_root),
+        &workspace_root.join("packages/injected"),
+        "child",
+        "../child.tgz",
+        &lockfile_dep,
+    ));
+}
+
+#[test]
 #[cfg_attr(windows, ignore = "Windows reads `a:` as a drive and forbids it in a directory name")]
 fn a_recorded_local_path_is_not_read_as_a_drive() {
     let workspace_root = PathBuf::from("/workspace");

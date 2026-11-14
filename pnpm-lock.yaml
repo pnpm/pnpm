@@ -4078,6 +4078,7 @@ snapshots:
 				"@pnpm/pkg-manifest.reader": "workspace:*",
 				"@pnpm/pkg-manifest.utils": "workspace:*",
 				"@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+				"@pnpm/resolving.local-resolver": "workspace:*",
 				"@pnpm/resolving.npm-resolver": "workspace:*",
 				"@pnpm/resolving.resolver-base": "workspace:*",
 				"@pnpm/store.controller-types": "workspace:*",
@@ -10012,7 +10013,7 @@ snapshots:
 			"dependencies": {
 				"command-exists": "1.2.9",
 				"cross-spawn": "7.0.6",
-				"pnpm": "11.28.11",
+				"pnpm": "11.28.12",
 			},
 		},
 
@@ -19383,8 +19384,8 @@ snapshots:
 			"hasBin": true,
 		},
 
-		"pnpm@11.28.11": {
-			"integrity": "sha512-dAGE0Q+B9dWxZb6IVg7numJAbEE0iWq8J6WAEJ7sL0fB5B2RJRyUTCyrq8scIkYXmeu3LeLsYlryAwsONsc1ow==",
+		"pnpm@11.28.12": {
+			"integrity": "sha512-lIMzh+NdUD6K0QEEF83rgsEg5+abr98KnbBpBRW+rnFZJ0Vx5pK5arwqCF01Zv7FQ4Gv2Xj2X2SoU2Lf1+EI9w==",
 			"engines": {"node": ">=22.13"},
 			"hasBin": true,
 		},
