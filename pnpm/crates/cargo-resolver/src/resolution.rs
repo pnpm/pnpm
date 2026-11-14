@@ -36,14 +36,16 @@ impl CancellableProvider<'_> {
     fn preferred_version(&self, package: &PackageKey, range: &Ranges<Version>) -> Option<Version> {
         let name = package_name(package)?;
         let preferred_versions = self.preferred_versions.get(name)?;
-        let mut versions = self.inner.versions(package)?;
         match package {
             PackageKey::Registry { .. } => preferred_versions
                 .iter()
-                .find(|version| {
-                    range.contains(version) && versions.any(|candidate| candidate == *version)
-                })
-                .cloned(),
+                .find_map(|version| {
+                    (range.contains(version)
+                        && self.inner
+                            .versions(package)?
+                            .any(|candidate| candidate == version))
+                    .then(|| (*version).clone())
+                }),
             PackageKey::Requirement { requirement, .. } => {
                 let requirement = VersionReq::parse(requirement).ok()?;
                 preferred_versions
@@ -52,7 +54,8 @@ impl CancellableProvider<'_> {
                         if !requirement.matches(preferred) {
                             return None;
                         }
-                        versions
+                        self.inner
+                            .versions(package)?
                             .find(|representative| {
                                 range.contains(representative)
                                     && compatibility_line(representative)
@@ -63,6 +66,39 @@ impl CancellableProvider<'_> {
             }
             PackageKey::Root | PackageKey::Unsatisfiable { .. } => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tries_each_preferred_version_when_earlier_line_is_out_of_range() {
+        let package = PackageKey::Requirement {
+            name: "foo".to_string(),
+            requirement: "*".to_string(),
+            default_features: true,
+            features: Vec::new(),
+        };
+        let mut inner = InnerProvider::new();
+        for version in [Version::new(1, 0, 0), Version::new(2, 0, 0), Version::new(3, 0, 0)] {
+            inner.add_dependencies(package.clone(), version, []);
+        }
+        let preferred_versions = BTreeMap::from([(
+            "foo".to_string(),
+            vec![Version::new(2, 0, 0), Version::new(1, 0, 0)],
+        )]);
+        let should_cancel = || false;
+        let provider = CancellableProvider {
+            inner,
+            preferred_versions: &preferred_versions,
+            should_cancel: &should_cancel,
+        };
+        let range = Ranges::singleton(Version::new(1, 0, 0))
+            .union(&Ranges::singleton(Version::new(3, 0, 0)));
+
+        assert_eq!(provider.preferred_version(&package, &range), Some(Version::new(1, 0, 0)));
     }
 }
 
