@@ -66,9 +66,13 @@ fn a_local_tarball_child_link_is_resolved_from_the_lockfile_directory() {
     let app = workspace.join("packages/app");
     fs::create_dir_all(&app).expect("create app directory");
     let child = workspace.join("child");
+    let decoy = app.join("child");
     fs::create_dir_all(&child).expect("create child directory");
+    fs::create_dir_all(&decoy).expect("create importer-relative decoy directory");
     fs::write(child.join("package.json"), r#"{"name":"child","version":"1.0.0"}"#)
         .expect("write child package.json");
+    fs::write(decoy.join("package.json"), r#"{"name":"child","version":"2.0.0"}"#)
+        .expect("write importer-relative decoy package.json");
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write workspace configuration");
     fs::write(workspace.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
@@ -96,6 +100,12 @@ fn a_local_tarball_child_link_is_resolved_from_the_lockfile_directory() {
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(lockfile.contains("child: link:child"), "lockfile:\n{lockfile}");
     assert!(lockfile.contains("child-bare: link:child"), "lockfile:\n{lockfile}");
+    let installed_child: serde_json::Value = serde_json::from_slice(
+        &fs::read(app.join("node_modules/tpkg/node_modules/child/package.json"))
+            .expect("read installed child manifest"),
+    )
+    .expect("parse installed child manifest");
+    assert_eq!(installed_child["version"], "1.0.0");
 }
 
 #[test]
