@@ -221,12 +221,7 @@ pub(super) async fn read_or_resolve_lockfile(
 /// resolves npm alone, or when it refuses the request as one it cannot
 /// handle: a server that does not serve this Cargo resolution means a
 /// local resolve, not a failed install.
-#[cfg(test)]
-pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<String>> {
-    resolve_via_pnpr_with_preferences(config, metadata, &BTreeMap::new()).await
-}
-
-async fn resolve_via_pnpr_with_preferences(
+pub(super) async fn resolve_via_pnpr_with_preferences(
     config: &Config,
     metadata: &str,
     preferred_versions: &BTreeMap<String, Vec<String>>,

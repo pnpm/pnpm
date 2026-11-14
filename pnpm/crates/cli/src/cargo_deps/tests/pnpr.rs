@@ -1,5 +1,10 @@
 use super::{CRATES_IO_SPARSE_INDEX, Config};
-use crate::cargo_deps::lockfile::resolve_via_pnpr;
+use crate::cargo_deps::lockfile::resolve_via_pnpr_with_preferences;
+use std::collections::BTreeMap;
+
+async fn resolve_via_pnpr(config: &Config, metadata: &str) -> miette::Result<Option<String>> {
+    resolve_via_pnpr_with_preferences(config, metadata, &BTreeMap::new()).await
+}
 
 fn handshake_body(ecosystems: &[&str]) -> String {
     serde_json::json!({
