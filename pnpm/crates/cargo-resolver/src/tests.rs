@@ -1,6 +1,6 @@
 use super::{
     IndexDiscovery, git_dependency_sources, latest_version, missing_index_names, resolve_inputs,
-    resolve_lockfile, verify_lockfile,
+    resolve_lockfile, resolve_lockfile_with_preferences, verify_lockfile,
 };
 use crate::registry::CRATES_IO_SOURCE;
 use cargo_lock::Lockfile;
