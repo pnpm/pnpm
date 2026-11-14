@@ -401,6 +401,10 @@ fn remove_output_file(target: &Path) -> io::Result<()> {
     #[cfg(windows)]
     if metadata.permissions().readonly() {
         let mut permissions = metadata.permissions();
+        #[allow(
+            clippy::permissions_set_readonly_false,
+            reason = "Windows Permissions holds only FILE_ATTRIBUTE_READONLY, cleared immediately before unlinking"
+        )]
         permissions.set_readonly(false);
         fs::set_permissions(target, permissions)?;
     }
