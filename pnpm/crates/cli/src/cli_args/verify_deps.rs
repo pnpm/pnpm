@@ -396,7 +396,7 @@ fn prompt_install(
 /// project, and such an install already covers the project.
 fn install_selection_args(config: &Config) -> Vec<String> {
     if config.shares_one_lockfile() {
-        filter_selector_args(&config.filter, &config.filter_prod)
+        filter_selector_args(&config.filter, &config.filter_prod, &config.filter_order)
     } else {
         Vec::new()
     }
@@ -406,14 +406,21 @@ fn install_selection_args(config: &Config) -> Vec<String> {
 /// command's project selection in the install the gate spawns. Each selector
 /// also selects its dependencies, because a selected project needs the
 /// workspace projects it depends on installed too.
-fn filter_selector_args(filters: &[String], filter_prod: &[String]) -> Vec<String> {
-    let filters = filters
-        .iter()
-        .map(|selector| format!("--filter={}", with_dependencies(selector)));
-    let filter_prod = filter_prod
-        .iter()
-        .map(|selector| format!("--filter-prod={}", with_dependencies(selector)));
-    filters.chain(filter_prod).collect()
+fn filter_selector_args(
+    filters: &[String],
+    filter_prod: &[String],
+    filter_order: &[pnpm_config::FilterSource],
+) -> Vec<String> {
+    pnpm_config::ordered_filter_entries(filters, filter_prod, filter_order)
+        .into_iter()
+        .map(|(source, selector)| {
+            let flag = match source {
+                pnpm_config::FilterSource::Filter => "--filter",
+                pnpm_config::FilterSource::FilterProd => "--filter-prod",
+            };
+            format!("{flag}={}", with_dependencies(selector))
+        })
+        .collect()
 }
 
 pub(crate) fn with_dependencies(selector: &str) -> String {

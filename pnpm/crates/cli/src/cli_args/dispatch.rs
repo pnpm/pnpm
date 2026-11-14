@@ -380,6 +380,7 @@ impl CliArgs {
                 recursive_by_default_command: setup.recursive_by_default,
                 filter: &self.workspace.selection.filter,
                 filter_prod: &self.workspace.selection.filter_prod,
+                filter_order: &self.workspace.selection.filter_order,
                 workspace_root: self.workspace.selection.workspace_root,
             },
         );

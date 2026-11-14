@@ -12,6 +12,16 @@ describe('createFilterArgs', () => {
     [{ filter: ['foo', '!bar'] }, ['--filter=foo...', '--filter=!bar']],
     [{ filterProd: ['foo'] }, ['--filter-prod=foo...']],
     [{ filter: ['foo'], filterProd: ['bar'] }, ['--filter=foo...', '--filter-prod=bar...']],
+    [{ filter: ['!bar'], filterProd: ['foo...'] }, ['--filter-prod=foo...', '--filter=!bar']],
+    [
+      {
+        filter: ['!bar'],
+        filterProd: ['foo'],
+        cliOptions: { filter: ['!bar'], 'filter-prod': ['foo'] },
+        argv: { cooked: ['--filter', '!bar', '--filter-prod', 'foo', 'run', 'test'] },
+      },
+      ['--filter=!bar', '--filter-prod=foo...'],
+    ],
   ])('%o -> %o', (opts, expected) => {
     expect(createFilterArgs(opts)).toStrictEqual(expected)
   })

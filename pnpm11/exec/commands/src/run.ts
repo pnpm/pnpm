@@ -208,6 +208,7 @@ export type RunOpts =
   & {
     argv?: {
       original: string[]
+      cooked?: string[]
     }
     fallbackCommandUsed?: boolean
     sequential?: boolean

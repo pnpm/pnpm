@@ -4,8 +4,8 @@ use crate::{
     cli_args::{
         pipelines::WorkspaceScope,
         recursive::{
-            AutoExcludeRoot, RecursiveSelection, filter_against, recursive_filter_options,
-            select_recursive_projects_deferring_no_match,
+            AutoExcludeRoot, RecursiveSelection, filter_graphs, parse_configured_selectors,
+            recursive_filter_options, select_recursive_projects_deferring_no_match,
         },
     },
     ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, python},
@@ -317,29 +317,11 @@ fn filter_standalone_graph<Pkg: BaseProject>(
     prefix: &Path,
 ) -> Result<HashSet<PathBuf>> {
     let root_selector = AutoExcludeRoot::Disabled.root_selector(config, prefix);
-    let prod = !config.filter_prod.is_empty();
     let options = recursive_filter_options(config, prefix);
-    let mut selected: HashSet<PathBuf> = filter_against(
-        all_graph,
-        &config.filter,
-        root_selector.as_deref().filter(|_| !prod),
-        false,
-        prefix,
-        &options,
-    )?
-    .into_iter()
-    .collect();
-    if prod {
-        selected.extend(filter_against(
-            prod_graph,
-            &config.filter_prod,
-            root_selector.as_deref().filter(|_| prod),
-            true,
-            prefix,
-            &options,
-        )?);
-    }
-    Ok(selected)
+    let selectors = parse_configured_selectors(config, root_selector.as_deref(), prefix);
+    let prod = (!config.filter_prod.is_empty()).then_some(prod_graph);
+    let filtered = filter_graphs(all_graph, prod, &selectors, &options)?;
+    Ok(filtered.selected_projects.into_iter().collect())
 }
 
 async fn select_standalone_python_dirs(

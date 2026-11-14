@@ -38,6 +38,15 @@ pub enum ReporterType {
     Silent,
 }
 
+/// Which CLI flag one entry in [`Config::filter_order`](crate::Config::filter_order)
+/// came from, preserving the relative order of interleaved `--filter` and
+/// `--filter-prod` flags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterSource {
+    Filter,
+    FilterProd,
+}
+
 impl<'de> Deserialize<'de> for ColorMode {
     fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
     where

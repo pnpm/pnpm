@@ -369,6 +369,8 @@ fn apply_project_selector_changes(
     if filter.is_none() && filter_prod.is_none() {
         return Ok(());
     }
+    let prev_filter = config.filter.clone();
+    let prev_filter_prod = config.filter_prod.clone();
     let prefix = if config.dir.as_os_str().is_empty() { base_dir } else { &config.dir };
     if let Some(filter) = filter {
         config.filter = filter
@@ -387,6 +389,9 @@ fn apply_project_selector_changes(
                 pnpm_workspace_projects_filter::rebase_project_selector(&selector, base_dir, prefix)
             })
             .collect();
+    }
+    if config.filter != prev_filter || config.filter_prod != prev_filter_prod {
+        config.filter_order.clear();
     }
     Ok(())
 }

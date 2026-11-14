@@ -213,7 +213,7 @@ fn parse_or_answer(
     child_argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<CliArgs>> {
-    match parse_cli_args(command, argv.to_vec()) {
+    match parse_cli_args(command, argv) {
         Ok(args) => Ok(Some(args)),
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
             print_version(argv, child_argv, config_overrides).map(|()| None)
@@ -228,31 +228,27 @@ fn parse_or_answer(
     }
 }
 
-/// Parse argv, recording whether `--dir` or `-r` came from the command line.
+/// Parse argv, recording whether `--dir` or `-r` came from the command line
+/// and the relative order of `--filter` and `--filter-prod` flags.
 pub(crate) fn parse_cli_args(
     command: clap::Command,
-    argv: Vec<OsString>,
+    argv: &[OsString],
 ) -> Result<CliArgs, clap::Error> {
-    command
-        .try_get_matches_from(argv)
-        .and_then(|matches| {
-            let dir_from_command_line =
-                matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
-            let recursive_from_command_line =
-                matches.value_source("recursive") == Some(clap::parser::ValueSource::CommandLine);
-            CliArgs::from_arg_matches(&matches)
-                .map(|args| CliArgs {
-                    paths: crate::cli_args::cli_command::CliPathArgs {
-                        dir_from_command_line,
-                        ..args.paths
-                    },
-                    workspace: crate::cli_args::cli_command::CliWorkspaceArgs {
-                        recursive_from_command_line,
-                        ..args.workspace
-                    },
-                    ..args
-                })
-        })
+    let matches = command.try_get_matches_from(argv)?;
+    let dir_from_command_line =
+        matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+    let recursive_from_command_line =
+        matches.value_source("recursive") == Some(clap::parser::ValueSource::CommandLine);
+    let mut args = CliArgs::from_arg_matches(&matches)?;
+    args.paths.dir_from_command_line = dir_from_command_line;
+    args.workspace.recursive_from_command_line = recursive_from_command_line;
+    args.workspace.selection.filter_order = crate::cli_args::cli_command::extract_filter_order(
+        &matches,
+        argv,
+        args.workspace.selection.filter.len(),
+        args.workspace.selection.filter_prod.len(),
+    );
+    Ok(args)
 }
 
 /// pnpm prints the bare version, not clap's `pnpm <version>` rendering —

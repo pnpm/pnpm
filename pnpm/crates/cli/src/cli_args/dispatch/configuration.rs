@@ -212,6 +212,7 @@ pub(super) struct ProjectSelectors<'a> {
     pub(super) recursive_by_default_command: bool,
     pub(super) filter: &'a [String],
     pub(super) filter_prod: &'a [String],
+    pub(super) filter_order: &'a [pnpm_config::FilterSource],
     pub(super) workspace_root: bool,
 }
 
@@ -219,6 +220,7 @@ pub(super) fn apply_project_selectors(cfg: &mut Config, selectors: &ProjectSelec
     cfg.recursive = selectors.recursive;
     cfg.filter = selectors.filter.to_vec();
     cfg.filter_prod = selectors.filter_prod.to_vec();
+    cfg.filter_order = selectors.filter_order.to_vec();
     if !cfg.filter.is_empty() {
         cfg.cli_settings.insert("filter".to_string());
     }

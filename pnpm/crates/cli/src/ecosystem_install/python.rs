@@ -3,7 +3,7 @@
 use super::{EcosystemManifest, EcosystemWorkspaceInventory};
 use crate::cli_args::{
     pipelines::WorkspaceScope,
-    recursive::{filter_against, recursive_filter_options},
+    recursive::{filter_graphs, parse_configured_selectors, recursive_filter_options},
 };
 use miette::Result;
 use pnpm_config::Config;
@@ -102,28 +102,8 @@ fn matching_projects(
             .collect());
     }
     let options = recursive_filter_options(config, prefix);
-    // The generated selector follows the pass a `--filter-prod` selector
-    // routes the run through, as it does for npm.
-    let prod = !config.filter_prod.is_empty();
-    let mut selected: HashSet<PathBuf> = filter_against(
-        &discovery.graph(),
-        &config.filter,
-        root_selector.filter(|_| !prod),
-        false,
-        prefix,
-        &options,
-    )?
-    .into_iter()
-    .collect();
-    if prod {
-        selected.extend(filter_against(
-            &discovery.production_graph(),
-            &config.filter_prod,
-            root_selector.filter(|_| prod),
-            true,
-            prefix,
-            &options,
-        )?);
-    }
-    Ok(selected)
+    let selectors = parse_configured_selectors(config, root_selector, prefix);
+    let prod_graph = (!config.filter_prod.is_empty()).then(|| discovery.production_graph());
+    let filtered = filter_graphs(&discovery.graph(), prod_graph.as_ref(), &selectors, &options)?;
+    Ok(filtered.selected_projects.into_iter().collect())
 }
