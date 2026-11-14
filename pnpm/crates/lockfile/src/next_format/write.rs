@@ -4,6 +4,8 @@
 //! would select another snapshot for it. The writer reads its own output back
 //! and writes those references with their peer groups, until nothing changes.
 
+pub(super) mod snapshots;
+
 use super::{NextFormatError, NextSections, RestoreContext, RestoredSections, read};
 use crate::{Lockfile, PackageKey, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
 use rayon::prelude::*;
@@ -12,7 +14,6 @@ use std::collections::{HashMap, HashSet};
 
 mod importers;
 mod peers;
-pub(super) mod snapshots;
 
 /// Reading back can need a reference with peer groups only where an earlier
 /// round wrote another reference with them, so the rounds are few. This
