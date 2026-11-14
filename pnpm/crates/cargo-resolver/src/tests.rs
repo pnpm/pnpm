@@ -897,6 +897,68 @@ fn prefers_the_newest_compatibility_line_that_resolves() {
     );
 }
 
+#[test]
+fn assigns_root_features_to_the_preferred_compatibility_line() {
+    const METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#app@0.1.0",
+      "name": "app",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "*",
+        "features": ["f"]
+      }]
+    },
+    {
+      "id": "path+file:///workspace#other@0.1.0",
+      "name": "other",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^2"
+      }]
+    }
+  ],
+  "workspace_members": [
+    "path+file:///workspace#app@0.1.0",
+    "path+file:///workspace#other@0.1.0"
+  ]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"=1.0.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"f":[]},"yanked":false}
+{"name":"foo","vers":"2.0.0","deps":[{"name":"bar","req":"=1.1.0","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"f":["dep:bar"]},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":false}
+{"name":"bar","vers":"1.1.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+    let preferences = BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]);
+
+    let lockfile = Lockfile::from_str(
+        &resolve_lockfile_with_preferences(METADATA, &files, CRATES_IO_SOURCE, &preferences)
+            .unwrap(),
+    )
+    .unwrap();
+    let dependencies = |version: semver::Version| {
+        lockfile.packages
+            .iter()
+            .find(|package| package.name.as_str() == "foo" && package.version == version)
+            .map(|package| {
+                package.dependencies
+                    .iter()
+                    .map(|dependency| dependency.name.to_string())
+                    .collect::<Vec<_>>()
+            })
+    };
+
+    assert_eq!(dependencies(semver::Version::new(1, 0, 0)), Some(vec!["bar".to_string()]));
+    assert_eq!(dependencies(semver::Version::new(2, 0, 0)), Some(Vec::new()));
+}
+
 /// Both lines of `foo` carry an `extra` feature, so only the selection each
 /// line was actually asked for decides whether `baz` is activated there.
 #[test]

@@ -65,6 +65,24 @@ pub(crate) fn newest_line_package(
         return Ok(None);
     };
     let selection = dependency.feature_selection();
+    if let Some(preferred_line) = preferred_versions
+        .get(&dependency.name)
+        .into_iter()
+        .flatten()
+        .filter(|version| dependency.requirement.matches(version))
+        .find_map(|preferred| {
+            versions
+                .iter()
+                .find(|version| version.version == *preferred)
+                .filter(|version| supports_features(version, &selection))
+                .map(|version| compatibility_line(&version.version))
+        })
+    {
+        return Ok(Some(PackageKey::Registry {
+            name: dependency.name.clone(),
+            compatibility: preferred_line,
+        }));
+    }
     Ok(matching_lines_with_preferences(
         versions,
         &dependency.requirement,
