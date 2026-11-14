@@ -1,4 +1,7 @@
-use super::{PlannedUpdate, render_target_value, update_target};
+use super::{
+    ActionReference, PlannedUpdate, RepoVersion, Version, WorkflowValue, replaces_comment_version,
+    update_target,
+};
 use std::{
     cmp::Reverse,
     collections::BTreeMap,
@@ -25,7 +28,11 @@ pub(super) fn planned_edits(
             .push(WorkflowEdit {
                 range: plan.action.source.range.clone(),
                 expected: plan.action.source.original_value.clone(),
-                replacement: render_target_value(&plan.action, update_target(plan, latest)),
+                replacement: render_target_value(
+                    &plan.action,
+                    &plan.current.version,
+                    update_target(plan, latest),
+                ),
             });
     }
     edits
@@ -67,4 +74,53 @@ fn apply_replacements(
         text.replace_range(edit.range, &edit.replacement);
     }
     Ok(text)
+}
+
+pub(super) fn render_target_ref(target: &RepoVersion) -> String {
+    target.commit.clone()
+}
+
+pub(super) fn render_target_value(
+    action: &ActionReference,
+    current_version: &Version,
+    target: &RepoVersion,
+) -> String {
+    let old_reference = format!("{}@{}", action.name, action.ref_);
+    let new_reference = format!("{}@{}", action.name, render_target_ref(target));
+    action.source.replace_reference(&old_reference, &new_reference, current_version, &target.tag)
+}
+
+impl WorkflowValue {
+    fn replace_reference(
+        &self,
+        old_reference: &str,
+        new_reference: &str,
+        current_version: &Version,
+        tag: &str,
+    ) -> String {
+        let value = self.original_value.replacen(old_reference, new_reference, 1);
+        let search_start = value
+            .find(new_reference)
+            .map(|index| index + new_reference.len())
+            .unwrap_or(0);
+        if let Some(comment_offset) = value[search_start..].find('#') {
+            let hash_index = search_start + comment_offset;
+            let prefix = &value[..hash_index];
+            let comment_body = value[hash_index + 1..].trim_start();
+            if let Some(comment_version) = &self.comment_version
+                && replaces_comment_version(comment_version, current_version)
+                && let Some(rest) = comment_body.strip_prefix(comment_version.as_str())
+            {
+                return format!("{prefix}# {tag}{rest}");
+            }
+            if comment_body.is_empty() {
+                return format!("{prefix}# {tag}");
+            }
+            return format!("{prefix}# {tag} {comment_body}");
+        }
+        if self.flow_style {
+            return format!("{} # {tag}\n{}", value.trim_end(), self.indentation);
+        }
+        format!("{value} # {tag}")
+    }
 }

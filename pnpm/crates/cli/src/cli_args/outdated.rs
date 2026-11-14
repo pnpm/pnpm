@@ -14,7 +14,7 @@ use crate::{
     State,
     cli_args::{
         catalogs::configured_catalogs,
-        ecosystem_deps::{declared_ecosystem_dep_names, is_purl, requires_ecosystem_lockfile},
+        ecosystem_deps::{declared_ecosystem_dep_names, requires_ecosystem_lockfile},
         install::resolve_bool_override,
         recursive::discover_workspace_projects,
         release_notes::UpgradeNotes,
@@ -245,18 +245,11 @@ impl OutdatedArgs {
     }
 
     pub(super) fn package_patterns(&self) -> Vec<String> {
-        self.packages
-            .iter()
-            .filter(|selector| !github_actions::is_selector(selector) || is_purl(selector))
-            .cloned()
-            .collect()
+        crate::github_actions::without_action_selectors(&self.packages)
     }
 
     fn selects_github_actions_only(&self, package_patterns: &[String]) -> bool {
-        package_patterns.is_empty()
-            && self.packages
-                .iter()
-                .any(|selector| github_actions::is_selector(selector) && !selector.starts_with('!'))
+        crate::github_actions::selects_actions_only(&self.packages, package_patterns)
     }
 
     fn write_rendered(

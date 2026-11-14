@@ -226,6 +226,7 @@ mod unpublish;
 mod unstar_tests;
 mod update;
 mod update_changeset;
+mod update_github_actions;
 mod update_jsr;
 mod update_notifier;
 mod update_recursive;

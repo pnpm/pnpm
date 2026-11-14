@@ -33,13 +33,32 @@ export function shouldCheckGitHubActions (opts: GitHubActionsOptInOptions): bool
 
 export function isGitHubActionSelector (selector: string): boolean {
   const pattern = selector.startsWith('!') ? selector.slice(1) : selector
-  return !pattern.startsWith('@') && pattern.includes('/')
+  const slashIndex = pattern.indexOf('/')
+  if (slashIndex <= 0 || slashIndex === pattern.length - 1) return false
+  const owner = pattern.slice(0, slashIndex)
+  return !owner.startsWith('@') && !owner.includes(':')
 }
 
 export function normalizeGitHubActionSelector (selector: string): string {
   if (!isGitHubActionSelector(selector)) return selector
   const refSeparator = selector.lastIndexOf('@')
   return refSeparator === -1 ? selector : selector.slice(0, refSeparator)
+}
+
+export function expandGitHubActionSelectors (selectors: string[]): string[] {
+  return selectors.flatMap((selector) => {
+    const normalized = normalizeGitHubActionSelector(selector)
+    if (!isGitHubActionSelector(normalized)) return [normalized]
+    const bare = normalized.startsWith('!') ? normalized.slice(1) : normalized
+    if (!bare.endsWith('*') && bare.indexOf('/') === bare.lastIndexOf('/')) {
+      return [normalized, `${normalized}/*`]
+    }
+    return [normalized]
+  })
+}
+
+export function hasPositiveGitHubActionSelector (selectors: string[]): boolean {
+  return selectors.some((selector) => !selector.startsWith('!') && isGitHubActionSelector(selector))
 }
 
 export async function findOutdatedGitHubActions (
@@ -80,6 +99,6 @@ function toOutdatedGitHubAction (plan: PlannedUpdate, target: RepoVersion, serve
 }
 
 function dedupeOutdated (actions: OutdatedGitHubAction[]): OutdatedGitHubAction[] {
-  return [...new Map(actions.map((action) => [action.name, action])).values()]
-    .sort((left, right) => left.name.localeCompare(right.name))
+  return [...new Map(actions.map((action) => [`${action.name}\0${action.current}`, action])).values()]
+    .sort((left, right) => left.name.localeCompare(right.name) || semver.compare(left.current, right.current))
 }
