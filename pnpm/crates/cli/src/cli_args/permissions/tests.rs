@@ -1,5 +1,5 @@
 use super::{
-    ApproveArgs, Capabilities,
+    ApproveArgs, Capabilities, PromptAvailability,
     decisions::{PackageDecisions, confirmation},
     render_permissions,
 };
@@ -100,6 +100,38 @@ fn rejects_contradictory_arguments() {
         .decide::<SilentReporter>(&BTreeMap::new(), decide_config(), Path::new("/workspace"))
         .expect_err("contradiction");
     assert!(error.to_string().contains("both approved and denied"));
+}
+
+#[test]
+fn rejects_interactive_approval_when_prompting_is_unavailable() {
+    let pending = pending(&[("esbuild", &[Build])]);
+    let error = args(&[], false)
+        .decide_with_prompt::<SilentReporter>(
+            &pending,
+            decide_config(),
+            Path::new("/workspace"),
+            PromptAvailability::Unavailable,
+        )
+        .expect_err("interactive approval without a prompt is rejected");
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_APPROVE_NON_INTERACTIVE"),
+    );
+
+    assert!(
+        args(&[], false)
+            .decide_with_prompt::<SilentReporter>(
+                &BTreeMap::new(),
+                decide_config(),
+                Path::new("/workspace"),
+                PromptAvailability::Unavailable,
+            )
+            .expect("no pending permissions needs no prompt")
+            .is_none(),
+    );
 }
 
 #[test]

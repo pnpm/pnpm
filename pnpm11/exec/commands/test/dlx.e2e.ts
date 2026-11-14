@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
+import { overrideTty } from '@pnpm/testing.command-defaults'
 
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
@@ -468,6 +469,29 @@ test('dlx does not error on ignored builds in non-interactive mode', async () =>
   // Cache is populated even though build scripts were skipped — the
   // package is installed so the bin can run if it does not depend on
   // the skipped script.
+  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  expect(fs.existsSync(path.join(dlxCacheDir, 'package.json'))).toBe(true)
+})
+
+test('dlx skips automatic approve-builds prompt in CI even when stdin is a TTY', async () => {
+  prepareEmpty()
+  const restoreTty = overrideTty(true)
+  const approveBuildsSpy = jest.fn(approveBuilds.handler)
+  try {
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      ci: true,
+      enableGlobalVirtualStore: false,
+      strictDepBuilds: true,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuildsSpy })
+  } finally {
+    restoreTty()
+  }
+  expect(approveBuildsSpy).not.toHaveBeenCalled()
   const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
   expect(fs.existsSync(path.join(dlxCacheDir, 'package.json'))).toBe(true)
 })

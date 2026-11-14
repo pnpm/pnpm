@@ -48,7 +48,8 @@ export async function promptApproveGlobalBuilds (
 ): Promise<void> {
   if (!opts.ignoredBuilds?.size) return
   const autoApproveForTests = process.env[AUTO_APPROVE_FOR_TESTS_ENV] === '1'
-  if (!autoApproveForTests && !process.stdin.isTTY) return
+  const inCi = (opts.inheritedOpts as { ci?: boolean }).ci
+  if (!autoApproveForTests && (inCi || !process.stdin.isTTY)) return
   await commands['approve-builds']({
     ...opts.inheritedOpts,
     workspaceDir: undefined,

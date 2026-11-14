@@ -24,17 +24,13 @@ export interface CommandInvocation {
  */
 export function enableRecursiveByDefault (invocation: CommandInvocation, config: Config): void {
   const { cmd, cliOptions, workspaceDir } = invocation
-  const hasFilter = Boolean(config.filter?.length || config.filterProd?.length)
-  const isWorkspaceSubdirectory = typeof workspaceDir === 'string' &&
-    getRealPathSync(config.dir) !== getRealPathSync(workspaceDir)
-  const isListCommand = cmd === 'list' || cmd === 'll'
+  if (cmd == null || !recursiveByDefaultCommands.has(cmd) || typeof workspaceDir !== 'string') {
+    return
+  }
   const hasExplicitRecursive = cliOptions['recursive'] === true
-
-  if (
-    cmd == null || !recursiveByDefaultCommands.has(cmd) ||
-    typeof workspaceDir !== 'string' ||
-    (isListCommand && isWorkspaceSubdirectory && !hasFilter)
-  ) return
+  if (staysSingleProjectInSubdirectory(cmd, config, workspaceDir, hasExplicitRecursive)) {
+    return
+  }
 
   cliOptions['recursive'] = true
   config.recursive = true
@@ -44,6 +40,27 @@ export function enableRecursiveByDefault (invocation: CommandInvocation, config:
   } else if (!config.recursiveInstall && !config.filter && !config.filterProd) {
     config.filter = ['{.}...']
   }
+}
+
+function staysSingleProjectInSubdirectory (
+  cmd: string,
+  config: Config,
+  workspaceDir: string,
+  hasExplicitRecursive: boolean
+): boolean {
+  if (config.filter?.length || config.filterProd?.length || config.workspaceRoot) {
+    return false
+  }
+  if (getRealPathSync(config.dir) === getRealPathSync(workspaceDir)) {
+    return false
+  }
+  if (cmd === 'list' || cmd === 'll') {
+    return true
+  }
+  return cmd === 'peers' &&
+    config.sharedWorkspaceLockfile === false &&
+    !config.lockfileDir &&
+    !hasExplicitRecursive
 }
 
 /**
