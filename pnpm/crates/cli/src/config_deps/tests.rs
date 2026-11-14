@@ -1,7 +1,46 @@
+use super::hooks::legacy_registries_warning;
 use super::{resolve_engine_version, run_update_config_hooks};
 use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
 use pnpm_reporter::SilentReporter;
 use std::{fs, path::Path};
+
+#[test]
+fn legacy_registries_warning_names_routes_left_unchanged() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@zz": "https://registry-a/", "@other": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" },
+        "registriesByScope": { "@zz": "https://registry-a/", "@other": "https://registry-a/" }
+    });
+
+    let warning = legacy_registries_warning(&before, &after).expect("legacy routes warning");
+
+    assert!(warning.contains("@other"));
+    assert!(warning.contains("registriesByScope"));
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_scope_routes_are_updated() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@zz": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" },
+        "registriesByScope": { "@zz": "https://registry-b/" }
+    });
+
+    assert_eq!(legacy_registries_warning(&before, &after), None);
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_registry_setting_is_unchanged() {
+    let config = serde_json::json!({ "registries": { "default": "https://registry-a/" } });
+
+    assert_eq!(legacy_registries_warning(&config, &config), None);
+}
 
 #[tokio::test]
 async fn update_config_records_prefer_frozen_lockfile_as_explicit() {

@@ -32,7 +32,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 }))
 
 const { resolveAndInstallConfigDeps } = await import('@pnpm/installing.env-installer')
-const { logger } = await import('@pnpm/logger')
+const { globalWarn, logger } = await import('@pnpm/logger')
 const { createStoreController } = await import('@pnpm/store.connection-manager')
 const { calcPnpmfilePathsOfPluginDeps, getConfig, installConfigDepsAndLoadHooks } = await import('../src/getConfig.js')
 
@@ -41,6 +41,7 @@ const storeCloseMock = jest.fn<() => Promise<void>>()
 beforeEach(() => {
   jest.spyOn(console, 'warn')
   loggerMock.debug.mockClear()
+  jest.mocked(globalWarn).mockClear()
   jest.mocked(resolveAndInstallConfigDeps).mockReset()
   storeCloseMock.mockReset().mockResolvedValue(undefined)
   jest.mocked(createStoreController).mockReset().mockResolvedValue({
@@ -378,6 +379,19 @@ describe('installConfigDepsAndLoadHooks', () => {
     await installConfigDepsAndLoadHooks(config, context)
 
     expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
+  })
+
+  test('warns when an updateConfig hook changes legacy registry routes but leaves scope routes unchanged', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
   })
 
   test.each(['.pnpmfile.cjs', '.pnpmfile.mjs'])('the updateConfig hook of %s runs after the ones of config dependency plugins', async (defaultPnpmfile) => {

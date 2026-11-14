@@ -125,12 +125,21 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 
     let current =
         execute_update_config_hooks::<Reporter>(&pnpmfiles, &hooks, input.clone(), root_dir).await?;
+    let prefix = root_dir.to_string_lossy().into_owned();
+    if let Some(message) = legacy_registries_warning(&input, &current) {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message,
+            prefix: prefix.clone(),
+        }));
+    }
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
     Ok(hooks)
 }
 
+<<<<<<< HEAD
 async fn execute_update_config_hooks<Reporter: self::Reporter>(
     pnpmfiles: &[PathBuf],
     hooks: &[Arc<dyn PnpmfileHooks>],
@@ -164,6 +173,32 @@ fn update_config_hook_error(pnpmfile: &Path, err: pnpm_hooks::HookError) -> miet
             )
         }
     }
+fn legacy_registries_warning(input: &Value, current: &Value) -> Option<String> {
+    if input.get("registries") == current.get("registries")
+        || input.get("registriesByScope") != current.get("registriesByScope")
+    {
+        return None;
+    }
+    let routes = input.get("registriesByScope")?.as_object()?;
+    let legacy_routes = current.get("registries")?.as_object()?;
+    if !legacy_routes.values().all(Value::is_string) {
+        return None;
+    }
+    let unchanged_scopes = routes
+        .iter()
+        .filter(|(scope, route)| {
+            scope.as_str() != "default"
+                && legacy_routes.get(*scope).and_then(Value::as_str) != route.as_str()
+        })
+        .map(|(scope, _)| scope.as_str())
+        .collect::<Vec<_>>();
+    if unchanged_scopes.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "The updateConfig hook changed the `registries` setting, but {} still use their configured registry. Return `registriesByScope` to replace scope routing.",
+        unchanged_scopes.join(", "),
+    ))
 }
 
 fn warn_ignored_hooks<Reporter: self::Reporter>(
