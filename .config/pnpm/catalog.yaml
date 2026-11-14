@@ -29,7 +29,7 @@ catalog:
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
   '@rushstack/worker-pool': 0.7.32
-  '@stylistic/eslint-plugin': ^5.10.0
+  '@stylistic/eslint-plugin': ^6.0.0-beta.6
   '@tybys/wasm-util': 0.10.4
   '@types/adm-zip': ^0.6.0
   '@types/archy': 0.0.36
@@ -145,7 +145,7 @@ catalog:
   fuse-native: ^2.2.6
   get-port: ^7.2.0
   ghooks: 2.0.4
-  graceful-fs: ^4.2.11
+  graceful-fs: ^4.2.12
   graph-cycles: 3.0.0
   hosted-git-info: npm:@pnpm/hosted-git-info@1.0.0
   http-proxy-agent: ^9.1.0
@@ -178,7 +178,7 @@ catalog:
   lru-cache: ^11.5.3
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
-  memfs: ^4.80.0
+  memfs: ^4.80.1
   memoize: ^11.0.0
   micromatch: ^4.0.8
   msgpackr: 2.1.4
@@ -301,7 +301,7 @@ catalog:
   yaml: ^2.9.1
   yaml-tag: 1.1.0
   yauzl: ^3.4.0
-  enhanced-resolve: 5.26.1
+  enhanced-resolve: 5.27.0
 
 catalogs:
   # The runtime dependencies of get-pnpm, which npx and pnpm/setup install from
