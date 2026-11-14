@@ -176,7 +176,7 @@ impl PkgArgs {
 
 fn pkg_get(manifest_path: &Path, keys: &[String], json: bool) -> miette::Result<String> {
     let manifest = RawPackageManifest::from_path(manifest_path.to_path_buf())
-        .wrap_err("reading package.json")?;
+        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
     get_output(manifest.value(), keys, json)
 }
 

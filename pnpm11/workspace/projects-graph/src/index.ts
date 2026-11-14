@@ -4,7 +4,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import npa from '@pnpm/npm-package-arg'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/resolving.npm-resolver'
-import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
+import { type BaseManifest, isPlainObject, type ProjectRootDir } from '@pnpm/types'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { map as mapValues } from 'ramda'
 
@@ -72,11 +72,7 @@ function resolveProjectDependencies (project: BaseProject, ctx: GraphResolutionC
 }
 
 function plainDependencyMap (value: unknown): Record<string, unknown> | undefined {
-  if (Object.prototype.toString.call(value) !== '[object Object]') {
-    return undefined
-  }
-  const proto = Object.getPrototypeOf(value)
-  return proto === null || Object.getPrototypeOf(proto) === null ? (value as Record<string, unknown>) : undefined
+  return isPlainObject(value) ? value : undefined
 }
 
 function resolveDepToProject (

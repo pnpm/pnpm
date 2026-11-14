@@ -11,7 +11,7 @@ import { type ConfigDepsInstallMode, readConfigDependencyLockfile, resolveAndIns
 import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { ConfigDependencies } from '@pnpm/types'
+import { type ConfigDependencies, isPlainObject } from '@pnpm/types'
 import { rebaseProjectSelector } from '@pnpm/workspace.projects-filter'
 import camelcase from 'camelcase'
 import { equals } from 'ramda'
@@ -348,14 +348,6 @@ function readHookRegistryRoutes (routes: unknown): Record<string, string> {
     result[scope] = registry
   }
   return result
-}
-
-function isPlainObject (value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return false
-  }
-  const proto = Object.getPrototypeOf(value)
-  return proto === null || proto === Object.prototype
 }
 
 function invalidHookResult (key: string): PnpmError {

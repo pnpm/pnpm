@@ -68,17 +68,21 @@ export async function tryReadProjectManifestFromDir (projectDir: string): Promis
   }
 }
 
-export async function tryReadRawProjectManifestFromDir (projectDir: string): Promise<RawProjectManifestFile | undefined> {
-  const jsonResult = await tryReadRawPackageJson(projectDir)
+export async function tryReadRawProjectManifestFromDir (
+  projectDir: string,
+  opts?: { detectFormatting?: boolean }
+): Promise<RawProjectManifestFile | undefined> {
+  const detectFormatting = opts?.detectFormatting !== false
+  const jsonResult = await tryReadRawPackageJson(projectDir, detectFormatting)
   if (jsonResult) return jsonResult
 
-  const json5Result = await tryReadRawPackageJson5(projectDir)
+  const json5Result = await tryReadRawPackageJson5(projectDir, detectFormatting)
   if (json5Result) return json5Result
 
   return tryReadRawPackageYaml(projectDir)
 }
 
-async function tryReadRawPackageJson (projectDir: string): Promise<RawProjectManifestFile | undefined> {
+async function tryReadRawPackageJson (projectDir: string, detectFormatting: boolean): Promise<RawProjectManifestFile | undefined> {
   try {
     const manifestPath = path.join(projectDir, 'package.json')
     const { data, text } = await readJsonFile(manifestPath)
@@ -86,7 +90,7 @@ async function tryReadRawPackageJson (projectDir: string): Promise<RawProjectMan
       fileName: 'package.json',
       manifestPath,
       data,
-      formatting: detectFileFormatting(text),
+      formatting: detectFormatting ? detectFileFormatting(text) : undefined,
     }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
@@ -94,7 +98,7 @@ async function tryReadRawPackageJson (projectDir: string): Promise<RawProjectMan
   }
 }
 
-async function tryReadRawPackageJson5 (projectDir: string): Promise<RawProjectManifestFile | undefined> {
+async function tryReadRawPackageJson5 (projectDir: string, detectFormatting: boolean): Promise<RawProjectManifestFile | undefined> {
   try {
     const manifestPath = path.join(projectDir, 'package.json5')
     const { data, text } = await readJson5File(manifestPath)
@@ -102,7 +106,7 @@ async function tryReadRawPackageJson5 (projectDir: string): Promise<RawProjectMa
       fileName: 'package.json5',
       manifestPath,
       data,
-      formatting: detectFileFormattingAndComments(text),
+      formatting: detectFormatting ? detectFileFormattingAndComments(text) : undefined,
     }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err

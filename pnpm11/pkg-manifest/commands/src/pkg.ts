@@ -8,6 +8,7 @@ import {
   getObjectValueByPropertyPathString,
   setObjectValueByPropertyPathString,
 } from '@pnpm/object.property-path'
+import { isPlainObject } from '@pnpm/types'
 import HostedGit from 'hosted-git-info'
 import { renderHelp } from 'render-help'
 
@@ -213,14 +214,6 @@ function normalizeRepository (manifest: Record<string, unknown>): void {
   // A gist has no owner, but any other host renders an ownerless shortcut such as `github:skills` as a broken URL.
   if (hosted == null || (hosted.user == null && hosted.type !== 'gist')) return
   repository.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
-}
-
-function isPlainObject (value: unknown): value is Record<string, unknown> {
-  if (Object.prototype.toString.call(value) !== '[object Object]') {
-    return false
-  }
-  const proto = Object.getPrototypeOf(value)
-  return proto === null || Object.getPrototypeOf(proto) === null
 }
 
 const COMMANDS = {

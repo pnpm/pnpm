@@ -2,6 +2,7 @@ import { globalWarn } from '@pnpm/logger'
 import {
   type DependenciesField,
   type EngineDependency,
+  isPlainObject,
   type ProjectManifest,
   RUNTIME_NAMES,
 } from '@pnpm/types'
@@ -85,14 +86,6 @@ function removeRuntimeDependencies (deps: Record<string, string> | undefined, ru
       delete deps[runtimeName]
     }
   }
-}
-
-function isPlainObject (value: unknown): value is Record<string, string> {
-  if (Object.prototype.toString.call(value) !== '[object Object]') {
-    return false
-  }
-  const proto = Object.getPrototypeOf(value)
-  return proto === null || Object.getPrototypeOf(proto) === null
 }
 
 function toRuntimeList (enginesFieldRuntime: EngineDependency | EngineDependency[] | undefined): EngineDependency[] | undefined {

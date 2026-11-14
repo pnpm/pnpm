@@ -2,12 +2,12 @@ import { promises as fs, type Stats } from 'node:fs'
 
 import { PnpmError } from '@pnpm/error'
 import type { CommentSpecifier } from '@pnpm/text.comments-parser'
-import type { ProjectManifest } from '@pnpm/types'
+import { isPlainObject, type ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 
-import { tryReadRawProjectManifestFromDir } from './manifestExactReader.js'
+import { type RawProjectManifestFile, tryReadRawProjectManifestFromDir } from './manifestExactReader.js'
 
 export type RawProjectManifest = Record<string, unknown>
 
@@ -20,31 +20,39 @@ export interface ReadRawProjectManifestResult {
 }
 
 export async function readRawProjectManifest (projectDir: string): Promise<ReadRawProjectManifestResult> {
-  const found = await tryReadRawProjectManifestFromDir(projectDir)
-  if (!found) {
-    await assertDirectoryExistsOnWindows(projectDir)
-    throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
-      `No package.json (or package.yaml, or package.json5) was found in "${projectDir}".`)
-  }
-  const rawData = found.fileName === 'package.yaml' && found.data == null ? {} : found.data
-  if (!isPlainObject(rawData)) {
-    throw invalidManifestRootError(found.fileName, found.manifestPath)
-  }
+  const found = await readValidatedRawProjectManifest(projectDir)
   return {
     fileName: found.fileName,
-    manifest: structuredClone(rawData),
+    manifest: structuredClone(found.data),
     writeProjectManifest: createRawManifestWriter({
       ...found.formatting,
       fileName: found.fileName,
-      initialManifest: rawData,
+      initialManifest: found.data,
       manifestPath: found.manifestPath,
     }),
   }
 }
 
 export async function readRawProjectManifestOnly (projectDir: string): Promise<RawProjectManifest> {
-  const { manifest } = await readRawProjectManifest(projectDir)
-  return manifest
+  const { data } = await readValidatedRawProjectManifest(projectDir, { detectFormatting: false })
+  return data
+}
+
+async function readValidatedRawProjectManifest (
+  projectDir: string,
+  opts?: { detectFormatting?: boolean }
+): Promise<RawProjectManifestFile & { data: RawProjectManifest }> {
+  const found = await tryReadRawProjectManifestFromDir(projectDir, opts)
+  if (!found) {
+    await assertDirectoryExistsOnWindows(projectDir)
+    throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
+      `No package.json (or package.yaml, or package.json5) was found in "${projectDir}".`)
+  }
+  const data = found.fileName === 'package.yaml' && found.data == null ? {} : found.data
+  if (!isPlainObject(data)) {
+    throw invalidManifestRootError(found.fileName, found.manifestPath)
+  }
+  return { ...found, data }
 }
 
 export async function assertDirectoryExistsOnWindows (projectDir: string): Promise<void> {
@@ -73,7 +81,7 @@ function createRawManifestWriter (
     manifestPath: string
   }
 ): WriteRawProjectManifest {
-  let initialManifest = structuredClone(opts.initialManifest)
+  let initialManifest = opts.initialManifest
   return async (updatedManifest: RawProjectManifest, force?: boolean) => {
     if (!isPlainObject(updatedManifest)) {
       throw invalidManifestRootError(opts.fileName, opts.manifestPath)
@@ -95,6 +103,8 @@ function invalidManifestRootError (fileName: string, manifestPath: string): Pnpm
   return new PnpmError(code, `${manifestPath}: the manifest root must be an object`)
 }
 
+// `fast-deep-equal` ignores object key insertion order, whereas raw manifest
+// writes must persist key-order-only edits.
 function valuesIdentical (left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) return true
   if (Array.isArray(left) && Array.isArray(right)) {
@@ -115,12 +125,4 @@ function plainObjectsIdentical (left: Record<string, unknown>, right: Record<str
   const rightKeys = Object.keys(right)
   if (leftKeys.length !== rightKeys.length) return false
   return leftKeys.every((key, index) => key === rightKeys[index] && valuesIdentical(left[key], right[key]))
-}
-
-function isPlainObject (value: unknown): value is Record<string, unknown> {
-  if (Object.prototype.toString.call(value) !== '[object Object]') {
-    return false
-  }
-  const proto = Object.getPrototypeOf(value)
-  return proto === null || Object.getPrototypeOf(proto) === null
 }
