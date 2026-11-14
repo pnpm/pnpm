@@ -100,7 +100,7 @@ fn targeted_update_keeps_an_unrelated_transitive_crate_locked() {
         format!(
             "cargo:\n  enabled: true\nstoreDir: '{}'\ncacheDir: '{}'\n",
             root.path().join("store").display(),
-            cache_dir.display()
+            cache_dir.display(),
         ),
     )
     .unwrap();
