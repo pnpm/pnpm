@@ -8,7 +8,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 fn declared(name: &str) -> DeclaredCargoDep {
     DeclaredCargoDep {
-        alias: name.to_string(),
+        aliases: vec![name.to_string()],
         manifest_key: name.to_string(),
         package_name: name.to_string(),
         raw_spec: "1".to_string(),

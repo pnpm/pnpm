@@ -11,16 +11,48 @@ pub(crate) struct WorkspaceCargoDep {
     pub(crate) path: Option<String>,
 }
 
+/// Look up the `[workspace.dependencies]` entry inherited by `dep_key`,
+/// checking `dep_key` first and falling back to the member's `package` rename.
+pub(crate) fn lookup_inherited_workspace_entry<'a, Value, Lookup>(
+    dep_key: &str,
+    dep_package: Option<&str>,
+    mut get: Lookup,
+) -> Option<(&'a String, &'a Value)>
+where
+    Lookup: FnMut(&str) -> Option<(&'a String, &'a Value)>,
+{
+    get(dep_key).or_else(|| dep_package.and_then(get))
+}
+
 pub(crate) fn workspace_dependency_spec(
     member_dir: &Path,
     dep_key: &str,
     dep_package: Option<&str>,
 ) -> Option<WorkspaceCargoDep> {
+    let (workspace_root, ws_key, dep_val) =
+        find_workspace_dep_entry(member_dir, dep_key, dep_package)?;
+    parse_workspace_dep_value(&workspace_root, &ws_key, &dep_val)
+}
+
+pub(crate) fn workspace_dependency_table(
+    member_dir: &Path,
+    dep_key: &str,
+    dep_package: Option<&str>,
+) -> Option<toml::Table> {
+    let (_, _, dep_val) = find_workspace_dep_entry(member_dir, dep_key, dep_package)?;
+    dep_val.as_table().cloned()
+}
+
+fn find_workspace_dep_entry(
+    member_dir: &Path,
+    dep_key: &str,
+    dep_package: Option<&str>,
+) -> Option<(PathBuf, String, toml::Value)> {
     for candidate in member_dir.ancestors() {
-        if let Some(spec) =
+        if let Some(entry) =
             read_workspace_dep_from_candidate(candidate, member_dir, dep_key, dep_package)
         {
-            return Some(spec);
+            return Some(entry);
         }
     }
     None
@@ -31,7 +63,7 @@ fn read_workspace_dep_from_candidate(
     member_dir: &Path,
     dep_key: &str,
     dep_package: Option<&str>,
-) -> Option<WorkspaceCargoDep> {
+) -> Option<(PathBuf, String, toml::Value)> {
     let contents = fs::read_to_string(workspace_dir.join("Cargo.toml")).ok()?;
     let doc = toml::from_str::<toml::Table>(&contents).ok()?;
     let ws = doc.get("workspace")?.as_table()?;
@@ -39,22 +71,20 @@ fn read_workspace_dep_from_candidate(
         return None;
     }
     let deps = ws.get("dependencies")?.as_table()?;
-    let (ws_key, dep_val) = deps
-        .get_key_value(dep_key)
-        .or_else(|| dep_package.and_then(|pkg| deps.get_key_value(pkg)))?;
-    parse_workspace_dep_value(workspace_dir, ws_key, dep_package, dep_val)
+    let (ws_key, dep_val) =
+        lookup_inherited_workspace_entry(dep_key, dep_package, |key| deps.get_key_value(key))?;
+    Some((workspace_dir.to_path_buf(), ws_key.clone(), dep_val.clone()))
 }
 
 fn parse_workspace_dep_value(
     workspace_dir: &Path,
     ws_key: &str,
-    dep_package: Option<&str>,
     dep_val: &toml::Value,
 ) -> Option<WorkspaceCargoDep> {
     if dep_val.is_str() {
         return Some(WorkspaceCargoDep {
             workspace_root: workspace_dir.to_path_buf(),
-            package_name: dep_package.unwrap_or(ws_key).to_string(),
+            package_name: ws_key.to_string(),
             path: None,
         });
     }
@@ -62,7 +92,6 @@ fn parse_workspace_dep_value(
     let package_name = table
         .get("package")
         .and_then(toml::Value::as_str)
-        .or(dep_package)
         .unwrap_or(ws_key)
         .to_string();
     let path = table
@@ -270,14 +299,9 @@ fn resolve_workspace_dep_path(
         .as_table()?
         .get("dependencies")?
         .as_table()?;
-    let ws_val = ws_deps
-        .get(key)
-        .or_else(|| {
-            member_dep
-                .get("package")
-                .and_then(toml::Value::as_str)
-                .and_then(|pkg| ws_deps.get(pkg))
-        })?;
+    let dep_package = member_dep.get("package").and_then(toml::Value::as_str);
+    let (_, ws_val) =
+        lookup_inherited_workspace_entry(key, dep_package, |name| ws_deps.get_key_value(name))?;
     let rel_path = ws_val
         .as_table()?
         .get("path")?
@@ -348,3 +372,6 @@ fn advance_segment(reachable: &mut [bool], pat_seg: &str, path: &[&str]) {
     }
     reachable[0] = false;
 }
+
+#[cfg(test)]
+mod tests;

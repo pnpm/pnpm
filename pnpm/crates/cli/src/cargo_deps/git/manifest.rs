@@ -2,6 +2,7 @@ use super::{
     BTreeMap, BTreeSet, DEPENDENCY_KINDS, EXCLUDED_DIRECTORIES, IntoDiagnostic, Path, PathBuf,
     Result, fs, io,
 };
+use crate::cargo_manifest::lookup_inherited_workspace_entry;
 use miette::WrapErr;
 
 /// A package found in a git checkout, with the manifest the vendored
@@ -306,8 +307,7 @@ fn lookup_workspace_dependency<'a>(
 ) -> Result<(&'a String, &'a toml::Value)> {
     ws_deps
         .and_then(|deps| {
-            deps.get_key_value(name)
-                .or_else(|| local_package.and_then(|pkg| deps.get_key_value(pkg)))
+            lookup_inherited_workspace_entry(name, local_package, |key| deps.get_key_value(key))
         })
         .ok_or_else(|| {
             let wanted = local_package.unwrap_or(name);

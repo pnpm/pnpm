@@ -1,14 +1,19 @@
 pub(crate) mod workspace;
 
-pub(crate) use workspace::{workspace_dependency_spec, workspace_includes_member};
+pub(crate) use workspace::{
+    lookup_inherited_workspace_entry, workspace_dependency_spec, workspace_dependency_table,
+    workspace_includes_member,
+};
 
+mod inheritance;
 mod spans;
 
+use inheritance::{DetachedShape, format_detached_replacement, resolve_detached_inheritance};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use spans::{
-    apply_two_edits, collect_header_spans, dotted_prefix, end_of_line, find_entry, full_line_range,
-    inline_entry_removal_range, insert_into_inline_table, insert_line_at, is_explicit_header,
-    is_inline_table, lookup_table_path, max_value_end, replace_range, section_end,
+    apply_edits, collect_header_spans, dotted_prefix, dotted_table_end, end_of_line, find_entry,
+    full_line_range, inline_entry_removal_range, insert_into_inline_table, insert_line_at,
+    is_explicit_header, is_inline_table, lookup_table_path, quoted, replace_range, section_end,
 };
 use std::{fs, ops::Range, path::Path};
 use toml::{
@@ -41,9 +46,11 @@ pub(crate) fn add_dependencies(
     let original = fs::read_to_string(manifest_path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", manifest_path.display()))?;
+    let manifest_dir = manifest_path.parent();
     let mut updated = original.clone();
     for (name, version_spec) in dependencies {
-        updated = upsert_dependency(&updated, kind.table(), name, version_spec)?;
+        updated =
+            upsert_dependency_in_dir(&updated, manifest_dir, kind.table(), name, version_spec)?;
     }
     if updated != original {
         pnpm_fs::write_atomic(manifest_path, updated.as_bytes())
@@ -55,6 +62,16 @@ pub(crate) fn add_dependencies(
 
 pub(crate) fn upsert_dependency(
     contents: &str,
+    table: &str,
+    name: &str,
+    version_spec: &str,
+) -> Result<String> {
+    upsert_dependency_in_dir(contents, None, table, name, version_spec)
+}
+
+pub(crate) fn upsert_dependency_in_dir(
+    contents: &str,
+    manifest_dir: Option<&Path>,
     table: &str,
     name: &str,
     version_spec: &str,
@@ -71,50 +88,112 @@ pub(crate) fn upsert_dependency(
         .get_ref()
         .as_table()
         .ok_or_else(|| miette::miette!("`{table}` in Cargo.toml is not a table"))?;
-
-    if let Some((_, dep_val)) = find_entry(deps_table, name) {
-        return update_existing_dependency(contents, &header_spans, dep_val, name, version_spec);
-    }
-
-    let entry = format!("{} = {}", format_key(name), quoted(version_spec));
     let target_span = target.span();
-    if is_explicit_header(contents, &target_span) {
-        let end = section_end(contents, &header_spans, &target_span);
-        return Ok(insert_line_at(contents, end, &entry));
+
+    if let Some((dep_key, dep_val)) = find_entry(deps_table, name) {
+        let inline_parent = is_inline_table(contents, &target_span)
+            .then_some(InlineParent {
+                span: &target_span,
+                table: deps_table,
+                key_text: &contents[dep_key.span()],
+            });
+        let ctx =
+            UpdateContext { contents, manifest_dir, header_spans: &header_spans, inline_parent };
+        return update_existing_dependency(&ctx, dep_val, name, version_spec);
     }
-    if is_inline_table(contents, &target_span) {
-        return Ok(insert_into_inline_table(contents, &target_span, deps_table, &entry));
+
+    Ok(insert_new_dependency(
+        contents,
+        &header_spans,
+        (&target_span, deps_table),
+        table,
+        (name, version_spec),
+    ))
+}
+
+fn insert_new_dependency(
+    contents: &str,
+    header_spans: &[Range<usize>],
+    (target_span, deps_table): (&Range<usize>, &DeTable<'_>),
+    table: &str,
+    (name, version_spec): (&str, &str),
+) -> String {
+    let entry = format!("{} = {}", format_key(name), quoted(version_spec));
+    if is_explicit_header(contents, target_span) {
+        let end = section_end(contents, header_spans, target_span);
+        return insert_line_at(contents, end, &entry);
+    }
+    if is_inline_table(contents, target_span) {
+        return insert_into_inline_table(contents, target_span, deps_table, &entry);
     }
     if header_spans
         .iter()
         .any(|header| header.start <= target_span.start && target_span.end <= header.end)
     {
-        return Ok(append_new_table(contents, table, name, version_spec));
+        return append_new_table(contents, table, name, version_spec);
     }
-    let prefix = dotted_prefix(contents, &target_span);
-    let after = end_of_line(contents, max_value_end(deps_table).unwrap_or(target_span.end));
-    Ok(insert_line_at(contents, after, &format!("{prefix}.{entry}")))
+    let prefix = dotted_prefix(contents, target_span);
+    let after =
+        end_of_line(contents, dotted_table_end(contents, deps_table, header_spans, target_span));
+    insert_line_at(contents, after, &format!("{prefix}.{entry}"))
+}
+
+#[derive(Clone, Copy)]
+struct InlineParent<'a, 'i> {
+    span: &'a Range<usize>,
+    table: &'a DeTable<'i>,
+    key_text: &'a str,
+}
+
+#[derive(Clone, Copy)]
+struct UpdateContext<'a, 'i> {
+    contents: &'a str,
+    manifest_dir: Option<&'a Path>,
+    header_spans: &'a [Range<usize>],
+    inline_parent: Option<InlineParent<'a, 'i>>,
+}
+
+#[derive(Clone, Copy)]
+enum TableShape<'a, 'i> {
+    Inline,
+    DottedInInline(InlineParent<'a, 'i>),
+    Subtable(&'a [Range<usize>]),
+    Dotted(&'a [Range<usize>]),
+}
+
+impl<'a> TableShape<'a, '_> {
+    fn detached(self) -> DetachedShape<'a> {
+        match self {
+            Self::Inline => DetachedShape::Inline,
+            Self::DottedInInline(parent) => DetachedShape::DottedInInline(parent.key_text),
+            Self::Subtable(_) => DetachedShape::Subtable,
+            Self::Dotted(_) => DetachedShape::Dotted,
+        }
+    }
 }
 
 fn update_existing_dependency(
-    contents: &str,
-    header_spans: &[Range<usize>],
+    ctx: &UpdateContext<'_, '_>,
     dep_val: &Spanned<DeValue<'_>>,
     name: &str,
     version_spec: &str,
 ) -> Result<String> {
     match dep_val.get_ref() {
-        DeValue::String(_) => Ok(replace_range(contents, dep_val.span(), &quoted(version_spec))),
+        DeValue::String(_) => {
+            Ok(replace_range(ctx.contents, dep_val.span(), &quoted(version_spec)))
+        }
         DeValue::Table(subtable) => {
             let span = dep_val.span();
-            let shape = if is_inline_table(contents, &span) {
+            let shape = if is_inline_table(ctx.contents, &span) {
                 TableShape::Inline
-            } else if is_explicit_header(contents, &span) {
-                TableShape::Subtable(header_spans)
+            } else if is_explicit_header(ctx.contents, &span) {
+                TableShape::Subtable(ctx.header_spans)
+            } else if let Some(parent) = ctx.inline_parent {
+                TableShape::DottedInInline(parent)
             } else {
-                TableShape::Dotted
+                TableShape::Dotted(ctx.header_spans)
             };
-            update_table_dependency(contents, &span, subtable, shape, name, version_spec)
+            update_table_dependency(ctx, &span, subtable, shape, (name, version_spec))
         }
         _ => Err(miette::miette!(
             "cannot update crate {name}: its Cargo.toml dependency declaration is not a string or table"
@@ -122,41 +201,109 @@ fn update_existing_dependency(
     }
 }
 
-#[derive(Clone, Copy)]
-enum TableShape<'a> {
-    Inline,
-    Subtable(&'a [Range<usize>]),
-    Dotted,
-}
-
 fn update_table_dependency(
-    contents: &str,
+    ctx: &UpdateContext<'_, '_>,
     span: &Range<usize>,
     subtable: &DeTable<'_>,
-    shape: TableShape<'_>,
-    name: &str,
-    version_spec: &str,
+    shape: TableShape<'_, '_>,
+    (name, version_spec): (&str, &str),
 ) -> Result<String> {
     match (find_entry(subtable, "version"), find_entry(subtable, "workspace")) {
         (Some((_, ver_val)), None) => {
             ensure_string_version(ver_val, name)?;
-            Ok(replace_range(contents, ver_val.span(), &quoted(version_spec)))
+            Ok(replace_range(ctx.contents, ver_val.span(), &quoted(version_spec)))
         }
-        (None, Some((ws_key, ws_val))) => Ok(replace_range(
-            contents,
+        (None, Some((ws_key, ws_val))) => Ok(replace_workspace_entry(
+            ctx,
+            span,
+            subtable,
+            shape,
             ws_key.span().start..ws_val.span().end,
-            &format!("version = {}", quoted(version_spec)),
+            (name, version_spec),
         )),
         (Some((_, ver_val)), Some((ws_key, ws_val))) => {
             ensure_string_version(ver_val, name)?;
-            let ws_span = ws_key.span().start..ws_val.span().end;
-            let removal = match shape {
-                TableShape::Inline => inline_entry_removal_range(contents, span, subtable, ws_span),
-                TableShape::Subtable(_) | TableShape::Dotted => full_line_range(contents, ws_span),
-            };
-            Ok(apply_two_edits(contents, (ver_val.span(), &quoted(version_spec)), (removal, "")))
+            Ok(replace_version_and_workspace(
+                ctx,
+                span,
+                subtable,
+                shape,
+                (ver_val.span(), ws_key.span().start..ws_val.span().end),
+                (name, version_spec),
+            ))
         }
-        (None, None) => insert_missing_version(contents, span, subtable, shape, version_spec),
+        (None, None) => {
+            Ok(insert_missing_version(ctx.contents, span, subtable, shape, version_spec))
+        }
+    }
+}
+
+fn replace_workspace_entry(
+    ctx: &UpdateContext<'_, '_>,
+    span: &Range<usize>,
+    subtable: &DeTable<'_>,
+    shape: TableShape<'_, '_>,
+    ws_span: Range<usize>,
+    (name, version_spec): (&str, &str),
+) -> String {
+    let detached = resolve_detached_inheritance(ctx.manifest_dir, subtable, name);
+    let replacement = format_detached_replacement(
+        ctx.contents,
+        span,
+        ws_span.start,
+        shape.detached(),
+        Some(version_spec),
+        &detached.extra_fields,
+    );
+    let mut edits = vec![(ws_span, replacement)];
+    if let Some(feat_edit) = detached.merged_features_edit {
+        edits.push(feat_edit);
+    }
+    apply_edits(ctx.contents, edits)
+}
+
+fn replace_version_and_workspace(
+    ctx: &UpdateContext<'_, '_>,
+    span: &Range<usize>,
+    subtable: &DeTable<'_>,
+    shape: TableShape<'_, '_>,
+    (ver_span, ws_span): (Range<usize>, Range<usize>),
+    (name, version_spec): (&str, &str),
+) -> String {
+    let detached = resolve_detached_inheritance(ctx.manifest_dir, subtable, name);
+    let ws_edit = if detached.extra_fields.is_empty() {
+        (workspace_removal_range(ctx.contents, span, subtable, shape, ws_span), String::new())
+    } else {
+        let replacement = format_detached_replacement(
+            ctx.contents,
+            span,
+            ws_span.start,
+            shape.detached(),
+            None,
+            &detached.extra_fields,
+        );
+        (ws_span, replacement)
+    };
+    let mut edits = vec![(ver_span, quoted(version_spec)), ws_edit];
+    if let Some(feat_edit) = detached.merged_features_edit {
+        edits.push(feat_edit);
+    }
+    apply_edits(ctx.contents, edits)
+}
+
+fn workspace_removal_range(
+    contents: &str,
+    span: &Range<usize>,
+    subtable: &DeTable<'_>,
+    shape: TableShape<'_, '_>,
+    ws_span: Range<usize>,
+) -> Range<usize> {
+    match shape {
+        TableShape::Inline => inline_entry_removal_range(contents, span, subtable, ws_span),
+        TableShape::DottedInInline(parent) => {
+            inline_entry_removal_range(contents, parent.span, parent.table, ws_span)
+        }
+        TableShape::Subtable(_) | TableShape::Dotted(_) => full_line_range(contents, ws_span),
     }
 }
 
@@ -164,22 +311,26 @@ fn insert_missing_version(
     contents: &str,
     span: &Range<usize>,
     subtable: &DeTable<'_>,
-    shape: TableShape<'_>,
+    shape: TableShape<'_, '_>,
     version_spec: &str,
-) -> Result<String> {
+) -> String {
     let version_entry = format!("version = {}", quoted(version_spec));
     match shape {
-        TableShape::Inline => {
-            Ok(insert_into_inline_table(contents, span, subtable, &version_entry))
-        }
+        TableShape::Inline => insert_into_inline_table(contents, span, subtable, &version_entry),
+        TableShape::DottedInInline(parent) => insert_into_inline_table(
+            contents,
+            parent.span,
+            parent.table,
+            &format!("{}.{version_entry}", parent.key_text),
+        ),
         TableShape::Subtable(header_spans) => {
-            let end = section_end(contents, header_spans, span);
-            Ok(insert_line_at(contents, end, &version_entry))
+            insert_line_at(contents, section_end(contents, header_spans, span), &version_entry)
         }
-        TableShape::Dotted => {
+        TableShape::Dotted(header_spans) => {
             let prefix = dotted_prefix(contents, span);
-            let after = end_of_line(contents, max_value_end(subtable).unwrap_or(span.end));
-            Ok(insert_line_at(contents, after, &format!("{prefix}.{version_entry}")))
+            let after =
+                end_of_line(contents, dotted_table_end(contents, subtable, header_spans, span));
+            insert_line_at(contents, after, &format!("{prefix}.{version_entry}"))
         }
     }
 }
@@ -222,10 +373,6 @@ fn format_key(name: &str) -> String {
     } else {
         quoted(name)
     }
-}
-
-fn quoted(value: &str) -> String {
-    serde_json::to_string(value).expect("serializing a Rust string cannot fail")
 }
 
 #[cfg(test)]

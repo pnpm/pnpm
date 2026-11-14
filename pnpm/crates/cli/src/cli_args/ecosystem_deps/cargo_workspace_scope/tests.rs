@@ -25,7 +25,7 @@ fn declaration(req: &str, features: &[&str], source: Option<&str>) -> CargoWorks
 
 fn declared(req: &str) -> DeclaredCargoDep {
     DeclaredCargoDep {
-        alias: "hash".to_string(),
+        aliases: vec!["hash".to_string()],
         manifest_key: "hash".to_string(),
         package_name: "hash".to_string(),
         raw_spec: req.to_string(),
@@ -87,9 +87,14 @@ fn only_a_renamed_alias_of_a_package_declared_twice_has_a_sibling() {
             ..declaration("^0.4", &[], Some(CRATES_IO))
         },
     ]);
-    let renamed = DeclaredCargoDep { alias: "hash-0-4".to_string(), ..declared("0.4") };
+    let renamed = DeclaredCargoDep {
+        aliases: vec!["hash-0-4".to_string()],
+        manifest_key: "hash-0-4".to_string(),
+        ..declared("0.4")
+    };
     let lone_rename = DeclaredCargoDep {
-        alias: "digest".to_string(),
+        aliases: vec!["digest".to_string()],
+        manifest_key: "digest".to_string(),
         package_name: "hash-rs".to_string(),
         ..declared("0.4")
     };
@@ -140,7 +145,37 @@ fn the_root_manifest_yields_crates_io_patches_and_workspace_aliases() {
 fn an_uninherited_workspace_declaration_is_a_sibling() {
     let mut scope = scope_with(&[("hash", "hash-0-4")], &[]);
     scope.root_manifest.workspace_aliases.insert(("hash".to_string(), "hash".to_string()));
-    let renamed = DeclaredCargoDep { alias: "hash-0-4".to_string(), ..declared("0.4") };
+    let renamed = DeclaredCargoDep {
+        aliases: vec!["hash-0-4".to_string()],
+        manifest_key: "hash-0-4".to_string(),
+        ..declared("0.4")
+    };
 
     assert!(scope.has_sibling_alias(&renamed));
+}
+
+#[test]
+fn enabled_features_and_sibling_check_include_extra_inherited_aliases() {
+    let mut scope = scope_with(&[], &[]);
+    scope.add_declarations(vec![
+        CargoWorkspaceDependency {
+            name: "ryu".to_string(),
+            rename: Some("my_ryu".to_string()),
+            ..declaration("^1.0.0", &["small"], Some(CRATES_IO))
+        },
+        CargoWorkspaceDependency {
+            name: "ryu".to_string(),
+            rename: Some("other_ryu".to_string()),
+            ..declaration("^1.0.0", &["no-panic"], Some(CRATES_IO))
+        },
+    ]);
+    let shared = DeclaredCargoDep {
+        aliases: vec!["my_ryu".to_string(), "other_ryu".to_string()],
+        manifest_key: "my_ryu".to_string(),
+        package_name: "ryu".to_string(),
+        ..declared("1.0.0")
+    };
+
+    assert_eq!(scope.enabled_features(&shared), ["no-panic", "small"]);
+    assert!(!scope.has_sibling_alias(&shared));
 }

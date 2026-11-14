@@ -294,19 +294,16 @@ fn resolve_workspace_cargo_edge(
     dir: &Path,
     index: &CargoWorkspaceIndex,
 ) -> Option<PathBuf> {
-    if let Some(spec) = workspace_dependency_spec(dir, dep_key, dep_package) {
-        if let Some(rel_path) = spec.path {
-            let norm = pnpm_fs::lexical_normalize(&spec.workspace_root.join(rel_path));
-            if let Some(target) = index.by_norm_dir.get(&norm) {
-                return Some(target.clone());
-            }
-        }
-        if let Some(target) = index.by_name.get(&spec.package_name) {
+    let Some(spec) = workspace_dependency_spec(dir, dep_key, dep_package) else {
+        return index.by_name.get(dep_key).cloned();
+    };
+    if let Some(rel_path) = spec.path {
+        let norm = pnpm_fs::lexical_normalize(&spec.workspace_root.join(rel_path));
+        if let Some(target) = index.by_norm_dir.get(&norm) {
             return Some(target.clone());
         }
     }
-    let fallback = dep_package.unwrap_or(dep_key);
-    index.by_name.get(fallback).cloned()
+    index.by_name.get(&spec.package_name).cloned()
 }
 
 fn filter_standalone_graph<Pkg: BaseProject>(

@@ -2,11 +2,14 @@ pub(crate) use saved_spec::{format_cargo_saved_spec, without_build_metadata};
 mod saved_spec;
 
 use crate::{
-    cargo_manifest::{upsert_dependency, workspace_includes_member},
+    cargo_manifest::{
+        lookup_inherited_workspace_entry, upsert_dependency, workspace_includes_member,
+    },
     cli_args::outdated::OutdatedQuery,
 };
 use cargo_lock::Lockfile as CargoLockfile;
 use miette::{IntoDiagnostic, Result, WrapErr};
+use pnpm_matcher::Matcher;
 use pnpm_package_manifest::DependencyGroup;
 use semver::{Version, VersionReq};
 use std::{
@@ -21,7 +24,7 @@ mod tests;
 
 #[derive(Debug, Clone)]
 pub(crate) struct DeclaredCargoDep {
-    pub(crate) alias: String,
+    pub(crate) aliases: Vec<String>,
     pub(crate) manifest_key: String,
     pub(crate) package_name: String,
     pub(crate) raw_spec: String,
@@ -29,6 +32,48 @@ pub(crate) struct DeclaredCargoDep {
     pub(crate) group: DependencyGroup,
     pub(crate) manifest_path: PathBuf,
     pub(crate) table: &'static str,
+}
+
+impl DeclaredCargoDep {
+    pub(crate) fn primary_alias(&self) -> &str {
+        &self.aliases[0]
+    }
+
+    pub(crate) fn record_alias(&mut self, alias: &str) {
+        if !self.has_alias(alias) {
+            self.aliases.push(alias.to_string());
+        }
+    }
+
+    pub(crate) fn merge_aliases_from(&mut self, other: &Self) {
+        for alias in &other.aliases {
+            self.record_alias(alias);
+        }
+    }
+
+    pub(crate) fn has_alias(&self, name: &str) -> bool {
+        self.aliases
+            .iter()
+            .any(|alias| alias == name)
+    }
+
+    pub(crate) fn matches_name(&self, name: &str) -> bool {
+        self.package_name == name || self.manifest_key == name || self.has_alias(name)
+    }
+
+    pub(crate) fn matches_pattern(&self, matcher: &Matcher) -> bool {
+        self.aliases
+            .iter()
+            .any(|alias| matcher.matches(alias))
+    }
+
+    pub(crate) fn matches_query(&self, query: &OutdatedQuery<'_>) -> bool {
+        query.matches_name(&self.package_name)
+            || query.matches_name(&self.manifest_key)
+            || self.aliases
+                .iter()
+                .any(|alias| query.matches_name(alias))
+    }
 }
 
 const TABLES: [(&str, DependencyGroup); 4] = [
@@ -55,10 +100,7 @@ pub(crate) fn has_matching_cargo_deps(
 ) -> Result<bool> {
     Ok(declared_cargo_deps(project_dir, workspace_limit)?
         .into_iter()
-        .any(|dep| {
-            query.include_direct.contains(&dep.group)
-                && (query.matches_name(&dep.alias) || query.matches_name(&dep.package_name))
-        }))
+        .any(|dep| query.include_direct.contains(&dep.group) && dep.matches_query(query)))
 }
 
 pub(crate) fn find_cargo_workspace_root(
@@ -174,22 +216,23 @@ fn collect_table_deps(
         else {
             continue;
         };
-        if out
-            .iter()
-            .any(|existing| {
+        if let Some(existing) = out
+            .iter_mut()
+            .find(|existing| {
                 existing.manifest_path == target_manifest
                     && existing.table == target_table
                     && existing.manifest_key == manifest_key
                     && existing.group == group
             })
         {
+            existing.record_alias(alias);
             continue;
         }
         let Ok(version_req) = VersionReq::parse(&raw_spec) else {
             continue;
         };
         out.push(DeclaredCargoDep {
-            alias: alias.clone(),
+            aliases: vec![alias.clone()],
             manifest_key,
             package_name,
             raw_spec,
@@ -211,9 +254,10 @@ fn resolve_inherited_dep(
         .as_table()
         .and_then(|dep| dep.get("package"))
         .and_then(toml::Value::as_str);
-    let (ws_key, (pkg_name, raw)) = workspace_specs
-        .get_key_value(alias)
-        .or_else(|| local_package.and_then(|pkg| workspace_specs.get_key_value(pkg)))?;
+    let (ws_key, (pkg_name, raw)) =
+        lookup_inherited_workspace_entry(alias, local_package, |key| {
+            workspace_specs.get_key_value(key)
+        })?;
     Some((
         ws_key.clone(),
         pkg_name.clone(),

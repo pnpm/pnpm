@@ -70,6 +70,7 @@ fn merge_selected_cargo_deps(
     for selection in selected {
         match updates.iter_mut().find(|existing| same_declared_dep(&existing.dep, selection.dep)) {
             Some(existing) => {
+                existing.dep.merge_aliases_from(selection.dep);
                 if existing.explicit_spec.is_none() {
                     existing.explicit_spec = selection.explicit_spec.map(str::to_string);
                 }
@@ -94,7 +95,11 @@ async fn execute_cargo_workspace_updates<ReporterType: CargoReporter + 'static>(
         let mut declared =
             declared_cargo_deps(&cargo_root, context.config.workspace_dir.as_deref())?;
         for selection in &selected {
-            if !declared.iter().any(|declared| same_declared_dep(declared, &selection.dep)) {
+            if let Some(existing) =
+                declared.iter_mut().find(|declared| same_declared_dep(declared, &selection.dep))
+            {
+                existing.merge_aliases_from(&selection.dep);
+            } else {
                 declared.push(selection.dep.clone());
             }
         }

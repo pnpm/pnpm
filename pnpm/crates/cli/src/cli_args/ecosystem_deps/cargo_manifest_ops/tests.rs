@@ -1,4 +1,7 @@
 use super::{apply_manifest_edits, declared_cargo_deps, format_cargo_saved_spec};
+use crate::cli_args::ecosystem_deps::{
+    cargo::validate_explicit_cargo_requests, selectors::CargoUpdateSelector,
+};
 use semver::Version;
 use std::fs;
 
@@ -103,7 +106,7 @@ fn declared_cargo_deps_and_manifest_edits_resolve_renamed_workspace_dependencies
 
     let itoa = deps
         .iter()
-        .find(|dep| dep.alias == "my_itoa")
+        .find(|dep| dep.has_alias("my_itoa"))
         .expect("my_itoa resolved");
     assert_eq!(itoa.manifest_key, "itoa");
     assert_eq!(itoa.package_name, "itoa");
@@ -117,6 +120,19 @@ fn declared_cargo_deps_and_manifest_edits_resolve_renamed_workspace_dependencies
     assert_eq!(ryu.package_name, "ryu");
     assert_eq!(ryu.raw_spec, "1.0.0");
     assert_eq!(ryu.table, "workspace.dependencies");
+    assert!(ryu.has_alias("my_ryu"));
+    assert!(ryu.has_alias("other_ryu"));
+    assert!(ryu.matches_name("other_ryu"));
+    validate_explicit_cargo_requests(
+        std::slice::from_ref(&member),
+        Some(root),
+        &[CargoUpdateSelector {
+            name: "other_ryu".to_string(),
+            version_spec: None,
+            explicit: true,
+        }],
+    )
+    .expect("secondary inherited alias remains selectable");
 
     let edits: Vec<_> = deps
         .iter()

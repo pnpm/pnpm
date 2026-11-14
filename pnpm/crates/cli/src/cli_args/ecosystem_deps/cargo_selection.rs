@@ -36,10 +36,10 @@ fn match_cargo_dep<'a>(
     options: &'a CargoUpdateOptions<'a>,
 ) -> Option<SelectedCargoDep<'a>> {
     if !options.step.include_groups.contains(&dep.group)
-        || options.step.ignore_matcher.is_some_and(|matcher| matcher.matches(&dep.alias))
+        || options.step.ignore_matcher.is_some_and(|matcher| dep.matches_pattern(matcher))
         || options.exclusions
             .iter()
-            .any(|name| name == &dep.alias || name == &dep.package_name)
+            .any(|name| dep.matches_name(name))
     {
         return None;
     }
@@ -49,7 +49,7 @@ fn match_cargo_dep<'a>(
     }
     if let Some(req) = options.requests
         .iter()
-        .find(|req| req.name == dep.alias || req.name == dep.package_name)
+        .find(|req| dep.matches_name(&req.name))
     {
         return Some(SelectedCargoDep {
             dep,
@@ -57,7 +57,7 @@ fn match_cargo_dep<'a>(
             named: true,
         });
     }
-    (options.bare_matcher.is_some_and(|matcher| matcher.matches(&dep.alias))
+    (options.bare_matcher.is_some_and(|matcher| dep.matches_pattern(matcher))
         || options.update_all_except_exclusions)
         .then_some(unnamed)
 }
@@ -96,7 +96,10 @@ pub(super) fn is_held_by_patch<Reporter: self::Reporter>(target: &SelectedCargoT
     }
     warn::<Reporter>(
         target.scope,
-        format!("Not updating crate {}: `[patch.crates-io]` in Cargo.toml replaces it", dep.alias),
+        format!(
+            "Not updating crate {}: `[patch.crates-io]` in Cargo.toml replaces it",
+            dep.primary_alias(),
+        ),
     );
     true
 }
@@ -120,7 +123,7 @@ pub(super) fn is_held_as_downgrade<Reporter: self::Reporter>(
     };
     warn::<Reporter>(
         target.scope,
-        format!("Not updating crate {}: {version} is older than {current}", dep.alias),
+        format!("Not updating crate {}: {version} is older than {current}", dep.primary_alias()),
     );
     true
 }
@@ -161,10 +164,11 @@ pub(super) fn admits_enabled_features<Reporter: self::Reporter>(
     if missing.is_empty() {
         return Ok(true);
     }
-    let crate_version = if dep.alias == dep.package_name {
-        format!("{} {version}", dep.alias)
+    let alias = dep.primary_alias();
+    let crate_version = if alias == dep.package_name {
+        format!("{alias} {version}")
     } else {
-        format!("{} ({} {version})", dep.alias, dep.package_name)
+        format!("{alias} ({} {version})", dep.package_name)
     };
     let features = missing
         .iter()

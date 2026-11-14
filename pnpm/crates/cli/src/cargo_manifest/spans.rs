@@ -103,11 +103,37 @@ pub(super) fn full_line_range(contents: &str, span: Range<usize>) -> Range<usize
     line_start(contents, span.start)..end_of_line(contents, span.end)
 }
 
-pub(super) fn max_value_end(table: &DeTable<'_>) -> Option<usize> {
+pub(super) fn dotted_table_end(
+    contents: &str,
+    table: &DeTable<'_>,
+    header_spans: &[Range<usize>],
+    table_span: &Range<usize>,
+) -> usize {
+    let limit = header_spans
+        .iter()
+        .find(|header| header.start > table_span.start)
+        .map_or(contents.len(), |header| header.start);
+    max_dotted_end(contents, table, limit).unwrap_or(table_span.end)
+}
+
+fn max_dotted_end(contents: &str, table: &DeTable<'_>, limit: usize) -> Option<usize> {
     table
         .values()
-        .map(|val| val.span().end)
+        .filter_map(|val| value_end_before(contents, val, limit))
         .max()
+}
+
+fn value_end_before(contents: &str, val: &Spanned<DeValue<'_>>, limit: usize) -> Option<usize> {
+    let span = val.span();
+    if is_explicit_header(contents, &span) || span.end > limit {
+        return None;
+    }
+    if let DeValue::Table(child) = val.get_ref()
+        && !is_inline_table(contents, &span)
+    {
+        return max_dotted_end(contents, child, limit).or(Some(span.end));
+    }
+    Some(span.end)
 }
 
 pub(super) fn insert_line_at(contents: &str, offset: usize, line: &str) -> String {
@@ -138,22 +164,45 @@ pub(super) fn inline_entry_removal_range(
     subtable: &DeTable<'_>,
     entry_span: Range<usize>,
 ) -> Range<usize> {
+    let mut value_ends = Vec::new();
+    collect_inline_value_ends(subtable, contents, &mut value_ends);
+    let prev_end = value_ends
+        .into_iter()
+        .filter(|&end| end <= entry_span.start)
+        .max();
+    let entry_start = match prev_end {
+        Some(pe) => {
+            let comma = skip_ws_and_comments(contents, pe, entry_span.start);
+            skip_ws_and_comments(contents, comma + 1, entry_span.start)
+        }
+        None => skip_ws_and_comments(contents, table_span.start + 1, entry_span.start),
+    };
     let after = skip_ws_and_comments(contents, entry_span.end, table_span.end);
     if contents.as_bytes().get(after) == Some(&b',') {
         let mut end = after + 1;
         while matches!(contents.as_bytes().get(end), Some(b' ' | b'\t')) {
             end += 1;
         }
-        return entry_span.start..end;
+        return entry_start..end;
     }
-    let prev_end = subtable
-        .values()
-        .map(|val| val.span().end)
-        .filter(|&end| end <= entry_span.start)
-        .max()
-        .unwrap_or(table_span.start + 1);
-    let comma = skip_ws_and_comments(contents, prev_end, entry_span.start);
-    comma..entry_span.end
+    if let Some(pe) = prev_end {
+        let comma = skip_ws_and_comments(contents, pe, entry_span.start);
+        return comma..entry_span.end;
+    }
+    entry_start..entry_span.end
+}
+
+fn collect_inline_value_ends(table: &DeTable<'_>, contents: &str, out: &mut Vec<usize>) {
+    for val in table.values() {
+        let span = val.span();
+        if let DeValue::Table(child) = val.get_ref()
+            && !is_inline_table(contents, &span)
+        {
+            collect_inline_value_ends(child, contents, out);
+        } else {
+            out.push(span.end);
+        }
+    }
 }
 
 fn skip_ws_and_comments(contents: &str, mut pos: usize, limit: usize) -> usize {
@@ -176,13 +225,15 @@ pub(super) fn replace_range(contents: &str, range: Range<usize>, replacement: &s
     format!("{}{replacement}{}", &contents[..range.start], &contents[range.end..])
 }
 
-pub(super) fn apply_two_edits(
-    contents: &str,
-    first: (Range<usize>, &str),
-    second: (Range<usize>, &str),
-) -> String {
-    let ((earlier, earlier_text), (later, later_text)) =
-        if first.0.start <= second.0.start { (first, second) } else { (second, first) };
-    let updated = replace_range(contents, later, later_text);
-    replace_range(&updated, earlier, earlier_text)
+pub(super) fn apply_edits(contents: &str, mut edits: Vec<(Range<usize>, String)>) -> String {
+    edits.sort_by_key(|edit| std::cmp::Reverse(edit.0.start));
+    let mut updated = contents.to_string();
+    for (range, replacement) in edits {
+        updated.replace_range(range, &replacement);
+    }
+    updated
+}
+
+pub(super) fn quoted(value: &str) -> String {
+    serde_json::to_string(value).expect("serializing a Rust string cannot fail")
 }
