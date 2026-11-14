@@ -2,14 +2,11 @@ use super::{
     PackageManifestError,
     serialization::{
         ManifestFormatting, invalid_root_error, map_not_found_to_missing_manifest,
-        parse_project_manifest, strip_utf8_bom,
+        read_raw_project_manifest,
     },
 };
 use serde_json::Value;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 /// Unnormalized `package.json`, `package.json5`, or `package.yaml` manifest
 /// and its source formatting.
@@ -19,18 +16,15 @@ use std::{
 /// not sort or prune empty dependency objects on [`Self::save`].
 #[derive(Clone)]
 pub struct RawPackageManifest {
-    pub(super) path: PathBuf,
-    pub(super) value: Value,
-    pub(super) formatting: ManifestFormatting,
-    pub(super) on_disk: Value,
+    path: PathBuf,
+    value: Value,
+    formatting: ManifestFormatting,
+    on_disk: Value,
 }
 
 impl RawPackageManifest {
-    pub(super) fn read_from_file(path: PathBuf) -> Result<Self, PackageManifestError> {
-        let raw_contents = fs::read_to_string(&path)?;
-        let stripped_contents = strip_utf8_bom(&raw_contents);
-        let value = parse_project_manifest(&path, stripped_contents)?;
-        let formatting = ManifestFormatting::detect(&path, &raw_contents, stripped_contents);
+    fn read_from_file(path: PathBuf) -> Result<Self, PackageManifestError> {
+        let (value, formatting) = read_raw_project_manifest(&path)?;
         let on_disk = value.clone();
         Ok(Self { path, value, formatting, on_disk })
     }

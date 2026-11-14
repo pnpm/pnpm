@@ -1,6 +1,6 @@
 use super::{
     BlankLines, DEFAULT_INDENT, InitOptions, PackageManifest, PackageManifestError, Path, PathBuf,
-    RawPackageManifest, Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
+    Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
 };
 
 #[derive(Clone)]
@@ -288,12 +288,8 @@ impl PackageManifest {
     }
 
     pub(super) fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        let RawPackageManifest {
-            path,
-            mut value,
-            formatting,
-            mut on_disk,
-        } = RawPackageManifest::read_from_file(path)?;
+        let (mut value, formatting) = read_raw_project_manifest(&path)?;
+        let mut on_disk = value.clone();
         let empty_dependency_fields = empty_dependency_fields(&value);
         normalize_dependency_fields(&mut on_disk, &empty_dependency_fields);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
@@ -336,6 +332,16 @@ impl PackageManifest {
         // the file the same way as for a pre-existing manifest.
         PackageManifest::read_from_file(path)
     }
+}
+
+pub(super) fn read_raw_project_manifest(
+    path: &Path,
+) -> Result<(Value, ManifestFormatting), PackageManifestError> {
+    let raw_contents = fs::read_to_string(path)?;
+    let stripped_contents = strip_utf8_bom(&raw_contents);
+    let value = parse_project_manifest(path, stripped_contents)?;
+    let formatting = ManifestFormatting::detect(path, &raw_contents, stripped_contents);
+    Ok((value, formatting))
 }
 
 pub(super) fn map_not_found_to_missing_manifest<Manifest>(
