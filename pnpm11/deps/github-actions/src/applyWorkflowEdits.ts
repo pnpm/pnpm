@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises'
 
 import { PnpmError } from '@pnpm/error'
+import type semver from 'semver'
 import writeFileAtomic from 'write-file-atomic'
 
+import { shouldReplaceCommentVersion } from './commentVersion.js'
 import { workflowError } from './errors.js'
 import type { ActionFile, ActionReference, PlannedUpdate, RepoVersion } from './types.js'
 
@@ -30,7 +32,7 @@ function groupEditsByFile (
     replacements.push({
       originalValue: plan.action.originalValue,
       range: plan.action.range,
-      value: renderTargetValue(plan.action, selectTarget(plan)),
+      value: renderTargetValue(plan.action, plan.current.version, selectTarget(plan)),
     })
     edits.set(plan.action.file, replacements)
   }
@@ -62,7 +64,7 @@ function isUnchanged (source: string, [start, end]: readonly [number, number], o
   return start >= 0 && start <= end && end <= source.length && source.slice(start, end) === originalValue
 }
 
-function renderTargetValue (action: ActionReference, target: RepoVersion): string {
+function renderTargetValue (action: ActionReference, currentVersion: semver.SemVer, target: RepoVersion): string {
   const oldReference = `${action.name}@${action.ref}`
   const newReference = `${action.name}@${target.commit}`
   const value = action.originalValue.replace(oldReference, () => newReference)
@@ -72,7 +74,11 @@ function renderTargetValue (action: ActionReference, target: RepoVersion): strin
   if (commentOffset !== -1) {
     const prefix = value.slice(0, commentOffset)
     const commentBody = value.slice(commentOffset + 1).trimStart()
-    if (action.commentVersion != null && commentBody.startsWith(action.commentVersion)) {
+    if (
+      action.commentVersion != null &&
+      shouldReplaceCommentVersion(action.commentVersion, currentVersion) &&
+      commentBody.startsWith(action.commentVersion)
+    ) {
       return `${prefix}# ${target.tag}${commentBody.slice(action.commentVersion.length)}`
     }
     return commentBody.length === 0

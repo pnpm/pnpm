@@ -52,7 +52,9 @@ fn rejects_purl_and_protocol_prefixed_selectors() {
 
 #[test]
 fn updates_partial_and_non_version_comments_cleanly() {
-    let target: &RepoVersion = &repo_versions()[1];
+    let versions = repo_versions();
+    let current = &versions[0].version;
+    let target: &RepoVersion = &versions[1];
     let cases = [
         (
             format!("actions/checkout@{SHA_V4_1_0} # v4"),
@@ -98,10 +100,22 @@ fn updates_partial_and_non_version_comments_cleanly() {
             format!("owner/setup-v4.1.0@{SHA_V4_1_0} # v4.1.0"),
             format!("owner/setup-v4.1.0@{SHA_V4_2_0} # v4.2.0"),
         ),
+        (
+            format!("actions/checkout@{SHA_V4_1_0} # 2 runners only"),
+            format!("actions/checkout@{SHA_V4_2_0} # v4.2.0 2 runners only"),
+        ),
+        (
+            format!("actions/checkout@{SHA_V4_1_0} # 3.11 toolchain"),
+            format!("actions/checkout@{SHA_V4_2_0} # v4.2.0 3.11 toolchain"),
+        ),
     ];
 
     for (input, expected) in cases {
-        assert_eq!(render_target_value(&action(&input), target), expected, "input: {input}");
+        assert_eq!(
+            render_target_value(&action(&input), current, target),
+            expected,
+            "input: {input}",
+        );
     }
 }
 
@@ -135,6 +149,8 @@ async fn updates_workflow_comments_for_major_and_prose_annotations() {
                 "      - uses: actions/checkout@{0} # v4\n",
                 "      - uses: actions/checkout@{0} # v4 — pin for CI\n",
                 "      - uses: actions/checkout@{0} # pinned manually\n",
+                "      - uses: actions/checkout@{0} # 2 runners only\n",
+                "      - uses: actions/checkout@{0} # 3.11 toolchain\n",
             ),
             SHA_V4_1_0,
         ),
@@ -160,6 +176,8 @@ async fn updates_workflow_comments_for_major_and_prose_annotations() {
                 "      - uses: actions/checkout@{0} # v4.2.0\n",
                 "      - uses: actions/checkout@{0} # v4.2.0 — pin for CI\n",
                 "      - uses: actions/checkout@{0} # v4.2.0 pinned manually\n",
+                "      - uses: actions/checkout@{0} # v4.2.0 2 runners only\n",
+                "      - uses: actions/checkout@{0} # v4.2.0 3.11 toolchain\n",
             ),
             SHA_V4_2_0,
         ),

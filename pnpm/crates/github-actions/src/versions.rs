@@ -116,6 +116,22 @@ fn is_sha(value: &str) -> bool {
     value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+pub(super) fn replaces_comment_version(token: &str, current: &Version) -> bool {
+    let Some(parsed) = parse_comment_version(token) else {
+        return false;
+    };
+    if token.starts_with('v') {
+        return true;
+    }
+    match parsed {
+        CommentVersion::Exact(_) => true,
+        CommentVersion::MajorMinor(major, minor) => {
+            current.major == major && current.minor == minor
+        }
+        CommentVersion::Major(major) => current.major == major,
+    }
+}
+
 pub(super) fn parse_comment_version(input: &str) -> Option<CommentVersion> {
     if let Some(version) = parse_version(input) {
         return Some(CommentVersion::Exact(version));

@@ -426,6 +426,8 @@ jobs:
       - uses: actions/checkout@${'a'.repeat(40)} # 4
       - uses: actions/checkout@${'a'.repeat(40)} # v4 — pin for CI
       - uses: actions/checkout@${'a'.repeat(40)} # pinned manually
+      - uses: actions/checkout@${'a'.repeat(40)} # 2 runners only
+      - uses: actions/checkout@${'a'.repeat(40)} # 3.11 toolchain
       - uses: actions/checkout@${'a'.repeat(40)} #
 `,
     })
@@ -444,6 +446,8 @@ jobs:
       - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
       - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 — pin for CI
       - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 pinned manually
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 2 runners only
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 3.11 toolchain
       - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
 `)
   })

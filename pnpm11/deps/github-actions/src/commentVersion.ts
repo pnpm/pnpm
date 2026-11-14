@@ -25,3 +25,17 @@ export function getCommentVersionToken (comment: string | null | undefined): str
   const candidate = comment?.trimStart().split(/\s/, 1)[0]
   return candidate != null && parseCommentVersion(candidate) != null ? candidate : undefined
 }
+
+export function shouldReplaceCommentVersion (token: string, current: semver.SemVer): boolean {
+  const parsed = parseCommentVersion(token)
+  if (parsed == null) return false
+  if (token.startsWith('v')) return true
+  switch (parsed.kind) {
+    case 'exact':
+      return true
+    case 'majorMinor':
+      return current.major === parsed.major && current.minor === parsed.minor
+    case 'major':
+      return current.major === parsed.major
+  }
+}

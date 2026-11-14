@@ -124,9 +124,9 @@ fn parses_annotated_semver_tags() {
 #[test]
 fn preserves_quoting_and_updates_sha_comment() {
     let action = action(&format!("'actions/checkout@{SHA_V4_1_0}' # v4.1.0 keep pinned"));
-    let target = &repo_versions()[1];
+    let versions = repo_versions();
     assert_eq!(
-        render_target_value(&action, target),
+        render_target_value(&action, &versions[0].version, &versions[1]),
         format!("'actions/checkout@{SHA_V4_2_0}' # v4.2.0 keep pinned"),
     );
 }
