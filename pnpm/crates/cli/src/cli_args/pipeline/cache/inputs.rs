@@ -1,4 +1,5 @@
 mod globs;
+mod lockfile;
 
 use super::{
     Arc, Command, FileIterator, Glob, InputsUnavailable, IntoDiagnostic, Lockfile, Path, PathBuf,
@@ -109,10 +110,11 @@ fn tracked_input_files(project: &Path) -> miette::Result<crate::process::Output>
     Ok(output)
 }
 
-fn hash_tracked_inputs(project: &Path) -> miette::Result<Vec<HashedFile>> {
+fn tracked_input_paths(project: &Path) -> miette::Result<Vec<String>> {
+    check_ancestors(project, Path::new("")).into_diagnostic()?;
     let project_display = project.display();
     let output = tracked_input_files(project)?;
-    let mut files: Vec<HashedFile> = Vec::new();
+    let mut paths: Vec<String> = Vec::new();
     for rel_path in output.stdout.split(|byte| *byte == 0) {
         if rel_path.is_empty() {
             continue;
@@ -127,22 +129,17 @@ fn hash_tracked_inputs(project: &Path) -> miette::Result<Vec<HashedFile>> {
         if rel_path == "node_modules" || rel_path.starts_with("node_modules/") {
             continue;
         }
-        check_input_directories(project, Path::new(rel_path)).into_diagnostic()?;
-        let hash = hash_input(&project.join(rel_path))
-            .map_err(|error| {
-                miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
-            })?;
-        let Some(hash) = hash else { continue };
-        files.push(HashedFile { rel_path: rel_path.to_string(), hash });
+        paths.push(rel_path.to_string());
     }
-    Ok(files)
+    paths.sort();
+    Ok(paths)
 }
 
 impl TaskCache {
     /// The task's cache key: `pnpm-pipeline-task:v1` over the components
     /// the RFC names, NUL-separated and hashed.
     pub fn compute_task_key(&self, inputs: &TaskKeyInputs<'_>) -> miette::Result<Option<String>> {
-        let lockfile_hash = self.lockfile_hash(inputs.lockfile_dir, inputs.lockfile_selection);
+        let lockfile_hash = self.lockfile_hash(inputs.lockfile_dir, inputs.lockfile_selection)?;
         let mut components: Vec<String> = vec![
             "pnpm-pipeline-task:v1".to_string(),
             platform_cache_component(),
@@ -173,40 +170,41 @@ impl TaskCache {
         Ok(Some(create_hex_hash(&components.join("\0"))))
     }
 
-    pub(super) fn lockfile_hash(
-        &self,
-        lockfile_dir: &Path,
-        selection: &WantedLockfileSelection,
-    ) -> String {
-        let cache_key = (lockfile_dir.to_path_buf(), selection.clone());
-        if let Some(hash) = self.lockfile_hashes
+    pub(super) fn hash_cached_file(&self, path: &Path) -> io::Result<Option<String>> {
+        if let Some(cached) = self.file_hashes
             .lock()
-            .expect("lockfile-hashes lock is not poisoned")
-            .get(&cache_key)
-        {
-            return hash.clone();
-        }
-        let hash = hash_wanted_lockfile(lockfile_dir, selection);
-        self.lockfile_hashes
-            .lock()
-            .expect("lockfile-hashes lock is not poisoned")
-            .insert(cache_key, hash.clone());
-        hash
-    }
-
-    pub(super) fn hash_additive_input(&self, path: &Path) -> io::Result<Option<String>> {
-        if let Some(cached) = self.additive_files
-            .lock()
-            .expect("additive-files lock is not poisoned")
+            .expect("file-hashes lock is not poisoned")
             .get(path)
         {
             return Ok(cached.clone());
         }
         let hashed = hash_input(path)?;
-        self.additive_files
+        self.file_hashes
             .lock()
-            .expect("additive-files lock is not poisoned")
+            .expect("file-hashes lock is not poisoned")
             .insert(path.to_path_buf(), hashed.clone());
+        Ok(hashed)
+    }
+
+    fn hash_tracked_file(&self, project: &Path, rel_path: &str) -> miette::Result<Option<String>> {
+        let full_path = project.join(rel_path);
+        if let Some(cached) = self.file_hashes
+            .lock()
+            .expect("file-hashes lock is not poisoned")
+            .get(&full_path)
+        {
+            return Ok(cached.clone());
+        }
+        check_input_directories(project, Path::new(rel_path)).into_diagnostic()?;
+        let hashed = hash_input(&full_path)
+            .map_err(|error| {
+                let project_display = project.display();
+                miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
+            })?;
+        self.file_hashes
+            .lock()
+            .expect("file-hashes lock is not poisoned")
+            .insert(full_path, hashed.clone());
         Ok(hashed)
     }
 
@@ -232,38 +230,80 @@ impl TaskCache {
             check_ancestors(&node.project, Path::new("")).into_diagnostic()?;
             return Ok(Some(Arc::new(Vec::new())));
         }
-        let Some(all) = self.hashed_project_files(&node.project)? else { return Ok(None) };
         let output_globs = compile_globs(
             settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default(),
         )?;
-        let files = match selection {
-            InputSelection::Default => filter_default_inputs(&all, &output_globs),
-            InputSelection::Empty => Vec::new(),
-            InputSelection::Configured(configured) => {
-                resolve_configured_inputs(self, &node.project, &all, &output_globs, &configured)?
+        match selection {
+            InputSelection::Default => {
+                self.hash_selected_project_files(&node.project, |rel_path| {
+                    !matches_project_output(rel_path, &output_globs)
+                })
             }
+            InputSelection::Empty => Ok(Some(Arc::new(Vec::new()))),
+            InputSelection::Configured(configured) => {
+                resolve_configured_inputs(self, &node.project, &output_globs, &configured)
+            }
+        }
+    }
+
+    fn hash_selected_project_files(
+        &self,
+        project: &Path,
+        mut include: impl FnMut(&str) -> bool,
+    ) -> miette::Result<ProjectInputHashes> {
+        let Some((paths, was_cached)) = self.cached_or_tracked_paths(project)? else {
+            return Ok(None);
         };
+        let mut files: Vec<HashedFile> = Vec::new();
+        for rel_path in paths.iter() {
+            if !include(rel_path) {
+                continue;
+            }
+            if let Some(hash) = self.hash_tracked_file(project, rel_path)? {
+                files.push(HashedFile { rel_path: rel_path.clone(), hash });
+            }
+        }
+        if !was_cached {
+            self.project_files
+                .lock()
+                .expect("project-files lock is not poisoned")
+                .insert(project.to_path_buf(), ProjectFiles::Tracked(paths));
+        }
         Ok(Some(Arc::new(files)))
     }
 
-    pub(super) fn hashed_project_files(
+    fn cached_or_tracked_paths(
         &self,
         project: &Path,
-    ) -> miette::Result<ProjectInputHashes> {
-        if let Some(files) = self.project_files
+    ) -> miette::Result<Option<(Arc<Vec<String>>, bool)>> {
+        if let Some(entry) = self.project_files
             .lock()
             .expect("project-files lock is not poisoned")
             .get(project)
         {
-            return Ok(files.hashes());
+            return Ok(match entry {
+                ProjectFiles::Tracked(paths) => Some((Arc::clone(paths), true)),
+                ProjectFiles::Unavailable(_) => None,
+            });
         }
-        let files = project_files(project)?;
-        let hashes = files.hashes();
-        self.project_files
-            .lock()
-            .expect("project-files lock is not poisoned")
-            .insert(project.to_path_buf(), files);
-        Ok(hashes)
+        match project_tracked_paths(project)? {
+            ProjectFiles::Tracked(paths) => Ok(Some((paths, false))),
+            ProjectFiles::Unavailable(reason) => {
+                self.project_files
+                    .lock()
+                    .expect("project-files lock is not poisoned")
+                    .insert(project.to_path_buf(), ProjectFiles::Unavailable(reason));
+                Ok(None)
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn hashed_project_files(
+        &self,
+        project: &Path,
+    ) -> miette::Result<ProjectInputHashes> {
+        self.hash_selected_project_files(project, |_| true)
     }
 
     /// Why the project has no file set, when it has none.
@@ -276,35 +316,27 @@ impl TaskCache {
     }
 }
 
-fn filter_default_inputs(all: &[HashedFile], output_globs: &[Glob<'_>]) -> Vec<HashedFile> {
-    all.iter()
-        .filter(|file| !matches_project_output(&file.rel_path, output_globs))
-        .cloned()
-        .collect()
-}
-
 fn resolve_configured_inputs(
     cache: &TaskCache,
     project: &Path,
-    all: &[HashedFile],
     output_globs: &[Glob<'_>],
     configured: &ConfiguredInputs<'_>,
-) -> miette::Result<Vec<HashedFile>> {
-    let mut files: Vec<HashedFile> = all
-        .iter()
-        .filter(|file| {
-            (configured.replace.is_empty()
-                || configured.replace
-                    .iter()
-                    .any(|glob| glob.is_match(file.rel_path.as_str())))
-                && !is_excluded_input(project, &file.rel_path, output_globs, &configured.exclude)
-        })
-        .cloned()
-        .collect();
+) -> miette::Result<ProjectInputHashes> {
+    let Some(selected) = cache.hash_selected_project_files(project, |rel_path| {
+        (configured.replace.is_empty()
+            || configured.replace
+                .iter()
+                .any(|glob| glob.is_match(rel_path)))
+            && !is_excluded_input(project, rel_path, output_globs, &configured.exclude)
+    })?
+    else {
+        return Ok(None);
+    };
+    let mut files = Arc::unwrap_or_clone(selected);
     files.extend(walk_additive_inputs(cache, project, output_globs, configured)?);
     files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
     files.dedup_by(|left, right| left.rel_path == right.rel_path);
-    Ok(files)
+    Ok(Some(Arc::new(files)))
 }
 
 fn is_excluded_input(
@@ -319,35 +351,6 @@ fn is_excluded_input(
             .any(|glob| glob.matches_rel_path(project, rel_path))
 }
 
-fn hash_wanted_lockfile(lockfile_dir: &Path, selection: &WantedLockfileSelection) -> String {
-    let Some(base_name) =
-        selection.read_order().find(|file_name| Lockfile::wanted_exists(lockfile_dir, file_name))
-    else {
-        return "no-lockfile".to_string();
-    };
-    let Ok(base_hash) = create_hex_hash_from_file(&lockfile_dir.join(base_name)) else {
-        return "no-lockfile".to_string();
-    };
-    if !selection.merge_git_branch_lockfiles {
-        return base_hash;
-    }
-    let branch_files = Lockfile::git_branch_lockfiles(lockfile_dir).unwrap_or_default();
-    if branch_files.is_empty() {
-        return base_hash;
-    }
-    let mut parts = vec![format!("base:{base_name}={base_hash}")];
-    for branch_path in branch_files {
-        let name = branch_path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy();
-        let hash =
-            create_hex_hash_from_file(&branch_path).unwrap_or_else(|_| "unreadable".to_string());
-        parts.push(format!("branch:{name}={hash}"));
-    }
-    create_hex_hash(&parts.join("\0"))
-}
-
 fn matches_project_output(rel_path: &str, output_globs: &[Glob<'_>]) -> bool {
     !rel_path.starts_with("../")
         && output_globs
@@ -355,17 +358,16 @@ fn matches_project_output(rel_path: &str, output_globs: &[Glob<'_>]) -> bool {
             .any(|glob| glob.is_match(rel_path))
 }
 
-/// A project's file set, or why it has none.
-fn project_files(project: &Path) -> miette::Result<ProjectFiles> {
+/// A project's tracked-file path list, or why it has none.
+fn project_tracked_paths(project: &Path) -> miette::Result<ProjectFiles> {
     if !git_work_tree(project)? {
         return Ok(ProjectFiles::Unavailable(InputsUnavailable::NoGit));
     }
     if has_submodule_inputs(project)? {
         return Ok(ProjectFiles::Unavailable(InputsUnavailable::Submodules));
     }
-    let mut files = hash_tracked_inputs(project)?;
-    files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
-    Ok(ProjectFiles::Hashed(Arc::new(files)))
+    let paths = tracked_input_paths(project)?;
+    Ok(ProjectFiles::Tracked(Arc::new(paths)))
 }
 
 /// Whether git can enumerate the project's files at all.

@@ -63,16 +63,16 @@ pub struct TaskCache {
     workspace_root: PathBuf,
     lockfile_hashes: Mutex<HashMap<(PathBuf, WantedLockfileSelection), String>>,
     runtime_fingerprint: String,
-    /// Per-project tracked-file hashes, shared by every task of the
-    /// project: enumeration and hashing run once, per-task input specs
-    /// filter the shared list.
+    /// Per-project tracked-file paths from `git ls-files`, shared by every
+    /// task of the project; per-file content hashes live in `file_hashes` so
+    /// excluded or unselected files are never read.
     project_files: Mutex<HashMap<PathBuf, ProjectFiles>>,
-    additive_files: Mutex<HashMap<PathBuf, Option<String>>>,
+    file_hashes: Mutex<HashMap<PathBuf, Option<String>>>,
 }
 
-/// A project's file set, or why it has none.
+/// A project's tracked-file path list, or why it has none.
 enum ProjectFiles {
-    Hashed(Arc<Vec<HashedFile>>),
+    Tracked(Arc<Vec<String>>),
     Unavailable(InputsUnavailable),
 }
 
@@ -94,16 +94,7 @@ pub enum InputsUnavailable {
     NoGit,
 }
 
-impl ProjectFiles {
-    fn hashes(&self) -> ProjectInputHashes {
-        match self {
-            Self::Hashed(files) => Some(Arc::clone(files)),
-            Self::Unavailable(_) => None,
-        }
-    }
-}
-
-/// The project's tracked-file hashes, or `None` when it has no file set.
+/// Selected input-file hashes, or `None` when the project has no file set.
 type ProjectInputHashes = Option<Arc<Vec<HashedFile>>>;
 
 /// One entry of a task's last-outputs record: a file the previous run or
@@ -155,7 +146,7 @@ impl TaskCache {
             lockfile_hashes: Mutex::new(HashMap::new()),
             runtime_fingerprint,
             project_files: Mutex::new(HashMap::new()),
-            additive_files: Mutex::new(HashMap::new()),
+            file_hashes: Mutex::new(HashMap::new()),
         })
     }
 

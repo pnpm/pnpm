@@ -270,12 +270,13 @@ fn hash_walk_entry(
         return Ok(None);
     }
     let entry_path = entry.into_path();
-    let rel_path = relative_from_project(walk.project, walk_root, &entry_path)?;
+    let (entry_rel, rel_path) = relative_from_project(walk.project, walk_root, &entry_path)?;
     if is_excluded_input(walk.project, &rel_path, walk.output_globs, walk.exclude) {
         return Ok(None);
     }
+    check_input_directories(walk_root, entry_rel).into_diagnostic()?;
     let hash = walk.cache
-        .hash_additive_input(&entry_path)
+        .hash_cached_file(&entry_path)
         .map_err(|error| {
             let project_display = walk.project.display();
             miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
@@ -298,11 +299,11 @@ fn handle_walk_error(
     ))
 }
 
-fn relative_from_project(
+fn relative_from_project<'a>(
     project: &Path,
     walk_root: &Path,
-    entry_path: &Path,
-) -> miette::Result<String> {
+    entry_path: &'a Path,
+) -> miette::Result<(&'a Path, String)> {
     let entry_rel = entry_path
         .strip_prefix(walk_root)
         .map_err(|_| {
@@ -311,10 +312,10 @@ fn relative_from_project(
             miette::miette!("cache input path must stay under {root_display}: {entry_display}")
         })?;
     validate_relative_path(entry_rel).into_diagnostic()?;
-    check_input_directories(walk_root, entry_rel).into_diagnostic()?;
     let project_rel = project.strip_prefix(walk_root).expect("walk_root is an ancestor of project");
     let diff = pathdiff::diff_paths(entry_rel, project_rel).expect("both paths are relative");
-    relative_components_to_slash_path(&diff, project)
+    let rel_path = relative_components_to_slash_path(&diff, project)?;
+    Ok((entry_rel, rel_path))
 }
 
 fn relative_components_to_slash_path(path: &Path, display_root: &Path) -> miette::Result<String> {

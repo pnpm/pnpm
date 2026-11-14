@@ -794,3 +794,93 @@ fn lockfile_selection_hashes_per_dir_and_branch_lockfile_fallbacks() {
     .unwrap();
     assert_ne!(merge_before, merge_after);
 }
+
+#[test]
+fn excluded_or_unselected_unreadable_inputs_do_not_abort_other_tasks() {
+    let (root, repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    repo.write_file("private/secret", "secret");
+    repo.write_file("src/main.js", "console.log(1)\n");
+    let _ = repo.commit("add private and src files");
+    fs::remove_file(project.join("private/secret")).unwrap();
+    fs::create_dir(project.join("private/secret")).unwrap();
+
+    let node = task_node_at(&project);
+    let environment = HashMap::new();
+    let script_bodies = vec![("build".to_string(), "echo build".to_string())];
+    let selection = WantedLockfileSelection::default();
+
+    for inputs in [vec!["!private/**".to_string()], vec!["src/**".to_string()]] {
+        let mut settings = TaskSettings::default();
+        settings.inputs = Some(inputs);
+        settings.outputs = Some(vec!["dist/**".to_string()]);
+        let key = cache
+            .compute_task_key(&TaskKeyInputs {
+                node: &node,
+                settings: Some(&settings),
+                lockfile_dir: &project,
+                lockfile_selection: &selection,
+                dependency_keys: &[],
+                environment: &environment,
+                script_bodies: &script_bodies,
+            })
+            .unwrap();
+        assert!(key.is_some());
+    }
+
+    let mut unexcluded = TaskSettings::default();
+    unexcluded.outputs = Some(vec!["dist/**".to_string()]);
+    let error = cache
+        .compute_task_key(&TaskKeyInputs {
+            node: &node,
+            settings: Some(&unexcluded),
+            lockfile_dir: &project,
+            lockfile_selection: &selection,
+            dependency_keys: &[],
+            environment: &environment,
+            script_bodies: &script_bodies,
+        })
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("private/secret"), "{error}");
+}
+
+#[test]
+fn unreadable_lockfile_or_branch_lockfile_propagates_read_error() {
+    let (root, _repo, _cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+
+    let bad_lock_dir = root.path().join("bad-lock");
+    fs::create_dir_all(bad_lock_dir.join("pnpm-lock.yaml")).unwrap();
+    let base_error = key_for_inputs_with_selection(
+        &project,
+        &project,
+        Some(Vec::new()),
+        &bad_lock_dir,
+        &WantedLockfileSelection::default(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(base_error.contains("hashing lockfile"), "{base_error}");
+
+    let bad_branch_dir = root.path().join("bad-branch-lock");
+    fs::create_dir_all(&bad_branch_dir).unwrap();
+    fs::write(bad_branch_dir.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\nimporters: {}\n")
+        .unwrap();
+    fs::create_dir_all(bad_branch_dir.join("pnpm-lock.feat.yaml")).unwrap();
+    let merge_mode = WantedLockfileSelection {
+        file_name: "pnpm-lock.yaml".to_string(),
+        merge_git_branch_lockfiles: true,
+        branch_lockfile_candidates: Vec::new(),
+    };
+    let branch_error = key_for_inputs_with_selection(
+        &project,
+        &project,
+        Some(Vec::new()),
+        &bad_branch_dir,
+        &merge_mode,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(branch_error.contains("hashing branch lockfile"), "{branch_error}");
+}
