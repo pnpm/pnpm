@@ -126,13 +126,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let current =
         execute_update_config_hooks::<Reporter>(&pnpmfiles, &hooks, input.clone(), root_dir).await?;
     let prefix = root_dir.to_string_lossy().into_owned();
-    if let Some(message) = legacy_registries_warning(&input, &current) {
-        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message,
-            prefix: prefix.clone(),
-        }));
-    }
+    warn_legacy_registries::<Reporter>(&input, &current, &prefix);
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
@@ -172,6 +166,8 @@ fn update_config_hook_error(pnpmfile: &Path, err: pnpm_hooks::HookError) -> miet
             )
         }
     }
+}
+
 pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Option<String> {
     if input.get("registries") == current.get("registries")
         || input.get("registriesByScope") != current.get("registriesByScope")
@@ -201,6 +197,28 @@ pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Optio
         "The updateConfig hook changed the `registries` setting, but {} still use their configured registry. Return `registriesByScope` to replace scope routing.",
         unchanged_scopes.join(", "),
     ))
+}
+
+fn warn_legacy_registries<Reporter: self::Reporter>(input: &Value, current: &Value, prefix: &str) {
+    let Some(message) = legacy_registries_warning(input, current) else {
+        return;
+    };
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message,
+        prefix: prefix.to_string(),
+    }));
+}
+
+fn warn_legacy_registries<Reporter: self::Reporter>(input: &Value, current: &Value, prefix: &str) {
+    let Some(message) = legacy_registries_warning(input, current) else {
+        return;
+    };
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message,
+        prefix: prefix.to_string(),
+    }));
 }
 
 fn warn_ignored_hooks<Reporter: self::Reporter>(

@@ -1,5 +1,4 @@
-use super::hooks::legacy_registries_warning;
-use super::{resolve_engine_version, run_update_config_hooks};
+use super::{hooks::legacy_registries_warning, resolve_engine_version, run_update_config_hooks};
 use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
 use pnpm_reporter::SilentReporter;
 use std::{fs, path::Path};
