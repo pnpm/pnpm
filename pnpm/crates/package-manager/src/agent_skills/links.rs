@@ -1,7 +1,7 @@
 //! Placing and removing the links of agent skills in the agent skill
 //! directories.
 
-use super::{AgentSkillsError, discovery::MAX_SKILL_DIR_DEPTH};
+use super::{AgentSkillsError, discovery::MAX_SKILL_DIR_DEPTH, targets::STANDARD_AGENT_DIRS};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io,
@@ -19,7 +19,7 @@ pub(super) fn prune(
         .filter(|entry| recorded_parent_is_within_workspace(workspace_root, entry))
     {
         let path = workspace_root.join(entry);
-        if links_to_a_package_skill(&path) {
+        if links_to_a_package_skill(workspace_root, &path) {
             remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
         }
     }
@@ -47,37 +47,60 @@ pub(super) fn is_within_workspace(entry: &str) -> bool {
 /// Whether `path` is a link into the `skills` directory of an installed or
 /// linked package, as every link pnpm creates is, even after `node_modules`
 /// is removed.
-fn links_to_a_package_skill(path: &Path) -> bool {
+fn links_to_a_package_skill(workspace_root: &Path, path: &Path) -> bool {
     let Ok(target) = pnpm_fs::read_symlink_dir(path) else { return false };
     let components: Vec<Component<'_>> = target.components().collect();
-    if let Some(modules) = components
+    if components
         .iter()
-        .rposition(|component| component.as_os_str() == "node_modules")
+        .any(|component| component.as_os_str() == "node_modules")
     {
-        return is_modules_package_skill(&components[modules + 1..]);
+        return (0..components.len())
+            .rev()
+            .any(|idx| {
+                components[idx].as_os_str() == "node_modules"
+                    && is_modules_package_skill(&components[idx + 1..])
+            });
     }
-    let Some(skills_idx) = components
-        .iter()
-        .rposition(|component| component.as_os_str() == "skills")
-    else {
-        return false;
-    };
-    is_local_package_skill(&components, skills_idx)
+    is_local_package_skill(workspace_root, path, &target)
 }
 
-fn is_local_package_skill(components: &[Component<'_>], skills_idx: usize) -> bool {
-    let before = &components[..skills_idx];
-    let valid_parent = match before.last().copied() {
-        Some(Component::ParentDir) => {
-            before.len() >= 2
-                && before
-                    .iter()
-                    .all(|component| matches!(component, Component::ParentDir))
-        }
-        Some(component) => is_valid_skill_segment(component),
-        None => false,
-    };
-    valid_parent && is_valid_skill_subpath(&components[skills_idx + 1..])
+fn is_local_package_skill(workspace_root: &Path, path: &Path, target: &Path) -> bool {
+    if target.is_relative() && !matches!(target.components().next(), Some(Component::ParentDir)) {
+        return false;
+    }
+    let Some(parent) = path.parent() else { return false };
+    let root = canonical_or_lexical(workspace_root);
+    let link_parent = canonical_or_lexical(parent);
+    let resolved = pnpm_fs::lexical_normalize(&link_parent.join(target));
+    let parts: Vec<Component<'_>> = resolved.components().collect();
+    (0..parts.len()).any(|idx| {
+        parts[idx].as_os_str() == "skills"
+            && is_local_skills_boundary(&root, &link_parent, &parts, idx)
+    })
+}
+
+fn is_local_skills_boundary(
+    root: &Path,
+    link_parent: &Path,
+    parts: &[Component<'_>],
+    skills_idx: usize,
+) -> bool {
+    if !is_valid_skill_subpath(&parts[skills_idx + 1..]) {
+        return false;
+    }
+    let pkg_dir: PathBuf = parts[..skills_idx].iter().collect();
+    if pkg_dir.as_os_str().is_empty() || (pkg_dir != root && pkg_dir.parent().is_none()) {
+        return false;
+    }
+    let skills_dir = pkg_dir.join("skills");
+    skills_dir != link_parent
+        && !STANDARD_AGENT_DIRS
+            .iter()
+            .any(|dir| skills_dir == root.join(dir))
+}
+
+fn canonical_or_lexical(path: &Path) -> PathBuf {
+    dunce::canonicalize(path).unwrap_or_else(|_| pnpm_fs::lexical_normalize(path))
 }
 
 fn is_modules_package_skill(package: &[Component<'_>]) -> bool {

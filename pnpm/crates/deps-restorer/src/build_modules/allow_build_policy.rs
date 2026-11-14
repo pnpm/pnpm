@@ -298,11 +298,16 @@ pub fn parse_allow_build_selector(selector: &str) -> (&str, bool) {
 /// Split a peer-suffix-free depPath / pkgId into its `name` and `version`
 /// (with any `(patch_hash=…)` segment stripped) — the half of depPath
 /// parsing that [`allow_build_key_from_ignored_build`] consumes. Returns
-/// `None` when there is no `@` version separator past position 0 or the
-/// version is empty — the cases that yield a name-less result.
-pub(crate) fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
+/// `None` when there is no `@` version separator past position 0, the prefix
+/// contains a URL scheme `:`, or the version is empty — the cases that yield a
+/// name-less result.
+#[must_use]
+pub fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
     let sep = pnpm_deps_path::version_separator_index(pkg_id)?;
     let name = &pkg_id[..sep];
+    if name.contains(':') {
+        return None;
+    }
     let mut version = &pkg_id[sep + 1..];
     if version.is_empty() {
         return None;
@@ -446,11 +451,10 @@ pub(crate) fn is_dep_path_allow_build_key(spec: &str) -> bool {
     if spec.contains("||") {
         return false;
     }
-    let (_, version) = parse_name_version_from_key(spec);
-    if version.is_empty() {
+    let Some((_, version)) = parse_dep_path_name_version(spec) else {
         return !spec.starts_with('@') && (spec.contains('/') || spec.contains(':'));
-    }
-    node_semver::Version::parse(&version).is_err() && is_source_like_dep_path_version(&version)
+    };
+    node_semver::Version::parse(version).is_err() && is_source_like_dep_path_version(version)
 }
 
 pub(crate) fn is_source_like_dep_path_version(version: &str) -> bool {

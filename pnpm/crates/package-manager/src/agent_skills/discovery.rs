@@ -1,12 +1,15 @@
+mod local_identity;
 mod locator;
 
 use super::SyncAgentSkills;
 use crate::{
-    allow_build_key_from_ignored_build, is_git_hosted_dep_path, normalize_build_dep_path,
-    selected_groups, skill_approval_key,
+    is_git_hosted_dep_path, normalize_build_dep_path, selected_groups, skill_approval_key,
+};
+use local_identity::{
+    disambiguate_local_segments, is_link_dep_path, is_registry_dep_path, local_dir_identity,
+    registry_version, source_identity_key,
 };
 use locator::{Locator, is_package_name, link_dep_path, resolved_dep_path};
-use pnpm_deps_restorer::parse_name_version_from_key;
 use pnpm_lockfile::{ImporterDepVersion, PkgName, ProjectSnapshot};
 use pnpm_package_manifest::DependencyGroup;
 use std::{
@@ -60,10 +63,12 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
     for (importer_id, snapshot) in importers {
         discovery.visit_importer(importer_id, snapshot, &groups);
     }
-    discovery.by_key
+    let mut sources: Vec<SkillSource> = discovery.by_key
         .into_values()
         .filter(|source| !source.skills.is_empty())
-        .collect()
+        .collect();
+    disambiguate_local_segments(&mut sources);
+    sources
 }
 
 struct Discovery<'a, 'b> {
@@ -156,7 +161,7 @@ impl<'a, 'b> Discovery<'a, 'b> {
 /// relative to its importer or lockfile.
 fn probe_key(importer_id: &str, resolved: &str) -> String {
     let dep_path = normalize_build_dep_path(resolved);
-    if node_semver::Version::parse(parse_name_version_from_key(&dep_path).1).is_ok() {
+    if is_registry_dep_path(&dep_path) {
         resolved.to_string()
     } else {
         format!("{importer_id}\0{resolved}")
@@ -236,7 +241,7 @@ fn skill_source(
         Some(at) => &dep_path[..at],
         None => dep_path.as_str(),
     };
-    let is_registry = node_semver::Version::parse(parse_name_version_from_key(&dep_path).1).is_ok();
+    let is_registry = is_registry_dep_path(&dep_path);
     // A registry or git package has a unique name. A tarball, a local
     // directory, or a lockfile key whose prefix is not a package name takes
     // the alias the project gave it.
@@ -257,10 +262,11 @@ fn skill_source(
 
 /// Record `source` under its source identity key unless a source already kept
 /// there [`supersedes`] it. Registry versions of a package share their bare
-/// package name so the highest version wins; non-registry sources keep their
-/// distinct source key while collapsing peer variants of the same `dep_path`.
+/// package name so the highest version wins; local directory links and
+/// injected copies of the same directory share one key; other sources keep
+/// their distinct source key while collapsing peer variants.
 fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource) {
-    let source_key = allow_build_key_from_ignored_build(&source.dep_path);
+    let source_key = source_identity_key(&source.dep_path);
     match by_key.get(&source_key) {
         Some(kept) if !supersedes(&source, kept) => {}
         _ => {
@@ -270,22 +276,30 @@ fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource)
 }
 
 /// Whether `candidate` replaces `kept` for the same source key. Registry
-/// versions compare by semver; peer variants of the same `dep_path` pick one
-/// that ships skills, then the lower package directory, so the choice does
-/// not depend on importer order.
+/// versions compare by semver; local directory copies prefer live `link:`
+/// targets over injected `file:` copies; peer variants of the same `dep_path`
+/// pick one that ships skills, then the lower package directory, so the choice
+/// does not depend on importer order.
 fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
-    let version = |source: &SkillSource| {
-        node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
-    };
-    let ordering = match (version(candidate), version(kept)) {
+    let ordering = match (registry_version(&candidate.dep_path), registry_version(&kept.dep_path)) {
         (Some(candidate_version), Some(kept_version)) => candidate_version.cmp(&kept_version),
         _ if candidate.dep_path == kept.dep_path => Ordering::Equal,
+        _ if same_local_dir(&candidate.dep_path, &kept.dep_path) => {
+            is_link_dep_path(&candidate.dep_path).cmp(&is_link_dep_path(&kept.dep_path))
+        }
         _ => return false,
     };
     ordering
         .then_with(|| (!candidate.skills.is_empty()).cmp(&!kept.skills.is_empty()))
         .then_with(|| kept.package_dir.cmp(&candidate.package_dir))
         .is_gt()
+}
+
+fn same_local_dir(left: &str, right: &str) -> bool {
+    matches!(
+        (local_dir_identity(left), local_dir_identity(right)),
+        (Some(left_id), Some(right_id)) if left_id == right_id,
+    )
 }
 
 /// [`find_skills`] over the package's `skills` directory, sorted by

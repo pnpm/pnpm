@@ -4,7 +4,8 @@ pub(crate) mod skills_policy;
 pub(crate) mod slots;
 pub use allow_build_policy::{
     AllowBuildPolicy, allow_build_key_from_ignored_build, is_git_hosted_dep_path,
-    normalize_build_dep_path, parse_allow_build_selector, short_package_label,
+    normalize_build_dep_path, parse_allow_build_selector, parse_dep_path_name_version,
+    short_package_label,
 };
 pub(crate) use build_one_snapshot::build_one_snapshot;
 pub(crate) use build_requirements::deferred_builds;

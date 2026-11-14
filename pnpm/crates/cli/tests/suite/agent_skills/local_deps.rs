@@ -314,3 +314,77 @@ fn local_tarball_dependency_is_not_approved_by_bare_package_name() {
     );
     drop(harness);
 }
+
+#[test]
+fn scoped_dir_skill_named_skills_and_dot_prefixed_link_approve_and_prune_on_revoke() {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'packages/@example/*'\n  - packages/*\nskills:\n  dirs:\n    - .agents/skills\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root package.json");
+
+    write_skill_package(
+        &workspace.join("packages/@example/my-skills"),
+        Some("my-skills"),
+        &["skills"],
+    );
+    write_skill_package(&workspace.join(".dot-pkg"), Some("dot-skills"), &["dot-guide"]);
+
+    let app_a = workspace.join("packages/app-a");
+    let app_b = workspace.join("packages/app-b");
+    fs::create_dir_all(&app_a).expect("create app-a");
+    fs::create_dir_all(&app_b).expect("create app-b");
+    fs::write(
+        app_a.join("package.json"),
+        serde_json::json!({
+            "name": "app-a",
+            "dependencies": {
+                "my-skills": "workspace:*",
+                "dot-skills": "link:../../.dot-pkg",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write app-a package.json");
+    fs::write(
+        app_b.join("package.json"),
+        serde_json::json!({
+            "name": "app-b",
+            "dependencies": { "my-skills": "workspace:*" },
+            "dependenciesMeta": { "my-skills": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write app-b package.json");
+    fs::create_dir_all(workspace.join(".agents/skills")).expect("create .agents/skills");
+
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pnpm(&workspace)
+        .with_args(["approve", "my-skills", "dot-skills"])
+        .assert()
+        .success();
+
+    assert!(workspace.join(".agents/skills/skills/SKILL.md").is_file());
+    assert!(workspace.join(".agents/skills/dot-guide/SKILL.md").is_file());
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let revoked = fs::read_to_string(&yaml_path)
+        .expect("read workspace yaml")
+        .replace("skills: true", "skills: false");
+    fs::write(&yaml_path, revoked).expect("write revoked workspace yaml");
+
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!workspace.join(".agents/skills/skills").exists());
+    assert!(!workspace.join(".agents/skills/dot-guide").exists());
+    drop(harness);
+}

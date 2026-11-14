@@ -6,7 +6,7 @@ use super::{
         git_repo_allow_build_key_from_dep_path, is_dep_path_allow_build_key,
         is_git_repo_allow_build_key, normalize_build_dep_path, parse_dep_path_name_version,
     },
-    expand_package_version_spec, get_pkg_id_with_patch_hash, parse_name_version_from_key,
+    expand_package_version_spec, get_pkg_id_with_patch_hash,
 };
 use pnpm_config::SkillsPermission;
 
@@ -142,13 +142,14 @@ impl SkillsPolicy {
         let normalized_dep_path = normalize_build_dep_path(dep_path);
         let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
         let git_repo_key = git_repo_key.as_deref();
-        let (name, version) = parse_name_version_from_key(&normalized_dep_path);
+        let (name, version) = parse_dep_path_name_version(&normalized_dep_path)
+            .unwrap_or((normalized_dep_path.as_str(), ""));
         let name_at_version = format!("{name}@{version}");
 
         let matches = [
             self.dep_paths.get(&normalized_dep_path),
             git_repo_key.and_then(|key| self.git_repos.get(key)),
-            self.expanded.get(&name),
+            self.expanded.get(name),
             self.expanded.get(&name_at_version),
         ];
         if matches
@@ -164,12 +165,12 @@ impl SkillsPolicy {
         if let Some(decision) = git_repo_key.and_then(|key| self.git_repos.get(key)) {
             return Some(decision.clone());
         }
-        if node_semver::Version::parse(&version).is_err() && !is_local_directory_version(&version) {
+        if node_semver::Version::parse(version).is_err() && !is_local_directory_version(version) {
             return None;
         }
         if let Some(decision) = self.expanded
             .get(&name_at_version)
-            .or_else(|| self.expanded.get(&name))
+            .or_else(|| self.expanded.get(name))
         {
             return Some(decision.clone());
         }

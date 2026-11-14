@@ -115,9 +115,34 @@ fn explicit_local_dep_path_rule_outranks_bare_name_rule() {
     let policy = policy(&[
         ("foo", SkillsPermission::All(true)),
         ("foo@link:packages/foo", chosen(&["guide"])),
+        ("foo@file:../vendor/foo@1.0.0", chosen(&["migrate"])),
     ]);
     assert_eq!(policy.check("foo@link:packages/foo"), Some(chosen(&["guide"])));
+    assert_eq!(policy.check("foo@file:../vendor/foo@1.0.0"), Some(chosen(&["migrate"])));
     assert_eq!(policy.check("foo@link:packages/other"), Some(SkillsPermission::All(true)));
+}
+
+#[test]
+fn local_directory_paths_containing_at_match_bare_name_and_key_helpers() {
+    use super::skill_approval_key;
+
+    let policy = policy(&[
+        ("foo", SkillsPermission::All(true)),
+        ("@scope/foo", SkillsPermission::All(true)),
+    ]);
+    for dep_path in [
+        "foo@link:packages/@scope/foo",
+        "foo@file:../vendor/foo@1.0.0",
+        "@scope/foo@link:packages/@scope/foo",
+        "@scope/foo@file:packages/@scope/foo@2.0.0(peer@1.0.0)",
+    ] {
+        assert_eq!(policy.check(dep_path), Some(SkillsPermission::All(true)), "{dep_path}");
+    }
+    assert_eq!(skill_approval_key("foo@link:packages/@scope/foo"), "foo");
+    assert_eq!(skill_approval_key("foo@file:../vendor/foo@1.0.0"), "foo");
+    assert_eq!(skill_approval_key("@scope/foo@link:packages/@scope/foo"), "@scope/foo");
+    assert_eq!(policy.check("foo@https://example.com/foo@1.0.0"), None);
+    assert_eq!(policy.check("foo@file:../vendor/foo@1.0.0/pkg.tgz"), None);
 }
 
 #[test]

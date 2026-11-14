@@ -425,3 +425,135 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
             .exists(),
     );
 }
+
+#[test]
+fn workspace_link_and_injected_copy_collapse_to_live_link_in_either_importer_order() {
+    let root = tempfile::tempdir().unwrap();
+    let live_dir = root.path().join("packages/my-skills");
+    std::fs::create_dir_all(live_dir.join("skills/demo-skill")).unwrap();
+    std::fs::write(live_dir.join("package.json"), r#"{"name":"@example/my-skills"}"#).unwrap();
+    std::fs::write(live_dir.join("skills/demo-skill/SKILL.md"), "# live\n").unwrap();
+
+    let injected_dir = root
+        .path()
+        .join("node_modules/.pnpm/@example+my-skills@file+packages+my-skills/node_modules/@example/my-skills");
+    std::fs::create_dir_all(injected_dir.join("skills/demo-skill")).unwrap();
+    std::fs::write(injected_dir.join("package.json"), r#"{"name":"@example/my-skills"}"#).unwrap();
+    std::fs::write(injected_dir.join("skills/demo-skill/SKILL.md"), "# injected\n").unwrap();
+    std::fs::create_dir_all(root.path().join(".agents/skills")).unwrap();
+
+    let mut config = Config {
+        modules_dir: root.path().join("node_modules"),
+        install_state_dir: root.path().join("node_modules/.pnpm"),
+        ..Config::default()
+    };
+    config.allow_skills.insert("@example/my-skills".to_string(), SkillsPermission::All(true));
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    };
+
+    for (link_importer, injected_importer) in
+        [("packages/a", "packages/b"), ("packages/b", "packages/a")]
+    {
+        for dir in ["packages/a/node_modules", "packages/b/node_modules"] {
+            let _ = std::fs::remove_dir_all(root.path().join(dir));
+        }
+        let link_slot = root
+            .path()
+            .join(link_importer)
+            .join("node_modules/@example/my-skills");
+        std::fs::create_dir_all(link_slot.parent().unwrap()).unwrap();
+        pnpm_fs::force_symlink_dir(&live_dir, &link_slot).unwrap();
+
+        let injected_slot = root
+            .path()
+            .join(injected_importer)
+            .join("node_modules/@example/my-skills");
+        std::fs::create_dir_all(injected_slot.parent().unwrap()).unwrap();
+        pnpm_fs::force_symlink_dir(&injected_dir, &injected_slot).unwrap();
+
+        let yaml = format!(
+            "lockfileVersion: '9.0'\nimporters:\n  {link_importer}:\n    dependencies:\n      '@example/my-skills':\n        specifier: workspace:*\n        version: link:../my-skills\n  {injected_importer}:\n    dependencies:\n      '@example/my-skills':\n        specifier: workspace:*\n        version: file:packages/my-skills\n",
+        );
+        let state = sync_agent_skills(&SyncAgentSkills {
+            config: &config,
+            workspace_root: root.path(),
+            lockfile: &serde_saphyr::from_str::<Lockfile>(&yaml).unwrap(),
+            included,
+            linked: &[".agents/skills/demo-skill".to_string()],
+            agent_dir: None,
+            hoisted_locations: None,
+        })
+        .unwrap();
+
+        assert_eq!(state.linked, [".agents/skills/demo-skill"]);
+        assert_eq!(
+            std::fs::canonicalize(root.path().join(".agents/skills/demo-skill")).unwrap(),
+            std::fs::canonicalize(live_dir.join("skills/demo-skill")).unwrap(),
+        );
+    }
+}
+
+#[test]
+fn distinct_local_and_registry_sources_sharing_alias_and_skill_disambiguate_without_collision() {
+    let root = tempfile::tempdir().unwrap();
+    let dir_a = root.path().join("dir-a");
+    let dir_b = root.path().join("dir-b");
+    let reg_c = root.path().join("packages/c/node_modules/foo");
+    for dir in [&dir_a, &dir_b, &reg_c] {
+        std::fs::create_dir_all(dir.join("skills/guide")).unwrap();
+        std::fs::write(dir.join("skills/guide/SKILL.md"), "# guide\n").unwrap();
+    }
+    for (imp, target) in [("packages/a", &dir_a), ("packages/b", &dir_b)] {
+        let slot = root
+            .path()
+            .join(imp)
+            .join("node_modules/foo");
+        std::fs::create_dir_all(slot.parent().unwrap()).unwrap();
+        pnpm_fs::force_symlink_dir(target, &slot).unwrap();
+    }
+    std::fs::create_dir_all(root.path().join(".agents/skills")).unwrap();
+
+    let yaml = concat!(
+        "lockfileVersion: '9.0'\nimporters:\n",
+        "  packages/a:\n    dependencies:\n      foo:\n        specifier: link:../../dir-a\n        version: link:../../dir-a\n",
+        "  packages/b:\n    dependencies:\n      foo:\n        specifier: link:../../dir-b\n        version: link:../../dir-b\n",
+        "  packages/c:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n",
+    );
+    let mut config = Config {
+        modules_dir: root.path().join("node_modules"),
+        install_state_dir: root.path().join("node_modules/.pnpm"),
+        ..Config::default()
+    };
+    config.allow_skills.insert("foo".to_string(), SkillsPermission::All(true));
+
+    let state = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &serde_saphyr::from_str::<Lockfile>(yaml).unwrap(),
+        included: IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        },
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: None,
+    })
+    .unwrap();
+
+    assert_eq!(
+        state.linked,
+        [
+            ".agents/skills/pnpm-foo-dir-a-guide",
+            ".agents/skills/pnpm-foo-dir-b-guide",
+            ".agents/skills/pnpm-foo-guide",
+        ],
+    );
+    assert_eq!(
+        std::fs::canonicalize(root.path().join(".agents/skills/pnpm-foo-guide")).unwrap(),
+        std::fs::canonicalize(reg_c.join("skills/guide")).unwrap(),
+    );
+}

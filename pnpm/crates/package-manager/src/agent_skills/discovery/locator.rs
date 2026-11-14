@@ -2,10 +2,11 @@ use crate::importer_root_dir;
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::{
     ImporterModulesDirs, is_local_directory_version, link_target_dir, normalize_build_dep_path,
-    parse_name_version_from_key, validate_importer_id,
+    parse_dep_path_name_version, validate_importer_id,
 };
 use serde_json::Value;
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -15,6 +16,7 @@ use super::SyncAgentSkills;
 /// Resolves direct dependency directories across workspace importers.
 pub(super) struct Locator {
     modules_dirs: ImporterModulesDirs,
+    canonical_locations: HashMap<String, Option<PathBuf>>,
 }
 
 impl Locator {
@@ -27,7 +29,7 @@ impl Locator {
             let name = input.config.modules_dir_name();
             ImporterModulesDirs::new(input.workspace_root, Path::new(name), name)
         };
-        Self { modules_dirs }
+        Self { modules_dirs, canonical_locations: HashMap::new() }
     }
 
     /// Whether `importer_id` is a safe lockfile importer key with an installed
@@ -45,7 +47,7 @@ impl Locator {
     /// The installed directory of a non-`link:` direct dependency `alias`
     /// resolving to `dep_path`.
     pub(super) fn resolved_package_dir(
-        &self,
+        &mut self,
         input: &SyncAgentSkills<'_>,
         importer_id: &str,
         alias: &str,
@@ -83,7 +85,7 @@ impl Locator {
     }
 
     fn hoisted_package_dir(
-        &self,
+        &mut self,
         input: &SyncAgentSkills<'_>,
         importer_id: &str,
         alias: &str,
@@ -114,9 +116,16 @@ impl Locator {
         recorded
             .iter()
             .any(|loc| {
-                fs::canonicalize(input.workspace_root.join(loc)).ok().as_ref() == Some(&alias_real)
+                self.canonical_location(input.workspace_root, loc).as_ref() == Some(&alias_real)
             })
             .then_some(alias_link)
+    }
+
+    fn canonical_location(&mut self, workspace_root: &Path, loc: &str) -> Option<PathBuf> {
+        self.canonical_locations
+            .entry(loc.to_string())
+            .or_insert_with(|| fs::canonicalize(workspace_root.join(loc)).ok())
+            .clone()
     }
 }
 
@@ -154,8 +163,10 @@ pub(super) fn link_dep_path(
 /// directory's basename instead of the project's declared package name.
 pub(super) fn resolved_dep_path(resolved: &str, package_dir: &Path, alias: &str) -> String {
     let normalized = normalize_build_dep_path(resolved);
-    let (_, version) = parse_name_version_from_key(&normalized);
-    if is_local_directory_version(&version) && manifest_package_name(package_dir).is_none() {
+    let Some((_, version)) = parse_dep_path_name_version(&normalized) else {
+        return resolved.to_string();
+    };
+    if is_local_directory_version(version) && manifest_package_name(package_dir).is_none() {
         return format!("{alias}@{version}");
     }
     resolved.to_string()
