@@ -218,3 +218,81 @@ fn add_dependencies_errors_when_package_workspace_is_invalid_or_excludes_member(
     .unwrap_err();
     assert!(missing_err.to_string().contains("cannot detach crate foo"), "{missing_err:#}");
 }
+
+#[test]
+fn add_dependencies_strips_ignored_member_sources_and_package_overrides_when_detaching() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = dir.path().join("app");
+    fs::create_dir_all(&app).unwrap();
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        concat!(
+            "[workspace]\n",
+            "members = [\"app\"]\n\n",
+            "[workspace.dependencies]\n",
+            "itoa = \"1.0\"\n",
+            "aliased = { version = \"1.0\", package = \"real_pkg\", registry = \"corp\" }\n",
+            "git_dep = { git = \"https://trusted.example/repo.git\", tag = \"v1.0.0\" }\n",
+        ),
+    )
+    .unwrap();
+    let app_manifest = app.join("Cargo.toml");
+    fs::write(
+        &app_manifest,
+        concat!(
+            "[package]\n",
+            "name = \"app\"\n",
+            "version = \"0.1.0\"\n\n",
+            "[dependencies]\n",
+            "itoa = { workspace = true, git = \"https://untrusted.example/itoa.git\", branch = \"main\", package = \"wrong_pkg\", optional = true }\n",
+            "git_dep.workspace = true\n",
+            "git_dep.git = \"https://untrusted.example/other.git\"\n",
+            "git_dep.rev = \"deadbeef\"\n\n",
+            "[dependencies.aliased]\n",
+            "workspace = true\n",
+            "path = \"../untrusted\"\n",
+            "registry = \"wrong\"\n",
+            "package = \"wrong_pkg\"\n",
+            "features = [\"extra\"]\n",
+        ),
+    )
+    .unwrap();
+
+    add_dependencies(
+        &app_manifest,
+        &[
+            ("itoa".to_string(), "1.0.18".to_string()),
+            ("aliased".to_string(), "1.1.0".to_string()),
+            ("git_dep".to_string(), "1.0.1".to_string()),
+        ],
+        CargoDependencyKind::Normal,
+    )
+    .unwrap();
+
+    let updated = fs::read_to_string(&app_manifest).unwrap();
+    eprintln!("UPDATED:\n{updated}\n");
+    let parsed: toml::Table = toml::from_str(&updated).unwrap();
+    let deps = parsed["dependencies"].as_table().unwrap();
+
+    let itoa = deps["itoa"].as_table().unwrap();
+    assert_eq!(itoa.get("version").and_then(toml::Value::as_str), Some("1.0.18"));
+    assert_eq!(itoa.get("optional").and_then(toml::Value::as_bool), Some(true));
+    assert!(!itoa.contains_key("git"));
+    assert!(!itoa.contains_key("branch"));
+    assert!(!itoa.contains_key("package"));
+
+    let aliased = deps["aliased"].as_table().unwrap();
+    assert_eq!(aliased.get("version").and_then(toml::Value::as_str), Some("1.1.0"));
+    assert_eq!(aliased.get("package").and_then(toml::Value::as_str), Some("real_pkg"));
+    assert_eq!(aliased.get("registry").and_then(toml::Value::as_str), Some("corp"));
+    assert!(!aliased.contains_key("path"));
+
+    let git_dep = deps["git_dep"].as_table().unwrap();
+    assert_eq!(git_dep.get("version").and_then(toml::Value::as_str), Some("1.0.1"));
+    assert_eq!(
+        git_dep.get("git").and_then(toml::Value::as_str),
+        Some("https://trusted.example/repo.git"),
+    );
+    assert_eq!(git_dep.get("tag").and_then(toml::Value::as_str), Some("v1.0.0"));
+    assert!(!git_dep.contains_key("rev"));
+}

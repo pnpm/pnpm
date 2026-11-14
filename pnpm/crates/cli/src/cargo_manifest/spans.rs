@@ -241,3 +241,38 @@ pub(super) fn apply_edits(contents: &str, mut edits: Vec<(Range<usize>, String)>
 pub(super) fn quoted(value: &str) -> String {
     serde_json::to_string(value).expect("serializing a Rust string cannot fail")
 }
+
+pub(super) fn append_new_table(
+    contents: &str,
+    table: &str,
+    name: &str,
+    version_spec: &str,
+) -> String {
+    let separator = appended_table_separator(contents);
+    format!("{contents}{separator}[{table}]\n{} = {}\n", format_key(name), quoted(version_spec))
+}
+
+/// What has to come between the existing contents and a table appended
+/// to them: nothing when the file already ends in a blank line, and
+/// otherwise enough newlines to make one.
+fn appended_table_separator(contents: &str) -> &'static str {
+    if contents.is_empty() || contents.ends_with("\n\n") {
+        ""
+    } else if contents.ends_with('\n') {
+        "\n"
+    } else {
+        "\n\n"
+    }
+}
+
+pub(super) fn format_key(name: &str) -> String {
+    if !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        name.to_string()
+    } else {
+        quoted(name)
+    }
+}

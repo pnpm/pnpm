@@ -152,3 +152,69 @@ fn add_crate_detaching_workspace_registry_keeps_private_registry_source() {
     assert!(lockfile.contains(&expected_source), "{lockfile}");
     assert!(!lockfile.contains("crates.io-index"), "{lockfile}");
 }
+
+fn read_cargo_dep_identity(manifest_path: &Path) -> (String, Option<String>, Option<String>) {
+    let output = std::process::Command::new("cargo")
+        .current_dir(manifest_path.parent().unwrap())
+        .args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
+        .arg(manifest_path)
+        .output()
+        .expect("run cargo metadata");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stderr}");
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let dep = &json["packages"][0]["dependencies"][0];
+    (
+        dep["name"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+        dep["rename"].as_str().map(str::to_string),
+        dep["source"].as_str().map(str::to_string),
+    )
+}
+
+#[test]
+fn add_crate_detaching_workspace_dep_discards_ignored_member_git_and_package_fields() {
+    let (_registry, _mocks, base_url) = mock_demo_registry();
+    let root = TempDir::new().expect("create Cargo workspace");
+    fs::create_dir_all(root.path().join(".cargo")).unwrap();
+    fs::write(
+        root.path().join(".cargo/config.toml"),
+        format!("[registries.mock]\nindex = \"sparse+{base_url}/\"\n"),
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - member\ncargo:\n  enabled: true\nregistries:\n  {base_url}:\n    ecosystem: cargo\n",
+        ),
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n\n[workspace.dependencies]\ndemo = { version = \"0.9.0\", registry = \"mock\" }\n",
+    )
+    .unwrap();
+    let member = root.path().join("member");
+    write_empty_lib_crate(
+        &member,
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\ndemo = { workspace = true, git = \"https://untrusted.example/evil.git\", branch = \"main\", package = \"evil\" }\n",
+    );
+    let member_manifest = member.join("Cargo.toml");
+    let before = read_cargo_dep_identity(&member_manifest);
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&member)
+        .with_args(["add", "crate:demo@1.0.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(&member_manifest).unwrap();
+    eprintln!("UPDATED:\n{updated}\n");
+    let after = read_cargo_dep_identity(&member_manifest);
+    assert_eq!(after, before);
+    assert!(!updated.contains("untrusted.example"), "{updated}");
+    assert!(!updated.contains("evil"), "{updated}");
+}

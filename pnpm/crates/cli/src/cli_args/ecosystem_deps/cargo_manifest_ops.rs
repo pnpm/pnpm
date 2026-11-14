@@ -4,7 +4,7 @@ mod saved_spec;
 use crate::{
     cargo_manifest::{
         ConfiguredWorkspace, configured_workspace_state, lookup_inherited_workspace_entry,
-        resolve_local_path, upsert_dependency, workspace_includes_member,
+        resolve_local_path, upsert_dependency_in_dir, workspace_includes_member,
     },
     cli_args::outdated::OutdatedQuery,
 };
@@ -382,7 +382,7 @@ pub(crate) fn apply_manifest_edits(
             .into_diagnostic()
             .wrap_err_with(|| format!("read {}", path.display()))?;
         for (table, alias, spec) in file_edits {
-            contents = upsert_dependency(&contents, table, alias, spec)?;
+            contents = upsert_dependency_in_dir(&contents, path.parent(), table, alias, spec)?;
         }
         pnpm_fs::write_atomic(path, contents.as_bytes()).into_diagnostic()?;
     }

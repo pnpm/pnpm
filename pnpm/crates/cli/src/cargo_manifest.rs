@@ -6,14 +6,19 @@ pub(crate) use workspace::{
 };
 
 mod inheritance;
+mod sanitize;
 mod spans;
 
-use inheritance::{DetachedShape, format_detached_replacement, resolve_detached_inheritance};
+use inheritance::{
+    DetachedShape, ResolvedWorkspaceDep, build_detached_inheritance, format_detached_replacement,
+};
 use miette::{IntoDiagnostic, Result, WrapErr};
+use sanitize::prepare_workspace_detach;
 use spans::{
-    apply_edits, collect_header_spans, dotted_prefix, dotted_table_end, end_of_line, find_entry,
-    full_line_range, inline_entry_removal_range, insert_into_inline_table, insert_line_at,
-    is_explicit_header, is_inline_table, lookup_table_path, quoted, replace_range, section_end,
+    append_new_table, apply_edits, collect_header_spans, dotted_prefix, dotted_table_end,
+    end_of_line, find_entry, format_key, full_line_range, inline_entry_removal_range,
+    insert_into_inline_table, insert_line_at, is_explicit_header, is_inline_table,
+    lookup_table_path, quoted, replace_range, section_end,
 };
 use std::{fs, ops::Range, path::Path};
 use toml::{
@@ -60,18 +65,24 @@ pub(crate) fn add_dependencies(
     Ok(())
 }
 
-pub(crate) fn upsert_dependency(
+pub(crate) fn upsert_dependency_in_dir(
     contents: &str,
+    manifest_dir: Option<&Path>,
     table: &str,
     name: &str,
     version_spec: &str,
 ) -> Result<String> {
-    upsert_dependency_in_dir(contents, None, table, name, version_spec)
+    let prepared = prepare_workspace_detach(contents, manifest_dir, table, name)?;
+    let (working, resolved_ws) = match prepared.as_ref() {
+        Some(prep) => (prep.sanitized_contents.as_str(), prep.resolved_ws.as_ref()),
+        None => (contents, None),
+    };
+    upsert_sanitized_dependency(working, resolved_ws, table, name, version_spec)
 }
 
-pub(crate) fn upsert_dependency_in_dir(
+fn upsert_sanitized_dependency(
     contents: &str,
-    manifest_dir: Option<&Path>,
+    resolved_ws: Option<&ResolvedWorkspaceDep>,
     table: &str,
     name: &str,
     version_spec: &str,
@@ -97,13 +108,8 @@ pub(crate) fn upsert_dependency_in_dir(
                 table: deps_table,
                 key_text: &contents[dep_key.span()],
             });
-        let ctx = UpdateContext {
-            contents,
-            doc: doc.get_ref(),
-            manifest_dir,
-            header_spans: &header_spans,
-            inline_parent,
-        };
+        let ctx =
+            UpdateContext { contents, resolved_ws, header_spans: &header_spans, inline_parent };
         return update_existing_dependency(&ctx, dep_val, name, version_spec);
     }
 
@@ -153,8 +159,7 @@ struct InlineParent<'a, 'i> {
 #[derive(Clone, Copy)]
 struct UpdateContext<'a, 'i> {
     contents: &'a str,
-    doc: &'a DeTable<'i>,
-    manifest_dir: Option<&'a Path>,
+    resolved_ws: Option<&'a ResolvedWorkspaceDep>,
     header_spans: &'a [Range<usize>],
     inline_parent: Option<InlineParent<'a, 'i>>,
 }
@@ -252,7 +257,7 @@ fn replace_workspace_entry(
     ws_span: Range<usize>,
     (name, version_spec): (&str, &str),
 ) -> Result<String> {
-    let detached = resolve_detached_inheritance(ctx.manifest_dir, ctx.doc, subtable, name)?;
+    let detached = build_detached_inheritance(ctx.resolved_ws, subtable, name)?;
     let replacement = format_detached_replacement(
         ctx.contents,
         span,
@@ -276,7 +281,7 @@ fn replace_version_and_workspace(
     (ver_span, ws_span): (Range<usize>, Range<usize>),
     (name, version_spec): (&str, &str),
 ) -> Result<String> {
-    let detached = resolve_detached_inheritance(ctx.manifest_dir, ctx.doc, subtable, name)?;
+    let detached = build_detached_inheritance(ctx.resolved_ws, subtable, name)?;
     let ws_edit = if detached.extra_fields.is_empty() {
         (workspace_removal_range(ctx.contents, span, subtable, shape, ws_span), String::new())
     } else {
@@ -348,36 +353,6 @@ fn ensure_string_version(value: &Spanned<DeValue<'_>>, name: &str) -> Result<()>
         Err(miette::miette!(
             "cannot update crate {name}: its Cargo.toml version declaration is not a string"
         ))
-    }
-}
-
-fn append_new_table(contents: &str, table: &str, name: &str, version_spec: &str) -> String {
-    let separator = appended_table_separator(contents);
-    format!("{contents}{separator}[{table}]\n{} = {}\n", format_key(name), quoted(version_spec))
-}
-
-/// What has to come between the existing contents and a table appended
-/// to them: nothing when the file already ends in a blank line, and
-/// otherwise enough newlines to make one.
-fn appended_table_separator(contents: &str) -> &'static str {
-    if contents.is_empty() || contents.ends_with("\n\n") {
-        ""
-    } else if contents.ends_with('\n') {
-        "\n"
-    } else {
-        "\n\n"
-    }
-}
-
-fn format_key(name: &str) -> String {
-    if !name.is_empty()
-        && name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-    {
-        name.to_string()
-    } else {
-        quoted(name)
     }
 }
 

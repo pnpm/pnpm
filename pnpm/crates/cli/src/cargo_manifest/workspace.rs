@@ -93,7 +93,7 @@ pub(crate) fn resolve_workspace_dep_for_detach(
     configured_ws: Option<PathBuf>,
     dep_key: &str,
     dep_package: Option<&str>,
-) -> Result<(PathBuf, toml::Value)> {
+) -> Result<(PathBuf, String, toml::Value)> {
     let norm_member = resolve_local_path(member_dir);
     if let Some(ws_dir) = configured_ws {
         return resolve_from_configured_workspace(&ws_dir, &norm_member, dep_key, dep_package);
@@ -110,8 +110,8 @@ pub(crate) fn resolve_workspace_dep_for_detach(
         if candidate != norm_member && !workspace_includes_member(candidate, &norm_member) {
             continue;
         }
-        let val = extract_workspace_dep_entry(ws, &manifest_path, dep_key, dep_package)?;
-        return Ok((candidate.to_path_buf(), val));
+        let (ws_key, val) = extract_workspace_dep_entry(ws, &manifest_path, dep_key, dep_package)?;
+        return Ok((candidate.to_path_buf(), ws_key, val));
     }
     let member_display = norm_member.display();
     Err(miette::miette!(
@@ -124,7 +124,7 @@ fn resolve_from_configured_workspace(
     norm_member: &Path,
     dep_key: &str,
     dep_package: Option<&str>,
-) -> Result<(PathBuf, toml::Value)> {
+) -> Result<(PathBuf, String, toml::Value)> {
     let manifest_path = ws_dir.join("Cargo.toml");
     let doc = read_manifest_table(&manifest_path, dep_key)?;
     let Some(ws) = doc.get("workspace").and_then(toml::Value::as_table) else {
@@ -138,8 +138,8 @@ fn resolve_from_configured_workspace(
             "cannot detach crate {dep_key}: workspace at {ws_display} does not include {member_display}",
         );
     }
-    let val = extract_workspace_dep_entry(ws, &manifest_path, dep_key, dep_package)?;
-    Ok((ws_dir.to_path_buf(), val))
+    let (ws_key, val) = extract_workspace_dep_entry(ws, &manifest_path, dep_key, dep_package)?;
+    Ok((ws_dir.to_path_buf(), ws_key, val))
 }
 
 fn read_manifest_table(manifest_path: &Path, dep_key: &str) -> Result<toml::Table> {
@@ -157,21 +157,21 @@ fn extract_workspace_dep_entry(
     manifest_path: &Path,
     dep_key: &str,
     dep_package: Option<&str>,
-) -> Result<toml::Value> {
+) -> Result<(String, toml::Value)> {
     let manifest_display = manifest_path.display();
     let Some(deps) = ws.get("dependencies").and_then(toml::Value::as_table) else {
         bail!(
             "cannot detach crate {dep_key}: {manifest_display} declares no `[workspace.dependencies]`",
         );
     };
-    let (_, dep_val) =
+    let (ws_key, dep_val) =
         lookup_inherited_workspace_entry(dep_key, dep_package, |key| deps.get_key_value(key))
             .ok_or_else(|| {
                 miette::miette!(
                     "cannot detach crate {dep_key}: not found in `[workspace.dependencies]` of {manifest_display}",
                 )
             })?;
-    Ok(dep_val.clone())
+    Ok((ws_key.clone(), dep_val.clone()))
 }
 
 fn find_workspace_dep_entry(
