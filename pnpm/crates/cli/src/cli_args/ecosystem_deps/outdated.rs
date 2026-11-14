@@ -73,7 +73,11 @@ pub(super) fn declared_cargo_dep_names(
     for name in declared_cargo_deps(project_dir, workspace_root)?
         .into_iter()
         .filter(|dep| include.contains(&dep.group))
-        .flat_map(|dep| dep.aliases.into_iter().chain([dep.package_name]))
+        .flat_map(|dep| {
+            dep.aliases
+                .into_iter()
+                .chain([dep.package_name])
+        })
     {
         names.extend([format!("crate:{name}"), name]);
     }
@@ -130,6 +134,7 @@ pub(crate) async fn collect_ecosystem_outdated(
                 &py_query,
                 &run.config,
                 &run.http_client,
+                &run.python_index_cache,
             )
             .await?,
         );

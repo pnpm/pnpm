@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex, PoisonError},
 };
 
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -299,6 +300,39 @@ fn parse_environment_scope(environments: &[String]) -> Result<MarkerTree> {
     Ok(scope)
 }
 
+type CachedVersionsCell = Arc<tokio::sync::OnceCell<Option<Vec<Version>>>>;
+
+/// Per-run cache of published versions from the Python Simple JSON API, so
+/// checking compatible and latest targets, divergent platform locks, or
+/// workspace members fetches and parses each package's index page once.
+#[derive(Default)]
+pub struct PythonIndexCache {
+    by_name: Mutex<BTreeMap<PackageName, CachedVersionsCell>>,
+}
+
+impl PythonIndexCache {
+    pub async fn resolve_target_version(
+        &self,
+        config: &pnpm_config::Config,
+        http_client: &pnpm_network::ThrottledClient,
+        requirement: &Requirement,
+        compatible: bool,
+    ) -> Result<Option<Version>> {
+        let cell = {
+            let mut guard = self.by_name.lock().unwrap_or_else(PoisonError::into_inner);
+            Arc::clone(guard.entry(requirement.name.clone()).or_default())
+        };
+        let versions = cell.get_or_try_init(|| {
+            fetch_published_versions(config, http_client, &requirement.name)
+        })
+        .await?;
+        let Some(versions) = versions.as_ref() else {
+            return Ok(None);
+        };
+        Ok(select_version(versions, requirement, compatible))
+    }
+}
+
 /// Query the configured Python Simple JSON API index for the newest version of
 /// `requirement.name` (either within `requirement`'s version specifiers when
 /// `compatible` is true, or the newest stable release overall).
@@ -308,14 +342,22 @@ pub async fn resolve_target_version(
     requirement: &Requirement,
     compatible: bool,
 ) -> Result<Option<Version>> {
+    PythonIndexCache::default().resolve_target_version(config, http_client, requirement, compatible)
+        .await
+}
+
+async fn fetch_published_versions(
+    config: &pnpm_config::Config,
+    http_client: &pnpm_network::ThrottledClient,
+    name: &PackageName,
+) -> Result<Option<Vec<Version>>> {
     let index = super::settings::python_index(config)?;
     let fetcher = super::registry::Fetcher { config, client: http_client, index: &index };
-    let cached = fetcher.index_page(&requirement.name, config.offline).await?;
+    let cached = fetcher.index_page(name, config.offline).await?;
     if cached.missing {
         return Ok(None);
     }
-    let versions = published_versions_from_page(cached.body.get(), &requirement.name)?;
-    Ok(select_version(&versions, requirement, compatible))
+    published_versions_from_page(cached.body.get(), name).map(Some)
 }
 
 fn published_versions_from_page(page: &str, name: &PackageName) -> Result<Vec<Version>> {

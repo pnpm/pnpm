@@ -274,17 +274,53 @@ async fn a_frozen_store_keeps_generations_beside_the_project() {
 async fn outdated_reports_divergent_platform_locked_versions() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
-    let _alpha = serve(
-        &mut server,
-        "alpha",
+    let alpha_index = server
+        .mock("GET", "/simple/alpha/")
+        .with_status(200)
+        .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+        .with_body(
+            serde_json::json!({
+                "meta": { "api-version": "1.0" },
+                "name": "alpha",
+                "files": [
+                    { "filename": "alpha-1.0-py3-none-any.whl", "url": "https://example.test/alpha-1.0-py3-none-any.whl", "hashes": { "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } },
+                    { "filename": "alpha-2.0-py3-none-any.whl", "url": "https://example.test/alpha-2.0-py3-none-any.whl", "hashes": { "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" } },
+                    { "filename": "alpha-3.0-py3-none-any.whl", "url": "https://example.test/alpha-3.0-py3-none-any.whl", "hashes": { "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" } },
+                ],
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let beta_index = server
+        .mock("GET", "/simple/beta/")
+        .with_status(200)
+        .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+        .with_body(
+            serde_json::json!({
+                "meta": { "api-version": "1.0" },
+                "name": "beta",
+                "files": [
+                    { "filename": "beta-1.0-py3-none-any.whl", "url": "https://example.test/beta-1.0-py3-none-any.whl", "hashes": { "sha256": "1111111111111111111111111111111111111111111111111111111111111111" } },
+                    { "filename": "beta-2.0-py3-none-any.whl", "url": "https://example.test/beta-2.0-py3-none-any.whl", "hashes": { "sha256": "2222222222222222222222222222222222222222222222222222222222222222" } },
+                    { "filename": "beta-3.0-py3-none-any.whl", "url": "https://example.test/beta-3.0-py3-none-any.whl", "hashes": { "sha256": "3333333333333333333333333333333333333333333333333333333333333333" } },
+                ],
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    project(
+        root.path(),
+        &server.url(),
         &[
-            ("1.0", wheel("alpha", "1.0", "", &[])),
-            ("2.0", wheel("alpha", "2.0", "", &[])),
-            ("3.0", wheel("alpha", "3.0", "", &[])),
+            "alpha>=1",
+            "beta>=1,<3 ; sys_platform == 'linux'",
+            "beta==1.0 ; sys_platform == 'win32'",
         ],
-    )
-    .await;
-    project(root.path(), &server.url(), &["alpha>=1"]);
+    );
     std::fs::write(
         root.path().join("pylock.toml"),
         concat!(
@@ -295,11 +331,13 @@ async fn outdated_reports_divergent_platform_locked_versions() {
             "wheels = [{ name = 'alpha-1.0-py3-none-any.whl', url = 'https://example.test/alpha-1.0-py3-none-any.whl', hashes = { sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } }]\n",
             "[[packages]]\nname = 'alpha'\nversion = '2.0'\nmarker = \"sys_platform == 'win32'\"\n",
             "wheels = [{ name = 'alpha-2.0-py3-none-any.whl', url = 'https://example.test/alpha-2.0-py3-none-any.whl', hashes = { sha256 = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' } }]\n",
+            "[[packages]]\nname = 'beta'\nversion = '1.0'\n",
+            "wheels = [{ name = 'beta-1.0-py3-none-any.whl', url = 'https://example.test/beta-1.0-py3-none-any.whl', hashes = { sha256 = '1111111111111111111111111111111111111111111111111111111111111111' } }]\n",
         ),
     )
     .unwrap();
     let output = pacquet_in(root.path())
-        .args(["outdated", "pypi:alpha", "--format", "json"])
+        .args(["outdated", "pypi:*", "--format", "json"])
         .output()
         .unwrap();
     assert_eq!(
@@ -308,9 +346,14 @@ async fn outdated_reports_divergent_platform_locked_versions() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr),
     );
+    alpha_index.assert_async().await;
+    beta_index.assert_async().await;
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["alpha@1.0"]["current"], "1.0");
     assert_eq!(report["alpha@1.0"]["latest"], "3.0");
     assert_eq!(report["alpha@2.0"]["current"], "2.0");
     assert_eq!(report["alpha@2.0"]["latest"], "3.0");
+    assert_eq!(report["beta"]["current"], "1.0");
+    assert_eq!(report["beta"]["wanted"], "2.0");
+    assert_eq!(report["beta"]["latest"], "3.0");
 }
