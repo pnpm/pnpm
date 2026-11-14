@@ -3,7 +3,7 @@ use crate::{
     model::{FeatureSelection, PackageKey, RegistryDependency},
     packages::package_key_with_preferences,
     preferences::{PreferredVersions, contains as is_preferred},
-    registry::{Registry, compatibility_line},
+    registry::{Registry, compatibility_line, matching_lines_with_preferences},
 };
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pubgrub::{OfflineDependencyProvider, Ranges};
@@ -106,7 +106,7 @@ impl Registration<'_> {
             .wrap_err_with(|| format!("parse requirement for {name}"))?;
         let versions = self.registry.package(name)?;
         let requirement = Requirement { package, name, version: requirement, features: requested };
-        for (compatibility, representative) in matching_compatibility_lines(
+        for (compatibility, representative) in matching_lines_with_preferences(
             versions,
             &requirement.version,
             requirement.name,
@@ -194,27 +194,6 @@ pub(super) fn constraints_for(
         pending.push_back(package);
     }
     Ok(constraints.into_iter().collect())
-}
-
-fn matching_compatibility_lines(
-    versions: &[crate::model::RegistryVersion],
-    requirement: &VersionReq,
-    name: &str,
-    preferred_versions: &BTreeMap<String, Vec<Version>>,
-) -> Vec<(String, Version)> {
-    let mut newest_by_line = BTreeMap::new();
-    for version in versions
-        .iter()
-        .filter(|version| {
-            (!version.yanked || is_preferred(preferred_versions, name, &version.version))
-                && requirement.matches(&version.version)
-        })
-    {
-        newest_by_line.insert(compatibility_line(&version.version), version.version.clone());
-    }
-    let mut lines = newest_by_line.into_iter().collect::<Vec<_>>();
-    lines.sort_by(|left, right| left.1.cmp(&right.1));
-    lines
 }
 
 fn admitted_versions(
