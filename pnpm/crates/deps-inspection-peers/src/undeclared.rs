@@ -91,7 +91,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
     ) -> Self {
         Self {
             lockfile,
-            roots: LinkRoots { lockfile_dir, boundary_dir: workspace_dir.unwrap_or(lockfile_dir) },
+            roots: LinkRoots::new(lockfile_dir, workspace_dir),
             root_scope: None,
             nodes: HashMap::new(),
             reports: HashMap::new(),
@@ -107,7 +107,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
         root_scope: WorkspaceRootScope,
     ) -> Vec<UndeclaredPeer> {
         let Some(importer) = self.lockfile.importers.get(importer_id) else { return Vec::new() };
-        let direct = self.importer_providers(importer, &self.roots.lockfile_dir.join(importer_id));
+        let direct = self.importer_providers(importer, &self.roots.lockfile.join(importer_id));
         let roots = package_keys(&direct).collect();
         let mut providers = Providers::new();
         match root_scope {
@@ -130,7 +130,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
             return providers.clone();
         }
         let Some(root) = self.lockfile.importers.get(".") else { return Providers::new() };
-        let providers = self.importer_providers(root, self.roots.lockfile_dir);
+        let providers = self.importer_providers(root, self.roots.lockfile);
         self.root_scope = Some(providers.clone());
         providers
     }
@@ -162,7 +162,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
             }
             let node = self.nodes
                 .entry(key.clone())
-                .or_insert_with(|| package_node(self.lockfile, self.roots, &key));
+                .or_insert_with(|| package_node(self.lockfile, &self.roots, &key));
             pending.extend(node.dependencies.iter().cloned());
         }
         reachable
@@ -269,18 +269,18 @@ fn package_keys(providers: &Providers) -> impl Iterator<Item = PkgNameVerPeer> {
 fn provider_for_reference(
     reference: &SnapshotDepRef,
     alias: &PkgName,
-    roots: LinkRoots<'_>,
+    roots: &LinkRoots<'_>,
 ) -> Option<Provider> {
     if let Some(key) = reference.resolve(alias) {
         return Some(Provider::Package(key));
     }
     let target = reference.as_link_target()?;
     roots
-        .canonical_target(&roots.lockfile_dir.join(target))
+        .canonical_target(&roots.lockfile.join(target))
         .map(Provider::Link)
 }
 
-fn package_node(lockfile: &Lockfile, roots: LinkRoots<'_>, key: &PkgNameVerPeer) -> PackageNode {
+fn package_node(lockfile: &Lockfile, roots: &LinkRoots<'_>, key: &PkgNameVerPeer) -> PackageNode {
     let mut node =
         PackageNode { dependencies: Vec::new(), children: Providers::new(), peers: Vec::new() };
     let Some(packages) = &lockfile.packages else { return node };
@@ -326,7 +326,7 @@ struct PeerContext<'a> {
     packages: &'a HashMap<PkgNameVerPeer, pnpm_lockfile::PackageMetadata>,
     meta: &'a pnpm_lockfile::PackageMetadata,
     snapshot: &'a pnpm_lockfile::SnapshotEntry,
-    roots: LinkRoots<'a>,
+    roots: &'a LinkRoots<'a>,
 }
 
 fn inspect_peer(

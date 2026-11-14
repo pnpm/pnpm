@@ -1,8 +1,8 @@
 use super::{
     BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues,
     filter::parse_allowed_versions, filter_peer_issues, intersect_multiple_ranges,
-    linked::canonical_path_within, merge_missing_peers, ranges::normalize_version_str,
-    render::format_range, satisfies,
+    linked::LinkRoots, merge_missing_peers, ranges::normalize_version_str, render::format_range,
+    satisfies,
 };
 use pnpm_config::PeerDependencyRules;
 use std::collections::BTreeMap;
@@ -750,14 +750,20 @@ fn test_path_is_within() {
     let sub = base.join("foo");
     std::fs::create_dir(&sub).unwrap();
 
-    assert!(canonical_path_within(&sub, base).is_some());
-    assert!(canonical_path_within(base, base).is_some());
+    let roots = LinkRoots::same(base);
+    assert!(roots.canonical_target(&sub).is_some());
+    assert!(roots.canonical_target(base).is_some());
+
+    let sibling = base.join("sibling");
+    std::fs::create_dir(&sibling).unwrap();
+    assert!(LinkRoots::same(&sub).canonical_target(&sibling).is_none());
+    assert!(LinkRoots::new(&sub, Some(base)).canonical_target(&sibling).is_some());
 
     let outside = base.join("../bar");
-    assert!(canonical_path_within(&outside, base).is_none());
+    assert!(roots.canonical_target(&outside).is_none());
 
     let absolute_outside = std::path::Path::new("/etc");
-    assert!(canonical_path_within(absolute_outside, base).is_none());
+    assert!(roots.canonical_target(absolute_outside).is_none());
 }
 
 #[cfg(unix)]
@@ -772,10 +778,8 @@ fn linked_packages_share_targets_reached_through_a_symlinked_root() {
     std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
 
     let no_manifests = super::ProjectManifests::new();
-    let mut linked_packages = super::LinkedPackages::new(
-        super::LinkRoots { lockfile_dir: &linked_root, boundary_dir: &linked_root },
-        &no_manifests,
-    );
+    let roots = super::LinkRoots::same(&linked_root);
+    let mut linked_packages = super::LinkedPackages::new(&roots, &no_manifests);
     for importer in ["packages/app", "packages/web"] {
         assert!(
             linked_packages
@@ -802,10 +806,8 @@ fn linked_packages_resolve_targets_through_symlinks_like_the_filesystem() {
 
     for lockfile_dir in [linked_root, dunce::canonicalize(&real_root).unwrap()] {
         let no_manifests = super::ProjectManifests::new();
-        let mut linked_packages = super::LinkedPackages::new(
-            super::LinkRoots { lockfile_dir: &lockfile_dir, boundary_dir: &lockfile_dir },
-            &no_manifests,
-        );
+        let roots = super::LinkRoots::same(&lockfile_dir);
+        let mut linked_packages = super::LinkedPackages::new(&roots, &no_manifests);
         let mut importer_id = |importer: &str, link_target: &str| {
             linked_packages
                 .resolve(&lockfile_dir.join(importer), link_target)
@@ -841,10 +843,7 @@ fn snapshot_peer_versions_use_named_registry_semver() {
                 &dep_ref,
                 &"peer".parse().unwrap(),
                 &std::collections::HashMap::new(),
-                super::LinkRoots {
-                    lockfile_dir: std::path::Path::new("."),
-                    boundary_dir: std::path::Path::new("."),
-                },
+                &super::LinkRoots::same(std::path::Path::new(".")),
             ),
             Some(expected.to_string()),
             "{reference}",

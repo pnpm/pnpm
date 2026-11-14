@@ -16,7 +16,7 @@ pub(super) fn walk_snapshot(
     initial_keys: Vec<PkgNameVerPeer>,
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
-    roots: LinkRoots<'_>,
+    roots: &LinkRoots<'_>,
     visited: &mut HashSet<PkgNameVerPeer>,
     issues: &mut PeerIssues,
 ) {
@@ -55,7 +55,7 @@ struct SnapshotPeers<'a> {
     key: &'a PkgNameVerPeer,
     snapshot: Option<&'a SnapshotEntry>,
     packages: &'a HashMap<PkgNameVerPeer, PackageMetadata>,
-    roots: LinkRoots<'a>,
+    roots: &'a LinkRoots<'a>,
     parents: &'a [ParentPkg],
     issues: &'a mut PeerIssues,
 }
@@ -109,14 +109,14 @@ pub(crate) fn resolved_snapshot_version(
     dep_ref: &SnapshotDepRef,
     peer_name: &PkgName,
     packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
-    roots: LinkRoots<'_>,
+    roots: &LinkRoots<'_>,
 ) -> Option<String> {
     if let Some(key) = dep_ref.resolve(peer_name) {
         return Some(get_pkg_version(&key, packages));
     }
     let link_target = dep_ref.as_link_target()?;
     Some(
-        resolve_link_version(roots.lockfile_dir, roots, link_target)
+        resolve_link_version(roots.lockfile, roots, link_target)
             .unwrap_or_else(|| format!("link:{link_target}")),
     )
 }

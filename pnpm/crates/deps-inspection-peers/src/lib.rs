@@ -170,9 +170,10 @@ pub fn check_peer_dependencies_from_lockfile(
         .collect();
     importer_ids.sort();
     importer_ids.dedup();
+    let roots = LinkRoots::new(lockfile_dir, workspace_dir);
     check_peer_dependencies_of_importers_with_roots(
         lockfile,
-        LinkRoots { lockfile_dir, boundary_dir: workspace_dir.unwrap_or(lockfile_dir) },
+        &roots,
         &importer_ids,
         catalogs,
         resolve_peers_from_workspace_root,
@@ -191,9 +192,10 @@ pub fn check_peer_dependencies_of_importers(
     resolve_peers_from_workspace_root: bool,
     project_manifests: &ProjectManifests<'_>,
 ) -> Result<IssuesByProjects, CatalogResolutionError> {
+    let roots = LinkRoots::same(lockfile_dir);
     check_peer_dependencies_of_importers_with_roots(
         lockfile,
-        LinkRoots { lockfile_dir, boundary_dir: lockfile_dir },
+        &roots,
         importer_ids,
         catalogs,
         resolve_peers_from_workspace_root,
@@ -203,7 +205,7 @@ pub fn check_peer_dependencies_of_importers(
 
 fn check_peer_dependencies_of_importers_with_roots(
     lockfile: &Lockfile,
-    roots: LinkRoots<'_>,
+    roots: &LinkRoots<'_>,
     importer_ids: &[String],
     catalogs: Option<&Catalogs>,
     resolve_peers_from_workspace_root: bool,
@@ -253,7 +255,7 @@ fn check_peer_dependencies_of_importers_with_roots(
 
 struct PeerWalkContext<'a> {
     lockfile: &'a Lockfile,
-    roots: LinkRoots<'a>,
+    roots: &'a LinkRoots<'a>,
     catalogs: Option<&'a Catalogs>,
     resolve_peers_from_workspace_root: bool,
     project_manifests: &'a ProjectManifests<'a>,
@@ -265,7 +267,7 @@ struct PeerWalkContext<'a> {
 /// dependencies belong to its own report, not to its consumer's.
 fn collect_initial_keys(
     context: &PeerWalkContext<'_>,
-    linked_packages: &mut LinkedPackages<'_>,
+    linked_packages: &mut LinkedPackages<'_, '_>,
     importer_id: &str,
     issues: &mut PeerIssues,
 ) -> Result<Vec<PkgNameVerPeer>, CatalogResolutionError> {
@@ -273,7 +275,7 @@ fn collect_initial_keys(
     let Some(importer) = context.lockfile.importers.get(importer_id) else {
         return Ok(keys);
     };
-    let importer_dir = context.roots.lockfile_dir.join(importer_id);
+    let importer_dir = context.roots.lockfile.join(importer_id);
 
     let groups =
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
@@ -301,7 +303,7 @@ fn collect_initial_keys(
 
 /// Check one linked workspace package's own peer dependencies against what
 /// the consuming importer and the linked importer provide.
-fn check_link(inputs: CheckLink<'_, '_>) -> Result<(), CatalogResolutionError> {
+fn check_link(inputs: CheckLink<'_, '_, '_>) -> Result<(), CatalogResolutionError> {
     let CheckLink {
         context,
         linked_packages,
@@ -334,9 +336,9 @@ fn check_link(inputs: CheckLink<'_, '_>) -> Result<(), CatalogResolutionError> {
     })
 }
 
-struct CheckLink<'a, 'm> {
+struct CheckLink<'a, 'r, 'm> {
     context: &'a PeerWalkContext<'a>,
-    linked_packages: &'a mut LinkedPackages<'m>,
+    linked_packages: &'a mut LinkedPackages<'r, 'm>,
     importer: &'a ProjectSnapshot,
     importer_dir: &'a Path,
     alias: &'a str,
