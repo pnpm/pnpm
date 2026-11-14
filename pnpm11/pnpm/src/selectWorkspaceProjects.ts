@@ -27,7 +27,7 @@ export function enableRecursiveByDefault (invocation: CommandInvocation, config:
   if (enableFilteredClean(cmd, cliOptions, config)) {
     return
   }
-  if (!isRecursiveWorkspaceCommand(cmd, workspaceDir)) {
+  if (!isRecursiveCommand(cmd) || typeof workspaceDir !== 'string') {
     return
   }
   const hasExplicitRecursive = cliOptions['recursive'] === true
@@ -56,11 +56,8 @@ function enableFilteredClean (
   return true
 }
 
-function isRecursiveWorkspaceCommand (
-  cmd: string | null,
-  workspaceDir: string | undefined
-): workspaceDir is string {
-  return cmd != null && recursiveByDefaultCommands.has(cmd) && typeof workspaceDir === 'string'
+function isRecursiveCommand (cmd: string | null): cmd is string {
+  return cmd != null && recursiveByDefaultCommands.has(cmd)
 }
 
 function staysSingleProjectInSubdirectory (

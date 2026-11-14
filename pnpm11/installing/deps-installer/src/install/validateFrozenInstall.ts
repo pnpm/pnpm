@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { LOCKFILE_MAJOR_VERSION, LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_MAJOR_VERSION, LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { createLockfileObject, getWantedLockfileName, isEmptyLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -352,15 +352,20 @@ async function verifyLockfilePolicies (
   { wantedMutated }: { wantedMutated: boolean }
 ): Promise<void> {
   const canUseOnDiskCache = !wantedMutated &&
+    !opts.mergeGitBranchLockfiles &&
     ctx.existsWantedLockfile &&
     !ctx.lockfileHadConflicts &&
     opts.cacheDir != null &&
     opts.resolutionVerifiers.length > 0
-  const wantedLockfilePath = canUseOnDiskCache
-    ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
+  const wantedLockfileName = canUseOnDiskCache
+    ? await getWantedLockfileName({
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    }))
+    })
+    : undefined
+  const wantedLockfilePath = wantedLockfileName != null &&
+    (!opts.useGitBranchLockfile || wantedLockfileName !== WANTED_LOCKFILE)
+    ? path.resolve(ctx.lockfileDir, wantedLockfileName)
     : undefined
   await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
     cacheDir: wantedMutated ? undefined : opts.cacheDir,

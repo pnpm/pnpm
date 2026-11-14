@@ -122,12 +122,13 @@ export async function removeExternalVirtualStore (
   opts: {
     cwd: string
     modulesDir: string
+    protectedMemberDirs: string[]
     rootDir: string
     virtualStoreDir: string
   }
 ): Promise<void> {
   const virtualStoreInProject = await resolveInside(opts.rootDir, opts.virtualStoreDir)
-  if (virtualStoreInProject == null) return
+  if (!isCleanableModulesDir(virtualStoreInProject, new Set(), opts.protectedMemberDirs)) return
   const rootModulesDir = await resolveInside(opts.rootDir, opts.modulesDir)
   if (rootModulesDir != null && isSubdir(rootModulesDir, virtualStoreInProject)) return
   if (await lstatIfExists(virtualStoreInProject) == null) return

@@ -721,3 +721,73 @@ test('pnpm clean skips installed packages under root custom_nm in rootless ** wo
   expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
   expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
 })
+
+test('pnpm clean protects members matched via wildcard globs above modulesDir and overlapping virtualStoreDir', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: { name: 'pkg-a', version: '1.0.0' },
+    },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'src'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'src', 'index.js'), 'module.exports = 1\n')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'broken'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'broken', 'package.json'), '{ invalid json')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*/*'],
+    modulesDir: 'packages',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'broken'))).toBe(false)
+
+  // Overlapping `virtualStoreDir: packages` preserves member source files
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'node_modules', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'node_modules', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*/*'],
+    virtualStoreDir: 'packages',
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'seeded-dep'))).toBe(false)
+
+  // Nested `modulesDir: packages/modules` with `packages: ['packages/**']`
+  const nestedPkg = path.join('packages', 'modules', 'pkg-nested')
+  fs.mkdirSync(path.join(nestedPkg, 'src'), { recursive: true })
+  writeJsonFile(path.join(nestedPkg, 'package.json'), { name: 'pkg-nested', version: '1.0.0' })
+  fs.writeFileSync(path.join(nestedPkg, 'src', 'index.js'), 'module.exports = 2\n')
+  fs.mkdirSync(path.join(nestedPkg, 'packages', 'modules', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join(nestedPkg, 'packages', 'modules', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  fs.mkdirSync(path.join(nestedPkg, 'packages', 'modules', 'broken'), { recursive: true })
+  fs.writeFileSync(path.join(nestedPkg, 'packages', 'modules', 'broken', 'package.json'), '{ invalid json')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/**'],
+    modulesDir: 'packages/modules',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join(nestedPkg, 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join(nestedPkg, 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join(nestedPkg, 'packages', 'modules', 'seeded-dep'))).toBe(false)
+  expect(fs.existsSync(path.join(nestedPkg, 'packages', 'modules', 'broken'))).toBe(false)
+
+  // Hoisted dependency recorded in `.modules.yaml` under `packages/modules` is cleaned when no member is inside
+  fs.rmSync(nestedPkg, { recursive: true, force: true })
+  fs.mkdirSync(path.join('packages', 'modules', 'lodash'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'modules', 'lodash', 'package.json'), '{"name":"lodash"}')
+  writeJsonFile(path.join('packages', 'modules', '.modules.yaml'), {
+    hoistedLocations: { 'lodash@4.17.21': ['packages/modules/lodash'] },
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'modules', 'lodash'))).toBe(false)
+})

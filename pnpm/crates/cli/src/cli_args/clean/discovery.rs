@@ -1,4 +1,5 @@
 mod modules_overlap;
+mod pattern_reachability;
 
 use super::{
     super::{
@@ -12,7 +13,7 @@ use super::{
     CleanScope, is_narrowed_workspace_clean,
 };
 use miette::Context;
-use modules_overlap::discover_workspace_for_clean;
+use modules_overlap::{custom_root_clean_dirs, discover_workspace_for_clean};
 use pnpm_config::Config;
 use pnpm_workspace::{FindWorkspaceProjectsOpts, Project, find_workspace_projects};
 use std::path::{Path, PathBuf};
@@ -185,15 +186,15 @@ fn protected_members_if_needed(
     let Some(workspace_dir) = config.workspace_dir.as_deref() else {
         return Ok(Vec::new());
     };
-    if !has_custom_modules_dirs(workspace_dir, config) {
+    if !has_custom_clean_dirs(workspace_dir, config) {
         return Ok(Vec::new());
     }
     let projects = discover_workspace_for_clean(workspace_dir, config)?;
     Ok(collect_non_root_real_dirs(&projects, real_root_dir))
 }
 
-fn has_custom_modules_dirs(workspace_dir: &Path, config: &Config) -> bool {
-    config.modules_dir != workspace_dir.join("node_modules")
+fn has_custom_clean_dirs(workspace_dir: &Path, config: &Config) -> bool {
+    !custom_root_clean_dirs(workspace_dir, config).is_empty()
         || config.package_configs
             .as_ref()
             .is_some_and(|configs| {

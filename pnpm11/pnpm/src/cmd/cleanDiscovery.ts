@@ -2,9 +2,14 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { isError } from '@pnpm/error'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { findWorkspaceProjectsNoCheck, type Project } from '@pnpm/workspace.projects-reader'
 
-const IS_CASE_INSENSITIVE_FS = process.platform === 'win32' || process.platform === 'darwin'
+import {
+  escapeGlobPath,
+  pathsMatchOnHost,
+  patternsEnteringRootModulesDir,
+} from './cleanPatternReachability.js'
 
 export interface CleanWorkspaceDiscoveryOptions {
   hasPerProjectModulesDirs: boolean
@@ -31,7 +36,14 @@ export async function discoverWorkspacePackagesForClean (
     modulesDir: opts.modulesDir,
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
   })
-  const recoveryPatterns = patternsEnteringRootModulesDir(relModules, opts.patterns)
+  const customLeaves = collectCustomRelativeModulesLeaves(opts)
+  const hoistedSubpaths = await readHoistedSubpathsUnderRootModules(workspaceDir, relModules)
+  const recoveryPatterns = patternsEnteringRootModulesDir(
+    relModules,
+    opts.patterns,
+    customLeaves,
+    hoistedSubpaths
+  )
   if (recoveryPatterns == null) {
     return projects
   }
@@ -44,66 +56,55 @@ function relativeRootModulesPosix (workspaceDir: string, modulesDir: string | un
   const rel = path.isAbsolute(modulesDir)
     ? path.relative(workspaceDir, modulesDir)
     : path.relative('.', modulesDir)
+  return normalizeCustomRelativePosix(rel)
+}
+
+function collectCustomRelativeModulesLeaves (opts: CleanWorkspaceDiscoveryOptions): string[] {
+  const leaves = new Set<string>()
+  for (const raw of [opts.modulesDir, ...Object.values(opts.modulesDirsByProjectName ?? {})]) {
+    if (raw == null || path.isAbsolute(raw)) continue
+    const posix = normalizeCustomRelativePosix(path.relative('.', raw))
+    if (posix != null) {
+      leaves.add(posix)
+    }
+  }
+  return Array.from(leaves)
+}
+
+function normalizeCustomRelativePosix (rel: string): string | undefined {
   if (rel === '' || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     return undefined
   }
   const posix = rel.split(path.sep).join('/')
-  return pathsMatchOnHost(posix, 'node_modules') ? undefined : posix
-}
-
-function escapeGlobPath (posixPath: string): string {
-  return posixPath.replace(/[\\*?[\]{}()!+@]/gu, '\\$&')
-}
-
-function patternsEnteringRootModulesDir (
-  relModules: string,
-  patterns: string[] | undefined
-): string[] | undefined {
-  if (patterns == null) return undefined
-  const includes: string[] = []
-  const negations: string[] = []
-  for (const pattern of patterns) {
-    if (pattern.startsWith('!')) {
-      negations.push(pattern)
-    } else if (patternEntersModulesPrefix(pattern, relModules)) {
-      includes.push(pattern)
-    }
+  if (pathsMatchOnHost(posix, 'node_modules') || pathsMatchOnHost(posix, 'bower_components')) {
+    return undefined
   }
-  return includes.length === 0 ? undefined : [...includes, ...negations]
+  return posix
 }
 
-function patternEntersModulesPrefix (pattern: string, relModules: string): boolean {
-  const normalized = path.posix.normalize(pattern.replaceAll('\\', '/')).replace(/\/+$/u, '')
-  const prefix = leadingLiteralPrefix(normalized)
-  if (prefix === '') return false
-  return pathsMatchOnHost(prefix, relModules) || (
-    prefix.length > relModules.length &&
-    pathsMatchOnHost(prefix.slice(0, relModules.length), relModules) &&
-    prefix[relModules.length] === '/'
-  )
-}
-
-function leadingLiteralPrefix (normalizedPattern: string): string {
-  const segments = normalizedPattern.split('/')
-  const literal: string[] = []
-  for (const segment of segments) {
-    if (!isLiteralGlobSegment(segment)) break
-    literal.push(segment)
+async function readHoistedSubpathsUnderRootModules (
+  workspaceDir: string,
+  relModules: string
+): Promise<string[]> {
+  const resolvedWorkspaceDir = path.resolve(workspaceDir)
+  const resolvedRootModulesDir = path.resolve(resolvedWorkspaceDir, relModules)
+  let hoistedLocations: Record<string, string[]> | undefined
+  try {
+    const manifest = await readModulesManifest(resolvedRootModulesDir)
+    hoistedLocations = manifest?.hoistedLocations
+  } catch {
+    return []
   }
-  return literal.join('/')
-}
-
-function isLiteralGlobSegment (segment: string): boolean {
-  return segment !== '' &&
-    segment !== '.' &&
-    segment !== '..' &&
-    !/[\\*?[\]{}]/u.test(segment)
-}
-
-function pathsMatchOnHost (left: string, right: string): boolean {
-  return IS_CASE_INSENSITIVE_FS
-    ? left.toLowerCase() === right.toLowerCase()
-    : left === right
+  if (hoistedLocations == null) return []
+  const subpaths = new Set<string>()
+  for (const loc of Object.values(hoistedLocations).flat()) {
+    const candidate = path.resolve(resolvedWorkspaceDir, loc)
+    if (!candidate.startsWith(`${resolvedRootModulesDir}${path.sep}`)) continue
+    const rel = path.relative(resolvedWorkspaceDir, candidate)
+    const posix = normalizeCustomRelativePosix(rel)
+    if (posix != null) subpaths.add(posix)
+  }
+  return Array.from(subpaths)
 }
 
 async function mergeRecoveryCandidates (

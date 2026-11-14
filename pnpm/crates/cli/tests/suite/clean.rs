@@ -753,3 +753,4 @@ mod ci_and_workspace_scope;
 mod ci_hooks_and_narrowed_scope;
 mod ci_lockfile_dir_and_pnpr;
 mod containment;
+mod modules_overlap_and_virtual_store;

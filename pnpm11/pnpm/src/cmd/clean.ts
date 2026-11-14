@@ -132,6 +132,7 @@ export async function cleanProjects (opts: CleanOptions & { removeLockfile: bool
     await removeExternalVirtualStore({
       cwd: scope.cwd,
       modulesDir: scope.modulesDir,
+      protectedMemberDirs: scope.protectedMemberDirs,
       rootDir: scope.rootDir,
       virtualStoreDir: opts.virtualStoreDir,
     })
@@ -295,7 +296,7 @@ async function getProjectTargets (
   }
   if (narrowed) {
     const targets = await getNarrowedWorkspaceTargets(opts, rootDir)
-    const protectedMemberDirs = modulesDir !== 'node_modules' || hasPerProjectModulesDirs(opts)
+    const protectedMemberDirs = modulesDir !== 'node_modules' || hasPerProjectModulesDirs(opts) || Boolean(opts.virtualStoreDir)
       ? await readProtectedMemberDirs(opts, opts.workspaceDir, realRootDir)
       : []
     return { targets, protectedMemberDirs }

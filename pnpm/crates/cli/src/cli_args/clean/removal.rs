@@ -74,12 +74,7 @@ impl CleanRun<'_> {
         }
         match self.scope {
             CleanScope::WholeWorkspace => {
-                remove_external_virtual_store(
-                    &cwd,
-                    self.config,
-                    self.real_root_dir,
-                    &modules_leaf,
-                )?;
+                self.remove_external_virtual_store(&cwd, &modules_leaf)?;
             }
             CleanScope::Narrowed => {}
         }
@@ -188,6 +183,29 @@ impl CleanRun<'_> {
         }
         Ok(())
     }
+
+    fn remove_external_virtual_store(&self, cwd: &Path, modules_leaf: &Path) -> miette::Result<()> {
+        let root_dir = self.config.workspace_dir.as_deref().unwrap_or(self.real_root_dir);
+        let resolved_virtual_store_dir = configured_virtual_store_dir(root_dir, self.config);
+        let Some(virtual_store_in_project) =
+            resolve_inside(self.real_root_dir, &resolved_virtual_store_dir)
+        else {
+            return Ok(());
+        };
+        if resolve_inside(self.real_root_dir, &root_dir.join(modules_leaf))
+            .is_some_and(|root_modules_dir| is_subdir(&root_modules_dir, &virtual_store_in_project))
+            || self.protected_member_dirs
+                .iter()
+                .any(|member_dir| is_subdir(&virtual_store_in_project, member_dir))
+        {
+            return Ok(());
+        }
+        if inspect_existing_path(&virtual_store_in_project)?.is_some() {
+            print_removing(cwd, &virtual_store_in_project);
+            remove_path(&virtual_store_in_project)?;
+        }
+        Ok(())
+    }
 }
 
 fn invalidate_workspace_state(real_root_dir: &Path, shared_modules: &Path) -> miette::Result<()> {
@@ -280,13 +298,7 @@ fn remove_lockfile_at(
     remove_path(&lockfile_path)
 }
 
-fn remove_external_virtual_store(
-    cwd: &Path,
-    config: &Config,
-    real_root_dir: &Path,
-    modules_leaf: &Path,
-) -> miette::Result<()> {
-    let root_dir = config.workspace_dir.as_deref().unwrap_or(real_root_dir);
+pub(super) fn configured_virtual_store_dir(root_dir: &Path, config: &Config) -> PathBuf {
     let virtual_store_dir = if ["virtualStoreDir", "globalVirtualStoreDir"]
         .iter()
         .any(|setting| config.explicit_settings.contains_key(*setting))
@@ -295,25 +307,11 @@ fn remove_external_virtual_store(
     } else {
         &config.install_state_dir
     };
-    let resolved_virtual_store_dir = if virtual_store_dir.is_absolute() {
+    if virtual_store_dir.is_absolute() {
         virtual_store_dir.to_path_buf()
     } else {
         root_dir.join(virtual_store_dir)
-    };
-    let Some(virtual_store_in_project) = resolve_inside(real_root_dir, &resolved_virtual_store_dir)
-    else {
-        return Ok(());
-    };
-    if resolve_inside(real_root_dir, &root_dir.join(modules_leaf))
-        .is_some_and(|root_modules_dir| is_subdir(&root_modules_dir, &virtual_store_in_project))
-    {
-        return Ok(());
     }
-    if inspect_existing_path(&virtual_store_in_project)?.is_some() {
-        print_removing(cwd, &virtual_store_in_project);
-        remove_path(&virtual_store_in_project)?;
-    }
-    Ok(())
 }
 
 fn clean_modules_dir(cwd: &Path, modules_dir: &Path, mode: ModulesCleanMode) -> miette::Result<()> {

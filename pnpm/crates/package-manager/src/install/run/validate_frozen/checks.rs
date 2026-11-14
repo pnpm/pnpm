@@ -86,10 +86,15 @@ pub(super) async fn verify_settled_frozen_path(
     }
     if let Some(lockfile) = settled.lockfiles.wanted.get() {
         let is_hooked = settled.lockfiles.wanted.is_hooked();
-        let lockfile_path = (!is_hooked && !settled.loaded.wanted.had_conflicts)
+        let config = settled.install.context.config;
+        let can_use_on_disk_cache = !is_hooked
+            && !settled.loaded.wanted.had_conflicts
+            && !config.merge_git_branch_lockfiles
+            && config.git_branch_lockfile_candidates.is_empty();
+        let lockfile_path = can_use_on_disk_cache
             .then_some(settled.verification.derived_lockfile_path.as_deref())
             .flatten();
-        let cache_dir = (!is_hooked).then_some(settled.install.context.config.cache_dir.as_path());
+        let cache_dir = can_use_on_disk_cache.then_some(config.cache_dir.as_path());
         verify_lockfile_offline_and_policies(
             lockfile,
             &settled.verification.resolution_verifiers,

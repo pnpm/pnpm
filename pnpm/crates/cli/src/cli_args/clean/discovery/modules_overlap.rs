@@ -1,10 +1,16 @@
-use super::super::{
-    super::recursive::discover_workspace_projects,
-    removal::{configured_modules_leaf, modules_leaf_for_project},
+use super::{
+    super::{
+        super::recursive::discover_workspace_projects,
+        removal::{
+            configured_modules_leaf, configured_virtual_store_dir, modules_leaf_for_project,
+        },
+    },
+    pattern_reachability::patterns_entering_root_dir,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_fs::{is_symlink_metadata, lexical_normalize, lexical_normalize_posix};
+use pnpm_fs::{is_symlink_metadata, lexical_normalize};
+use pnpm_modules_yaml::{Host, read_modules_manifest};
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts, Project, find_workspace_projects, read_workspace_manifest,
     workspace_package_patterns,
@@ -14,18 +20,13 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-#[derive(Clone, Copy)]
-enum RootModulesWalk {
-    Ignore,
-    Enter,
-}
-
 pub(super) fn discover_workspace_for_clean(
     workspace_dir: &Path,
     config: &Config,
 ) -> miette::Result<Vec<Project>> {
     let custom_leaves = custom_relative_modules_leaves(config);
-    if custom_leaves.is_empty() && config.modules_dir == workspace_dir.join("node_modules") {
+    let root_clean_dirs = custom_root_clean_dirs(workspace_dir, config);
+    if custom_leaves.is_empty() && root_clean_dirs.is_empty() {
         let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
         return Ok(projects);
     }
@@ -33,26 +34,41 @@ pub(super) fn discover_workspace_for_clean(
     let mut projects =
         initial_projects(workspace_dir, config, patterns.as_deref(), &custom_leaves)?;
     if !custom_leaves.is_empty() {
-        refine_projects(
-            &mut projects,
-            workspace_dir,
-            config,
-            patterns.as_deref(),
-            RootModulesWalk::Ignore,
-        )?;
+        refine_projects(&mut projects, workspace_dir, config, patterns.as_deref(), None)?;
     }
-    if let Some(recovery_patterns) =
-        patterns_entering_root_modules_dir(workspace_dir, &config.modules_dir, patterns.as_deref())
-    {
-        refine_projects(
-            &mut projects,
+    for root_clean_dir in &root_clean_dirs {
+        if let Some(recovery_patterns) = patterns_entering_root_dir(
             workspace_dir,
-            config,
-            Some(&recovery_patterns),
-            RootModulesWalk::Enter,
-        )?;
+            root_clean_dir,
+            patterns.as_deref(),
+            &custom_leaves,
+        ) {
+            refine_projects(
+                &mut projects,
+                workspace_dir,
+                config,
+                Some(&recovery_patterns),
+                Some(root_clean_dir),
+            )?;
+        }
     }
     Ok(projects)
+}
+
+pub(super) fn custom_root_clean_dirs(workspace_dir: &Path, config: &Config) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if config.modules_dir != workspace_dir.join("node_modules") {
+        dirs.push(config.modules_dir.clone());
+    }
+    let virtual_store_dir = configured_virtual_store_dir(workspace_dir, config);
+    if virtual_store_dir != config.modules_dir.join(".pnpm")
+        && !dirs
+            .iter()
+            .any(|existing| lexical_normalize(existing) == lexical_normalize(&virtual_store_dir))
+    {
+        dirs.push(virtual_store_dir);
+    }
+    dirs
 }
 
 fn resolve_workspace_patterns(
@@ -101,19 +117,21 @@ fn refine_projects(
     workspace_dir: &Path,
     config: &Config,
     patterns: Option<&[String]>,
-    root_modules: RootModulesWalk,
+    entered_root_dir: Option<&Path>,
 ) -> miette::Result<()> {
     let default_leaf = configured_modules_leaf(config);
     let workspace_norm = lexical_normalize(workspace_dir);
+    let entered_norm = entered_root_dir.map(lexical_normalize);
+    let hoisted_ignores = entered_root_dir
+        .map(|entered| hoisted_dirs_under_root(workspace_dir, entered))
+        .unwrap_or_default();
     loop {
         let mut ignored_directories: Vec<PathBuf> = config
             .managed_directories()
             .into_iter()
-            .filter(|dir| match root_modules {
-                RootModulesWalk::Ignore => true,
-                RootModulesWalk::Enter => dir != &config.modules_dir,
-            })
+            .filter(|dir| entered_norm.as_deref() != Some(lexical_normalize(dir).as_path()))
             .collect();
+        ignored_directories.extend(hoisted_ignores.iter().cloned());
         ignored_directories.extend(
             non_root_owned_modules_dirs(projects, &[], &workspace_norm, config, &default_leaf)
                 .into_values(),
@@ -130,6 +148,22 @@ fn refine_projects(
             return Ok(());
         }
     }
+}
+
+fn hoisted_dirs_under_root(workspace_dir: &Path, root_modules_dir: &Path) -> Vec<PathBuf> {
+    let Some(manifest) = read_modules_manifest::<Host>(root_modules_dir).ok().flatten() else {
+        return Vec::new();
+    };
+    let Some(locations) = manifest.hoisted_locations else {
+        return Vec::new();
+    };
+    let root_norm = lexical_normalize(root_modules_dir);
+    locations
+        .into_values()
+        .flatten()
+        .map(|loc| lexical_normalize(&workspace_dir.join(loc)))
+        .filter(|dir| dir.starts_with(&root_norm) && dir != &root_norm)
+        .collect()
 }
 
 fn custom_relative_modules_leaves(config: &Config) -> Vec<String> {
@@ -149,7 +183,7 @@ fn custom_relative_modules_leaves(config: &Config) -> Vec<String> {
     leaves.into_iter().collect()
 }
 
-fn relative_subpath_posix(raw: &Path) -> Option<String> {
+pub(super) fn relative_subpath_posix(raw: &Path) -> Option<String> {
     if raw.is_absolute() {
         return None;
     }
@@ -171,7 +205,7 @@ fn relative_subpath_posix(raw: &Path) -> Option<String> {
     .then_some(posix)
 }
 
-fn escape_wax_path(posix: &str) -> String {
+pub(super) fn escape_wax_path(posix: &str) -> String {
     posix
         .split('/')
         .map(|seg| wax::escape(seg).into_owned())
@@ -179,78 +213,7 @@ fn escape_wax_path(posix: &str) -> String {
         .join("/")
 }
 
-fn patterns_entering_root_modules_dir(
-    workspace_dir: &Path,
-    root_modules_dir: &Path,
-    patterns: Option<&[String]>,
-) -> Option<Vec<String>> {
-    let patterns = patterns?;
-    let rel_modules = relative_root_modules_posix(workspace_dir, root_modules_dir)?;
-    let mut includes = Vec::new();
-    let mut negations = Vec::new();
-    for pattern in patterns {
-        if pattern.starts_with('!') {
-            negations.push(pattern.clone());
-        } else if pattern_enters_modules_prefix(pattern, &rel_modules) {
-            includes.push(pattern.clone());
-        }
-    }
-    if includes.is_empty() {
-        return None;
-    }
-    includes.extend(negations);
-    Some(includes)
-}
-
-fn relative_root_modules_posix(workspace_dir: &Path, root_modules_dir: &Path) -> Option<String> {
-    let workspace_norm = lexical_normalize(workspace_dir);
-    let modules_norm = lexical_normalize(root_modules_dir);
-    let rel = modules_norm
-        .strip_prefix(&workspace_norm)
-        .ok()
-        .map(Path::to_path_buf)
-        .or_else(|| {
-            let real_ws = dunce::canonicalize(workspace_dir).ok()?;
-            let real_mod = dunce::canonicalize(root_modules_dir).ok()?;
-            real_mod
-                .strip_prefix(&real_ws)
-                .ok()
-                .map(Path::to_path_buf)
-        })?;
-    relative_subpath_posix(&rel)
-}
-
-fn pattern_enters_modules_prefix(pattern: &str, rel_modules: &str) -> bool {
-    let normalized = lexical_normalize_posix(pattern);
-    let prefix = leading_literal_prefix(normalized.trim_end_matches('/'));
-    if prefix.is_empty() {
-        return false;
-    }
-    paths_match_on_host(&prefix, rel_modules)
-        || (prefix
-            .get(..rel_modules.len())
-            .is_some_and(|head| paths_match_on_host(head, rel_modules))
-            && prefix.as_bytes().get(rel_modules.len()) == Some(&b'/'))
-}
-
-fn leading_literal_prefix(normalized_pattern: &str) -> String {
-    normalized_pattern
-        .split('/')
-        .take_while(|seg| is_literal_glob_segment(seg))
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-fn is_literal_glob_segment(seg: &str) -> bool {
-    !seg.is_empty()
-        && seg != "."
-        && seg != ".."
-        && !seg
-            .chars()
-            .any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}' | '\\'))
-}
-
-fn paths_match_on_host(left: &str, right: &str) -> bool {
+pub(super) fn paths_match_on_host(left: &str, right: &str) -> bool {
     if cfg!(any(windows, target_os = "macos")) {
         left.eq_ignore_ascii_case(right)
     } else {

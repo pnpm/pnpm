@@ -608,3 +608,78 @@ test('validateFrozenInstall preserves preResolution mutations to currentLockfile
   })
   expect(verifiedNames).toContain('blocked-by-hook')
 })
+
+test('validateFrozenInstall does not bypass resolutionVerifiers via stat cache when mergeGitBranchLockfiles is enabled', async () => {
+  prepareEmpty()
+  const rootDir = process.cwd() as ProjectRootDir
+  const cacheDir = path.resolve('verification-cache')
+
+  // Generate a branch lockfile containing `is-negative@1.0.0`, then restore a primary lockfile
+  // containing only `is-positive@1.0.0`.
+  const mergedManifest: ProjectManifest = {
+    name: 'merge-branch-cache-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(mergedManifest))
+  await install(mergedManifest, testDefaults())
+  const branchLockfileContent = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  fs.rmSync(WANTED_LOCKFILE)
+  fs.rmSync('node_modules', { recursive: true, force: true })
+
+  const primaryManifest: ProjectManifest = {
+    name: 'merge-branch-cache-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(primaryManifest))
+  await install(primaryManifest, testDefaults())
+
+  const verifiedNames: string[] = []
+  const verifierOpts: InstallOptions = {
+    ...testDefaults({
+      cacheDir,
+      frozenLockfile: true,
+    }),
+    resolutionVerifiers: [
+      {
+        policy: { blockIsNegative: true },
+        canTrustPastCheck: () => true,
+        verify: async (_resolution, { name, version }) => {
+          verifiedNames.push(name)
+          if (name === 'is-negative') {
+            return {
+              ok: false,
+              code: 'TEST_REJECT',
+              reason: `${name}@${version} blocked by test policy`,
+            }
+          }
+          return { ok: true }
+        },
+      },
+    ],
+  }
+  const projects: MutatedProject[] = [{ mutation: 'install', rootDir }]
+
+  // Seed the stat-shortcut cache entry for the untouched primary `pnpm-lock.yaml`.
+  await validateFrozenInstall(projects, verifierOpts)
+  expect(verifiedNames).toStrictEqual(['is-positive'])
+
+  // Add `pnpm-lock.feature.yaml` without modifying `pnpm-lock.yaml` (preserving its stat/inode/mtime).
+  fs.writeFileSync('package.json', JSON.stringify(mergedManifest))
+  fs.writeFileSync('pnpm-lock.feature.yaml', branchLockfileContent)
+  verifiedNames.length = 0
+
+  await expect(validateFrozenInstall(projects, {
+    ...verifierOpts,
+    mergeGitBranchLockfiles: true,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_TEST_REJECT',
+  })
+  expect(verifiedNames).toContain('is-negative')
+})
