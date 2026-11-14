@@ -44,7 +44,7 @@ test('version --recursive --json prints an empty JSON array when there are no pe
   expect(result.stdout.toString().trim()).toBe('[]')
 })
 
-test('version --recursive --json keeps stdout parseable when lifecycle scripts write to stdout', async () => {
+test('version --recursive --json keeps stdout parseable and forwards script output to stderr', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -64,6 +64,34 @@ test('version --recursive --json keeps stdout parseable when lifecycle scripts w
   expect(JSON.parse(result.stdout.toString().trim())).toEqual([
     expect.objectContaining({ name: 'project-1', currentVersion: '1.0.0', newVersion: '1.0.1' }),
   ])
+  const stderr = result.stderr.toString()
+  expect(stderr).toContain('preversion-stdout')
+  expect(stderr).toContain('version-stdout')
+  expect(stderr).toContain('postversion-stdout')
+})
+
+test('version --recursive --json surfaces failing preversion output on stderr while keeping JSON error on stdout', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        preversion: 'node -e "console.error(\'preversion-failure-detail\'); process.exit(1)"',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const result = execPnpmSync(['version', '--recursive', 'patch', '--json', '--no-git-checks'])
+
+  expect(result.status).not.toBe(0)
+  expect(result.stderr.toString()).toContain('preversion-failure-detail')
+  expect(JSON.parse(result.stdout.toString().trim())).toEqual({
+    error: expect.objectContaining({
+      code: expect.any(String),
+      message: expect.any(String),
+    }),
+  })
 })
 
 test('version from-git is wired through the compiled CLI', async () => {

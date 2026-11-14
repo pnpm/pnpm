@@ -152,6 +152,13 @@ fn version_recursive_json_keeps_stdout_parseable_when_lifecycle_scripts_print_to
         parsed,
         json!([{ "name": "pkg-a", "currentVersion": "1.0.0", "newVersion": "1.1.0" }]),
     );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("preversion-stdout"), "expected preversion output on stderr: {stderr}");
+    assert!(stderr.contains("version-stdout"), "expected version output on stderr: {stderr}");
+    assert!(
+        stderr.contains("postversion-stdout"),
+        "expected postversion output on stderr: {stderr}",
+    );
 }
 
 #[test]
