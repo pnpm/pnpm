@@ -174,7 +174,7 @@ fn prefers_compatible_locked_transitive_versions() {
             .iter()
             .any(|package| {
                 package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
-            })
+            }),
     );
 }
 
@@ -195,7 +195,7 @@ fn skips_incompatible_locked_versions() {
             .iter()
             .any(|package| {
                 package.name.as_str() == "foo" && package.version == semver::Version::new(1, 1, 0)
-            })
+            }),
     );
 }
 
@@ -216,7 +216,7 @@ fn keeps_a_yanked_compatible_locked_version() {
             .iter()
             .any(|package| {
                 package.name.as_str() == "bar" && package.version == semver::Version::new(2, 1, 0)
-            })
+            }),
     );
 }
 
