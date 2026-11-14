@@ -97,3 +97,37 @@ fn approve_named_packages_and_empty_pending_succeed_without_a_terminal() {
 
     drop(root);
 }
+
+#[cfg(unix)]
+#[test]
+fn dlx_skips_automatic_build_approval_prompt_in_ci_even_with_a_terminal() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let mut cmd = pacquet_in_terminal(&workspace);
+    cmd.env_remove("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
+    cmd.env("CI", "true")
+        .env("PNPM_CONFIG_STRICT_DEP_BUILDS", "false")
+        .env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+        .env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
+        .args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"])
+        .assert()
+        .success();
+
+    let cache_entry = fs::read_dir(npmrc_info.cache_dir.join("dlx"))
+        .expect("read dlx cache")
+        .next()
+        .expect("dlx cache entry exists")
+        .expect("read dlx cache entry")
+        .path()
+        .join("pkg");
+    let artifact = cache_entry.join(
+        "node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js",
+    );
+    assert!(!artifact.exists(), "CI run must leave pending builds unexecuted");
+    let cache_yaml =
+        fs::read_to_string(cache_entry.join("pnpm-workspace.yaml")).unwrap_or_default();
+    assert!(!cache_yaml.contains("allowBuilds:"), "cache yaml:\n{cache_yaml}");
+
+    drop(root);
+}

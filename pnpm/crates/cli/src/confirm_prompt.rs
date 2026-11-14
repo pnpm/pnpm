@@ -39,6 +39,12 @@ impl PromptAvailability {
     }
 
     pub(crate) fn is_available(self) -> bool {
-        matches!(self, Self::Available)
+        match self {
+            Self::Available => true,
+            Self::Unavailable => false,
+        }
     }
 }
+
+#[cfg(test)]
+mod tests;

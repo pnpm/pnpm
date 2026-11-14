@@ -42,6 +42,7 @@ use super::{
     prefix::PrefixArgs,
     profile::ProfileArgs,
     publish::PublishArgs,
+    recursive::selectors_narrow_the_run,
     repo::RepoArgs,
     reporter::ReporterType,
     root::RootArgs,
@@ -185,12 +186,31 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
         if !args.global {
             apply_update_config(cfg, dir).await?;
         }
-        if args.run(cfg, dir, recursive, recursive_from_command_line)? != PeersOutcome::NoIssues {
+        let recursive = recursive && !dedicated_subproject(cfg, dir, recursive_from_command_line);
+        if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
             // `peers` exits non-zero when peer issues are found or the subcommand is unknown, mirroring pnpm.
             pnpm_executor::exit(1);
         }
         Ok(())
     }))
+}
+
+/// Without `-r` or a workspace selector, `pnpm peers` run inside a subproject
+/// of a `sharedWorkspaceLockfile: false` workspace checks only that project's
+/// dedicated lockfile.
+fn dedicated_subproject(
+    config: &Config,
+    dir: &std::path::Path,
+    recursive_from_command_line: bool,
+) -> bool {
+    !config.shares_one_lockfile()
+        && !recursive_from_command_line
+        && !selectors_narrow_the_run(config)
+        && config.workspace_dir
+            .as_deref()
+            .is_some_and(|workspace_dir| {
+                pnpm_fs::lexical_normalize(dir) != pnpm_fs::lexical_normalize(workspace_dir)
+            })
 }
 
 pub(super) fn change<'a>(ctx: &RunCtx<'a>, args: ChangeArgs) -> miette::Result<CommandFuture<'a>> {

@@ -1,6 +1,5 @@
 use crate::cli_args::{
     catalogs::configured_catalogs, global::GlobalError, listed_projects::listed_projects,
-    recursive::selectors_narrow_the_run,
 };
 use clap::{Args, CommandFactory};
 use miette::{Context, IntoDiagnostic};
@@ -56,7 +55,6 @@ impl PeersArgs {
         config: &Config,
         dir: &std::path::Path,
         recursive: bool,
-        recursive_from_command_line: bool,
     ) -> miette::Result<PeersOutcome> {
         if !matches!(self.params.first().map(String::as_str), Some("check") | None) {
             print_peers_help();
@@ -66,8 +64,6 @@ impl PeersArgs {
         let (issues, undeclared) = if self.global {
             (self.global_issues(config)?, UndeclaredWarnings::new())
         } else {
-            let recursive =
-                recursive && !dedicated_subproject(config, dir, recursive_from_command_line);
             self.workspace_issues(config, dir, recursive)?
         };
         report_issues(&issues, &undeclared, self.json)
@@ -229,20 +225,6 @@ fn print_peers_help() {
         .find_subcommand_mut("peers")
         .expect("peers subcommand")
         .print_help();
-}
-
-/// Without `-r` or a workspace selector, `pnpm peers` run inside a subproject
-/// of a `sharedWorkspaceLockfile: false` workspace checks only that project's
-/// dedicated lockfile.
-fn dedicated_subproject(config: &Config, dir: &Path, recursive_from_command_line: bool) -> bool {
-    !config.shares_one_lockfile()
-        && !recursive_from_command_line
-        && !selectors_narrow_the_run(config)
-        && config.workspace_dir
-            .as_deref()
-            .is_some_and(|workspace_dir| {
-                pnpm_fs::lexical_normalize(dir) != pnpm_fs::lexical_normalize(workspace_dir)
-            })
 }
 
 struct DedicatedLockfiles<'a> {

@@ -172,6 +172,14 @@ fn dedicated_lockfiles_satisfy_linked_sibling_peers_from_the_siblings_own_lockfi
     )
     .expect("write lib manifest");
 
+    let peerless_dir = workspace.join("packages/peerless");
+    fs::create_dir_all(&peerless_dir).expect("create peerless dir");
+    fs::write(
+        peerless_dir.join("package.json"),
+        serde_json::json!({ "name": "peerless", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write peerless manifest");
+
     let app_dir = workspace.join("packages/app");
     fs::create_dir_all(&app_dir).expect("create app dir");
     fs::write(
@@ -179,7 +187,10 @@ fn dedicated_lockfiles_satisfy_linked_sibling_peers_from_the_siblings_own_lockfi
         serde_json::json!({
             "name": "app",
             "version": "1.0.0",
-            "dependencies": { "lib": "workspace:*" },
+            "dependencies": {
+                "lib": "workspace:*",
+                "peerless": "workspace:*",
+            },
         })
         .to_string(),
     )
@@ -203,6 +214,18 @@ fn dedicated_lockfiles_satisfy_linked_sibling_peers_from_the_siblings_own_lockfi
         let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
         assert!(stdout.contains("No peer dependency issues found"), "{args:?} stdout:\n{stdout}");
     }
+
+    fs::write(peerless_dir.join("pnpm-lock.yaml"), ": invalid: [yaml")
+        .expect("corrupt peerless lockfile");
+    let peerless_state = peerless_dir.join("node_modules/.pnpm/lock.yaml");
+    if peerless_state.exists() {
+        fs::remove_file(peerless_state).expect("remove peerless current lockfile");
+    }
+    let filtered = pnpm(&workspace)
+        .with_args(["--filter", "app", "peers"])
+        .output()
+        .expect("run filtered pnpm peers with peerless corrupt lockfile");
+    assert!(filtered.status.success(), "{filtered:?}");
 
     drop(root);
 }

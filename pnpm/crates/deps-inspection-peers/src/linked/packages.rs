@@ -122,11 +122,20 @@ fn load_sibling_lockfile(
     dir: &Path,
     manifest: Option<&PackageManifest>,
 ) -> Option<Arc<Lockfile>> {
+    let manifest = manifest.filter(|manifest| declares_peers(manifest))?;
     if consuming_lockfile.is_some_and(|lockfile| lockfile.importers.contains_key(importer_id)) {
         return None;
     }
-    let pkg_name = manifest.and_then(|manifest| manifest_str_field(manifest, "name"));
+    let pkg_name = manifest_str_field(manifest, "name");
     linked_lockfiles.and_then(|load| load(dir, pkg_name))
+}
+
+fn declares_peers(manifest: &PackageManifest) -> bool {
+    manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+        .is_some_and(|peers| !peers.is_empty())
 }
 
 /// The manifest of the linked directory `dir`, taken from
