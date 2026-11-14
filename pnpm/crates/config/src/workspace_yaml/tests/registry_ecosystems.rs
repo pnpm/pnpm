@@ -313,12 +313,21 @@ fn invalid_python_package_patterns_are_rejected() {
 
 #[test]
 fn an_invalid_python_package_pattern_names_why() {
+    let shapes = "use an exact name, a prefix such as `company-*`, or `**`";
+    let not_a_name = |pattern: &str| {
+        format!(
+            r#"registry pattern "{pattern}" is not a valid pypi package name, so it can never match; {shapes}"#,
+        )
+    };
     for (pattern, reason) in [
-        ("a*b", r#"unsupported pypi registry pattern "a*b""#),
-        ("-a", r#"registry pattern "-a" is not a valid package name"#),
+        ("a*b", format!(r#"unsupported pypi registry pattern "a*b": {shapes}"#)),
+        ("a**", format!(r#"unsupported pypi registry pattern "a**": {shapes}"#)),
+        ("-a", not_a_name("-a")),
+        ("-a*", not_a_name("-a*")),
     ] {
         let error = load(&format!("registries:\n  https://private.example.com/:\n    ecosystem: pypi\n    packages: ['{pattern}']\n")).unwrap_err();
-        assert!(error.contains(reason), "{pattern}: {error}");
+        assert!(error.contains(&reason), "{pattern}: {error}");
+        assert!(!error.contains("@scope"), "{pattern}: {error}");
     }
 }
 
