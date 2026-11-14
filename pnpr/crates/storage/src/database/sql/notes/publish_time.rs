@@ -1,7 +1,7 @@
 //! The notes a publish carries, stored in its transaction with the digest of
 //! the text each was published with.
 
-use super::{NoteSubject, VERSION, write_note};
+use super::{NoteSubject, write_note};
 use crate::database::{
     ArtifactMember, PublishNotes, VersionNote, note_digest,
     sql::{PackageKey, adapter::Query, batch::Batch},
@@ -57,10 +57,9 @@ pub(in crate::database::sql) fn version_note_query<'query>(
     note: &'query VersionNote,
 ) -> Query<'query> {
     query!(
-        "SELECT 1 FROM notes
-         WHERE namespace = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
+        "SELECT 1 FROM version_notes
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
         namespace,
-        VERSION,
         note.ecosystem.as_str(),
         &note.name,
         &note.version,

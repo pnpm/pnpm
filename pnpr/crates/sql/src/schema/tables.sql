@@ -226,10 +226,11 @@ CREATE TABLE IF NOT EXISTS removed_versions (
 -- of its latest removal when pushed and removed again.
 CREATE TABLE IF NOT EXISTS removed_oci_manifests (
     namespace TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     artifact TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (namespace, name, artifact)
+    PRIMARY KEY (namespace, ecosystem, name, artifact)
 ) STRICT, WITHOUT ROWID;
 
 -- Mutable annotations of a version. `deprecated` is its JSON value.
@@ -286,22 +287,30 @@ CREATE TABLE IF NOT EXISTS publication_outcomes (
 CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at
     ON publication_outcomes (committed_at);
 
--- Release notes of a package version (`kind` = 'version', `subject` = the
--- version) or of a publication (`kind` = 'publication', `ecosystem` and
--- `name` empty, `subject` = its id). `text` is NULL once deleted.
--- `initial_digest` is the digest of the text published with the subject.
-CREATE TABLE IF NOT EXISTS notes (
+-- Release notes of a package version. `text` is NULL once deleted.
+-- `initial_digest` is the digest of the text published with the version.
+CREATE TABLE IF NOT EXISTS version_notes (
     namespace TEXT NOT NULL,
-    kind TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
-    subject TEXT NOT NULL,
+    version TEXT NOT NULL,
     text TEXT,
     modified_at INTEGER NOT NULL,
     principal TEXT,
     initial_digest TEXT,
-    PRIMARY KEY (namespace, kind, ecosystem, name, subject)
-) STRICT, WITHOUT ROWID;
+    PRIMARY KEY (namespace, ecosystem, name, version)
+) STRICT;
+
+-- Release notes of a publication, as `version_notes` holds them for a version.
+CREATE TABLE IF NOT EXISTS publication_notes (
+    namespace TEXT NOT NULL,
+    publication INTEGER NOT NULL,
+    text TEXT,
+    modified_at INTEGER NOT NULL,
+    principal TEXT,
+    initial_digest TEXT,
+    PRIMARY KEY (namespace, publication)
+) STRICT;
 
 -- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
 -- the incarnation stored under `<blob_id>.<incarnation>` now, `live`,
@@ -371,55 +380,28 @@ CREATE TABLE IF NOT EXISTS scim_users (
 CREATE INDEX IF NOT EXISTS scim_users_by_generation
     ON scim_users (generation);
 
--- Registries whose team roster has been initialized in the database.
-CREATE TABLE IF NOT EXISTS team_rosters (
-    registry TEXT NOT NULL PRIMARY KEY,
-    generation INTEGER NOT NULL
-) STRICT, WITHOUT ROWID;
+-- The hosted store this database is bound to.
+CREATE TABLE IF NOT EXISTS hosted_store (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    store_id TEXT NOT NULL
+) STRICT;
 
-CREATE TABLE IF NOT EXISTS teams (
-    registry TEXT NOT NULL,
-    team_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    position INTEGER NOT NULL,
-    PRIMARY KEY (registry, team_id)
-) STRICT, WITHOUT ROWID;
-CREATE UNIQUE INDEX IF NOT EXISTS teams_by_name
-    ON teams (registry, name);
-CREATE INDEX IF NOT EXISTS teams_by_position
-    ON teams (registry, position);
+-- Every stored revision of the registry graph, the newest one current.
+CREATE TABLE IF NOT EXISTS registry_graph_revisions (
+    generation INTEGER NOT NULL PRIMARY KEY,
+    document TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    restored_from INTEGER
+) STRICT;
 
-CREATE TABLE IF NOT EXISTS team_members (
-    registry TEXT NOT NULL,
-    team_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    PRIMARY KEY (registry, team_id, user_id)
-) STRICT, WITHOUT ROWID;
-
--- Registries with stored API rule overrides, and the generation of their
--- current override set.
-CREATE TABLE IF NOT EXISTS rule_override_sets (
-    registry TEXT NOT NULL PRIMARY KEY,
-    generation INTEGER NOT NULL
-) STRICT, WITHOUT ROWID;
-
--- Overridden rule lists of a registry (`pattern` = '' for the registry-level
--- default `access`, else a declared package pattern). Presence with zero rows
--- in `rule_override_grants` represents an empty access list (`[]`).
-CREATE TABLE IF NOT EXISTS rule_overrides (
-    registry TEXT NOT NULL,
-    pattern TEXT NOT NULL,
-    action TEXT NOT NULL,
-    PRIMARY KEY (registry, pattern, action)
-) STRICT, WITHOUT ROWID;
-
-CREATE TABLE IF NOT EXISTS rule_override_grants (
-    registry TEXT NOT NULL,
-    pattern TEXT NOT NULL,
-    action TEXT NOT NULL,
-    position INTEGER NOT NULL,
-    principal TEXT NOT NULL,
-    PRIMARY KEY (registry, pattern, action, position)
+-- Each hosted `(namespace, ecosystem)` a stored registry graph revision
+-- stopped serving and no later revision serves again. Publishing into one is
+-- refused.
+CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (
+    namespace TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    PRIMARY KEY (namespace, ecosystem)
 ) STRICT, WITHOUT ROWID;
 
 -- The active Cloudflare CDN cache-tag target shared by replicas of this database.

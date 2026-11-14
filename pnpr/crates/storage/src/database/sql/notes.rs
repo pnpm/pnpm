@@ -1,8 +1,7 @@
 //! Version and publication notes.
 //!
-//! A note is keyed by its namespace, its kind, and its subject: a package
-//! version (`ecosystem`, `name`, `subject` = version) or a publication
-//! (`ecosystem` and `name` empty, `subject` = its id).
+//! A version note is keyed by its package and version, a publication note by
+//! its namespace and publication id.
 
 pub(super) use publish_time::{store_publish_notes, version_note_query};
 
@@ -11,6 +10,7 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::WriteTransaction,
     commit::package_row_query,
+    to_column,
     transactions::Freshness,
 };
 use crate::{
@@ -18,43 +18,25 @@ use crate::{
     publish::{iso_from_unix_millis, now_millis},
 };
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::CanonicalPackageName;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_sql::DialectSql;
 
 mod publish_time;
 
-const VERSION: &str = "version";
-const PUBLICATION: &str = "publication";
-
 /// What a note is attached to.
 #[derive(Debug, Clone)]
-pub(super) struct NoteSubject {
-    namespace: String,
-    kind: &'static str,
-    ecosystem: String,
-    name: String,
-    subject: String,
+pub(super) enum NoteSubject {
+    Version { key: PackageKey, version: String },
+    Publication { namespace: String, id: i64 },
 }
 
 impl NoteSubject {
     pub(super) fn version(key: &PackageKey, version: &str) -> Self {
-        Self {
-            namespace: key.namespace.clone(),
-            kind: VERSION,
-            ecosystem: key.ecosystem.as_str().to_string(),
-            name: key.name.clone(),
-            subject: version.to_string(),
-        }
+        Self::Version { key: key.clone(), version: version.to_string() }
     }
 
     pub(super) fn publication(namespace: &str, id: u64) -> Self {
-        Self {
-            namespace: namespace.to_string(),
-            kind: PUBLICATION,
-            ecosystem: String::new(),
-            name: String::new(),
-            subject: id.to_string(),
-        }
+        Self::Publication { namespace: namespace.to_string(), id: to_column(id) }
     }
 }
 
@@ -70,15 +52,25 @@ pub(super) fn read_note(
 }
 
 fn note_query(subject: &NoteSubject) -> Query<'_> {
-    query!(
-        "SELECT text, modified_at, principal, initial_digest FROM notes
-         WHERE namespace = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
-        &subject.namespace,
-        subject.kind,
-        &subject.ecosystem,
-        &subject.name,
-        &subject.subject,
-    )
+    match subject {
+        NoteSubject::Version { key, version } => {
+            let (namespace, ecosystem, name) = key.params();
+            query!(
+                "SELECT text, modified_at, principal, initial_digest FROM version_notes
+                 WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+                namespace,
+                ecosystem,
+                name,
+                version,
+            )
+        }
+        NoteSubject::Publication { namespace, id } => query!(
+            "SELECT text, modified_at, principal, initial_digest FROM publication_notes
+             WHERE namespace = ?1 AND publication = ?2",
+            namespace,
+            id,
+        ),
+    }
 }
 
 fn note_row(mut row: Row) -> Result<Note> {
@@ -102,8 +94,7 @@ pub(super) fn change_note(
         validate_note(text)?;
     }
     let transaction = WriteTransaction::begin(connection)?;
-    let key = subject_key(subject)?;
-    let reads = [subject_query(subject, key.as_ref()), note_query(subject)];
+    let reads = [subject_query(subject), note_query(subject)];
     let [found, previous] = <[Vec<Row>; 2]>::try_from(transaction.query_all(&reads)?)
         .map_err(|_| RegistryError::Internal {
             reason: "a metadata batch did not answer every read of a note".to_string(),
@@ -122,59 +113,55 @@ pub(super) fn change_note(
     Ok(true)
 }
 
-/// The package a version note's subject belongs to; `None` for a
-/// publication note.
-fn subject_key(subject: &NoteSubject) -> Result<Option<PackageKey>> {
-    if subject.kind == PUBLICATION {
-        return Ok(None);
-    }
-    let ecosystem = pnpr_package_name::Ecosystem::all()
-        .find(|known| known.as_str() == subject.ecosystem)
-        .ok_or_else(|| RegistryError::BadRequest { reason: "unknown ecosystem".to_string() })?;
-    Ok(Some(PackageKey {
-        namespace: subject.namespace.clone(),
-        ecosystem,
-        name: subject.name.clone(),
-    }))
-}
-
 /// The read that finds a row when the note's subject exists: the
 /// publication, the npm version, or for another ecosystem, whose versions
 /// have no rows of their own, its package.
-fn subject_query<'query>(
-    subject: &'query NoteSubject,
-    key: Option<&'query PackageKey>,
-) -> Query<'query> {
-    match key {
-        None => Query {
-            sql: "SELECT 1 FROM publications WHERE namespace = ?1 AND id = ?2",
-            params: vec![
-                super::adapter::Param::Text(&subject.namespace),
-                super::adapter::Param::Integer(subject.subject.parse::<i64>().unwrap_or(-1)),
-            ],
-        },
-        Some(key) if key.ecosystem != pnpr_package_name::Ecosystem::Npm => package_row_query(key),
-        Some(key) => query!(
-            "SELECT 1 FROM versions WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-             AND version = ?4 LIMIT 1",
-            &key.namespace,
-            &subject.ecosystem,
-            &key.name,
-            &subject.subject,
-        ),
+fn subject_query(subject: &NoteSubject) -> Query<'_> {
+    match subject {
+        NoteSubject::Publication { namespace, id } => {
+            query!("SELECT 1 FROM publications WHERE namespace = ?1 AND id = ?2", namespace, id,)
+        }
+        NoteSubject::Version { key, .. } if key.ecosystem != Ecosystem::Npm => {
+            package_row_query(key)
+        }
+        NoteSubject::Version { key, version } => {
+            let (namespace, ecosystem, name) = key.params();
+            query!(
+                "SELECT 1 FROM versions WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+                 AND version = ?4 LIMIT 1",
+                namespace,
+                ecosystem,
+                name,
+                version,
+            )
+        }
     }
 }
 
-const WRITE_NOTE: DialectSql = DialectSql::with_mysql(
-    "INSERT INTO notes (namespace, kind, ecosystem, name, subject, text, modified_at, principal,
-                        initial_digest)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-     ON CONFLICT (namespace, kind, ecosystem, name, subject) DO UPDATE SET
+const WRITE_VERSION_NOTE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO version_notes (namespace, ecosystem, name, version, text, modified_at, principal,
+                                initial_digest)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+     ON CONFLICT (namespace, ecosystem, name, version) DO UPDATE SET
        text = excluded.text, modified_at = excluded.modified_at,
        principal = excluded.principal, initial_digest = excluded.initial_digest",
-    "INSERT INTO notes (namespace, kind, ecosystem, name, subject, text, modified_at, principal,
-                        initial_digest)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+    "INSERT INTO version_notes (namespace, ecosystem, name, version, text, modified_at, principal,
+                                initial_digest)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+     AS excluded ON DUPLICATE KEY UPDATE text = excluded.text, modified_at = excluded.modified_at,
+       principal = excluded.principal, initial_digest = excluded.initial_digest",
+);
+
+const WRITE_PUBLICATION_NOTE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO publication_notes (namespace, publication, text, modified_at, principal,
+                                    initial_digest)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT (namespace, publication) DO UPDATE SET
+       text = excluded.text, modified_at = excluded.modified_at,
+       principal = excluded.principal, initial_digest = excluded.initial_digest",
+    "INSERT INTO publication_notes (namespace, publication, text, modified_at, principal,
+                                    initial_digest)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
      AS excluded ON DUPLICATE KEY UPDATE text = excluded.text, modified_at = excluded.modified_at,
        principal = excluded.principal, initial_digest = excluded.initial_digest",
 );
@@ -188,21 +175,20 @@ fn write_note(
     initial_digest: Option<&str>,
 ) -> Result<()> {
     let now = now_millis();
-    transaction.execute(
-        WRITE_NOTE.get(transaction.dialect()),
-        params![
-            subject.namespace,
-            subject.kind,
-            subject.ecosystem,
-            subject.name,
-            subject.subject,
-            text,
-            now,
-            principal,
-            initial_digest
-        ],
-    )?;
-    Ok(())
+    let dialect = transaction.dialect();
+    match subject {
+        NoteSubject::Version { key, version } => {
+            let (namespace, ecosystem, name) = key.params();
+            transaction.execute(
+                WRITE_VERSION_NOTE.get(dialect),
+                params![namespace, ecosystem, name, version, text, now, principal, initial_digest],
+            )
+        }
+        NoteSubject::Publication { namespace, id } => transaction.execute(
+            WRITE_PUBLICATION_NOTE.get(dialect),
+            params![namespace, *id, text, now, principal, initial_digest],
+        ),
+    }
 }
 
 impl super::SqlDatabase {
@@ -233,13 +219,13 @@ impl super::SqlDatabase {
             let (namespace, ecosystem, name) = key.params();
             connection
                 .query(
-                    "SELECT n.subject FROM notes n
-                     WHERE n.namespace = ?1 AND n.kind = 'version' AND n.ecosystem = ?2
-                       AND n.name = ?3 AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL)
+                    "SELECT n.version FROM version_notes n
+                     WHERE n.namespace = ?1 AND n.ecosystem = ?2 AND n.name = ?3
+                       AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL)
                        AND (n.ecosystem != 'npm' OR EXISTS (
                          SELECT 1 FROM versions v WHERE v.namespace = n.namespace
                            AND v.ecosystem = n.ecosystem AND v.name = n.name
-                           AND v.version = n.subject))",
+                           AND v.version = n.version))",
                     params![namespace, ecosystem, name],
                 )?
                 .into_iter()
@@ -346,8 +332,8 @@ impl super::SqlDatabase {
                    GROUP BY m.version
                  ) p
                  WHERE EXISTS (
-                   SELECT 1 FROM notes n WHERE n.namespace = ?1 AND n.kind = 'publication'
-                     AND n.ecosystem = '' AND n.name = '' AND n.subject = CAST(p.publication AS TEXT)
+                   SELECT 1 FROM publication_notes n
+                   WHERE n.namespace = ?1 AND n.publication = p.publication
                      AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL))",
                 params![namespace, ecosystem, name],
             )?;
