@@ -1,11 +1,14 @@
 use super::{
-    LockfileResolution, base64_to_hex, build_purl, classify_license, confined_importer_dir,
-    extract_author, extract_repository, integrity_string, normalize_link_path,
-    peer_names_from_manifest, platform_incompatible_optional,
+    LockfileResolution, RegistryContext, base64_to_hex, build_purl, build_purl_with_registry,
+    classify_license, confined_importer_dir, extract_author, extract_repository, integrity_string,
+    named_registry_url, normalize_link_path, peer_names_from_manifest,
+    platform_incompatible_optional, tarball_url_for_component,
 };
 use crate::cli_args::sbom::{
     cyclonedx::split_scoped_name,
-    metadata::{encode_purl_name, extract_bugs_url, url_without_credentials},
+    metadata::{
+        encode_purl_name, extract_bugs_url, sanitize_registry_url, url_without_credentials,
+    },
     spdx::sanitize_spdx_id,
 };
 use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
@@ -137,6 +140,87 @@ fn build_purl_unscoped() {
 #[test]
 fn build_purl_scoped() {
     assert_eq!(build_purl("@babel/core", "7.22.0"), "pkg:npm/%40babel/core@7.22.0");
+}
+
+#[test]
+fn build_purl_with_named_registry_adds_repository_url_qualifier() {
+    assert_eq!(
+        build_purl_with_registry("foo", "1.0.0", Some("https://npm.enterprise.example.com/")),
+        "pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2F",
+    );
+    assert_eq!(
+        build_purl_with_registry(
+            "@scope/pkg",
+            "1.0.0",
+            Some("https://npm.enterprise.example.com/team-a/"),
+        ),
+        "pkg:npm/%40scope/pkg@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2Fteam-a%2F",
+    );
+}
+
+#[test]
+fn build_purl_with_named_registry_strips_credentials_and_query_secrets() {
+    let purl = build_purl_with_registry(
+        "foo",
+        "1.0.0",
+        Some("https://some-user:some-token@npm.enterprise.example.com/team-a/?api_key=secret#frag"),
+    );
+    assert_eq!(
+        purl,
+        "pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2Fteam-a%2F",
+    );
+    for secret in ["some-user", "some-token", "secret", "frag"] {
+        assert!(!purl.contains(secret), "secret {secret} leaked in {purl}");
+    }
+    assert_eq!(
+        sanitize_registry_url("https://token@npm.enterprise.example.com/team-a/"),
+        "https://npm.enterprise.example.com/team-a/",
+    );
+}
+
+#[test]
+fn named_registry_url_resolves_configured_prefix_and_rejects_unknown_prefix() {
+    let mut registries = RegistryContext::default();
+    registries.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://npm.work.example.com/".to_string(),
+    );
+
+    let plain: pnpm_lockfile::PkgNameVerPeer = "foo@1.0.0".parse().unwrap();
+    assert_eq!(named_registry_url(&plain, &registries).unwrap(), None);
+
+    let qualified: pnpm_lockfile::PkgNameVerPeer =
+        "@scope/foo@work:1.0.0(peer@2.0.0)".parse().unwrap();
+    assert_eq!(
+        named_registry_url(&qualified, &registries).unwrap(),
+        Some("https://npm.work.example.com/"),
+    );
+
+    let missing: pnpm_lockfile::PkgNameVerPeer = "foo@unknown:1.0.0".parse().unwrap();
+    let err = named_registry_url(&missing, &registries).unwrap_err();
+    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_MISSING_NAMED_REGISTRY");
+}
+
+#[test]
+fn tarball_url_for_component_uses_sanitized_named_registry_url() {
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            .parse()
+            .expect("parse integrity"),
+        revision: None,
+    });
+    let registries = RegistryContext::default();
+    let url = tarball_url_for_component(
+        &resolution,
+        "@scope/pkg",
+        "1.0.0",
+        "https://some-user:some-token@npm.work.example.com/team-a/?api_key=secret",
+        &registries,
+    );
+    assert_eq!(
+        url.as_deref(),
+        Some("https://npm.work.example.com/team-a/@scope/pkg/-/pkg-1.0.0.tgz"),
+    );
 }
 
 #[test]

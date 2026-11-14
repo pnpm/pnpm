@@ -1,8 +1,10 @@
 use super::{
     HashSet, HostedGit, HostedOpts, InstallabilityOptions, LockfileResolution, PackageMetadata,
-    PkgNameVerPeer, WalkContext, WantedPlatformRef, extract_author, extract_homepage,
-    platform_is_supported_with_inference, safe_read_package_json_from_dir,
+    PkgNameVerPeer, RegistryContext, TarballUrlOptions, WalkContext, WantedPlatformRef,
+    extract_author, extract_homepage, npm_tarball_url, platform_is_supported_with_inference,
+    registry_server_type, revision_registry_tarball_url, safe_read_package_json_from_dir,
 };
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 
 /// The manifest's `repository` field as a URL an SBOM may publish.
 /// `CycloneDX` requires an `iri-reference` here, so a raw value like the npm
@@ -89,10 +91,66 @@ pub(super) fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
     (url.scheme() == "http" || url.scheme() == "https").then(|| url.to_string())
 }
 
-fn registry_tarball_url(registry: &str, name: &str, version: &str) -> String {
-    let registry = registry.trim_end_matches('/');
-    let basename = name.rsplit('/').next().unwrap_or(name);
-    format!("{registry}/{name}/-/{basename}-{version}.tgz")
+/// Characters left unescaped by JavaScript's `encodeURIComponent`, matching
+/// `@pnpm/deps.compliance.sbom`'s PURL qualifier encoding.
+const ENCODE_URI_COMPONENT: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'!')
+    .remove(b'~')
+    .remove(b'*')
+    .remove(b'\'')
+    .remove(b'(')
+    .remove(b')');
+
+/// Strip credentials, query parameters, and fragments from a registry URL
+/// before publishing it in an SBOM, keeping origin and path so registries
+/// that differ only by path remain distinct.
+pub(super) fn sanitize_registry_url(raw: &str) -> String {
+    let Ok(mut parsed) = url::Url::parse(raw) else {
+        return raw.to_string();
+    };
+    let _ = parsed.set_username("");
+    let _ = parsed.set_password(None);
+    parsed.set_query(None);
+    parsed.set_fragment(None);
+    parsed.to_string()
+}
+
+pub(super) fn named_registry_url<'a>(
+    key: &PkgNameVerPeer,
+    registries: &'a RegistryContext,
+) -> miette::Result<Option<&'a str>> {
+    let Some((registry_name, _)) = key.suffix.registry_qualified() else {
+        return Ok(None);
+    };
+    let Some(registry_url) = registries.registry_of_prefix(registry_name) else {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_MISSING_NAMED_REGISTRY",
+            help = format!(
+                r#"Add a registries entry with "prefix: {registry_name}" to pnpm-workspace.yaml."#,
+            ),
+            r#"Cannot describe package "{key}": its registry prefix '{registry_name}:' is not declared by the registries setting."#,
+        ));
+    };
+    Ok(Some(registry_url))
+}
+
+fn registry_tarball_url(
+    reg: &pnpm_lockfile::RegistryResolution,
+    name: &str,
+    version: &str,
+    registry: &str,
+    registries: &RegistryContext,
+) -> Option<String> {
+    let sanitized = sanitize_registry_url(registry);
+    if let Some(revision) = reg.revision {
+        return revision_registry_tarball_url(name, version, revision, &sanitized);
+    }
+    let server_type = registry_server_type(&registries.registry_options_by_url, registry)
+        .or_else(|| registry_server_type(&registries.registry_options_by_url, &sanitized));
+    Some(npm_tarball_url(name, version, TarballUrlOptions { registry: &sanitized, server_type }))
 }
 
 pub(super) fn tarball_url_for_component(
@@ -100,14 +158,17 @@ pub(super) fn tarball_url_for_component(
     name: &str,
     version: &str,
     registry: &str,
+    registries: &RegistryContext,
 ) -> Option<String> {
     match resolution {
-        LockfileResolution::Registry(_) => Some(registry_tarball_url(registry, name, version)),
-        LockfileResolution::Tarball(r) => Some(r.tarball.clone()),
-        LockfileResolution::Git(r) => {
-            let needs_prefix = r.repo.contains("://") && !r.repo.starts_with("git+");
+        LockfileResolution::Registry(reg) => {
+            registry_tarball_url(reg, name, version, registry, registries)
+        }
+        LockfileResolution::Tarball(tarball) => Some(tarball.tarball.clone()),
+        LockfileResolution::Git(git) => {
+            let needs_prefix = git.repo.contains("://") && !git.repo.starts_with("git+");
             let prefix = if needs_prefix { "git+" } else { "" };
-            Some(format!("{prefix}{}#{}", r.repo, r.commit))
+            Some(format!("{prefix}{}#{}", git.repo, git.commit))
         }
         _ => None,
     }
@@ -118,7 +179,21 @@ pub(super) fn encode_purl_name(name: &str) -> String {
 }
 
 pub(super) fn build_purl(name: &str, version: &str) -> String {
-    format!("pkg:npm/{}@{}", encode_purl_name(name), version)
+    build_purl_with_registry(name, version, None)
+}
+
+pub(super) fn build_purl_with_registry(
+    name: &str,
+    version: &str,
+    registry_url: Option<&str>,
+) -> String {
+    let base = format!("pkg:npm/{}@{}", encode_purl_name(name), version);
+    let Some(registry_url) = registry_url else {
+        return base;
+    };
+    let repository_url = sanitize_registry_url(registry_url);
+    let encoded = utf8_percent_encode(&repository_url, ENCODE_URI_COMPONENT);
+    format!("{base}?repository_url={encoded}")
 }
 
 /// The resolution's integrity, but only where pnpm checks the downloaded
