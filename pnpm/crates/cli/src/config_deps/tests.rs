@@ -27,6 +27,7 @@ fn legacy_registries_warning_names_routes_left_unchanged() {
     )
     .expect("legacy routes warning");
 
+    eprintln!("{warning}");
     assert!(warning.contains("@other"));
     assert!(!warning.contains("@zz"));
     assert!(warning.contains("registriesByScope"));
