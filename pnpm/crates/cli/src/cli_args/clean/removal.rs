@@ -28,7 +28,8 @@ pub(super) const PNPM_HIDDEN_ENTRIES: &[&str] =
 /// unselected workspace members and stay in place, while
 /// `.pnpm-workspace-state-v1.json` is removed so subsequent installs do not
 /// short-circuit over the cleaned project.
-const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES: &[&str] = &[".bin", ".pnpm-workspace-state-v1.json"];
+pub(super) const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES: &[&str] =
+    &[".bin", ".pnpm-workspace-state-v1.json"];
 
 pub(super) struct CleanRun<'a> {
     pub(super) config: &'a Config,
@@ -349,10 +350,7 @@ fn removable_modules_entries(
                 .wrap_err_with(|| format!("reading {}", modules_dir.display()));
         }
     };
-    let hidden_entries = match mode {
-        ModulesCleanMode::PreserveSharedVirtualStore => PNPM_NARROWED_SHARED_HIDDEN_ENTRIES,
-        ModulesCleanMode::AllEntries => PNPM_HIDDEN_ENTRIES,
-    };
+    let hidden_entries = mode.hidden_entries();
     let mut removable = Vec::new();
     for entry in entries {
         let entry = entry

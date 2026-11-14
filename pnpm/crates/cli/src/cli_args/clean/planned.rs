@@ -1,14 +1,43 @@
 use super::{
     fs_ops::{inspect_existing_path, print_removing, remove_path, resolve_inside},
-    removal::{PNPM_HIDDEN_ENTRIES, clean_modules_dir, invalidate_workspace_state, is_pnpm_entry},
+    removal::{
+        PNPM_HIDDEN_ENTRIES, PNPM_NARROWED_SHARED_HIDDEN_ENTRIES, clean_modules_dir,
+        invalidate_workspace_state, is_pnpm_entry,
+    },
 };
-use pnpm_fs::is_subdir;
-use std::path::{Path, PathBuf};
+use pnpm_fs::{is_subdir, is_symlink_metadata};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(super) enum ModulesCleanMode {
     AllEntries,
     PreserveSharedVirtualStore,
+}
+
+impl ModulesCleanMode {
+    pub(super) fn hidden_entries(self) -> &'static [&'static str] {
+        match self {
+            Self::AllEntries => PNPM_HIDDEN_ENTRIES,
+            Self::PreserveSharedVirtualStore => PNPM_NARROWED_SHARED_HIDDEN_ENTRIES,
+        }
+    }
+
+    fn removes_entry(self, modules_dir: &Path, entry_name: &str) -> bool {
+        if inspect_existing_path(modules_dir)
+            .ok()
+            .flatten()
+            .is_some_and(|metadata| is_symlink_metadata(&metadata))
+        {
+            return match self {
+                Self::AllEntries => true,
+                Self::PreserveSharedVirtualStore => false,
+            };
+        }
+        is_pnpm_entry(entry_name, self.hidden_entries())
+    }
 }
 
 pub(super) struct PlannedClean {
@@ -39,14 +68,7 @@ impl PlannedClean {
         real_root_dir: &Path,
         install_state_dir: &Path,
     ) -> bool {
-        if let (Some(parent), Some(name)) =
-            (install_state_dir.parent(), install_state_dir.file_name())
-            && is_pnpm_entry(&name.to_string_lossy(), PNPM_HIDDEN_ENTRIES)
-            && let Some(resolved_parent) = resolve_inside(real_root_dir, parent)
-            && self.modules_targets
-                .iter()
-                .any(|(dir, mode)| *mode == ModulesCleanMode::AllEntries && *dir == resolved_parent)
-        {
+        if self.removes_via_ancestor(real_root_dir, install_state_dir) {
             return true;
         }
         let Some(real_state_dir) = resolve_inside(real_root_dir, install_state_dir) else {
@@ -60,20 +82,35 @@ impl PlannedClean {
         }
         self.modules_targets
             .iter()
-            .any(|(dir, mode)| {
-                *mode == ModulesCleanMode::AllEntries
-                    && removes_subpath_in_all_entries_modules(dir, &real_state_dir)
-            })
+            .any(|(dir, mode)| removes_subpath_in_modules(dir, *mode, &real_state_dir))
+    }
+
+    fn removes_via_ancestor(&self, real_root_dir: &Path, install_state_dir: &Path) -> bool {
+        let mut current = install_state_dir;
+        while let (Some(parent), Some(name)) = (current.parent(), current.file_name()) {
+            let entry_name = name.to_string_lossy();
+            if let Some(resolved_parent) = resolve_inside(real_root_dir, parent)
+                && self.modules_targets
+                    .iter()
+                    .any(|(dir, mode)| {
+                        *dir == resolved_parent && mode.removes_entry(dir, &entry_name)
+                    })
+            {
+                return true;
+            }
+            current = parent;
+        }
+        false
     }
 }
 
-fn removes_subpath_in_all_entries_modules(modules_dir: &Path, target: &Path) -> bool {
+fn removes_subpath_in_modules(modules_dir: &Path, mode: ModulesCleanMode, target: &Path) -> bool {
     let Ok(rel) = target.strip_prefix(modules_dir) else {
         return false;
     };
-    rel.components()
+    let entry_name = rel
+        .components()
         .next()
-        .is_none_or(|first| {
-            is_pnpm_entry(&first.as_os_str().to_string_lossy(), PNPM_HIDDEN_ENTRIES)
-        })
+        .map_or(Cow::Borrowed("lock.yaml"), |first| first.as_os_str().to_string_lossy());
+    mode.removes_entry(modules_dir, &entry_name)
 }

@@ -198,3 +198,71 @@ fn ci_rootless_workspace_with_protected_modules_dir_preserves_current_lockfile()
 
     drop(root);
 }
+
+#[test]
+fn ci_shared_workspace_root_filter_accounts_for_nonhidden_virtual_store_in_modules() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let store_dir = root.path().join("store");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - .\n  - packages/*\nenableGlobalVirtualStore: false\nvirtualStoreDir: node_modules/custom-store\nstoreDir: {}\n",
+            serde_json::to_string(&store_dir).expect("quote storeDir"),
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+    write_pre_resolution_logger(&workspace);
+    write_pkg_with_local_dep(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"root-pkg","version":"1.0.0","dependencies":{"dep-a":"file:deps/dep-a"}}"#,
+    )
+    .expect("write root manifest");
+
+    let initial = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_arg("install")
+        .output()
+        .expect("run initial install");
+    assert!(initial.status.success(), "{initial:?}");
+    let custom_lock = workspace.join("node_modules/custom-store/lock.yaml");
+    assert!(custom_lock.is_file(), "custom-store lock.yaml written");
+
+    let _ = fs::remove_file(workspace.join("pre-res.jsonl"));
+    let member_ci = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_args(["--filter", "pkg-a", "ci"])
+        .output()
+        .expect("run member-filtered pnpm ci");
+    assert!(member_ci.status.success(), "{member_ci:?}");
+    assert_eq!(
+        read_pre_res_entries(&workspace),
+        vec![serde_json::json!({ "exists": true, "hasPackages": true })],
+    );
+
+    fs::write(workspace.join("node_modules/custom-store/stale-marker"), "remove-me")
+        .expect("write stale marker");
+    let _ = fs::remove_file(workspace.join("pre-res.jsonl"));
+    let root_ci = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_args(["-w", "ci"])
+        .output()
+        .expect("run root-filtered pnpm ci");
+    assert!(root_ci.status.success(), "{root_ci:?}");
+    assert!(
+        !workspace.join("node_modules/custom-store/stale-marker").exists(),
+        "non-hidden custom-store inside root node_modules was cleaned",
+    );
+    assert_eq!(
+        read_pre_res_entries(&workspace),
+        vec![serde_json::json!({ "exists": false, "hasPackages": false })],
+    );
+
+    drop(root);
+}
