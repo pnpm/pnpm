@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { describe, expect, jest, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { pack, publish } from '@pnpm/releasing.commands'
@@ -1202,6 +1202,32 @@ testOnPosix('publish preserves symlink parents before .. in relative tarball and
     gitChecks: false,
   }, ['link/../pkg'])
   await checkPkgExists(folderPkg.name, folderPkg.version)
+})
+
+test('publish rethrows unexpected filesystem errors when inspecting a folder target', async () => {
+  prepare({ private: true })
+  const baseDir = process.cwd()
+  const targetDir = path.join(baseDir, 'inaccessible-pkg')
+  const permissionError = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+  const realStatSync = fs.statSync.bind(fs)
+  const statSpy = jest.spyOn(fs, 'statSync').mockImplementation((filePath, options) => {
+    if (String(filePath) === targetDir) {
+      throw permissionError
+    }
+    return realStatSync(filePath, options as Parameters<typeof fs.statSync>[1])
+  })
+
+  try {
+    await expect(publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', 'inaccessible-pkg', '--no-git-checks'] },
+      configByUri: CONFIG_BY_URI,
+      dir: baseDir,
+      gitChecks: false,
+    }, ['inaccessible-pkg'])).rejects.toThrow(permissionError)
+  } finally {
+    statSpy.mockRestore()
+  }
 })
 
 

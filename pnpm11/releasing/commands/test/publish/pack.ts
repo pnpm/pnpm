@@ -11,6 +11,8 @@ import * as tar from 'tar'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import type { PackResultJson } from '../../src/publish/pack.js'
+import { resolvePackOutput, resolveRelativeTarget } from '../../src/publish/packOutput.js'
+import { createPackDestinationLocker } from '../../src/publish/packRecursive.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 test('pack: package with package.json', async () => {
@@ -1999,6 +2001,162 @@ testOnPosix('pack: relative and absolute --pack-destination with symlink and .. 
   expect(fs.existsSync(path.join(realParent, 'abs-tarballs', 'pkg-a-1.2.3.tgz'))).toBe(true)
   expect(fs.existsSync(absResult.tarballPath)).toBe(true)
   expect(fs.existsSync(path.join(pkgDir, 'abs-tarballs'))).toBe(false)
+})
+
+testOnPosix('pack: POSIX --pack-destination preserves literal backslashes as directory names', async () => {
+  const pkgDir = tempDir()
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.2.3' }))
+
+  const trailingBackslashResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    packDestination: 'dist\\',
+  })
+  const expectedTrailingPath = `${pkgDir}/dist\\/pkg-a-1.2.3.tgz`
+  expect(fs.existsSync(expectedTrailingPath)).toBe(true)
+  expect(fs.existsSync(`${pkgDir}/dist\\pkg-a-1.2.3.tgz`)).toBe(false)
+  expect(trailingBackslashResult.tarballPath).toBe(expectedTrailingPath)
+
+  const leadingDotBackslashResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    packDestination: '.\\sub',
+  })
+  const expectedLeadingPath = `${pkgDir}/.\\sub/pkg-a-1.2.3.tgz`
+  expect(fs.existsSync(expectedLeadingPath)).toBe(true)
+  expect(leadingDotBackslashResult.tarballPath).toBe(expectedLeadingPath)
+})
+
+testOnPosix('pack: packDestinationLocker serializes concurrent packs sharing a symlinked destination', async () => {
+  const outer = tempDir()
+  const realParent = path.join(outer, 'real-parent')
+  const realSub = path.join(realParent, 'sub')
+  const realTarballs = path.join(realParent, 'tarballs')
+  const pkgA = path.join(outer, 'pkg-a')
+  const pkgB = path.join(outer, 'pkg-b')
+  fs.mkdirSync(realSub, { recursive: true })
+  fs.mkdirSync(pkgA, { recursive: true })
+  fs.mkdirSync(pkgB, { recursive: true })
+  fs.symlinkSync(realSub, path.join(pkgB, 'link'))
+  fs.writeFileSync(path.join(pkgA, 'package.json'), JSON.stringify({ name: 'shared-pkg', version: '1.0.0' }))
+  fs.writeFileSync(path.join(pkgA, 'index.js'), 'module.exports = "a"\n')
+  fs.writeFileSync(path.join(pkgB, 'package.json'), JSON.stringify({ name: 'shared-pkg', version: '1.0.0' }))
+  fs.writeFileSync(path.join(pkgB, 'index.js'), 'module.exports = "b"\n')
+
+  const baseLocker = createPackDestinationLocker()
+  const seenKeys: string[] = []
+  let activeWrites = 0
+  let maxActiveWrites = 0
+  const packDestinationLocker = async (destination: string, write: () => Promise<void>): Promise<void> => {
+    seenKeys.push(destination)
+    await baseLocker(destination, async () => {
+      activeWrites += 1
+      maxActiveWrites = Math.max(maxActiveWrites, activeWrites)
+      await new Promise((resolve) => setTimeout(resolve, 25))
+      try {
+        await write()
+      } finally {
+        activeWrites -= 1
+      }
+    })
+  }
+
+  await Promise.all([
+    pack.api({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: pkgA,
+      extraBinPaths: [],
+      packDestination: realTarballs,
+      packDestinationLocker,
+    }),
+    pack.api({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: pkgB,
+      extraBinPaths: [],
+      packDestination: 'link/../tarballs',
+      packDestinationLocker,
+    }),
+  ])
+
+  expect(seenKeys).toHaveLength(2)
+  expect(seenKeys[0]).toBe(seenKeys[1])
+  expect(maxActiveWrites).toBe(1)
+
+  const tarballFile = path.join(realTarballs, 'shared-pkg-1.0.0.tgz')
+  const entries: string[] = []
+  await tar.t({
+    file: tarballFile,
+    onReadEntry: (entry) => {
+      entries.push(entry.path)
+    },
+  })
+  expect(entries).toEqual(expect.arrayContaining(['package/package.json', 'package/index.js']))
+})
+
+describe('resolveRelativeTarget and resolvePackOutput cross-platform behavior', () => {
+  test.each([
+    ['/ws', undefined, '/ws'],
+    ['/ws', '', '/ws'],
+    ['/ws', '.', '/ws'],
+    ['/ws', './.', '/ws'],
+    ['/ws', './rel/pkg', '/ws/rel/pkg'],
+    ['/ws/', 'rel/pkg', '/ws/rel/pkg'],
+    ['/ws', 'link/../pkg', '/ws/link/../pkg'],
+    ['/ws', '/abs/pkg', '/abs/pkg'],
+    ['/ws', '.\\literal', '/ws/.\\literal'],
+    ['/ws/dist\\', 'pkg-1.0.0.tgz', '/ws/dist\\/pkg-1.0.0.tgz'],
+  ])('POSIX resolveRelativeTarget(%j, %j) -> %j', (baseDir, targetPath, expected) => {
+    expect(resolveRelativeTarget(baseDir, targetPath, path.posix)).toBe(expected)
+  })
+
+  test.each([
+    ['C:\\ws', undefined, 'C:\\ws'],
+    ['C:\\ws', '.\\rel\\pkg', 'C:\\ws\\rel\\pkg'],
+    ['C:\\ws\\', 'rel\\pkg', 'C:\\ws\\rel\\pkg'],
+    ['C:\\ws', '..\\escape', 'C:\\ws\\..\\escape'],
+    ['C:\\ws', 'link\\..\\pkg', 'C:\\ws\\link\\..\\pkg'],
+    ['C:\\ws\\selected', 'C:', 'C:\\ws\\selected'],
+    ['C:\\ws\\selected', 'C:foo.tgz', 'C:\\ws\\selected\\foo.tgz'],
+    ['C:\\ws\\selected', 'c:link\\..\\pkg', 'C:\\ws\\selected\\link\\..\\pkg'],
+    ['D:\\ws\\selected', '\\out\\foo.tgz', 'D:\\out\\foo.tgz'],
+    ['C:\\ws\\selected', 'C:\\abs\\foo.tgz', 'C:\\abs\\foo.tgz'],
+  ])('Win32 resolveRelativeTarget(%j, %j) -> %j', (baseDir, targetPath, expected) => {
+    expect(resolveRelativeTarget(baseDir, targetPath, path.win32)).toBe(expected)
+  })
+
+  test('Win32 resolvePackOutput anchors drive-relative --out under outputBaseDir', () => {
+    expect(resolvePackOutput({
+      dir: 'C:\\ws\\packages\\pkg-a',
+      outputBaseDir: 'C:\\ws\\selected',
+      out: 'C:foo.tgz',
+      pathImpl: path.win32,
+      publishedName: 'pkg-a',
+      publishedVersion: '1.0.0',
+    })).toStrictEqual({
+      destDir: 'C:\\ws\\selected',
+      outputPath: 'C:\\ws\\selected\\foo.tgz',
+      tarballName: 'foo.tgz',
+    })
+
+    expect(resolvePackOutput({
+      dir: 'C:\\ws\\packages\\pkg-a',
+      outputBaseDir: 'C:\\ws\\selected',
+      out: 'C:sub\\..\\foo.tgz',
+      pathImpl: path.win32,
+      publishedName: 'pkg-a',
+      publishedVersion: '1.0.0',
+    })).toStrictEqual({
+      destDir: 'C:\\ws\\selected\\sub\\..',
+      outputPath: 'C:\\ws\\selected\\sub\\..\\foo.tgz',
+      tarballName: 'foo.tgz',
+    })
+  })
 })
 
 

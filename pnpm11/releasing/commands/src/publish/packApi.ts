@@ -14,8 +14,8 @@ import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import validateNpmPackageName from 'validate-npm-package-name'
 
-import { normalizePackageName } from '../tarball/safeTarballFilename.js'
 import type { PackOptions, PackResultJson } from './pack.js'
+import { assertValidTarballVersion, resolvePackOutput, resolveRelativeTarget, stripBuildMetadata } from './packOutput.js'
 import { checkPackedBinsForCrlf, isManifestEntry, packPkg } from './packTarball.js'
 import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
 import { bindRunScriptsIfPresent } from './publish.js'
@@ -75,12 +75,6 @@ function assertPackableManifest (manifest: ProjectManifest, manifestFileName: st
   assertValidTarballVersion(manifest.version)
 }
 
-function assertValidTarballVersion (version: string, reportedVersion: string = version): void {
-  if (!version || version === '.' || version === '..' || version.includes('/') || version.includes('\\')) {
-    throw new PnpmError('INVALID_PACKAGE_VERSION', `Invalid package version "${reportedVersion}".`)
-  }
-}
-
 interface PackProjectOptions {
   opts: PackOptions
   /** The directory that is packed: the project directory or its `publishConfig.directory`. */
@@ -119,7 +113,7 @@ async function packProject ({ opts, dir, manifest, selectedManifestFileName, run
       })
       await runPostpack()
     }
-    await lockPackDestination(opts, destDir, tarballName, packAndRunPostpack)
+    await lockPackDestination({ opts, destDir, tarballName, write: packAndRunPostpack })
   }
   return {
     publishedManifest: await withRegistryReadme(publishManifest, dir),
@@ -131,12 +125,17 @@ async function packProject ({ opts, dir, manifest, selectedManifestFileName, run
   }
 }
 
-async function lockPackDestination (
-  opts: PackOptions,
-  destDir: string,
-  tarballName: string,
+async function lockPackDestination ({
+  opts,
+  destDir,
+  tarballName,
+  write,
+}: {
+  opts: PackOptions
+  destDir: string
+  tarballName: string
   write: () => Promise<void>
-): Promise<void> {
+}): Promise<void> {
   if (opts.packDestinationLocker == null) {
     await write()
   } else {
@@ -298,77 +297,6 @@ async function summarizePackedEntries (
   return { unpackedSize, packedContents }
 }
 
-export function resolvePackOutput (
-  params: {
-    dir: string
-    outputBaseDir?: string
-    out?: string
-    packDestination?: string
-    publishedName: string
-    publishedVersion: string
-  }
-): { destDir: string, outputPath: string, tarballName: string } {
-  const baseDir = params.outputBaseDir ?? params.dir
-  const normalizedName = normalizePackageName(params.publishedName)
-  const publishedVersion = stripBuildMetadata(params.publishedVersion)
-  const { tarballName, destination } = resolveTarballAndDestination({
-    out: params.out,
-    packDestination: params.packDestination,
-    normalizedName,
-    publishedVersion,
-  })
-  const destDir = resolveRelativeTarget(baseDir, destination)
-  return {
-    destDir,
-    outputPath: resolveRelativeTarget(destDir, tarballName),
-    tarballName,
-  }
-}
-
-function resolveTarballAndDestination (
-  params: {
-    out?: string
-    packDestination?: string
-    normalizedName: string
-    publishedVersion: string
-  }
-): { tarballName: string, destination?: string } {
-  const { out, packDestination, normalizedName, publishedVersion } = params
-  if (out == null) {
-    return {
-      destination: packDestination,
-      tarballName: `${normalizedName}-${publishedVersion}.tgz`,
-    }
-  }
-  if (packDestination) {
-    throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
-  }
-  const preparedOut = out.replaceAll('%s', normalizedName).replaceAll('%v', publishedVersion)
-  const parsedOut = path.parse(preparedOut)
-  if (!parsedOut.base || parsedOut.base === '.' || parsedOut.base === '..') {
-    throw new PnpmError('INVALID_OPTION', `Invalid --out value "${out}": it does not resolve to a file name`)
-  }
-  return {
-    destination: parsedOut.dir || undefined,
-    tarballName: parsedOut.base,
-  }
-}
-
-/**
- * Joins a relative `targetPath` onto `baseDir` without lexically collapsing
- * `..` segments, so `symlink/..` resolves through the symlink target on
- * filesystem access.
- */
-export function resolveRelativeTarget (baseDir: string, targetPath: string | undefined): string {
-  if (!targetPath) return baseDir
-  if (path.isAbsolute(targetPath) || path.parse(targetPath).root !== '') return targetPath
-  const trimmedTarget = targetPath.replace(/^(?:\.[\\/]+)+/, '')
-  if (!trimmedTarget || trimmedTarget === '.') return baseDir
-  if (!baseDir || baseDir === '.') return trimmedTarget
-  const hasTrailingSep = baseDir.endsWith('/') || baseDir.endsWith('\\')
-  return hasTrailingSep ? `${baseDir}${trimmedTarget}` : `${baseDir}${path.sep}${trimmedTarget}`
-}
-
 /**
  * The readme is always sent to the registry as package metadata, matching the npm CLI, so that
  * registries can render it on the package page. The `embed-readme` setting only controls whether
@@ -404,11 +332,6 @@ async function composeRegistryChangelog (opts: PackOptions, pkgName: string, pub
     ? await fetchPreviousChangelog(opts as PreviousChangelogOptions, publishedName, version)
     : undefined
   return renderChangelog(previous ?? null, publishedName, section)
-}
-
-function stripBuildMetadata (version: string): string {
-  const plusIndex = version.indexOf('+')
-  return plusIndex === -1 ? version : version.slice(0, plusIndex)
 }
 
 function preventBundledDependenciesWithPnpNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {

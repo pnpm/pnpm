@@ -18,7 +18,7 @@ import { renderHelp } from 'render-help'
 import { extractPublishManifestFromPacked, isTarballPath, type TarballPath } from './extractManifestFromPacked.js'
 import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
-import { resolveRelativeTarget } from './packApi.js'
+import { resolveRelativeTarget } from './packOutput.js'
 import { publishPackedPkg, type PublishSummary } from './publishPackedPkg.js'
 import { type PublishRecursiveOpts, recursivePublish, type RecursivePublishedPackage } from './recursivePublish.js'
 
@@ -209,7 +209,9 @@ export async function publish (
   return publishDir(target, opts)
 }
 
-const PARENT_SEGMENT_RE = /(?:^|[\\/])\.\.(?:[\\/]|$)/
+const PARENT_SEGMENT_RE = process.platform === 'win32'
+  ? /(?:^|[/\\])\.\.(?:[/\\]|$)/
+  : /(?:^|\/)\.\.(?:\/|$)/
 
 async function resolveSinglePublishTarget (
   baseDir: string,
@@ -226,8 +228,9 @@ async function resolveSinglePublishTarget (
 function isExistingDirectory (dirPath: string): boolean {
   try {
     return fs.statSync(dirPath).isDirectory()
-  } catch {
-    return false
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    throw err
   }
 }
 

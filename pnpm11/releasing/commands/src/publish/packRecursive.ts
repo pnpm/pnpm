@@ -10,7 +10,8 @@ import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-schedul
 
 import { publishedName } from '../publishedNames.js'
 import type { PackOptions, PackResultJson } from './pack.js'
-import { api, resolvePackOutput, resolveRelativeTarget, toPackResultJson } from './packApi.js'
+import { api, toPackResultJson } from './packApi.js'
+import { resolvePackOutput, resolveRelativeTarget } from './packOutput.js'
 
 export type PackDestinationLocker = (destination: string, write: () => Promise<void>) => Promise<void>
 
@@ -146,7 +147,7 @@ function isLiteralPackOutput (out: string | undefined): boolean {
   return out != null && !out.includes('%s') && !out.includes('%v')
 }
 
-function createPackDestinationLocker (): PackDestinationLocker {
+export function createPackDestinationLocker (): PackDestinationLocker {
   const pending = new Map<string, Promise<void>>()
   return async (destination, write) => {
     const previous = pending.get(destination)
