@@ -130,7 +130,6 @@ fn recursive_peers_checks_workspace_links_and_clean_projects_under_dedicated_loc
     let json = run_peers_json(&workspace, &["-r", "peers", "--json"], 1);
     assert!(json["packages/app"]["missing"]["missing-peer"].is_array());
 
-    // Filtering to `lib` alone has no dependencies with unmet peers.
     let clean_output = pnpm(&workspace)
         .with_args(["--filter", "lib", "peers"])
         .output()
@@ -138,6 +137,72 @@ fn recursive_peers_checks_workspace_links_and_clean_projects_under_dedicated_loc
     assert!(clean_output.status.success(), "{clean_output:?}");
     let stdout = String::from_utf8(clean_output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains("No peer dependency issues found"), "stdout:\n{stdout}");
+
+    drop(root);
+}
+
+#[test]
+fn dedicated_lockfiles_satisfy_linked_sibling_peers_from_the_siblings_own_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let peer_provider = workspace.join("vendor/peer-provider");
+    fs::create_dir_all(&peer_provider).expect("create peer-provider");
+    fs::write(
+        peer_provider.join("package.json"),
+        serde_json::json!({ "name": "peer-provider", "version": "1.2.0" }).to_string(),
+    )
+    .expect("write peer-provider manifest");
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n  - packages/nested/*\nsharedWorkspaceLockfile: false\nautoInstallPeers: false\nstrictPeerDependencies: false\n",
+    )
+    .expect("write workspace manifest");
+
+    let lib_dir = workspace.join("packages/nested/lib");
+    fs::create_dir_all(&lib_dir).expect("create lib dir");
+    fs::write(
+        lib_dir.join("package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "peer-provider": "^1.0.0" },
+            "dependencies": { "peer-provider": "file:../../../vendor/peer-provider" },
+        })
+        .to_string(),
+    )
+    .expect("write lib manifest");
+
+    let app_dir = workspace.join("packages/app");
+    fs::create_dir_all(&app_dir).expect("create app dir");
+    fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write app manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    for (dir, args) in [
+        (&workspace, &["-r", "peers"][..]),
+        (&workspace, &["--filter", "app", "peers"][..]),
+        (&app_dir, &["peers"][..]),
+    ] {
+        let output = pnpm(dir)
+            .with_args(args)
+            .output()
+            .expect("run pnpm peers");
+        assert!(output.status.success(), "{args:?}: {output:?}");
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(stdout.contains("No peer dependency issues found"), "{args:?} stdout:\n{stdout}");
+    }
 
     drop(root);
 }

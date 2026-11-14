@@ -1,4 +1,6 @@
-use super::{ApproveBuildsArgs, ApproveBuildsError, partition_params, sort_unique};
+use super::{
+    ApproveBuildsArgs, ApproveBuildsError, PromptAvailability, partition_params, sort_unique,
+};
 use pnpm_reporter::SilentReporter;
 
 fn pending(names: &[&str]) -> Vec<String> {
@@ -81,25 +83,34 @@ fn rejects_positional_arguments_with_all() {
 #[test]
 fn rejects_interactive_approval_when_prompting_is_unavailable() {
     let err = args(&[])
-        .decide_with_prompt::<SilentReporter>(&pending(&["esbuild"]), false)
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
         .err()
         .expect("interactive approval without a prompt is rejected");
     assert!(matches!(approve_builds_error(err), ApproveBuildsError::NonInteractive));
 
     assert!(
         args(&[])
-            .decide_with_prompt::<SilentReporter>(&[], false)
+            .decide_with_prompt::<SilentReporter>(&[], PromptAvailability::Unavailable)
             .expect("no pending builds needs no prompt")
             .is_none(),
     );
     let all = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
-        .decide_with_prompt::<SilentReporter>(&pending(&["esbuild"]), false)
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
         .expect("--all needs no prompt")
         .expect("decision for --all");
     assert_eq!(all.build_packages, vec!["esbuild".to_string()]);
 
     let named = args(&["esbuild"])
-        .decide_with_prompt::<SilentReporter>(&pending(&["esbuild"]), false)
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
         .expect("named package needs no prompt")
         .expect("decision for named package");
     assert_eq!(named.build_packages, vec!["esbuild".to_string()]);

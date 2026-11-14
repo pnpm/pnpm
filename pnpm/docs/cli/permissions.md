@@ -22,7 +22,7 @@ drizzle-kit  build, skills
 esbuild      build
 ```
 
-Without arguments or `--all`, the packages are chosen in an interactive prompt. When packages are awaiting approval in CI or without an interactive terminal, `pnpm approve` fails with `ERR_PNPM_APPROVE_NON_INTERACTIVE`. The packages you do not select are denied. For a package you approve that ships several skills, a follow-up prompt lists them and you choose which ones to link. A skill you leave out is neither linked nor offered again: the recorded list names the only skills pnpm may link. When your project approves skills for the first time, pnpm also asks which agent skill directories to link into, and records your choices as [`skills.dirs`](../settings/build.md#skillsdirs). Leave every directory unselected and the detected directories decide instead.
+Without package arguments or `--all`, the packages are chosen in an interactive prompt. In CI or without an interactive terminal, running `pnpm approve` without package arguments or `--all` fails with `ERR_PNPM_APPROVE_NON_INTERACTIVE` when packages are awaiting approval. The packages you do not select are denied. For a package you approve that ships several skills, a follow-up prompt lists them and you choose which ones to link. A skill you leave out is neither linked nor offered again: the recorded list names the only skills pnpm may link. When your project approves skills for the first time, pnpm also asks which agent skill directories to link into, and records your choices as [`skills.dirs`](../settings/build.md#skillsdirs). Leave every directory unselected and the detected directories decide instead.
 
 You can also pass package names, prefixing a name with `!` to deny it:
 

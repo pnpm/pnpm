@@ -124,7 +124,6 @@ test('peers checks per-project lockfiles when sharedWorkspaceLockfile is false',
   expect(Object.keys(singleParsed)).toEqual(['.'])
   expect(singleParsed['.'].missing['missing-peer']).toHaveLength(1)
 
-  // Clean workspace subset exits 0.
   const cleanResult = await peers.handler({
     dir: workspaceDir,
     lockfileOnly: true,
@@ -138,4 +137,72 @@ test('peers checks per-project lockfiles when sharedWorkspaceLockfile is false',
     output: 'No peer dependency issues found',
     exitCode: 0,
   })
+})
+
+test('peers honors packageConfigs modulesDir overrides and safely serializes __proto__ project keys', async () => {
+  const workspaceDir = tempDir()
+  const appDir = path.join(workspaceDir, 'packages/app') as ProjectRootDir
+  const protoDir = path.join(workspaceDir, '__proto__') as ProjectRootDir
+  writePerProjectLockfile(appDir, true)
+  writePerProjectLockfile(protoDir, false)
+
+  const customPnpmDir = path.join(appDir, 'custom_modules/.pnpm')
+  fs.mkdirSync(customPnpmDir, { recursive: true })
+  writeYamlFileSync(path.join(customPnpmDir, 'lock.yaml'), {
+    lockfileVersion: '9.0',
+    importers: { '.': {} },
+  })
+
+  const selectedProjectsGraph = {
+    [appDir]: {
+      dependencies: [],
+      package: {
+        rootDir: appDir,
+        rootDirRealPath: appDir,
+        manifest: { name: 'app', version: '1.0.0' },
+        writeProjectManifest: async () => {},
+      },
+    },
+    [protoDir]: {
+      dependencies: [],
+      package: {
+        rootDir: protoDir,
+        rootDirRealPath: protoDir,
+        manifest: { name: 'proto-pkg', version: '1.0.0' },
+        writeProjectManifest: async () => {},
+      },
+    },
+  } as unknown as ProjectsGraph
+
+  const currentResult = await peers.handler({
+    dir: workspaceDir,
+    json: true,
+    modulesDir: 'node_modules',
+    packageConfigs: {
+      app: { modulesDir: 'custom_modules' },
+    },
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir,
+  }, [])
+  expect(currentResult).toMatchObject({ exitCode: 0 })
+  const currentOutput = typeof currentResult === 'object' ? currentResult.output : currentResult
+  expect(currentOutput).toContain('"__proto__"')
+  const parsedCurrent = JSON.parse(currentOutput) as Record<string, unknown>
+  expect(Object.getPrototypeOf(parsedCurrent)).toBe(Object.prototype)
+
+  const wantedResult = await peers.handler({
+    dir: workspaceDir,
+    lockfileOnly: true,
+    modulesDir: 'node_modules',
+    packageConfigs: {
+      app: { modulesDir: 'custom_modules' },
+    },
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir,
+  }, [])
+  expect(wantedResult).toMatchObject({ exitCode: 1 })
 })

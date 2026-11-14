@@ -19,7 +19,6 @@ fn approve_builds_without_args_fails_when_stdin_is_not_a_terminal() {
     assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE"), "stderr:\n{stderr}");
     assert!(!workspace.join(INSTALL_MARKER).exists());
 
-    // Non-interactive `--all` succeeds without a terminal and runs the build.
     pacquet(&workspace)
         .with_env("CI", "true")
         .with_args(["approve-builds", "--all"])
@@ -27,7 +26,6 @@ fn approve_builds_without_args_fails_when_stdin_is_not_a_terminal() {
         .success();
     assert!(workspace.join(INSTALL_MARKER).exists());
 
-    // Once nothing is awaiting approval, bare `approve-builds` exits 0 in CI.
     pacquet(&workspace)
         .with_env("CI", "true")
         .with_arg("approve-builds")
@@ -58,8 +56,6 @@ fn approve_builds_and_approve_reject_ci_even_with_a_controlling_terminal() {
     }
     assert!(!workspace.join(INSTALL_MARKER).exists());
 
-    // `pnpm approve --all` succeeds in CI even on a terminal, and subsequent
-    // bare `pnpm approve` with nothing pending exits 0.
     pacquet_in_terminal(&workspace)
         .with_env("CI", "true")
         .with_args(["approve", "--all"])

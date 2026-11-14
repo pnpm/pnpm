@@ -779,7 +779,7 @@ fn linked_packages_share_targets_reached_through_a_symlinked_root() {
 
     let no_manifests = super::ProjectManifests::new();
     let roots = super::LinkRoots::same(&linked_root);
-    let mut linked_packages = super::LinkedPackages::new(&roots, &no_manifests);
+    let mut linked_packages = super::LinkedPackages::new(&roots, &no_manifests, None, None);
     for importer in ["packages/app", "packages/web"] {
         assert!(
             linked_packages
@@ -807,7 +807,7 @@ fn linked_packages_resolve_targets_through_symlinks_like_the_filesystem() {
     for lockfile_dir in [linked_root, dunce::canonicalize(&real_root).unwrap()] {
         let no_manifests = super::ProjectManifests::new();
         let roots = super::LinkRoots::same(&lockfile_dir);
-        let mut linked_packages = super::LinkedPackages::new(&roots, &no_manifests);
+        let mut linked_packages = super::LinkedPackages::new(&roots, &no_manifests, None, None);
         let mut importer_id = |importer: &str, link_target: &str| {
             linked_packages
                 .resolve(&lockfile_dir.join(importer), link_target)

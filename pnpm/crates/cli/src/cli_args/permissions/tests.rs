@@ -1,5 +1,5 @@
 use super::{
-    ApproveArgs, Capabilities,
+    ApproveArgs, Capabilities, PromptAvailability,
     decisions::{PackageDecisions, confirmation},
     render_permissions,
 };
@@ -110,7 +110,7 @@ fn rejects_interactive_approval_when_prompting_is_unavailable() {
             &pending,
             decide_config(),
             Path::new("/workspace"),
-            false,
+            PromptAvailability::Unavailable,
         )
         .expect_err("interactive approval without a prompt is rejected");
     assert_eq!(
@@ -127,7 +127,7 @@ fn rejects_interactive_approval_when_prompting_is_unavailable() {
                 &BTreeMap::new(),
                 decide_config(),
                 Path::new("/workspace"),
-                false,
+                PromptAvailability::Unavailable,
             )
             .expect("no pending permissions needs no prompt")
             .is_none(),

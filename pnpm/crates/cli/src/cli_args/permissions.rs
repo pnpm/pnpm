@@ -14,11 +14,11 @@ use crate::{
         ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
         rebuild::{RebuildSelection, run_rebuild},
     },
-    confirm_prompt::stdin_is_terminal,
+    confirm_prompt::PromptAvailability,
 };
 use clap::{Args, Subcommand};
 use miette::{Context, IntoDiagnostic, Report};
-use pnpm_config::{Config, PermissionCapability, SkillsPermission, is_ci};
+use pnpm_config::{Config, PermissionCapability, SkillsPermission};
 use pnpm_package_manager::{
     allow_build_key_from_ignored_build, resync_installed_agent_skills, skill_approval_options,
 };
@@ -159,7 +159,7 @@ impl ApproveArgs {
             pending,
             config,
             manifest_dir,
-            !config.ci && can_prompt(),
+            PromptAvailability::detect(config.ci),
         )
     }
 
@@ -168,7 +168,7 @@ impl ApproveArgs {
         pending: &BTreeMap<String, Capabilities>,
         config: &'static Config,
         manifest_dir: &Path,
-        can_prompt: bool,
+        prompt: PromptAvailability,
     ) -> miette::Result<Option<Approval>> {
         if !self.packages.is_empty() {
             return Ok(Some(Approval {
@@ -185,7 +185,7 @@ impl ApproveArgs {
         if pending.is_empty() {
             return Ok(None);
         }
-        if !can_prompt {
+        if !prompt.is_available() {
             return Err(ApproveNonInteractive.into());
         }
         let Some(selected) = prompt_for_packages(pending)? else {
@@ -304,7 +304,7 @@ fn resolve_skills_dirs(
     if config.skills_dirs.is_none()
         && skills_by_package.values().any(SkillsPermission::links_any)
         && !detected_dirs.is_empty()
-        && can_prompt()
+        && PromptAvailability::detect(config.ci).is_available()
     {
         return prompt_for_skills_dirs(detected_dirs);
     }
@@ -364,12 +364,6 @@ fn prompt_for_skills_dirs(detected_dirs: &[String]) -> miette::Result<Option<Vec
     )
 )]
 struct ApproveNonInteractive;
-
-/// Whether the current run can prompt. Under CI, or when the input is not a
-/// terminal, a prompt is skipped and answered another time.
-fn can_prompt() -> bool {
-    !is_ci() && stdin_is_terminal().unwrap_or(false)
-}
 
 #[cfg(test)]
 mod tests;

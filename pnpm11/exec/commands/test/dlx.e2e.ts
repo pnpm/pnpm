@@ -472,6 +472,30 @@ test('dlx does not error on ignored builds in non-interactive mode', async () =>
   expect(fs.existsSync(path.join(dlxCacheDir, 'package.json'))).toBe(true)
 })
 
+test('dlx skips automatic approve-builds prompt in CI even when stdin is a TTY', async () => {
+  prepareEmpty()
+  const prevIsTty = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
+  const approveBuildsSpy = jest.fn(approveBuilds.handler)
+  try {
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      ci: true,
+      enableGlobalVirtualStore: false,
+      strictDepBuilds: true,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuildsSpy })
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: prevIsTty, configurable: true })
+  }
+  expect(approveBuildsSpy).not.toHaveBeenCalled()
+  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  expect(fs.existsSync(path.join(dlxCacheDir, 'package.json'))).toBe(true)
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/11444.
 //
 // `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS=1` lets the test drive the

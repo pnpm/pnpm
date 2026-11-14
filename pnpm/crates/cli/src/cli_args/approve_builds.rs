@@ -11,11 +11,12 @@ mod wasm;
 use crate::{
     State,
     cli_args::ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
+    confirm_prompt::PromptAvailability,
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, WorkspaceSettings, is_ci};
+use pnpm_config::{Config, WorkspaceSettings};
 use pnpm_modules_yaml::{Host, write_modules_manifest};
 use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
 use pnpm_reporter::{Reporter, emit_global_warning};
@@ -148,13 +149,13 @@ impl ApproveBuildsArgs {
         pending: &[String],
         ci: bool,
     ) -> miette::Result<Option<ApprovalDecision>> {
-        self.decide_with_prompt::<Reporter>(pending, !ci && can_prompt())
+        self.decide_with_prompt::<Reporter>(pending, PromptAvailability::detect(ci))
     }
 
     pub(crate) fn decide_with_prompt<Reporter: self::Reporter>(
         self,
         pending: &[String],
-        can_prompt: bool,
+        prompt: PromptAvailability,
     ) -> miette::Result<Option<ApprovalDecision>> {
         self.validate()?;
         let partition = partition_params(&self.packages, pending);
@@ -165,8 +166,7 @@ impl ApproveBuildsArgs {
             ));
         }
         partition.reject_contradictions()?;
-        let Some(build_packages) = self.select_builds(&partition.approved, pending, can_prompt)?
-        else {
+        let Some(build_packages) = self.select_builds(&partition.approved, pending, prompt)? else {
             return Ok(None);
         };
 
@@ -199,7 +199,7 @@ impl ApproveBuildsArgs {
         &self,
         approved: &[String],
         pending: &[String],
-        can_prompt: bool,
+        prompt: PromptAvailability,
     ) -> miette::Result<Option<Vec<String>>> {
         if !self.packages.is_empty() {
             return Ok(Some(sort_unique(approved.to_owned())));
@@ -210,7 +210,7 @@ impl ApproveBuildsArgs {
         if pending.is_empty() {
             return Ok(None);
         }
-        if !can_prompt {
+        if !prompt.is_available() {
             return Err(ApproveBuildsError::NonInteractive.into());
         }
         prompt_for_builds(pending)
@@ -386,7 +386,7 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         return Ok(());
     }
     let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
-    if !auto_approve && (config.ci || !can_prompt()) {
+    if !auto_approve && !PromptAvailability::detect(config.ci).is_available() {
         return Ok(());
     }
 
@@ -409,10 +409,6 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         crate::cli_args::rebuild::run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
     }
     Ok(())
-}
-
-fn can_prompt() -> bool {
-    !is_ci() && crate::confirm_prompt::stdin_is_terminal().unwrap_or(false)
 }
 
 /// `config` with the approvals `settings_dir`'s `pnpm-workspace.yaml`

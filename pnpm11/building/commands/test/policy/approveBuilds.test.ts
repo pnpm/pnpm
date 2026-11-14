@@ -662,7 +662,6 @@ test('approve-builds without args or --all rejects CI and non-TTY stdin while al
 
   const config = await getApproveBuildsConfig()
 
-  // CI=true rejects interactive prompt even when stdin is a TTY.
   await expect(approveBuilds.handler({
     ...config,
     ci: true,
@@ -671,7 +670,6 @@ test('approve-builds without args or --all rejects CI and non-TTY stdin while al
   })
   expect(mockCheckbox).not.toHaveBeenCalled()
 
-  // Non-TTY stdin rejects interactive prompt even outside CI.
   const restoreNonTty = overrideTty(false)
   try {
     await expect(approveBuilds.handler({
@@ -682,7 +680,6 @@ test('approve-builds without args or --all rejects CI and non-TTY stdin while al
     })
     expect(mockCheckbox).not.toHaveBeenCalled()
 
-    // Non-interactive `--all` succeeds in CI without a TTY.
     await approveBuilds.handler({
       ...config,
       ci: true,
@@ -690,7 +687,6 @@ test('approve-builds without args or --all rejects CI and non-TTY stdin while al
     }, [], {})
     expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 
-    // When no packages are awaiting approval, bare `approve-builds` succeeds in CI without a TTY.
     await approveBuilds.handler({
       ...config,
       ci: true,
