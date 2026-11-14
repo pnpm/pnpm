@@ -19,17 +19,17 @@ use cyclonedx::{CycloneDxOpts, serialize_cyclonedx};
 use indexmap::IndexMap;
 use license::classify_license;
 use metadata::{
-    base64_to_hex, build_purl, build_purl_with_registry, extract_bugs_url, extract_description,
-    extract_repository, generate_uuid_v4, integrity_string, named_registry_url,
-    normalize_link_path, peer_names_from_manifest, platform_incompatible_optional,
-    read_pkg_metadata_from_store, sanitize_package_name, sanitize_path_segment,
-    tarball_url_for_component,
+    SanitizedNamedRegistry, SanitizedRegistries, base64_to_hex, build_purl,
+    build_purl_with_encoded_registry, extract_bugs_url, extract_description, extract_repository,
+    generate_uuid_v4, integrity_string, normalize_link_path, peer_names_from_manifest,
+    platform_incompatible_optional, read_pkg_metadata_from_store, sanitize_package_name,
+    sanitize_path_segment,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
     LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PeerSatisfactionEdges,
-    PkgName, PkgNameVerPeer, RegistryContext, SnapshotEntry, TarballUrlOptions, npm_tarball_url,
-    registry_server_type, revision_registry_tarball_url,
+    PkgName, PkgNameVerPeer, RegistryContext, RegistryServerType, SnapshotEntry, TarballUrlOptions,
+    npm_tarball_url, registry_server_type, revision_registry_tarball_url,
 };
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,

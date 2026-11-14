@@ -1,11 +1,11 @@
 use super::{
     DepType, HashMap, HashSet, IncludeFilter, IndexMap, InstallabilityOptions, PackageKey,
     PackageMetadata, Path, PathBuf, PeerSatisfactionEdges, PkgName, PkgNameVerPeer,
-    RegistryContext, SbomComponent, SbomRelationship, SnapshotEntry, State, build_purl,
-    build_purl_with_registry, confined_importer_dir, extract_author, extract_bugs_url,
-    extract_homepage, extract_repository, integrity_string, named_registry_url,
-    normalize_link_path, peer_names_from_manifest, platform_incompatible_optional,
-    read_pkg_metadata_from_store, safe_read_project_manifest_from_dir, tarball_url_for_component,
+    SanitizedNamedRegistry, SanitizedRegistries, SbomComponent, SbomRelationship, SnapshotEntry,
+    State, build_purl, build_purl_with_encoded_registry, confined_importer_dir, extract_author,
+    extract_bugs_url, extract_homepage, extract_repository, integrity_string, normalize_link_path,
+    peer_names_from_manifest, platform_incompatible_optional, read_pkg_metadata_from_store,
+    safe_read_project_manifest_from_dir,
 };
 use std::sync::OnceLock;
 
@@ -13,7 +13,7 @@ pub(super) struct WalkContext<'a> {
     pub(super) snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub(super) packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub(super) dep_types: &'a HashMap<PackageKey, DepType>,
-    pub(super) registries: RegistryContext,
+    pub(super) registries: SanitizedRegistries,
     pub(super) virtual_store_dirs: &'a [PathBuf],
     pub(super) virtual_store_dir_max_length: usize,
     pub(super) transitive: TransitiveEdges<'a>,
@@ -265,16 +265,20 @@ fn walk_snapshot(
         }
         let name = key.name.to_string();
         let version = snapshot_version(&key, pkg_meta);
-        let registry_url = named_registry_url(&key, &ctx.registries)?;
-        let purl = build_purl_with_registry(&name, &version, registry_url);
+        let named_registry = ctx.registries.resolve_named(&key)?;
+        let purl = build_purl_with_encoded_registry(
+            &name,
+            &version,
+            named_registry.map(|entry| entry.encoded_repository_url.as_str()),
+        );
 
         relationships.push(SbomRelationship { from: parent_purl, to: purl.clone() });
         if !visited.insert(key.clone()) {
             continue;
         }
         if !components_map.contains_key(&purl) {
-            let registry = registry_url.unwrap_or_else(|| ctx.registries.routed_registry(&name));
-            let component = snapshot_component(&key, name, version, purl.clone(), registry, ctx);
+            let component =
+                snapshot_component(&key, name, version, purl.clone(), named_registry, ctx);
             components_map.insert(purl.clone(), component);
         }
         enqueue_snapshot_children(&mut queue, &key, &purl, ctx);
@@ -331,7 +335,7 @@ fn snapshot_component(
     name: String,
     version: String,
     purl: String,
-    registry: &str,
+    named_registry: Option<&SanitizedNamedRegistry>,
     ctx: &WalkContext<'_>,
 ) -> SbomComponent {
     let pkg_meta = ctx.packages.and_then(|packages| packages.get(&key.without_peer()));
@@ -340,7 +344,12 @@ fn snapshot_component(
         purl,
         integrity: pkg_meta.and_then(|meta| integrity_string(&meta.resolution)),
         tarball_url: pkg_meta.and_then(|meta| {
-            tarball_url_for_component(&meta.resolution, &name, &version, registry, &ctx.registries)
+            ctx.registries.tarball_url_for_component(
+                &meta.resolution,
+                &name,
+                &version,
+                named_registry,
+            )
         }),
         name,
         version,
@@ -391,7 +400,7 @@ pub(super) fn component_walk_context<'a>(
         snapshots: lockfile.snapshots.as_ref(),
         packages: lockfile.packages.as_ref(),
         dep_types,
-        registries: state.config.registry_context(),
+        registries: SanitizedRegistries::new(state.config.registry_context()),
         virtual_store_dirs,
         virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
         transitive,

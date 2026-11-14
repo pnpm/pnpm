@@ -9,7 +9,14 @@ const HASH_C: &str = "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 const HASH_D: &str = "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
 const HASH_E: &str = "sha512-EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE";
 
-fn write_named_registries_fixture(include_workspace_yaml: bool) -> TempDir {
+#[derive(Clone, Copy)]
+enum WorkspaceRegistries {
+    Declared,
+    Undeclared,
+    MalformedSecretUrl,
+}
+
+fn write_named_registries_fixture(registries: WorkspaceRegistries) -> TempDir {
     let workspace = TempDir::new().expect("create workspace");
     fs::write(
         workspace.path().join("package.json"),
@@ -29,16 +36,30 @@ fn write_named_registries_fixture(include_workspace_yaml: bool) -> TempDir {
     )
     .expect("write package.json");
 
-    if include_workspace_yaml {
-        fs::write(
-            workspace.path().join("pnpm-workspace.yaml"),
-            concat!(
-                "namedRegistries:\n",
-                "  work: https://npm.work.example.com/\n",
-                "  secret: https://build-user:build-token@npm.secret.example.com/team-a/?api_key=top-secret#frag\n",
-            ),
-        )
-        .expect("write pnpm-workspace.yaml");
+    match registries {
+        WorkspaceRegistries::Declared => {
+            fs::write(
+                workspace.path().join("pnpm-workspace.yaml"),
+                concat!(
+                    "namedRegistries:\n",
+                    "  work: https://npm.work.example.com/\n",
+                    "  secret: https://build-user:build-token@npm.secret.example.com/team-a/?api_key=top-secret#frag\n",
+                ),
+            )
+            .expect("write pnpm-workspace.yaml");
+        }
+        WorkspaceRegistries::MalformedSecretUrl => {
+            fs::write(
+                workspace.path().join("pnpm-workspace.yaml"),
+                concat!(
+                    "namedRegistries:\n",
+                    "  work: https://npm.work.example.com/\n",
+                    "  secret: https://build-user:build-token@npm.secret.example.com:bad/team-a/?api_key=top-secret#frag\n",
+                ),
+            )
+            .expect("write pnpm-workspace.yaml");
+        }
+        WorkspaceRegistries::Undeclared => {}
     }
 
     fs::write(
@@ -153,7 +174,7 @@ fn distribution_url(component: &Value) -> &str {
 
 #[test]
 fn sbom_cyclonedx_resolves_named_registries_and_strips_credentials() {
-    let workspace = write_named_registries_fixture(true);
+    let workspace = write_named_registries_fixture(WorkspaceRegistries::Declared);
     let bom = run_sbom_json_from_store(workspace.path(), "cyclonedx");
     let raw = serde_json::to_string(&bom).expect("serialize bom");
     for secret in ["build-user", "build-token", "top-secret", "frag"] {
@@ -210,7 +231,7 @@ fn sbom_cyclonedx_resolves_named_registries_and_strips_credentials() {
 
 #[test]
 fn sbom_spdx_resolves_named_registries_and_keeps_same_name_version_distinct() {
-    let workspace = write_named_registries_fixture(true);
+    let workspace = write_named_registries_fixture(WorkspaceRegistries::Declared);
     let doc = run_sbom_json(workspace.path(), "spdx", &[]);
     let raw = serde_json::to_string(&doc).expect("serialize spdx");
     for secret in ["build-user", "build-token", "top-secret", "frag"] {
@@ -259,7 +280,7 @@ fn sbom_spdx_resolves_named_registries_and_keeps_same_name_version_distinct() {
 
 #[test]
 fn sbom_fails_with_missing_named_registry_when_prefix_is_undeclared() {
-    let workspace = write_named_registries_fixture(false);
+    let workspace = write_named_registries_fixture(WorkspaceRegistries::Undeclared);
     for format in ["cyclonedx", "spdx"] {
         let output =
             pacquet(workspace.path(), ["sbom", "--sbom-format", format, "--lockfile-only"])
@@ -268,5 +289,55 @@ fn sbom_fails_with_missing_named_registry_when_prefix_is_undeclared() {
         assert!(!output.status.success(), "expected {format} sbom to fail when prefix is missing");
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(stderr.contains("ERR_PNPM_MISSING_NAMED_REGISTRY"), "stderr:\n{stderr}");
+    }
+}
+
+#[test]
+fn sbom_fails_without_leaking_credentials_when_named_registry_url_is_malformed() {
+    let workspace = write_named_registries_fixture(WorkspaceRegistries::MalformedSecretUrl);
+    for format in ["cyclonedx", "spdx"] {
+        for extra_args in [&["--lockfile-only"][..], &[][..]] {
+            let mut cmd = pacquet(workspace.path(), ["sbom", "--sbom-format", format]);
+            cmd.args(extra_args);
+            let output = cmd.output().expect("run pacquet sbom");
+            assert!(
+                !output.status.success(),
+                "expected {format} sbom ({extra_args:?}) to fail when named registry URL is malformed",
+            );
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(stderr.contains("ERR_PNPM_INVALID_NAMED_REGISTRY_URL"), "stderr:\n{stderr}");
+            for secret in
+                ["build-user", "build-token", "top-secret", "frag", "npm.secret.example.com"]
+            {
+                assert!(!stdout.contains(secret), "secret {secret} leaked to stdout:\n{stdout}");
+                assert!(!stderr.contains(secret), "secret {secret} leaked to stderr:\n{stderr}");
+            }
+        }
+    }
+}
+
+#[test]
+fn sbom_omits_tarball_url_without_leaking_credentials_when_default_registry_is_malformed() {
+    let workspace = write_named_registries_fixture(WorkspaceRegistries::Declared);
+    for format in ["cyclonedx", "spdx"] {
+        let output = pacquet(workspace.path(), ["sbom", "--sbom-format", format])
+            .env(
+                "PNPM_CONFIG_REGISTRY",
+                "https://default-user:default-token@npm.default.example.com:bad/",
+            )
+            .output()
+            .expect("run pacquet sbom");
+        assert!(
+            output.status.success(),
+            "expected {format} sbom to succeed while omitting malformed default registry URL, stderr:\n{}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        for secret in ["default-user", "default-token", "npm.default.example.com"] {
+            assert!(!stdout.contains(secret), "secret {secret} leaked to stdout:\n{stdout}");
+            assert!(!stderr.contains(secret), "secret {secret} leaked to stderr:\n{stderr}");
+        }
     }
 }
