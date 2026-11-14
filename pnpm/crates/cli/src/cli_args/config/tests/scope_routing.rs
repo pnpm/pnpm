@@ -302,6 +302,67 @@ fn set_structured_setting_with_env_placeholder_preserves_placeholder_and_loads()
 }
 
 #[test]
+fn set_registry_maps_with_env_placeholder_rejected_in_project_and_allowed_globally() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    for (key, payload) in [
+        ("namedRegistries", r#"{"corp":"${PNPM_TEST_UNSET_REG_URL}"}"#),
+        ("registries", r#"{"@corp":"${PNPM_TEST_UNSET_REG_URL}"}"#),
+    ] {
+        let err = config_set(
+            &config,
+            tmp.path(),
+            flags(false, Some(ConfigLocation::Project), true),
+            key,
+            Some(payload.into()),
+        )
+        .unwrap_err();
+        assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
+        assert!(
+            !tmp.path()
+                .join("pnpm-workspace.yaml")
+                .exists(),
+        );
+
+        config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.into()))
+            .unwrap();
+    }
+    assert!(TrustedSettings::load_global(&config_dir).unwrap().is_some());
+}
+
+#[test]
+fn set_structured_string_with_multiple_trailing_newlines_round_trips() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+    let payload = json!({
+        "url": "https://cache.example.com",
+        "privateKey": "line1\nline2\n\n"
+    });
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, true),
+        "remote-cache",
+        Some(payload.to_string()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap()["remoteCache"]["privateKey"],
+        json!("line1\nline2\n\n"),
+    );
+    let loaded = TrustedSettings::load_global(&config_dir).unwrap().unwrap();
+    assert_eq!(
+        loaded.settings.remote_cache.unwrap().private_key.as_deref(),
+        Some("line1\nline2\n\n"),
+    );
+}
+
+#[test]
 fn set_side_effects_cache_rejects_project_trust_material_and_allows_global_and_bool() {
     let tmp = TempDir::new().unwrap();
     let config_dir = tmp.path().join("global-config");

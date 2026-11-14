@@ -821,9 +821,7 @@ impl WorkspaceSettings {
                 path: path.to_path_buf(),
                 source,
             })?;
-        settings.validate_registries()?;
-        settings.validate_tasks()?;
-        settings.validate_pipelines()?;
+        settings.validate_all_sections()?;
         settings.reject_repo_controlled_trust_material(path)?;
         Ok(settings)
     }

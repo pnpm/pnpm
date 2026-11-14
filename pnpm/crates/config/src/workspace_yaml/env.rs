@@ -65,7 +65,7 @@ impl WorkspaceSettings {
         }
     }
 
-    fn refuse_unexpanded_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
+    pub(super) fn refuse_unexpanded_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let refuse = |setting: String| {
             Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
                 setting,

@@ -96,12 +96,15 @@ fn parse_workspace_yaml_setting(
     value: &Value,
     target: YamlConfigTarget,
 ) -> Result<WorkspaceSettings, String> {
-    let mut settings = parse_yaml_setting::<WorkspaceSettings>(camel_key, value)?;
-    settings.validate_sections(false).map_err(|error| error.to_string())?;
+    let settings = parse_yaml_setting::<WorkspaceSettings>(camel_key, value)?;
+    settings.validate_all_sections().map_err(|error| error.to_string())?;
     match target {
-        YamlConfigTarget::Project => settings
-            .reject_repo_controlled_trust_material(Path::new(WORKSPACE_MANIFEST_FILENAME))
-            .map_err(|error| error.to_string())?,
+        YamlConfigTarget::Project => {
+            settings.refuse_unexpanded_registries().map_err(|error| error.to_string())?;
+            settings
+                .reject_repo_controlled_trust_material(Path::new(WORKSPACE_MANIFEST_FILENAME))
+                .map_err(|error| error.to_string())?;
+        }
         YamlConfigTarget::Global => {}
     }
     Ok(settings)
@@ -129,7 +132,7 @@ pub fn render_yaml_top_level_field(key: &str, value: &Value) -> String {
             let body =
                 yaml_serde::to_string(value).expect("serializing a JSON value to YAML never fails");
             let mut out = format!("{key_text}:\n");
-            for line in body.trim_end_matches('\n').lines() {
+            for line in body.lines() {
                 if line.is_empty() {
                     out.push('\n');
                 } else {
@@ -144,8 +147,16 @@ pub fn render_yaml_top_level_field(key: &str, value: &Value) -> String {
 }
 
 fn render_yaml_scalar(value: &str) -> String {
-    yaml_serde::to_string(&yaml_serde::Value::from(value))
-        .expect("serializing a string scalar to YAML never fails")
-        .trim_end()
-        .to_string()
+    if value.contains(['\n', '\r']) {
+        return serde_json::to_string(value)
+            .expect("serializing a string scalar to JSON never fails");
+    }
+    let rendered = yaml_serde::to_string(&yaml_serde::Value::from(value))
+        .expect("serializing a string scalar to YAML never fails");
+    let single_line = rendered.strip_suffix('\n').unwrap_or(&rendered);
+    if single_line.contains(['\n', '\r']) {
+        serde_json::to_string(value).expect("serializing a string scalar to JSON never fails")
+    } else {
+        single_line.to_string()
+    }
 }

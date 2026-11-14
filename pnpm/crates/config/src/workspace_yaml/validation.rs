@@ -7,26 +7,17 @@ use super::{
 };
 
 impl WorkspaceSettings {
-    /// Reject a `registries` map pnpm would read as something other than what
-    /// it says. See [`registries::validate`] for the rules.
-    ///
-    /// Checked after parsing rather than in a `Deserialize` impl on purpose:
-    /// `serde_saphyr` renders the offending source line verbatim under its
-    /// errors, so rejecting at parse time would print the very credential
-    /// being rejected into the terminal and any CI log.
-    /// Validate the sections the checks below cover. With `skip_invalid`, a
-    /// section that fails is left out instead, so one this pnpm rejects does
-    /// not take the file's other settings with it (see
-    /// [`crate::Config::settings_read`]).
-    pub(super) fn validate_sections(
-        &mut self,
-        skip_invalid: bool,
-    ) -> Result<(), LoadWorkspaceYamlError> {
-        if !skip_invalid {
-            self.validate_registries()?;
-            self.validate_tasks()?;
-            return self.validate_pipelines();
-        }
+    /// Validate every post-parse section (`registries`, `tasks`, `pipelines`).
+    pub(super) fn validate_all_sections(&self) -> Result<(), LoadWorkspaceYamlError> {
+        self.validate_registries()?;
+        self.validate_tasks()?;
+        self.validate_pipelines()
+    }
+
+    /// Clear any section [`Self::validate_all_sections`] rejects so one
+    /// unreadable section does not take the file's other settings with it
+    /// (see [`crate::Config::settings_read`]).
+    pub(super) fn drop_invalid_sections(&mut self) {
         if self.validate_registries().is_err() {
             self.registries = None;
         }
@@ -36,9 +27,15 @@ impl WorkspaceSettings {
         if self.validate_pipelines().is_err() {
             self.pipelines = None;
         }
-        Ok(())
     }
 
+    /// Reject a `registries` map pnpm would read as something other than what
+    /// it says. See [`registries::validate`] for the rules.
+    ///
+    /// Checked after parsing rather than in a `Deserialize` impl on purpose:
+    /// `serde_saphyr` renders the offending source line verbatim under its
+    /// errors, so rejecting at parse time would print the very credential
+    /// being rejected into the terminal and any CI log.
     pub(super) fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)

@@ -228,6 +228,41 @@ fn validate_structured_setting_accepts_placeholders_and_enforces_target_trust_ru
         )
         .is_err(),
     );
+
+    let env_named_registries = json!({ "corp": "${PNPM_TEST_UNSET_REG_URL}" });
+    assert!(
+        validate_structured_setting(
+            "namedRegistries",
+            &env_named_registries,
+            YamlConfigTarget::Project,
+        )
+        .is_err(),
+    );
+    validate_structured_setting("namedRegistries", &env_named_registries, YamlConfigTarget::Global)
+        .unwrap();
+
+    let env_registries = json!({ "@corp": "${PNPM_TEST_UNSET_REG_URL}" });
+    assert!(
+        validate_structured_setting("registries", &env_registries, YamlConfigTarget::Project)
+            .is_err(),
+    );
+    validate_structured_setting("registries", &env_registries, YamlConfigTarget::Global).unwrap();
+}
+
+#[test]
+fn render_yaml_top_level_field_preserves_multiple_trailing_newlines() {
+    use serde_json::{Value, json};
+
+    for value in [
+        json!("text\n\n"),
+        json!("text\n\n\n"),
+        json!({ "nested": "text\n\n\n" }),
+        json!(["first\n\n", "second\n\n\n"]),
+    ] {
+        let rendered = crate::render_yaml_top_level_field("sample", &value);
+        let parsed: serde_json::Map<String, Value> = serde_saphyr::from_str(&rendered).unwrap();
+        assert_eq!(parsed["sample"], value, "rendered YAML:\n{rendered}");
+    }
 }
 
 /// Every `WorkspaceSettings` field accepted by `is_config_file_key` must
