@@ -5,7 +5,7 @@ use super::{
     install::{NodeInstallJob, init_shared_state},
 };
 use futures_util::stream::{StreamExt as _, TryStreamExt as _};
-use pnpm_package_manager::{FrozenVirtualStoreClean, PreparedFrozenInstall};
+use pnpm_package_manager::PreparedFrozenInstall;
 use std::{collections::HashMap, sync::Mutex};
 
 pub(super) struct PreparedDedicatedProject {
@@ -152,12 +152,11 @@ async fn validate_dedicated_projects<Reporter: self::Reporter + 'static>(
                     Some(Arc::clone(http_client)),
                 )?
                 .into_dedicated_project(caches, None, Some(projects.workspace.clone()));
-                if let Some(install) = Box::pin(args.prepare_for_ci::<Reporter>(
-                    &state,
-                    None,
-                    FrozenVirtualStoreClean::RemovesVirtualStore,
-                ))
-                .await?
+                let virtual_store_clean =
+                    crate::cli_args::clean::ci_virtual_store_clean(state.config, project_dir);
+                if let Some(install) =
+                    Box::pin(args.prepare_for_ci::<Reporter>(&state, None, virtual_store_clean))
+                        .await?
                 {
                     per_project
                         .lock()

@@ -1,3 +1,6 @@
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
 import { binDirOf, getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -11,6 +14,7 @@ import { createStoreController } from '@pnpm/store.connection-manager'
 import type { IncludedDependencies, Project, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
+import { strict as isStrictSubdir } from 'is-subdir'
 
 import type { InstallCommandOptions } from './install.js'
 import {
@@ -136,11 +140,17 @@ async function validateSingleProjectCi (
     false
   )
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
+  const anchorDir = opts.lockfileDir ?? rootDir
+  const cleansVirtualStore = await cleansAnchoredModulesDir({
+    anchorDir,
+    cleanupRootDir: rootDir,
+    modulesDir: opts.modulesDir,
+  })
   const validated = await validateFrozenInstall(
     [{ mutation: 'install', pruneDirectDependencies: opts.pruneDirectDependencies, rootDir }],
     {
       ...ctx.installOpts,
-      _cleansVirtualStore: true,
+      _cleansVirtualStore: cleansVirtualStore,
       allProjects: [{
         buildIndex: 0,
         manifest: ctx.manifest,
@@ -208,9 +218,15 @@ async function validateSharedLockfileWorkspace (
 ): Promise<void> {
   const mutatedImporters = await prepareSharedLockfileImporters(ctx)
   if (mutatedImporters == null) return
+  const cleansVirtualStore = !isNarrowedWorkspaceCi(opts) &&
+    (ctx.opts.lockfileDir == null || await cleansAnchoredModulesDir({
+      anchorDir: ctx.opts.lockfileDir,
+      cleanupRootDir: ctx.opts.workspaceDir,
+      modulesDir: opts.modulesDir,
+    }))
   const validated = await validateFrozenInstall(mutatedImporters, {
     ...ctx.installOpts,
-    _cleansVirtualStore: !isNarrowedWorkspaceCi(opts),
+    _cleansVirtualStore: cleansVirtualStore,
     storeController: ctx.store.ctrl,
     resolutionVerifiers: ctx.store.resolutionVerifiers,
   })
@@ -281,14 +297,21 @@ async function validateSingleDedicatedProject (
   preparedCi.projectHooksByRootDir.set(rootDir, hooks)
   const { manifest } = ctx.manifestsByPath[rootDir]
   const localConfig = ctx.getProjectConfig(manifest) ?? {}
-  const binsDir = binDirOf(rootDir, localConfig.modulesDir ?? ctx.opts.modulesDir)
+  const modulesDir = localConfig.modulesDir ?? ctx.opts.modulesDir
+  const binsDir = binDirOf(rootDir, modulesDir)
+  const cleansVirtualStore = await cleansAnchoredModulesDir({
+    anchorDir: rootDir,
+    cleanupRootDir: ctx.opts.workspaceDir,
+    modulesDir,
+    projectDir: rootDir,
+  })
   const validated = await validateFrozenInstall(
     [{ mutation: 'install', rootDir }],
     {
       ...ctx.installOpts,
       ...localConfig,
       ...ctx.opts.allProjectsGraph[rootDir]?.package,
-      _cleansVirtualStore: true,
+      _cleansVirtualStore: cleansVirtualStore,
       dir: rootDir,
       lockfileDir: rootDir,
       hooks,
@@ -307,4 +330,27 @@ async function validateSingleDedicatedProject (
     preparedCi.preparedByLockfileDir.set(rootDir, validated.prepared)
   }
   return validated?.wantedLockfile
+}
+
+async function cleansAnchoredModulesDir (
+  { anchorDir, cleanupRootDir, modulesDir = 'node_modules', projectDir }: {
+    anchorDir: string
+    cleanupRootDir: string
+    modulesDir?: string
+    projectDir?: string
+  }
+): Promise<boolean> {
+  const candidate = path.resolve(anchorDir, modulesDir)
+  try {
+    const [realCleanupRoot, realParent, realProjectDir] = await Promise.all([
+      fs.realpath(cleanupRootDir),
+      fs.realpath(path.dirname(candidate)),
+      projectDir != null ? fs.realpath(projectDir) : Promise.resolve(undefined),
+    ])
+    const resolved = path.join(realParent, path.basename(candidate))
+    return isStrictSubdir(realCleanupRoot, resolved) &&
+      (realProjectDir == null || isStrictSubdir(realProjectDir, resolved))
+  } catch {
+    return true
+  }
 }

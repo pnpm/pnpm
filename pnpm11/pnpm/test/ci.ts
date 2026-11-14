@@ -523,3 +523,45 @@ test('pnpm ci validates missing lockfile with pnpmfile and runs preResolution on
   const lines = fs.readFileSync('hooks.log', 'utf8').trim().split('\n')
   expect(lines).toStrictEqual(['preResolution'])
 })
+
+test('pnpm ci in dedicated workspace with external modulesDir preserves currentLockfile for preResolution', () => {
+  const root = tempDir()
+  const externalModules = path.join(root, 'external-modules')
+  const workspace = path.join(root, 'workspace')
+  fs.mkdirSync(path.join(workspace, 'packages/pkg-a'), { recursive: true })
+  process.chdir(workspace)
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+    modulesDir: externalModules,
+  })
+  fs.writeFileSync('.pnpmfile.cjs', [
+    'const fs = require("fs")',
+    'const path = require("path")',
+    'module.exports = {',
+    '  hooks: {',
+    '    preResolution (ctx) {',
+    '      const hasPackages = Boolean(ctx.currentLockfile?.packages && Object.keys(ctx.currentLockfile.packages).length > 0)',
+    '      fs.appendFileSync(path.join(__dirname, "pre-res.jsonl"), JSON.stringify({ exists: ctx.existsCurrentLockfile, hasPackages }) + "\\n")',
+    '    },',
+    '  },',
+    '}',
+  ].join('\n'))
+  fs.writeFileSync('packages/pkg-a/package.json', JSON.stringify({
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(fs.existsSync(path.join(externalModules, '.pnpm/lock.yaml'))).toBe(true)
+  fs.unlinkSync('pre-res.jsonl')
+
+  const ciRes = execPnpmSync(['ci'])
+  expect(ciRes.status).toBe(0)
+  const entries = fs.readFileSync('pre-res.jsonl', 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as { exists: boolean, hasPackages: boolean })
+  expect(entries).toStrictEqual([{ exists: true, hasPackages: true }])
+})

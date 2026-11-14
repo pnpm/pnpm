@@ -405,6 +405,12 @@ fn ci_dedicated_workspace_carries_verified_lockfile_into_install() {
         .output()
         .expect("run pnpm ci");
     assert!(ci_out.status.success(), "{ci_out:?}");
+    let disk_lockfile =
+        fs::read_to_string(pkg_a.join("pnpm-lock.yaml")).expect("read mutated disk lockfile");
+    assert!(
+        disk_lockfile.contains("dep-b"),
+        "pnpm:devPreinstall rewrote on-disk lockfile: {disk_lockfile}",
+    );
     assert!(
         pkg_a.join("node_modules/dep-a/package.json").exists(),
         "dedicated ci installed verified dep-a from in-memory preflight lockfile",

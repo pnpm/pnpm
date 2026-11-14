@@ -94,22 +94,55 @@ pub(crate) fn run_for_ci(
 }
 
 /// Whether [`run_for_ci`] removes or preserves `<install_state_dir>/lock.yaml`
-/// on a shared-lockfile or single-project `pnpm ci` run.
+/// for the install anchored at `prefix`.
 pub(crate) fn ci_virtual_store_clean(config: &Config, prefix: &Path) -> FrozenVirtualStoreClean {
     let root_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
     let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
         return FrozenVirtualStoreClean::PreservesVirtualStore;
     };
-    if is_narrowed_workspace_clean(config)
+    let scope = if is_narrowed_workspace_clean(config) {
+        CleanScope::Narrowed
+    } else {
+        CleanScope::WholeWorkspace
+    };
+    if matches!(scope, CleanScope::Narrowed)
         && config.workspace_dir.is_some()
         && config.shares_one_lockfile()
     {
         return FrozenVirtualStoreClean::PreservesVirtualStore;
     }
-    if fs_ops::resolve_inside(&real_root_dir, &config.install_state_dir).is_none() {
+    let Some(real_state_dir) = fs_ops::resolve_inside(&real_root_dir, &config.install_state_dir)
+    else {
+        return FrozenVirtualStoreClean::PreservesVirtualStore;
+    };
+    if !config.shares_one_lockfile()
+        && config.workspace_dir.is_some()
+        && !dedicated_state_removed_by_clean(config, prefix, &real_root_dir, &real_state_dir, scope)
+    {
         return FrozenVirtualStoreClean::PreservesVirtualStore;
     }
     FrozenVirtualStoreClean::RemovesVirtualStore
+}
+
+fn dedicated_state_removed_by_clean(
+    config: &Config,
+    project_dir: &Path,
+    real_root_dir: &Path,
+    real_state_dir: &Path,
+    scope: CleanScope,
+) -> bool {
+    let root_dir = config.workspace_dir.as_deref().unwrap_or(project_dir);
+    let in_project = dunce::canonicalize(project_dir)
+        .ok()
+        .and_then(|real_project| fs_ops::resolve_inside(&real_project, &config.install_state_dir))
+        .is_some();
+    let in_whole_workspace_vs = matches!(scope, CleanScope::WholeWorkspace)
+        && fs_ops::resolve_inside(
+            real_root_dir,
+            &removal::configured_virtual_store_dir(root_dir, config),
+        )
+        .is_some_and(|vs_dir| pnpm_fs::is_subdir(&vs_dir, real_state_dir));
+    in_project || in_whole_workspace_vs
 }
 
 pub(super) fn is_narrowed_workspace_clean(config: &Config) -> bool {

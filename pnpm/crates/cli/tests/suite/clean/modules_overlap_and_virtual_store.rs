@@ -173,3 +173,77 @@ fn clean_preserves_explicitly_listed_member_nested_under_custom_modules_dir() {
 
     drop(root);
 }
+
+#[test]
+fn ci_dedicated_workspace_with_external_install_state_preserves_current_lockfile() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let store_dir = root.path().join("store");
+    let external_vs = root.path().join("external-vs");
+    let dep_dir = workspace.join("deps/dep-a");
+    fs::create_dir_all(&dep_dir).expect("create dep-a");
+    fs::write(dep_dir.join("package.json"), r#"{"name":"dep-a","version":"1.0.0"}"#)
+        .expect("write dep-a manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nstoreDir: {}\nvirtualStoreDir: {}\n",
+            serde_json::to_string(&store_dir).expect("quote storeDir"),
+            serde_json::to_string(&external_vs).expect("quote virtualStoreDir"),
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"const fs = require('node:fs');
+const path = require('node:path');
+module.exports = {
+  hooks: {
+    preResolution(ctx) {
+      const hasPackages = Boolean(ctx.currentLockfile?.packages && Object.keys(ctx.currentLockfile.packages).length > 0);
+      fs.appendFileSync(path.join(__dirname, 'pre-res.jsonl'), `${JSON.stringify({ exists: ctx.existsCurrentLockfile, hasPackages })}\n`);
+    },
+  },
+};
+",
+    )
+    .expect("write .pnpmfile.cjs");
+    let pkg_a = workspace.join("packages/pkg-a");
+    fs::create_dir_all(&pkg_a).expect("create pkg-a");
+    fs::write(
+        pkg_a.join("package.json"),
+        r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"dep-a":"file:../../deps/dep-a"}}"#,
+    )
+    .expect("write pkg-a manifest");
+
+    let initial = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_arg("install")
+        .output()
+        .expect("run initial install");
+    assert!(initial.status.success(), "{initial:?}");
+    assert!(external_vs.join("lock.yaml").is_file(), "external virtual store lockfile written");
+
+    let log_path = workspace.join("pre-res.jsonl");
+    let _ = fs::remove_file(&log_path);
+    let ci_out = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_arg("ci")
+        .output()
+        .expect("run pnpm ci");
+    assert!(ci_out.status.success(), "{ci_out:?}");
+    assert!(external_vs.join("lock.yaml").is_file(), "external virtual store lockfile preserved");
+    let lines: Vec<serde_json::Value> = fs::read_to_string(&log_path)
+        .expect("read pre-res.jsonl")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("parse jsonl line"))
+        .collect();
+    assert_eq!(lines.len(), 1, "preResolution ran once and replayed: {lines:?}");
+    assert_eq!(lines[0]["exists"], serde_json::json!(true), "{lines:?}");
+    assert_eq!(lines[0]["hasPackages"], serde_json::json!(true), "{lines:?}");
+
+    drop(root);
+}
