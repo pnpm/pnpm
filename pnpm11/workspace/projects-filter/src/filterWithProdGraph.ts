@@ -20,10 +20,7 @@ export type FilterGraphRunner = <Pkg extends BaseProject>(
   unmatchedFilters: string[]
 }>
 
-interface SelectionOrigin {
-  prodMatched: boolean
-  prodOnly: boolean
-}
+type SelectionOrigin = 'regular' | 'mixed' | 'prod-only'
 
 interface SelectorChunk {
   exclude: boolean
@@ -96,8 +93,9 @@ function createInitialSelection<Pkg extends BaseProject> (
   const selected = new Map<ProjectRootDir, SelectionOrigin>()
   if (!firstChunk.exclude) return selected
   const prodSeeded = prodProjectsGraph != null && firstChunk.selectors.every((selector) => Boolean(selector.followProdDepsOnly))
+  const origin: SelectionOrigin = prodSeeded ? 'prod-only' : 'regular'
   for (const dir of Object.keys(allProjectsGraph) as ProjectRootDir[]) {
-    selected.set(dir, { prodMatched: prodSeeded, prodOnly: prodSeeded })
+    selected.set(dir, origin)
   }
   return selected
 }
@@ -147,10 +145,10 @@ function excludeSelectedDirs (selected: Map<ProjectRootDir, SelectionOrigin>, di
 function includeProdDirs (selected: Map<ProjectRootDir, SelectionOrigin>, dirs: ProjectRootDir[]): void {
   for (const dir of dirs) {
     const existing = selected.get(dir)
-    if (existing != null) {
-      existing.prodMatched = true
-    } else {
-      selected.set(dir, { prodMatched: true, prodOnly: true })
+    if (existing === 'regular' || existing === 'mixed') {
+      selected.set(dir, 'mixed')
+    } else if (existing == null) {
+      selected.set(dir, 'prod-only')
     }
   }
 }
@@ -158,10 +156,10 @@ function includeProdDirs (selected: Map<ProjectRootDir, SelectionOrigin>, dirs: 
 function includeAllDirs (selected: Map<ProjectRootDir, SelectionOrigin>, dirs: ProjectRootDir[]): void {
   for (const dir of dirs) {
     const existing = selected.get(dir)
-    if (existing != null) {
-      existing.prodOnly = false
-    } else {
-      selected.set(dir, { prodMatched: false, prodOnly: false })
+    if (existing === 'prod-only' || existing === 'mixed') {
+      selected.set(dir, 'mixed')
+    } else if (existing == null) {
+      selected.set(dir, 'regular')
     }
   }
 }
@@ -174,13 +172,13 @@ function finalizeSelectedProjectsGraph<Pkg extends BaseProject> (
   const { allProjectsGraph, prodProjectsGraph } = graphs
   const validEntries = Array.from(selected.entries()).filter(([dir]) => allProjectsGraph[dir] != null)
   const orderedEntries = [
-    ...validEntries.filter(([, origin]) => origin.prodMatched),
-    ...validEntries.filter(([, origin]) => !origin.prodMatched),
+    ...validEntries.filter(([, origin]) => origin !== 'regular'),
+    ...validEntries.filter(([, origin]) => origin === 'regular'),
   ]
   const selectedProjectsGraph: ProjectGraph<Pkg> = {}
   const prodOnlySelectedProjectDirs: ProjectRootDir[] = []
   for (const [dir, origin] of orderedEntries) {
-    const useProdNode = prodProjectsGraph != null && origin.prodOnly
+    const useProdNode = prodProjectsGraph != null && origin === 'prod-only'
     selectedProjectsGraph[dir] = useProdNode ? prodProjectsGraph[dir] : allProjectsGraph[dir]
     if (useProdNode) {
       prodOnlySelectedProjectDirs.push(dir)

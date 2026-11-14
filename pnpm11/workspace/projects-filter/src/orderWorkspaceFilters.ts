@@ -68,6 +68,12 @@ function interleaveCliFilters (opts: {
   return allConsumed ? ordered : undefined
 }
 
+interface MatchedFilterToken {
+  followProdDepsOnly: boolean
+  value: string | undefined
+  consumesNext: boolean
+}
+
 function collectInterleavedEntries (
   cookedArgv: string[],
   regCursor: CliFilterCursor,
@@ -77,14 +83,37 @@ function collectInterleavedEntries (
   for (let argIndex = 0; argIndex < cookedArgv.length; argIndex++) {
     const token = cookedArgv[argIndex]
     if (token === '--') break
-    const nextToken = cookedArgv[argIndex + 1]
-    if (token === '--filter' && consumeCursor(regCursor, nextToken, ordered)) {
-      argIndex++
-    } else if (token === '--filter-prod' && consumeCursor(prodCursor, nextToken, ordered)) {
+    const matched = matchCliFilterToken(token, cookedArgv[argIndex + 1])
+    if (matched == null) continue
+    const cursor = matched.followProdDepsOnly ? prodCursor : regCursor
+    if (consumeCursor(cursor, matched.value, ordered) && matched.consumesNext) {
       argIndex++
     }
   }
   return ordered
+}
+
+function matchCliFilterToken (token: string, nextToken: string | undefined): MatchedFilterToken | undefined {
+  if (token === '--filter' || token === '-F') {
+    return { followProdDepsOnly: false, value: nextToken, consumesNext: true }
+  }
+  if (token.startsWith('--filter=')) {
+    return { followProdDepsOnly: false, value: token.slice('--filter='.length), consumesNext: false }
+  }
+  if (isFilterProdFlag(token)) {
+    return { followProdDepsOnly: true, value: nextToken, consumesNext: true }
+  }
+  if (token.startsWith('--filter-')) {
+    const eqIndex = token.indexOf('=')
+    if (eqIndex !== -1 && isFilterProdFlag(token.slice(0, eqIndex))) {
+      return { followProdDepsOnly: true, value: token.slice(eqIndex + 1), consumesNext: false }
+    }
+  }
+  return undefined
+}
+
+function isFilterProdFlag (flag: string): boolean {
+  return flag.startsWith('--filter-') && '--filter-prod'.startsWith(flag)
 }
 
 function consumeCursor (cursor: CliFilterCursor, nextToken: string | undefined, target: WorkspaceFilter[]): boolean {

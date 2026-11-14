@@ -85,3 +85,20 @@ fn recursive_run_leading_exclusion_reincluded_by_filter_prod_preserves_cli_order
     );
     drop(root);
 }
+
+#[test]
+fn recursive_run_selectors_split_across_subcommand_preserve_cli_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    setup_filter_prod_workspace(&workspace);
+
+    pacquet
+        .with_args(["--filter-prod", "app...", "run", "--filter", "!lib-a", "check"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        sorted_lines(&fs::read(workspace.join("ran.log")).expect("read ran.log")),
+        vec!["app"],
+    );
+    drop(root);
+}

@@ -19,10 +19,11 @@ pub struct FilteredGraphProjects {
     pub unmatched_filters: Vec<String>,
 }
 
-#[derive(Clone, Copy)]
-struct SelectionOrigin {
-    prod_matched: bool,
-    prod_only: bool,
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SelectionOrigin {
+    Regular,
+    Mixed,
+    ProdOnly,
 }
 
 struct SelectorChunk<'a> {
@@ -122,7 +123,7 @@ fn initial_selection<Pkg>(
     };
     let prod_seeded = prod_graph.is_some()
         && first.selectors.iter().all(|selector| selector.follow_prod_deps_only);
-    let origin = SelectionOrigin { prod_matched: prod_seeded, prod_only: prod_seeded };
+    let origin = if prod_seeded { SelectionOrigin::ProdOnly } else { SelectionOrigin::Regular };
     all_graph
         .keys()
         .map(|dir| (dir.clone(), origin))
@@ -175,14 +176,24 @@ fn apply_chunk(
     for dir in eval.prod_selected {
         selected
             .entry(dir)
-            .and_modify(|origin| origin.prod_matched = true)
-            .or_insert(SelectionOrigin { prod_matched: true, prod_only: true });
+            .and_modify(|origin| {
+                *origin = match *origin {
+                    SelectionOrigin::Regular | SelectionOrigin::Mixed => SelectionOrigin::Mixed,
+                    SelectionOrigin::ProdOnly => SelectionOrigin::ProdOnly,
+                };
+            })
+            .or_insert(SelectionOrigin::ProdOnly);
     }
     for dir in eval.all_selected {
         selected
             .entry(dir)
-            .and_modify(|origin| origin.prod_only = false)
-            .or_insert(SelectionOrigin { prod_matched: false, prod_only: false });
+            .and_modify(|origin| {
+                *origin = match *origin {
+                    SelectionOrigin::ProdOnly | SelectionOrigin::Mixed => SelectionOrigin::Mixed,
+                    SelectionOrigin::Regular => SelectionOrigin::Regular,
+                };
+            })
+            .or_insert(SelectionOrigin::Regular);
     }
 }
 
@@ -201,16 +212,23 @@ fn finalize_selection<Pkg>(
     let mut selected_projects = Vec::with_capacity(valid.len());
     let mut prod_only_projects = HashSet::new();
     for (dir, origin) in &valid {
-        if origin.prod_matched {
-            selected_projects.push(dir.clone());
-        }
-        if prod_graph.is_some() && origin.prod_only {
-            prod_only_projects.insert(dir.clone());
+        match origin {
+            SelectionOrigin::ProdOnly => {
+                selected_projects.push(dir.clone());
+                if prod_graph.is_some() {
+                    prod_only_projects.insert(dir.clone());
+                }
+            }
+            SelectionOrigin::Mixed => {
+                selected_projects.push(dir.clone());
+            }
+            SelectionOrigin::Regular => {}
         }
     }
     for (dir, origin) in valid {
-        if !origin.prod_matched {
-            selected_projects.push(dir);
+        match origin {
+            SelectionOrigin::Regular => selected_projects.push(dir),
+            SelectionOrigin::Mixed | SelectionOrigin::ProdOnly => {}
         }
     }
     FilteredGraphProjects { selected_projects, prod_only_projects, unmatched_filters }

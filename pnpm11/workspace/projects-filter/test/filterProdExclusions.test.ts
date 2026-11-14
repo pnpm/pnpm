@@ -116,6 +116,38 @@ describe('orderWorkspaceFilters', () => {
     ])
   })
 
+  test('preserves CLI order for abbreviated --filter-prod flags and inline = values', () => {
+    expect(orderWorkspaceFilters({
+      filter: ['app...'],
+      filterProd: ['!lib-a'],
+      cliOptions: { filter: ['app...'], 'filter-prod': ['!lib-a'] },
+      cookedArgv: ['--filter-p', '!lib-a', '--filter', 'app...', 'run', 'check'],
+    })).toStrictEqual([
+      { filter: '!lib-a', followProdDepsOnly: true },
+      { filter: 'app...', followProdDepsOnly: false },
+    ])
+
+    expect(orderWorkspaceFilters({
+      filter: ['!lib-a'],
+      filterProd: ['app...'],
+      cliOptions: { filter: ['!lib-a'], 'filter-prod': ['app...'] },
+      cookedArgv: ['--filter-prod=app...', '--filter=!lib-a', 'run', 'check'],
+    })).toStrictEqual([
+      { filter: 'app...', followProdDepsOnly: true },
+      { filter: '!lib-a', followProdDepsOnly: false },
+    ])
+
+    expect(orderWorkspaceFilters({
+      filter: ['!lib-a'],
+      filterProd: ['app...'],
+      cliOptions: { filter: ['!lib-a'], 'filter-prod': ['app...'] },
+      cookedArgv: ['--filter=!lib-a', '--filter-prod=app...', 'run', 'check'],
+    })).toStrictEqual([
+      { filter: '!lib-a', followProdDepsOnly: false },
+      { filter: 'app...', followProdDepsOnly: true },
+    ])
+  })
+
   test('places positive filterProd before leading negated filter when CLI order is unavailable', () => {
     expect(orderWorkspaceFilters({
       filter: ['!lib-a'],

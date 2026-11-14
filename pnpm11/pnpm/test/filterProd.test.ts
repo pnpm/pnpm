@@ -116,4 +116,12 @@ test('combining --filter-prod with an exclusion --filter excludes target without
   server.clear()
   await execPnpm(['--filter', 'app...', '--filter-prod', '!lib-a', 'run', 'check'])
   expect(server.getLines().sort()).toEqual(['app', 'lib-dev'])
+
+  server.clear()
+  await execPnpm(['--filter-p', 'app...', 'run', '--filter', '!lib-a', 'check'])
+  expect(server.getLines().sort()).toEqual(['app'])
+
+  server.clear()
+  await execPnpm(['--filter-p=!{packages/*}', '--filter=app...', 'run', 'check'])
+  expect(server.getLines().sort()).toEqual(['app', 'lib-a', 'lib-dev', 'ws-root'])
 })
