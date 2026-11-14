@@ -239,7 +239,7 @@ fn prefers_a_locked_version_below_its_compatibility_line_representative() {
             .iter()
             .any(|package| {
                 package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
-            })
+            }),
     );
 }
 
@@ -269,7 +269,7 @@ fn discovers_and_resolves_a_preferred_yanked_version_without_other_line_candidat
             .iter()
             .any(|package| {
                 package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
-            })
+            }),
     );
 }
 
