@@ -32,7 +32,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 }))
 
 const { resolveAndInstallConfigDeps } = await import('@pnpm/installing.env-installer')
-const { globalWarn, logger } = await import('@pnpm/logger')
+const { logger } = await import('@pnpm/logger')
 const { createStoreController } = await import('@pnpm/store.connection-manager')
 const { calcPnpmfilePathsOfPluginDeps, getConfig, installConfigDepsAndLoadHooks } = await import('../src/getConfig.js')
 
@@ -41,7 +41,7 @@ const storeCloseMock = jest.fn<() => Promise<void>>()
 beforeEach(() => {
   jest.spyOn(console, 'warn')
   loggerMock.debug.mockClear()
-  jest.mocked(globalWarn).mockClear()
+  loggerMock.warn.mockClear()
   jest.mocked(resolveAndInstallConfigDeps).mockReset()
   storeCloseMock.mockReset().mockResolvedValue(undefined)
   jest.mocked(createStoreController).mockReset().mockResolvedValue({
@@ -390,8 +390,13 @@ describe('installConfigDepsAndLoadHooks', () => {
     config.registriesByScope['@acme'] = 'https://acme.example/'
     await installConfigDepsAndLoadHooks(config, context)
 
-    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
-    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
+    expect(loggerMock.warn).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('@acme'),
+      prefix: expect.any(String),
+    }))
+    expect(loggerMock.warn).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('registriesByScope'),
+    }))
   })
 
   test('does not warn when an updateConfig hook changes registry URL settings', async () => {
@@ -403,7 +408,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     config.registriesByScope['@acme'] = 'https://acme.example/'
     await installConfigDepsAndLoadHooks(config, context)
 
-    expect(globalWarn).not.toHaveBeenCalled()
+    expect(loggerMock.warn).not.toHaveBeenCalled()
   })
 
   test.each(['.pnpmfile.cjs', '.pnpmfile.mjs'])('the updateConfig hook of %s runs after the ones of config dependency plugins', async (defaultPnpmfile) => {

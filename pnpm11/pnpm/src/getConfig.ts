@@ -14,7 +14,7 @@ import {
 import { isError, PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { type ConfigDepsInstallMode, readConfigDependencyLockfile, resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
-import { globalWarn, logger } from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { type ConfigDependencies, isPlainObject } from '@pnpm/types'
@@ -194,7 +194,7 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
     config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop -- each hook receives the config the previous one returned
   }
   const warning = legacyRegistriesWarning(routingBeforeHooks, config)
-  if (warning) globalWarn(warning)
+  if (warning) logger.warn({ message: warning, prefix: context.rootProjectManifestDir ?? config.dir })
   applyRegistryRoutingChanges(config, routingBeforeHooks)
   rebaseHookFilters(config, context, filtersBeforeHooks)
   restoreCliSettings(config, cliSettings)
