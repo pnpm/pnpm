@@ -247,7 +247,7 @@ test('maybePruneMergedImporters restores a link to the reconciled publish direct
       specifiers: { dep: 'workspace:*', other: 'workspace:*' },
       dependencies: { dep: 'link:../dep/dist', other: 'link:../other' },
     },
-    [dep]: { specifiers: {}, publishDirectory: 'dist' },
+    [dep]: { specifiers: {}, publishDirectory: 'dist/' },
   }
   const mergedLockfile: LockfileObject = {
     lockfileVersion: LOCKFILE_VERSION,
@@ -256,7 +256,7 @@ test('maybePruneMergedImporters restores a link to the reconciled publish direct
         specifiers: { dep: 'workspace:*', other: 'workspace:*' },
         dependencies: { dep: 'link:../dep/build', other: 'link:../moved-other' },
       },
-      [dep]: { specifiers: {}, publishDirectory: 'build' },
+      [dep]: { specifiers: {}, publishDirectory: 'build/' },
     },
   }
 
@@ -265,12 +265,12 @@ test('maybePruneMergedImporters restores a link to the reconciled publish direct
     preMergeImporters,
     projects: [
       { id: app, manifest: { dependencies: { dep: 'workspace:*', other: 'workspace:*' } } },
-      { id: dep, manifest: { name: 'dep', publishConfig: { directory: 'dist' } } },
+      { id: dep, manifest: { name: 'dep', publishConfig: { directory: 'dist/' } } },
     ],
     autoInstallPeers: true,
   })
 
-  expect(pruned.importers[dep].publishDirectory).toBe('dist')
+  expect(pruned.importers[dep].publishDirectory).toBe('dist/')
   expect(pruned.importers[app].dependencies).toStrictEqual({
     dep: 'link:../dep/dist',
     other: 'link:../moved-other',

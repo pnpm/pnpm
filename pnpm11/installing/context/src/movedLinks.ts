@@ -22,8 +22,13 @@ interface MovedLinkContext {
  */
 export function getLinkTarget (projectId: ProjectId, importer: ProjectSnapshot): string {
   return importer.publishDirectory != null && importer.linkDirectory !== false
-    ? path.posix.join(projectId, importer.publishDirectory)
-    : path.posix.normalize(projectId)
+    ? normalizeDir(path.posix.join(projectId, importer.publishDirectory))
+    : normalizeDir(projectId)
+}
+
+function normalizeDir (dir: string): string {
+  const normalized = path.posix.normalize(dir)
+  return normalized.length > 1 && normalized.endsWith('/') ? normalized.slice(0, -1) : normalized
 }
 
 /**
@@ -106,7 +111,7 @@ function isMovedLink (ctx: MovedLinkContext, mergedRef: string, preRef: string):
 }
 
 function resolveLinkRef (projectId: ProjectId, ref: string): string {
-  return path.posix.join(projectId, ref.slice('link:'.length))
+  return normalizeDir(path.posix.join(projectId, ref.slice('link:'.length)))
 }
 
 export function isLinkRef (ref: string): boolean {

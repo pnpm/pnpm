@@ -329,7 +329,7 @@ importers:
         specifier: workspace:*
         version: link:../moved-other
   packages/dep:
-    publishDirectory: build
+    publishDirectory: build/
 ",
     );
     let pre_merge = lockfile(
@@ -345,17 +345,17 @@ importers:
         specifier: workspace:*
         version: link:../other
   packages/dep:
-    publishDirectory: dist
+    publishDirectory: dist/
 ",
     );
     let app = manifest(json!({ "dependencies": { "dep": "workspace:*", "other": "workspace:*" } }));
-    let dep = manifest(json!({ "name": "dep", "publishConfig": { "directory": "dist" } }));
+    let dep = manifest(json!({ "name": "dep", "publishConfig": { "directory": "dist/" } }));
     let manifests = [("packages/app".to_string(), &app), ("packages/dep".to_string(), &dep)];
 
     let pruned = prune_merged_branch_lockfile(&merged, &pre_merge.importers, &manifests, true)
         .expect("reconciled lockfile");
 
-    assert_eq!(pruned.importers["packages/dep"].publish_directory.as_deref(), Some("dist"));
+    assert_eq!(pruned.importers["packages/dep"].publish_directory.as_deref(), Some("dist/"));
     let app_deps =
         pruned.importers["packages/app"].dependencies.as_ref().expect("app dependencies");
     let version_of =

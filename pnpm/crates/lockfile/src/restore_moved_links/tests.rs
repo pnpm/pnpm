@@ -19,4 +19,8 @@ fn link_target_follows_publish_directory_unless_link_directory_is_false() {
         "packages/dep",
     );
     assert_eq!(importer_link_target(".", &importer("publishDirectory: ../out")), "../out");
+    assert_eq!(
+        importer_link_target("packages/dep", &importer("publishDirectory: dist/")),
+        "packages/dep/dist",
+    );
 }

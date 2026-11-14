@@ -10,9 +10,18 @@ use std::collections::HashMap;
 pub fn importer_link_target(importer_id: &str, importer: &ProjectSnapshot) -> String {
     match importer.publish_directory.as_deref() {
         Some(publish_directory) if importer.link_directory != Some(false) => {
-            lexical_normalize_posix(&format!("{importer_id}/{publish_directory}"))
+            normalize_dir(&format!("{importer_id}/{publish_directory}"))
         }
-        _ => lexical_normalize_posix(importer_id),
+        _ => normalize_dir(importer_id),
+    }
+}
+
+/// Normalize `dir` without a trailing slash, so `dist/` and `dist` compare equal.
+fn normalize_dir(dir: &str) -> String {
+    let normalized = lexical_normalize_posix(dir);
+    match normalized.strip_suffix('/') {
+        Some(trimmed) if !trimmed.is_empty() => trimmed.to_owned(),
+        _ => normalized,
     }
 }
 
@@ -128,7 +137,7 @@ impl MovedLinkContext<'_> {
     }
 
     fn resolve_link(&self, link_path: &str) -> String {
-        lexical_normalize_posix(&format!("{}/{link_path}", self.importer_id))
+        normalize_dir(&format!("{}/{link_path}", self.importer_id))
     }
 }
 
