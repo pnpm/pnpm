@@ -10,20 +10,24 @@ use crate::{
         ensure_not_cancelled,
     },
     packages::{chosen_line, package_key},
-    registry::{Registry, compatibility_line, matching_lines, matching_versions},
+    registry::Registry,
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::Result;
 use pubgrub::{
     DefaultStringReporter, Dependencies, DependencyProvider, OfflineDependencyProvider,
     PackageResolutionStatistics, PubGrubError, Ranges, Reporter, resolve,
 };
-use semver::{Version, VersionReq};
+use semver::Version;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+mod registration;
+use registration::{Registration, constraints_for, is_preferred};
 
 type InnerProvider = OfflineDependencyProvider<PackageKey, Ranges<Version>>;
 
 struct CancellableProvider<'a> {
     inner: InnerProvider,
+    preferred_versions: &'a BTreeMap<String, Vec<Version>>,
     should_cancel: &'a (dyn Fn() -> bool + Send + Sync),
 }
 
@@ -49,6 +53,21 @@ impl DependencyProvider for CancellableProvider<'_> {
         package: &Self::P,
         range: &Self::VS,
     ) -> std::result::Result<Option<Self::V>, Self::Err> {
+        if let Some(preferred) = package_name(package)
+            .and_then(|name| self.preferred_versions.get(name))
+            .into_iter()
+            .flatten()
+            .find(|version| range.contains(version))
+            && self.inner
+                .versions(package)
+                .is_some_and(|versions| {
+                    versions
+                        .into_iter()
+                        .any(|version| version == preferred)
+                })
+        {
+            return Ok(Some(preferred.clone()));
+        }
         match self.inner.choose_version(package, range) {
             Ok(version) => Ok(version),
         }
@@ -80,7 +99,22 @@ pub fn resolve_lockfile(
     index_files: &BTreeMap<String, String>,
     source: &str,
 ) -> Result<String> {
-    resolve_lockfile_until(metadata, index_files, source, &|| false)
+    resolve_lockfile_with_preferences(metadata, index_files, source, &BTreeMap::new())
+}
+
+pub fn resolve_lockfile_with_preferences(
+    metadata: &str,
+    index_files: &BTreeMap<String, String>,
+    source: &str,
+    preferred_versions: &BTreeMap<String, Vec<String>>,
+) -> Result<String> {
+    resolve_lockfile_until_with_preferences(
+        metadata,
+        index_files,
+        source,
+        preferred_versions,
+        &|| false,
+    )
 }
 
 /// [`resolve_lockfile`] with cooperative cancellation checked across package
@@ -91,8 +125,25 @@ pub fn resolve_lockfile_until(
     source: &str,
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<String> {
+    resolve_lockfile_until_with_preferences(
+        metadata,
+        index_files,
+        source,
+        &BTreeMap::new(),
+        should_cancel,
+    )
+}
+
+pub fn resolve_lockfile_until_with_preferences(
+    metadata: &str,
+    index_files: &BTreeMap<String, String>,
+    source: &str,
+    preferred_versions: &BTreeMap<String, Vec<String>>,
+    should_cancel: &(dyn Fn() -> bool + Send + Sync),
+) -> Result<String> {
     let metadata = parse_metadata(metadata)?;
     let registry = Registry::new_until(index_files, source, should_cancel)?;
+    let preferred_versions = parse_preferred_versions(preferred_versions)?;
     let root_dependencies = root_dependencies(&metadata)?;
     let mut feature_selections = root_feature_selections(&registry, &root_dependencies)?;
     let mut previous_selections = Vec::new();
@@ -107,6 +158,7 @@ pub fn resolve_lockfile_until(
             &registry,
             &root_dependencies,
             &feature_selections,
+            &preferred_versions,
             should_cancel,
         )?;
         let selected_features =
@@ -116,6 +168,7 @@ pub fn resolve_lockfile_until(
             &root_dependencies,
             &solution,
             &selected_features,
+            &preferred_versions,
             should_cancel,
         )? {
             return lockfile_from_solution(
@@ -130,11 +183,42 @@ pub fn resolve_lockfile_until(
     }
 }
 
+fn package_name(package: &PackageKey) -> Option<&str> {
+    match package {
+        PackageKey::Registry { name, .. }
+        | PackageKey::Requirement { name, .. }
+        | PackageKey::Unsatisfiable { name, .. } => Some(name),
+        PackageKey::Root => None,
+    }
+}
+
+fn parse_preferred_versions(
+    preferred_versions: &BTreeMap<String, Vec<String>>,
+) -> Result<BTreeMap<String, Vec<Version>>> {
+    preferred_versions
+        .iter()
+        .map(|(name, versions)| {
+            let mut versions = versions
+                .iter()
+                .map(|version| {
+                    Version::parse(version)
+                        .map_err(|error| {
+                            miette::miette!("invalid preferred Cargo version {version}: {error}")
+                        })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            versions.sort_unstable_by(|left, right| right.cmp(left));
+            Ok((name.clone(), versions))
+        })
+        .collect()
+}
+
 fn validate_selected_graph(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
     solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
+    preferred_versions: &BTreeMap<String, Vec<Version>>,
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<Option<pubgrub::SelectedDependencies<PackageKey, Version>>> {
     let Some(root_version) = solution.get(&PackageKey::Root) else { return Ok(None) };
@@ -152,7 +236,8 @@ fn validate_selected_graph(
         if validated.contains_key(&package) {
             continue;
         }
-        let selected = offered_version(registry, &dependency.name, selected_version)?;
+        let selected =
+            offered_version(registry, &dependency.name, selected_version, preferred_versions)?;
         let selection = feature_selections
             .get(&package)
             .cloned()
@@ -174,9 +259,10 @@ fn offered_version<'v>(
     registry: &'v Registry,
     name: &str,
     version: &Version,
+    preferred_versions: &BTreeMap<String, Vec<Version>>,
 ) -> Result<&'v RegistryVersion> {
     let offered = indexed_version(registry.package(name)?, name, version)?;
-    if offered.yanked {
+    if offered.yanked && !is_preferred(preferred_versions, name, version) {
         return Err(miette::miette!("selected {name} {version} is yanked"));
     }
     Ok(offered)
@@ -206,14 +292,17 @@ fn resolve_with_features(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
+    preferred_versions: &BTreeMap<String, Vec<Version>>,
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<pubgrub::SelectedDependencies<PackageKey, Version>> {
     let mut provider = InnerProvider::new();
     let mut pending = VecDeque::new();
-    let root_constraints = constraints_for(registry, root_dependencies, &mut pending)?;
+    let root_constraints =
+        constraints_for(registry, root_dependencies, preferred_versions, &mut pending)?;
     provider.add_dependencies(PackageKey::Root, Version::new(0, 0, 0), root_constraints);
 
-    let registration = Registration { registry, feature_selections, should_cancel };
+    let registration =
+        Registration::new(registry, feature_selections, preferred_versions, should_cancel);
     let mut registered = BTreeSet::new();
     while let Some(package) = pending.pop_front() {
         ensure_not_cancelled(should_cancel)?;
@@ -223,7 +312,7 @@ fn resolve_with_features(
         registration.register(&package, &mut provider, &mut pending)?;
     }
 
-    let provider = CancellableProvider { inner: provider, should_cancel };
+    let provider = CancellableProvider { inner: provider, preferred_versions, should_cancel };
     match resolve(&provider, PackageKey::Root, Version::new(0, 0, 0)) {
         Ok(solution) => Ok(solution),
         Err(PubGrubError::NoSolution(mut tree)) => {
@@ -237,142 +326,4 @@ fn resolve_with_features(
             Err(miette::miette!(message))
         }
     }
-}
-
-#[derive(Clone, Copy)]
-struct Registration<'a> {
-    registry: &'a Registry,
-    feature_selections: &'a BTreeMap<PackageKey, FeatureSelection>,
-    should_cancel: &'a (dyn Fn() -> bool + Send + Sync),
-}
-
-impl Registration<'_> {
-    /// Tell the solver what `package` offers, which depends on what kind of
-    /// package it is.
-    fn register(
-        &self,
-        package: &PackageKey,
-        provider: &mut InnerProvider,
-        pending: &mut VecDeque<PackageKey>,
-    ) -> Result<()> {
-        match package {
-            PackageKey::Registry { .. } => self.register_candidates(package, provider, pending),
-            PackageKey::Requirement { .. } => {
-                self.register_compatibility_lines(package, provider, pending)
-            }
-            PackageKey::Root | PackageKey::Unsatisfiable { .. } => Ok(()),
-        }
-    }
-
-    /// Offer the solver the versions of `package` that every dependency able to
-    /// settle on it can support, queueing each one's own dependencies.
-    fn register_candidates(
-        &self,
-        package: &PackageKey,
-        provider: &mut InnerProvider,
-        pending: &mut VecDeque<PackageKey>,
-    ) -> Result<()> {
-        let PackageKey::Registry { name, compatibility } = package else {
-            return Ok(());
-        };
-        let resolved = self.feature_selections
-            .get(package)
-            .cloned()
-            .unwrap_or_default();
-        let versions = self.registry.package(name)?;
-        let candidates = versions
-            .iter()
-            .filter(|version| {
-                !version.yanked && compatibility_line(&version.version) == *compatibility
-            });
-        for version in candidates {
-            ensure_not_cancelled(self.should_cancel)?;
-            let dependencies = locked_dependencies(version, &resolved)?;
-            let constraints = constraints_for(self.registry, &dependencies, pending)?;
-            provider.add_dependencies(package.clone(), version.version.clone(), constraints);
-        }
-        Ok(())
-    }
-
-    /// Offer the solver one version per compatibility line the requirement is
-    /// met on, each standing for that line and depending on the versions it
-    /// admits there. Ordered by version, so the solver reaches for the newest
-    /// line first and backtracks to an older one, as `cargo` does.
-    ///
-    /// A line is offered only the versions that support what the lines's
-    /// dependants ask, so a line that cannot support them is not a choice at
-    /// all rather than one the solver takes and later has to leave.
-    fn register_compatibility_lines(
-        &self,
-        package: &PackageKey,
-        provider: &mut InnerProvider,
-        pending: &mut VecDeque<PackageKey>,
-    ) -> Result<()> {
-        let PackageKey::Requirement {
-            name,
-            requirement,
-            default_features,
-            features,
-        } = package
-        else {
-            return Ok(());
-        };
-        let requested = FeatureSelection {
-            default_features: *default_features,
-            features: features.iter().cloned().collect(),
-        };
-        let requirement = VersionReq::parse(requirement)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("parse requirement for {name}"))?;
-        let versions = self.registry.package(name)?;
-        for (compatibility, representative) in matching_lines(versions, &requirement) {
-            ensure_not_cancelled(self.should_cancel)?;
-            let line =
-                PackageKey::Registry { name: name.clone(), compatibility: compatibility.clone() };
-            let admitted = matching_versions(versions, &requirement)
-                .filter(|version| compatibility_line(&version.version) == compatibility)
-                .filter(|version| supports_features(version, &requested))
-                .fold(Ranges::empty(), |range, version| {
-                    range.union(&Ranges::singleton(version.version.clone()))
-                });
-            if admitted == Ranges::empty() {
-                continue;
-            }
-            provider.add_dependencies(package.clone(), representative, [(line.clone(), admitted)]);
-            pending.push_back(line);
-        }
-        Ok(())
-    }
-}
-
-fn constraints_for(
-    registry: &Registry,
-    dependencies: &[RegistryDependency],
-    pending: &mut VecDeque<PackageKey>,
-) -> Result<Vec<(PackageKey, Ranges<Version>)>> {
-    let mut constraints = BTreeMap::<PackageKey, Ranges<Version>>::new();
-    for dependency in dependencies {
-        registry.validate_dependency_source(dependency.registry.as_deref())?;
-        let package = package_key(registry, dependency)?;
-        // A version missing a feature this dependency asks for is not one it
-        // can settle on, which is how a requirement reaches past a line to an
-        // older one.
-        let selection = dependency.feature_selection();
-        let allowed = if let PackageKey::Registry { compatibility, .. } = &package {
-            matching_versions(registry.package(&dependency.name)?, &dependency.requirement)
-                .filter(|version| compatibility_line(&version.version) == *compatibility)
-                .filter(|version| supports_features(version, &selection))
-                .fold(Ranges::empty(), |range, version| {
-                    range.union(&Ranges::singleton(version.version.clone()))
-                })
-        } else {
-            Ranges::full()
-        };
-        constraints
-            .entry(package.clone())
-            .and_modify(|range| *range = range.intersection(&allowed))
-            .or_insert(allowed);
-        pending.push_back(package);
-    }
-    Ok(constraints.into_iter().collect())
 }

@@ -12,7 +12,10 @@ pub use registry::{
     latest_matching_version, latest_version, missing_features, patches_crates_io, registry_source,
     sparse_source,
 };
-pub use resolution::{resolve_lockfile, resolve_lockfile_until};
+pub use resolution::{
+    resolve_lockfile, resolve_lockfile_until, resolve_lockfile_until_with_preferences,
+    resolve_lockfile_with_preferences,
+};
 
 mod discovery;
 mod features;

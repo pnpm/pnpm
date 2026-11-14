@@ -41,6 +41,8 @@ pnpm writes the dependency into `Cargo.toml` without reformatting anything else 
 
 [`pnpm outdated`](./cli/outdated.md) and [`pnpm update`](./cli/update.md) also check and update Cargo dependencies when `cargo.enabled` is `true`, and accept `crate:<name>` selectors to target specific crates.
 
+Adding or updating a Cargo dependency keeps other compatible versions recorded in `Cargo.lock`.
+
 ## What an install does
 
 1. Reads the workspace's `Cargo.toml`, including its members.
