@@ -2125,6 +2125,9 @@ describe('resolveRelativeTarget and resolvePackOutput cross-platform behavior', 
     ['C:\\ws\\selected', 'C:foo.tgz', 'C:\\ws\\selected\\foo.tgz'],
     ['C:\\ws\\selected', 'c:link\\..\\pkg', 'C:\\ws\\selected\\link\\..\\pkg'],
     ['D:\\ws\\selected', '\\out\\foo.tgz', 'D:\\out\\foo.tgz'],
+    ['\\\\server\\share\\selected', '\\out\\foo.tgz', '\\\\server\\share\\out\\foo.tgz'],
+    ['\\\\server\\share\\selected', 'rel\\pkg', '\\\\server\\share\\selected\\rel\\pkg'],
+    ['\\\\server\\share\\selected', '\\\\other\\share\\foo.tgz', '\\\\other\\share\\foo.tgz'],
     ['C:\\ws\\selected', 'C:\\abs\\foo.tgz', 'C:\\abs\\foo.tgz'],
   ])('Win32 resolveRelativeTarget(%j, %j) -> %j', (baseDir, targetPath, expected) => {
     expect(resolveRelativeTarget(baseDir, targetPath, path.win32)).toBe(expected)

@@ -36,7 +36,7 @@ fn base_dir_containing_placeholders_is_not_substituted_by_out_template() {
 #[test]
 fn pack_output_path_preserves_placeholders_in_base_dir() {
     let outer = tempdir().unwrap();
-    let base_dir = outer.path().join("dir-%s-%v-ws");
+    let base_dir = pnpm_fs::resolve_path_with_symlinks(outer.path()).unwrap().join("dir-%s-%v-ws");
     let resolved = pack_output_path(&base_dir, Some("%s-%v.tgz"), None, "@scope/pkg", "2.0.0+b1")
         .expect("resolve output path");
     assert_eq!(resolved, base_dir.join("scope-pkg-2.0.0.tgz"));
@@ -86,4 +86,22 @@ fn destination_with_symlink_and_parent_dir_follows_symlink_target() {
         !pkg_dir.join("tarballs").exists(),
         "destination must not collapse symlink/.. lexically before filesystem resolution",
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn pack_output_path_resolves_symlink_before_parent_dir() {
+    let outer = tempdir().unwrap();
+    let real_parent = outer.path().join("real-parent");
+    let real_sub = real_parent.join("sub");
+    let ws_dir = outer.path().join("ws");
+    std::fs::create_dir_all(&real_sub).unwrap();
+    std::fs::create_dir_all(&ws_dir).unwrap();
+    std::os::unix::fs::symlink(&real_sub, ws_dir.join("link")).unwrap();
+
+    let via_symlink = pack_output_path(&ws_dir, None, Some("link/../tarballs"), "pkg-a", "1.0.0")
+        .expect("resolve symlinked output path");
+    let direct = pack_output_path(&real_parent, None, Some("tarballs"), "pkg-a", "1.0.0")
+        .expect("resolve direct output path");
+    assert_eq!(via_symlink, direct);
 }

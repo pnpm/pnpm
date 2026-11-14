@@ -114,17 +114,18 @@ function resolveWin32Target (
   baseDir: string,
   targetPath: string
 ): { done: string } | { done?: undefined, baseDir: string, relativeTarget: string } {
-  const baseDrive = /^[A-Z]:/i.exec(baseDir)?.[0]
   if (/^[/\\](?![/\\])/.test(targetPath)) {
-    return { done: baseDrive != null ? `${baseDrive}${targetPath}` : targetPath }
+    const baseDevice = path.win32.parse(baseDir).root.replace(/[/\\]$/, '')
+    return { done: baseDevice !== '' ? `${baseDevice}${targetPath}` : targetPath }
   }
   if (path.win32.isAbsolute(targetPath)) {
     return { done: targetPath }
   }
-  const targetDrive = /^[A-Z]:/i.exec(targetPath)?.[0]
+  const targetDrive = targetPath.match(/^[A-Z]:/i)?.[0]
   if (targetDrive == null) {
     return { baseDir, relativeTarget: targetPath }
   }
+  const baseDrive = baseDir.match(/^[A-Z]:/i)?.[0]
   const effectiveBaseDir = baseDrive?.toLowerCase() === targetDrive.toLowerCase()
     ? baseDir
     : path.win32.resolve(targetDrive)

@@ -1,6 +1,6 @@
 use super::{
     Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, WorkspacePackageManifest,
-    lexical_normalize,
+    output::canonicalize_output_key,
 };
 
 /// Inputs for [`crate::api`]. The CLI maps the resolved [`pnpm_config::Config`]
@@ -92,7 +92,7 @@ impl PackOutputLocks {
             let mut by_path = self.by_path.lock().await;
             Arc::clone(
                 by_path
-                    .entry(lexical_normalize(path))
+                    .entry(canonicalize_output_key(path))
                     .or_default(),
             )
         };

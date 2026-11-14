@@ -46,7 +46,7 @@ use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hoo
 use pnpm_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
 };
-use pnpm_fs::lexical_normalize;
+use pnpm_fs::{lexical_normalize, resolve_path_with_symlinks};
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_sources};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
 use pnpm_package_manifest::{PackageManifestError, project_manifest_path};
