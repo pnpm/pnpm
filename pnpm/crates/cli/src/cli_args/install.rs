@@ -313,48 +313,71 @@ impl InstallArgs {
         )
     }
 
+    fn build_local_install<'a>(
+        &self,
+        state: &'a State,
+        link: PnprLink<'a>,
+    ) -> pnpm_package_manager::Install<'a, Vec<DependencyGroup>> {
+        let install_lockfile = if self.lockfile.fix {
+            MaybeLazyLockfile::Repair(&state.lockfile)
+        } else {
+            MaybeLazyLockfile::Lazy(&state.lockfile)
+        };
+        let mut base_install = state.install(link.dependency_groups);
+        base_install.lockfile_policy.frozen = link.lockfile.frozen;
+        base_install.lockfile_policy.prefer_frozen = self.prefer_frozen_override();
+        base_install.lockfile_policy.ignore_manifest_check = link.lockfile.ignore_manifest_check;
+        base_install.lockfile_policy.trust = link.lockfile.trust;
+        base_install.lockfile_policy.update_checksums = self.lockfile_updates.update_checksums;
+        base_install.lockfile_policy.excludes = PolicyExcludes::Persist;
+        // A trust flag reaches only these options, while the repeat check
+        // compares the configured `trustLockfile`, so it cannot vouch for
+        // an install whose flag overrides the setting. `pnpm ci` cleans
+        // before installing, so it never takes the repeat check either.
+        base_install.lockfile_policy.disable_optimistic_repeat =
+            self.materialization.clean_install
+                || self.materialization.verify_deps_before_run_install
+                || link.lockfile.trust != state.config.trust_lockfile;
+        base_install.execution.skip_runtimes = link.skip_runtimes;
+        base_install.execution.node_linker = link.node_linker;
+        base_install.execution.lockfile_only = link.lockfile.only;
+        base_install.execution.dry_run = self.materialization.dry_run;
+        base_install.resolution.update_seed_policy = if self.lockfile.fix {
+            UpdateSeedPolicy::FixLockfile
+        } else {
+            UpdateSeedPolicy::KeepAll
+        };
+        base_install.context.lockfile_path = link.lockfile_path;
+        base_install.context.lockfile = install_lockfile;
+        base_install.projects.supported_architectures = link.supported_architectures;
+        base_install
+    }
+
+    pub(crate) async fn validate_frozen<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &State,
+        selection: Option<&InstallFamilySelection>,
+    ) -> miette::Result<()> {
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        if state.config.pnpr_server.is_some() && self.materialization.dry_run {
+            return Err(DryRunIncompatibleWithPnpr.into());
+        }
+        let lockfile_path = state.lockfile_path();
+        let link = self.resolve_link_options(state.config, &lockfile_path, true);
+        let install = self.build_local_install(state, link);
+        install
+            .validate_frozen(selection.map(workspace_install_selection))
+            .await
+            .wrap_err("validating frozen lockfile")
+    }
+
     async fn run_local<Reporter: self::Reporter + 'static>(
         &self,
         state: &State,
         link: PnprLink<'_>,
         selection: Option<&InstallFamilySelection>,
     ) -> miette::Result<()> {
-        let install_lockfile = if self.lockfile.fix {
-            MaybeLazyLockfile::Repair(&state.lockfile)
-        } else {
-            MaybeLazyLockfile::Lazy(&state.lockfile)
-        };
-        let install = {
-            let mut base_install = state.install(link.dependency_groups);
-            base_install.lockfile_policy.frozen = link.lockfile.frozen;
-            base_install.lockfile_policy.prefer_frozen = self.prefer_frozen_override();
-            base_install.lockfile_policy.ignore_manifest_check =
-                link.lockfile.ignore_manifest_check;
-            base_install.lockfile_policy.trust = link.lockfile.trust;
-            base_install.lockfile_policy.update_checksums = self
-                .lockfile_updates
-                .update_checksums;
-            base_install.lockfile_policy.excludes = PolicyExcludes::Persist;
-            // A trust flag reaches only these options, while the repeat check
-            // compares the configured `trustLockfile`, so it cannot vouch for
-            // an install whose flag overrides the setting.
-            base_install.lockfile_policy.disable_optimistic_repeat =
-                self.materialization.verify_deps_before_run_install
-                    || link.lockfile.trust != state.config.trust_lockfile;
-            base_install.execution.skip_runtimes = link.skip_runtimes;
-            base_install.execution.node_linker = link.node_linker;
-            base_install.execution.lockfile_only = link.lockfile.only;
-            base_install.execution.dry_run = self.materialization.dry_run;
-            base_install.resolution.update_seed_policy = if self.lockfile.fix {
-                UpdateSeedPolicy::FixLockfile
-            } else {
-                UpdateSeedPolicy::KeepAll
-            };
-            base_install.context.lockfile_path = link.lockfile_path;
-            base_install.context.lockfile = install_lockfile;
-            base_install.projects.supported_architectures = link.supported_architectures;
-            base_install
-        };
+        let install = self.build_local_install(state, link);
         match selection {
             Some(selection) => {
                 install.run_selected::<Reporter>(workspace_install_selection(selection)).await

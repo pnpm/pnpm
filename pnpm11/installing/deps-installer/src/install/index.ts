@@ -33,6 +33,7 @@ export type {
   UninstallSomeDepsMutation,
   UpdatedProject,
 } from './mutationTypes.js'
+export { validateFrozenInstall } from './validateFrozenInstall.js'
 
 export async function install (
   manifest: ProjectManifest,

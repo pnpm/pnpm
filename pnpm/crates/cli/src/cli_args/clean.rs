@@ -1,18 +1,24 @@
-use super::{dispatch::RunCtx, recursive::discover_workspace_projects};
-use miette::{Context, IntoDiagnostic};
+mod removal;
+
+use super::{
+    dispatch::RunCtx,
+    lockfile_dir::LockfileDirArg,
+    pipelines::InstallFamilyPlan,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, notice_workspace_dir,
+        print_no_projects_matched, select_recursive_projects, selectors_narrow_the_run,
+    },
+};
+use miette::Context;
 use pnpm_config::Config;
-use pnpm_fs::{
-    is_subdir, is_symlink_metadata, relative_path, remove_dirent, resolve_path_with_symlinks,
-    symlink_metadata_with_retry, to_native_separators,
-};
+use pnpm_fs::to_native_separators;
+use pnpm_workspace::{FindWorkspaceProjectsOpts, find_workspace_projects};
+use removal::CleanRun;
 use serde_json::Value;
-use std::{
-    io::ErrorKind,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 /// `pnpm clean` / `pnpm purge`: safely remove the `node_modules`
-/// directories of the current project (or every project in the workspace)
+/// directories of the current project (or the selected workspace projects)
 /// without following NTFS junctions into their targets. A `clean` /
 /// `purge` script in `package.json` overrides the built-in command;
 /// `pnpm pm clean` / `pnpm pm purge` runs the built-in regardless.
@@ -21,220 +27,243 @@ pub struct CleanArgs {
     /// Also remove `pnpm-lock.yaml` files.
     #[clap(short = 'l', long = "lockfile")]
     pub lockfile: bool,
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
 }
 
-/// The pnpm hidden entries inside `node_modules` that `clean` removes
-/// alongside the regular package directories. Any other dotfile (e.g.
-/// `.cache`) is left in place.
-const PNPM_HIDDEN_ENTRIES: &[&str] =
-    &[".bin", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum LockfileRemoval {
+    Keep,
+    Remove,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CleanScope {
+    WholeWorkspace,
+    Narrowed,
+}
 
 /// Remove `node_modules` contents and (optionally) lockfiles from the
-/// current project or every workspace project.
-pub(super) fn run(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> miette::Result<()> {
-    // The `Removing <path>` lines render each target relative to the cwd.
-    // It is canonicalized once here so it shares the symlink-resolved
-    // representation of the paths built from the canonicalized `--dir`; on
-    // Windows the raw `current_dir()` can differ (casing, 8.3 short names,
-    // junctions) and defeat the relative-path computation.
-    let cwd = std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_default();
-    // `pnpm clean` resolves `modulesDir` against every project directory it
-    // cleans. `config.modules_dir` is already anchored — at the workspace
-    // root, or at a configured `lockfileDir` — so rejoining it per project
-    // would send every project back to that one directory. Take the
-    // configured leaf instead; an absolute setting survives `join`, as it
-    // does pnpm's `pathAbsolute`.
-    let modules_leaf = to_native_separators(
-        config.explicit_settings
-            .get("modulesDir")
-            .and_then(Value::as_str)
-            .map(Path::new)
-            .unwrap_or_else(|| Path::new("node_modules")),
-    );
+/// current project or the selected workspace projects.
+pub(super) fn run(
+    ctx: &RunCtx<'_>,
+    config: &Config,
+    lockfile_removal: LockfileRemoval,
+    cli_lockfile_dir: Option<&Path>,
+) -> miette::Result<()> {
     let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.locations.dir);
     let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
         return Ok(());
     };
-    let dirs: Vec<PathBuf> = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
-        projects
-            .into_iter()
-            .map(|project| project.root_dir)
-            .collect()
-    } else {
-        vec![ctx.locations.dir.to_path_buf()]
+    let Some((dirs, scope)) = select_clean_targets(ctx, config, root_dir, &real_root_dir)? else {
+        return Ok(());
     };
-    for dir in &dirs {
-        if let Some(modules_in_project) =
-            resolve_project_modules_dir(&real_root_dir, dir, &modules_leaf)
-        {
-            clean_modules_dir(&cwd, &modules_in_project)?;
-        }
+    let raw_lockfile_dir =
+        raw_configured_lockfile_dir(config, ctx.locations.dir, root_dir, cli_lockfile_dir);
+    CleanRun {
+        config,
+        root_dir,
+        real_root_dir: &real_root_dir,
+        lockfile_removal,
+        scope,
+        raw_lockfile_dir: raw_lockfile_dir.as_deref(),
     }
-    if remove_lockfile {
-        remove_workspace_lockfile(&cwd, &real_root_dir, root_dir)?;
-    }
-    remove_external_virtual_store(&cwd, config, &real_root_dir, &modules_leaf)
+    .clean_dirs(&dirs)
 }
 
-fn remove_workspace_lockfile(
-    cwd: &Path,
-    real_root_dir: &Path,
-    root_dir: &Path,
-) -> miette::Result<()> {
-    let Some(lockfile_path) = resolve_inside(real_root_dir, &root_dir.join("pnpm-lock.yaml"))
-    else {
-        return Ok(());
-    };
-    let Ok(metadata) = symlink_metadata_with_retry(&lockfile_path) else {
-        return Ok(());
-    };
-    if !is_symlink_metadata(&metadata) && metadata.is_dir() {
-        return Ok(());
-    }
-    print_removing(cwd, &lockfile_path);
-    remove_path(&lockfile_path)
-}
-
-/// A virtual store dir configured outside `node_modules` (e.g. a custom
-/// `virtual-store-dir`) is removed separately; the default
-/// `node_modules/.pnpm` is cleaned along with the modules dir's
-/// contents. Under a global virtual store, `virtualStoreDir` or
-/// `globalVirtualStoreDir` names the shared store's root, which is removed
-/// as well; the default store under `storeDir` is kept.
-fn remove_external_virtual_store(
-    cwd: &Path,
+/// Clean the `node_modules` directories `pnpm ci` is about to reinstall,
+/// after frozen-lockfile validation has succeeded.
+pub(crate) fn run_for_ci(
     config: &Config,
-    real_root_dir: &Path,
-    modules_leaf: &Path,
+    prefix: &Path,
+    plan: &InstallFamilyPlan,
 ) -> miette::Result<()> {
-    let root_dir = config.workspace_dir.as_deref().unwrap_or(real_root_dir);
-    let virtual_store_dir = if ["virtualStoreDir", "globalVirtualStoreDir"]
-        .iter()
-        .any(|setting| config.explicit_settings.contains_key(*setting))
-    {
-        config.virtual_store_dir()
-    } else {
-        &config.install_state_dir
-    };
-    let resolved_virtual_store_dir: PathBuf = if virtual_store_dir.is_absolute() {
-        virtual_store_dir.to_path_buf()
-    } else {
-        root_dir.join(virtual_store_dir)
-    };
-    let Some(virtual_store_in_project) = resolve_inside(real_root_dir, &resolved_virtual_store_dir)
-    else {
+    let root_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
+    let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
         return Ok(());
     };
-    if resolve_inside(real_root_dir, &root_dir.join(modules_leaf))
-        .is_some_and(|root_modules_dir| is_subdir(&root_modules_dir, &virtual_store_in_project))
-    {
-        return Ok(());
+    let scope = if selectors_narrow_the_run(config) {
+        CleanScope::Narrowed
+    } else {
+        CleanScope::WholeWorkspace
+    };
+    let dirs = ci_clean_dirs(config, prefix, root_dir, &real_root_dir, plan, scope)?;
+    let raw_lockfile_dir = raw_configured_lockfile_dir(config, prefix, root_dir, None);
+    CleanRun {
+        config,
+        root_dir,
+        real_root_dir: &real_root_dir,
+        lockfile_removal: LockfileRemoval::Keep,
+        scope,
+        raw_lockfile_dir: raw_lockfile_dir.as_deref(),
     }
-    if symlink_metadata_with_retry(&virtual_store_in_project).is_ok() {
-        print_removing(cwd, &virtual_store_in_project);
-        remove_path(&virtual_store_in_project)?;
-    }
-    Ok(())
+    .clean_dirs(&dirs)
 }
 
-fn resolve_project_modules_dir(
+fn select_clean_targets(
+    ctx: &RunCtx<'_>,
+    config: &Config,
+    root_dir: &Path,
     real_root_dir: &Path,
-    project_dir: &Path,
-    modules_leaf: &Path,
-) -> Option<PathBuf> {
-    let real_project_dir = dunce::canonicalize(project_dir).ok()?;
-    let resolved = resolve_inside(&real_project_dir, &project_dir.join(modules_leaf))?;
-    (resolved.starts_with(real_root_dir) && resolved != real_root_dir).then_some(resolved)
-}
-
-/// `path` with its parent resolved through symlinks, when it names an entry
-/// strictly inside canonical `real_root`. A symlinked ancestor cannot carry
-/// the removal out of the project, and the last component stays unresolved so
-/// a symlinked target is unlinked rather than followed. `None` when the path
-/// cannot be resolved.
-fn resolve_inside(real_root: &Path, path: &Path) -> Option<PathBuf> {
-    let path = to_native_separators(path);
-    let file_name = path.file_name()?;
-    // Windows strips trailing dots and spaces on non-verbatim paths, so `. ` or
-    // `.. ` would pass lexical leaf checks while naming `real_root` or its parent.
-    if file_name
-        .to_string_lossy()
-        .trim_end_matches(['.', ' '])
-        .is_empty()
+) -> miette::Result<Option<(Vec<PathBuf>, CleanScope)>> {
+    if !config.filter.is_empty()
+        || !config.filter_prod.is_empty()
+        || (config.workspace_root && config.recursive)
     {
-        return None;
+        return select_narrowed_clean_targets(ctx, config);
     }
-    let resolved = resolve_path_with_symlinks(path.parent()?)
-        .and_then(dunce::canonicalize)
-        .ok()?
-        .join(file_name);
-    (resolved.starts_with(real_root) && resolved != real_root).then_some(resolved)
+    if config.workspace_root {
+        return Ok(Some((vec![root_dir.to_path_buf()], CleanScope::Narrowed)));
+    }
+    if let Some(workspace_dir) = config.workspace_dir.as_deref() {
+        let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
+        let dirs = workspace_dirs_with_root(
+            workspace_dir,
+            real_root_dir,
+            projects.into_iter().map(|project| project.root_dir),
+        );
+        return Ok(Some((dirs, CleanScope::WholeWorkspace)));
+    }
+    Ok(Some((vec![ctx.locations.dir.to_path_buf()], CleanScope::WholeWorkspace)))
 }
 
-fn clean_modules_dir(cwd: &Path, modules_dir: &Path) -> miette::Result<()> {
-    let metadata = match symlink_metadata_with_retry(modules_dir) {
-        Ok(metadata) => metadata,
-        Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
-            return Ok(());
-        }
-        Err(error) => {
-            return Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("inspecting {}", modules_dir.display()));
-        }
+fn select_narrowed_clean_targets(
+    ctx: &RunCtx<'_>,
+    config: &Config,
+) -> miette::Result<Option<(Vec<PathBuf>, CleanScope)>> {
+    let projects = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
+        discover_workspace_projects(workspace_dir, config)?.0
+    } else {
+        find_workspace_projects(
+            ctx.locations.dir,
+            &FindWorkspaceProjectsOpts {
+                patterns: Some(vec![".".to_string()]),
+                ignored_directories: config.managed_directories(),
+            },
+        )
+        .wrap_err("finding workspace projects")?
     };
-    if is_symlink_metadata(&metadata) {
-        print_removing(cwd, modules_dir);
-        return remove_path(modules_dir);
+    let selection =
+        select_recursive_projects(&projects, config, ctx.locations.dir, AutoExcludeRoot::Disabled)?;
+    if selection.selected.is_empty() {
+        if projects.is_empty() {
+            pnpm_diagnostics::println!(
+                r#"No projects found in "{}""#,
+                notice_workspace_dir(config, ctx.locations.dir).display(),
+            );
+        } else {
+            print_no_projects_matched(config, ctx.locations.dir);
+        }
+        return Ok(None);
     }
-    if !metadata.is_dir() {
-        return Ok(());
-    }
-    let entries = removable_modules_entries(modules_dir)?;
-    if !entries.is_empty() {
-        print_removing(cwd, modules_dir);
-        for entry in entries {
-            remove_path(&entry)?;
+    Ok(Some((
+        selection.selected
+            .keys()
+            .cloned()
+            .collect(),
+        CleanScope::Narrowed,
+    )))
+}
+
+fn ci_clean_dirs(
+    config: &Config,
+    prefix: &Path,
+    root_dir: &Path,
+    real_root_dir: &Path,
+    plan: &InstallFamilyPlan,
+    scope: CleanScope,
+) -> miette::Result<Vec<PathBuf>> {
+    match scope {
+        CleanScope::Narrowed => Ok(ci_narrowed_dirs(prefix, plan)),
+        CleanScope::WholeWorkspace => {
+            ci_whole_workspace_dirs(config, prefix, root_dir, real_root_dir, plan)
         }
     }
-    Ok(())
 }
 
-fn removable_modules_entries(modules_dir: &Path) -> miette::Result<Vec<PathBuf>> {
-    let entries = match std::fs::read_dir(modules_dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => {
-            return Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("reading {}", modules_dir.display()));
+fn ci_narrowed_dirs(prefix: &Path, plan: &InstallFamilyPlan) -> Vec<PathBuf> {
+    match plan {
+        InstallFamilyPlan::Shared(selection) => selection.ordered_dirs
+            .iter()
+            .filter(|dir| selection.selected_dirs.contains(*dir))
+            .cloned()
+            .collect(),
+        InstallFamilyPlan::PerProject(projects) => projects.dependencies
+            .keys()
+            .cloned()
+            .collect(),
+        InstallFamilyPlan::Single => vec![prefix.to_path_buf()],
+    }
+}
+
+fn ci_whole_workspace_dirs(
+    config: &Config,
+    prefix: &Path,
+    root_dir: &Path,
+    real_root_dir: &Path,
+    plan: &InstallFamilyPlan,
+) -> miette::Result<Vec<PathBuf>> {
+    match plan {
+        InstallFamilyPlan::Shared(selection) => Ok(workspace_dirs_with_root(
+            &selection.workspace_root,
+            real_root_dir,
+            selection.projects.iter().map(|project| project.root_dir.clone()),
+        )),
+        InstallFamilyPlan::PerProject(projects) => Ok(workspace_dirs_with_root(
+            root_dir,
+            real_root_dir,
+            projects.workspace
+                .projects()
+                .iter()
+                .map(|project| project.root_dir.clone()),
+        )),
+        InstallFamilyPlan::Single => {
+            let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+                return Ok(vec![prefix.to_path_buf()]);
+            };
+            let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
+            Ok(workspace_dirs_with_root(
+                workspace_dir,
+                real_root_dir,
+                projects.into_iter().map(|project| project.root_dir),
+            ))
         }
-    };
-    Ok(entries
-        .filter_map(Result::ok)
-        .filter(|entry| is_pnpm_entry(&entry.file_name().to_string_lossy()))
-        .map(|entry| entry.path())
-        .collect())
+    }
 }
 
-fn remove_path(path: &Path) -> miette::Result<()> {
-    remove_dirent(path)
-        .or_else(|error| if error.kind() == ErrorKind::NotFound { Ok(()) } else { Err(error) })
-        .into_diagnostic()
-        .wrap_err_with(|| format!("removing {}", path.display()))
+fn workspace_dirs_with_root(
+    workspace_dir: &Path,
+    real_root_dir: &Path,
+    project_dirs: impl IntoIterator<Item = PathBuf>,
+) -> Vec<PathBuf> {
+    let project_dirs: Vec<PathBuf> = project_dirs.into_iter().collect();
+    let includes_root = project_dirs
+        .iter()
+        .any(|dir| dunce::canonicalize(dir).ok().as_deref() == Some(real_root_dir));
+    if includes_root {
+        project_dirs
+    } else {
+        std::iter::once(workspace_dir.to_path_buf()).chain(project_dirs).collect()
+    }
 }
 
-fn is_pnpm_entry(name: &str) -> bool {
-    !name.starts_with('.') || PNPM_HIDDEN_ENTRIES.contains(&name)
+fn raw_configured_lockfile_dir(
+    config: &Config,
+    cli_dir: &Path,
+    root_dir: &Path,
+    cli_lockfile_dir: Option<&Path>,
+) -> Option<PathBuf> {
+    if let Some(cli_lockfile_dir) = cli_lockfile_dir {
+        return Some(anchor_raw_path(cli_lockfile_dir, cli_dir));
+    }
+    if let Some(raw) = config.explicit_settings.get("lockfileDir").and_then(Value::as_str) {
+        let anchor = if config.cli_settings.contains("lockfileDir") { cli_dir } else { root_dir };
+        return Some(anchor_raw_path(Path::new(raw), anchor));
+    }
+    config.lockfile_dir.clone()
 }
 
-/// Print `Removing <path>`, with `path` rendered relative to `base` (the
-/// canonicalized cwd), matching pnpm's `path.relative(process.cwd(), p)`
-/// formatting. An empty relative path renders as `.`.
-fn print_removing(base: &Path, path: &Path) {
-    let relative = relative_path(base, path);
-    let owned: PathBuf =
-        if relative.as_os_str().is_empty() { PathBuf::from(".") } else { relative };
-    pnpm_diagnostics::println!("Removing {}", owned.display());
+fn anchor_raw_path(raw: &Path, anchor: &Path) -> PathBuf {
+    let raw_path = to_native_separators(raw);
+    if raw_path.is_absolute() { raw_path.into_owned() } else { anchor.join(raw_path) }
 }

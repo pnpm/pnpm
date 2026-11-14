@@ -89,3 +89,26 @@ impl OfflineArgs {
         );
     }
 }
+
+#[derive(Debug, Default, Clone, clap::Args)]
+pub struct FrozenStoreArgs {
+    /// Open the store read-only and skip all store writes. For installing
+    /// against a store on a read-only filesystem (e.g. a Nix store); pair
+    /// with `--offline --frozen-lockfile`.
+    #[clap(long = "frozen-store", overrides_with = "no_frozen_store")]
+    pub frozen_store: bool,
+    /// Allow store writes even when the configuration enables the
+    /// read-only store.
+    #[clap(long = "no-frozen-store", overrides_with = "frozen_store")]
+    pub no_frozen_store: bool,
+}
+
+impl FrozenStoreArgs {
+    pub(crate) fn apply(&self, config: &mut Config) {
+        if self.frozen_store || self.no_frozen_store {
+            config.cli_settings.insert("frozenStore".to_string());
+        }
+        config.frozen_store =
+            resolve_bool_override(self.frozen_store, self.no_frozen_store, config.frozen_store);
+    }
+}

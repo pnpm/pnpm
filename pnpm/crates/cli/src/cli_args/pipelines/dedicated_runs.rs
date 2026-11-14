@@ -126,7 +126,7 @@ impl DedicatedProjectRuns<'_> {
 /// leak is bounded by the project count, happens once per CLI invocation,
 /// and is reclaimed at process exit, the same lifetime deploy's derived
 /// install config has.
-fn init_dedicated_project_state(
+pub(super) fn init_dedicated_project_state(
     cfg: &Config,
     project_dir: &Path,
     project_name: Option<&str>,

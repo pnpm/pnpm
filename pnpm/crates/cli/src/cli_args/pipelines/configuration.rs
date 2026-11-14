@@ -1,8 +1,7 @@
 use super::{
     Config, Context, Host, InstallArgs, Path, PathBuf, ReporterType, read_manifest_json,
-    reporter_emit, resolve_bool_override, warn_deprecated_override_version_references,
-    warn_ignored_pnpm_manifest_fields, warn_unapplied_package_configs,
-    warn_unmatched_registry_options,
+    reporter_emit, warn_deprecated_override_version_references, warn_ignored_pnpm_manifest_fields,
+    warn_unapplied_package_configs, warn_unmatched_registry_options,
 };
 use crate::cli_args::yarn_workspaces_field::{
     create_workspace_yaml_from_yarn_workspaces, warn_about_workspaces_field,
@@ -77,14 +76,7 @@ fn apply_install_materialization_config(
     cfg: &mut Config,
     materialization: &crate::cli_args::install::InstallMaterializationArgs,
 ) {
-    if materialization.frozen_store || materialization.no_frozen_store {
-        cfg.cli_settings.insert("frozenStore".to_string());
-    }
-    cfg.frozen_store = resolve_bool_override(
-        materialization.frozen_store,
-        materialization.no_frozen_store,
-        cfg.frozen_store,
-    );
+    materialization.store.apply(cfg);
     if materialization.force {
         cfg.cli_settings.insert("force".to_string());
     }

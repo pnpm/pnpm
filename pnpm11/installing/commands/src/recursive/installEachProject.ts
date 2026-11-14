@@ -211,7 +211,7 @@ async function installProject (
   return 'passed'
 }
 
-async function loadProjectHooks (opts: RecursiveOptions, rootDir: ProjectRootDir): Promise<InstallOptions['hooks']> {
+export async function loadProjectHooks (opts: RecursiveOptions, rootDir: ProjectRootDir): Promise<InstallOptions['hooks']> {
   if (opts.ignorePnpmfile) return {}
   // The workspace root's pnpmfile is the one `opts.hooks` was loaded from.
   if (opts.workspaceDir != null && path.resolve(rootDir) === path.resolve(opts.workspaceDir)) return opts.hooks ?? {}

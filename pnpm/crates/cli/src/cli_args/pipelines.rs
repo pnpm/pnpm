@@ -130,7 +130,7 @@ where
 /// recursive / filtered command installs one by one.
 pub(crate) struct DedicatedProjects {
     /// Which project must finish before which, keyed by project dir.
-    dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
+    pub(crate) dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
     /// The name each project is addressed by in `packageConfigs`, taken
     /// from the manifests the selection already parsed. Empty when the
     /// setting is unset, which is the only thing the names feed.
@@ -145,7 +145,7 @@ pub(crate) struct DedicatedProjects {
     /// projects they depend on. See [`pipelined_runs::early_starts`].
     early_starts: HashSet<PathBuf>,
     /// Every workspace project, as the command discovered them.
-    workspace: pnpm_package_manager::DiscoveredWorkspace,
+    pub(crate) workspace: pnpm_package_manager::DiscoveredWorkspace,
 }
 
 impl DedicatedProjects {
@@ -383,6 +383,7 @@ fn precomputed_workspace_cycles(
     )
 }
 
+mod ci_validation;
 mod dedicated_runs;
 mod install;
 mod nested_workspace_manifests;

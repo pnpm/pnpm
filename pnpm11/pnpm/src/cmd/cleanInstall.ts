@@ -1,5 +1,6 @@
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { docsUrl } from '@pnpm/cli.utils'
-import { install } from '@pnpm/installing.commands'
+import { install, validateCiFrozenInstall } from '@pnpm/installing.commands'
 import { renderHelp } from 'render-help'
 
 import type { PnpmOptions } from '../types.js'
@@ -24,8 +25,24 @@ export function help (): string {
   })
 }
 
-export async function handler (opts: PnpmOptions): Promise<void> {
-  // `--lockfile` here is the install setting, not `pnpm clean --lockfile`.
-  await clean.cleanProjects({ ...opts, removeLockfile: false })
-  await install.handler({ ...opts, frozenLockfile: true } as any) // eslint-disable-line
+export async function handler (
+  opts: PnpmOptions,
+  params?: string[],
+  commands?: CommandHandlerMap
+): Promise<void | string> {
+  const skipsClean = Boolean(
+    opts.dryRun ||
+    opts.lockfileOnly ||
+    (opts.cliOptions as { 'resolution-only'?: boolean } | undefined)?.['resolution-only']
+  )
+  if (!skipsClean) {
+    await validateCiFrozenInstall({ ...opts, frozenLockfile: true } as any) // eslint-disable-line
+    // `--lockfile` here is the install setting, not `pnpm clean --lockfile`.
+    await clean.cleanProjects({ ...opts, removeLockfile: false })
+  }
+  return install.handler(
+    { ...opts, frozenLockfile: true, optimisticRepeatInstall: false } as any, // eslint-disable-line
+    params,
+    commands
+  )
 }

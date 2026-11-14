@@ -253,7 +253,7 @@ function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): 
   return !opts.update && !opts.dedupe && !opts.force && !opts.pruneDirectDependencies && !opts.pruneStore
 }
 
-function applyWorkspaceOption (opts: InstallDepsOptions): void {
+export function applyWorkspaceOption (opts: InstallDepsOptions): void {
   if (opts.latest) {
     throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
   }
@@ -310,7 +310,7 @@ function findDeclaredPacquetConfigDepName (configDependencies: InstallDepsOption
   return undefined
 }
 
-async function readAllProjects (opts: InstallDepsOptions): Promise<Project[]> {
+export async function readAllProjects (opts: InstallDepsOptions): Promise<Project[]> {
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
       ? await findWorkspaceProjects(opts.workspaceDir, {
@@ -364,7 +364,7 @@ async function installWorkspaceProjects (
   )
 }
 
-function failOrWarnOnWorkspaceCycles (
+export function failOrWarnOnWorkspaceCycles (
   opts: Pick<InstallDepsOptions, 'ignoreWorkspaceCycles' | 'disallowWorkspaceCycles'>,
   { workspaceDir, selectedProjectsGraph }: { workspaceDir: string, selectedProjectsGraph: ProjectsGraph }
 ): void {
@@ -384,7 +384,7 @@ function failOrWarnOnWorkspaceCycles (
   })
 }
 
-function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
+export function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
   return { [project.rootDir]: { dependencies: [], package: project } }

@@ -186,3 +186,122 @@ test('pnpm ci unlinks symlinked node_modules without deleting target contents an
   expect(fs.lstatSync('node_modules').isDirectory()).toBe(true)
   expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
 })
+
+test('pnpm ci preserves existing node_modules when lockfile is missing or outdated', () => {
+  prepare({
+    name: 'test-ci-preserve-nm',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  const markerPath = path.join('node_modules', 'keep-marker.txt')
+  fs.writeFileSync(markerPath, 'keep')
+  const savedLockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  // Missing pnpm-lock.yaml (even while node_modules/.pnpm/lock.yaml exists)
+  fs.unlinkSync('pnpm-lock.yaml')
+  const missingRes = execPnpmSync(['ci'])
+  expect(missingRes.status).not.toBe(0)
+  expect(missingRes.stdout.toString() + missingRes.stderr.toString()).toContain('ERR_PNPM_NO_LOCKFILE')
+  expect(fs.existsSync(markerPath)).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
+
+  // Outdated pnpm-lock.yaml
+  fs.writeFileSync('pnpm-lock.yaml', savedLockfile)
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'test-ci-preserve-nm',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  }))
+  const outdatedRes = execPnpmSync(['ci'])
+  expect(outdatedRes.status).not.toBe(0)
+  expect(outdatedRes.stdout.toString() + outdatedRes.stderr.toString()).toContain('ERR_PNPM_OUTDATED_LOCKFILE')
+  expect(fs.existsSync(markerPath)).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
+})
+
+test('pnpm ci with sharedWorkspaceLockfile=false preserves all node_modules when any project fails validation', () => {
+  preparePackages([
+    {
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+    {
+      name: 'pkg-b',
+      version: '1.0.0',
+      dependencies: { 'is-negative': '1.0.0' },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  const markerA = path.join('pkg-a', 'node_modules', 'marker-a.txt')
+  const markerB = path.join('pkg-b', 'node_modules', 'marker-b.txt')
+  fs.writeFileSync(markerA, 'a')
+  fs.writeFileSync(markerB, 'b')
+
+  fs.unlinkSync(path.join('pkg-b', 'pnpm-lock.yaml'))
+  const ciRes = execPnpmSync(['ci'])
+  expect(ciRes.status).not.toBe(0)
+  expect(fs.existsSync(markerA)).toBe(true)
+  expect(fs.existsSync(markerB)).toBe(true)
+})
+
+test('pnpm ci honors --filter and cleans root node_modules without root package.json when unfiltered', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+        dependencies: { 'is-positive': '1.0.0' },
+      },
+    },
+    {
+      location: 'packages/pkg-b',
+      package: {
+        name: 'pkg-b',
+        version: '1.0.0',
+        dependencies: { 'is-negative': '1.0.0' },
+      },
+    },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+
+  const staleA = path.join('packages', 'pkg-a', 'node_modules', 'stale-a')
+  const keepB = path.join('packages', 'pkg-b', 'node_modules', 'keep-b')
+  const rootMarker = path.join('node_modules', 'root-stale-pkg')
+  fs.mkdirSync(staleA, { recursive: true })
+  fs.mkdirSync(keepB, { recursive: true })
+  fs.mkdirSync(rootMarker, { recursive: true })
+
+  // Filtered `pnpm --filter pkg-a ci` cleans and reinstalls only pkg-a
+  const filteredRes = execPnpmSync(['--filter', 'pkg-a', 'ci'])
+  expect(filteredRes.status).toBe(0)
+  expect(fs.existsSync(staleA)).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-positive'))).toBe(true)
+  expect(fs.existsSync(keepB)).toBe(true)
+  expect(fs.existsSync(rootMarker)).toBe(true)
+
+  // Unfiltered `pnpm ci` cleans root node_modules even without root package.json
+  const unfilteredRes = execPnpmSync(['ci'])
+  expect(unfilteredRes.status).toBe(0)
+  expect(fs.existsSync(rootMarker)).toBe(false)
+  expect(fs.existsSync(keepB)).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-b', 'node_modules', 'is-negative'))).toBe(true)
+})

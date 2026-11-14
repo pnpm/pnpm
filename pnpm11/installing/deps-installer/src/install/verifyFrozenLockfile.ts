@@ -78,7 +78,7 @@ export async function checkProjectsAgainstLockfile (run: MutationRun, frozenLock
   return skippedOptionalDependencies
 }
 
-function createNoLockfileError (): PnpmError {
+export function createNoLockfileError (): PnpmError {
   return new PnpmError('NO_LOCKFILE',
     `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
       hint: FROZEN_LOCKFILE_HINT,

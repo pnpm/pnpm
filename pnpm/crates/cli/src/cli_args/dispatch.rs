@@ -142,11 +142,7 @@ impl CliArgs {
             return None;
         }
         install_args.lockfile.directory.apply_to(&mut config, &dir);
-        config.frozen_store = resolve_bool_override(
-            install_args.materialization.frozen_store,
-            install_args.materialization.no_frozen_store,
-            config.frozen_store,
-        );
+        install_args.materialization.store.apply(&mut config);
         if install_args.materialization.no_runtime {
             super::pipelines::record_no_runtime_flag(&mut config);
         }

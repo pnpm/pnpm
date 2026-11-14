@@ -84,7 +84,7 @@ export async function mutateModules (
   return finishMutation(run, result)
 }
 
-async function readMutationProjectOptions (
+export async function readMutationProjectOptions (
   projects: MutatedProject[],
   ignorePackageManifest: boolean
 ): Promise<ProjectOptions[]> {
@@ -230,7 +230,7 @@ function readExplicitDependencyGroups (extraOpts: DependencyGroupCliOptions): {
   }
 }
 
-function createScriptsOptions (opts: StrictInstallOptions, ctx: PnpmContext): RunLifecycleHooksConcurrentlyOptions {
+export function createScriptsOptions (opts: StrictInstallOptions, ctx: PnpmContext): RunLifecycleHooksConcurrentlyOptions {
   return {
     extraBinPaths: opts.extraBinPaths,
     extendNodePath: opts.extendNodePath,
@@ -342,8 +342,8 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
  * The pending verdict is returned wrapped in an object, so that awaiting
  * this function does not await the verification.
  */
-async function startLockfileVerification (
-  { ctx, installsOnly, opts, projects }: OpenedMutationRun
+export async function startLockfileVerification (
+  { ctx, installsOnly, opts, projects }: Pick<OpenedMutationRun, 'ctx' | 'installsOnly' | 'opts' | 'projects'>
 ): Promise<{ verifyLockfilePromise?: Promise<void> }> {
   if (willDelegateToPacquet(opts, ctx, installsOnly) || opts.trustLockfile) return {}
   const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
@@ -408,7 +408,7 @@ function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, in
     )
 }
 
-async function runPreResolutionHooks (opts: StrictInstallOptions, ctx: PnpmContext): Promise<void> {
+export async function runPreResolutionHooks (opts: StrictInstallOptions, ctx: PnpmContext): Promise<void> {
   if (!opts.hooks.preResolution) return
   for (const preResolution of opts.hooks.preResolution) {
     // eslint-disable-next-line no-await-in-loop -- preResolution hooks run one after another, in the order they were registered

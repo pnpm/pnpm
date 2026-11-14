@@ -9,7 +9,6 @@ use super::{
     add::{AddArgs, apply_allow_build},
     approve_builds::ApproveBuildsArgs,
     ci::CiArgs,
-    clean::run as clean_builtin,
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -330,17 +329,10 @@ fn install_with_config<'a>(
 pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFuture<'a>> {
     let mut install_args = args.install_args;
     install_args.lockfile.frozen = true;
+    install_args.lockfile.no_frozen = false;
+    install_args.materialization.clean_install = true;
 
-    // Built before clean so its up-front checks reject the command before
-    // anything is removed.
-    let install = install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?;
-
-    // Run clean eagerly before the async future so errors surface
-    // immediately. `ci` is not an overridable command, so this is always
-    // the built-in clean, never a `clean` script the project declares.
-    clean_builtin(ctx, (ctx.loaders.config)()?, false)?;
-
-    Ok(install)
+    install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)
 }
 
 pub(super) fn dlx<'a>(ctx: &RunCtx<'a>, args: DlxArgs) -> miette::Result<CommandFuture<'a>> {

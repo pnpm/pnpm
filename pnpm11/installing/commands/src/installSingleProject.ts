@@ -97,7 +97,7 @@ export async function installSingleProject (
   return installAllDependencies(ctx, selection)
 }
 
-async function createSingleProjectInstallContext (
+export async function createSingleProjectInstallContext (
   target: SingleProjectInstallTarget,
   userNamedDeps: boolean
 ): Promise<SingleProjectInstallContext> {

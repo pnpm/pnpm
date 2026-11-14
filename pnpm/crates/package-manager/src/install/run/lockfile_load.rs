@@ -250,7 +250,7 @@ pub(super) fn load_current_lockfile<Reporter: self::Reporter>(
     }
 }
 
-async fn load_hooked_manifests<Reporter: self::Reporter + 'static>(
+pub(super) async fn load_hooked_manifests<Reporter: self::Reporter + 'static>(
     install: InstallView<'_>,
     owned: &mut InstallOwned,
     workspace: &InstallWorkspace<'_>,

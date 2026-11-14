@@ -17,7 +17,7 @@ use super::{
 use tracing::Instrument as _;
 
 impl<'a> RunExecution<'a> {
-    fn select_scope(&self) -> InstallScope<'a> {
+    pub(super) fn select_scope(&self) -> InstallScope<'a> {
         InstallScope::select(
             self.install,
             &self.workspace.dirs.workspace_root,

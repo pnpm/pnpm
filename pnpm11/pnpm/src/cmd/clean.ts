@@ -2,21 +2,33 @@ import { promises as fs, type Stats } from 'node:fs'
 import path, { type ParsedPath } from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
+import { types as allTypes } from '@pnpm/config.reader'
 import { isError } from '@pnpm/error'
+import type { ProjectsGraph } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir, strict as isStrictSubdir } from 'is-subdir'
+import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 export const commandNames = ['clean', 'purge']
 
 export const overridableByScript = true
 
-export const rcOptionsTypes = (): Record<string, unknown> => ({})
+export const rcOptionsTypes = (): Record<string, unknown> =>
+  pick([
+    'lockfile-dir',
+    'modules-dir',
+    'shared-workspace-lockfile',
+    'virtual-store-dir',
+  ], allTypes)
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
+    ...rcOptionsTypes(),
     lockfile: Boolean,
+    recursive: Boolean,
   }
 }
 
@@ -50,27 +62,33 @@ the script is executed instead of the built-in command.',
 }
 
 export interface CleanOptions {
+  cliOptions?: {
+    lockfile?: boolean
+    'lockfile-dir'?: string
+  }
   dir: string
+  filter?: string[]
+  filterProd?: string[]
+  lockfileDir?: string
   modulesDir?: string
+  modulesDirsByProjectName?: Record<string, string>
+  selectedProjectsGraph?: ProjectsGraph
   virtualStoreDir?: string
   workspaceDir?: string
   workspacePackagePatterns?: string[]
+  workspaceRoot?: boolean
 }
 
-export async function handler (
-  opts: CleanOptions & {
-    cliOptions?: {
-      lockfile?: boolean
-    }
-  }
-): Promise<void> {
+export async function handler (opts: CleanOptions): Promise<void> {
   await cleanProjects({ ...opts, removeLockfile: opts.cliOptions?.lockfile === true })
 }
 
 interface CleanProjectContext {
+  cleanedModulesDirs: Set<string>
   cwd: string
   modulesDir: string
   realRootDir: string
+  removedLockfiles: Set<string>
   removeLockfile: boolean
 }
 
@@ -80,15 +98,22 @@ export async function cleanProjects (opts: CleanOptions & { removeLockfile: bool
   const realRootDir = await tryRealpath(rootDir)
   if (realRootDir == null) return
   const cwd = await tryRealpath(process.cwd()) ?? process.cwd()
+  const narrowed = isNarrowedRun(opts)
   const cleanOpts: CleanProjectContext = {
+    cleanedModulesDirs: new Set(),
     cwd,
     modulesDir,
     realRootDir,
+    removedLockfiles: new Set(),
     removeLockfile: opts.removeLockfile,
   }
-  const dirs = await getProjectDirs(opts)
-  await Promise.all(dirs.map(async (dir) => cleanProjectDir(cleanOpts, dir)))
-  if (opts.virtualStoreDir) {
+  const dirs = await getProjectDirs(opts, { narrowed, realRootDir, rootDir })
+  for (const dir of dirs) {
+    // eslint-disable-next-line no-await-in-loop -- deduplicates targets across aliased directories deterministically
+    await cleanProjectDir(cleanOpts, dir)
+  }
+  await cleanConfiguredLockfileDir(opts, cleanOpts, { dirs, narrowed, rootDir })
+  if (!narrowed && opts.virtualStoreDir) {
     await removeExternalVirtualStore({
       cwd,
       modulesDir,
@@ -98,13 +123,99 @@ export async function cleanProjects (opts: CleanOptions & { removeLockfile: bool
   }
 }
 
+function isNarrowedRun (opts: Pick<CleanOptions, 'filter' | 'filterProd' | 'workspaceRoot'>): boolean {
+  return Boolean(opts.filter?.length || opts.filterProd?.length || opts.workspaceRoot)
+}
+
+async function cleanConfiguredLockfileDir (
+  opts: CleanOptions,
+  cleanOpts: CleanProjectContext,
+  { dirs, narrowed, rootDir }: { dirs: string[], narrowed: boolean, rootDir: string }
+): Promise<void> {
+  const cleansRoot = !narrowed || await dirsIncludeRoot(dirs, cleanOpts.realRootDir)
+  if (!cleansRoot) return
+  const resolvedLockfileDir = await resolveConfiguredLockfileDir(opts, rootDir, cleanOpts.realRootDir)
+  if (resolvedLockfileDir == null) return
+  if (!narrowed) {
+    const lockfileModulesDir = await resolveProjectModulesDir({
+      modulesDir: cleanOpts.modulesDir,
+      projectDir: resolvedLockfileDir,
+      realRootDir: cleanOpts.realRootDir,
+    })
+    if (lockfileModulesDir != null && !cleanOpts.cleanedModulesDirs.has(lockfileModulesDir)) {
+      cleanOpts.cleanedModulesDirs.add(lockfileModulesDir)
+      await cleanModulesDir(cleanOpts.cwd, lockfileModulesDir)
+    }
+  }
+  if (cleanOpts.removeLockfile) {
+    await removeProjectLockfile(cleanOpts, resolvedLockfileDir)
+  }
+}
+
+async function dirsIncludeRoot (dirs: string[], realRootDir: string): Promise<boolean> {
+  const realDirs = await Promise.all(dirs.map(async (dir) => tryRealpath(dir)))
+  return realDirs.includes(realRootDir)
+}
+
+async function resolveConfiguredLockfileDir (
+  opts: CleanOptions,
+  rootDir: string,
+  realRootDir: string
+): Promise<string | undefined> {
+  const rawSpec = await readRawLockfileDirSpec(opts, rootDir)
+  if (rawSpec == null) return undefined
+  const candidate = await resolveInside(rootDir, rawSpec)
+  if (candidate == null) return undefined
+  const realLockfileDir = await tryRealpath(candidate)
+  return realLockfileDir != null && isStrictSubdir(realRootDir, realLockfileDir)
+    ? realLockfileDir
+    : undefined
+}
+
+async function readRawLockfileDirSpec (opts: CleanOptions, rootDir: string): Promise<string | undefined> {
+  const cliLockfileDir = opts.cliOptions?.['lockfile-dir']
+  if (typeof cliLockfileDir === 'string') {
+    return anchorSpecToCliDir(opts.dir, cliLockfileDir)
+  }
+  const envLockfileDir = readEnvLockfileDir()
+  if (typeof envLockfileDir === 'string') {
+    return anchorSpecToCliDir(opts.dir, envLockfileDir)
+  }
+  const workspaceManifest = await readWorkspaceManifest(rootDir) as { lockfileDir?: unknown } | undefined
+  if (typeof workspaceManifest?.lockfileDir === 'string') {
+    return workspaceManifest.lockfileDir
+  }
+  return opts.lockfileDir
+}
+
+function readEnvLockfileDir (): string | undefined {
+  let npmFallback: string | undefined
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value !== 'string') continue
+    const lowerKey = key.toLowerCase()
+    if (lowerKey === 'pnpm_config_lockfile_dir') return value
+    if (lowerKey === 'npm_config_lockfile_dir') npmFallback = value
+  }
+  return npmFallback
+}
+
+async function anchorSpecToCliDir (cliDir: string, rawSpec: string): Promise<string | undefined> {
+  const nativeSpec = path.sep === '\\' ? rawSpec.replaceAll('/', '\\') : rawSpec
+  if (path.parse(nativeSpec).root !== '') {
+    return path.isAbsolute(nativeSpec) ? nativeSpec : undefined
+  }
+  const realCliDir = await tryRealpath(cliDir)
+  return realCliDir != null ? `${appendPathSep(realCliDir)}${nativeSpec}` : undefined
+}
+
 async function cleanProjectDir (opts: CleanProjectContext, dir: string): Promise<void> {
   const fullModulesDir = await resolveProjectModulesDir({
     modulesDir: opts.modulesDir,
     projectDir: dir,
     realRootDir: opts.realRootDir,
   })
-  if (fullModulesDir != null) {
+  if (fullModulesDir != null && !opts.cleanedModulesDirs.has(fullModulesDir)) {
+    opts.cleanedModulesDirs.add(fullModulesDir)
     await cleanModulesDir(opts.cwd, fullModulesDir)
   }
   if (opts.removeLockfile) {
@@ -159,6 +270,8 @@ async function removableModulesEntries (modulesDir: string): Promise<string[]> {
 async function removeProjectLockfile (opts: CleanProjectContext, dir: string): Promise<void> {
   const lockfilePath = await resolveInside(dir, 'pnpm-lock.yaml')
   if (lockfilePath == null || !isStrictSubdir(opts.realRootDir, lockfilePath)) return
+  if (opts.removedLockfiles.has(lockfilePath)) return
+  opts.removedLockfiles.add(lockfilePath)
   const stat = await lstatIfExists(lockfilePath)
   if (stat == null || (!stat.isSymbolicLink() && stat.isDirectory())) return
   printRemoving(opts.cwd, lockfilePath)
@@ -280,14 +393,17 @@ function printRemoving (cwd: string, dir: string): void {
 }
 
 async function getProjectDirs (
-  opts: {
-    dir: string
-    modulesDir?: string
-    modulesDirsByProjectName?: Record<string, string>
-    workspaceDir?: string
-    workspacePackagePatterns?: string[]
-  }
+  opts: CleanOptions,
+  { narrowed, realRootDir, rootDir }: { narrowed: boolean, realRootDir: string, rootDir: string }
 ): Promise<string[]> {
+  if (narrowed) {
+    if (opts.selectedProjectsGraph != null) {
+      return Object.keys(opts.selectedProjectsGraph)
+    }
+    if (opts.workspaceRoot) {
+      return [rootDir]
+    }
+  }
   if (!opts.workspaceDir) {
     return [opts.dir]
   }
@@ -296,5 +412,8 @@ async function getProjectDirs (
     modulesDir: opts.modulesDir,
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
   })
-  return pkgs.map((pkg) => pkg.rootDir)
+  const projectDirs = pkgs.map((pkg) => pkg.rootDir)
+  return await dirsIncludeRoot(projectDirs, realRootDir)
+    ? projectDirs
+    : [opts.workspaceDir, ...projectDirs]
 }

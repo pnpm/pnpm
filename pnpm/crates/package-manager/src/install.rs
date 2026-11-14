@@ -443,6 +443,11 @@ impl DiscoveredWorkspace {
         DiscoveredWorkspace { projects: Arc::from(projects), packages: Arc::default() }
     }
 
+    #[must_use]
+    pub fn projects(&self) -> &[pnpm_workspace::Project] {
+        &self.projects
+    }
+
     /// The index of `projects` when they are this workspace's own list.
     fn packages_of(
         &self,

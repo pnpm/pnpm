@@ -74,6 +74,16 @@ where
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await
     }
 
+    /// Validate that the wanted lockfile exists, matches every project's
+    /// manifest and settings, and passes local tarball and resolution-policy
+    /// checks without writing or removing anything on disk.
+    pub async fn validate_frozen(
+        self,
+        selection: Option<WorkspaceInstallSelection<'_>>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.validate_frozen_inner(selection)).await
+    }
+
     /// Execute `pacquet prune`, enabling extraneous direct-dependency
     /// removal and optional workspace project selection.
     pub async fn run_prune<Reporter: self::Reporter + 'static>(

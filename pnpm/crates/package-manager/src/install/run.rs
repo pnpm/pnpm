@@ -39,6 +39,7 @@ mod settled;
 mod time_machine_capture;
 mod uninstall_hooks;
 mod up_to_date_scripts;
+mod validate_frozen;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
 use super::{
