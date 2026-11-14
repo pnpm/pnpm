@@ -12,8 +12,8 @@ pub use add::{AddOptions, plan_add, writable_project};
 pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;
 pub use outdated::{
-    DeclaredPythonDep, PythonDependencyGroup, TargetPyproject, declared_dependencies,
-    inspect_target_pyproject, lockfile_dir_for, project_name, read_lockfile,
+    DeclaredPythonDep, LockedPythonPackages, PythonDependencyGroup, TargetPyproject,
+    declared_dependencies, inspect_target_pyproject, lockfile_dir_for, project_name,
     resolve_target_version,
 };
 pub use pep508_rs::{PackageName, VersionOrUrl};

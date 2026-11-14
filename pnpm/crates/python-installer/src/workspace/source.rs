@@ -203,6 +203,6 @@ impl super::Workspace {
         manifest: &Manifest,
     ) -> std::collections::BTreeSet<PackageName> {
         let inherited = self.inherited.get(root).map(|(_, root_manifest)| root_manifest.as_ref());
-        crate::outdated::collect_non_index_sources(manifest, inherited)
+        manifest.non_index_sources(inherited)
     }
 }

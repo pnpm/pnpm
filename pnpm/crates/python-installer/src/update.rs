@@ -5,10 +5,10 @@ use super::{
     workspace::Workspace,
 };
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pep508_rs::{PackageName, Requirement, VersionOrUrl};
+use pep508_rs::{MarkerTree, PackageName, Requirement, VersionOrUrl};
 use pnpm_python_resolver::{LockIndex, Lockfile};
 use rewrite::{rewrite_pyproject, rewrite_pyproject_many};
-use specifiers::compute_saved_specifiers;
+use specifiers::compute_saved_specifiers_for_pins;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -82,10 +82,12 @@ fn update_metadata_paths(
         .collect()
 }
 
+pub(super) type UpdatedMarkersByLockRoot = BTreeMap<PathBuf, BTreeMap<PackageName, MarkerTree>>;
+
 pub(super) struct StageContext<'a> {
     pub(super) discovery: &'a Discovery,
     pub(super) selected: &'a BTreeSet<PathBuf>,
-    pub(super) updated_names: BTreeMap<PathBuf, BTreeSet<PackageName>>,
+    pub(super) updated_markers: UpdatedMarkersByLockRoot,
     pub(super) options: &'a UpdateOptions,
     pub(super) locks: BTreeMap<PathBuf, Lockfile>,
 }
@@ -131,7 +133,7 @@ async fn stage_and_prepare<Reporter: self::Reporter + 'static>(
     let stage = StageContext {
         discovery: &discovery,
         selected,
-        updated_names: collect_updated_names(&discovery, selected, options)?,
+        updated_markers: collect_updated_markers(&discovery, selected, options)?,
         options,
         locks: collect_existing_locks(memberships),
     };
@@ -147,26 +149,37 @@ async fn stage_and_prepare<Reporter: self::Reporter + 'static>(
     .await
 }
 
-pub(super) fn collect_updated_names(
+pub(super) fn collect_updated_markers(
     discovery: &Discovery,
     selected: &BTreeSet<PathBuf>,
     options: &UpdateOptions,
-) -> Result<BTreeMap<PathBuf, BTreeSet<PackageName>>> {
-    let mut by_lock_root: BTreeMap<PathBuf, BTreeSet<PackageName>> = BTreeMap::new();
+) -> Result<UpdatedMarkersByLockRoot> {
+    let mut by_lock_root: UpdatedMarkersByLockRoot = BTreeMap::new();
     for root in selected {
         let lock_root = discovery.workspace.lock_root(root);
         let declared =
             declared_dependencies_in_workspace(&root.join("pyproject.toml"), &discovery.workspace)?;
-        for dep in declared {
-            if options.selects(dep.group, &dep.name) {
-                by_lock_root
-                    .entry(lock_root.to_path_buf())
-                    .or_default()
-                    .insert(dep.name);
-            }
-        }
+        let entry = by_lock_root.entry(lock_root.to_path_buf()).or_default();
+        record_selected_markers(entry, declared, options);
     }
     Ok(by_lock_root)
+}
+
+fn record_selected_markers(
+    markers: &mut BTreeMap<PackageName, MarkerTree>,
+    declared: Vec<super::DeclaredPythonDep>,
+    options: &UpdateOptions,
+) {
+    for dep in declared {
+        if !options.selects(dep.group, &dep.name) {
+            continue;
+        }
+        let branch = dep.requirement.marker.simplify_extras_with(|_| true);
+        markers
+            .entry(dep.name)
+            .and_modify(|existing| existing.or(branch.clone()))
+            .or_insert(branch);
+    }
 }
 
 fn snapshot_manifests(members: &BTreeSet<PathBuf>) -> Result<BTreeMap<PathBuf, String>> {
@@ -217,7 +230,7 @@ pub(super) fn stage_manifests_for_resolution(
         let is_selected = stage.selected.contains(member);
         let lock_root = stage.discovery.workspace.lock_root(member);
         let lock_index = lock_indices.get(lock_root);
-        let updated_in_env = stage.updated_names.get(lock_root);
+        let updated_in_env = stage.updated_markers.get(lock_root);
         rewrite_pyproject_many(member, &stage.discovery.workspace, |group, req| {
             stage_requirement(group, req, is_selected, stage.options, updated_in_env, lock_index)
         })?;
@@ -230,7 +243,7 @@ pub(super) fn stage_requirement(
     mut req: Requirement,
     is_selected: bool,
     options: &UpdateOptions,
-    updated_in_env: Option<&BTreeSet<PackageName>>,
+    updated_in_env: Option<&BTreeMap<PackageName, MarkerTree>>,
     lock_index: Option<&LockIndex<'_>>,
 ) -> Result<Option<Vec<Requirement>>> {
     if matches!(req.version_or_url, Some(VersionOrUrl::Url(_))) {
@@ -239,13 +252,11 @@ pub(super) fn stage_requirement(
     if is_selected && options.selects(group, &req.name) {
         return stage_selected_requirement(&mut req, options);
     }
-    if !is_selected && updated_in_env.is_some_and(|names| names.contains(&req.name)) {
-        return Ok(None);
-    }
     let Some(lock_index) = lock_index else {
         return Ok(None);
     };
-    lock_index.pinned_index_requirements(&req)
+    let excluded = updated_in_env.and_then(|markers| markers.get(&req.name));
+    lock_index.pinned_index_requirements(&req, excluded)
 }
 
 fn stage_selected_requirement(
@@ -302,7 +313,7 @@ fn finalize_prepared_project(
     Ok(())
 }
 
-fn finalize_requirement(
+pub(super) fn finalize_requirement(
     group: PythonDependencyGroup,
     mut req: Requirement,
     options: &UpdateOptions,
@@ -313,11 +324,14 @@ fn finalize_requirement(
     {
         return Ok(None);
     }
-    let Some(version) = lock_index.agreed_index_version(&req) else {
-        return Ok(None);
-    };
     let explicit_spec = options.targets.get(&req.name).and_then(Option::as_deref);
-    let Some(specifiers) = compute_saved_specifiers(&req, version, explicit_spec, options.latest)?
+    if let Some(spec) = explicit_spec.filter(|spec| !spec.starts_with("==")) {
+        req.version_or_url = Some(VersionOrUrl::VersionSpecifier(spec.parse().into_diagnostic()?));
+        return Ok(Some(req));
+    }
+    let pins = lock_index.matching_index_pins(&req);
+    let Some(specifiers) =
+        compute_saved_specifiers_for_pins(&req, &pins, explicit_spec, options.latest)?
     else {
         return Ok(None);
     };

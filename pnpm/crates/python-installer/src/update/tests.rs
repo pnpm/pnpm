@@ -9,8 +9,8 @@ use pnpm_config::Config;
 use pnpm_python_resolver::{Inputs, LockedPackage, LockedWheel, Lockfile, ToolMetadata};
 
 use super::{
-    StageContext, UpdateOptions, collect_updated_names, specifiers::updated_existing_specifiers,
-    stage_manifests_for_resolution, stage_requirement,
+    StageContext, UpdateOptions, collect_updated_markers, finalize_requirement,
+    specifiers::updated_existing_specifiers, stage_manifests_for_resolution, stage_requirement,
 };
 use crate::{PythonDependencyGroup, declared_dependencies, discover};
 
@@ -176,13 +176,139 @@ fn unselected_sibling_staging_preserves_platform_specific_locked_versions() {
     )
     .unwrap()
     .unwrap();
-    assert_eq!(
-        staged_gamma
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>(),
-        vec!["gamma==3.0"],
+    let darwin_env: pep508_rs::MarkerTree =
+        "python_version == '3.12' and sys_platform == 'darwin'".parse().unwrap();
+    let gamma_on_linux: Vec<String> = staged_gamma
+        .iter()
+        .filter(|req| !req.marker.is_disjoint(&linux_env))
+        .map(|req| {
+            req.version_or_url
+                .as_ref()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    let gamma_on_darwin: Vec<String> = staged_gamma
+        .iter()
+        .filter(|req| !req.marker.is_disjoint(&darwin_env))
+        .map(|req| {
+            req.version_or_url
+                .as_ref()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(gamma_on_linux, vec!["==3.0"]);
+    assert_eq!(gamma_on_darwin, vec![">=1.0"]);
+}
+
+#[test]
+fn sibling_pins_preserve_disjoint_markers_and_skip_stale_constraints() {
+    let lock = sample_lock(
+        vec![
+            "python_version == '3.12' and sys_platform == 'linux'",
+            "python_version == '3.12' and sys_platform == 'win32'",
+        ],
+        vec![
+            locked_pkg("alpha", "1.0", Some("sys_platform == 'linux'")),
+            locked_pkg("alpha", "1.0", Some("sys_platform == 'win32'")),
+            locked_pkg("beta", "1.0", None),
+        ],
     );
+    let lock_index = lock.index().unwrap();
+    let options = UpdateOptions {
+        targets: BTreeMap::from([("alpha".parse().unwrap(), None)]),
+        restrict_to_targets: true,
+        groups: BTreeSet::from([PythonDependencyGroup::Prod]),
+        latest: false,
+        no_save: false,
+    };
+    let updated_in_env =
+        BTreeMap::from([("alpha".parse().unwrap(), "sys_platform == 'linux'".parse().unwrap())]);
+
+    let win_sibling = stage_requirement(
+        PythonDependencyGroup::Prod,
+        "alpha>=1.0 ; sys_platform == 'win32'".parse().unwrap(),
+        false,
+        &options,
+        Some(&updated_in_env),
+        Some(&lock_index),
+    )
+    .unwrap()
+    .unwrap();
+    let win_env: pep508_rs::MarkerTree =
+        "python_version == '3.12' and sys_platform == 'win32'".parse().unwrap();
+    let active_on_win: Vec<String> = win_sibling
+        .iter()
+        .filter(|req| !req.marker.is_disjoint(&win_env))
+        .map(|req| {
+            req.version_or_url
+                .as_ref()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(active_on_win, vec!["==1.0"]);
+
+    let stale = stage_requirement(
+        PythonDependencyGroup::Prod,
+        "beta>=2.0".parse().unwrap(),
+        false,
+        &options,
+        Some(&updated_in_env),
+        Some(&lock_index),
+    )
+    .unwrap();
+    assert!(stale.is_none());
+}
+
+#[test]
+fn finalize_requirement_saves_ranges_when_platforms_resolve_different_versions() {
+    let lock = sample_lock(
+        vec![
+            "python_version == '3.12' and sys_platform == 'linux'",
+            "python_version == '3.12' and sys_platform == 'win32'",
+        ],
+        vec![
+            locked_pkg("foo", "2.0", Some("sys_platform == 'linux'")),
+            locked_pkg("foo", "3.0", Some("sys_platform == 'win32'")),
+        ],
+    );
+    let lock_index = lock.index().unwrap();
+
+    let explicit_opts = UpdateOptions {
+        targets: BTreeMap::from([("foo".parse().unwrap(), Some(">=2".to_string()))]),
+        restrict_to_targets: true,
+        groups: BTreeSet::from([PythonDependencyGroup::Prod]),
+        latest: false,
+        no_save: false,
+    };
+    let saved_explicit = finalize_requirement(
+        PythonDependencyGroup::Prod,
+        "foo<2".parse().unwrap(),
+        &explicit_opts,
+        &lock_index,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(saved_explicit.to_string(), "foo>=2");
+
+    let latest_opts = UpdateOptions {
+        targets: BTreeMap::from([("foo".parse().unwrap(), None)]),
+        restrict_to_targets: true,
+        groups: BTreeSet::from([PythonDependencyGroup::Prod]),
+        latest: true,
+        no_save: false,
+    };
+    let saved_latest = finalize_requirement(
+        PythonDependencyGroup::Prod,
+        "foo==1.0".parse().unwrap(),
+        &latest_opts,
+        &lock_index,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(saved_latest.to_string(), "foo>=2.0");
 }
 
 fn write_pyproject(dir: &Path, contents: &str) {
@@ -238,11 +364,11 @@ async fn updated_names_are_scoped_to_each_lock_root() {
         latest: false,
         no_save: false,
     };
-    let updated_names = collect_updated_names(&discovery, &selected, &options).unwrap();
+    let updated_markers = collect_updated_markers(&discovery, &selected, &options).unwrap();
     let stage = StageContext {
         discovery: &discovery,
         selected: &selected,
-        updated_names,
+        updated_markers,
         options: &options,
         locks: BTreeMap::from([(
             ws2.clone(),

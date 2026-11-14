@@ -17,8 +17,8 @@ use pnpm_matcher::Matcher;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_python_installer::{
-    DeclaredPythonDep, PythonDependencyGroup, declared_dependencies, lockfile_dir_for,
-    project_name, read_lockfile, resolve_target_version,
+    DeclaredPythonDep, LockedPythonPackages, PythonDependencyGroup, declared_dependencies,
+    lockfile_dir_for, project_name, resolve_target_version,
 };
 use std::{collections::BTreeSet, path::Path};
 
@@ -90,8 +90,7 @@ pub(crate) async fn collect_python_outdated(
     if !pylock_path.is_file() {
         return Ok(Vec::new());
     }
-    let lock = read_lockfile(&pylock_path)?;
-    let lock_index = lock.index()?;
+    let locked = LockedPythonPackages::read(&pylock_path)?;
     let mut outdated = Vec::new();
     for dep in declared {
         let group = map_python_group(dep.group);
@@ -99,7 +98,7 @@ pub(crate) async fn collect_python_outdated(
         if !query.include_direct.contains(&group) || !query.matches_name(&name_str) {
             continue;
         }
-        let Some(current) = lock_index.agreed_index_version(&dep.requirement) else {
+        let Some(current) = locked.agreed_version(&dep.requirement) else {
             continue;
         };
         if let Some(pkg) = resolve_outdated_python_dep(

@@ -1,8 +1,68 @@
 use miette::{IntoDiagnostic, Result};
 use pep440_rs::{Operator, Version, VersionSpecifier, VersionSpecifiers};
 use pep508_rs::{Requirement, VersionOrUrl};
+use pnpm_python_resolver::LockedPin;
 
-pub(super) fn compute_saved_specifiers(
+pub(super) fn compute_saved_specifiers_for_pins(
+    req: &Requirement,
+    pins: &[LockedPin<'_>],
+    explicit_spec: Option<&str>,
+    latest: bool,
+) -> Result<Option<VersionSpecifiers>> {
+    let Some(min_version) = pins.iter().map(|pin| pin.version).min() else {
+        return Ok(None);
+    };
+    if pins
+        .iter()
+        .all(|pin| pin.version == min_version)
+    {
+        return compute_saved_specifiers(req, min_version, explicit_spec, latest);
+    }
+    let candidate = compute_saved_specifiers(req, min_version, explicit_spec, latest)?;
+    let existing = match &req.version_or_url {
+        Some(VersionOrUrl::VersionSpecifier(specifiers)) => Some(specifiers),
+        Some(VersionOrUrl::Url(_)) | None => None,
+    };
+    let effective = candidate.as_ref().or(existing);
+    if effective.is_none_or(|specifiers| admits_all_pins(specifiers, pins)) {
+        return Ok(candidate);
+    }
+    if latest || explicit_spec.is_some() {
+        return widened_floor_for_pins(min_version, pins, existing);
+    }
+    Ok(None)
+}
+
+fn admits_all_pins(specifiers: &VersionSpecifiers, pins: &[LockedPin<'_>]) -> bool {
+    let admits_prerelease = specifiers.iter().any(VersionSpecifier::any_prerelease);
+    pins.iter()
+        .all(|pin| {
+            specifiers.contains(pin.version) && (!pin.version.any_prerelease() || admits_prerelease)
+        })
+}
+
+fn widened_floor_for_pins(
+    min_version: &Version,
+    pins: &[LockedPin<'_>],
+    existing: Option<&VersionSpecifiers>,
+) -> Result<Option<VersionSpecifiers>> {
+    let base = min_version.clone().without_local();
+    let floor = if !min_version.any_prerelease()
+        && let Some(pre) = pins
+            .iter()
+            .map(|pin| pin.version)
+            .filter(|ver| ver.any_prerelease())
+            .min()
+    {
+        format!(">={base},>={}", pre.clone().without_local())
+    } else {
+        format!(">={base}")
+    };
+    let parsed: VersionSpecifiers = floor.parse().into_diagnostic()?;
+    Ok((existing != Some(&parsed)).then_some(parsed))
+}
+
+fn compute_saved_specifiers(
     req: &Requirement,
     version: &Version,
     explicit_spec: Option<&str>,

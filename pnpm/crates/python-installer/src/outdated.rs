@@ -7,7 +7,7 @@ use std::{
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pep440_rs::Version;
 use pep508_rs::{MarkerTree, PackageName, Requirement, VersionOrUrl};
-use pnpm_python_resolver::{Lockfile, WheelFilename, parse_requirement, source_version};
+use pnpm_python_resolver::{WheelFilename, parse_requirement, source_version};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -51,6 +51,29 @@ struct RawIndexFile {
     filename: String,
     #[serde(default)]
     yanked: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+struct RawPylock {
+    #[serde(default)]
+    environments: Vec<String>,
+    #[serde(default)]
+    packages: Vec<RawLockedPackage>,
+}
+
+#[derive(Deserialize)]
+struct RawLockedPackage {
+    name: PackageName,
+    version: Option<Version>,
+    marker: Option<String>,
+    #[serde(default)]
+    wheels: Vec<toml::Value>,
+    sdist: Option<toml::Value>,
+}
+
+/// Marker-aware index of package versions recorded in a PEP 751 `pylock.toml`.
+pub struct LockedPythonPackages {
+    by_name: BTreeMap<PackageName, Vec<(Version, MarkerTree)>>,
 }
 
 #[derive(Debug, Clone)]
@@ -139,37 +162,7 @@ fn non_index_sources(
     } else {
         None
     };
-    collect_non_index_sources(manifest, inherited.as_ref())
-}
-
-pub(crate) fn collect_non_index_sources(
-    manifest: &super::manifest::Manifest,
-    inherited: Option<&super::manifest::Manifest>,
-) -> BTreeSet<PackageName> {
-    let mut names = manifest.tool.uv.sources
-        .iter()
-        .filter(|(_, decl)| is_non_index_source(decl))
-        .map(|(name, _)| name.clone())
-        .collect::<BTreeSet<_>>();
-    if let Some(inherited) = inherited {
-        for (name, decl) in &inherited.tool.uv.sources {
-            if !manifest.tool.uv.sources.contains_key(name) && is_non_index_source(decl) {
-                names.insert(name.clone());
-            }
-        }
-    }
-    names
-}
-
-fn is_non_index_source(decl: &super::manifest::SourceDeclaration) -> bool {
-    decl.sources()
-        .iter()
-        .any(|source| {
-            source.workspace
-                || source.path.is_some()
-                || source.git.is_some()
-                || source.url.is_some()
-        })
+    manifest.non_index_sources(inherited.as_ref())
 }
 
 fn collect_declared_deps(
@@ -246,14 +239,67 @@ pub fn lockfile_dir_for(workspace_root: Option<&Path>, project_dir: &Path) -> Pa
     super::workspace::members::environment_root_of(workspace_root, project_dir)
 }
 
-/// Parse `pylock.toml` for marker-aware locked version inspection.
-pub fn read_lockfile(pylock_path: &Path) -> Result<Lockfile> {
-    let contents = fs::read_to_string(pylock_path)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read {}", pylock_path.display()))?;
-    toml::from_str(&contents)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("parse {}", pylock_path.display()))
+impl LockedPythonPackages {
+    /// Parse index-backed package versions and markers from `pylock.toml`.
+    pub fn read(pylock_path: &Path) -> Result<Self> {
+        let contents = fs::read_to_string(pylock_path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read {}", pylock_path.display()))?;
+        let lock: RawPylock = toml::from_str(&contents)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("parse {}", pylock_path.display()))?;
+        let scope = parse_environment_scope(&lock.environments)?;
+        let mut by_name: BTreeMap<PackageName, Vec<(Version, MarkerTree)>> = BTreeMap::new();
+        for pkg in lock.packages {
+            if pkg.wheels.is_empty() && pkg.sdist.is_none() {
+                continue;
+            }
+            let Some(version) = pkg.version else {
+                continue;
+            };
+            let mut active = scope.clone();
+            if let Some(raw_marker) = pkg.marker {
+                let parsed: MarkerTree = raw_marker.parse().into_diagnostic()?;
+                active.and(parsed);
+            }
+            by_name
+                .entry(pkg.name)
+                .or_default()
+                .push((version, active));
+        }
+        Ok(Self { by_name })
+    }
+
+    /// The single locked version across every environment overlapping
+    /// `requirement`, or `None` when none match or versions disagree.
+    #[must_use]
+    pub fn agreed_version(&self, requirement: &Requirement) -> Option<&Version> {
+        let wanted = requirement.marker.clone().simplify_extras_with(|_| true);
+        let mut agreed: Option<&Version> = None;
+        for (version, active) in self.by_name.get(&requirement.name)? {
+            if active.is_disjoint(&wanted) {
+                continue;
+            }
+            match agreed {
+                None => agreed = Some(version),
+                Some(prev) if prev == version => {}
+                Some(_) => return None,
+            }
+        }
+        agreed
+    }
+}
+
+fn parse_environment_scope(environments: &[String]) -> Result<MarkerTree> {
+    if environments.is_empty() {
+        return Ok(MarkerTree::TRUE);
+    }
+    let mut scope = MarkerTree::FALSE;
+    for env in environments {
+        let parsed: MarkerTree = env.parse().into_diagnostic()?;
+        scope.or(parsed);
+    }
+    Ok(scope)
 }
 
 /// Query the configured Python Simple JSON API index for the newest version of

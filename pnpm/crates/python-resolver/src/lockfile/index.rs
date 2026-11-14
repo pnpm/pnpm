@@ -16,7 +16,7 @@ impl Lockfile {
                 .or_default()
                 .push(IndexedPackage::from_locked(package, &scope)?);
         }
-        Ok(LockIndex { scope, by_name })
+        Ok(LockIndex { by_name })
     }
 
     /// The single version this lockfile resolves `requirement` to across every
@@ -53,7 +53,6 @@ pub struct LockedPin<'a> {
 struct IndexedPackage<'a> {
     version: &'a Version,
     active_marker: MarkerTree,
-    package_marker: MarkerTree,
     is_index: bool,
 }
 
@@ -61,15 +60,14 @@ impl<'a> IndexedPackage<'a> {
     fn from_locked(package: &'a LockedPackage, scope: &MarkerTree) -> Result<Self> {
         let package_marker = marker_tree(package)?;
         let mut active_marker = scope.clone();
-        active_marker.and(package_marker.clone());
+        active_marker.and(package_marker);
         let is_index = !package.wheels.is_empty() || package.sdist.is_some();
-        Ok(Self { version: &package.version, active_marker, package_marker, is_index })
+        Ok(Self { version: &package.version, active_marker, is_index })
     }
 }
 
 /// Pre-parsed marker and package lookup index over a [`Lockfile`].
 pub struct LockIndex<'a> {
-    scope: MarkerTree,
     by_name: BTreeMap<&'a PackageName, Vec<IndexedPackage<'a>>>,
 }
 
@@ -89,27 +87,40 @@ impl<'a> LockIndex<'a> {
     }
 
     /// Every overlapping index-backed entry for `requirement`, paired with the
-    /// narrowed marker under which that version was locked.
+    /// narrowed environment marker under which that version was locked.
     #[must_use]
     pub fn matching_index_pins(&self, requirement: &Requirement) -> Vec<LockedPin<'a>> {
         self.matching_entries(requirement)
             .filter(|entry| entry.is_index)
             .map(|entry| {
                 let mut marker = requirement.marker.clone();
-                marker.and(entry.package_marker.clone());
+                marker.and(entry.active_marker.clone());
                 LockedPin { version: entry.version, marker }
             })
             .collect()
     }
 
-    /// Rewrite `requirement` to pin every environment already covered by an
-    /// index-backed entry in this lockfile to its locked version, while leaving
-    /// any uncovered marker branch at `requirement`'s original range.
+    /// Rewrite `requirement` to pin every environment already covered by a
+    /// compatible index-backed entry in this lockfile (outside
+    /// `excluded_marker`) to its locked version, while leaving any uncovered
+    /// marker branch at `requirement`'s original range.
     pub fn pinned_index_requirements(
         &self,
         requirement: &Requirement,
+        excluded_marker: Option<&MarkerTree>,
     ) -> Result<Option<Vec<Requirement>>> {
-        let pins = self.matching_index_pins(requirement);
+        let excluded_complement = excluded_marker.map(|marker| marker.clone().negate());
+        let pins: Vec<LockedPin<'a>> = self
+            .matching_index_pins(requirement)
+            .into_iter()
+            .filter(|pin| requirement_admits(requirement, pin.version))
+            .filter_map(|mut pin| {
+                if let Some(complement) = &excluded_complement {
+                    pin.marker.and(complement.clone());
+                }
+                (!pin.marker.is_false()).then_some(pin)
+            })
+            .collect();
         let Some(first) = pins.first() else {
             return Ok(None);
         };
@@ -117,18 +128,13 @@ impl<'a> LockIndex<'a> {
         if pins
             .iter()
             .all(|pin| pin.version == first.version)
-            && self.scope_excludes(&uncovered)
+            && uncovered.is_false()
         {
             let pinned =
                 with_exact_version(requirement, first.version, requirement.marker.clone())?;
             return Ok(Some(vec![pinned]));
         }
         build_split_pins(requirement, pins, uncovered)
-    }
-
-    fn scope_excludes(&self, uncovered: &MarkerTree) -> bool {
-        let without_extras = uncovered.clone().simplify_extras_with(|_| true);
-        self.scope.is_disjoint(&without_extras)
     }
 
     fn matching_entries<'b>(
@@ -183,6 +189,14 @@ fn with_exact_version(
         Some(VersionOrUrl::VersionSpecifier(format!("=={version}").parse().into_diagnostic()?));
     pinned.marker = marker;
     Ok(pinned)
+}
+
+fn requirement_admits(requirement: &Requirement, version: &Version) -> bool {
+    match &requirement.version_or_url {
+        Some(VersionOrUrl::VersionSpecifier(specifiers)) => specifiers.contains(version),
+        Some(VersionOrUrl::Url(_)) => false,
+        None => true,
+    }
 }
 
 fn agreed_entry_version<'b, 'a: 'b>(
