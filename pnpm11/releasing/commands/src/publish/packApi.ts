@@ -346,7 +346,7 @@ function resolveTarballAndDestination (
 
 function resolveDestDir (baseDir: string, destination: string | undefined): string {
   if (!destination) return baseDir
-  return path.isAbsolute(destination) ? path.normalize(destination) : path.join(baseDir, destination)
+  return path.isAbsolute(destination) ? destination : path.join(baseDir, destination)
 }
 
 /**

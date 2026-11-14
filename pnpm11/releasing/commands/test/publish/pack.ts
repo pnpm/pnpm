@@ -1950,6 +1950,7 @@ test.each([
   '..',
   '+build',
   '1.0.0/../../escape',
+  '1.0.0\\..\\..\\escape',
 ])('pack: rejects invalid package version %j containing path segments', async (version) => {
   prepare({
     name: 'test-invalid-version-pkg',

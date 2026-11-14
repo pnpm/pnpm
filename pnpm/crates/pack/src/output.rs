@@ -178,10 +178,8 @@ pub(super) fn resolve_dest_dir(
 
 fn resolve_dest_dir_from_base(base_dir: &Path, pack_destination: Option<&str>) -> PathBuf {
     match pack_destination {
-        Some(destination) if Path::new(destination).is_absolute() => {
-            lexical_normalize(Path::new(destination))
-        }
-        Some(destination) => lexical_normalize(&base_dir.join(destination)),
+        Some(destination) if Path::new(destination).is_absolute() => PathBuf::from(destination),
+        Some(destination) => base_dir.join(destination),
         None => base_dir.to_path_buf(),
     }
 }

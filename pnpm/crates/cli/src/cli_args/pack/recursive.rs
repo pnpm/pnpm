@@ -214,7 +214,7 @@ impl PackArgs {
         // template, and anchor relative destinations at the CLI `dir` so
         // every tarball lands in one place regardless of each project's root.
         let output = PackOutput {
-            base_dir: pnpm_fs::lexical_normalize(dir),
+            base_dir: dir.to_path_buf(),
             out: self.out.clone(),
             destination: self.pack_destination.clone(),
             locks: Arc::new(PackOutputLocks::default()),
