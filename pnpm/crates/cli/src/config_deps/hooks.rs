@@ -2,15 +2,16 @@ pub use self::package_settings::apply_config_dependency_settings;
 
 use self::apply::apply_hook_delta;
 use super::{
-    Arc, BTreeMap, Config, GlobalLog, HashMap, HookContext, HookLog, Host, IntoDiagnostic,
-    LogEvent, LogFn, LogLevel, Path, PathBuf, PnpmfileHooks, Reporter, Result, TrustedSettings,
-    Value, WorkspaceSettings, apply_store_dir_override, default_state_dir, finder,
+    Arc, BTreeMap, Config, HashMap, HookContext, HookLog, Host, IntoDiagnostic, LogEvent, LogFn,
+    LogLevel, Path, PathBuf, PnpmLog, PnpmfileHooks, Reporter, Result, TrustedSettings, Value,
+    WorkspaceSettings, apply_store_dir_override, default_state_dir, finder,
     get_catalogs_from_workspace_manifest, install_config_deps, is_known_setting_key,
     resolve_configured_state_dir,
 };
 use miette::WrapErr;
 use pnpm_hooks::IgnoredHook;
 use pnpm_network::redact_and_sanitize;
+use pnpm_reporter::GlobalLog;
 
 /// The pnpmfile paths that contribute hooks for `root_dir`, in
 /// application order (see [`finder::find_pnpmfiles`]). Every hook applies
@@ -184,7 +185,7 @@ pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Optio
     }
     let unchanged_scopes = routes
         .iter()
-        .filter(|(scope, route)| scope.as_str() != "default" && !legacy_routes.contains_key(*scope))
+        .filter(|(scope, _)| scope.as_str() != "default" && !legacy_routes.contains_key(*scope))
         .map(|(scope, _)| scope.as_str())
         .collect::<Vec<_>>();
     if unchanged_scopes.is_empty() {
@@ -196,7 +197,7 @@ pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Optio
     ))
 }
 
-fn warn_legacy_registries<Reporter: self::Reporter>(input: &Value, current: &Value) {
+pub(super) fn warn_legacy_registries<Reporter: self::Reporter>(input: &Value, current: &Value) {
     let Some(message) = legacy_registries_warning(input, current) else {
         return;
     };
