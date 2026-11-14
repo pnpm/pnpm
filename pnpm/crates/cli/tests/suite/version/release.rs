@@ -74,20 +74,26 @@ fn version_recursive_dry_run_json_emits_planned_releases_as_json_without_writing
 fn version_recursive_runs_preversion_version_and_postversion_lifecycle_scripts_in_order() {
     let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
     write_release_workspace(&workspace, "packages:\n  - packages/*\n");
-    write_pkg(
+    for (name, version) in [("pkg-a", "1.0.0"), ("pkg-b", "2.0.0")] {
+        write_pkg(
+            &workspace,
+            name,
+            &json!({
+                "name": name,
+                "version": version,
+                "scripts": {
+                    "preversion": r#"node -e "const p = require('./package.json'); require('node:fs').appendFileSync('../../order.txt', p.name + ':preversion:' + p.version + '\n')""#,
+                    "version": r#"node -e "const p = require('./package.json'); require('node:fs').appendFileSync('../../order.txt', p.name + ':version:' + p.version + '\n')""#,
+                    "postversion": r#"node -e "const p = require('./package.json'); require('node:fs').appendFileSync('../../order.txt', p.name + ':postversion:' + p.version + '\n')""#,
+                },
+            }),
+        );
+    }
+    write_intent(
         &workspace,
-        "pkg-a",
-        &json!({
-            "name": "pkg-a",
-            "version": "1.0.0",
-            "scripts": {
-                "preversion": r#"node -e "require('node:fs').appendFileSync('order.txt', 'preversion:' + require('./package.json').version + '\n')""#,
-                "version": r#"node -e "require('node:fs').appendFileSync('order.txt', 'version:' + require('./package.json').version + '\n')""#,
-                "postversion": r#"node -e "require('node:fs').appendFileSync('order.txt', 'postversion:' + require('./package.json').version + '\n')""#,
-            },
-        }),
+        "bump-both",
+        "---\n\"pkg-a\": minor\n\"pkg-b\": patch\n---\n\nFeature.\n",
     );
-    write_intent(&workspace, "bump-a", "---\n\"pkg-a\": minor\n---\n\nFeature.\n");
 
     let output =
         pacquet_version_assuming_published(&workspace, &["version", "-r", "--no-git-checks"]);
@@ -96,9 +102,56 @@ fn version_recursive_runs_preversion_version_and_postversion_lifecycle_scripts_i
         "expected success, stderr: {}",
         String::from_utf8_lossy(&output.stderr),
     );
-    let order = fs::read_to_string(workspace.join("packages/pkg-a/order.txt"))
+    let order = fs::read_to_string(workspace.join("order.txt"))
         .expect("lifecycle scripts must write order.txt");
-    assert_eq!(order, "preversion:1.0.0\nversion:1.1.0\npostversion:1.1.0\n");
+    assert_eq!(
+        order,
+        concat!(
+            "pkg-a:preversion:1.0.0\n",
+            "pkg-b:preversion:2.0.0\n",
+            "pkg-a:version:1.1.0\n",
+            "pkg-b:version:2.0.1\n",
+            "pkg-a:postversion:1.1.0\n",
+            "pkg-b:postversion:2.0.1\n",
+        ),
+    );
+}
+
+#[test]
+fn version_recursive_json_keeps_stdout_parseable_when_lifecycle_scripts_print_to_stdout() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    write_release_workspace(&workspace, "packages:\n  - packages/*\n");
+    write_pkg(
+        &workspace,
+        "pkg-a",
+        &json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "scripts": {
+                "preversion": r#"node -e "console.log('preversion-stdout')""#,
+                "version": r#"node -e "console.log('version-stdout')""#,
+                "postversion": r#"node -e "console.log('postversion-stdout')""#,
+            },
+        }),
+    );
+    write_intent(&workspace, "bump-a", "---\n\"pkg-a\": minor\n---\n\nFeature.\n");
+
+    let output = pacquet_version_assuming_published(
+        &workspace,
+        &["version", "-r", "--no-git-checks", "--json"],
+    );
+    assert!(
+        output.status.success(),
+        "expected success, stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("expected pure JSON stdout, got {error}: {stdout}"));
+    assert_eq!(
+        parsed,
+        json!([{ "name": "pkg-a", "currentVersion": "1.0.0", "newVersion": "1.1.0" }]),
+    );
 }
 
 #[test]

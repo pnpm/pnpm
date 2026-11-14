@@ -396,7 +396,7 @@ async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postv
     scriptShell: opts.scriptShell,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     shellEmulator: opts.shellEmulator,
-    stdio: 'inherit',
+    stdio: opts.json ? 'pipe' : 'inherit',
     unsafePerm: opts.unsafePerm ?? false,
     userAgent: opts.userAgent,
   }

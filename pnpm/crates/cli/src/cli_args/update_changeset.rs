@@ -3,8 +3,8 @@ mod ignore;
 
 use catalogs::{find_changed_catalog_entries, uses_changed_catalog_entry};
 use ignore::{
-    ChangesetDirState, IgnoredProjects, count_package_names, ensure_changeset_dir_is_safe,
-    project_reference, read_config_ignore_patterns, write_changeset,
+    ChangesetDirState, IgnoredProjects, ensure_changeset_dir_is_safe, project_reference,
+    read_config_ignore_patterns, write_changeset,
 };
 
 use super::{recursive::discover_workspace_projects, update::UpdateSaveArgs};
@@ -134,6 +134,7 @@ pub(super) struct UpdateChangesetContext {
     workspace_dir: PathBuf,
     root_dirs: Vec<PathBuf>,
     dep_specs_before: BTreeMap<PathBuf, Option<UpdateDepSpecs>>,
+    name_counts: HashMap<String, usize>,
     catalogs_before: Catalogs,
     has_versioning: bool,
     versioning_ignore: Vec<String>,
@@ -147,7 +148,10 @@ impl UpdateChangesetContext {
             .unwrap_or(project_dir)
             .to_path_buf();
         let root_dirs = resolve_changeset_root_dirs(&workspace_dir, project_dir, config)?;
-        let dep_specs_before = capture_dep_specs(&root_dirs)?;
+        let CapturedManifests {
+            dep_specs: dep_specs_before,
+            name_counts,
+        } = capture_dep_specs(&root_dirs)?;
         let workspace_manifest =
             read_workspace_manifest(&workspace_dir).map_err(UpdateChangesetError::ReadWorkspace)?;
         let catalogs_before = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
@@ -158,6 +162,7 @@ impl UpdateChangesetContext {
             workspace_dir,
             root_dirs,
             dep_specs_before,
+            name_counts,
             catalogs_before,
             has_versioning,
             versioning_ignore,
@@ -210,20 +215,16 @@ impl UpdateChangesetContext {
         ignored: &IgnoredProjects,
         changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
     ) -> Result<BTreeMap<String, IntentBumpType>, UpdateChangesetError> {
-        let manifests = read_project_manifests(&self.root_dirs)?;
-        let name_counts = count_package_names(&manifests);
         let mut releases = BTreeMap::new();
-        for (root_dir, manifest) in &manifests {
-            let Some(manifest) = manifest else {
+        for root_dir in &self.root_dirs {
+            let Some(manifest) = safe_read_project_manifest_only(root_dir)
+                .map_err(UpdateChangesetError::ReadProject)?
+            else {
                 continue;
             };
-            if let Some((reference, bump)) = self.project_release(
-                root_dir,
-                manifest,
-                ignored,
-                &name_counts,
-                changed_catalog_entries,
-            )? {
+            if let Some((reference, bump)) =
+                self.project_release(root_dir, &manifest, ignored, changed_catalog_entries)?
+            {
                 releases.insert(reference, bump);
             }
         }
@@ -231,20 +232,21 @@ impl UpdateChangesetContext {
     }
 
     /// The bump a project needs, when the update changed a dependency its
-    /// consumers can observe. A private or ignored package never releases.
+    /// consumers can observe. A private, versionless, non-semver, or ignored
+    /// package never releases.
     fn project_release(
         &self,
         root_dir: &Path,
         manifest: &PackageManifest,
         ignored: &IgnoredProjects,
-        name_counts: &HashMap<String, usize>,
         changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
     ) -> Result<Option<(String, IntentBumpType)>, UpdateChangesetError> {
         let project_dir = to_project_dir(&self.workspace_dir, root_dir);
         let Some(package_name) = releasable_package_name(manifest, &project_dir, ignored) else {
             return Ok(None);
         };
-        let reference = project_reference(package_name, &self.workspace_dir, root_dir, name_counts);
+        let reference =
+            project_reference(package_name, &self.workspace_dir, root_dir, &self.name_counts);
         let dep_specs =
             UpdateDepSpecs::from_manifest(manifest).map_err(UpdateChangesetError::InspectProject)?;
         let dep_specs_before = self.dep_specs_before.get(root_dir).and_then(Option::as_ref);
@@ -284,35 +286,32 @@ fn resolve_changeset_root_dirs(
     Ok(if dirs.is_empty() { vec![project_dir.to_path_buf()] } else { dirs })
 }
 
-fn capture_dep_specs(
-    root_dirs: &[PathBuf],
-) -> Result<BTreeMap<PathBuf, Option<UpdateDepSpecs>>, UpdateChangesetError> {
-    root_dirs
-        .iter()
-        .map(|root_dir| {
-            let manifest = safe_read_project_manifest_only(root_dir)
-                .map_err(UpdateChangesetError::ReadProject)?;
-            let specs = manifest
-                .as_ref()
-                .map(UpdateDepSpecs::from_manifest)
-                .transpose()
-                .map_err(UpdateChangesetError::InspectProject)?;
-            Ok((root_dir.clone(), specs))
-        })
-        .collect()
+struct CapturedManifests {
+    dep_specs: BTreeMap<PathBuf, Option<UpdateDepSpecs>>,
+    name_counts: HashMap<String, usize>,
 }
 
-fn read_project_manifests(
-    root_dirs: &[PathBuf],
-) -> Result<Vec<(PathBuf, Option<PackageManifest>)>, UpdateChangesetError> {
-    root_dirs
-        .iter()
-        .map(|root_dir| {
-            let manifest = safe_read_project_manifest_only(root_dir)
-                .map_err(UpdateChangesetError::ReadProject)?;
-            Ok((root_dir.clone(), manifest))
-        })
-        .collect()
+fn capture_dep_specs(root_dirs: &[PathBuf]) -> Result<CapturedManifests, UpdateChangesetError> {
+    let mut dep_specs = BTreeMap::new();
+    let mut name_counts = HashMap::new();
+    for root_dir in root_dirs {
+        let manifest =
+            safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?;
+        if let Some(name) = manifest
+            .as_ref()
+            .and_then(|manifest| manifest.value().get("name"))
+            .and_then(Value::as_str)
+        {
+            *name_counts.entry(name.to_string()).or_insert(0) += 1;
+        }
+        let specs = manifest
+            .as_ref()
+            .map(UpdateDepSpecs::from_manifest)
+            .transpose()
+            .map_err(UpdateChangesetError::InspectProject)?;
+        dep_specs.insert(root_dir.clone(), specs);
+    }
+    Ok(CapturedManifests { dep_specs, name_counts })
 }
 
 fn releasable_package_name<'a>(
@@ -323,12 +322,18 @@ fn releasable_package_name<'a>(
     let package_name = manifest
         .value()
         .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())?;
+    let version = manifest
+        .value()
+        .get("version")
         .and_then(Value::as_str)?;
     if manifest
         .value()
         .get("private")
         .and_then(Value::as_bool)
         == Some(true)
+        || node_semver::Version::parse(version).is_err()
         || ignored.matches(package_name, project_dir)
     {
         return None;

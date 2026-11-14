@@ -828,15 +828,18 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
       expect(fs.existsSync(lifecycleLog)).toBe(false)
     })
 
-    it('should run preversion, version, and postversion scripts for intent-consuming version -r', async () => {
+    it('should run preversion, version, and postversion scripts in stage and release-plan order for intent-consuming version -r', async () => {
       const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      const pkgBDir = path.join(tempDir, 'packages', 'pkg-b')
       fs.mkdirSync(pkgADir, { recursive: true })
+      fs.mkdirSync(pkgBDir, { recursive: true })
       const lifecycleLog = path.join(tempDir, 'lifecycle.log')
       const logLifecycleScript = path.join(tempDir, 'log-lifecycle.cjs')
       fs.writeFileSync(logLifecycleScript, `const fs = require('fs')
 const path = require('path')
 const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'))
-fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\\n')
+console.log(manifest.name + ':' + process.argv[3])
+fs.appendFileSync(process.argv[2], manifest.name + ':' + process.argv[3] + ':' + manifest.version + '\\n')
 `)
 
       const pkgAManifest = {
@@ -848,29 +851,51 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
           postversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} postversion`,
         },
       }
+      const pkgBManifest = {
+        name: 'pkg-b',
+        version: '2.0.0',
+        scripts: {
+          preversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} preversion`,
+          version: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} version`,
+          postversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} postversion`,
+        },
+      }
       fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
       fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify(pkgAManifest))
+      fs.writeFileSync(path.join(pkgBDir, 'package.json'), JSON.stringify(pkgBManifest))
 
       const changesetDir = path.join(tempDir, '.changeset')
       fs.mkdirSync(changesetDir, { recursive: true })
-      fs.writeFileSync(path.join(changesetDir, 'test-change.md'), '---\n"pkg-a": minor\n---\n\nA pending change.\n')
+      fs.writeFileSync(path.join(changesetDir, 'test-change.md'), '---\n"pkg-a": minor\n"pkg-b": patch\n---\n\nA pending change.\n')
 
-      await handler({
+      const result = await handler({
         dir: tempDir,
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
         recursive: true,
-        allProjects: [{ rootDir: pkgADir, manifest: pkgAManifest }],
+        json: true,
+        allProjects: [
+          { rootDir: pkgADir, manifest: pkgAManifest },
+          { rootDir: pkgBDir, manifest: pkgBManifest },
+        ],
         checkVersionPublished: async () => true,
       } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
+      expect(JSON.parse(result as string)).toEqual([
+        { name: 'pkg-a', currentVersion: '1.0.0', newVersion: '1.1.0' },
+        { name: 'pkg-b', currentVersion: '2.0.0', newVersion: '2.0.1' },
+      ])
       expect(fs.readFileSync(lifecycleLog, 'utf8')).toBe(
-        'preversion:1.0.0\n' +
-        'version:1.1.0\n' +
-        'postversion:1.1.0\n'
+        'pkg-a:preversion:1.0.0\n' +
+        'pkg-b:preversion:2.0.0\n' +
+        'pkg-a:version:1.1.0\n' +
+        'pkg-b:version:2.0.1\n' +
+        'pkg-a:postversion:1.1.0\n' +
+        'pkg-b:postversion:2.0.1\n'
       )
       expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf8')).version).toBe('1.1.0')
+      expect(JSON.parse(fs.readFileSync(path.join(pkgBDir, 'package.json'), 'utf8')).version).toBe('2.0.1')
     })
 
     it('should abort before writing manifests or ledger when preversion fails in intent-consuming version -r', async () => {

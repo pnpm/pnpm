@@ -1,7 +1,6 @@
 use super::{
-    ErrorKind, HashMap, HashSet, Matcher, OpenOptions, PackageManifest, Path, PathBuf,
-    UpdateChangesetError, Value, create_matcher, fs, is_dir_ref, normalize_project_dir,
-    to_project_dir,
+    ErrorKind, HashMap, HashSet, Matcher, OpenOptions, Path, PathBuf, UpdateChangesetError, Value,
+    create_matcher, fs, is_dir_ref, normalize_project_dir, to_project_dir,
 };
 use std::io::Write as _;
 
@@ -67,22 +66,6 @@ pub(super) fn read_config_ignore_patterns(
         .map(str::to_string)
         .collect::<Vec<_>>();
     Ok(Some(ignore_patterns))
-}
-
-pub(super) fn count_package_names(
-    manifests: &[(PathBuf, Option<PackageManifest>)],
-) -> HashMap<String, usize> {
-    let mut counts = HashMap::new();
-    for (_, manifest) in manifests {
-        if let Some(name) = manifest
-            .as_ref()
-            .and_then(|manifest| manifest.value().get("name"))
-            .and_then(Value::as_str)
-        {
-            *counts.entry(name.to_string()).or_insert(0) += 1;
-        }
-    }
-    counts
 }
 
 pub(super) fn project_reference(

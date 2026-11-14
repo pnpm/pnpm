@@ -44,6 +44,28 @@ test('version --recursive --json prints an empty JSON array when there are no pe
   expect(result.stdout.toString().trim()).toBe('[]')
 })
 
+test('version --recursive --json keeps stdout parseable when lifecycle scripts write to stdout', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        preversion: 'node -e "console.log(\'preversion-stdout\')"',
+        version: 'node -e "console.log(\'version-stdout\')"',
+        postversion: 'node -e "console.log(\'postversion-stdout\')"',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const result = execPnpmSync(['version', '--recursive', 'patch', '--json', '--no-git-checks'])
+
+  expect(result.status).toBe(0)
+  expect(JSON.parse(result.stdout.toString().trim())).toEqual([
+    expect.objectContaining({ name: 'project-1', currentVersion: '1.0.0', newVersion: '1.0.1' }),
+  ])
+})
+
 test('version from-git is wired through the compiled CLI', async () => {
   prepare({ name: 'test-pkg', version: '1.0.0' })
 

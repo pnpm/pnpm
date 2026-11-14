@@ -434,6 +434,21 @@ fn update_changeset_creates_changeset_dir_when_versioning_is_configured_in_works
             "dependencies": { (DEP): "^100.0.0" },
         }),
     );
+    write_manifest(
+        &workspace.join("packages/versionless"),
+        json!({
+            "name": "versionless",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    write_manifest(
+        &workspace.join("packages/non-semver"),
+        json!({
+            "name": "non-semver",
+            "version": "not-semver",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
 
     pacquet(&workspace, ["install"]).assert().success();
     assert!(!workspace.join(".changeset").exists());
@@ -443,6 +458,7 @@ fn update_changeset_creates_changeset_dir_when_versioning_is_configured_in_works
         generated_changeset_text(&workspace),
         "---\n\"project-1\": patch\n---\n\nUpdate dependencies.\n",
     );
+    pacquet(&workspace, ["change", "status"]).assert().success();
     drop((root, anchor));
 }
 

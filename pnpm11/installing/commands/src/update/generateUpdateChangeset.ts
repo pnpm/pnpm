@@ -8,6 +8,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { isDirRef, normalizeProjectDir, toProjectDir } from '@pnpm/releasing.versioning'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, ProjectRootDir, VersioningSettings } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -15,6 +16,7 @@ import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { loadJsonFile } from 'load-json-file'
 import { equals } from 'ramda'
+import semver from 'semver'
 
 export interface CaptureUpdateChangesetContextOptions {
   allProjects?: Project[]
@@ -32,6 +34,7 @@ export interface UpdateChangesetContext {
   workspaceDir: string
   rootDirs: ProjectRootDir[]
   depSpecsBefore: Map<ProjectRootDir, UpdateDepSpecs | null>
+  nameCounts: Map<string, number>
   catalogsBefore: Catalogs
   versioning?: VersioningSettings
 }
@@ -52,9 +55,13 @@ export async function captureUpdateChangesetContext (opts: CaptureUpdateChangese
   const rootDirs = projects.length > 0
     ? projects.map(({ rootDir }) => rootDir)
     : [opts.dir as ProjectRootDir]
+  const nameCounts = new Map<string, number>()
   const [depSpecsEntries, workspaceManifest] = await Promise.all([
     Promise.all(rootDirs.map(async (rootDir) => {
       const manifest = await safeReadProjectManifestOnly(rootDir)
+      if (manifest?.name != null) {
+        nameCounts.set(manifest.name, (nameCounts.get(manifest.name) ?? 0) + 1)
+      }
       return [rootDir, manifest && pickUpdateDepSpecs(manifest)] as const
     })),
     readWorkspaceManifest(workspaceDir),
@@ -63,6 +70,7 @@ export async function captureUpdateChangesetContext (opts: CaptureUpdateChangese
     workspaceDir,
     rootDirs,
     depSpecsBefore: new Map(depSpecsEntries),
+    nameCounts,
     catalogsBefore: getCatalogsFromWorkspaceManifest(workspaceManifest),
     versioning: opts.versioning ?? workspaceManifest?.versioning,
   }
@@ -110,20 +118,19 @@ async function loadChangesetInputs (ctx: UpdateChangesetContext, changesetDir: s
 }
 
 async function collectAffectedReleases (ctx: UpdateChangesetContext, inputs: ChangesetInputs): Promise<Release[]> {
-  const manifests = await Promise.all(
-    ctx.rootDirs.map(async (rootDir) => [rootDir, await safeReadProjectManifestOnly(rootDir)] as const)
+  const candidates = await Promise.all(
+    ctx.rootDirs.map(async (rootDir) => {
+      const manifest = await safeReadProjectManifestOnly(rootDir)
+      return detectRelease({
+        ctx,
+        rootDir,
+        manifest,
+        isIgnored: inputs.isIgnored,
+        changedCatalogEntries: inputs.changedCatalogEntries,
+      })
+    })
   )
-  const nameCounts = countPackageNames(manifests)
-  return manifests
-    .map(([rootDir, manifest]) => detectRelease({
-      ctx,
-      rootDir,
-      manifest,
-      isIgnored: inputs.isIgnored,
-      nameCounts,
-      changedCatalogEntries: inputs.changedCatalogEntries,
-    }))
-    .filter((release): release is Release => release != null)
+  return candidates.filter((release): release is Release => release != null)
 }
 
 interface Release {
@@ -136,14 +143,21 @@ interface DetectReleaseOptions {
   rootDir: ProjectRootDir
   manifest: ProjectManifest | null
   isIgnored: (name: string, projectDir: string) => boolean
-  nameCounts: Map<string, number>
   changedCatalogEntries: Map<string, Set<string>>
 }
 
-function detectRelease ({ ctx, rootDir, manifest, isIgnored, nameCounts, changedCatalogEntries }: DetectReleaseOptions): Release | undefined {
-  const projectDir = normalizeProjectDir(path.relative(ctx.workspaceDir, rootDir))
-  if (!manifest?.name || manifest.private || isIgnored(manifest.name, projectDir)) return undefined
-  const reference = (nameCounts.get(manifest.name) ?? 0) > 1 ? `./${projectDir}` : manifest.name
+function detectRelease ({ ctx, rootDir, manifest, isIgnored, changedCatalogEntries }: DetectReleaseOptions): Release | undefined {
+  const projectDir = toProjectDir(ctx.workspaceDir, rootDir)
+  if (
+    !manifest?.name ||
+    manifest.private ||
+    manifest.version == null ||
+    semver.valid(manifest.version) == null ||
+    isIgnored(manifest.name, projectDir)
+  ) {
+    return undefined
+  }
+  const reference = (ctx.nameCounts.get(manifest.name) ?? 0) > 1 ? `./${projectDir}` : manifest.name
   const depSpecs = pickUpdateDepSpecs(manifest)
   const depSpecsBefore = ctx.depSpecsBefore.get(rootDir)
   const peerDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'peerDependencies') ||
@@ -163,31 +177,13 @@ function createIgnoredProjectChecker (
   const ignoredNames = new Set<string>()
   const ignoredDirs = new Set<string>()
   for (const entry of versioning?.ignore ?? []) {
-    if (entry.startsWith('./')) {
+    if (isDirRef(entry)) {
       ignoredDirs.add(normalizeProjectDir(entry))
     } else {
       ignoredNames.add(entry)
     }
   }
   return (name, projectDir) => matchesConfigIgnore(name) || ignoredNames.has(name) || ignoredDirs.has(projectDir)
-}
-
-function countPackageNames (manifests: ReadonlyArray<readonly [ProjectRootDir, ProjectManifest | null]>): Map<string, number> {
-  const counts = new Map<string, number>()
-  for (const [, manifest] of manifests) {
-    if (manifest?.name != null) {
-      counts.set(manifest.name, (counts.get(manifest.name) ?? 0) + 1)
-    }
-  }
-  return counts
-}
-
-function normalizeProjectDir (dir: string): string {
-  let normalized = dir.replaceAll('\\', '/')
-  while (normalized.startsWith('./')) {
-    normalized = normalized.slice(2)
-  }
-  return normalized.replace(/\/+$/, '')
 }
 
 async function writeChangeset (changesetDir: string, releases: Release[]): Promise<void> {

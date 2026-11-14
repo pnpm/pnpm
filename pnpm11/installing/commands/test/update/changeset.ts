@@ -624,7 +624,21 @@ test('update --changeset creates .changeset directory when versioning is configu
         '@pnpm.e2e/foo': '^100.0.0',
       },
     },
+    {
+      name: 'non-semver',
+      version: 'not-semver',
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
   ])
+  fs.mkdirSync('versionless', { recursive: true })
+  fs.writeFileSync(path.join('versionless', 'package.json'), JSON.stringify({
+    name: 'versionless',
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  }))
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**'],
     versioning: {},
