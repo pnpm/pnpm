@@ -12,7 +12,7 @@ use pnpm_config::{
     Config, property_path,
     property_path::{Segment, get_object_value_by_property_path, parse_property_path},
 };
-use pnpm_package_manifest::PackageManifest;
+use pnpm_package_manifest::RawPackageManifest;
 use pnpm_resolving_git_resolver::HostedGit;
 use report_keys::{ReportIdentity, report_keys};
 use serde_json::{Map, Value, json};
@@ -158,6 +158,9 @@ impl PkgArgs {
                     apply_set_pairs(value, &args.pairs, self.json)
                 })?,
                 PkgSubcommand::Delete(args) => {
+                    for key in &args.keys {
+                        check_unsafe_key_in_path(key)?;
+                    }
                     edit_project_manifest(project, |value| apply_delete_keys(value, &args.keys))?;
                 }
                 PkgSubcommand::Fix => edit_project_manifest(project, |value| {
@@ -172,11 +175,9 @@ impl PkgArgs {
 }
 
 fn pkg_get(manifest_path: &Path, keys: &[String], json: bool) -> miette::Result<String> {
-    let manifest =
-        PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("reading package.json")?;
-    let value = manifest.value();
-    let result = get_output(value, keys, json)?;
-    Ok(result)
+    let manifest = RawPackageManifest::from_path(manifest_path.to_path_buf())
+        .wrap_err("reading package.json")?;
+    get_output(manifest.value(), keys, json)
 }
 
 fn get_output(manifest: &Value, keys: &[String], json: bool) -> miette::Result<String> {
@@ -210,16 +211,27 @@ fn print_recursive_get<'a>(
     workspace_root: &Path,
 ) -> miette::Result<()> {
     let projects: Vec<_> = projects.collect();
+    let raw_manifests: Vec<_> = projects
+        .iter()
+        .map(|project| {
+            let path = pnpm_workspace::project_manifest_path(&project.root_dir);
+            RawPackageManifest::from_path(path.clone())
+                .wrap_err_with(|| format!("reading {}", path.display()))
+        })
+        .collect::<miette::Result<_>>()?;
     let identities: Vec<_> = projects
         .iter()
-        .map(|project| report_identity(project, workspace_root))
+        .zip(&raw_manifests)
+        .map(|(project, manifest)| {
+            report_identity(&project.root_dir, manifest.value(), workspace_root)
+        })
         .collect();
     let mut entries = Map::new();
-    for (project, key) in projects
+    for (manifest, key) in raw_manifests
         .iter()
         .zip(report_keys(&identities))
     {
-        entries.insert(key, select_from_manifest(project.manifest.value(), keys)?);
+        entries.insert(key, select_from_manifest(manifest.value(), keys)?);
     }
     let output = serde_json::to_string_pretty(&Value::Object(entries))
         .map_err(|error| miette::miette!("{error}"))?;
@@ -227,19 +239,31 @@ fn print_recursive_get<'a>(
     Ok(())
 }
 
-fn report_identity(project: &pnpm_workspace::Project, workspace_root: &Path) -> ReportIdentity {
+fn report_identity(root_dir: &Path, manifest: &Value, workspace_root: &Path) -> ReportIdentity {
     ReportIdentity {
-        name: project.manifest
-            .value()
+        name: manifest
             .get("name")
             .and_then(Value::as_str)
             .map(String::from),
-        dir_key: project.root_dir
+        dir_key: root_dir
             .strip_prefix(workspace_root)
-            .unwrap_or(&project.root_dir)
+            .unwrap_or(root_dir)
             .display()
             .to_string(),
     }
+}
+
+/// Read `manifest_path`, apply `edit` to its raw JSON value, and write it back.
+fn edit_manifest(
+    manifest_path: &Path,
+    edit: impl FnOnce(&mut Value) -> miette::Result<()>,
+) -> miette::Result<()> {
+    let mut manifest = RawPackageManifest::from_path(manifest_path.to_path_buf())
+        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
+    edit(manifest.value_mut())?;
+    manifest
+        .save()
+        .wrap_err_with(|| format!("saving {}", manifest_path.display()))
 }
 
 /// Read one project's manifest, apply `edit`, and write it back.
@@ -248,12 +272,7 @@ fn edit_project_manifest(
     edit: impl FnOnce(&mut Value) -> miette::Result<()>,
 ) -> miette::Result<()> {
     let path = pnpm_workspace::project_manifest_path(&project.root_dir);
-    let mut manifest = PackageManifest::from_path(path.clone())
-        .wrap_err_with(|| format!("reading {}", path.display()))?;
-    edit(manifest.value_mut())?;
-    manifest
-        .save()
-        .wrap_err_with(|| format!("saving {}", path.display()))
+    edit_manifest(&path, edit)
 }
 
 /// Apply the `key=value` pairs of a `pnpm pkg set`.
@@ -291,13 +310,7 @@ fn pkg_set(manifest_path: &Path, pairs: &[String], json: bool) -> miette::Result
     if pairs.is_empty() {
         return Err(PkgError::SetMissingArgs.into());
     }
-    let mut manifest = PackageManifest::from_path(manifest_path.to_path_buf())
-        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
-    apply_set_pairs(manifest.value_mut(), pairs, json)?;
-    manifest
-        .save()
-        .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
-    Ok(())
+    edit_manifest(manifest_path, |value| apply_set_pairs(value, pairs, json))
 }
 
 fn pkg_delete(manifest_path: &Path, keys: &[String]) -> miette::Result<()> {
@@ -307,13 +320,7 @@ fn pkg_delete(manifest_path: &Path, keys: &[String]) -> miette::Result<()> {
     for key in keys {
         check_unsafe_key_in_path(key)?;
     }
-    let mut manifest = PackageManifest::from_path(manifest_path.to_path_buf())
-        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
-    apply_delete_keys(manifest.value_mut(), keys)?;
-    manifest
-        .save()
-        .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
-    Ok(())
+    edit_manifest(manifest_path, |value| apply_delete_keys(value, keys))
 }
 
 fn apply_delete_keys(value: &mut Value, keys: &[String]) -> miette::Result<()> {
@@ -324,14 +331,10 @@ fn apply_delete_keys(value: &mut Value, keys: &[String]) -> miette::Result<()> {
 }
 
 fn pkg_fix(manifest_path: &Path) -> miette::Result<()> {
-    let mut manifest = PackageManifest::from_path(manifest_path.to_path_buf())
-        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
-    let value = manifest.value_mut();
-    fix_manifest(value);
-    manifest
-        .save()
-        .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
-    Ok(())
+    edit_manifest(manifest_path, |value| {
+        fix_manifest(value);
+        Ok(())
+    })
 }
 
 fn fix_manifest(value: &mut Value) {

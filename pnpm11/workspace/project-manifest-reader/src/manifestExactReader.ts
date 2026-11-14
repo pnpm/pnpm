@@ -48,47 +48,73 @@ export function readExactProjectManifestSync (manifestPath: string): ReadExactPr
   throw new Error(`Not supported manifest name "${base}"`)
 }
 
+export interface RawProjectManifestFile {
+  fileName: string
+  manifestPath: string
+  data: unknown
+  formatting?: FileFormattingAndComments | FileFormatting
+}
+
 export async function tryReadProjectManifestFromDir (projectDir: string): Promise<{
   fileName: string
   manifest: ProjectManifest
   writeProjectManifest: WriteProjectManifest
 } | undefined> {
-  const jsonResult = await tryReadPackageJson(projectDir)
+  const found = await tryReadRawProjectManifestFromDir(projectDir)
+  if (!found) return undefined
+  return {
+    fileName: found.fileName,
+    ...createManifestResult(found.data as ProjectManifest, found.manifestPath, found.formatting),
+  }
+}
+
+export async function tryReadRawProjectManifestFromDir (projectDir: string): Promise<RawProjectManifestFile | undefined> {
+  const jsonResult = await tryReadRawPackageJson(projectDir)
   if (jsonResult) return jsonResult
 
-  const json5Result = await tryReadPackageJson5(projectDir)
+  const json5Result = await tryReadRawPackageJson5(projectDir)
   if (json5Result) return json5Result
 
-  return tryReadPackageYaml(projectDir)
+  return tryReadRawPackageYaml(projectDir)
 }
 
-async function tryReadPackageJson (projectDir: string) {
+async function tryReadRawPackageJson (projectDir: string): Promise<RawProjectManifestFile | undefined> {
   try {
     const manifestPath = path.join(projectDir, 'package.json')
-    const result = await readExactPackageJson(manifestPath)
-    return { fileName: 'package.json', ...result }
+    const { data, text } = await readJsonFile(manifestPath)
+    return {
+      fileName: 'package.json',
+      manifestPath,
+      data,
+      formatting: detectFileFormatting(text),
+    }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
     return undefined
   }
 }
 
-async function tryReadPackageJson5 (projectDir: string) {
+async function tryReadRawPackageJson5 (projectDir: string): Promise<RawProjectManifestFile | undefined> {
   try {
     const manifestPath = path.join(projectDir, 'package.json5')
-    const result = await readExactPackageJson5(manifestPath)
-    return { fileName: 'package.json5', ...result }
+    const { data, text } = await readJson5File(manifestPath)
+    return {
+      fileName: 'package.json5',
+      manifestPath,
+      data,
+      formatting: detectFileFormattingAndComments(text),
+    }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
     return undefined
   }
 }
 
-async function tryReadPackageYaml (projectDir: string) {
+async function tryReadRawPackageYaml (projectDir: string): Promise<RawProjectManifestFile | undefined> {
   try {
     const manifestPath = path.join(projectDir, 'package.yaml')
-    const result = await readExactPackageYaml(manifestPath)
-    return { fileName: 'package.yaml', ...result }
+    const data = await readPackageYaml(manifestPath)
+    return { fileName: 'package.yaml', manifestPath, data }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
     return undefined
@@ -142,13 +168,13 @@ function createManifestResult (
   }
 }
 
-interface FileFormatting {
+export interface FileFormatting {
   crlf: boolean
   indent: string
   insertFinalNewline: boolean
 }
 
-interface FileFormattingAndComments extends FileFormatting {
+export interface FileFormattingAndComments extends FileFormatting {
   comments?: CommentSpecifier[]
 }
 

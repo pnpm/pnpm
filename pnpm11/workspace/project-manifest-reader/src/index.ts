@@ -1,10 +1,8 @@
-import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import type { ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
-import isWindows from 'is-windows'
 import pLimit from 'p-limit'
 
 import {
@@ -14,9 +12,28 @@ import {
   tryReadProjectManifestFromDir,
   type WriteProjectManifest,
 } from './manifestExactReader.js'
+import {
+  assertDirectoryExistsOnWindows,
+  type RawProjectManifest,
+  readRawProjectManifest,
+  readRawProjectManifestOnly,
+  type ReadRawProjectManifestResult,
+  type WriteRawProjectManifest,
+} from './rawManifestReader.js'
 
-export type { ReadExactProjectManifestResult, WriteProjectManifest }
-export { readExactProjectManifest, readExactProjectManifestSync }
+export type {
+  RawProjectManifest,
+  ReadExactProjectManifestResult,
+  ReadRawProjectManifestResult,
+  WriteProjectManifest,
+  WriteRawProjectManifest,
+}
+export {
+  readExactProjectManifest,
+  readExactProjectManifestSync,
+  readRawProjectManifest,
+  readRawProjectManifestOnly,
+}
 
 const limitProjectManifestReads = pLimit(4)
 
@@ -96,20 +113,5 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     fileName: 'package.json',
     manifest: null,
     writeProjectManifest: async (manifest: ProjectManifest) => writeProjectManifest(filePath, manifest),
-  }
-}
-
-async function assertDirectoryExistsOnWindows (projectDir: string): Promise<void> {
-  if (!isWindows()) return
-
-  // ENOTDIR isn't used on Windows, but pnpm expects it.
-  let projectDirStats: Stats | undefined
-  try {
-    projectDirStats = await fs.stat(projectDir)
-  } catch (err: any) { // eslint-disable-line
-    // Ignore
-  }
-  if ((projectDirStats != null) && !projectDirStats.isDirectory()) {
-    throw Object.assign(new Error(`"${projectDir}" is not a directory`), { code: 'ENOTDIR' })
   }
 }
