@@ -61,13 +61,13 @@ pub use workspace_yaml::{
     RemoteCacheSettings, RemoteSideEffectsCacheSettings, SkillsPermission, SkillsSettings,
     TaskSettings, Tool, ToolSettings, TrustedSettings, UnrecognizedSettings, UpdateConfig,
     UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
-    decided_allow_builds, decided_permissions,
+    YamlConfigTarget, decided_allow_builds, decided_permissions,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{
         self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
         RegistryLookups, RegistryPrefixes,
     },
-    validate_structured_setting, workspace_root_or,
+    render_yaml_top_level_field, validate_structured_setting, workspace_root_or,
 };
 
 mod api;

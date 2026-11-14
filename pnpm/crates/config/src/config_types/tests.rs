@@ -130,12 +130,104 @@ fn pnpm_types_are_partitioned_between_global_and_excluded_keys() {
             crate::validate_structured_setting(
                 &camel,
                 &serde_json::Value::String("not-an-object".to_string()),
-                false,
+                crate::YamlConfigTarget::Global,
             )
             .is_err(),
             "validate_structured_setting must reject scalar string for {camel}",
         );
     }
+}
+
+#[test]
+fn validate_structured_setting_accepts_placeholders_and_enforces_target_trust_rules() {
+    use crate::{YamlConfigTarget, validate_structured_setting};
+    use serde_json::json;
+
+    validate_structured_setting(
+        "nodePackageMap",
+        &json!({ "mode": "${PNPM_TEST_UNSET_MAP_MODE:-load}" }),
+        YamlConfigTarget::Project,
+    )
+    .unwrap();
+    assert!(
+        validate_structured_setting(
+            "nodePackageMap",
+            &json!({ "mode": "${PNPM_TEST_UNSET_MAP_MODE:-bogus}" }),
+            YamlConfigTarget::Project,
+        )
+        .is_err(),
+    );
+
+    validate_structured_setting("sideEffectsCache", &json!(true), YamlConfigTarget::Project)
+        .unwrap();
+    assert!(
+        validate_structured_setting(
+            "sideEffectsCache",
+            &json!("bogus"),
+            YamlConfigTarget::Project,
+        )
+        .is_err(),
+    );
+
+    let signed_side_effects = json!({
+        "read": true,
+        "remote": {
+            "org": "acme",
+            "packages": ["pkg"],
+            "privateKey": "secret-key"
+        }
+    });
+    let project_err = validate_structured_setting(
+        "sideEffectsCache",
+        &signed_side_effects,
+        YamlConfigTarget::Project,
+    )
+    .unwrap_err();
+    assert!(project_err.contains("sideEffectsCache.remote.privateKey"), "{project_err}");
+    validate_structured_setting("sideEffectsCache", &signed_side_effects, YamlConfigTarget::Global)
+        .unwrap();
+
+    let remote_cache = json!({
+        "url": "https://cache.example.com",
+        "privateKey": "secret-key"
+    });
+    assert!(
+        validate_structured_setting("remoteCache", &remote_cache, YamlConfigTarget::Project)
+            .is_err(),
+    );
+    validate_structured_setting("remoteCache", &remote_cache, YamlConfigTarget::Global).unwrap();
+
+    validate_structured_setting(
+        "concurrencyGroups",
+        &json!({ "db_test": 2 }),
+        YamlConfigTarget::Global,
+    )
+    .unwrap();
+    assert!(
+        validate_structured_setting(
+            "concurrencyGroups",
+            &json!({ "../escape": 2 }),
+            YamlConfigTarget::Global,
+        )
+        .is_err(),
+    );
+
+    assert!(
+        validate_structured_setting(
+            "registries",
+            &json!({ "https://user:pass@registry.example.com/": { "scopes": ["@acme"] } }),
+            YamlConfigTarget::Global,
+        )
+        .is_err(),
+    );
+    assert!(
+        validate_structured_setting(
+            "registries",
+            &json!({ "https://registry.example.com/": { "_authToken": "secret" } }),
+            YamlConfigTarget::Global,
+        )
+        .is_err(),
+    );
 }
 
 /// Every `WorkspaceSettings` field accepted by `is_config_file_key` must

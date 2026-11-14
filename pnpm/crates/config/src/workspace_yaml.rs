@@ -18,7 +18,9 @@ pub use sections::{
     decided_allow_builds,
 };
 pub use settings::{MacosBackupSettings, NodePackageMapSettings, WorkspaceSettings};
-pub use structured_validation::validate_structured_setting;
+pub use structured_validation::{
+    YamlConfigTarget, render_yaml_top_level_field, validate_structured_setting,
+};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,

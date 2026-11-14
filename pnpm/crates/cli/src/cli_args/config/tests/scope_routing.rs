@@ -279,3 +279,130 @@ fn set_global_unsupported_key_gives_accurate_hint_for_refused_vs_workspace_keys(
         "Try setting them instead to the local pnpm-workspace.yaml file",
     );
 }
+
+#[test]
+fn set_structured_setting_with_env_placeholder_preserves_placeholder_and_loads() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "nodePackageMap",
+        Some(r#"{"mode":"${PNPM_TEST_UNSET_MAP_MODE:-load}"}"#.into()),
+    )
+    .unwrap();
+
+    let raw = std::fs::read_to_string(tmp.path().join("pnpm-workspace.yaml")).unwrap();
+    assert!(raw.contains("${PNPM_TEST_UNSET_MAP_MODE:-load}"), "{raw}");
+
+    let loaded = pnpm_config::WorkspaceSettings::load_at(tmp.path()).unwrap().unwrap();
+    assert_eq!(loaded.node_package_map.unwrap().mode, Some(pnpm_config::NodePackageMapMode::Load));
+}
+
+#[test]
+fn set_side_effects_cache_rejects_project_trust_material_and_allows_global_and_bool() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    let signed = json!({
+        "read": true,
+        "remote": {
+            "org": "acme",
+            "packages": ["pkg"],
+            "privateKey": "secret-key"
+        }
+    });
+    let err = config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "sideEffectsCache",
+        Some(signed.to_string()),
+    )
+    .unwrap_err();
+    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
+    assert!(err.to_string().contains("sideEffectsCache.remote.privateKey"), "{err}");
+    assert!(
+        !tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "sideEffectsCache",
+        Some("true".into()),
+    )
+    .unwrap();
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
+        json!({ "sideEffectsCache": true }),
+    );
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, true),
+        "sideEffectsCache",
+        Some(signed.to_string()),
+    )
+    .unwrap();
+    assert!(TrustedSettings::load_global(&config_dir).unwrap().is_some());
+}
+
+#[cfg(unix)]
+#[test]
+fn set_global_remote_cache_sections_writes_owner_only_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    for (key, payload) in [
+        ("remote-cache", json!({ "url": "https://cache.example.com", "privateKey": "secret" })),
+        (
+            "remote-side-effects-cache",
+            json!({ "org": "acme", "packages": ["pkg"], "privateKey": "secret" }),
+        ),
+        (
+            "side-effects-cache",
+            json!({ "remote": { "org": "acme", "packages": ["pkg"], "privateKey": "secret" } }),
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let config_dir = tmp.path().join("global-config");
+        let config_path = config_dir.join("config.yaml");
+        let config = config_with_dir(&config_dir);
+
+        config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.to_string()))
+            .unwrap();
+        let mode = std::fs::metadata(&config_path)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "new config.yaml for {key} got mode {mode:o}");
+
+        // Tightens an existing world-readable config.yaml and keeps 0600 on later edits.
+        std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.to_string()))
+            .unwrap();
+        let tightened = std::fs::metadata(&config_path)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(tightened, 0o600, "existing 0644 config.yaml for {key} got {tightened:o}");
+
+        config_set(&config, tmp.path(), flags(true, None, false), "store-dir", Some("/s".into()))
+            .unwrap();
+        let preserved = std::fs::metadata(&config_path)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(preserved, 0o600, "subsequent edit for {key} changed mode to {preserved:o}");
+    }
+}

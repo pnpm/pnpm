@@ -20,10 +20,12 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::{
     Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME,
-    config_types, naming_cases, property_path, property_path::Segment, protected_settings,
-    refused_keys, validate_structured_setting,
+    YamlConfigTarget, config_types, naming_cases, property_path, property_path::Segment,
+    protected_settings, refused_keys, validate_structured_setting,
 };
-use pnpm_workspace_manifest_writer::{update_manifest_field, update_workspace_setting};
+use pnpm_workspace_manifest_writer::{
+    update_manifest_field, update_private_manifest_field, update_workspace_setting,
+};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 use values::{
@@ -325,12 +327,20 @@ fn set_yaml_setting(
     key: &str,
     value: Value,
 ) -> miette::Result<()> {
-    let is_project_manifest = config_file_name == WORKSPACE_MANIFEST_FILENAME;
+    let target = if config_file_name == WORKSPACE_MANIFEST_FILENAME {
+        YamlConfigTarget::Project
+    } else {
+        YamlConfigTarget::Global
+    };
     let write = |key: &str, value: &Value| {
-        if is_project_manifest {
-            update_workspace_setting(config_dir, key, value)
-        } else {
-            update_manifest_field(&config_dir.join(config_file_name), key, value)
+        match target {
+            YamlConfigTarget::Project => update_workspace_setting(config_dir, key, value),
+            YamlConfigTarget::Global if carries_global_credentials(key, value) => {
+                update_private_manifest_field(&config_dir.join(config_file_name), key, value)
+            }
+            YamlConfigTarget::Global => {
+                update_manifest_field(&config_dir.join(config_file_name), key, value)
+            }
         }
         .map_err(miette::Report::new)
     };
@@ -341,26 +351,38 @@ fn set_yaml_setting(
         write(&camel_key, &Value::Null)?;
         return clear_other_spellings(&camel_key, given_key, write);
     }
-    let key = validate_yaml_target_key(key, is_project_manifest)?;
-    validate_structured_setting(&key, &cast, is_project_manifest)
+    let key = validate_yaml_target_key(key, target)?;
+    validate_structured_setting(&key, &cast, target)
         .map_err(|reason| ConfigError::SetStructuredValue { key: key.clone(), reason })?;
     write(&key, &cast)
 }
 
-fn validate_yaml_target_key(key: &str, is_project_manifest: bool) -> Result<String, ConfigError> {
-    let key = if is_project_manifest {
-        validate_workspace_key(key)?
-    } else {
-        let kebab = validate_yaml_config_key(key)?;
-        validate_workspace_key(&kebab)?
-    };
-    if is_project_manifest && refused_keys::is_refused_by_a_project_manifest(&key) {
-        return Err(ConfigError::SetNotAProjectSetting {
-            belongs: refused_keys::where_refused_key_belongs(&key),
-            key,
-        });
+fn carries_global_credentials(camel_key: &str, value: &Value) -> bool {
+    !value.is_null()
+        && (matches!(camel_key, "remoteCache" | "remoteSideEffectsCache")
+            || (camel_key == "sideEffectsCache"
+                && value
+                    .as_object()
+                    .is_some_and(|object| object.contains_key("remote"))))
+}
+
+fn validate_yaml_target_key(key: &str, target: YamlConfigTarget) -> Result<String, ConfigError> {
+    match target {
+        YamlConfigTarget::Project => {
+            let key = validate_workspace_key(key)?;
+            if refused_keys::is_refused_by_a_project_manifest(&key) {
+                return Err(ConfigError::SetNotAProjectSetting {
+                    belongs: refused_keys::where_refused_key_belongs(&key),
+                    key,
+                });
+            }
+            Ok(key)
+        }
+        YamlConfigTarget::Global => {
+            let kebab = validate_yaml_config_key(key)?;
+            validate_workspace_key(&kebab)
+        }
     }
-    Ok(key)
 }
 
 /// A hand-edited file may carry a spelling pnpm did not write, and that is the
