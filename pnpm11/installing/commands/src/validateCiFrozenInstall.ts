@@ -403,7 +403,8 @@ async function overlapsProtectedMember (
   return realMemberDirs.some((dir) => (
     dir != null &&
     dir !== realCleanupRoot &&
-    (isSubdir(resolved, dir) || (dir !== realOwnerDir && isSubdir(dir, resolved)))
+    (isSubdir(resolved, dir) ||
+      ((realOwnerDir == null || !isSubdir(dir, realOwnerDir)) && isSubdir(dir, resolved)))
   ))
 }
 

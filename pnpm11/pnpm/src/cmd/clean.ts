@@ -8,20 +8,16 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { collectExplicitLiteralMemberDirs, discoverWorkspacePackagesForClean } from './cleanDiscovery.js'
-import { collectLockfileTargets, filterCleanableTargets, planRemovesInstallState } from './cleanPlan.js'
+import { executePlannedClean, filterCleanableTargets, planRemovesInstallState } from './cleanPlan.js'
 import {
-  cleanModulesDir,
   collectNonRootRealDirs,
   dirsIncludeRoot,
-  invalidateWorkspaceState,
   type PlannedModulesTarget,
-  removeExternalVirtualStore,
-  removeLockfilePath,
   resolveConfiguredLockfileDir,
   resolveExternalVirtualStoreTarget,
-  resolvePreservedVirtualStoreEntry,
   resolveProjectModulesDir,
   resolveSharedAnchorDir,
+  resolveSharedVirtualStoreDir,
   tryRealpath,
 } from './cleanRemoval.js'
 
@@ -31,6 +27,7 @@ export const overridableByScript = true
 
 export const rcOptionsTypes = (): Record<string, unknown> =>
   pick([
+    'enable-global-virtual-store',
     'lockfile-dir',
     'modules-dir',
     'shared-workspace-lockfile',
@@ -81,6 +78,7 @@ export interface CleanOptions {
     recursive?: boolean
   }
   dir: string
+  enableGlobalVirtualStore?: boolean
   filter?: string[]
   filterProd?: string[]
   lockfileDir?: string
@@ -149,7 +147,9 @@ export async function prepareCiCleanPlan (opts: CleanOptions): Promise<CiCleanPl
   return {
     cleansModulesDir: async (anchorDir: string, modulesDir = 'node_modules') => planRemovesInstallState({
       externalVirtualStoreDir,
-      installStateDir: path.resolve(anchorDir, modulesDir, '.pnpm'),
+      installStateDir: opts.virtualStoreDir && !opts.enableGlobalVirtualStore
+        ? path.resolve(anchorDir, opts.virtualStoreDir)
+        : path.resolve(anchorDir, modulesDir, '.pnpm'),
       modulesTargets,
       realRootDir: scope.realRootDir,
     }),
@@ -165,25 +165,6 @@ async function resolvePlannedExternalVirtualStore (opts: CleanOptions, scope: Cl
     rootDir: scope.rootDir,
     virtualStoreDir: opts.virtualStoreDir,
   })
-}
-
-async function executePlannedClean (
-  { externalVirtualStoreDir, modulesTargets, removeLockfile, scope }: {
-    externalVirtualStoreDir: string | undefined
-    modulesTargets: PlannedModulesTarget[]
-    removeLockfile: boolean
-    scope: CleanRunScope
-  }
-): Promise<void> {
-  await Promise.all(modulesTargets.map(async ({ dir, mode }) => cleanModulesDir(scope.cwd, dir, mode)))
-  if (scope.sharedModulesDir != null) {
-    await invalidateWorkspaceState(scope.realRootDir, scope.sharedModulesDir)
-  }
-  if (removeLockfile) {
-    const lockfileTargets = await collectLockfileTargets(scope)
-    await Promise.all(lockfileTargets.map(async (lockfilePath) => removeLockfilePath(scope.cwd, lockfilePath)))
-  }
-  await removeExternalVirtualStore({ cwd: scope.cwd, externalVirtualStoreDir })
 }
 
 async function buildCleanRunScope (opts: CleanOptions): Promise<CleanRunScope | undefined> {
@@ -245,22 +226,25 @@ async function resolveSharedWorkspaceModules (
   if (!ctx.narrowed || !opts.workspaceDir || opts.sharedWorkspaceLockfile === false) {
     return {}
   }
+  const vsAnchorDir = opts.lockfileDir ?? (ctx.rawLockfileSpec != null ? path.resolve(ctx.rootDir, ctx.rawLockfileSpec) : ctx.rootDir)
   const anchorDir = await resolveSharedAnchorDir(ctx)
-  if (anchorDir == null) return {}
-  const modulesDir = await resolveProjectModulesDir({
-    modulesDir: ctx.modulesDir,
-    projectDir: anchorDir,
-    realRootDir: ctx.realRootDir,
-  })
-  return { anchorDir, modulesDir }
+  const modulesDir = anchorDir != null
+    ? await resolveProjectModulesDir({
+      modulesDir: ctx.modulesDir,
+      projectDir: anchorDir,
+      realRootDir: ctx.realRootDir,
+    })
+    : undefined
+  return { anchorDir: anchorDir ?? vsAnchorDir, modulesDir }
 }
 
 async function collectModulesTargets (
   opts: CleanOptions,
   scope: CleanRunScope
 ): Promise<PlannedModulesTarget[]> {
-  const preservedEntry = await resolvePreservedVirtualStoreEntry({
+  const sharedVirtualStoreDir = await resolveSharedVirtualStoreDir({
     anchorDir: scope.sharedAnchorDir,
+    enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
     realRootDir: scope.realRootDir,
     sharedModulesDir: scope.sharedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
@@ -287,9 +271,9 @@ async function collectModulesTargets (
     })
   }
   return filterCleanableTargets(candidateModules, {
-    preservedEntry,
     protectedMemberDirs: scope.protectedMemberDirs,
     sharedModulesDir: scope.sharedModulesDir,
+    sharedVirtualStoreDir,
   })
 }
 

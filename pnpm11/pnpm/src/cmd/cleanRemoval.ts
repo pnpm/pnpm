@@ -9,7 +9,7 @@ const PNPM_HIDDEN_ENTRIES = new Set(['.bin', '.modules.yaml', '.pnpm', '.pnpm-wo
 const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES = new Set(['.bin', '.pnpm-workspace-state-v1.json'])
 
 export type ModulesCleanMode =
-  | { kind: 'all' }
+  | { kind: 'all', preservedEntry?: string }
   | { kind: 'preserve-shared-virtual-store', preservedEntry?: string }
 
 export interface PlannedModulesTarget {
@@ -20,7 +20,8 @@ export interface PlannedModulesTarget {
 export function shouldRemoveModulesEntry (name: string, mode: ModulesCleanMode): boolean {
   switch (mode.kind) {
     case 'all':
-      return name[0] !== '.' || PNPM_HIDDEN_ENTRIES.has(name)
+      return name !== mode.preservedEntry &&
+        (name[0] !== '.' || PNPM_HIDDEN_ENTRIES.has(name))
     case 'preserve-shared-virtual-store':
       return name !== mode.preservedEntry &&
         (name[0] !== '.' || PNPM_NARROWED_SHARED_HIDDEN_ENTRIES.has(name))
@@ -36,7 +37,7 @@ export async function removesEntryInModulesDir (
   if (stat?.isSymbolicLink()) {
     switch (mode.kind) {
       case 'all':
-        return true
+        return mode.preservedEntry == null
       case 'preserve-shared-virtual-store':
         return false
     }
@@ -94,26 +95,37 @@ export function isCleanableModulesDir (
     !seen.has(resolved) &&
     !opts.protectedMemberDirs.some((memberDir) => (
       isSubdir(resolved, memberDir) ||
-      (opts.ownerDir !== memberDir && isSubdir(memberDir, resolved))
+      ((opts.ownerDir == null || !isSubdir(memberDir, opts.ownerDir)) && isSubdir(memberDir, resolved))
     ))
 }
 
-export async function resolvePreservedVirtualStoreEntry (
+export async function resolveSharedVirtualStoreDir (
   opts: {
     anchorDir: string | undefined
+    enableGlobalVirtualStore?: boolean
     realRootDir: string
     sharedModulesDir: string | undefined
     virtualStoreDir: string | undefined
   }
 ): Promise<string | undefined> {
-  if (opts.sharedModulesDir == null || opts.anchorDir == null || !opts.virtualStoreDir) {
+  if (opts.enableGlobalVirtualStore) return undefined
+  if (opts.virtualStoreDir) {
+    if (opts.anchorDir == null) return undefined
+    return resolveInside(opts.realRootDir, path.resolve(opts.anchorDir, opts.virtualStoreDir))
+  }
+  return opts.sharedModulesDir != null
+    ? resolveInside(opts.realRootDir, path.join(opts.sharedModulesDir, '.pnpm'))
+    : undefined
+}
+
+export function preservedEntryForTarget (
+  targetModulesDir: string,
+  sharedVirtualStoreDir: string | undefined
+): string | undefined {
+  if (sharedVirtualStoreDir == null || !isStrictSubdir(targetModulesDir, sharedVirtualStoreDir)) {
     return undefined
   }
-  const resolvedVs = await resolveInside(opts.realRootDir, path.resolve(opts.anchorDir, opts.virtualStoreDir))
-  if (resolvedVs == null || !isStrictSubdir(opts.sharedModulesDir, resolvedVs)) {
-    return undefined
-  }
-  const firstSegment = path.relative(opts.sharedModulesDir, resolvedVs).split(path.sep)[0]
+  const firstSegment = path.relative(targetModulesDir, sharedVirtualStoreDir).split(path.sep)[0]
   return firstSegment || undefined
 }
 
@@ -131,7 +143,7 @@ export async function cleanModulesDir (cwd: string, modulesDir: string, mode: Mo
   const stat = await lstatIfExists(modulesDir)
   if (stat == null) return
   if (stat.isSymbolicLink()) {
-    if (mode.kind === 'preserve-shared-virtual-store') return
+    if (mode.kind === 'preserve-shared-virtual-store' || mode.preservedEntry != null) return
     printRemoving(cwd, modulesDir)
     await rimraf(modulesDir)
     return

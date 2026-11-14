@@ -299,6 +299,60 @@ fn ci_shared_workspace_preserves_nonhidden_virtual_store_on_narrowed_runs() {
         vec![serde_json::json!({ "exists": false, "hasPackages": false })],
     );
 
+    let abs_shared_store = workspace.join("node_modules/shared-store");
+    let _ = fs::remove_dir_all(workspace.join("node_modules"));
+    let _ = fs::remove_dir_all(workspace.join("packages/pkg-a/node_modules"));
+    let _ = fs::remove_file(workspace.join("pnpm-lock.yaml"));
+    let _ = fs::remove_file(workspace.join(".pnpmfile.cjs"));
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - .\n  - packages/*\nlockfileDir: locks\nvirtualStoreDir: '{}'\n",
+            abs_shared_store.display(),
+        ),
+    )
+    .expect("write lockfileDir + absolute virtualStoreDir config");
+    let install_locks = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_arg("install")
+        .output()
+        .expect("install with lockfileDir=locks");
+    assert!(install_locks.status.success(), "{install_locks:?}");
+    fs::create_dir_all(workspace.join("node_modules/stale-root-dep")).expect("seed stale root dep");
+    fs::write(workspace.join("node_modules/.modules.yaml"), "stale: true\n")
+        .expect("seed stale root .modules.yaml");
+    fs::write(workspace.join("node_modules/.gitkeep"), "").expect("seed root .gitkeep");
+    let narrowed_root_clean = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_args(["-w", "clean"])
+        .output()
+        .expect("run -w clean");
+    assert!(narrowed_root_clean.status.success(), "{narrowed_root_clean:?}");
+    assert!(
+        !workspace.join("node_modules/stale-root-dep").exists(),
+        "root direct dep must be removed",
+    );
+    assert!(
+        !workspace.join("node_modules/.modules.yaml").exists(),
+        "root .modules.yaml must use all-mode hidden cleanup",
+    );
+    assert!(
+        workspace.join("node_modules/.gitkeep").is_file(),
+        "non-pnpm hidden entry in root node_modules must be preserved",
+    );
+    assert!(
+        abs_shared_store.is_dir(),
+        "shared-store under root node_modules must be preserved when lockfileDir=locks",
+    );
+    assert!(
+        workspace.join("packages/pkg-a/node_modules/dep-b/package.json").is_file(),
+        "unselected member dependency linked into shared-store must stay intact",
+    );
+
     drop(root);
 }
 
@@ -306,21 +360,31 @@ fn ci_shared_workspace_preserves_nonhidden_virtual_store_on_narrowed_runs() {
 fn clean_rejects_virtual_store_and_root_modules_dir_inside_workspace_member() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let pkg_b_src = workspace.join("packages/pkg-b/src");
+    let nested_pkg = workspace.join("packages/pkg-b/examples/sub-pkg");
     fs::create_dir_all(&pkg_b_src).expect("create pkg-b/src");
+    fs::create_dir_all(nested_pkg.join("src")).expect("create sub-pkg/src");
+    fs::create_dir_all(nested_pkg.join("node_modules/stale-dep"))
+        .expect("create sub-pkg/node_modules");
     fs::write(
         workspace.join("packages/pkg-b/package.json"),
         r#"{"name":"pkg-b","version":"1.0.0"}"#,
     )
     .expect("write pkg-b manifest");
+    fs::write(nested_pkg.join("package.json"), r#"{"name":"sub-pkg","version":"1.0.0"}"#)
+        .expect("write sub-pkg manifest");
     fs::write(pkg_b_src.join("index.js"), "export const answer = 42;\n")
         .expect("write pkg-b source");
+    fs::write(nested_pkg.join("src/index.js"), "export const nested = 7;\n")
+        .expect("write sub-pkg source");
     fs::write(workspace.join("package.json"), r#"{"name":"root-pkg","version":"1.0.0"}"#)
         .expect("write root manifest");
 
     for setting in ["virtualStoreDir: packages/pkg-b/src", "modulesDir: packages/pkg-b/src"] {
+        fs::create_dir_all(nested_pkg.join("node_modules/stale-dep"))
+            .expect("reseed sub-pkg/node_modules");
         fs::write(
             workspace.join("pnpm-workspace.yaml"),
-            format!("packages:\n  - .\n  - packages/*\n{setting}\n"),
+            format!("packages:\n  - .\n  - packages/*\n  - packages/*/examples/*\n{setting}\n"),
         )
         .expect("write pnpm-workspace.yaml");
         let output = Command::cargo_bin("pnpm")
@@ -335,7 +399,35 @@ fn clean_rejects_virtual_store_and_root_modules_dir_inside_workspace_member() {
             pkg_b_src.join("index.js").is_file(),
             "member source must survive clean under `{setting}`",
         );
+        assert!(
+            nested_pkg.join("src/index.js").is_file(),
+            "nested member source must survive clean under `{setting}`",
+        );
+        if setting.starts_with("virtualStoreDir:") {
+            assert!(
+                !nested_pkg.join("node_modules/stale-dep").exists(),
+                "nested member node_modules must still be cleaned",
+            );
+        }
     }
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - .\n  - packages/*\n  - packages/*/examples/*\nmodulesDir: examples/sub-pkg/src\n",
+    )
+    .expect("write parent-into-child modulesDir config");
+    let output = Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_arg("clean")
+        .output()
+        .expect("run pnpm clean");
+    assert!(output.status.success(), "{output:?}");
+    assert!(
+        nested_pkg.join("src/index.js").is_file(),
+        "parent modulesDir pointing into nested child source must be rejected",
+    );
 
     drop(root);
 }

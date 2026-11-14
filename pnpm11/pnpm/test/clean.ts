@@ -611,6 +611,26 @@ test('pnpm clean preserves shared .pnpm on -w and --no-recursive and honors pack
   expect(fs.existsSync(path.join('node_modules', 'is-positive', 'package.json'))).toBe(true)
   expect(fs.existsSync(path.join('node_modules', '.pnpm'))).toBe(true)
 
+  // Shared lockfile in `locks` with an absolute `virtualStoreDir` under root `node_modules`
+  // preserves `shared-store` on narrowed `-w clean` while retaining all-mode hidden cleanup on root
+  const absSharedStore = path.resolve('node_modules', 'shared-store')
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  fs.rmSync(path.join('packages', 'pkg-a', 'node_modules'), { recursive: true, force: true })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    lockfileDir: 'locks',
+    virtualStoreDir: absSharedStore,
+  })
+  expect(execPnpmSync(['install']).status).toBe(0)
+  fs.writeFileSync(path.join('node_modules', '.modules.yaml'), 'stale: true\n')
+  fs.writeFileSync(path.join('node_modules', '.gitkeep'), '')
+  expect(execPnpmSync(['-w', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.modules.yaml'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.gitkeep'))).toBe(true)
+  expect(fs.existsSync(absSharedStore)).toBe(true)
+  expect(fs.realpathSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative', 'package.json'))).toContain('shared-store')
+
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['packages/*'],
     sharedWorkspaceLockfile: false,
@@ -821,16 +841,32 @@ test('pnpm clean protects members matched via wildcard globs above modulesDir an
   expect(fs.existsSync(path.join(pkgB, 'package.json'))).toBe(true)
   expect(fs.existsSync(path.join(pkgB, 'src', 'index.js'))).toBe(true)
 
-  // Configured `virtualStoreDir` or root `modulesDir` inside a workspace member never erases member source
+  // Configured `virtualStoreDir` or root `modulesDir` inside a workspace member never erases member source,
+  // while nested workspace members still have their own `node_modules` cleaned
+  const subPkg = path.join(pkgC, 'examples', 'sub-pkg')
+  fs.mkdirSync(path.join(subPkg, 'src'), { recursive: true })
+  writeJsonFile(path.join(subPkg, 'package.json'), { name: 'sub-pkg', version: '1.0.0' })
+  fs.writeFileSync(path.join(subPkg, 'src', 'index.js'), 'module.exports = 5\n')
   writeJsonFile('package.json', { name: 'root-pkg', version: '1.0.0', private: true })
   for (const extra of [{ virtualStoreDir: 'packages/pkg-c/src' }, { modulesDir: 'packages/pkg-c/src' }]) {
     fs.mkdirSync(path.join(pkgC, 'src'), { recursive: true })
     fs.writeFileSync(path.join(pkgC, 'src', 'index.js'), 'module.exports = 4\n')
+    fs.mkdirSync(path.join(subPkg, 'node_modules', 'stale-dep'), { recursive: true })
     writeYamlFileSync('pnpm-workspace.yaml', {
-      packages: ['.', 'packages/*'],
+      packages: ['.', 'packages/*', 'packages/*/examples/*'],
       ...extra,
     })
     expect(execPnpmSync(['clean']).status).toBe(0)
     expect(fs.existsSync(path.join(pkgC, 'src', 'index.js'))).toBe(true)
+    expect(fs.existsSync(path.join(subPkg, 'src', 'index.js'))).toBe(true)
+    if ('virtualStoreDir' in extra) {
+      expect(fs.existsSync(path.join(subPkg, 'node_modules', 'stale-dep'))).toBe(false)
+    }
   }
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.', 'packages/*', 'packages/*/examples/*'],
+    modulesDir: 'examples/sub-pkg/src',
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join(subPkg, 'src', 'index.js'))).toBe(true)
 })

@@ -139,32 +139,25 @@ impl CleanRun<'_> {
                 .iter()
                 .any(|member_dir| {
                     is_subdir(candidate, member_dir)
-                        || (owner_dir != Some(member_dir.as_path())
+                        || (!owner_dir.is_some_and(|owner| is_subdir(member_dir, owner))
                             && is_subdir(member_dir, candidate))
                 })
     }
 
-    fn preserved_shared_virtual_store_entry(
-        &self,
-        resolved_lockfile_dir: Option<&Path>,
-        shared_modules_dir: Option<&Path>,
-    ) -> Option<std::ffi::OsString> {
-        let shared = shared_modules_dir?;
-        let root_dir = self.config.workspace_dir.as_deref().unwrap_or(self.real_root_dir);
-        let anchor_dir = self.shared_anchor_dir(resolved_lockfile_dir).unwrap_or(root_dir);
-        let vs_dir = resolve_inside(
-            self.real_root_dir,
-            &configured_virtual_store_dir(anchor_dir, self.config),
-        )?;
-        match vs_dir
-            .strip_prefix(shared)
-            .ok()?
-            .components()
-            .next()?
+    fn shared_virtual_store_dir(&self, resolved_lockfile_dir: Option<&Path>) -> Option<PathBuf> {
+        if !matches!(self.scope, CleanScope::Narrowed)
+            || self.config.workspace_dir.is_none()
+            || !self.config.shares_one_lockfile()
+            || self.config.enable_global_virtual_store
         {
-            std::path::Component::Normal(first) => Some(first.to_os_string()),
-            _ => None,
+            return None;
         }
+        let root_dir = self.config.workspace_dir.as_deref().unwrap_or(self.real_root_dir);
+        let anchor_dir = self
+            .shared_anchor_dir(resolved_lockfile_dir)
+            .or(self.raw_lockfile_dir)
+            .unwrap_or(root_dir);
+        resolve_inside(self.real_root_dir, &configured_virtual_store_dir(anchor_dir, self.config))
     }
 
     fn collect_modules_targets(
@@ -174,8 +167,7 @@ impl CleanRun<'_> {
         resolved_lockfile_dir: Option<&Path>,
         shared_modules_dir: Option<&Path>,
     ) -> Vec<(PathBuf, ModulesCleanMode)> {
-        let preserved_entry =
-            self.preserved_shared_virtual_store_entry(resolved_lockfile_dir, shared_modules_dir);
+        let shared_vs_dir = self.shared_virtual_store_dir(resolved_lockfile_dir);
         let mut cleaned_modules_dirs = HashSet::new();
         let mut targets = Vec::new();
         for dir in dirs {
@@ -189,13 +181,11 @@ impl CleanRun<'_> {
                     &cleaned_modules_dirs,
                 )
             {
-                let mode = if shared_modules_dir == Some(modules_in_project.as_path()) {
-                    ModulesCleanMode::PreserveSharedVirtualStore {
-                        preserved_entry: preserved_entry.clone(),
-                    }
-                } else {
-                    ModulesCleanMode::AllEntries
-                };
+                let mode = ModulesCleanMode::for_target(
+                    &modules_in_project,
+                    shared_modules_dir,
+                    shared_vs_dir.as_deref(),
+                );
                 cleaned_modules_dirs.insert(modules_in_project.clone());
                 targets.push((modules_in_project, mode));
             }
@@ -206,7 +196,10 @@ impl CleanRun<'_> {
                 resolve_project_modules_dir(self.real_root_dir, lockfile_dir, modules_leaf)
             && self.is_cleanable_modules_dir(&lockfile_modules_dir, None, &cleaned_modules_dirs)
         {
-            targets.push((lockfile_modules_dir, ModulesCleanMode::AllEntries));
+            targets.push((
+                lockfile_modules_dir,
+                ModulesCleanMode::AllEntries { preserved_entry: None },
+            ));
         }
         targets
     }
@@ -345,8 +338,9 @@ pub(super) fn clean_modules_dir(
     };
     if is_symlink_metadata(&metadata) {
         match mode {
-            ModulesCleanMode::PreserveSharedVirtualStore { .. } => return Ok(()),
-            ModulesCleanMode::AllEntries => {
+            ModulesCleanMode::AllEntries { preserved_entry: Some(_) }
+            | ModulesCleanMode::PreserveSharedVirtualStore { .. } => return Ok(()),
+            ModulesCleanMode::AllEntries { preserved_entry: None } => {
                 print_removing(cwd, modules_dir);
                 return remove_path(modules_dir);
             }

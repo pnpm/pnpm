@@ -3,18 +3,52 @@ import path from 'node:path'
 import { isSubdir, strict as isStrictSubdir } from 'is-subdir'
 
 import {
+  cleanModulesDir,
+  invalidateWorkspaceState,
   isCleanableModulesDir,
   type PlannedModulesTarget,
+  preservedEntryForTarget,
+  removeExternalVirtualStore,
+  removeLockfilePath,
   removesEntryInModulesDir,
   resolveInside,
 } from './cleanRemoval.js'
 
+export interface CleanExecutionScope {
+  cleansRoot: boolean
+  cwd: string
+  dirs: string[]
+  realRootDir: string
+  resolvedLockfileDir: string | undefined
+  rootDir: string
+  sharedModulesDir: string | undefined
+}
+
+export async function executePlannedClean (
+  { externalVirtualStoreDir, modulesTargets, removeLockfile, scope }: {
+    externalVirtualStoreDir: string | undefined
+    modulesTargets: PlannedModulesTarget[]
+    removeLockfile: boolean
+    scope: CleanExecutionScope
+  }
+): Promise<void> {
+  await Promise.all(modulesTargets.map(async ({ dir, mode }) => cleanModulesDir(scope.cwd, dir, mode)))
+  if (scope.sharedModulesDir != null) {
+    await invalidateWorkspaceState(scope.realRootDir, scope.sharedModulesDir)
+  }
+  if (removeLockfile) {
+    const lockfileTargets = await collectLockfileTargets(scope)
+    await Promise.all(lockfileTargets.map(async (lockfilePath) => removeLockfilePath(scope.cwd, lockfilePath)))
+  }
+  await removeExternalVirtualStore({ cwd: scope.cwd, externalVirtualStoreDir })
+}
+
 export function filterCleanableTargets (
   candidates: Array<{ ownerDir: string | undefined, resolved: string | undefined }>,
   opts: {
-    preservedEntry: string | undefined
     protectedMemberDirs: string[]
     sharedModulesDir: string | undefined
+    sharedVirtualStoreDir: string | undefined
   }
 ): PlannedModulesTarget[] {
   const seen = new Set<string>()
@@ -22,11 +56,12 @@ export function filterCleanableTargets (
   for (const { ownerDir, resolved } of candidates) {
     if (isCleanableModulesDir(resolved, seen, { ownerDir, protectedMemberDirs: opts.protectedMemberDirs })) {
       seen.add(resolved)
+      const preservedEntry = preservedEntryForTarget(resolved, opts.sharedVirtualStoreDir)
       unique.push({
         dir: resolved,
         mode: resolved === opts.sharedModulesDir
-          ? { kind: 'preserve-shared-virtual-store', preservedEntry: opts.preservedEntry }
-          : { kind: 'all' },
+          ? { kind: 'preserve-shared-virtual-store', preservedEntry }
+          : { kind: 'all', preservedEntry },
       })
     }
   }

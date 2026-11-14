@@ -13,15 +13,36 @@ use std::{
 
 #[derive(Clone)]
 pub(super) enum ModulesCleanMode {
-    AllEntries,
+    AllEntries { preserved_entry: Option<OsString> },
     PreserveSharedVirtualStore { preserved_entry: Option<OsString> },
 }
 
 impl ModulesCleanMode {
+    pub(super) fn for_target(
+        modules_dir: &Path,
+        shared_modules_dir: Option<&Path>,
+        shared_virtual_store_dir: Option<&Path>,
+    ) -> Self {
+        let preserved_entry = shared_virtual_store_dir
+            .and_then(|vs_dir| vs_dir.strip_prefix(modules_dir).ok())
+            .and_then(|rel| match rel.components().next()? {
+                Component::Normal(first) => Some(first.to_os_string()),
+                _ => None,
+            });
+        if shared_modules_dir == Some(modules_dir) {
+            Self::PreserveSharedVirtualStore { preserved_entry }
+        } else {
+            Self::AllEntries { preserved_entry }
+        }
+    }
+
     pub(super) fn should_remove_dir_entry(&self, name: &OsStr) -> bool {
         let lossy = name.to_string_lossy();
         match self {
-            Self::AllEntries => is_pnpm_entry(&lossy, PNPM_HIDDEN_ENTRIES),
+            Self::AllEntries { preserved_entry } => {
+                preserved_entry.as_deref() != Some(name)
+                    && is_pnpm_entry(&lossy, PNPM_HIDDEN_ENTRIES)
+            }
             Self::PreserveSharedVirtualStore { preserved_entry } => {
                 preserved_entry.as_deref() != Some(name)
                     && is_pnpm_entry(&lossy, PNPM_NARROWED_SHARED_HIDDEN_ENTRIES)
@@ -34,8 +55,9 @@ impl ModulesCleanMode {
             && is_symlink_metadata(&metadata)
         {
             return Ok(match self {
-                Self::AllEntries => true,
-                Self::PreserveSharedVirtualStore { .. } => false,
+                Self::AllEntries { preserved_entry: None } => true,
+                Self::AllEntries { preserved_entry: Some(_) }
+                | Self::PreserveSharedVirtualStore { .. } => false,
             });
         }
         Ok(self.should_remove_dir_entry(entry_name))
