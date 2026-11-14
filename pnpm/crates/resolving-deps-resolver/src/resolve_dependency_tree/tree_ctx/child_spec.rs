@@ -17,7 +17,7 @@ pub(in crate::resolve_dependency_tree) fn opts_for_child_spec<'a>(
     let spec = wanted.bare_specifier.as_deref().unwrap_or_default();
     if let Some(base_dir) = parent_dir.or(fallback_dir)
         && (spec.starts_with("link:") || pnpm_local_spec::bare_path_is_unambiguous(spec))
-        && let Some(spec) = local_child_specifier(spec, base_dir)
+        && let Some(spec) = local_child_specifier(spec, base_dir, &opts.project.project_dir)
     {
         wanted.bare_specifier = Some(spec);
         return Cow::Borrowed(opts);
@@ -38,8 +38,12 @@ pub(in crate::resolve_dependency_tree) fn opts_for_child_spec<'a>(
     }
 }
 
-fn local_child_specifier(spec: &str, base_dir: &Path) -> Option<String> {
-    pnpm_local_spec::LocalSpec::parse_filesystem(spec, base_dir).map(|spec| spec.render(None))
+fn local_child_specifier(spec: &str, base_dir: &Path, importer_dir: &Path) -> Option<String> {
+    pnpm_local_spec::LocalSpec::parse_filesystem(spec, base_dir)
+        .map(|local_spec| {
+            let consumer_dir = (!spec.starts_with("link:")).then_some(importer_dir);
+            local_spec.render(consumer_dir)
+        })
 }
 
 #[cfg(test)]
