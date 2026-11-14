@@ -154,7 +154,7 @@ An `updateConfig` hook runs after the settings are merged and can still change a
 
 ## Editor support
 
-Editors that show hover descriptions and completions for `pnpm-workspace.yaml` find its JSON Schema by file name, through [schemastore.org](https://www.schemastore.org). The files `include` names have other file names, so the editor does not find the schema for them on its own. Add this comment to the top of an included file. It tells the YAML language server, which VS Code and Cursor use, to associate the same schema with the file:
+Editors that show hover descriptions and completions for `pnpm-workspace.yaml` find its JSON Schema by file name, through [schemastore.org](https://www.schemastore.org). The files `include` names have other file names, so the editor does not find the schema for them on its own. Add this comment to the top of an included file. It tells the YAML language server, which the YAML extension for VS Code and Cursor runs, to associate the same schema with the file:
 
 ```yaml title="config/catalog.yaml"
 # yaml-language-server: $schema=https://json.schemastore.org/pnpm-workspace.json
