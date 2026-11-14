@@ -117,7 +117,7 @@ impl AgentSkillsState {
     pub fn pending_keys(&self) -> Vec<String> {
         self.pending
             .iter()
-            .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
+            .map(|dep_path| crate::skill_approval_key(dep_path))
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()

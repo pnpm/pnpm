@@ -2,6 +2,8 @@
 //! approval on install, linked into the agent skill directories once
 //! `permissions` approves them, and pruned once it no longer does.
 
+mod local_deps;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};

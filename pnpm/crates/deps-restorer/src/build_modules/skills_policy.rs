@@ -4,21 +4,63 @@ use super::{
     HashMap, VersionPolicyError,
     allow_build_policy::{
         git_repo_allow_build_key_from_dep_path, is_dep_path_allow_build_key,
-        is_git_repo_allow_build_key, normalize_build_dep_path,
+        is_git_repo_allow_build_key, normalize_build_dep_path, parse_dep_path_name_version,
     },
-    expand_package_version_spec, parse_name_version_from_key,
+    expand_package_version_spec, get_pkg_id_with_patch_hash, parse_name_version_from_key,
 };
 use pnpm_config::SkillsPermission;
+
+/// Whether `path` ends with a tarball extension (`.tgz`, `.tar.gz`, `.tar`),
+/// ASCII case-insensitively, matching `pnpm_local_spec`.
+pub(crate) fn is_tarball_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    let ends_with_ignore_case = |suffix: &[u8]| {
+        bytes.len() >= suffix.len()
+            && bytes[bytes.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+    };
+    ends_with_ignore_case(b".tgz")
+        || ends_with_ignore_case(b".tar.gz")
+        || ends_with_ignore_case(b".tar")
+}
+
+/// Whether `version` (the peer-free version half of a dep path) names a local
+/// directory (`link:` or non-tarball `file:`).
+#[must_use]
+pub fn is_local_directory_version(version: &str) -> bool {
+    if version.starts_with("link:") {
+        return true;
+    }
+    if let Some(path) = version.strip_prefix("file:") {
+        return !is_tarball_path(path);
+    }
+    false
+}
+
+/// The `permissions` key under which a package's agent skills are approved:
+/// the package name for registry and local directory (`link:` / `file:`)
+/// packages, and the peer-suffix-free depPath for git or tarball packages.
+#[must_use]
+pub fn skill_approval_key(dep_path: &str) -> String {
+    let pkg_id_with_patch_hash = get_pkg_id_with_patch_hash(dep_path);
+    match parse_dep_path_name_version(pkg_id_with_patch_hash) {
+        Some((name, version))
+            if node_semver::Version::parse(version).is_ok()
+                || is_local_directory_version(version) =>
+        {
+            name.to_string()
+        }
+        _ => pkg_id_with_patch_hash.to_string(),
+    }
+}
 
 /// Skill-linking policy derived from the `skills` decisions of
 /// `permissions` in `pnpm-workspace.yaml`, keyed like `allowBuilds` rules:
 /// by config dep path, git repo, or expanded package spec.
 ///
-/// The per-skill answers follow the same trust-gated ladder as
-/// the `allowBuilds` policy — a `permissions.<pkg>.skills: false`
-/// decision is a denial outranking any allowance, and a bare-name or
-/// `name@version` decision only reaches a dep path whose version is a semver
-/// range, the same trust signal `allowBuilds` requires.
+/// A `permissions.<pkg>.skills: false` decision is a denial outranking any
+/// allowance. A bare-name rule matches registry (`name@semver`) and local
+/// directory (`link:` and non-tarball `file:`) dep paths; git and tarball dep
+/// paths require an explicit source or repository rule.
 #[derive(Debug, Default)]
 pub struct SkillsPolicy {
     expanded: HashMap<String, SkillsPermission>,
@@ -91,10 +133,10 @@ impl SkillsPolicy {
     /// `None` when nothing is decided and the skills await approval.
     ///
     /// A `permissions` dep-path or git-repo rule matches any dep path of the
-    /// same shape. A bare-name or `name@version` rule needs a trusted
-    /// package identity, whose signal is a registry-shaped dep path
-    /// (`name@semver`) — see the `allowBuilds` policy. A `name@version`
-    /// rule outranks a bare-name one, the more specific key wins.
+    /// same shape. A bare-name rule matches registry (`name@semver`) and local
+    /// directory (`link:` and non-tarball `file:`) dep paths, while git and
+    /// tarball dep paths stay pending unless matched by source or git repo. A
+    /// `name@version` rule outranks a bare-name one.
     #[must_use]
     pub fn check(&self, dep_path: &str) -> Option<SkillsPermission> {
         let normalized_dep_path = normalize_build_dep_path(dep_path);
@@ -122,10 +164,7 @@ impl SkillsPolicy {
         if let Some(decision) = git_repo_key.and_then(|key| self.git_repos.get(key)) {
             return Some(decision.clone());
         }
-        // Package-name rules require a trusted package identity, as they do
-        // for `allowBuilds`: a non-registry dep path stays pending rather
-        // than matching by name.
-        if node_semver::Version::parse(&version).is_err() {
+        if node_semver::Version::parse(&version).is_err() && !is_local_directory_version(&version) {
             return None;
         }
         if let Some(decision) = self.expanded

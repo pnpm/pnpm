@@ -297,3 +297,131 @@ fn an_escaping_skill_does_not_hide_a_later_one_of_its_name() {
 
     assert_eq!(shipped, [Skill { name: "guide".to_string(), dir: PathBuf::from("b/guide") }]);
 }
+
+#[test]
+fn local_directory_and_tarball_dep_paths_use_the_project_alias_for_link_segment() {
+    for dep_path in [
+        "@example/my-skills@link:packages/my-skills",
+        "@example/my-skills@file:../my-skills",
+        "@example/my-skills@file:./my-skills.tgz",
+        "@example/my-skills@https://example.com/my-skills.tgz",
+    ] {
+        let source =
+            super::skill_source((Vec::new(), PathBuf::from("pkg")), dep_path, "@app/custom-alias");
+        assert_eq!(source.link_segment, "@app+custom-alias", "{dep_path}");
+    }
+}
+
+#[test]
+fn unsafe_importer_ids_are_ignored_during_discovery() {
+    let temp = tempfile::tempdir().unwrap();
+    let outside_pkg = temp.path().join("outside/node_modules/evil");
+    std::fs::create_dir_all(outside_pkg.join("skills/pwn")).unwrap();
+    std::fs::write(outside_pkg.join("skills/pwn/SKILL.md"), "# pwn\n").unwrap();
+    let root = temp.path().join("workspace");
+    std::fs::create_dir_all(root.join(".agents/skills")).unwrap();
+
+    let yaml = "lockfileVersion: '9.0'\nimporters:\n  '../outside':\n    dependencies:\n      evil:\n        specifier: 1.0.0\n        version: 1.0.0\n";
+    let mut config = Config {
+        modules_dir: root.join("node_modules"),
+        install_state_dir: root.join("node_modules/.pnpm"),
+        ..Config::default()
+    };
+    config.allow_skills.insert("evil".to_string(), SkillsPermission::All(true));
+
+    let state = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: &root,
+        lockfile: &serde_saphyr::from_str::<Lockfile>(yaml).unwrap(),
+        included: IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        },
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: None,
+    })
+    .unwrap();
+
+    assert!(state.linked.is_empty());
+    assert!(state.pending.is_empty());
+}
+
+#[test]
+fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills() {
+    let root = tempfile::tempdir().unwrap();
+    let pkg_dir = root.path().join("packages/my-skills");
+    std::fs::create_dir_all(pkg_dir.join("skills/demo-skill")).unwrap();
+    std::fs::write(pkg_dir.join("package.json"), r#"{"name":"@example/my-skills"}"#).unwrap();
+    std::fs::write(pkg_dir.join("skills/demo-skill/SKILL.md"), "# demo\n").unwrap();
+
+    let app_link = root.path().join("packages/app/node_modules/@example/my-skills");
+    std::fs::create_dir_all(app_link.parent().unwrap()).unwrap();
+    pnpm_fs::force_symlink_dir(&pkg_dir, &app_link).unwrap();
+    std::fs::create_dir_all(root.path().join(".agents/skills")).unwrap();
+
+    let yaml = "lockfileVersion: '9.0'\nimporters:\n  packages/app:\n    dependencies:\n      '@example/my-skills':\n        specifier: workspace:*\n        version: link:../my-skills\n";
+    let lockfile = serde_saphyr::from_str::<Lockfile>(yaml).unwrap();
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    };
+    let mut config = Config {
+        node_linker: pnpm_config::NodeLinker::Hoisted,
+        modules_dir: root.path().join("node_modules"),
+        install_state_dir: root.path().join("node_modules/.pnpm"),
+        ..Config::default()
+    };
+
+    let unapproved = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &lockfile,
+        included,
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: None,
+    })
+    .unwrap();
+    assert_eq!(unapproved.pending, ["@example/my-skills@link:packages/my-skills"]);
+    assert_eq!(unapproved.pending_keys(), ["@example/my-skills"]);
+
+    config.allow_skills.insert("@example/my-skills".to_string(), SkillsPermission::All(true));
+    let approved = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &lockfile,
+        included,
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: None,
+    })
+    .unwrap();
+    assert_eq!(approved.linked, [".agents/skills/demo-skill"]);
+    assert!(
+        root.path()
+            .join(".agents/skills/demo-skill/SKILL.md")
+            .is_file(),
+    );
+
+    config.allow_skills.insert("@example/my-skills".to_string(), SkillsPermission::All(false));
+    let revoked = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &lockfile,
+        included,
+        linked: &approved.linked,
+        agent_dir: None,
+        hoisted_locations: None,
+    })
+    .unwrap();
+    assert!(revoked.linked.is_empty());
+    assert!(
+        !root
+            .path()
+            .join(".agents/skills/demo-skill")
+            .exists(),
+    );
+}

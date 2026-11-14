@@ -20,7 +20,7 @@ use clap::{Args, Subcommand};
 use miette::{Context, IntoDiagnostic, Report};
 use pnpm_config::{Config, PermissionCapability, SkillsPermission, is_ci};
 use pnpm_package_manager::{
-    allow_build_key_from_ignored_build, resync_installed_agent_skills, skill_approval_options,
+    resync_installed_agent_skills, skill_approval_key, skill_approval_options,
 };
 use pnpm_reporter::{Reporter, emit_global_warning};
 use pnpm_workspace_manifest_writer::set_skills_dirs;
@@ -89,7 +89,7 @@ pub(crate) fn pending_permissions(config: &Config) -> miette::Result<PendingPerm
         .flat_map(|modules| modules.pending_skills.iter().flatten());
     for dep_path in pending_skills {
         by_package
-            .entry(allow_build_key_from_ignored_build(dep_path.as_str()))
+            .entry(skill_approval_key(dep_path.as_str()))
             .or_default()
             .insert(PermissionCapability::Skills);
     }

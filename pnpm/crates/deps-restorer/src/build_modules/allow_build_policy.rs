@@ -275,10 +275,7 @@ pub fn short_package_label(key: &str) -> String {
 /// git-hosted: `tarball` for a URL, including a local archive name; `local`
 /// for a directory a `file:` / `link:` spec resolves to.
 fn source_tag(version: &str) -> &'static str {
-    if version.starts_with("file:") || version.starts_with("link:") {
-        if version.ends_with(".tgz") || version.ends_with(".tar.gz") {
-            return "tarball";
-        }
+    if super::skills_policy::is_local_directory_version(version) {
         return "local";
     }
     "tarball"
