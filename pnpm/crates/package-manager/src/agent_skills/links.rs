@@ -65,9 +65,6 @@ fn links_to_a_package_skill(workspace_root: &Path, path: &Path) -> bool {
 }
 
 fn is_local_package_skill(workspace_root: &Path, path: &Path, target: &Path) -> bool {
-    if target.is_relative() && !matches!(target.components().next(), Some(Component::ParentDir)) {
-        return false;
-    }
     let Some(parent) = path.parent() else { return false };
     let root = canonical_or_lexical(workspace_root);
     let link_parent = canonical_or_lexical(parent);

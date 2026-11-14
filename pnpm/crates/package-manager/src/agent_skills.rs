@@ -44,7 +44,13 @@ mod targets;
 
 use crate::{SkillsPolicy, VersionPolicyError};
 use derive_more::{Display, Error};
-use discovery::{Skill, SkillSource, discover_skill_sources};
+use discovery::{
+    Skill, SkillSource, discover_skill_sources,
+    local_identity::{
+        MAX_SKILL_ENTRY_BYTES, dedup_approved_local_copies, disambiguate_local_segments,
+        hashed_segment,
+    },
+};
 use gitignore::update_gitignores;
 use links::{ensure_unoccupied, is_occupied, materialize, prune};
 use miette::Diagnostic;
@@ -242,6 +248,8 @@ fn decide_sources(
             approved.push(SkillSource { skills, ..source });
         }
     }
+    dedup_approved_local_copies(&mut approved);
+    disambiguate_local_segments(&mut approved);
     (pending, approved)
 }
 
@@ -313,9 +321,22 @@ fn target_of(source: &SkillSource, skill: &Skill) -> PathBuf {
     source.package_dir.join("skills").join(&skill.dir)
 }
 
-/// The fallback entry name: `pnpm-<package>-<skill>`.
+/// The fallback entry name: `pnpm-<package>-<skill>`, shortened with a SHA-256
+/// digest when the combined name would exceed [`MAX_SKILL_ENTRY_BYTES`].
 fn prefixed_name(source: &SkillSource, skill: &Skill) -> String {
-    format!("{AGENT_SKILL_LINK_PREFIX}{}-{}", source.link_segment, skill.name)
+    let full = format!("{AGENT_SKILL_LINK_PREFIX}{}-{}", source.link_segment, skill.name);
+    if full.len() <= MAX_SKILL_ENTRY_BYTES {
+        return full;
+    }
+    let segment =
+        hashed_segment(&source.link_segment, &source.dep_path, std::slice::from_ref(skill));
+    let shortened = format!("{AGENT_SKILL_LINK_PREFIX}{segment}-{}", skill.name);
+    if shortened.len() <= MAX_SKILL_ENTRY_BYTES {
+        return shortened;
+    }
+    let fallback_hash =
+        pnpm_crypto_hash::create_short_hash(&format!("{}\0{}", source.dep_path, skill.name));
+    format!("{AGENT_SKILL_LINK_PREFIX}{fallback_hash}")
 }
 
 /// Whether every target directory can take an entry named `name`: an

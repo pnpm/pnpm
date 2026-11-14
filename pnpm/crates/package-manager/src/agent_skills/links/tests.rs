@@ -28,7 +28,9 @@ fn only_a_link_into_a_package_skills_directory_is_a_package_skill() {
         ("../../packages/foo/skills/.hidden", false),
         ("../../packages/foo/skills/a/b/c/d", false),
         ("../skills/guide", false),
-        ("skills/guide", false),
+        ("guide", false),
+        ("pkg/docs/guide", false),
+        ("pkg/skills/guide", true),
     ] {
         let link = claude_skills.join("link");
         let _ = std::fs::remove_file(&link);
@@ -38,7 +40,12 @@ fn only_a_link_into_a_package_skills_directory_is_a_package_skill() {
 
     let top_level_skills = temp.path().join("ai-skills");
     std::fs::create_dir_all(&top_level_skills).unwrap();
-    for (target, expected) in [("../skills/guide", true), ("skills/guide", false)] {
+    for (target, expected) in [
+        ("../skills/guide", true),
+        ("pkg/skills/guide", true),
+        ("guide", false),
+        ("pkg/docs/guide", false),
+    ] {
         let link = top_level_skills.join("link");
         let _ = std::fs::remove_file(&link);
         std::os::unix::fs::symlink(target, &link).unwrap();
@@ -62,12 +69,14 @@ fn prune_removes_skills_named_skills_dot_prefixed_packages_and_top_level_agent_d
     let dot_pkg_skill = root.join(".my-skills/skills/guide");
     let ext_dot_pkg_skill = temp.path().join(".ext-skills/skills/ext-guide");
     let root_pkg_skill = root.join("skills/root-guide");
+    let descendant_pkg_skill = root.join("ai-skills/pkg/skills/sub-guide");
     for dir in [
         &pkg_skill_named_skills,
         &pkg_nested_skills,
         &dot_pkg_skill,
         &ext_dot_pkg_skill,
         &root_pkg_skill,
+        &descendant_pkg_skill,
     ] {
         std::fs::create_dir_all(dir).unwrap();
     }
@@ -78,6 +87,7 @@ fn prune_removes_skills_named_skills_dot_prefixed_packages_and_top_level_agent_d
         (".claude/skills/guide", &dot_pkg_skill),
         (".claude/skills/ext-guide", &ext_dot_pkg_skill),
         ("ai-skills/root-guide", &root_pkg_skill),
+        ("ai-skills/sub-guide", &descendant_pkg_skill),
     ];
     let mut recorded = Vec::new();
     for (entry, target) in entries {
