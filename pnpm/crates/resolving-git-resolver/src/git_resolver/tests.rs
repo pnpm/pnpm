@@ -531,7 +531,7 @@ fn locked_opts(update: UpdateBehavior) -> ResolveOptions {
         refresh: ResolutionRefreshOptions {
             current_pkg: Some(CurrentPkg {
                 id: PkgResolutionId::from(format!(
-                    "foo@git+https://example.com/foo/bar.git#{LOCKED}"
+                    "foo@git+https://example.com/foo/bar.git#{LOCKED}",
                 )),
                 name: Some("foo".to_string()),
                 version: Some("1.0.0".to_string()),
