@@ -16,6 +16,11 @@ pub(super) struct HashedFile {
     pub(super) hash: String,
 }
 
+enum TrackedPathSet {
+    Cached(Arc<Vec<String>>),
+    Fresh(Arc<Vec<String>>),
+}
+
 /// A tracked input's contribution to the key, or `None` when the file is
 /// gone by the time it is hashed.
 ///
@@ -251,8 +256,11 @@ impl TaskCache {
         project: &Path,
         mut include: impl FnMut(&str) -> bool,
     ) -> miette::Result<ProjectInputHashes> {
-        let Some((paths, was_cached)) = self.cached_or_tracked_paths(project)? else {
+        let Some(path_set) = self.cached_or_tracked_paths(project)? else {
             return Ok(None);
+        };
+        let paths = match &path_set {
+            TrackedPathSet::Cached(paths) | TrackedPathSet::Fresh(paths) => paths,
         };
         let mut files: Vec<HashedFile> = Vec::new();
         for rel_path in paths.iter() {
@@ -263,7 +271,7 @@ impl TaskCache {
                 files.push(HashedFile { rel_path: rel_path.clone(), hash });
             }
         }
-        if !was_cached {
+        if let TrackedPathSet::Fresh(paths) = path_set {
             self.project_files
                 .lock()
                 .expect("project-files lock is not poisoned")
@@ -272,22 +280,19 @@ impl TaskCache {
         Ok(Some(Arc::new(files)))
     }
 
-    fn cached_or_tracked_paths(
-        &self,
-        project: &Path,
-    ) -> miette::Result<Option<(Arc<Vec<String>>, bool)>> {
+    fn cached_or_tracked_paths(&self, project: &Path) -> miette::Result<Option<TrackedPathSet>> {
         if let Some(entry) = self.project_files
             .lock()
             .expect("project-files lock is not poisoned")
             .get(project)
         {
             return Ok(match entry {
-                ProjectFiles::Tracked(paths) => Some((Arc::clone(paths), true)),
+                ProjectFiles::Tracked(paths) => Some(TrackedPathSet::Cached(Arc::clone(paths))),
                 ProjectFiles::Unavailable(_) => None,
             });
         }
         match project_tracked_paths(project)? {
-            ProjectFiles::Tracked(paths) => Ok(Some((paths, false))),
+            ProjectFiles::Tracked(paths) => Ok(Some(TrackedPathSet::Fresh(paths))),
             ProjectFiles::Unavailable(reason) => {
                 self.project_files
                     .lock()

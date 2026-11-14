@@ -3,7 +3,7 @@ use super::{
     check_ancestors, check_input_directories, io, is_excluded_input, validate_relative_path,
 };
 use std::path::Component;
-use wax::walk::{Entry, GlobEntry, WalkError};
+use wax::walk::{Entry, EntryResidue, GlobEntry, WalkError};
 
 pub(super) enum InputSelection<'a> {
     Default,
@@ -83,6 +83,17 @@ impl ParentGlob {
             return self.glob.is_match(rebased.as_str());
         }
         self.parent_depth == 0 && self.unanchored && self.glob.is_match(file_tail)
+    }
+
+    fn residue(&self, project: &Path, rel_path: &str) -> Option<EntryResidue> {
+        if !self.matches_rel_path(project, rel_path) {
+            return None;
+        }
+        if matches!(self.glob.is_exhaustive(), wax::query::When::Always) {
+            Some(EntryResidue::Tree)
+        } else {
+            Some(EntryResidue::File)
+        }
     }
 }
 
@@ -197,13 +208,60 @@ fn walk_single_additive_glob(
     let entries = glob.glob
         .walk(&walk_root)
         .not(wax::any(["**/node_modules/**", "**/.git/**"]))
-        .map_err(|error| miette::miette!("invalid ignore glob: {error}"))?;
+        .map_err(|error| miette::miette!("invalid ignore glob: {error}"))?
+        .filter_entry(|entry| walk_entry_residue(walk, &walk_root, entry));
     for entry in entries {
         if let Some(hashed) = hash_walk_entry(walk, &walk_root, &glob.raw, entry)? {
             files.push(hashed);
         }
     }
     Ok(())
+}
+
+fn walk_entry_residue(
+    walk: &AdditiveWalk<'_>,
+    walk_root: &Path,
+    entry: &dyn Entry,
+) -> Option<EntryResidue> {
+    let entry_rel = entry
+        .path()
+        .strip_prefix(walk_root)
+        .ok()?;
+    let project_rel = walk.project.strip_prefix(walk_root).ok()?;
+    let diff = pathdiff::diff_paths(entry_rel, project_rel)?;
+    let rel_path = relative_components_to_slash_path(&diff, walk.project).ok()?;
+    if rel_path.is_empty() {
+        return None;
+    }
+    let mut residue = output_residue(&rel_path, walk.output_globs);
+    if residue == Some(EntryResidue::Tree) {
+        return residue;
+    }
+    for excl in walk.exclude {
+        if let Some(excl_residue) = excl.residue(walk.project, &rel_path) {
+            if excl_residue == EntryResidue::Tree {
+                return Some(EntryResidue::Tree);
+            }
+            residue = Some(EntryResidue::File);
+        }
+    }
+    residue
+}
+
+fn output_residue(rel_path: &str, output_globs: &[Glob<'_>]) -> Option<EntryResidue> {
+    if rel_path.starts_with("../") {
+        return None;
+    }
+    let mut matched_file = false;
+    for glob in output_globs {
+        if glob.is_match(rel_path) {
+            if matches!(glob.is_exhaustive(), wax::query::When::Always) {
+                return Some(EntryResidue::Tree);
+            }
+            matched_file = true;
+        }
+    }
+    matched_file.then_some(EntryResidue::File)
 }
 
 fn resolve_walk_root(

@@ -600,7 +600,7 @@ fn additive_and_excluded_input_globs_cover_gitignored_and_sibling_files() {
     );
 }
 
-#[cfg(unix)]
+#[cfg_attr(not(unix), ignore = "requires the Unix mkfifo command")]
 #[test]
 fn additive_input_globs_skip_fifos_without_blocking() {
     let (root, _repo, _cache) = setup_input_cache();
@@ -653,32 +653,12 @@ fn additive_input_globs_reject_workspace_escape_and_invalid_paths() {
             key_for_inputs(&workspace, &project, Some(vec![invalid.to_string()]), &workspace);
         assert!(result.is_err(), "expected {invalid} to be rejected");
     }
-    #[cfg(unix)]
-    {
-        let outside_dir = tempfile::tempdir().unwrap();
-        fs::write(outside_dir.path().join("secret.txt"), "secret").unwrap();
-        std::os::unix::fs::symlink(outside_dir.path(), project.join("linked")).unwrap();
-        let result = key_for_inputs(
-            &workspace,
-            &project,
-            Some(vec![String::from("+linked/**")]),
-            &workspace,
-        );
-        assert!(result.is_err(), "symlinked additive directory must be rejected");
-    }
-    #[cfg(windows)]
-    {
-        let outside_dir = tempfile::tempdir().unwrap();
-        fs::write(outside_dir.path().join("secret.txt"), "secret").unwrap();
-        pnpm_fs::symlink_dir(outside_dir.path(), &project.join("linked")).unwrap();
-        let result = key_for_inputs(
-            &workspace,
-            &project,
-            Some(vec![String::from("+linked/**")]),
-            &workspace,
-        );
-        assert!(result.is_err(), "junction additive directory must be rejected");
-    }
+    let outside_dir = tempfile::tempdir().unwrap();
+    fs::write(outside_dir.path().join("secret.txt"), "secret").unwrap();
+    pnpm_fs::symlink_dir(outside_dir.path(), &project.join("linked")).unwrap();
+    let result =
+        key_for_inputs(&workspace, &project, Some(vec![String::from("+linked/**")]), &workspace);
+    assert!(result.is_err(), "symlinked additive directory must be rejected");
 }
 
 #[test]
@@ -883,4 +863,55 @@ fn unreadable_lockfile_or_branch_lockfile_propagates_read_error() {
     .unwrap_err()
     .to_string();
     assert!(branch_error.contains("hashing branch lockfile"), "{branch_error}");
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix directory permission bits")]
+#[test]
+fn additive_walk_skips_excluded_unreadable_directories() {
+    let (root, repo, _cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    repo.write_file(".gitignore", "generated/\n");
+    let _ = repo.commit("ignore generated");
+
+    let public_dir = project.join("generated/public");
+    let private_dir = project.join("generated/private");
+    fs::create_dir_all(&public_dir).unwrap();
+    fs::create_dir_all(&private_dir).unwrap();
+    fs::write(public_dir.join("app.js"), "v1").unwrap();
+    fs::write(private_dir.join("secret.js"), "secret").unwrap();
+
+    #[cfg(unix)]
+    struct RestorePermissions(std::path::PathBuf);
+    #[cfg(unix)]
+    impl Drop for RestorePermissions {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
+        }
+    }
+    #[cfg(unix)]
+    let _restore = {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&private_dir, fs::Permissions::from_mode(0o000)).unwrap();
+        RestorePermissions(private_dir.clone())
+    };
+
+    if fs::read_dir(&private_dir).is_ok() {
+        return;
+    }
+
+    let unexcluded =
+        key_for_inputs(&project, &project, Some(vec!["+generated/**".to_string()]), &project);
+    assert!(unexcluded.is_err(), "unexcluded unreadable directory must fail traversal");
+
+    for exclusion in ["!generated/private/**", "!../inputs-src/generated/private/**"] {
+        let excluded = key_for_inputs(
+            &project,
+            &project,
+            Some(vec!["+generated/**".to_string(), exclusion.to_string()]),
+            &project,
+        )
+        .unwrap();
+        assert!(!excluded.is_empty());
+    }
 }
