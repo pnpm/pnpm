@@ -1,5 +1,7 @@
 pub(crate) use fast_path::{check_strict_dep_builds_for_fast_path, register_workspace_in_store};
 pub(crate) use manifests::hook_one_manifest;
+pub use validate_frozen::PreparedFrozenInstall;
+pub(crate) use validate_frozen::PreparedFrozenRun;
 
 mod fast_path;
 use fast_path::{

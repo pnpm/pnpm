@@ -54,10 +54,22 @@ export interface UninstallSomeDepsMutation {
 
 export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation
 
+export interface PreparedFrozenProjectHook {
+  manifest: ProjectManifest
+  originalManifest?: ProjectManifest
+}
+
+export interface PreparedFrozenMutation {
+  hookedProjects: Map<ProjectRootDir, PreparedFrozenProjectHook>
+  hookedWantedLockfile?: LockfileObject
+  verifiedLockfile: boolean
+}
+
 export type SingleProjectInstallOptions = Omit<InstallOptions, 'allProjects'> & {
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
   binsDir?: string
+  _preparedFrozen?: PreparedFrozenMutation
 } & InstallMutationOptions
 
 export interface InstallResult {
@@ -97,6 +109,8 @@ export type MutateModulesOptions = InstallOptions & {
   hooks?: {
     readPackage?: ReadPackageHook[] | ReadPackageHook
   } | InstallOptions['hooks']
+  _cleansVirtualStore?: boolean
+  _preparedFrozen?: PreparedFrozenMutation
 }
 
 export interface MutateModulesInSingleProjectResult {

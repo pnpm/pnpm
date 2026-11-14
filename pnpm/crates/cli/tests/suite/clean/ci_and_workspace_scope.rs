@@ -55,15 +55,9 @@ fn ci_preserves_node_modules_when_lockfile_is_missing_or_outdated() {
     let missing_ci = run_pnpm(&workspace, &["ci"]);
     assert!(!missing_ci.status.success(), "ci without lockfile must fail");
     let missing_stderr = String::from_utf8_lossy(&missing_ci.stderr);
-    assert!(
-        missing_stderr.contains("ERR_PNPM_NO_LOCKFILE"),
-        "expected ERR_PNPM_NO_LOCKFILE, got: {missing_stderr}",
-    );
+    assert!(missing_stderr.contains("ERR_PNPM_NO_LOCKFILE"), "got: {missing_stderr}");
     assert!(marker.exists(), "marker must survive failed ci without lockfile");
-    assert!(
-        workspace.join("node_modules/dep-a/package.json").exists(),
-        "installed dependency must survive failed ci without lockfile",
-    );
+    assert!(workspace.join("node_modules/dep-a/package.json").exists(), "dep must survive");
 
     // 2. Outdated pnpm-lock.yaml relative to package.json.
     fs::write(&lockfile_path, &saved_lockfile).expect("restore lockfile");
@@ -75,15 +69,9 @@ fn ci_preserves_node_modules_when_lockfile_is_missing_or_outdated() {
     let outdated_ci = run_pnpm(&workspace, &["ci"]);
     assert!(!outdated_ci.status.success(), "ci with outdated lockfile must fail");
     let outdated_stderr = String::from_utf8_lossy(&outdated_ci.stderr);
-    assert!(
-        outdated_stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
-        "expected ERR_PNPM_OUTDATED_LOCKFILE, got: {outdated_stderr}",
-    );
+    assert!(outdated_stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "got: {outdated_stderr}");
     assert!(marker.exists(), "marker must survive failed ci with outdated lockfile");
-    assert!(
-        workspace.join("node_modules/dep-a/package.json").exists(),
-        "installed dependency must survive failed ci with outdated lockfile",
-    );
+    assert!(workspace.join("node_modules/dep-a/package.json").exists(), "dep must survive");
 
     drop(root);
 }

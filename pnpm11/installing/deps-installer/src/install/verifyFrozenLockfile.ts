@@ -238,7 +238,7 @@ export async function verifyLockedTarballIntegrity ({ ctx, opts, projects }: Mut
     include: opts.include,
     currentEngine: getCurrentEngine(opts),
     ...installabilityUnderForce(opts),
-    failOnMissingDependencies: false,
+    failOnMissingDependencies: true,
     lockfileDir: opts.lockfileDir,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped,

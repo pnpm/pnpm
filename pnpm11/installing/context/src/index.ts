@@ -84,7 +84,8 @@ export interface ProjectOptions {
   rootDirRealPath?: ProjectRootDirRealPath
 }
 
-interface HookOptions {
+export interface HookOptions {
+  alreadyHooked?: boolean
   originalManifest?: ProjectManifest
   pruneDirectDependencies?: boolean
 }
@@ -380,7 +381,7 @@ async function prepareStoreDir (storeDir: string, lockfileDir: string, frozenSto
 function logManifests (projects: Array<ProjectOptions & HookOptions>): void {
   for (const project of projects) {
     packageManifestLogger.debug({
-      initial: project.manifest,
+      initial: project.originalManifest ?? project.manifest,
       prefix: project.rootDir,
     })
   }
@@ -392,8 +393,10 @@ async function applyReadPackageHook (
 ): Promise<void> {
   if (!readPackageHook) return
   await Promise.all(projects.map(async (project) => {
+    if (project.alreadyHooked) return
     project.originalManifest = project.manifest
     project.manifest = await readPackageHook(clone(project.manifest), project.rootDir)
+    project.alreadyHooked = true
   }))
 }
 

@@ -579,3 +579,48 @@ test('pnpm clean --lockfile respects lockfileDir containment and per-project loc
   expect(execPnpmSync(['clean', '--lockfile']).status).toBe(0)
   expect(fs.existsSync(path.join('packages/pkg-b', 'pnpm-lock.yaml'))).toBe(false)
 })
+
+test('pnpm clean preserves shared .pnpm on -w and --no-recursive and honors packageConfigs modulesDir', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+        dependencies: { 'is-negative': '1.0.0' },
+      },
+    },
+  ])
+  writeJsonFile('package.json', {
+    name: 'root-pkg',
+    version: '1.0.0',
+    private: true,
+    dependencies: { 'is-positive': '1.0.0' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(execPnpmSync(['-w', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.pnpm'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative', 'package.json'))).toBe(true)
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(execPnpmSync(['clean', '--no-recursive'], { cwd: path.resolve('packages/pkg-a') }).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', '.pnpm'))).toBe(true)
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+    packageConfigs: {
+      'pkg-a': {
+        modulesDir: 'custom_nm',
+      },
+    },
+  })
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'custom_nm', 'seeded'), { recursive: true })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'custom_nm', 'seeded'))).toBe(false)
+})

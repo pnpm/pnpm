@@ -30,10 +30,11 @@ export type {
   MutateModulesInSingleProjectResult,
   MutateModulesOptions,
   MutateModulesResult,
+  PreparedFrozenMutation,
   UninstallSomeDepsMutation,
   UpdatedProject,
 } from './mutationTypes.js'
-export { validateFrozenInstall } from './validateFrozenInstall.js'
+export { type ValidatedFrozenInstall, validateFrozenInstall } from './validateFrozenInstall.js'
 
 export async function install (
   manifest: ProjectManifest,

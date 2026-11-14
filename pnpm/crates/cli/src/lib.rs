@@ -239,9 +239,12 @@ pub(crate) fn parse_cli_args(
         matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
     let recursive_from_command_line =
         matches.value_source("recursive") == Some(clap::parser::ValueSource::CommandLine);
+    let no_recursive_from_command_line = matches.value_source("__negated__no-recursive")
+        == Some(clap::parser::ValueSource::CommandLine);
     let mut args = CliArgs::from_arg_matches(&matches)?;
     args.paths.dir_from_command_line = dir_from_command_line;
     args.workspace.recursive_from_command_line = recursive_from_command_line;
+    args.workspace.no_recursive_from_command_line = no_recursive_from_command_line;
     args.workspace.selection.filter_order = crate::cli_args::cli_command::extract_filter_order(
         &matches,
         argv,

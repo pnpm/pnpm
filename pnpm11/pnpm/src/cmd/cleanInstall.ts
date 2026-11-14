@@ -35,14 +35,20 @@ export async function handler (
     opts.lockfileOnly ||
     (opts.cliOptions as { 'resolution-only'?: boolean } | undefined)?.['resolution-only']
   )
-  if (!skipsClean) {
-    await validateCiFrozenInstall({ ...opts, frozenLockfile: true } as any) // eslint-disable-line
-    // `--lockfile` here is the install setting, not `pnpm clean --lockfile`.
-    await clean.cleanProjects({ ...opts, removeLockfile: false })
+  const preparedCi = skipsClean
+    ? undefined
+    : await validateCiFrozenInstall({ ...opts, frozenLockfile: true } as any) // eslint-disable-line
+  try {
+    if (!skipsClean) {
+      // `--lockfile` here is the install setting, not `pnpm clean --lockfile`.
+      await clean.cleanProjects({ ...opts, removeLockfile: false })
+    }
+    return await install.handler(
+      { ...opts, _preparedCi: preparedCi, frozenLockfile: true, optimisticRepeatInstall: false } as any, // eslint-disable-line
+      params,
+      commands
+    )
+  } finally {
+    await preparedCi?.close()
   }
-  return install.handler(
-    { ...opts, frozenLockfile: true, optimisticRepeatInstall: false } as any, // eslint-disable-line
-    params,
-    commands
-  )
 }

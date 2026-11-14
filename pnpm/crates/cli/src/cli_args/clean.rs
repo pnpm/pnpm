@@ -116,6 +116,12 @@ fn select_clean_targets(
     if config.workspace_root {
         return Ok(Some((vec![root_dir.to_path_buf()], CleanScope::Narrowed)));
     }
+    if config.workspace_dir.is_some()
+        && !config.recursive
+        && config.cli_settings.contains("recursive")
+    {
+        return Ok(Some((vec![ctx.locations.dir.to_path_buf()], CleanScope::Narrowed)));
+    }
     if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
         let dirs = workspace_dirs_with_root(

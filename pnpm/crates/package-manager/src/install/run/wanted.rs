@@ -55,6 +55,10 @@ impl WantedLockfile<'_> {
     pub(super) fn set_hooked(&mut self, lockfile: Lockfile) {
         self.hooked = Some(lockfile);
     }
+
+    pub(super) fn take_hooked(&mut self) -> Option<Lockfile> {
+        self.hooked.take()
+    }
 }
 /// The wanted lockfile settled, with the manifests the freshness gates
 /// compare it against.

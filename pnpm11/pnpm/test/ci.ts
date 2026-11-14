@@ -344,3 +344,130 @@ test('pnpm ci cleans node_modules in a single project even when pnpm_config_filt
   expect(fs.existsSync(stalePkg)).toBe(false)
   expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
 })
+
+test('pnpm -w ci preserves shared .pnpm virtual store for unselected workspace members', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+        dependencies: { 'is-negative': '1.0.0' },
+      },
+    },
+  ])
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root-pkg',
+    version: '1.0.0',
+    private: true,
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  fs.mkdirSync(path.join('node_modules', 'stale-root'), { recursive: true })
+
+  const res = execPnpmSync(['-w', 'ci'])
+  expect(res.status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', 'stale-root'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative', 'package.json'))).toBe(true)
+})
+
+test('pnpm ci runs .pnpmfile.cjs hooks once and skips them when lockfile or checksum validation fails', () => {
+  prepare({
+    name: 'ci-hook-app',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  })
+  const writePnpmfile = (tag: string): void => {
+    fs.writeFileSync('.pnpmfile.cjs', [
+      `// ${tag}`,
+      "const fs = require('node:fs');",
+      "const path = require('node:path');",
+      "const logPath = path.join(__dirname, 'hooks.log');",
+      'module.exports = {',
+      '  hooks: {',
+      '    readPackage(pkg) { fs.appendFileSync(logPath, `read:${pkg.name}\\n`); return pkg; },',
+      "    preResolution() { fs.appendFileSync(logPath, 'preResolution\\n'); },",
+      '  },',
+      '};',
+    ].join('\n'))
+  }
+
+  writePnpmfile('v1')
+  expect(execPnpmSync(['install']).status).toBe(0)
+  fs.unlinkSync('hooks.log')
+
+  expect(execPnpmSync(['ci']).status).toBe(0)
+  const lines = fs.readFileSync('hooks.log', 'utf8').trim().split('\n')
+  expect(lines.filter((line) => line === 'read:ci-hook-app')).toHaveLength(1)
+  expect(lines.filter((line) => line === 'preResolution')).toHaveLength(1)
+
+  const marker = path.join('node_modules', 'keep-marker.txt')
+  fs.writeFileSync(marker, 'keep')
+  fs.unlinkSync('hooks.log')
+  writePnpmfile('v2-drifted')
+
+  const driftedRes = execPnpmSync(['ci'])
+  expect(driftedRes.status).not.toBe(0)
+  expect(driftedRes.stdout.toString() + driftedRes.stderr.toString()).toContain('ERR_PNPM_LOCKFILE_CONFIG_MISMATCH')
+  expect(fs.existsSync('hooks.log')).toBe(false)
+  expect(fs.existsSync(marker)).toBe(true)
+
+  fs.unlinkSync('pnpm-lock.yaml')
+  const missingRes = execPnpmSync(['ci'])
+  expect(missingRes.status).not.toBe(0)
+  expect(fs.existsSync('hooks.log')).toBe(false)
+  expect(fs.existsSync(marker)).toBe(true)
+})
+
+test('pnpm ci rejects missing lockfile snapshot entry before cleaning node_modules', () => {
+  prepare({
+    name: 'ci-missing-snapshot',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  })
+  expect(execPnpmSync(['install']).status).toBe(0)
+  const marker = path.join('node_modules', 'keep-marker.txt')
+  fs.writeFileSync(marker, 'keep')
+
+  const rawLockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  const brokenLockfile = rawLockfile.replace(/snapshots:\n[\s\S]*$/, 'snapshots: {}\n')
+  fs.writeFileSync('pnpm-lock.yaml', brokenLockfile)
+
+  const res = execPnpmSync(['ci'])
+  expect(res.status).not.toBe(0)
+  expect(res.stdout.toString() + res.stderr.toString()).toContain('ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY')
+  expect(fs.existsSync(marker)).toBe(true)
+})
+
+test('pnpm ci cleans per-package modulesDir configured via packageConfigs', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+        dependencies: { 'is-positive': '1.0.0' },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+    packageConfigs: {
+      'pkg-a': {
+        modulesDir: 'custom_nm',
+      },
+    },
+  })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  const staleDir = path.join('packages', 'pkg-a', 'custom_nm', 'stale-pkg')
+  fs.mkdirSync(staleDir, { recursive: true })
+
+  expect(execPnpmSync(['ci']).status).toBe(0)
+  expect(fs.existsSync(staleDir)).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'custom_nm', 'is-positive', 'package.json'))).toBe(true)
+})

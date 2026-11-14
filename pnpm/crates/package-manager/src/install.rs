@@ -24,9 +24,10 @@ pub(crate) use modules_state::{
     modules_layout_consistent_with, moved_tree_is_reusable, project_requires_lifecycle_scripts,
     tree_may_move,
 };
-pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
+pub use run::{InstallExecution, InstallLockfilePolicy, PreparedFrozenInstall, ResolutionInputs};
 pub(crate) use run::{
-    check_strict_dep_builds_for_fast_path, hook_one_manifest, register_workspace_in_store,
+    PreparedFrozenRun, check_strict_dep_builds_for_fast_path, hook_one_manifest,
+    register_workspace_in_store,
 };
 pub use workspace_state::build_workspace_packages_map;
 pub(crate) use workspace_state::{
@@ -593,4 +594,7 @@ pub(crate) struct InstallManifestOptions<'install> {
     pub(crate) spec_bumps: Option<&'install crate::ManifestSpecBumps>,
     /// Pre-seeded `requiresBuild` verdicts from a `pnpr` resolve stream.
     pub(crate) known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    /// Hooked manifests and `preResolution` output prepared during `pnpm ci`
+    /// frozen validation, so the post-clean install does not re-run hooks.
+    pub(crate) prepared_frozen: Option<PreparedFrozenRun>,
 }

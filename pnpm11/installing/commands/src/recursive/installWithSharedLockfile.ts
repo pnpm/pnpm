@@ -46,6 +46,9 @@ export async function installWithSharedLockfile (ctx: RecursiveContext): Promise
     dryRunResult,
   } = await mutateModules(mutatedImporters, {
     ...ctx.installOpts,
+    _preparedFrozen: ctx.opts.lockfileDir == null
+      ? undefined
+      : ctx.opts._preparedCi?.preparedByLockfileDir.get(ctx.opts.lockfileDir),
     storeController: ctx.store.ctrl,
     resolutionVerifiers: ctx.store.resolutionVerifiers,
     beforeLifecycleScripts: saveManifests,

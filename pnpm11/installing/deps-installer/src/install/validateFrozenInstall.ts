@@ -1,9 +1,13 @@
-import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { LOCKFILE_MAJOR_VERSION } from '@pnpm/constants'
-import { getContext, type PnpmContext } from '@pnpm/installing.context'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
+import path from 'node:path'
 
-import { extendOptions } from './extendInstallOptions.js'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { LOCKFILE_MAJOR_VERSION, LOCKFILE_VERSION } from '@pnpm/constants'
+import { getContext, type PnpmContext } from '@pnpm/installing.context'
+import { createLockfileObject, getWantedLockfileName, type LockfileObject } from '@pnpm/lockfile.fs'
+import type { ProjectRootDir } from '@pnpm/types'
+import { clone } from 'ramda'
+
+import { extendOptions, type ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
 import { allMutationsAreInstalls, isCheckOnlyInstall, pkgHasDependencies } from './installPredicates.js'
 import { assertFrozenPnprPnpmfileChecksum, assertPnprCompatibleWithStore } from './installViaPnprServer.js'
 import { detectOutdatedLockfileSettings, readInstallChecksums } from './lockfileState.js'
@@ -11,9 +15,14 @@ import {
   createScriptsOptions,
   readMutationProjectOptions,
   runPreResolutionHooks,
-  startLockfileVerification,
 } from './mutateModules.js'
-import type { MutatedProject, MutateModulesOptions, MutationRun } from './mutationTypes.js'
+import type {
+  MutatedProject,
+  MutateModulesOptions,
+  MutationRun,
+  PreparedFrozenMutation,
+  PreparedFrozenProjectHook,
+} from './mutationTypes.js'
 import { canUsePnprForMutations, pnpmfileHookPnprCannotRun } from './pnpr.js'
 import { requiresFullResolution, throwOnInconsistentFrozenPatchHashes } from './runMutations.js'
 import { createOutdatedLockfileMajorVersionError } from './tryFrozenInstall.js'
@@ -22,21 +31,28 @@ import {
   createNoLockfileError,
   verifyLockedTarballIntegrity,
 } from './verifyFrozenLockfile.js'
+import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+
+export interface ValidatedFrozenInstall {
+  wantedLockfile?: LockfileObject
+  prepared?: PreparedFrozenMutation
+}
 
 /**
  * Runs every read-only check a `--frozen-lockfile` install enforces before
- * `pnpm ci` cleans `node_modules`.
+ * `pnpm ci` cleans `node_modules`, and returns the hooked manifests and
+ * verification state so the subsequent install runs each hook once.
  */
 export async function validateFrozenInstall (
   projects: MutatedProject[],
   maybeOpts: MutateModulesOptions
-): Promise<LockfileObject | undefined> {
+): Promise<ValidatedFrozenInstall | undefined> {
   const opts = extendOptions({
     ...maybeOpts,
     frozenLockfile: true,
     frozenLockfileIfExists: false,
   })
-  if (opts.fixLockfile || isCheckOnlyInstall(opts)) return undefined
+  if (isCheckOnlyInstall(opts)) return undefined
   const usesPnpr = Boolean(maybeOpts.allProjects?.length) &&
     Boolean(opts.pnprServer) &&
     canUsePnprForMutations(projects, opts) &&
@@ -47,26 +63,26 @@ export async function validateFrozenInstall (
   if (!maybeOpts.allProjects?.length) {
     opts.allProjects = await readMutationProjectOptions(projects, opts.ignorePackageManifest)
   }
-  const ctx = await getContext({ ...opts, frozenStore: true })
-  assertProjectManifestsExist(ctx, Boolean(maybeOpts.ignorePackageManifest))
-  if (!ctx.existsWantedLockfile) {
-    if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
-      throw createNoLockfileError()
-    }
+  const rawCtx = await getContext({ ...opts, frozenStore: true, readPackageHook: undefined })
+  assertProjectManifestsExist(rawCtx, Boolean(maybeOpts.ignorePackageManifest))
+  if (opts.fixLockfile) {
+    await validateFixLockfilePreflight(rawCtx, { maybeOpts, opts, projects, usesPnpr })
     return undefined
   }
-  if (usesPnpr) {
-    assertFrozenPnprPnpmfileChecksum(
-      opts,
-      ctx.wantedLockfile.pnpmfileChecksum,
-      await opts.hooks.calculatePnpmfileChecksum?.()
-    )
+  if (!rawCtx.existsWantedLockfile) {
+    return validateWithoutWantedLockfile(rawCtx, opts)
   }
-  if (ctx.lockfileHadConflicts) return ctx.wantedLockfile
-  return verifyFrozenMutationRun(ctx, { maybeOpts, opts, projects })
+  if (rawCtx.lockfileHadConflicts) {
+    const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
+    return {
+      wantedLockfile: rawCtx.wantedLockfile,
+      prepared: { hookedProjects, verifiedLockfile: false },
+    }
+  }
+  return verifyFrozenMutationRun(rawCtx, { maybeOpts, opts, projects, usesPnpr })
 }
 
-function assertProjectManifestsExist (ctx: PnpmContext, ignorePackageManifest: boolean): void {
+export function assertProjectManifestsExist (ctx: PnpmContext, ignorePackageManifest: boolean): void {
   if (ignorePackageManifest) return
   for (const { manifest, rootDir } of Object.values(ctx.projects)) {
     if (!manifest) {
@@ -75,29 +91,218 @@ function assertProjectManifestsExist (ctx: PnpmContext, ignorePackageManifest: b
   }
 }
 
-async function verifyFrozenMutationRun (
-  ctx: PnpmContext,
-  { maybeOpts, opts, projects }: Pick<MutationRun, 'maybeOpts' | 'opts' | 'projects'>
-): Promise<LockfileObject> {
-  const installsOnly = allMutationsAreInstalls(projects)
-  const { verifyLockfilePromise } = await startLockfileVerification({ ctx, installsOnly, opts, projects })
-  await runPreResolutionHooks(opts, { ...ctx, existsCurrentLockfile: false })
-  const run = buildValidationRun(ctx, { installsOnly, maybeOpts, opts, projects, verifyLockfilePromise })
-  await verifyFrozenLockfileState(run)
-  if (verifyLockfilePromise != null) {
-    await verifyLockfilePromise
+export function applyPreparedFrozenProjects (
+  opts: StrictInstallOptions,
+  prepared: MutateModulesOptions['_preparedFrozen']
+): void {
+  if (prepared == null) return
+  for (const project of opts.allProjects) {
+    const hooked = prepared.hookedProjects.get(project.rootDir)
+    if (hooked != null) {
+      project.manifest = hooked.manifest
+      project.originalManifest = hooked.originalManifest
+      project.alreadyHooked = true
+    }
   }
+}
+
+export async function applyPreparedOrRunPreResolutionHooks (
+  opts: StrictInstallOptions,
+  ctx: PnpmContext,
+  prepared: MutateModulesOptions['_preparedFrozen']
+): Promise<void> {
+  if (prepared == null) {
+    await runPreResolutionHooks(opts, ctx)
+    return
+  }
+  if (prepared.hookedWantedLockfile != null) {
+    ctx.wantedLockfile = prepared.hookedWantedLockfile
+  }
+}
+
+async function validateFixLockfilePreflight (
+  rawCtx: PnpmContext,
+  { maybeOpts, opts, projects, usesPnpr }: {
+    maybeOpts: MutateModulesOptions
+    opts: StrictInstallOptions
+    projects: MutatedProject[]
+    usesPnpr: boolean
+  }
+): Promise<void> {
+  if (!rawCtx.existsWantedLockfile || rawCtx.lockfileHadConflicts) return
+  await verifyRawLockfileBeforeHooks(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
+  if (!opts.trustLockfile) {
+    await verifyLockfilePolicies(rawCtx, opts)
+  }
+}
+
+async function validateWithoutWantedLockfile (
+  rawCtx: PnpmContext,
+  opts: StrictInstallOptions
+): Promise<ValidatedFrozenInstall | undefined> {
+  if (Object.values(rawCtx.projects).some((project) => pkgHasDependencies(project.manifest))) {
+    throw createNoLockfileError()
+  }
+  const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
+  if (Object.values(rawCtx.projects).some((project) => pkgHasDependencies(project.manifest))) {
+    throw createNoLockfileError()
+  }
+  return {
+    prepared: { hookedProjects, verifiedLockfile: false },
+  }
+}
+
+async function verifyRawLockfileBeforeHooks (
+  ctx: PnpmContext,
+  { maybeOpts, opts, projects, usesPnpr, checkMajorVersion }: {
+    maybeOpts: MutateModulesOptions
+    opts: StrictInstallOptions
+    projects: MutatedProject[]
+    usesPnpr: boolean
+    checkMajorVersion: boolean
+  }
+): Promise<void> {
+  await verifyLockfileResolutions(ctx.wantedLockfile, [])
+  const checksums = await readInstallChecksums({ ctx, opts })
+  if (usesPnpr) {
+    assertFrozenPnprPnpmfileChecksum(opts, ctx.wantedLockfile.pnpmfileChecksum, checksums.pnpmfileChecksum)
+  }
+  const settings = detectOutdatedLockfileSettings({ ctx, opts }, checksums)
+  throwOnInconsistentFrozenPatchHashes(ctx, true)
+  if (!checkMajorVersion) return
+  const installsOnly = allMutationsAreInstalls(projects)
+  const run = buildValidationRun(ctx, { installsOnly, maybeOpts, opts, projects })
+  const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion
+    .toString()
+    .startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
+  if (requiresFullResolution(run, {
+    outdatedLockfileSettings: settings.changedLockfileSettings.length > 0,
+    upToDateLockfileMajorVersion,
+  })) {
+    throw createOutdatedLockfileMajorVersionError()
+  }
+}
+
+async function hookContextProjectsOnce (
+  ctx: PnpmContext,
+  opts: StrictInstallOptions
+): Promise<Map<ProjectRootDir, PreparedFrozenProjectHook>> {
+  const hookedProjects = new Map<ProjectRootDir, PreparedFrozenProjectHook>()
+  const readPackageHook = opts.readPackageHook
+  await Promise.all(Object.values(ctx.projects).map(async (project) => {
+    if (readPackageHook != null && !project.alreadyHooked) {
+      project.originalManifest = project.manifest
+      project.manifest = await readPackageHook(clone(project.manifest), project.rootDir)
+      project.alreadyHooked = true
+    }
+    hookedProjects.set(project.rootDir, {
+      manifest: project.manifest,
+      originalManifest: project.originalManifest,
+    })
+  }))
+  return hookedProjects
+}
+
+async function reopenMergedLockfileContextIfNeeded (
+  rawCtx: PnpmContext,
+  opts: StrictInstallOptions,
+  hookedProjects: Map<ProjectRootDir, PreparedFrozenProjectHook>
+): Promise<PnpmContext> {
+  if (!opts.mergeGitBranchLockfiles || opts.readPackageHook == null) {
+    return rawCtx
+  }
+  const hookedAllProjects = opts.allProjects.map((project) => {
+    const hooked = hookedProjects.get(project.rootDir)
+    return hooked == null
+      ? project
+      : { ...project, ...hooked, alreadyHooked: true }
+  })
+  return getContext({ ...opts, allProjects: hookedAllProjects, frozenStore: true })
+}
+
+async function verifyFrozenMutationRun (
+  rawCtx: PnpmContext,
+  { maybeOpts, opts, projects, usesPnpr }: {
+    maybeOpts: MutateModulesOptions
+    opts: StrictInstallOptions
+    projects: MutatedProject[]
+    usesPnpr: boolean
+  }
+): Promise<ValidatedFrozenInstall> {
+  await verifyRawLockfileBeforeHooks(rawCtx, {
+    maybeOpts,
+    opts,
+    projects,
+    usesPnpr,
+    checkMajorVersion: true,
+  })
+  const hookedProjects = await hookContextProjectsOnce(rawCtx, opts)
+  const ctx = await reopenMergedLockfileContextIfNeeded(rawCtx, opts, hookedProjects)
+  const hookedWantedLockfile = await runPreResolutionForValidation(ctx, opts, maybeOpts._cleansVirtualStore !== false)
+  const installsOnly = allMutationsAreInstalls(projects)
+  const run = buildValidationRun(ctx, { installsOnly, maybeOpts, opts, projects })
+  if (!opts.ignorePackageManifest) {
+    await checkProjectsAgainstLockfile(run, true)
+  }
+  if (!opts.lockfileOnly) {
+    await verifyLockedTarballIntegrity(run)
+  }
+  if (!opts.trustLockfile) {
+    await verifyLockfilePolicies(ctx, opts)
+  }
+  return {
+    wantedLockfile: ctx.wantedLockfile,
+    prepared: {
+      hookedProjects,
+      hookedWantedLockfile,
+      verifiedLockfile: !opts.trustLockfile,
+    },
+  }
+}
+
+async function runPreResolutionForValidation (
+  ctx: PnpmContext,
+  opts: StrictInstallOptions,
+  cleansVirtualStore: boolean
+): Promise<LockfileObject | undefined> {
+  if (!opts.hooks.preResolution?.length) return undefined
+  const importerIds = Object.values(ctx.projects).map(({ id }) => id)
+  const currentLockfile = cleansVirtualStore
+    ? createLockfileObject(importerIds, {
+      autoInstallPeers: opts.autoInstallPeers,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      lockfileVersion: LOCKFILE_VERSION,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
+    })
+    : ctx.currentLockfile
+  await runPreResolutionHooks(opts, {
+    ...ctx,
+    currentLockfile,
+    existsCurrentLockfile: cleansVirtualStore ? false : ctx.existsCurrentLockfile,
+  })
   return ctx.wantedLockfile
+}
+
+async function verifyLockfilePolicies (ctx: PnpmContext, opts: StrictInstallOptions): Promise<void> {
+  const wantedLockfilePath = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
+    ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    }))
+    : undefined
+  await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
+    cacheDir: opts.cacheDir,
+    lockfilePath: wantedLockfilePath,
+  })
 }
 
 function buildValidationRun (
   ctx: PnpmContext,
-  { installsOnly, maybeOpts, opts, projects, verifyLockfilePromise }: {
+  { installsOnly, maybeOpts, opts, projects }: {
     installsOnly: boolean
     maybeOpts: MutateModulesOptions
     opts: MutationRun['opts']
     projects: MutatedProject[]
-    verifyLockfilePromise?: Promise<void>
   }
 ): MutationRun {
   return {
@@ -113,28 +318,5 @@ function buildValidationRun (
     pruneVirtualStore: false,
     rootProjectPreinstallRan: false,
     scriptsOpts: createScriptsOptions(opts, ctx),
-    verifyLockfilePromise,
-    verifyLockfile: verifyLockfilePromise && (() => verifyLockfilePromise),
-  }
-}
-
-async function verifyFrozenLockfileState (run: MutationRun): Promise<void> {
-  const checksums = await readInstallChecksums(run)
-  const settings = detectOutdatedLockfileSettings(run, checksums)
-  throwOnInconsistentFrozenPatchHashes(run.ctx, true)
-  const upToDateLockfileMajorVersion = run.ctx.wantedLockfile.lockfileVersion
-    .toString()
-    .startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
-  if (requiresFullResolution(run, {
-    outdatedLockfileSettings: settings.changedLockfileSettings.length > 0,
-    upToDateLockfileMajorVersion,
-  })) {
-    throw createOutdatedLockfileMajorVersionError()
-  }
-  if (!run.opts.ignorePackageManifest) {
-    await checkProjectsAgainstLockfile(run, true)
-  }
-  if (!run.opts.lockfileOnly) {
-    await verifyLockedTarballIntegrity(run)
   }
 }

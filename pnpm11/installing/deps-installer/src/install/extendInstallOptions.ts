@@ -6,7 +6,7 @@ import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrid
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext } from '@pnpm/hooks.types'
-import type { ProjectOptions } from '@pnpm/installing.context'
+import type { HookOptions, ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
@@ -156,7 +156,7 @@ export interface StrictInstallOptions extends RegistryContext {
   globalBin?: string
   patchedDependencies?: Record<string, string>
 
-  allProjects: ProjectOptions[]
+  allProjects: Array<ProjectOptions & HookOptions>
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
   deployAllFiles?: boolean
   resolveSymlinksInInjectedDirs: boolean

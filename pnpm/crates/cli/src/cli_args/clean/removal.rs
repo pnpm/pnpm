@@ -7,6 +7,7 @@ use pnpm_fs::{
 };
 use serde_json::Value;
 use std::{
+    borrow::Cow,
     collections::HashSet,
     io::ErrorKind,
     path::{Path, PathBuf},
@@ -17,6 +18,13 @@ use std::{
 /// `.cache`) is left in place.
 const PNPM_HIDDEN_ENTRIES: &[&str] =
     &[".bin", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
+
+/// Hidden entries removed from the shared workspace `node_modules` when a
+/// narrowed clean targets the root importer: `.pnpm` and `.modules.yaml` back
+/// unselected workspace members and stay in place, while
+/// `.pnpm-workspace-state-v1.json` is removed so subsequent installs do not
+/// short-circuit over the cleaned project.
+const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES: &[&str] = &[".bin", ".pnpm-workspace-state-v1.json"];
 
 pub(super) struct CleanRun<'a> {
     pub(super) config: &'a Config,
@@ -43,13 +51,9 @@ impl CleanRun<'_> {
         // does pnpm's `pathAbsolute`.
         let modules_leaf = configured_modules_leaf(self.config);
         let cleans_root = self.cleans_root(dirs);
-        let resolved_lockfile_dir = if cleans_root {
-            self.raw_lockfile_dir.and_then(|lockfile_dir| {
-                resolve_configured_lockfile_dir(self.real_root_dir, lockfile_dir)
-            })
-        } else {
-            None
-        };
+        let resolved_lockfile_dir = self.raw_lockfile_dir.and_then(|lockfile_dir| {
+            resolve_configured_lockfile_dir(self.real_root_dir, lockfile_dir)
+        });
         self.clean_all_modules(&cwd, dirs, &modules_leaf, resolved_lockfile_dir.as_deref())?;
         if self.lockfile_removal == LockfileRemoval::Remove {
             remove_lockfiles(
@@ -74,6 +78,22 @@ impl CleanRun<'_> {
                 .any(|dir| dunce::canonicalize(dir).ok().as_deref() == Some(self.real_root_dir))
     }
 
+    fn shared_workspace_modules_dir(
+        &self,
+        modules_leaf: &Path,
+        resolved_lockfile_dir: Option<&Path>,
+    ) -> Option<PathBuf> {
+        if self.scope != CleanScope::Narrowed
+            || self.config.workspace_dir.is_none()
+            || !self.config.shares_one_lockfile()
+        {
+            return None;
+        }
+        let anchor =
+            if self.raw_lockfile_dir.is_some() { resolved_lockfile_dir? } else { self.root_dir };
+        resolve_project_modules_dir(self.real_root_dir, anchor, modules_leaf)
+    }
+
     fn clean_all_modules(
         &self,
         cwd: &Path,
@@ -81,14 +101,22 @@ impl CleanRun<'_> {
         modules_leaf: &Path,
         resolved_lockfile_dir: Option<&Path>,
     ) -> miette::Result<()> {
+        let shared_modules_dir =
+            self.shared_workspace_modules_dir(modules_leaf, resolved_lockfile_dir);
         let mut cleaned_modules_dirs = HashSet::new();
         for dir in dirs {
+            let project_leaf = modules_leaf_for_project(self.config, dir, modules_leaf);
             if let Some(modules_in_project) =
-                resolve_project_modules_dir(self.real_root_dir, dir, modules_leaf)
+                resolve_project_modules_dir(self.real_root_dir, dir, &project_leaf)
                 && cleaned_modules_dirs.insert(modules_in_project.clone())
             {
-                clean_modules_dir(cwd, &modules_in_project)?;
+                let preserve_shared =
+                    shared_modules_dir.as_deref() == Some(modules_in_project.as_path());
+                clean_modules_dir(cwd, &modules_in_project, preserve_shared)?;
             }
+        }
+        if let Some(shared_modules) = shared_modules_dir.as_deref() {
+            invalidate_workspace_state(self.real_root_dir, shared_modules)?;
         }
         if self.scope == CleanScope::WholeWorkspace
             && let Some(lockfile_dir) = resolved_lockfile_dir
@@ -96,13 +124,28 @@ impl CleanRun<'_> {
                 resolve_project_modules_dir(self.real_root_dir, lockfile_dir, modules_leaf)
             && cleaned_modules_dirs.insert(lockfile_modules_dir.clone())
         {
-            clean_modules_dir(cwd, &lockfile_modules_dir)?;
+            clean_modules_dir(cwd, &lockfile_modules_dir, false)?;
         }
         Ok(())
     }
 }
 
-fn configured_modules_leaf(config: &Config) -> std::borrow::Cow<'_, Path> {
+fn invalidate_workspace_state(real_root_dir: &Path, shared_modules: &Path) -> miette::Result<()> {
+    let Some(state_path) =
+        resolve_inside(real_root_dir, &shared_modules.join(".pnpm-workspace-state-v1.json"))
+    else {
+        return Ok(());
+    };
+    let Ok(metadata) = symlink_metadata_with_retry(&state_path) else {
+        return Ok(());
+    };
+    if !is_symlink_metadata(&metadata) && metadata.is_dir() {
+        return Ok(());
+    }
+    remove_path(&state_path)
+}
+
+fn configured_modules_leaf(config: &Config) -> Cow<'_, Path> {
     to_native_separators(
         config.explicit_settings
             .get("modulesDir")
@@ -110,6 +153,23 @@ fn configured_modules_leaf(config: &Config) -> std::borrow::Cow<'_, Path> {
             .map(Path::new)
             .unwrap_or_else(|| Path::new("node_modules")),
     )
+}
+
+fn modules_leaf_for_project<'a>(
+    config: &'a Config,
+    project_dir: &Path,
+    default_leaf: &'a Path,
+) -> Cow<'a, Path> {
+    if config.applies_package_configs()
+        && let Some(project_name) = pnpm_workspace::read_project_name(project_dir)
+        && let Some(raw_modules_dir) = config.package_configs
+            .as_ref()
+            .and_then(|configs| configs.get(&project_name))
+            .and_then(|project_config| project_config.modules_dir.as_deref())
+    {
+        return to_native_separators(Path::new(raw_modules_dir));
+    }
+    Cow::Borrowed(default_leaf)
 }
 
 fn resolve_configured_lockfile_dir(
@@ -248,7 +308,7 @@ fn resolve_inside(real_root: &Path, path: &Path) -> Option<PathBuf> {
     (resolved.starts_with(real_root) && resolved != real_root).then_some(resolved)
 }
 
-fn clean_modules_dir(cwd: &Path, modules_dir: &Path) -> miette::Result<()> {
+fn clean_modules_dir(cwd: &Path, modules_dir: &Path, preserve_shared: bool) -> miette::Result<()> {
     let metadata = match symlink_metadata_with_retry(modules_dir) {
         Ok(metadata) => metadata,
         Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
@@ -261,13 +321,16 @@ fn clean_modules_dir(cwd: &Path, modules_dir: &Path) -> miette::Result<()> {
         }
     };
     if is_symlink_metadata(&metadata) {
+        if preserve_shared {
+            return Ok(());
+        }
         print_removing(cwd, modules_dir);
         return remove_path(modules_dir);
     }
     if !metadata.is_dir() {
         return Ok(());
     }
-    let entries = removable_modules_entries(modules_dir)?;
+    let entries = removable_modules_entries(modules_dir, preserve_shared)?;
     if !entries.is_empty() {
         print_removing(cwd, modules_dir);
         for entry in entries {
@@ -277,7 +340,10 @@ fn clean_modules_dir(cwd: &Path, modules_dir: &Path) -> miette::Result<()> {
     Ok(())
 }
 
-fn removable_modules_entries(modules_dir: &Path) -> miette::Result<Vec<PathBuf>> {
+fn removable_modules_entries(
+    modules_dir: &Path,
+    preserve_shared: bool,
+) -> miette::Result<Vec<PathBuf>> {
     let entries = match std::fs::read_dir(modules_dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
@@ -287,11 +353,18 @@ fn removable_modules_entries(modules_dir: &Path) -> miette::Result<Vec<PathBuf>>
                 .wrap_err_with(|| format!("reading {}", modules_dir.display()));
         }
     };
-    Ok(entries
-        .filter_map(Result::ok)
-        .filter(|entry| is_pnpm_entry(&entry.file_name().to_string_lossy()))
-        .map(|entry| entry.path())
-        .collect())
+    let hidden_entries =
+        if preserve_shared { PNPM_NARROWED_SHARED_HIDDEN_ENTRIES } else { PNPM_HIDDEN_ENTRIES };
+    let mut removable = Vec::new();
+    for entry in entries {
+        let entry = entry
+            .into_diagnostic()
+            .wrap_err_with(|| format!("reading {}", modules_dir.display()))?;
+        if is_pnpm_entry(&entry.file_name().to_string_lossy(), hidden_entries) {
+            removable.push(entry.path());
+        }
+    }
+    Ok(removable)
 }
 
 fn remove_path(path: &Path) -> miette::Result<()> {
@@ -301,8 +374,8 @@ fn remove_path(path: &Path) -> miette::Result<()> {
         .wrap_err_with(|| format!("removing {}", path.display()))
 }
 
-fn is_pnpm_entry(name: &str) -> bool {
-    !name.starts_with('.') || PNPM_HIDDEN_ENTRIES.contains(&name)
+fn is_pnpm_entry(name: &str, hidden_entries: &[&str]) -> bool {
+    !name.starts_with('.') || hidden_entries.contains(&name)
 }
 
 /// Print `Removing <path>`, with `path` rendered relative to `base` (the

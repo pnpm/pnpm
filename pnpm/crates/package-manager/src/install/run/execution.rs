@@ -8,7 +8,7 @@ use super::{
     dispatch::{announce_import, dispatch},
     load_lockfiles,
     materialization_inputs::materialization_lockfiles,
-    pre_resolution::run_pre_resolution_hook,
+    pre_resolution::apply_or_run_pre_resolution_hook,
     report_already_up_to_date, settle_wanted_lockfile,
     settled::Settled,
     time_machine_capture::capture_time_machine_exclusions,
@@ -66,7 +66,7 @@ impl<'a> RunExecution<'a> {
             &self.workspace,
             &scope,
             self.options.selection.as_ref(),
-            (&self.options.manifests.hooked_paths, self.loaded_workspace_projects),
+            (&mut self.options.manifests, self.loaded_workspace_projects),
         )
         .await?;
         let manifests = std::mem::take(&mut loaded.manifests);
@@ -106,11 +106,12 @@ impl<'a> RunExecution<'a> {
     ) -> Result<InstallRunOutcome, InstallError> {
         let (verification, root_preinstall_ran) =
             self.announce::<Reporter>((scope, project_manifests), loaded, lockfiles)?;
-        run_pre_resolution_hook::<Reporter>(
+        apply_or_run_pre_resolution_hook::<Reporter>(
             self.install,
             &self.workspace,
             loaded,
             &mut lockfiles.wanted,
+            self.options.manifests.prepared_frozen.as_mut(),
         )
         .await?;
         let lockfiles = &*lockfiles;

@@ -54,8 +54,7 @@ pub(crate) struct InstallPipeline {
 
 impl InstallPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        self.run_with_config::<Reporter>().await
-            .map(|_| ())
+        Box::pin(self.run_with_config::<Reporter>()).await.map(|_| ())
     }
 
     pub(crate) async fn run_with_config<Reporter: self::Reporter + 'static>(
@@ -102,7 +101,7 @@ impl InstallPipeline {
             }
         }
 
-        self.run_prepared::<Reporter>(family, lockfile).await
+        Box::pin(self.run_prepared::<Reporter>(family, lockfile)).await
     }
 
     /// [`select_install_family`] inside the `discover_workspace_projects`
@@ -136,9 +135,13 @@ impl InstallPipeline {
         if !ecosystem_install::is_enabled(self.cfg) {
             let (job, _, _) = self.into_node_job();
             let cfg = job.cfg;
-            job.validate_and_clean_if_needed::<Reporter>(&family.plan, &mut lockfile, &http_client)
-                .await?;
-            job.run::<Reporter>(family.plan, lockfile, http_client).await?;
+            let prepared = job.validate_and_clean_if_needed::<Reporter>(
+                &family.plan,
+                &mut lockfile,
+                &http_client,
+            )
+            .await?;
+            job.run::<Reporter>(family.plan, lockfile, http_client, prepared).await?;
             return Ok(cfg);
         }
         self.run_with_ecosystems::<Reporter>(family, lockfile, http_client).await
@@ -171,9 +174,10 @@ impl InstallPipeline {
         {
             return Err(unmatched.counting(ecosystem.python.discovered).report());
         }
-        job.validate_and_clean_if_needed::<Reporter>(&family.plan, &mut lockfile, &http_client)
-            .await?;
-        let node_install = job.run::<Reporter>(family.plan, lockfile, http_client);
+        let prepared =
+            job.validate_and_clean_if_needed::<Reporter>(&family.plan, &mut lockfile, &http_client)
+                .await?;
+        let node_install = job.run::<Reporter>(family.plan, lockfile, http_client, prepared);
         ecosystem.plan
             .with_task(pnpm_install_coordinator::InstallTask::in_place(Vec::new(), node_install))
             .run()
@@ -227,6 +231,7 @@ impl NodeInstallJob {
         plan: InstallFamilyPlan,
         lockfile: Option<pnpm_lockfile::LazyLockfile>,
         http_client: Arc<ThrottledClient>,
+        prepared: super::ci_validation::PreparedCiValidation,
     ) -> miette::Result<()> {
         match plan {
             InstallFamilyPlan::PerProject(projects) => {
@@ -236,6 +241,7 @@ impl NodeInstallJob {
                     *projects,
                     self.require_lockfile,
                     http_client,
+                    prepared.per_project,
                 )
                 .await
             }
@@ -250,9 +256,16 @@ impl NodeInstallJob {
                     lockfile,
                     Arc::clone(&http_client),
                 )?;
-                Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await
+                Box::pin(self.args.run_selected_prepared::<Reporter>(
+                    state,
+                    *selection,
+                    prepared.shared,
+                ))
+                .await
             }
-            InstallFamilyPlan::Single => self.run_single::<Reporter>(lockfile, http_client).await,
+            InstallFamilyPlan::Single => {
+                self.run_single::<Reporter>(lockfile, http_client, prepared).await
+            }
         }
     }
 
@@ -260,16 +273,22 @@ impl NodeInstallJob {
         self,
         lockfile: Option<pnpm_lockfile::LazyLockfile>,
         http_client: Arc<ThrottledClient>,
+        prepared: super::ci_validation::PreparedCiValidation,
     ) -> miette::Result<()> {
         if !self.cfg.shares_one_lockfile()
             && let Some(workspace_dir) = self.cfg.workspace_dir.clone()
         {
-            return run_dedicated_lockfile_workspace_install::<Reporter>(
+            let projects = match prepared.dedicated_projects {
+                Some(projects) => projects,
+                None => discover_dedicated_workspace_projects(self.cfg, &workspace_dir)?,
+            };
+            return run_dedicated_projects::<Reporter>(
                 &self.args,
                 self.cfg,
-                &workspace_dir,
+                projects,
                 self.require_lockfile,
                 Arc::clone(&http_client),
+                prepared.per_project,
             )
             .await;
         }
@@ -280,7 +299,7 @@ impl NodeInstallJob {
             lockfile,
             Arc::clone(&http_client),
         )?;
-        Box::pin(self.args.run::<Reporter>(state)).await
+        Box::pin(self.args.run_prepared::<Reporter>(state, prepared.shared)).await
     }
 }
 
@@ -290,6 +309,11 @@ async fn run_dedicated_projects<Reporter: self::Reporter + 'static>(
     projects: DedicatedProjects,
     require_lockfile: bool,
     http_client: Arc<ThrottledClient>,
+    prepared_by_dir: Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<PathBuf, pnpm_package_manager::PreparedFrozenInstall>,
+        >,
+    >,
 ) -> miette::Result<()> {
     DedicatedProjectRuns {
         config: cfg,
@@ -300,7 +324,18 @@ async fn run_dedicated_projects<Reporter: self::Reporter + 'static>(
         sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
         pipelined: true,
     }
-    .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
+    .run::<Reporter, _, _>(|state| {
+        let prepared = state.manifest
+            .path()
+            .parent()
+            .and_then(|dir| {
+                prepared_by_dir
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .remove(dir)
+            });
+        Box::pin(args.clone().run_prepared::<Reporter>(state, prepared))
+    })
     .await
 }
 
@@ -337,7 +372,15 @@ pub(in crate::cli_args) async fn run_dedicated_lockfile_workspace_install<
     http_client: Arc<ThrottledClient>,
 ) -> miette::Result<()> {
     let projects = discover_dedicated_workspace_projects(cfg, workspace_root)?;
-    run_dedicated_projects::<Reporter>(args, cfg, projects, require_lockfile, http_client).await
+    run_dedicated_projects::<Reporter>(
+        args,
+        cfg,
+        projects,
+        require_lockfile,
+        http_client,
+        Arc::default(),
+    )
+    .await
 }
 
 pub(super) fn discover_dedicated_workspace_projects(

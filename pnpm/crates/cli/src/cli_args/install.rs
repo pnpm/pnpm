@@ -221,21 +221,31 @@ impl InstallArgs {
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        Box::pin(self.run_inner::<Reporter>(state, None)).await
+        Box::pin(self.run_inner::<Reporter>(state, None, None)).await
     }
 
-    pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
+    pub(crate) async fn run_prepared<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        prepared: Option<pnpm_package_manager::PreparedFrozenInstall>,
+    ) -> miette::Result<()> {
+        Box::pin(self.run_inner::<Reporter>(state, None, prepared)).await
+    }
+
+    pub(crate) async fn run_selected_prepared<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         selection: InstallFamilySelection,
+        prepared: Option<pnpm_package_manager::PreparedFrozenInstall>,
     ) -> miette::Result<()> {
-        Box::pin(self.run_inner::<Reporter>(state, Some(selection))).await
+        Box::pin(self.run_inner::<Reporter>(state, Some(selection), prepared)).await
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         selection: Option<InstallFamilySelection>,
+        prepared: Option<pnpm_package_manager::PreparedFrozenInstall>,
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let frozen_lockfile = self.resolve_frozen_lockfile(&state)?;
@@ -257,12 +267,12 @@ impl InstallArgs {
                 Err(error) if resolves_locally_after::<Reporter>(&error, server) => {
                     let link =
                         self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
-                    self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
+                    self.run_local::<Reporter>(&state, link, selection.as_ref(), prepared).await?;
                 }
                 installed => installed?,
             }
         } else {
-            self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
+            self.run_local::<Reporter>(&state, link, selection.as_ref(), prepared).await?;
         }
         // Resolution watch senders must close inline; only inert manifest and lockfile data
         // may outlive the command through background destruction.
@@ -359,13 +369,18 @@ impl InstallArgs {
         state: &State,
         link: PnprLink<'_>,
         selection: Option<&InstallFamilySelection>,
+        prepared: Option<pnpm_package_manager::PreparedFrozenInstall>,
     ) -> miette::Result<()> {
         let install = self.build_local_install(state, link);
         match selection {
             Some(selection) => {
-                install.run_selected::<Reporter>(workspace_install_selection(selection)).await
+                install.run_selected_prepared::<Reporter>(
+                    workspace_install_selection(selection),
+                    prepared,
+                )
+                .await
             }
-            None => install.run::<Reporter>().await,
+            None => install.run_prepared::<Reporter>(prepared).await,
         }
         .wrap_err("installing dependencies")
     }

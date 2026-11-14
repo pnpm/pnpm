@@ -37,6 +37,11 @@ import type {
 import { canUsePnprForMutations, mutateModulesViaPnpr, pnprCanRunPnpmfile } from './pnpr.js'
 import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { runMutations } from './runMutations.js'
+import {
+  applyPreparedFrozenProjects,
+  applyPreparedOrRunPreResolutionHooks,
+  assertProjectManifestsExist,
+} from './validateFrozenInstall.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
@@ -75,6 +80,7 @@ export async function mutateModules (
       throw err
     }
   }
+  applyPreparedFrozenProjects(opts, maybeOpts._preparedFrozen)
 
   const run = await prepareMutationRun({ projects, maybeOpts, opts, detachReporter })
   const result = await settleInstall(runMutations(run), run.verifyLockfilePromise, detachReporter)
@@ -106,23 +112,20 @@ function attachReporter (reporter: MutateModulesOptions['reporter'] | undefined)
 }
 
 async function prepareMutationRun (base: MutationRunBase): Promise<MutationRun> {
-  const { opts } = base
+  const { maybeOpts, opts } = base
   const openedRun = await openMutationRun(base)
   const { ctx } = openedRun
-  const { verifyLockfilePromise } = await startLockfileVerification(openedRun)
+  const prepared = maybeOpts._preparedFrozen
+  const { verifyLockfilePromise } = prepared?.verifiedLockfile
+    ? {}
+    : await startLockfileVerification(openedRun)
 
-  await runPreResolutionHooks(opts, ctx)
+  await applyPreparedOrRunPreResolutionHooks(opts, ctx, prepared)
 
   const forceResolutionFromHook = await shouldForceResolutionFromHook(opts, ctx)
   const pruneVirtualStore = shouldPruneVirtualStore(opts, ctx)
 
-  if (!base.maybeOpts.ignorePackageManifest) {
-    for (const { manifest, rootDir } of Object.values(ctx.projects)) {
-      if (!manifest) {
-        throw new Error(`No package.json found in "${rootDir}"`)
-      }
-    }
-  }
+  assertProjectManifestsExist(ctx, Boolean(maybeOpts.ignorePackageManifest))
   return {
     ...openedRun,
     verifyLockfilePromise,

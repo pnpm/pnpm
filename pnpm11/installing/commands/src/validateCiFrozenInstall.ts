@@ -1,10 +1,16 @@
-import { binDirOf } from '@pnpm/config.reader'
+import { binDirOf, getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { validateFrozenInstall, verifyPatchesOfLockfiles } from '@pnpm/installing.deps-installer'
+import {
+  type InstallOptions,
+  type PreparedFrozenMutation,
+  validateFrozenInstall,
+  verifyPatchesOfLockfiles,
+} from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import type { IncludedDependencies, Project, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
 import type { InstallCommandOptions } from './install.js'
 import {
@@ -22,16 +28,25 @@ import { loadLockedRegistriesByScope } from './workspaceStateUpdate.js'
 
 type StoreControllerAndDir = Awaited<ReturnType<typeof createStoreController>>
 
+export interface PreparedCiInstall {
+  allProjects: Project[]
+  close: () => Promise<void>
+  preparedByLockfileDir: Map<string, PreparedFrozenMutation>
+  projectHooksByRootDir: Map<ProjectRootDir, InstallOptions['hooks']>
+  store: StoreControllerAndDir
+}
+
 /**
  * Validates that `pnpm ci` can complete its `--frozen-lockfile` install before
- * any `node_modules` directory is removed.
+ * any `node_modules` directory is removed, returning reusable store and hook
+ * state for the post-clean install.
  */
-export async function validateCiFrozenInstall (opts: InstallCommandOptions): Promise<void> {
+export async function validateCiFrozenInstall (opts: InstallCommandOptions): Promise<PreparedCiInstall | undefined> {
   if (opts.global) {
     throw new PnpmError('GLOBAL_INSTALL_NOT_SUPPORTED',
       '"pnpm install -g" is not supported. Use "pnpm add -g <pkg>" to install global packages.')
   }
-  if (opts.dryRun || opts.lockfileOnly || opts.resolutionOnly || opts.fixLockfile) return
+  if (opts.dryRun || opts.lockfileOnly || opts.resolutionOnly) return undefined
   const include: IncludedDependencies = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -50,19 +65,34 @@ export async function validateCiFrozenInstall (opts: InstallCommandOptions): Pro
     applyWorkspaceOption(installDepsOptions)
   }
   const store = await createStoreController({ ...installDepsOptions })
-  try {
-    await validateWithStore(installDepsOptions, store, include)
-  } finally {
+  let closed = false
+  const close = async (): Promise<void> => {
+    if (closed) return
+    closed = true
     await store.ctrl.close()
+  }
+  try {
+    return await validateWithStore(installDepsOptions, store, include, close)
+  } catch (err) {
+    await close()
+    throw err
   }
 }
 
 async function validateWithStore (
   installDepsOptions: InstallDepsOptions,
   store: StoreControllerAndDir,
-  include: IncludedDependencies
-): Promise<void> {
+  include: IncludedDependencies,
+  close: () => Promise<void>
+): Promise<PreparedCiInstall> {
   const allProjects = await readAllProjects(installDepsOptions)
+  const preparedCi: PreparedCiInstall = {
+    allProjects,
+    close,
+    preparedByLockfileDir: new Map<string, PreparedFrozenMutation>(),
+    projectHooksByRootDir: new Map<ProjectRootDir, InstallOptions['hooks']>(),
+    store,
+  }
   if (installDepsOptions.workspaceDir) {
     const selectedProjectsGraph = installDepsOptions.selectedProjectsGraph ??
       selectProjectByDir(allProjects, installDepsOptions.dir)
@@ -70,31 +100,43 @@ async function validateWithStore (
       await validateWorkspaceCi({
         allProjects,
         opts: installDepsOptions,
+        preparedCi,
         selectedProjectsGraph,
         store,
         workspaceDir: installDepsOptions.workspaceDir,
       })
-      return
+      return preparedCi
     }
   }
-  await validateSingleProjectCi(installDepsOptions, allProjects, store, include)
+  await validateSingleProjectCi({
+    allProjects,
+    includeDirect: include,
+    opts: installDepsOptions,
+    preparedCi,
+    store,
+  })
+  return preparedCi
 }
 
 async function validateSingleProjectCi (
-  opts: InstallDepsOptions,
-  allProjects: Project[],
-  store: StoreControllerAndDir,
-  includeDirect: IncludedDependencies
+  { allProjects, includeDirect, opts, preparedCi, store }: {
+    allProjects: Project[]
+    includeDirect: IncludedDependencies
+    opts: InstallDepsOptions
+    preparedCi: PreparedCiInstall
+    store: StoreControllerAndDir
+  }
 ): Promise<void> {
   const ctx = await createSingleProjectInstallContext(
     { opts, allProjects, store, runPacquet: undefined, includeDirect },
     false
   )
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  await validateFrozenInstall(
+  const validated = await validateFrozenInstall(
     [{ mutation: 'install', pruneDirectDependencies: opts.pruneDirectDependencies, rootDir }],
     {
       ...ctx.installOpts,
+      _cleansVirtualStore: true,
       allProjects: [{
         buildIndex: 0,
         manifest: ctx.manifest,
@@ -103,12 +145,16 @@ async function validateSingleProjectCi (
       }],
     }
   )
+  if (validated?.prepared != null) {
+    preparedCi.preparedByLockfileDir.set(opts.lockfileDir ?? rootDir, validated.prepared)
+  }
 }
 
 async function validateWorkspaceCi (
-  { allProjects, opts, selectedProjectsGraph, store, workspaceDir }: {
+  { allProjects, opts, preparedCi, selectedProjectsGraph, store, workspaceDir }: {
     allProjects: Project[]
     opts: InstallDepsOptions
+    preparedCi: PreparedCiInstall
     selectedProjectsGraph: ProjectsGraph
     store: StoreControllerAndDir
     workspaceDir: string
@@ -136,38 +182,82 @@ async function validateWorkspaceCi (
     cmdFullName: 'install',
   })
   if (ctx.opts.lockfileDir) {
-    await validateSharedLockfileWorkspace(ctx)
+    await validateSharedLockfileWorkspace(ctx, opts, preparedCi)
     return
   }
-  await validateDedicatedLockfilesWorkspace(ctx)
+  await validateDedicatedLockfilesWorkspace(ctx, preparedCi)
 }
 
-async function validateSharedLockfileWorkspace (ctx: RecursiveContext): Promise<void> {
+function isNarrowedWorkspaceCi (opts: InstallDepsOptions): boolean {
+  return Boolean(
+    (opts as { filter?: string[] }).filter?.length ||
+    (opts as { filterProd?: string[] }).filterProd?.length ||
+    (opts as { workspaceRoot?: boolean }).workspaceRoot ||
+    opts.cliOptions?.['recursive'] === false
+  )
+}
+
+async function validateSharedLockfileWorkspace (
+  ctx: RecursiveContext,
+  opts: InstallDepsOptions,
+  preparedCi: PreparedCiInstall
+): Promise<void> {
   const mutatedImporters = await prepareSharedLockfileImporters(ctx)
   if (mutatedImporters == null) return
-  await validateFrozenInstall(mutatedImporters, {
+  const validated = await validateFrozenInstall(mutatedImporters, {
     ...ctx.installOpts,
+    _cleansVirtualStore: !isNarrowedWorkspaceCi(opts),
     storeController: ctx.store.ctrl,
     resolutionVerifiers: ctx.store.resolutionVerifiers,
   })
+  if (validated?.prepared != null && ctx.opts.lockfileDir != null) {
+    preparedCi.preparedByLockfileDir.set(ctx.opts.lockfileDir, validated.prepared)
+  }
 }
 
-async function validateDedicatedLockfilesWorkspace (ctx: RecursiveContext): Promise<void> {
+async function validateDedicatedLockfilesWorkspace (
+  ctx: RecursiveContext,
+  preparedCi: PreparedCiInstall
+): Promise<void> {
   const pkgPaths = (Object.keys(ctx.opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
   const validatedDirs = new Set<ProjectRootDir>()
-  const lockfiles: LockfileObject[] = []
-  for (const rootDir of pkgPaths) {
-    if (ctx.opts.ignoredPackages?.has(rootDir)) continue
-    // eslint-disable-next-line no-await-in-loop -- fail fast on the first invalid project lockfile
-    const lockfile = await validateSingleDedicatedProject(ctx, rootDir)
-    validatedDirs.add(rootDir)
-    if (lockfile != null) {
-      lockfiles.push(lockfile)
-    }
-  }
+  const lockfilesByDir = new Map<ProjectRootDir, LockfileObject>()
+  let firstError: unknown
+  await scheduleGraph(new Map(pkgPaths.map((rootDir) => [rootDir, []])), {
+    bail: true,
+    concurrency: getWorkspaceConcurrency(ctx.opts.workspaceConcurrency),
+    continueOnFailure: false,
+    onNodeSkipped: () => {},
+    runNode: async (rootDir): Promise<TaskCompletion> => {
+      if (ctx.opts.ignoredPackages?.has(rootDir)) return 'passed'
+      try {
+        const lockfile = await validateSingleDedicatedProject(ctx, rootDir, preparedCi)
+        validatedDirs.add(rootDir)
+        if (lockfile != null) lockfilesByDir.set(rootDir, lockfile)
+        return 'passed'
+      } catch (err) {
+        firstError ??= err
+        return 'aborted'
+      }
+    },
+  })
+  if (firstError != null) throw firstError
+  await verifyDedicatedWorkspacePatches(ctx, pkgPaths, validatedDirs, lockfilesByDir)
+}
+
+async function verifyDedicatedWorkspacePatches (
+  ctx: RecursiveContext,
+  pkgPaths: ProjectRootDir[],
+  validatedDirs: Set<ProjectRootDir>,
+  lockfilesByDir: Map<ProjectRootDir, LockfileObject>
+): Promise<void> {
   if (ctx.installOpts.useLockfile === false || ctx.opts.lockfile === false) return
   if (!ctx.allProjects.every(({ rootDir }) => validatedDirs.has(rootDir))) return
-  await verifyPatchesOfLockfiles(lockfiles, {
+  const orderedLockfiles = pkgPaths.flatMap((dir) => {
+    const lockfile = lockfilesByDir.get(dir)
+    return lockfile == null ? [] : [lockfile]
+  })
+  await verifyPatchesOfLockfiles(orderedLockfiles, {
     patchedDependencies: ctx.installOpts.patchedDependencies,
     lockfileDir: ctx.opts.workspaceDir,
     allowUnusedPatches: ctx.installOpts.allowUnusedPatches,
@@ -176,18 +266,21 @@ async function validateDedicatedLockfilesWorkspace (ctx: RecursiveContext): Prom
 
 async function validateSingleDedicatedProject (
   ctx: RecursiveContext,
-  rootDir: ProjectRootDir
+  rootDir: ProjectRootDir,
+  preparedCi: PreparedCiInstall
 ): Promise<LockfileObject | undefined> {
   const hooks = await loadProjectHooks(ctx.opts, rootDir)
+  preparedCi.projectHooksByRootDir.set(rootDir, hooks)
   const { manifest } = ctx.manifestsByPath[rootDir]
   const localConfig = ctx.getProjectConfig(manifest) ?? {}
   const binsDir = binDirOf(rootDir, localConfig.modulesDir ?? ctx.opts.modulesDir)
-  return validateFrozenInstall(
+  const validated = await validateFrozenInstall(
     [{ mutation: 'install', rootDir }],
     {
       ...ctx.installOpts,
       ...localConfig,
       ...ctx.opts.allProjectsGraph[rootDir]?.package,
+      _cleansVirtualStore: true,
       dir: rootDir,
       lockfileDir: rootDir,
       hooks,
@@ -202,4 +295,8 @@ async function validateSingleDedicatedProject (
       }],
     }
   )
+  if (validated?.prepared != null) {
+    preparedCi.preparedByLockfileDir.set(rootDir, validated.prepared)
+  }
+  return validated?.wantedLockfile
 }

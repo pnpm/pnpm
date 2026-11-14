@@ -750,5 +750,6 @@ fn clean_removes_the_enclosing_npm_projects_modules() {
 }
 
 mod ci_and_workspace_scope;
+mod ci_hooks_and_narrowed_scope;
 mod ci_lockfile_dir_and_pnpr;
 mod containment;

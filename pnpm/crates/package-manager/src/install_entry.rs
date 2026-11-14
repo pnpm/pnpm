@@ -81,7 +81,7 @@ where
         self,
         selection: Option<WorkspaceInstallSelection<'_>>,
     ) -> Result<(), InstallError> {
-        Box::pin(self.validate_frozen_inner(selection)).await
+        Box::pin(self.validate_frozen_silent(selection)).await
     }
 
     /// Execute `pacquet prune`, enabling extraneous direct-dependency
@@ -352,6 +352,7 @@ impl Default for InstallRunOptions<'_, '_> {
                 hooked_paths: HashSet::new(),
                 spec_bumps: None,
                 known_requires_build: None,
+                prepared_frozen: None,
             },
         }
     }
