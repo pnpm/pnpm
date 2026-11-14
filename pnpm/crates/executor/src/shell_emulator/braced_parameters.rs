@@ -114,6 +114,13 @@ impl Landing {
             Landing::QuotedWord => Mode::QuotedWord,
         }
     }
+
+    fn parameter_quoting(self) -> scan::ParameterQuoting {
+        match self {
+            Landing::QuotedWord => scan::ParameterQuoting::DoubleQuoted,
+            Landing::Script | Landing::UnquotedWord => scan::ParameterQuoting::Unquoted,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -381,9 +388,9 @@ fn push_braced_parameter(
     start: usize,
     word: Rewrite<'_>,
 ) -> usize {
-    let in_double_quotes = word.landing == Landing::QuotedWord;
+    let quoting = word.landing.parameter_quoting();
     let Some(close) =
-        scan::braced_parameter_end(script, start, in_double_quotes, word.wasted_scan_allowance)
+        scan::braced_parameter_end(script, start, quoting, word.wasted_scan_allowance)
     else {
         expanded.push('$');
         return start + 1;

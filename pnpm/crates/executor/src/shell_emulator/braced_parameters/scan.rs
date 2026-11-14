@@ -40,6 +40,14 @@ pub(super) fn backtick_end(script: &str, start: usize, allowance: &Cell<usize>) 
     None
 }
 
+/// Whether a `${...}` sits inside enclosing double quotes, which decides
+/// whether `'` inside its body is literal text or opens single quotes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ParameterQuoting {
+    Unquoted,
+    DoubleQuoted,
+}
+
 /// The index of the `}` closing the `${` at `start`, or `None` when the script
 /// has none. Within a double-quoted word an apostrophe is an ordinary
 /// character unless nested inside `$(...)`, so `"${NAME:-it's fine}"` closes
@@ -48,7 +56,7 @@ pub(super) fn backtick_end(script: &str, start: usize, allowance: &Cell<usize>) 
 pub(super) fn braced_parameter_end(
     script: &str,
     start: usize,
-    in_double_quotes: bool,
+    quoting: ParameterQuoting,
     allowance: &Cell<usize>,
 ) -> Option<usize> {
     if allowance.get() == 0 {
@@ -56,7 +64,7 @@ pub(super) fn braced_parameter_end(
     }
     let bytes = script.as_bytes();
     let body_start = start + 2;
-    let mut scanner = BraceScanner::new(in_double_quotes);
+    let mut scanner = BraceScanner::new(quoting);
     let mut index = body_start;
 
     while index < bytes.len() {
@@ -90,18 +98,28 @@ fn skip_to_closing_backtick(bytes: &[u8], index: &mut usize) -> bool {
     false
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TokenPosition {
+    WordStart,
+    MidWord,
+}
+
 enum Scope {
-    Parameter { in_double_quotes: bool, quote: Option<u8>, nested_braces: usize },
-    CommandSubstitution { quote: Option<u8>, nested_parens: usize, at_word_boundary: bool },
+    Parameter { quoting: ParameterQuoting, quote: Option<u8>, nested_braces: usize },
+    CommandSubstitution { quote: Option<u8>, nested_parens: usize, position: TokenPosition },
 }
 
 impl Scope {
-    fn parameter(in_double_quotes: bool) -> Self {
-        Self::Parameter { in_double_quotes, quote: None, nested_braces: 0 }
+    fn parameter(quoting: ParameterQuoting) -> Self {
+        Self::Parameter { quoting, quote: None, nested_braces: 0 }
     }
 
     fn command_substitution() -> Self {
-        Self::CommandSubstitution { quote: None, nested_parens: 0, at_word_boundary: true }
+        Self::CommandSubstitution {
+            quote: None,
+            nested_parens: 0,
+            position: TokenPosition::WordStart,
+        }
     }
 
     fn quote(&self) -> Option<u8> {
@@ -113,16 +131,16 @@ impl Scope {
     fn set_quote(&mut self, next: Option<u8>) {
         match self {
             Self::Parameter { quote, .. } => *quote = next,
-            Self::CommandSubstitution { quote, at_word_boundary, .. } => {
+            Self::CommandSubstitution { quote, position, .. } => {
                 *quote = next;
-                *at_word_boundary = false;
+                *position = TokenPosition::MidWord;
             }
         }
     }
 
-    fn clear_word_boundary(&mut self) {
-        if let Self::CommandSubstitution { at_word_boundary, .. } = self {
-            *at_word_boundary = false;
+    fn mark_mid_word(&mut self) {
+        if let Self::CommandSubstitution { position, .. } = self {
+            *position = TokenPosition::MidWord;
         }
     }
 }
@@ -133,8 +151,8 @@ struct BraceScanner {
 }
 
 impl BraceScanner {
-    fn new(in_double_quotes: bool) -> Self {
-        Self { current: Scope::parameter(in_double_quotes), enclosing: Vec::new() }
+    fn new(quoting: ParameterQuoting) -> Self {
+        Self { current: Scope::parameter(quoting), enclosing: Vec::new() }
     }
 
     fn step(&mut self, bytes: &[u8], byte: u8, index: &mut usize) -> bool {
@@ -143,11 +161,9 @@ impl BraceScanner {
             return false;
         }
         match self.current {
-            Scope::Parameter { in_double_quotes, .. } => {
-                self.step_parameter(bytes, byte, in_double_quotes, index)
-            }
-            Scope::CommandSubstitution { at_word_boundary, .. } => {
-                self.step_command_substitution(bytes, byte, at_word_boundary, index);
+            Scope::Parameter { quoting, .. } => self.step_parameter(bytes, byte, quoting, index),
+            Scope::CommandSubstitution { position, .. } => {
+                self.step_command_substitution(bytes, byte, position, index);
                 false
             }
         }
@@ -165,7 +181,7 @@ impl BraceScanner {
         }
         match byte {
             b'\\' => *index = (*index + 1).min(bytes.len()),
-            b'$' => self.step_dollar(bytes, true, index),
+            b'$' => self.step_dollar(bytes, ParameterQuoting::DoubleQuoted, index),
             b'`' => {
                 skip_to_closing_backtick(bytes, index);
             }
@@ -177,7 +193,7 @@ impl BraceScanner {
         &mut self,
         bytes: &[u8],
         byte: u8,
-        in_double_quotes: bool,
+        quoting: ParameterQuoting,
         index: &mut usize,
     ) -> bool {
         match byte {
@@ -185,9 +201,9 @@ impl BraceScanner {
             b'`' => {
                 skip_to_closing_backtick(bytes, index);
             }
-            b'$' => self.step_dollar(bytes, in_double_quotes, index),
+            b'$' => self.step_dollar(bytes, quoting, index),
             b'"' => self.current.set_quote(Some(b'"')),
-            b'\'' if !in_double_quotes => self.current.set_quote(Some(b'\'')),
+            b'\'' if quoting == ParameterQuoting::Unquoted => self.current.set_quote(Some(b'\'')),
             b'{' => self.push_nested_brace(),
             b'}' => return self.pop_brace_or_parameter(),
             _ => {}
@@ -199,30 +215,30 @@ impl BraceScanner {
         &mut self,
         bytes: &[u8],
         byte: u8,
-        at_word_boundary: bool,
+        position: TokenPosition,
         index: &mut usize,
     ) {
         match byte {
             b'\\' => self.skip_command_escape(bytes, index),
             b'`' => {
                 skip_to_closing_backtick(bytes, index);
-                self.current.clear_word_boundary();
+                self.current.mark_mid_word();
             }
-            b'#' if at_word_boundary => skip_comment_bytes(bytes, index),
+            b'#' if position == TokenPosition::WordStart => skip_comment_bytes(bytes, index),
             b'$' => {
-                self.current.clear_word_boundary();
-                self.step_dollar(bytes, false, index);
+                self.current.mark_mid_word();
+                self.step_dollar(bytes, ParameterQuoting::Unquoted, index);
             }
             b'(' => self.push_nested_paren(),
             b')' => self.pop_paren_or_substitution(),
             b'"' | b'\'' => self.current.set_quote(Some(byte)),
-            _ => self.update_word_boundary(byte),
+            _ => self.update_token_position(byte),
         }
     }
 
-    fn step_dollar(&mut self, bytes: &[u8], in_double_quotes: bool, index: &mut usize) {
+    fn step_dollar(&mut self, bytes: &[u8], quoting: ParameterQuoting, index: &mut usize) {
         let next_scope = match bytes.get(*index) {
-            Some(b'{') => Scope::parameter(in_double_quotes),
+            Some(b'{') => Scope::parameter(quoting),
             Some(b'(') => Scope::command_substitution(),
             _ => return,
         };
@@ -252,21 +268,18 @@ impl BraceScanner {
     }
 
     fn push_nested_paren(&mut self) {
-        if let Scope::CommandSubstitution { nested_parens, at_word_boundary, .. } =
-            &mut self.current
-        {
+        if let Scope::CommandSubstitution { nested_parens, position, .. } = &mut self.current {
             *nested_parens += 1;
-            *at_word_boundary = true;
+            *position = TokenPosition::WordStart;
         }
     }
 
     fn pop_paren_or_substitution(&mut self) {
-        if let Scope::CommandSubstitution { nested_parens, at_word_boundary, .. } =
-            &mut self.current
+        if let Scope::CommandSubstitution { nested_parens, position, .. } = &mut self.current
             && *nested_parens > 0
         {
             *nested_parens -= 1;
-            *at_word_boundary = true;
+            *position = TokenPosition::WordStart;
             return;
         }
         if let Some(enclosing) = self.enclosing.pop() {
@@ -279,13 +292,14 @@ impl BraceScanner {
             return;
         }
         *index = (*index + 1).min(bytes.len());
-        self.current.clear_word_boundary();
+        self.current.mark_mid_word();
     }
 
-    fn update_word_boundary(&mut self, byte: u8) {
-        if let Scope::CommandSubstitution { at_word_boundary, .. } = &mut self.current {
-            *at_word_boundary =
+    fn update_token_position(&mut self, byte: u8) {
+        if let Scope::CommandSubstitution { position, .. } = &mut self.current {
+            let is_boundary =
                 byte.is_ascii_whitespace() || matches!(byte, b';' | b'&' | b'|' | b'<' | b'>');
+            *position = if is_boundary { TokenPosition::WordStart } else { TokenPosition::MidWord };
         }
     }
 }
