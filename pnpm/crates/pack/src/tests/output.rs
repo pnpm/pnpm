@@ -44,7 +44,9 @@ fn pack_output_path_preserves_placeholders_in_base_dir() {
 
 #[test]
 fn rejects_dot_and_dotdot_and_metadata_only_versions() {
-    for bad_version in [".", "..", "+build", "1.0.0/../../escape", r"1.0.0\..\..\escape"] {
+    for bad_version in
+        [".", "..", "+build", "C:", "C:1.0.0", "1.0.0/../../escape", r"1.0.0\..\..\escape"]
+    {
         let (_dir, opts) = fixture(&json!({ "name": "pkg", "version": bad_version }));
         let error = api::<SilentReporter, Host>(&opts).unwrap_err();
         assert!(

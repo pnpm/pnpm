@@ -1,6 +1,6 @@
 use super::{
     PackError, PackFile, PackOutputOptions, PackResult, PackResultJson, Path, PathBuf, Value,
-    lexical_normalize, resolve_path_with_symlinks,
+    canonicalize_output_key,
 };
 
 /// Project a [`PackResult`] into its JSON shape.
@@ -163,10 +163,6 @@ pub fn pack_output_path(
         resolve_output_values(out, pack_destination, &normalized_name, version)?;
     let raw = resolve_dest_dir_from_base(base_dir, destination.as_deref()).join(tarball_name);
     Ok(canonicalize_output_key(&raw))
-}
-
-pub(super) fn canonicalize_output_key(path: &Path) -> PathBuf {
-    resolve_path_with_symlinks(path).unwrap_or_else(|_| lexical_normalize(path))
 }
 
 /// Resolve the directory the tarball is written into.

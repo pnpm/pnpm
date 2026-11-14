@@ -146,6 +146,7 @@ fn is_invalid_tarball_version(version: &str) -> bool {
         || version == ".."
         || version.contains('/')
         || version.contains('\\')
+        || version.contains(':')
 }
 
 /// The readme is always reported as part of the published manifest, matching the npm CLI, so a

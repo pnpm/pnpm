@@ -64,6 +64,10 @@ use variants::VariantDeclaration;
 /// The published manifest basename used in identity validation errors.
 const MANIFEST_FILE_NAME: &str = "package.json";
 
+fn canonicalize_output_key(path: &Path) -> PathBuf {
+    resolve_path_with_symlinks(path).unwrap_or_else(|_| lexical_normalize(path))
+}
+
 /// Result of packing one project.
 #[derive(Debug)]
 pub struct PackResult {

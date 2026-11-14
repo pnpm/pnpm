@@ -1,6 +1,6 @@
 use super::{
     Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, WorkspacePackageManifest,
-    output::canonicalize_output_key,
+    canonicalize_output_key,
 };
 
 /// Inputs for [`crate::api`]. The CLI maps the resolved [`pnpm_config::Config`]
@@ -88,13 +88,10 @@ pub struct PackOutputLocks {
 
 impl PackOutputLocks {
     pub(super) async fn lock(&self, path: &Path) -> tokio::sync::OwnedMutexGuard<()> {
+        let key = canonicalize_output_key(path);
         let lock = {
             let mut by_path = self.by_path.lock().await;
-            Arc::clone(
-                by_path
-                    .entry(canonicalize_output_key(path))
-                    .or_default(),
-            )
+            Arc::clone(by_path.entry(key).or_default())
         };
         lock.lock_owned().await
     }

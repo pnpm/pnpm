@@ -5,14 +5,16 @@ import { PnpmError } from '@pnpm/error'
 import { normalizePackageName } from '../tarball/safeTarballFilename.js'
 
 export function assertValidTarballVersion (version: string, reportedVersion: string = version): void {
-  if (!version || version === '.' || version === '..' || version.includes('/') || version.includes('\\')) {
+  if (
+    !version ||
+    version === '.' ||
+    version === '..' ||
+    version.includes('/') ||
+    version.includes('\\') ||
+    version.includes(':')
+  ) {
     throw new PnpmError('INVALID_PACKAGE_VERSION', `Invalid package version "${reportedVersion}".`)
   }
-}
-
-export function stripBuildMetadata (version: string): string {
-  const plusIndex = version.indexOf('+')
-  return plusIndex === -1 ? version : version.slice(0, plusIndex)
 }
 
 export function resolvePackOutput (
@@ -43,6 +45,11 @@ export function resolvePackOutput (
     outputPath: resolveRelativeTarget(destDir, tarballName, pathImpl),
     tarballName,
   }
+}
+
+export function stripBuildMetadata (version: string): string {
+  const plusIndex = version.indexOf('+')
+  return plusIndex === -1 ? version : version.slice(0, plusIndex)
 }
 
 function resolveTarballAndDestination (
