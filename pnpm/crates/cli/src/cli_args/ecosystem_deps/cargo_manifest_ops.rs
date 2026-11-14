@@ -22,6 +22,7 @@ mod tests;
 #[derive(Debug, Clone)]
 pub(crate) struct DeclaredCargoDep {
     pub(crate) alias: String,
+    pub(crate) manifest_key: String,
     pub(crate) package_name: String,
     pub(crate) raw_spec: String,
     pub(crate) version_req: VersionReq,
@@ -162,17 +163,15 @@ fn collect_table_deps(
 ) {
     for (alias, value) in table {
         let resolved = if is_workspace_inherited(value) {
-            workspace_specs
-                .get(alias)
-                .cloned()
-                .map(|(pkg_name, raw)| {
-                    (pkg_name, raw, root_manifest_path.to_path_buf(), "workspace.dependencies")
-                })
+            resolve_inherited_dep(alias, value, root_manifest_path, workspace_specs)
         } else {
             extract_registry_spec(alias, value)
-                .map(|(pkg_name, raw)| (pkg_name, raw, manifest_path.to_path_buf(), table_name))
+                .map(|(pkg_name, raw)| {
+                    (alias.clone(), pkg_name, raw, manifest_path.to_path_buf(), table_name)
+                })
         };
-        let Some((package_name, raw_spec, target_manifest, target_table)) = resolved else {
+        let Some((manifest_key, package_name, raw_spec, target_manifest, target_table)) = resolved
+        else {
             continue;
         };
         if out
@@ -180,7 +179,7 @@ fn collect_table_deps(
             .any(|existing| {
                 existing.manifest_path == target_manifest
                     && existing.table == target_table
-                    && existing.alias == *alias
+                    && existing.manifest_key == manifest_key
                     && existing.group == group
             })
         {
@@ -191,6 +190,7 @@ fn collect_table_deps(
         };
         out.push(DeclaredCargoDep {
             alias: alias.clone(),
+            manifest_key,
             package_name,
             raw_spec,
             version_req,
@@ -199,6 +199,28 @@ fn collect_table_deps(
             table: target_table,
         });
     }
+}
+
+fn resolve_inherited_dep(
+    alias: &str,
+    value: &toml::Value,
+    root_manifest_path: &Path,
+    workspace_specs: &HashMap<String, (String, String)>,
+) -> Option<(String, String, String, PathBuf, &'static str)> {
+    let local_package = value
+        .as_table()
+        .and_then(|dep| dep.get("package"))
+        .and_then(toml::Value::as_str);
+    let (ws_key, (pkg_name, raw)) = workspace_specs
+        .get_key_value(alias)
+        .or_else(|| local_package.and_then(|pkg| workspace_specs.get_key_value(pkg)))?;
+    Some((
+        ws_key.clone(),
+        pkg_name.clone(),
+        raw.clone(),
+        root_manifest_path.to_path_buf(),
+        "workspace.dependencies",
+    ))
 }
 
 fn is_workspace_inherited(value: &toml::Value) -> bool {
@@ -265,7 +287,9 @@ pub(crate) fn select_locked_version<'a>(
 }
 
 pub(crate) fn same_declared_dep(lhs: &DeclaredCargoDep, rhs: &DeclaredCargoDep) -> bool {
-    lhs.alias == rhs.alias && lhs.table == rhs.table && lhs.manifest_path == rhs.manifest_path
+    lhs.manifest_key == rhs.manifest_key
+        && lhs.table == rhs.table
+        && lhs.manifest_path == rhs.manifest_path
 }
 
 pub(crate) fn apply_manifest_edits(

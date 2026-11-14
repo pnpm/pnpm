@@ -348,6 +348,55 @@ fn offline_install_without_registry_crates_never_reads_the_registry_config() {
 }
 
 #[test]
+fn install_accepts_unversioned_path_dependency_on_prerelease_workspace_member() {
+    let root = TempDir::new().expect("create Cargo workspace");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "cargo:\n  enabled: true\n")
+        .expect("enable Cargo");
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/*\"]\nresolver = \"2\"\n",
+    )
+    .expect("write workspace Cargo.toml");
+    let shared = root.path().join("crates/shared");
+    fs::create_dir_all(shared.join("src")).expect("create shared src");
+    fs::write(shared.join("src/lib.rs"), "pub fn answer() -> u8 { 42 }\n")
+        .expect("write shared lib.rs");
+    fs::write(
+        shared.join("Cargo.toml"),
+        "[package]\nname = \"shared\"\nversion = \"0.1.0-alpha.1\"\nedition = \"2021\"\n",
+    )
+    .expect("write shared Cargo.toml");
+
+    let app = root.path().join("crates/app");
+    fs::create_dir_all(app.join("src")).expect("create app src");
+    fs::write(app.join("src/main.rs"), "fn main() { let _ = shared::answer(); }\n")
+        .expect("write app main.rs");
+    fs::write(
+        app.join("Cargo.toml"),
+        concat!(
+            "[package]\n",
+            "name = \"app\"\n",
+            "version = \"0.1.0\"\n",
+            "edition = \"2021\"\n\n",
+            "[dependencies]\n",
+            "shared = { path = \"../shared\" }\n",
+        ),
+    )
+    .expect("write app Cargo.toml");
+
+    install_in(&root, &["install", "--offline"]);
+    install_in(&root, &["install", "--frozen-lockfile", "--offline"]);
+
+    let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock");
+    assert!(lockfile.contains(r#"version = "0.1.0-alpha.1""#), "{lockfile}");
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["check", "--locked", "--offline"])
+        .assert()
+        .success();
+}
+
+#[test]
 fn frozen_install_rejects_a_lockfile_that_does_not_satisfy_the_manifest() {
     let mut registry = mockito::Server::new();
     let archive = crate_archive("demo", "1.0.0");

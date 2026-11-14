@@ -279,32 +279,47 @@ fn inherit_dependency_kinds(
 }
 
 /// Replace each `dep.workspace = true` entry with the workspace's
-/// declaration of that dependency, keeping the `features`, `optional`,
-/// `public` and `default-features` the member added.
+/// declaration of that dependency, keeping the `package`, `features`,
+/// `optional`, `public` and `default-features` the member added.
 fn inherit_dependency_table(
     dependencies: &mut toml::Table,
     workspace: Option<&toml::Table>,
 ) -> Result<bool> {
+    let ws_deps = workspace.and_then(|workspace| workspace.get("dependencies")?.as_table());
     let mut inherited = false;
     for (name, declaration) in dependencies.iter_mut() {
         if !inherits_from_workspace(declaration) {
             continue;
         }
-        let declared = workspace
-            .and_then(|workspace| workspace.get("dependencies")?.get(name))
-            .ok_or_else(|| {
-                miette::miette!("the workspace declares no dependency {name} to inherit")
-            })?;
-        *declaration = merge_workspace_declaration(name, declared, declaration)?.into();
+        let local_package = declaration.get("package").and_then(toml::Value::as_str);
+        let (ws_key, declared) = lookup_workspace_dependency(ws_deps, name, local_package)?;
+        *declaration = merge_workspace_declaration(name, ws_key, declared, declaration)?.into();
         inherited = true;
     }
     Ok(inherited)
 }
 
-/// The workspace's declaration of `name` with the member's own
+fn lookup_workspace_dependency<'a>(
+    ws_deps: Option<&'a toml::Table>,
+    name: &str,
+    local_package: Option<&str>,
+) -> Result<(&'a String, &'a toml::Value)> {
+    ws_deps
+        .and_then(|deps| {
+            deps.get_key_value(name)
+                .or_else(|| local_package.and_then(|pkg| deps.get_key_value(pkg)))
+        })
+        .ok_or_else(|| {
+            let wanted = local_package.unwrap_or(name);
+            miette::miette!("the workspace declares no dependency {wanted} to inherit")
+        })
+}
+
+/// The workspace's declaration of `ws_key` with the member's own `package`,
 /// `features`, `optional`, `public` and `default-features` folded in.
 fn merge_workspace_declaration(
-    name: &str,
+    dep_key: &str,
+    ws_key: &str,
     declared: &toml::Value,
     local: &toml::Value,
 ) -> Result<toml::Table> {
@@ -315,11 +330,17 @@ fn merge_workspace_declaration(
         toml::Value::Table(table) => table.clone(),
         _ => {
             return Err(miette::miette!(
-                "the workspace declares dependency {name} as neither a version nor a table",
+                "the workspace declares dependency {ws_key} as neither a version nor a table",
             ));
         }
     };
     let local = local.as_table().expect("an inheriting entry is a table");
+    if ws_key != dep_key
+        && !merged.contains_key("package")
+        && let Some(package) = local.get("package")
+    {
+        merged.insert("package".to_string(), package.clone());
+    }
     for key in ["optional", "public", "default-features"] {
         if let Some(value) = local.get(key) {
             merged.insert(key.to_string(), value.clone());

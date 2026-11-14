@@ -2,8 +2,19 @@ pub(crate) mod workspace;
 
 pub(crate) use workspace::{workspace_dependency_spec, workspace_includes_member};
 
+mod spans;
+
 use miette::{IntoDiagnostic, Result, WrapErr};
+use spans::{
+    apply_two_edits, collect_header_spans, dotted_prefix, end_of_line, find_entry, full_line_range,
+    inline_entry_removal_range, insert_into_inline_table, insert_line_at, is_explicit_header,
+    is_inline_table, lookup_table_path, max_value_end, replace_range, section_end,
+};
 use std::{fs, ops::Range, path::Path};
+use toml::{
+    Spanned,
+    de::{DeTable, DeValue},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CargoDependencyKind {
@@ -48,47 +59,144 @@ pub(crate) fn upsert_dependency(
     name: &str,
     version_spec: &str,
 ) -> Result<String> {
-    if let Some(subtable) = find_dependency_subtable(contents, table, name) {
-        return upsert_dependency(contents, &subtable, "version", version_spec);
-    }
-    let Some((section_start, section_end)) = find_table(contents, table) else {
-        let separator = appended_table_separator(contents);
-        return Ok(format!("{contents}{separator}[{table}]\n{name} = {}\n", quoted(version_spec)));
+    let doc = DeTable::parse(contents).into_diagnostic().wrap_err("parse Cargo.toml")?;
+    let mut header_spans = Vec::new();
+    collect_header_spans(doc.get_ref(), contents, &mut header_spans);
+    header_spans.sort_by_key(|span| span.start);
+
+    let Some(target) = lookup_table_path(&doc, table) else {
+        return Ok(append_new_table(contents, table, name, version_spec));
     };
+    let deps_table = target
+        .get_ref()
+        .as_table()
+        .ok_or_else(|| miette::miette!("`{table}` in Cargo.toml is not a table"))?;
 
-    let section = &contents[section_start..section_end];
-    let mut offset = section_start;
-    for line in section.split_inclusive('\n') {
-        if let Some(value_range) = dependency_value_range(line, name) {
-            let value_range = value_range_in_contents(contents, offset, value_range);
-            return replace_dependency_value(contents, value_range, name, version_spec);
-        }
-        offset += line.len();
+    if let Some((_, dep_val)) = find_entry(deps_table, name) {
+        return update_existing_dependency(contents, &header_spans, dep_val, name, version_spec);
     }
 
-    let prefix = &contents[..section_end];
-    let newline = if !prefix.is_empty() && !prefix.ends_with('\n') { "\n" } else { "" };
-    Ok(format!("{prefix}{newline}{name} = {}\n{}", quoted(version_spec), &contents[section_end..]))
+    let entry = format!("{} = {}", format_key(name), quoted(version_spec));
+    let target_span = target.span();
+    if is_explicit_header(contents, &target_span) {
+        let end = section_end(contents, &header_spans, &target_span);
+        return Ok(insert_line_at(contents, end, &entry));
+    }
+    if is_inline_table(contents, &target_span) {
+        return Ok(insert_into_inline_table(contents, &target_span, deps_table, &entry));
+    }
+    if header_spans
+        .iter()
+        .any(|header| header.start <= target_span.start && target_span.end <= header.end)
+    {
+        return Ok(append_new_table(contents, table, name, version_spec));
+    }
+    let prefix = dotted_prefix(contents, &target_span);
+    let after = end_of_line(contents, max_value_end(deps_table).unwrap_or(target_span.end));
+    Ok(insert_line_at(contents, after, &format!("{prefix}.{entry}")))
 }
 
-/// Translate a value range found on the line at `line_offset` into
-/// `contents`, extending an inline table to its closing `}` on a later line.
-fn value_range_in_contents(
+fn update_existing_dependency(
     contents: &str,
-    line_offset: usize,
-    value_range: Range<usize>,
-) -> Range<usize> {
-    let start = line_offset + value_range.start;
-    match inline_table_len(&contents[start..]) {
-        Some(len) => start..start + len,
-        None => start..line_offset + value_range.end,
+    header_spans: &[Range<usize>],
+    dep_val: &Spanned<DeValue<'_>>,
+    name: &str,
+    version_spec: &str,
+) -> Result<String> {
+    match dep_val.get_ref() {
+        DeValue::String(_) => Ok(replace_range(contents, dep_val.span(), &quoted(version_spec))),
+        DeValue::Table(subtable) => {
+            let span = dep_val.span();
+            let shape = if is_inline_table(contents, &span) {
+                TableShape::Inline
+            } else if is_explicit_header(contents, &span) {
+                TableShape::Subtable(header_spans)
+            } else {
+                TableShape::Dotted
+            };
+            update_table_dependency(contents, &span, subtable, shape, name, version_spec)
+        }
+        _ => Err(miette::miette!(
+            "cannot update crate {name}: its Cargo.toml dependency declaration is not a string or table"
+        )),
     }
 }
 
-fn find_dependency_subtable(contents: &str, table: &str, name: &str) -> Option<String> {
-    [format!("{table}.{name}"), format!("{table}.{}", quoted(name)), format!("{table}.'{name}'")]
-        .into_iter()
-        .find(|subtable| find_table(contents, subtable).is_some())
+#[derive(Clone, Copy)]
+enum TableShape<'a> {
+    Inline,
+    Subtable(&'a [Range<usize>]),
+    Dotted,
+}
+
+fn update_table_dependency(
+    contents: &str,
+    span: &Range<usize>,
+    subtable: &DeTable<'_>,
+    shape: TableShape<'_>,
+    name: &str,
+    version_spec: &str,
+) -> Result<String> {
+    match (find_entry(subtable, "version"), find_entry(subtable, "workspace")) {
+        (Some((_, ver_val)), None) => {
+            ensure_string_version(ver_val, name)?;
+            Ok(replace_range(contents, ver_val.span(), &quoted(version_spec)))
+        }
+        (None, Some((ws_key, ws_val))) => Ok(replace_range(
+            contents,
+            ws_key.span().start..ws_val.span().end,
+            &format!("version = {}", quoted(version_spec)),
+        )),
+        (Some((_, ver_val)), Some((ws_key, ws_val))) => {
+            ensure_string_version(ver_val, name)?;
+            let ws_span = ws_key.span().start..ws_val.span().end;
+            let removal = match shape {
+                TableShape::Inline => inline_entry_removal_range(contents, span, subtable, ws_span),
+                TableShape::Subtable(_) | TableShape::Dotted => full_line_range(contents, ws_span),
+            };
+            Ok(apply_two_edits(contents, (ver_val.span(), &quoted(version_spec)), (removal, "")))
+        }
+        (None, None) => insert_missing_version(contents, span, subtable, shape, version_spec),
+    }
+}
+
+fn insert_missing_version(
+    contents: &str,
+    span: &Range<usize>,
+    subtable: &DeTable<'_>,
+    shape: TableShape<'_>,
+    version_spec: &str,
+) -> Result<String> {
+    let version_entry = format!("version = {}", quoted(version_spec));
+    match shape {
+        TableShape::Inline => {
+            Ok(insert_into_inline_table(contents, span, subtable, &version_entry))
+        }
+        TableShape::Subtable(header_spans) => {
+            let end = section_end(contents, header_spans, span);
+            Ok(insert_line_at(contents, end, &version_entry))
+        }
+        TableShape::Dotted => {
+            let prefix = dotted_prefix(contents, span);
+            let after = end_of_line(contents, max_value_end(subtable).unwrap_or(span.end));
+            Ok(insert_line_at(contents, after, &format!("{prefix}.{version_entry}")))
+        }
+    }
+}
+
+fn ensure_string_version(value: &Spanned<DeValue<'_>>, name: &str) -> Result<()> {
+    if matches!(value.get_ref(), DeValue::String(_)) {
+        Ok(())
+    } else {
+        Err(miette::miette!(
+            "cannot update crate {name}: its Cargo.toml version declaration is not a string"
+        ))
+    }
+}
+
+fn append_new_table(contents: &str, table: &str, name: &str, version_spec: &str) -> String {
+    let separator = appended_table_separator(contents);
+    format!("{contents}{separator}[{table}]\n{} = {}\n", format_key(name), quoted(version_spec))
 }
 
 /// What has to come between the existing contents and a table appended
@@ -104,290 +212,15 @@ fn appended_table_separator(contents: &str) -> &'static str {
     }
 }
 
-fn find_table(contents: &str, table: &str) -> Option<(usize, usize)> {
-    let wanted = format!("[{table}]");
-    let mut section_start = None;
-    let mut offset = 0;
-    for line in contents.split_inclusive('\n') {
-        let trimmed = line.trim();
-        let trimmed = comment_start(trimmed)
-            .map_or(trimmed, |start| &trimmed[..start])
-            .trim_end();
-        if section_start.is_some() && is_table_header(trimmed) {
-            return section_start.map(|start| (start, offset));
-        }
-        if trimmed == wanted {
-            section_start = Some(offset + line.len());
-        }
-        offset += line.len();
-    }
-    section_start.map(|start| (start, contents.len()))
-}
-
-fn is_table_header(line: &str) -> bool {
-    line.starts_with('[') && line.ends_with(']')
-}
-
-fn unquote_key(key: &str) -> &str {
-    key.strip_prefix('"')
-        .and_then(|s| s.strip_suffix('"'))
-        .or_else(|| {
-            key.strip_prefix('\'')
-                .and_then(|s| s.strip_suffix('\''))
-        })
-        .unwrap_or(key)
-}
-
-fn matches_dependency_key(raw_key: &str, name: &str) -> bool {
-    unquote_key(raw_key) == name
-        || raw_key
-            .rsplit_once('.')
-            .is_some_and(|(prefix, suffix)| {
-                unquote_key(prefix.trim()) == name && unquote_key(suffix.trim()) == "version"
-            })
-}
-
-fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
-    let content_start = line.len() - line.trim_start().len();
-    let content = &line[content_start..];
-    if content.starts_with('#') {
-        return None;
-    }
-    let equals = content.find('=')?;
-    if !matches_dependency_key(content[..equals].trim(), name) {
-        return None;
-    }
-    let after_equals = content_start + equals + 1;
-    let whitespace = line[after_equals..].len() - line[after_equals..].trim_start().len();
-    let start = after_equals + whitespace;
-    let end = match comment_start(&line[start..]) {
-        Some(comment) => start + comment,
-        None => line
-            .trim_end_matches(['\r', '\n'])
-            .len(),
-    };
-    Some(
-        start
-            ..end
-                - line[..end]
-                    .len()
-                    .saturating_sub(line[..end].trim_end().len()),
-    )
-}
-
-fn comment_start(value: &str) -> Option<usize> {
-    let mut quote = None;
-    let mut escaped = false;
-    for (index, character) in value.char_indices() {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        match (quote, character) {
-            (Some('"'), '\\') => escaped = true,
-            (Some(active), current) if active == current => quote = None,
-            (None, '"' | '\'') => quote = Some(character),
-            (None, '#') => return Some(index),
-            _ => {}
-        }
-    }
-    None
-}
-
-fn replace_dependency_value(
-    contents: &str,
-    value_range: Range<usize>,
-    name: &str,
-    version_spec: &str,
-) -> Result<String> {
-    let value = contents[value_range.clone()].trim();
-    let replacement = if is_quoted(value) {
-        quoted(version_spec)
-    } else if value.starts_with('{') && value.ends_with('}') {
-        replace_inline_version(value, name, version_spec)?
+fn format_key(name: &str) -> String {
+    if !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        name.to_string()
     } else {
-        return Err(miette::miette!(
-            "cannot update crate {name}: its Cargo.toml dependency declaration is not a string or inline table"
-        ));
-    };
-    Ok(
-        format!(
-            "{}{}{}",
-            &contents[..value_range.start],
-            replacement,
-            &contents[value_range.end..],
-        ),
-    )
-}
-
-fn is_quoted(value: &str) -> bool {
-    (value.starts_with('"') && value.ends_with('"'))
-        || (value.starts_with('\'') && value.ends_with('\''))
-}
-
-fn replace_inline_version(value: &str, name: &str, version_spec: &str) -> Result<String> {
-    let version_range = inline_version_range(value).ok_or_else(|| {
-        miette::miette!(
-            "cannot update crate {name}: its inline dependency declaration has no string version"
-        )
-    })?;
-    Ok(format!(
-        "{}{}{}",
-        &value[..version_range.start],
-        quoted(version_spec),
-        &value[version_range.end..],
-    ))
-}
-
-fn is_identifier_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
-}
-
-/// Length of the inline table at the start of `value`, through its
-/// closing `}`, which may sit on a later line. `None` when `value` does
-/// not start with `{` or the table never closes.
-fn inline_table_len(value: &str) -> Option<usize> {
-    if !value.starts_with('{') {
-        return None;
-    }
-    let mut scan = InlineScan { bytes: value.as_bytes(), cursor: 0 };
-    let mut depth = 0usize;
-    while let Some(byte) = scan.peek() {
-        match byte {
-            b'"' | b'\'' => {
-                scan.take_string()?;
-                continue;
-            }
-            b'#' => {
-                scan.skip_comment();
-                continue;
-            }
-            b'{' | b'[' => depth += 1,
-            b'}' | b']' => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(scan.cursor + 1);
-                }
-            }
-            _ => {}
-        }
-        scan.cursor += 1;
-    }
-    None
-}
-
-fn inline_version_range(value: &str) -> Option<Range<usize>> {
-    let mut scan = InlineScan { bytes: value.as_bytes(), cursor: 0 };
-    while let Some(byte) = scan.peek() {
-        // A quoted value or a comment may contain anything, `version =` included.
-        if matches!(byte, b'"' | b'\'') {
-            scan.take_string()?;
-            continue;
-        }
-        if byte == b'#' {
-            scan.skip_comment();
-            continue;
-        }
-        if !is_identifier_byte(byte) {
-            scan.cursor += 1;
-            continue;
-        }
-        let key = scan.take_identifier();
-        if &value[key] != "version" || !scan.at_quoted_value() {
-            continue;
-        }
-        return scan.take_string();
-    }
-    None
-}
-
-/// Byte scanner over one dependency declaration's inline table.
-struct InlineScan<'a> {
-    bytes: &'a [u8],
-    cursor: usize,
-}
-
-impl InlineScan<'_> {
-    /// Step over the quoted string at the cursor, single-line or
-    /// multi-line (`"""` or `'''`), leaving the cursor past its closing
-    /// delimiter. The returned range covers both delimiters. `None` when
-    /// the string never closes.
-    fn take_string(&mut self) -> Option<Range<usize>> {
-        let quote = self.peek()?;
-        let start = self.cursor;
-        let multi_line = self.bytes.get(start..start + 3) == Some(&[quote; 3]);
-        self.cursor += if multi_line { 3 } else { 1 };
-        while !self.step_in_string(quote, multi_line)? {}
-        Some(start..self.cursor)
-    }
-
-    /// Step over one character or escape of a string's body, or over its
-    /// closing delimiter. `Some(true)` once the string has closed.
-    fn step_in_string(&mut self, quote: u8, multi_line: bool) -> Option<bool> {
-        let byte = self.peek()?;
-        if quote == b'"' && byte == b'\\' {
-            self.cursor += 2;
-            return Some(false);
-        }
-        if byte != quote {
-            self.cursor += 1;
-            return Some(false);
-        }
-        let run = self.quote_run(quote);
-        if multi_line && run < 3 {
-            self.cursor += run;
-            return Some(false);
-        }
-        // A multi-line string may end in up to two quotes right before its
-        // closing delimiter.
-        self.cursor += if multi_line { run.min(5) } else { 1 };
-        Some(true)
-    }
-
-    fn quote_run(&self, quote: u8) -> usize {
-        self.bytes[self.cursor..]
-            .iter()
-            .take_while(|&&byte| byte == quote)
-            .count()
-    }
-
-    fn peek(&self) -> Option<u8> {
-        self.bytes.get(self.cursor).copied()
-    }
-
-    fn take_identifier(&mut self) -> Range<usize> {
-        let start = self.cursor;
-        while self.peek().is_some_and(is_identifier_byte) {
-            self.cursor += 1;
-        }
-        start..self.cursor
-    }
-
-    /// Step over the `=` that follows a key, and report whether the
-    /// value after it is a quoted string.
-    fn at_quoted_value(&mut self) -> bool {
-        self.skip_whitespace();
-        if self.peek() != Some(b'=') {
-            return false;
-        }
-        self.cursor += 1;
-        self.skip_whitespace();
-        matches!(self.peek(), Some(b'"' | b'\''))
-    }
-    /// Step to the end of the line the cursor's comment is on.
-    fn skip_comment(&mut self) {
-        while self
-            .peek()
-            .is_some_and(|byte| byte != b'\n')
-        {
-            self.cursor += 1;
-        }
-    }
-
-    fn skip_whitespace(&mut self) {
-        while self.peek().is_some_and(|byte| byte.is_ascii_whitespace()) {
-            self.cursor += 1;
-        }
+        quoted(name)
     }
 }
 

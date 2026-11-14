@@ -311,7 +311,7 @@ fn pin_unchanged_deps(
             Some((
                 dep.manifest_path.clone(),
                 dep.table,
-                dep.alias.clone(),
+                dep.manifest_key.clone(),
                 format!("={}", without_build_metadata(locked_ver)),
             ))
         })
@@ -356,10 +356,10 @@ async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     let staged = (
         dep.manifest_path.clone(),
         dep.table,
-        dep.alias.clone(),
+        dep.manifest_key.clone(),
         format!("={}", without_build_metadata(&resolved)),
     );
-    let finalized = (dep.manifest_path.clone(), dep.table, dep.alias.clone(), saved_spec);
+    let finalized = (dep.manifest_path.clone(), dep.table, dep.manifest_key.clone(), saved_spec);
     Ok(Some((staged, finalized)))
 }
 

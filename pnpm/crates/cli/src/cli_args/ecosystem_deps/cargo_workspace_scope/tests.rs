@@ -26,6 +26,7 @@ fn declaration(req: &str, features: &[&str], source: Option<&str>) -> CargoWorks
 fn declared(req: &str) -> DeclaredCargoDep {
     DeclaredCargoDep {
         alias: "hash".to_string(),
+        manifest_key: "hash".to_string(),
         package_name: "hash".to_string(),
         raw_spec: req.to_string(),
         version_req: VersionReq::parse(req).unwrap(),

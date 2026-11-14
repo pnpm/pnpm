@@ -1,6 +1,6 @@
 use super::{
     IndexDiscovery, git_dependency_sources, latest_version, missing_index_names, resolve_inputs,
-    resolve_lockfile,
+    resolve_lockfile, verify_lockfile,
 };
 use crate::registry::CRATES_IO_SOURCE;
 use cargo_lock::Lockfile;
@@ -1055,6 +1055,51 @@ fn incremental_discovery_asks_for_what_a_full_walk_asks_for() {
         let index = BTreeMap::from([("foo", foo_index), ("bar", BAR_INDEX)]);
         fetch_in_waves(METADATA, &index);
     }
+}
+
+#[test]
+fn locks_an_unversioned_path_dependency_on_a_prerelease_workspace_member() {
+    const PRERELEASE_PATH_METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace/crates/app#0.1.0",
+      "name": "app",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "shared",
+        "source": null,
+        "req": "*"
+      }]
+    },
+    {
+      "id": "path+file:///workspace/crates/shared#0.1.0-alpha.1",
+      "name": "shared",
+      "version": "0.1.0-alpha.1",
+      "dependencies": []
+    }
+  ],
+  "workspace_members": [
+    "path+file:///workspace/crates/app#0.1.0",
+    "path+file:///workspace/crates/shared#0.1.0-alpha.1"
+  ]
+}"#;
+
+    let encoded =
+        resolve_lockfile(PRERELEASE_PATH_METADATA, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap();
+    verify_lockfile(PRERELEASE_PATH_METADATA, &encoded).unwrap();
+    let lockfile = Lockfile::from_str(&encoded).unwrap();
+    let app = lockfile.packages
+        .iter()
+        .find(|package| package.name.as_str() == "app")
+        .expect("app package locked");
+    assert_eq!(app.dependencies.len(), 1);
+    assert_eq!(app.dependencies[0].name.as_str(), "shared");
+    assert_eq!(app.dependencies[0].version.to_string(), "0.1.0-alpha.1");
+
+    let mismatched = PRERELEASE_PATH_METADATA.replace(r#""req": "*""#, r#""req": "^1.0""#);
+    let error =
+        resolve_lockfile(&mismatched, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap_err().to_string();
+    assert_eq!(error, "workspace dependency shared is not a workspace member");
 }
 
 mod cancellation;

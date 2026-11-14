@@ -14,9 +14,12 @@ pub(crate) struct WorkspaceCargoDep {
 pub(crate) fn workspace_dependency_spec(
     member_dir: &Path,
     dep_key: &str,
+    dep_package: Option<&str>,
 ) -> Option<WorkspaceCargoDep> {
     for candidate in member_dir.ancestors() {
-        if let Some(spec) = read_workspace_dep_from_candidate(candidate, member_dir, dep_key) {
+        if let Some(spec) =
+            read_workspace_dep_from_candidate(candidate, member_dir, dep_key, dep_package)
+        {
             return Some(spec);
         }
     }
@@ -27,6 +30,7 @@ fn read_workspace_dep_from_candidate(
     workspace_dir: &Path,
     member_dir: &Path,
     dep_key: &str,
+    dep_package: Option<&str>,
 ) -> Option<WorkspaceCargoDep> {
     let contents = fs::read_to_string(workspace_dir.join("Cargo.toml")).ok()?;
     let doc = toml::from_str::<toml::Table>(&contents).ok()?;
@@ -34,22 +38,23 @@ fn read_workspace_dep_from_candidate(
     if workspace_dir != member_dir && !workspace_includes_member(workspace_dir, member_dir) {
         return None;
     }
-    let dep_val = ws
-        .get("dependencies")?
-        .as_table()?
-        .get(dep_key)?;
-    parse_workspace_dep_value(workspace_dir, dep_key, dep_val)
+    let deps = ws.get("dependencies")?.as_table()?;
+    let (ws_key, dep_val) = deps
+        .get_key_value(dep_key)
+        .or_else(|| dep_package.and_then(|pkg| deps.get_key_value(pkg)))?;
+    parse_workspace_dep_value(workspace_dir, ws_key, dep_package, dep_val)
 }
 
 fn parse_workspace_dep_value(
     workspace_dir: &Path,
-    dep_key: &str,
+    ws_key: &str,
+    dep_package: Option<&str>,
     dep_val: &toml::Value,
 ) -> Option<WorkspaceCargoDep> {
     if dep_val.is_str() {
         return Some(WorkspaceCargoDep {
             workspace_root: workspace_dir.to_path_buf(),
-            package_name: dep_key.to_string(),
+            package_name: dep_package.unwrap_or(ws_key).to_string(),
             path: None,
         });
     }
@@ -57,7 +62,8 @@ fn parse_workspace_dep_value(
     let package_name = table
         .get("package")
         .and_then(toml::Value::as_str)
-        .unwrap_or(dep_key)
+        .or(dep_package)
+        .unwrap_or(ws_key)
         .to_string();
     let path = table
         .get("path")

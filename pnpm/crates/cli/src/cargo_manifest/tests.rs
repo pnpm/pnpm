@@ -1,4 +1,6 @@
-use super::{CargoDependencyKind, upsert_dependency, workspace_includes_member};
+use super::{
+    CargoDependencyKind, upsert_dependency, workspace_dependency_spec, workspace_includes_member,
+};
 use crate::cli_args::ecosystem_deps::cargo_manifest_ops::find_cargo_workspace_root;
 use std::fs;
 
@@ -73,6 +75,14 @@ fn updates_strings_and_inline_tables_without_losing_formatting() {
         updated_dotted,
         "[dependencies]\nreqwest.features = [\"json\"]\nreqwest.version = \"=0.12.0\"\n",
     );
+
+    let ws_dotted = "[workspace]\nmembers = [\"a\"]\ndependencies.serde = \"1.0\"\n";
+    let updated_ws_dotted =
+        upsert_dependency(ws_dotted, "workspace.dependencies", "itoa", "1.0.18").unwrap();
+    assert_eq!(
+        updated_ws_dotted,
+        "[workspace]\nmembers = [\"a\"]\ndependencies.serde = \"1.0\"\ndependencies.itoa = \"1.0.18\"\n",
+    );
 }
 
 #[test]
@@ -97,6 +107,142 @@ fn updates_an_inline_table_that_spans_several_lines() {
     let updated = upsert_dependency(multi_line_strings, "dependencies", "local", "2").unwrap();
     eprintln!("UPDATED:\n{updated}\n");
     assert_eq!(updated, multi_line_strings.replace(r#"version = "1""#, r#"version = "2""#));
+}
+
+#[test]
+fn adds_dependencies_past_multiline_arrays_and_bracketed_lines() {
+    let manifest = concat!(
+        "[package]\n",
+        "name = \"demo\"\n",
+        "description = \"\"\"\n[not-a-section]\n\"\"\"\n\n",
+        "[dependencies]\n",
+        "serde = {\n",
+        "  version = \"1.0\",\n",
+        "  features =\n",
+        "  [\"derive\"]\n",
+        "}\n",
+        "tokio = { version = \"1\", features = [\n",
+        "  \"rt\"\n",
+        "] }\n\n",
+        "[features]\n",
+        "default = []\n",
+    );
+
+    let updated = upsert_dependency(manifest, "dependencies", "itoa", "1.0.18").unwrap();
+    let parsed: toml::Table =
+        toml::from_str(&updated).expect("updated manifest must be valid TOML");
+    assert_eq!(parsed["dependencies"]["itoa"].as_str(), Some("1.0.18"));
+    assert_eq!(
+        parsed["dependencies"]["serde"]["features"].as_array().map(Vec::as_slice),
+        Some(["derive".into()].as_slice()),
+    );
+    assert_eq!(
+        updated,
+        concat!(
+            "[package]\n",
+            "name = \"demo\"\n",
+            "description = \"\"\"\n[not-a-section]\n\"\"\"\n\n",
+            "[dependencies]\n",
+            "serde = {\n",
+            "  version = \"1.0\",\n",
+            "  features =\n",
+            "  [\"derive\"]\n",
+            "}\n",
+            "tokio = { version = \"1\", features = [\n",
+            "  \"rt\"\n",
+            "] }\n\n",
+            "itoa = \"1.0.18\"\n",
+            "[features]\n",
+            "default = []\n",
+        ),
+    );
+
+    let subtable_array = concat!(
+        "[dependencies.serde]\n",
+        "features = [\n",
+        "  \"derive\"\n",
+        "]\n\n",
+        "[features]\n",
+        "default = []\n",
+    );
+    let updated_subtable =
+        upsert_dependency(subtable_array, "dependencies", "serde", "1.0.228").unwrap();
+    let parsed_subtable: toml::Table =
+        toml::from_str(&updated_subtable).expect("updated subtable must be valid TOML");
+    assert_eq!(parsed_subtable["dependencies"]["serde"]["version"].as_str(), Some("1.0.228"));
+    assert_eq!(
+        updated_subtable,
+        concat!(
+            "[dependencies.serde]\n",
+            "features = [\n",
+            "  \"derive\"\n",
+            "]\n\n",
+            "version = \"1.0.228\"\n",
+            "[features]\n",
+            "default = []\n",
+        ),
+    );
+}
+
+#[test]
+fn replaces_workspace_inheritance_when_setting_an_explicit_version() {
+    let inline_first = "[dependencies]\nfoo = { workspace = true, features = [\"a\"], optional = true, default-features = false, package = \"real-foo\" }\n";
+    let updated_inline_first =
+        upsert_dependency(inline_first, "dependencies", "foo", "1.0.0").unwrap();
+    assert_eq!(
+        updated_inline_first,
+        "[dependencies]\nfoo = { version = \"1.0.0\", features = [\"a\"], optional = true, default-features = false, package = \"real-foo\" }\n",
+    );
+    let parsed: toml::Table = toml::from_str(&updated_inline_first).unwrap();
+    assert_eq!(parsed["dependencies"]["foo"].get("workspace"), None);
+
+    let inline_last = "[dependencies]\nfoo = { features = [\"a\"], workspace = true }\n";
+    let updated_inline_last =
+        upsert_dependency(inline_last, "dependencies", "foo", "1.0.0").unwrap();
+    assert_eq!(
+        updated_inline_last,
+        "[dependencies]\nfoo = { features = [\"a\"], version = \"1.0.0\" }\n",
+    );
+
+    let inline_only = "[dependencies]\nfoo = { workspace = true }\n";
+    assert_eq!(
+        upsert_dependency(inline_only, "dependencies", "foo", "1.0.0").unwrap(),
+        "[dependencies]\nfoo = { version = \"1.0.0\" }\n",
+    );
+
+    let inline_both =
+        "[dependencies]\nfoo = { workspace = false, version = \"0.9\", features = [\"a\"] }\n";
+    assert_eq!(
+        upsert_dependency(inline_both, "dependencies", "foo", "1.0.0").unwrap(),
+        "[dependencies]\nfoo = { version = \"1.0.0\", features = [\"a\"] }\n",
+    );
+
+    let subtable = concat!(
+        "[dependencies.foo]\n",
+        "workspace = true\n",
+        "features = [\"a\"]\n",
+        "optional = true\n",
+        "default-features = false\n",
+        "package = \"real-foo\"\n",
+    );
+    let updated_subtable = upsert_dependency(subtable, "dependencies", "foo", "1.0.0").unwrap();
+    assert_eq!(
+        updated_subtable,
+        concat!(
+            "[dependencies.foo]\n",
+            "version = \"1.0.0\"\n",
+            "features = [\"a\"]\n",
+            "optional = true\n",
+            "default-features = false\n",
+            "package = \"real-foo\"\n",
+        ),
+    );
+    let parsed_subtable: toml::Table = toml::from_str(&updated_subtable).unwrap();
+    assert_eq!(parsed_subtable["dependencies"]["foo"].get("workspace"), None);
+
+    let dotted = "[dependencies]\nfoo.workspace = true\nfoo.features = [\"a\"]\n";
+    let updated_dotted = upsert_dependency(dotted, "dependencies", "foo", "1.0.0").unwrap();
+    assert_eq!(updated_dotted, "[dependencies]\nfoo.version = \"1.0.0\"\nfoo.features = [\"a\"]\n");
 }
 
 #[test]
@@ -175,4 +321,9 @@ fn workspace_membership_discovers_implicit_path_dependency_members() {
     assert_eq!(find_cargo_workspace_root(&implicit_lib, Some(root)), root);
     assert_eq!(find_cargo_workspace_root(&inherited_lib, Some(root)), root);
     assert_eq!(find_cargo_workspace_root(&excluded_lib, Some(root)), excluded_lib);
+
+    let by_alias = workspace_dependency_spec(&member, "inherited-alias", Some("inherited-lib"))
+        .expect("resolve workspace dependency when both workspace and member spell package");
+    assert_eq!(by_alias.package_name, "inherited-lib");
+    assert_eq!(by_alias.path.as_deref(), Some("support/inherited-lib"));
 }

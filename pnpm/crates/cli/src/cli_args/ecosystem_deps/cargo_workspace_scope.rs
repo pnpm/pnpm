@@ -29,17 +29,20 @@ impl CargoWorkspaceScope {
     /// that resolves through it: the declaration itself, the members
     /// inheriting it, and their target-specific tables.
     pub(crate) fn enabled_features(&self, dep: &DeclaredCargoDep) -> Vec<String> {
-        let Some(declarations) =
-            self.declarations.get(&(dep.package_name.clone(), dep.alias.clone()))
-        else {
-            return Vec::new();
-        };
-        let features: BTreeSet<&String> = declarations
-            .iter()
-            .filter(|(req, _)| *req == dep.version_req)
-            .flat_map(|(_, features)| features)
-            .collect();
-        features.into_iter().cloned().collect()
+        let mut features = BTreeSet::new();
+        for alias in [&dep.alias, &dep.manifest_key] {
+            if let Some(declarations) =
+                self.declarations.get(&(dep.package_name.clone(), alias.clone()))
+            {
+                features.extend(
+                    declarations
+                        .iter()
+                        .filter(|(req, _)| *req == dep.version_req)
+                        .flat_map(|(_, features)| features.iter().cloned()),
+                );
+            }
+        }
+        features.into_iter().collect()
     }
 
     /// Whether the workspace also declares `dep`'s package under another
