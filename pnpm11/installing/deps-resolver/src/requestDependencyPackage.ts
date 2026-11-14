@@ -3,6 +3,7 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getPatchInfo } from '@pnpm/patching.config'
+import { barePathIsUnambiguous } from '@pnpm/resolving.local-resolver'
 import type { PkgResolutionId, PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { OnFetchError, PackageResponse, RequestPackageOptions } from '@pnpm/store.controller-types'
 import type { RegistryContext } from '@pnpm/types'
@@ -12,7 +13,7 @@ import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersio
 import { hasAlias, type WantedDependency } from './getWantedDependencies.js'
 import { getRangeOfLockedPackage, isNamedRegistrySpecifier } from './lockedRegistryKey.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
-import type { ResolutionContext, ResolveDependencyOptions, ResolvedPkgsById } from './resolutionTypes.js'
+import type { ParentPkg, ResolutionContext, ResolveDependencyOptions, ResolvedPkgsById } from './resolutionTypes.js'
 import { unwrapPackageName } from './unwrapPackageName.js'
 
 export type CurrentPkg = NonNullable<ResolveDependencyOptions['currentPkg']>
@@ -108,7 +109,7 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
       getPatchInfo(ctx.patchedDependencies, manifest.name, manifest.version) != null,
     preferredVersions,
     preferWorkspacePackages: ctx.preferWorkspacePackages,
-    projectDir: (options.currentDepth > 0 && !isRelativeToDeclaringManifest(ctx, wantedDependency))
+    projectDir: (options.currentDepth > 0 && !isRelativeToDeclaringManifest(ctx, options.parentPkg, wantedDependency))
       ? ctx.lockfileDir
       : options.parentPkg.rootDir,
     skipFetch: ctx.dryRun || request.detached === true,
@@ -126,9 +127,10 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
   }
 }
 
-function isRelativeToDeclaringManifest (ctx: ResolutionContext, wantedDependency: WantedDependency): boolean {
+function isRelativeToDeclaringManifest (ctx: ResolutionContext, parentPkg: ParentPkg, wantedDependency: WantedDependency): boolean {
   const { bareSpecifier } = wantedDependency
   if (bareSpecifier.startsWith('file:')) return true
+  if (parentPkg.pkgId.startsWith('file:') && (bareSpecifier.startsWith('link:') || barePathIsUnambiguous(bareSpecifier))) return true
   // A linked workspace: path keeps its lockfile-relative id, which the linked node is registered under.
   return bareSpecifier.startsWith('workspace:.') && (wantedDependency.injected === true || ctx.injectWorkspacePackages === true)
 }

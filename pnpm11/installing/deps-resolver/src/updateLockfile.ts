@@ -7,7 +7,6 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DepPath, ProjectManifest, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
@@ -16,15 +15,13 @@ import { depPathToRef } from './depPathToRef.js'
 import type { DependenciesGraph } from './index.js'
 import type { PeerDependencies } from './resolutionTypes.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
-import { createNodeIdForLinkedLocalPkg } from './resolveDependencies.js'
 import { getPeerSet } from './resolvedPackage.js'
 
 export function updateLockfile (
-  { dependenciesGraph, lockfile, prefix, lockfileDir, registriesByScope, registriesByPrefix, registryOptionsByUrl, lockfileIncludeTarballUrl }: RegistryContext & {
+  { dependenciesGraph, lockfile, prefix, registriesByScope, registriesByPrefix, registryOptionsByUrl, lockfileIncludeTarballUrl }: RegistryContext & {
     dependenciesGraph: DependenciesGraph
     lockfile: LockfileObject
     prefix: string
-    lockfileDir?: string
     lockfileIncludeTarballUrl?: boolean
   }
 ): LockfileObject {
@@ -52,7 +49,6 @@ export function updateLockfile (
       registryName,
       updatedDeps,
       updatedOptionalDeps,
-      lockfileDir,
       lockfileIncludeTarballUrl,
     })
   }
@@ -77,7 +73,6 @@ function toLockfileDependency (
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
-    lockfileDir?: string
     prevSnapshot?: PackageSnapshot
     lockfileIncludeTarballUrl?: boolean
   }
@@ -101,7 +96,7 @@ function toLockfileDependency (
   if (shouldRecordVersion(pkg.version, { depPath: opts.depPath, registryName: opts.registryName, lockfileResolution })) {
     result['version'] = pkg.version
   }
-  addChildDependencies(result, opts, pkg)
+  addChildDependencies(result, opts)
   if (pkg.optional) {
     result['optional'] = true
   }
@@ -126,17 +121,19 @@ function toLockfileDependency (
 function addChildDependencies (
   result: PackageSnapshot,
   opts: {
-    depPath: string
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
-    lockfileDir?: string
-  },
-  pkg: ResolvedPackage
+  }
 ): void {
-  const updateOptions = { depGraph: opts.depGraph, lockfileDir: opts.lockfileDir, parentDepPath: opts.depPath, parentPkg: pkg }
-  const newResolvedDeps = updateResolvedDeps({ ...updateOptions, updatedDeps: opts.updatedDeps })
-  const newResolvedOptionalDeps = updateResolvedDeps({ ...updateOptions, updatedDeps: opts.updatedOptionalDeps })
+  const newResolvedDeps = updateResolvedDeps(
+    opts.updatedDeps,
+    opts.depGraph
+  )
+  const newResolvedOptionalDeps = updateResolvedDeps(
+    opts.updatedOptionalDeps,
+    opts.depGraph
+  )
   if (Object.keys(newResolvedDeps).length > 0) {
     result['dependencies'] = newResolvedDeps
   }
@@ -265,24 +262,15 @@ function getDeprecationToRecord (
   return deprecated || undefined
 }
 
-function updateResolvedDeps ({
-  updatedDeps,
-  depGraph,
-  lockfileDir,
-  parentPkg,
-  parentDepPath,
-}: {
-  updatedDeps: Array<{ alias: string, depPath: DepPath }>
+function updateResolvedDeps (
+  updatedDeps: Array<{ alias: string, depPath: DepPath }>,
   depGraph: DependenciesGraph
-  lockfileDir: string | undefined
-  parentPkg: ResolvedPackage
-  parentDepPath: string
-}): Record<string, string> {
+): Record<string, string> {
   return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          return [alias, linkedDependencyRef({ alias, depPath, depGraph, lockfileDir, parentPkg, parentDepPath })]
+          return [alias, depPath]
         }
         const depNode = depGraph[depPath]
         return [
@@ -294,29 +282,4 @@ function updateResolvedDeps ({
         ]
       })
   )
-}
-
-function linkedDependencyRef ({ alias, depPath, depGraph, lockfileDir, parentPkg, parentDepPath }: {
-  alias: string
-  depPath: DepPath
-  depGraph: DependenciesGraph
-  lockfileDir: string | undefined
-  parentPkg: ResolvedPackage
-  parentDepPath: string
-}): string {
-  if (
-    lockfileDir == null ||
-    !parentDepPath.includes('@file:') ||
-    parentPkg.resolution.type !== 'directory'
-  ) return depPath
-  const localSpec = parentPkg.localLinkedDependencies?.get(alias)
-  if (localSpec != null) {
-    const localPkgDir = localSpecPath(parentPkg.id, lockfileDir)
-    const childDir = localSpecPath(localSpec, localPkgDir)
-    if (recordedLocalPath(depPath.slice('link:'.length), lockfileDir) === childDir) return depPath
-    return createNodeIdForLinkedLocalPkg(lockfileDir, childDir) as string
-  }
-  const childPkg = depGraph[depPath]
-  if (childPkg == null || childPkg.resolution.type !== 'directory') return depPath
-  return createNodeIdForLinkedLocalPkg(lockfileDir, childPkg.resolution.directory) as string
 }

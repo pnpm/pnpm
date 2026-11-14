@@ -300,6 +300,16 @@ impl Scenario {
 fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
+    if layout.child_spec.as_str().is_some() {
+        let packages = scenario.workspace().join("packages");
+        let injected_lib = fs::canonicalize(packages.join("app/node_modules/lib"))
+            .expect("resolve the injected lib");
+        assert_eq!(
+            fs::canonicalize(injected_lib.join("../child")).expect("resolve the child link"),
+            fs::canonicalize(packages.join("child")).expect("resolve the child project"),
+            "{layout:?}: the injected lib's child link",
+        );
+    }
     scenario.edit(edit);
     if matches!(
         (layout.injection, edit),

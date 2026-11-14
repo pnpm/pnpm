@@ -68,6 +68,10 @@ describe.each(LAYOUTS)('injected package edits: %j', (layout) => {
 
     prepareWorkspace(layout)
     await execPnpm(['install'])
+    if (layout.childSpec != null) {
+      const injectedLib = fs.realpathSync('app/node_modules/lib')
+      expect(fs.realpathSync(path.join(injectedLib, '../child'))).toBe(fs.realpathSync('child'))
+    }
     applyEdit(layout, edit)
     if (layout.injection === 'fileSpec' && edit === 'catalogChild') {
       // The children of a dependency declared by path keep their `catalog:`
