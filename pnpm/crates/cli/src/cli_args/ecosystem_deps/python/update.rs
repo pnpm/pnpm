@@ -8,8 +8,9 @@ use pnpm_config::Config;
 use pnpm_install_coordinator::InstallPlan;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_python_installer::{
-    DeclaredPythonDep, Discovery, PackageName, PythonDependencyGroup, UpdateOptions,
-    declared_dependencies, in_declared_workspace, plan_update, writable_project,
+    DeclaredPythonDep, Discovery, PackageName, PythonDependencyGroup, TargetPyproject,
+    UpdateOptions, declared_dependencies, in_declared_workspace, inspect_target_pyproject,
+    plan_update, writable_project,
 };
 use pnpm_reporter::Reporter;
 use std::{
@@ -18,58 +19,118 @@ use std::{
     str::FromStr,
 };
 
-pub(crate) struct PythonUpdateUnit {
+#[derive(Default)]
+pub(crate) struct PythonUpdateTargets {
+    expanded: Vec<ExpandedPythonUnit>,
+    unexpanded: Vec<UnexpandedPythonProject>,
+}
+
+struct ExpandedPythonUnit {
+    unit: PythonUpdateUnit,
+    declared: Vec<DeclaredPythonDep>,
+}
+
+struct UnexpandedPythonProject {
+    dir: PathBuf,
+    declared: Vec<DeclaredPythonDep>,
+}
+
+struct PythonUpdateUnit {
     plan_root: PathBuf,
     discovery: Discovery,
     projects: BTreeSet<PathBuf>,
 }
 
-impl PythonUpdateUnit {
-    pub(crate) fn project_dirs(&self) -> &BTreeSet<PathBuf> {
-        &self.projects
+impl PythonUpdateTargets {
+    pub(crate) fn declared_names_for_groups(
+        &self,
+        include: &[DependencyGroup],
+    ) -> BTreeSet<String> {
+        self.all_declared()
+            .filter(|dep| include.contains(&map_python_group(dep.group)))
+            .map(|dep| dep.name.to_string())
+            .collect()
+    }
+
+    fn all_declared(&self) -> impl Iterator<Item = &DeclaredPythonDep> {
+        self.expanded
+            .iter()
+            .flat_map(|item| &item.declared)
+            .chain(self.unexpanded.iter().flat_map(|item| &item.declared))
     }
 }
 
-pub(crate) async fn resolve_python_update_units(
+pub(crate) async fn resolve_python_update_targets(
     target_dirs: &[PathBuf],
     config: &'static Config,
-) -> Result<Vec<PythonUpdateUnit>> {
+) -> Result<PythonUpdateTargets> {
     if !config.python.enabled {
-        return Ok(Vec::new());
+        return Ok(PythonUpdateTargets::default());
     }
-    let (workspace_groups, standalone_dirs) = partition_python_target_dirs(target_dirs, config);
-    let mut units = Vec::new();
-    for (workspace_root, dirs) in workspace_groups {
+    let (shared_groups, mut unexpanded) = classify_python_target_dirs(target_dirs, config)?;
+    let mut expanded = Vec::new();
+    let mut covered_dirs = BTreeSet::new();
+    for (workspace_root, dirs) in shared_groups {
         if let Some(unit) = discover_workspace_unit(workspace_root, &dirs, config).await? {
-            units.push(unit);
+            for proj in &unit.projects {
+                covered_dirs.insert(canonical_or_self(proj));
+            }
+            let declared = collect_declared_dependencies(&unit.projects, Some(&unit.plan_root))?;
+            expanded.push(ExpandedPythonUnit { unit, declared });
         }
     }
-    for dir in standalone_dirs {
-        if let Some(unit) = discover_standalone_unit(&dir, config).await? {
-            units.push(unit);
-        }
+    if !covered_dirs.is_empty() {
+        unexpanded.retain(|proj| !covered_dirs.contains(&canonical_or_self(&proj.dir)));
     }
-    Ok(units)
+    Ok(PythonUpdateTargets { expanded, unexpanded })
 }
 
-fn partition_python_target_dirs(
+type WorkspaceDirGroups = BTreeMap<PathBuf, Vec<PathBuf>>;
+
+fn classify_python_target_dirs(
     target_dirs: &[PathBuf],
     config: &Config,
-) -> (BTreeMap<PathBuf, Vec<PathBuf>>, Vec<PathBuf>) {
-    let mut workspace_groups: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
-    let mut standalone_dirs = Vec::new();
+) -> Result<(WorkspaceDirGroups, Vec<UnexpandedPythonProject>)> {
+    let mut shared_groups: WorkspaceDirGroups = BTreeMap::new();
+    let mut unexpanded = Vec::new();
+    let workspace_root = config.workspace_dir.as_deref();
     for dir in target_dirs {
-        if !dir.join("pyproject.toml").is_file() {
-            continue;
+        match inspect_target_pyproject(&dir.join("pyproject.toml"), workspace_root)? {
+            Some(TargetPyproject::SharedWorkspace) => {
+                let root = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
+                shared_groups
+                    .entry(root)
+                    .or_default()
+                    .push(dir.clone());
+            }
+            Some(TargetPyproject::Project(declared)) => {
+                unexpanded.push(UnexpandedPythonProject { dir: dir.clone(), declared });
+            }
+            None => {}
         }
+    }
+    Ok((shared_groups, unexpanded))
+}
+
+fn canonical_or_self(path: &Path) -> PathBuf {
+    dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn partition_matching_dirs(
+    dirs: Vec<PathBuf>,
+    config: &Config,
+) -> (WorkspaceDirGroups, Vec<PathBuf>) {
+    let mut workspace_groups: WorkspaceDirGroups = BTreeMap::new();
+    let mut standalone_dirs = Vec::new();
+    for dir in dirs {
         let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
-        if in_declared_workspace(&workspace_root, dir) {
+        if in_declared_workspace(&workspace_root, &dir) {
             workspace_groups
                 .entry(workspace_root)
                 .or_default()
-                .push(dir.clone());
+                .push(dir);
         } else {
-            standalone_dirs.push(dir.clone());
+            standalone_dirs.push(dir);
         }
     }
     (workspace_groups, standalone_dirs)
@@ -111,7 +172,7 @@ async fn discover_standalone_unit(
 }
 
 pub(crate) fn validate_explicit_python_requests(
-    units: &[PythonUpdateUnit],
+    targets: &PythonUpdateTargets,
     requests: &[PythonUpdateSelector],
 ) -> Result<()> {
     let explicit: Vec<&PythonUpdateSelector> = requests
@@ -121,10 +182,7 @@ pub(crate) fn validate_explicit_python_requests(
     if explicit.is_empty() {
         return Ok(());
     }
-    let mut all_declared = Vec::new();
-    for unit in units {
-        all_declared.extend(collect_declared_dependencies(&unit.projects)?);
-    }
+    let all_declared: Vec<&DeclaredPythonDep> = targets.all_declared().collect();
     for req in explicit {
         let Ok(pkg_name) = PackageName::from_str(&req.name) else {
             bail!("invalid Python package name `{}`", req.name);
@@ -140,7 +198,7 @@ pub(crate) fn validate_explicit_python_requests(
 }
 
 pub(crate) async fn update_python_projects<ReporterType: Reporter + 'static>(
-    units: Vec<PythonUpdateUnit>,
+    targets: PythonUpdateTargets,
     context: InstallContext,
     options: &PythonUpdateOptions<'_>,
 ) -> Result<bool> {
@@ -148,38 +206,98 @@ pub(crate) async fn update_python_projects<ReporterType: Reporter + 'static>(
         return Ok(false);
     }
     let mut updated = false;
-    for unit in units {
-        updated |= update_python_unit::<ReporterType>(unit, context.clone(), options).await?;
+    for expanded in targets.expanded {
+        updated |= run_python_unit::<ReporterType>(
+            expanded.unit,
+            &expanded.declared,
+            context.clone(),
+            options,
+        )
+        .await?;
+    }
+    let matching_dirs: Vec<PathBuf> = targets.unexpanded
+        .into_iter()
+        .filter_map(|proj| {
+            declared_matches_options(&proj.declared, options)
+                .map(|has_match| has_match.then_some(proj.dir))
+                .transpose()
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if matching_dirs.is_empty() {
+        return Ok(updated);
+    }
+    updated |= update_matching_unexpanded::<ReporterType>(matching_dirs, context, options).await?;
+    Ok(updated)
+}
+
+async fn update_matching_unexpanded<ReporterType: Reporter + 'static>(
+    matching_dirs: Vec<PathBuf>,
+    context: InstallContext,
+    options: &PythonUpdateOptions<'_>,
+) -> Result<bool> {
+    let (workspace_groups, standalone_dirs) =
+        partition_matching_dirs(matching_dirs, context.config);
+    let mut updated = false;
+    for (workspace_root, dirs) in workspace_groups {
+        if let Some(unit) = discover_workspace_unit(workspace_root, &dirs, context.config).await? {
+            let declared = collect_declared_dependencies(&unit.projects, Some(&unit.plan_root))?;
+            updated |=
+                run_python_unit::<ReporterType>(unit, &declared, context.clone(), options).await?;
+        }
+    }
+    for dir in standalone_dirs {
+        if let Some(unit) = discover_standalone_unit(&dir, context.config).await? {
+            let declared = collect_declared_dependencies(
+                &unit.projects,
+                context.config.workspace_dir.as_deref(),
+            )?;
+            updated |=
+                run_python_unit::<ReporterType>(unit, &declared, context.clone(), options).await?;
+        }
     }
     Ok(updated)
 }
 
-async fn update_python_unit<ReporterType: Reporter + 'static>(
+fn declared_matches_options(
+    declared: &[DeclaredPythonDep],
+    options: &PythonUpdateOptions<'_>,
+) -> Result<bool> {
+    if options.restrict_to_selectors {
+        Ok(!select_python_targets(declared, options)?.is_empty())
+    } else {
+        Ok(has_matching_python_group(declared, options))
+    }
+}
+
+async fn run_python_unit<ReporterType: Reporter + 'static>(
     unit: PythonUpdateUnit,
+    declared: &[DeclaredPythonDep],
     context: InstallContext,
     options: &PythonUpdateOptions<'_>,
 ) -> Result<bool> {
-    let declared = collect_declared_dependencies(&unit.projects)?;
-    let targets = select_python_targets(&declared, options)?;
+    let targets = select_python_targets(declared, options)?;
     if options.restrict_to_selectors && targets.is_empty() {
         return Ok(false);
     }
-    if !options.restrict_to_selectors && !has_matching_python_group(&declared, options) {
+    if !options.restrict_to_selectors && !has_matching_python_group(declared, options) {
         return Ok(false);
     }
-    let update_opts = build_python_update_options(&declared, options, targets);
+    let update_opts = build_python_update_options(declared, options, targets);
     let task =
         plan_update::<ReporterType>(context.into(), unit.discovery, unit.projects, update_opts)?;
     InstallPlan::new(unit.plan_root).with_task(task).run().await?;
     Ok(true)
 }
 
-fn collect_declared_dependencies(projects: &BTreeSet<PathBuf>) -> Result<Vec<DeclaredPythonDep>> {
+fn collect_declared_dependencies(
+    projects: &BTreeSet<PathBuf>,
+    workspace_root: Option<&Path>,
+) -> Result<Vec<DeclaredPythonDep>> {
     let mut declared = Vec::new();
     for dir in projects {
         let pyproject = dir.join("pyproject.toml");
         if pyproject.is_file() {
-            declared.extend(declared_dependencies(&pyproject)?);
+            declared.extend(declared_dependencies(&pyproject, workspace_root)?);
         }
     }
     Ok(declared)

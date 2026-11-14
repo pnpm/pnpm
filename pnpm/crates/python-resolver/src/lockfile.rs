@@ -1,9 +1,11 @@
 pub use environments::{Metadata, Solved, Target, environment_marker};
 pub use files::{LockedSdist, LockedWheel};
+pub use index::{LockIndex, LockedPin};
 pub use inputs::Inputs;
 
 mod environments;
 mod files;
+mod index;
 mod inputs;
 
 use crate::packages::{Candidate, IndexCandidate, Packages};
@@ -295,47 +297,6 @@ impl Lockfile {
                     .transpose()
             })
             .collect()
-    }
-
-    /// The version this lockfile resolves `requirement` to across the
-    /// environments where `requirement`'s marker holds, or `None` when none
-    /// of the lockfile's environments select it.
-    pub fn resolved_version(
-        &self,
-        requirement: &Requirement,
-        index_only: bool,
-    ) -> Result<Option<&Version>> {
-        let scope = self.environment_scope()?;
-        let wanted = requirement.marker.clone().simplify_extras_with(|_| true);
-        for package in &self.packages {
-            if package.name != requirement.name {
-                continue;
-            }
-            if index_only && package.wheels.is_empty() && package.sdist.is_none() {
-                continue;
-            }
-            let mut active = scope.clone();
-            active.and(marker_tree(package)?);
-            if !active.is_disjoint(&wanted) {
-                return Ok(Some(&package.version));
-            }
-        }
-        Ok(None)
-    }
-
-    fn environment_scope(&self) -> Result<MarkerTree> {
-        if self.environments.is_empty() {
-            return Ok(MarkerTree::TRUE);
-        }
-        let mut scope = MarkerTree::FALSE;
-        for environment in &self.environments {
-            let parsed: MarkerTree = environment
-                .parse()
-                .into_diagnostic()
-                .wrap_err_with(|| format!("read Python lockfile environment {environment}"))?;
-            scope.or(parsed);
-        }
-        Ok(scope)
     }
 }
 

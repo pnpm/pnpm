@@ -42,7 +42,6 @@ fn manifest_add_preserves_disjoint_markers_and_replaces_canonical_matches() {
         ],
     );
 
-    // Canonical marker equivalence (double quotes / reversed operands) replaces in place.
     manifest::add(&pyproject, &[r#"six>=2.1 ; "linux" == sys_platform"#.to_string()], false)
         .unwrap();
     let parsed: toml::Value = toml::from_str(&fs::read_to_string(&pyproject).unwrap()).unwrap();
@@ -54,7 +53,6 @@ fn manifest_add_preserves_disjoint_markers_and_replaces_canonical_matches() {
         ],
     );
 
-    // Unmarked requirement coexists with marker-qualified ones, and replaces unmarked on re-add.
     manifest::add(&pyproject, &["six>=1.5".to_string()], false).unwrap();
     manifest::add(&pyproject, &["six>=3.0".to_string()], false).unwrap();
     let parsed: toml::Value = toml::from_str(&fs::read_to_string(&pyproject).unwrap()).unwrap();
@@ -84,23 +82,25 @@ fn pin_to_locked_version_respects_direct_urls_and_environment_markers() {
         ],
         tool: ToolMetadata { pnpm: Inputs::declared(&[], &[], &[], "https://pypi.org/simple/") },
     };
+    let lock_index = lock.index().unwrap();
     let exact_opts =
         AddOptions { requirements: Vec::new(), development: false, exact: true, prefix: None };
 
-    // Direct URL requirement must never be overwritten even with `--save-exact`.
     let mut url_req: pep508_rs::Requirement =
         "six @ https://example.test/six-1.16.0-py2.py3-none-any.whl".parse().unwrap();
-    pin_to_locked_version(&mut url_req, &lock, &exact_opts, ">=").unwrap();
+    pin_to_locked_version(&mut url_req, &lock_index, &exact_opts, ">=").unwrap();
     assert_eq!(url_req.to_string(), "six @ https://example.test/six-1.16.0-py2.py3-none-any.whl");
 
-    // Marker-qualified requirement selects the locked package for its own marker (`2.0`, not `1.0`).
+    let mut unmarked_req: pep508_rs::Requirement = "six>=1.0".parse().unwrap();
+    pin_to_locked_version(&mut unmarked_req, &lock_index, &exact_opts, ">=").unwrap();
+    assert_eq!(unmarked_req.to_string(), "six>=1.0");
+
     let mut linux_req: pep508_rs::Requirement = "six ; sys_platform == 'linux'".parse().unwrap();
-    let default_opts = AddOptions { exact: false, ..exact_opts.clone() };
-    pin_to_locked_version(&mut linux_req, &lock, &default_opts, ">=").unwrap();
+    let default_opts = AddOptions { exact: false, ..exact_opts };
+    pin_to_locked_version(&mut linux_req, &lock_index, &default_opts, ">=").unwrap();
     assert_eq!(linux_req.to_string(), "six>=2.0 ; sys_platform == 'linux'");
 
-    // Requirement whose marker is inactive in the lockfile's environments stays unpinned.
     let mut darwin_req: pep508_rs::Requirement = "six ; sys_platform == 'darwin'".parse().unwrap();
-    pin_to_locked_version(&mut darwin_req, &lock, &default_opts, ">=").unwrap();
+    pin_to_locked_version(&mut darwin_req, &lock_index, &default_opts, ">=").unwrap();
     assert_eq!(darwin_req.to_string(), "six ; sys_platform == 'darwin'");
 }

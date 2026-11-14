@@ -3,6 +3,7 @@ use super::{
     workspace::Workspace,
 };
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use pnpm_python_resolver::LockIndex;
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
@@ -130,10 +131,11 @@ fn save_added(
     let prefix = options.prefix.as_deref().unwrap_or(">=");
     for project in prepared {
         let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
+        let lock_index = lock.index()?;
         let mut requirements = Vec::new();
         for requirement in &options.requirements {
             let mut requirement = pnpm_python_resolver::parse_requirement(requirement)?;
-            pin_to_locked_version(&mut requirement, &lock, options, prefix)?;
+            pin_to_locked_version(&mut requirement, &lock_index, options, prefix)?;
             requirements.push(requirement.to_string());
         }
         for member in &project.members {
@@ -152,7 +154,7 @@ fn save_added(
 /// line left it unversioned or `--save-exact` overrides what it asked for.
 fn pin_to_locked_version(
     requirement: &mut pep508_rs::Requirement,
-    lock: &Lockfile,
+    lock_index: &LockIndex<'_>,
     options: &AddOptions,
     prefix: &str,
 ) -> Result<()> {
@@ -162,7 +164,7 @@ fn pin_to_locked_version(
     if !options.exact && requirement.version_or_url.is_some() {
         return Ok(());
     }
-    let Some(version) = lock.resolved_version(requirement, false)? else {
+    let Some(version) = lock_index.agreed_version(requirement) else {
         return Ok(());
     };
     let prefix = if options.exact { "==" } else { prefix };

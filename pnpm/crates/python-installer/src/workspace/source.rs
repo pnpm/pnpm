@@ -194,4 +194,15 @@ impl super::Workspace {
         }
         Ok(recorded)
     }
+
+    /// Package names whose `[tool.uv.sources]` declaration (own or inherited
+    /// from the discovered workspace root) resolves outside the index.
+    pub(crate) fn non_index_sources(
+        &self,
+        root: &Path,
+        manifest: &Manifest,
+    ) -> std::collections::BTreeSet<PackageName> {
+        let inherited = self.inherited.get(root).map(|(_, root_manifest)| root_manifest.as_ref());
+        crate::outdated::collect_non_index_sources(manifest, inherited)
+    }
 }

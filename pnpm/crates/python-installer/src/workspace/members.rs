@@ -273,12 +273,20 @@ pub fn in_declared_workspace(workspace: &Path, project: &Path) -> bool {
         .any(|ancestor| workspace_declaration(ancestor).is_some())
 }
 
-/// The manifest of the nearest enclosing `[tool.uv.workspace]` that
-/// contains `project_dir`, when `project_dir` does not declare a
-/// workspace of its own.
-pub(crate) fn inherited_workspace_manifest(project_dir: &Path) -> Option<Manifest> {
+/// The manifest of the nearest enclosing `[tool.uv.workspace]` up to
+/// `workspace` that contains `project_dir`, when `project_dir` does not
+/// declare a workspace of its own.
+pub(crate) fn inherited_workspace_manifest(
+    workspace: Option<&Path>,
+    project_dir: &Path,
+) -> Option<Manifest> {
+    let stop = canonical(workspace?);
     let dir = canonical(project_dir);
-    for ancestor in dir.ancestors().skip(1) {
+    for ancestor in dir
+        .ancestors()
+        .skip(1)
+        .take_while(|ancestor| ancestor.starts_with(&stop))
+    {
         let Ok(contents) = std::fs::read_to_string(ancestor.join("pyproject.toml")) else {
             continue;
         };

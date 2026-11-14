@@ -1,5 +1,5 @@
 pub(crate) use update::{
-    PythonUpdateUnit, resolve_python_update_units, update_python_projects,
+    PythonUpdateTargets, resolve_python_update_targets, update_python_projects,
     validate_explicit_python_requests,
 };
 
@@ -17,10 +17,10 @@ use pnpm_matcher::Matcher;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_python_installer::{
-    DeclaredPythonDep, PackageName, PythonDependencyGroup, declared_dependencies, locked_versions,
-    lockfile_dir_for, project_name, resolve_target_version,
+    DeclaredPythonDep, PythonDependencyGroup, declared_dependencies, lockfile_dir_for,
+    project_name, read_lockfile, resolve_target_version,
 };
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeSet, path::Path};
 
 pub(crate) struct PythonUpdateOptions<'a> {
     pub(crate) requests: &'a [PythonUpdateSelector],
@@ -37,13 +37,14 @@ pub(crate) fn python_project_name(project_dir: &Path) -> Option<String> {
 
 pub(crate) fn has_matching_python_deps(
     project_dir: &Path,
+    workspace_root: Option<&Path>,
     query: &OutdatedQuery<'_>,
 ) -> Result<bool> {
     let pyproject = project_dir.join("pyproject.toml");
     if !pyproject.is_file() {
         return Ok(false);
     }
-    Ok(declared_dependencies(&pyproject)?
+    Ok(declared_dependencies(&pyproject, workspace_root)?
         .into_iter()
         .any(|dep| {
             query.include_direct.contains(&map_python_group(dep.group))
@@ -57,13 +58,16 @@ pub(crate) fn has_python_lockfile(project_dir: &Path, workspace_root: Option<&Pa
 
 pub(crate) fn declared_python_dep_names(
     project_dir: &Path,
+    workspace_root: Option<&Path>,
     include: &[DependencyGroup],
 ) -> Result<Vec<String>> {
-    Ok(declared_dependencies(&project_dir.join("pyproject.toml"))?
-        .into_iter()
-        .filter(|dep| include.contains(&map_python_group(dep.group)))
-        .map(|dep| dep.name.to_string())
-        .collect())
+    let unique: BTreeSet<String> =
+        declared_dependencies(&project_dir.join("pyproject.toml"), workspace_root)?
+            .into_iter()
+            .filter(|dep| include.contains(&map_python_group(dep.group)))
+            .map(|dep| dep.name.to_string())
+            .collect();
+    Ok(unique.into_iter().collect())
 }
 
 pub(crate) async fn collect_python_outdated(
@@ -76,17 +80,18 @@ pub(crate) async fn collect_python_outdated(
     if !config.python.enabled {
         return Ok(Vec::new());
     }
+    let workspace_root = config.workspace_dir.as_deref();
     let pyproject_path = project_dir.join("pyproject.toml");
-    let declared = declared_dependencies(&pyproject_path)?;
+    let declared = declared_dependencies(&pyproject_path, workspace_root)?;
     if declared.is_empty() {
         return Ok(Vec::new());
     }
-    let pylock_path =
-        lockfile_dir_for(config.workspace_dir.as_deref(), project_dir).join("pylock.toml");
+    let pylock_path = lockfile_dir_for(workspace_root, project_dir).join("pylock.toml");
     if !pylock_path.is_file() {
         return Ok(Vec::new());
     }
-    let locked = locked_versions(&pylock_path)?;
+    let lock = read_lockfile(&pylock_path)?;
+    let lock_index = lock.index()?;
     let mut outdated = Vec::new();
     for dep in declared {
         let group = map_python_group(dep.group);
@@ -94,10 +99,13 @@ pub(crate) async fn collect_python_outdated(
         if !query.include_direct.contains(&group) || !query.matches_name(&name_str) {
             continue;
         }
+        let Some(current) = lock_index.agreed_index_version(&dep.requirement) else {
+            continue;
+        };
         if let Some(pkg) = resolve_outdated_python_dep(
             &dep,
             group,
-            &locked,
+            current,
             workspace_name.as_deref(),
             query,
             config,
@@ -122,15 +130,12 @@ pub(super) fn map_python_group(group: PythonDependencyGroup) -> DependencyGroup 
 async fn resolve_outdated_python_dep(
     dep: &DeclaredPythonDep,
     group: DependencyGroup,
-    locked: &BTreeMap<PackageName, Pep440Version>,
+    current: &Pep440Version,
     workspace_name: Option<&str>,
     query: &OutdatedQuery<'_>,
     config: &Config,
     http_client: &ThrottledClient,
 ) -> Result<Option<OutdatedPackage>> {
-    let Some(current) = locked.get(&dep.name) else {
-        return Ok(None);
-    };
     let wanted = resolve_target_version(config, http_client, &dep.requirement, true)
         .await?
         .unwrap_or_else(|| current.clone());
