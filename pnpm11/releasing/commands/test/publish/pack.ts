@@ -11,7 +11,7 @@ import * as tar from 'tar'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import type { PackResultJson } from '../../src/publish/pack.js'
-import { canonicalizePackDestination, resolvePackOutput, resolveRelativeTarget } from '../../src/publish/packOutput.js'
+import { canonicalizePackDestination, type PackDestinationCache, resolvePackOutput, resolveRelativeTarget } from '../../src/publish/packOutput.js'
 import { createPackDestinationLocker } from '../../src/publish/packRecursive.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -2185,7 +2185,7 @@ testOnPosix('pack: recursive --out with symlinked %s/../ destinations serializes
 
 test('canonicalizePackDestination caches shared lookups and rethrows non-missing filesystem errors', async () => {
   const dir = tempDir()
-  const cache = new Map<string, Promise<string>>()
+  const cache: PackDestinationCache = new Map()
   const realpathSpy = jest.spyOn(fs.promises, 'realpath')
   try {
     const [first, second] = await Promise.all([
@@ -2194,6 +2194,16 @@ test('canonicalizePackDestination caches shared lookups and rethrows non-missing
     ])
     expect(first).toBe(second)
     expect(realpathSpy).toHaveBeenCalledTimes(1)
+
+    // Non-native Error subclass (e.g. WebContainers) with ENOENT falls back to missing-path resolution.
+    const webContainerEnoent = Object.assign(Object.create(Error.prototype) as Error, {
+      code: 'ENOENT',
+      message: 'ENOENT',
+    })
+    realpathSpy.mockRejectedValueOnce(webContainerEnoent)
+    const missingLeaf = path.join(dir, 'missing-leaf')
+    const resolvedMissing = await canonicalizePackDestination(missingLeaf, cache)
+    expect(resolvedMissing).toBe(path.join(first, 'missing-leaf'))
 
     const eacces = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
     realpathSpy.mockRejectedValueOnce(eacces)

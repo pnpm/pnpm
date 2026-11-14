@@ -23,8 +23,8 @@ use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
     Host, PackError, PackOptions, PackOutputLocks, PackResultJson, PackedArchive,
-    WorkspacePackageManifest, archive_result_json, format_pack_output, pack_archives,
-    pack_output_path,
+    WorkspacePackageManifest, archive_result_json, canonicalize_pack_dir, format_pack_output,
+    pack_archives, pack_output_parts,
 };
 use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
 use pnpm_workspace_task_scheduler::{

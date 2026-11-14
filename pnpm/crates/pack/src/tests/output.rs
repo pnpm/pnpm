@@ -1,5 +1,5 @@
 use super::{Host, PackError, api, fixture, json};
-use crate::{PackOutputLocks, pack_output_path};
+use crate::pack_output_path;
 use pnpm_reporter::SilentReporter;
 use tempfile::tempdir;
 
@@ -111,6 +111,7 @@ fn pack_output_path_resolves_symlink_before_parent_dir() {
 #[cfg(unix)]
 #[tokio::test]
 async fn pack_output_locks_serialize_symlink_and_direct_paths() {
+    use crate::PackOutputLocks;
     use std::sync::{
         Arc,
         atomic::{AtomicBool, Ordering},

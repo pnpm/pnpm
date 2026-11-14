@@ -1,8 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 
 import { normalizePackageName } from '../tarball/safeTarballFilename.js'
 
@@ -84,77 +83,106 @@ function resolveTarballAndDestination (
   }
 }
 
+export type PackDestinationCache = Map<string, Promise<string | undefined>>
+
 export async function canonicalizePackDestination (
   destDir: string,
-  cache?: Map<string, Promise<string>>
+  cache?: PackDestinationCache
 ): Promise<string> {
-  let pending = cache?.get(destDir)
-  if (pending == null) {
-    pending = resolveCanonicalDestination(destDir)
-    cache?.set(destDir, pending)
-  }
-  try {
-    return await pending
-  } catch (err: unknown) {
-    cache?.delete(destDir)
-    throw err
-  }
+  const direct = await probeRealpath(destDir, cache)
+  if (direct != null) return direct
+  return resolveMissingDestination(resolveRelativeTarget(process.cwd(), destDir), cache)
 }
 
-async function resolveCanonicalDestination (destDir: string): Promise<string> {
-  try {
-    return await fs.promises.realpath(destDir)
-  } catch (err: unknown) {
-    if (!isMissingPathError(err)) throw err
-    return resolveMissingDestination(resolveRelativeTarget(process.cwd(), destDir))
-  }
-}
-
-async function resolveMissingDestination (anchoredDir: string): Promise<string> {
+async function resolveMissingDestination (
+  anchoredDir: string,
+  cache?: PackDestinationCache
+): Promise<string> {
   const { root } = path.parse(anchoredDir)
   const segments = splitPathSegments(anchoredDir.slice(root.length))
     .filter((segment) => segment !== '' && segment !== '.')
-  return walkDestinationSegments(segments, 0, { current: root || '.', missingTail: false })
+  return walkDestinationSegments({
+    cache,
+    index: 0,
+    segments,
+    state: { current: root || '.', missingTail: false },
+  })
 }
 
 function splitPathSegments (relativePath: string): string[] {
   return relativePath.split(process.platform === 'win32' ? /[/\\]+/ : /\/+/)
 }
 
-async function walkDestinationSegments (
-  segments: string[],
-  index: number,
+async function walkDestinationSegments (params: {
+  cache?: PackDestinationCache
+  index: number
+  segments: string[]
   state: { current: string, missingTail: boolean }
-): Promise<string> {
+}): Promise<string> {
+  const { cache, index, segments, state } = params
   if (index >= segments.length) return state.current
-  const nextState = await stepDestinationSegment(state.current, segments[index], state.missingTail)
-  return walkDestinationSegments(segments, index + 1, nextState)
+  const nextState = await stepDestinationSegment({
+    cache,
+    current: state.current,
+    missingTail: state.missingTail,
+    segment: segments[index],
+  })
+  return walkDestinationSegments({ cache, index: index + 1, segments, state: nextState })
 }
 
-async function stepDestinationSegment (
-  current: string,
-  segment: string,
+async function stepDestinationSegment (params: {
+  cache?: PackDestinationCache
+  current: string
   missingTail: boolean
-): Promise<{ current: string, missingTail: boolean }> {
+  segment: string
+}): Promise<{ current: string, missingTail: boolean }> {
+  const { cache, current, missingTail, segment } = params
   if (segment === '..') {
     const parent = path.dirname(current)
-    return missingTail ? tryRealpath(parent) : { current: parent, missingTail: false }
+    return missingTail ? tryRealpath(parent, cache) : { current: parent, missingTail: false }
   }
   const next = path.join(current, segment)
-  return missingTail ? { current: next, missingTail: true } : tryRealpath(next)
+  return missingTail ? { current: next, missingTail: true } : tryRealpath(next, cache)
 }
 
-async function tryRealpath (candidate: string): Promise<{ current: string, missingTail: boolean }> {
+async function tryRealpath (
+  candidate: string,
+  cache?: PackDestinationCache
+): Promise<{ current: string, missingTail: boolean }> {
+  const resolved = await probeRealpath(candidate, cache)
+  return resolved != null
+    ? { current: resolved, missingTail: false }
+    : { current: candidate, missingTail: true }
+}
+
+async function probeRealpath (
+  candidate: string,
+  cache?: PackDestinationCache
+): Promise<string | undefined> {
+  let pending = cache?.get(candidate)
+  if (pending == null) {
+    pending = readRealpathOrUndefined(candidate)
+    cache?.set(candidate, pending)
+  }
   try {
-    return { current: await fs.promises.realpath(candidate), missingTail: false }
+    return await pending
   } catch (err: unknown) {
-    if (!isMissingPathError(err)) throw err
-    return { current: candidate, missingTail: true }
+    cache?.delete(candidate)
+    throw err
+  }
+}
+
+async function readRealpathOrUndefined (candidate: string): Promise<string | undefined> {
+  try {
+    return await fs.promises.realpath(candidate)
+  } catch (err: unknown) {
+    if (isMissingPathError(err)) return undefined
+    throw err
   }
 }
 
 function isMissingPathError (err: unknown): boolean {
-  return util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
+  return isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
 }
 
 /**

@@ -1,8 +1,9 @@
 use super::{
     Arc, AutoExcludeRoot, Catalogs, Config, HashMap, Mutex, PackArgs, PackError, PackOutputLocks,
     PackResultJson, Path, PathBuf, PnpmfileHooks, Reporter, WorkspacePackageManifest,
-    configured_catalogs, discover_workspace_projects, filtered_projects_dependencies,
-    format_pack_output, graph_sequencer, pack_output_path, select_recursive_projects,
+    canonicalize_pack_dir, configured_catalogs, discover_workspace_projects,
+    filtered_projects_dependencies, format_pack_output, graph_sequencer, pack_output_parts,
+    select_recursive_projects,
 };
 
 /// The shared inputs of every project's pack in a recursive run, and the
@@ -74,30 +75,27 @@ fn serialize_shared_outputs(
     out: Option<&str>,
     pack_destination: Option<&str>,
 ) {
+    let planned = collect_planned_outputs(graph, dependency_order, base_dir, out, pack_destination);
+    let mut tarball_counts = HashMap::<&str, usize>::new();
+    for (_, _, tarball_name) in &planned {
+        *tarball_counts.entry(tarball_name.as_str()).or_default() += 1;
+    }
+    let mut canonical_dirs = HashMap::<PathBuf, PathBuf>::new();
     let mut previous_by_output = HashMap::<PathBuf, PathBuf>::new();
-    for root in dependency_order {
-        let project = graph[root].package.project;
-        let manifest = project.manifest.value();
-        let Some(name) = manifest
-            .get("name")
-            .and_then(serde_json::Value::as_str)
-            .filter(|name| !name.is_empty())
-        else {
+    for (root, dest_dir, tarball_name) in &planned {
+        if tarball_counts
+            .get(tarball_name.as_str())
+            .copied()
+            .unwrap_or(0)
+            < 2
+        {
             continue;
-        };
-        let Some(version) = manifest
-            .get("version")
-            .and_then(serde_json::Value::as_str)
-            .filter(|version| !version.is_empty())
-        else {
-            continue;
-        };
-        let published_name = crate::cli_args::changelog::published_name(manifest).unwrap_or(name);
-        let predecessor =
-            pack_output_path(base_dir, out, pack_destination, published_name, version)
-                .ok()
-                .and_then(|output| previous_by_output.insert(output, root.clone()));
-        if let Some(predecessor) = predecessor {
+        }
+        let canonical_dir = canonical_dirs
+            .entry(dest_dir.clone())
+            .or_insert_with(|| canonicalize_pack_dir(dest_dir));
+        let output = canonical_dir.join(tarball_name);
+        if let Some(predecessor) = previous_by_output.insert(output, root.clone()) {
             let dependencies = project_dependencies
                 .get_mut(root)
                 .expect("ordered project exists in dependency graph");
@@ -106,6 +104,34 @@ fn serialize_shared_outputs(
             }
         }
     }
+}
+
+fn collect_planned_outputs(
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    dependency_order: &[PathBuf],
+    base_dir: &Path,
+    out: Option<&str>,
+    pack_destination: Option<&str>,
+) -> Vec<(PathBuf, PathBuf, String)> {
+    dependency_order
+        .iter()
+        .filter_map(|root| {
+            let manifest = graph[root].package.project.manifest.value();
+            let name = manifest
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                .filter(|name| !name.is_empty())?;
+            let version = manifest
+                .get("version")
+                .and_then(serde_json::Value::as_str)
+                .filter(|version| !version.is_empty())?;
+            let published_name =
+                crate::cli_args::changelog::published_name(manifest).unwrap_or(name);
+            let (dest_dir, tarball_name) =
+                pack_output_parts(base_dir, out, pack_destination, published_name, version).ok()?;
+            Some((root.clone(), dest_dir, tarball_name))
+        })
+        .collect()
 }
 
 /// Whether a project's tarball path can change while the run packs, so

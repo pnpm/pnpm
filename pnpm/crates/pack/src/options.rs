@@ -84,15 +84,36 @@ pub struct PackOutputOptions {
 #[derive(Default)]
 pub struct PackOutputLocks {
     by_path: tokio::sync::Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
+    canonical_dirs: std::sync::Mutex<HashMap<PathBuf, PathBuf>>,
 }
 
 impl PackOutputLocks {
     pub(super) async fn lock(&self, path: &Path) -> tokio::sync::OwnedMutexGuard<()> {
-        let key = canonicalize_output_key(path);
+        let key = self.resolve_lock_key(path);
         let lock = {
             let mut by_path = self.by_path.lock().await;
             Arc::clone(by_path.entry(key).or_default())
         };
         lock.lock_owned().await
+    }
+
+    fn resolve_lock_key(&self, path: &Path) -> PathBuf {
+        let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) else {
+            return canonicalize_output_key(path);
+        };
+        let cached = self.canonical_dirs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(parent)
+            .cloned();
+        if let Some(dir) = cached {
+            return dir.join(file_name);
+        }
+        let resolved = canonicalize_output_key(parent);
+        self.canonical_dirs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(parent.to_path_buf(), resolved.clone());
+        resolved.join(file_name)
     }
 }

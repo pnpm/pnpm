@@ -147,6 +147,22 @@ fn resolve_output_values(
     Ok((tarball_name, pack_destination))
 }
 
+/// Compute the uncanonicalized destination directory and tarball filename for
+/// a project without probing the filesystem.
+pub fn pack_output_parts(
+    base_dir: &Path,
+    out: Option<&str>,
+    pack_destination: Option<&str>,
+    published_name: &str,
+    published_version: &str,
+) -> Result<(PathBuf, String), PackError> {
+    let normalized_name = normalize_tarball_name(published_name);
+    let version = strip_build_metadata(published_version);
+    let (tarball_name, destination) =
+        resolve_output_values(out, pack_destination, &normalized_name, version)?;
+    Ok((resolve_dest_dir_from_base(base_dir, destination.as_deref()), tarball_name))
+}
+
 /// Resolve the path a pack will write from the manifest identity and output
 /// options. Recursive callers use this before dispatch to keep projects that
 /// share a destination from packing concurrently.
@@ -157,12 +173,9 @@ pub fn pack_output_path(
     published_name: &str,
     published_version: &str,
 ) -> Result<PathBuf, PackError> {
-    let normalized_name = normalize_tarball_name(published_name);
-    let version = strip_build_metadata(published_version);
-    let (tarball_name, destination) =
-        resolve_output_values(out, pack_destination, &normalized_name, version)?;
-    let raw = resolve_dest_dir_from_base(base_dir, destination.as_deref()).join(tarball_name);
-    Ok(canonicalize_output_key(&raw))
+    let (dest_dir, tarball_name) =
+        pack_output_parts(base_dir, out, pack_destination, published_name, published_version)?;
+    Ok(canonicalize_output_key(&dest_dir).join(tarball_name))
 }
 
 /// Resolve the directory the tarball is written into.

@@ -20,7 +20,7 @@ pub use contents::sort_paths_en_locale;
 pub use options::{
     PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
 };
-pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
+pub use output::{format_pack_output, pack_output_parts, pack_output_path, to_pack_result_json};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
 pub use variants::{
     PackedArchive, PackedArchives, archive_result_json, declared_manifests, pack_archives,
@@ -63,6 +63,13 @@ use variants::VariantDeclaration;
 
 /// The published manifest basename used in identity validation errors.
 const MANIFEST_FILE_NAME: &str = "package.json";
+
+/// Resolve existing symlink segments in a pack destination directory before
+/// applying `..`, falling back to lexical normalization on error.
+#[must_use]
+pub fn canonicalize_pack_dir(dir: &Path) -> PathBuf {
+    canonicalize_output_key(dir)
+}
 
 fn canonicalize_output_key(path: &Path) -> PathBuf {
     resolve_path_with_symlinks(path).unwrap_or_else(|_| lexical_normalize(path))
