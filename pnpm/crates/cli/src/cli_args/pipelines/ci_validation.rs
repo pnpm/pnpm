@@ -4,6 +4,7 @@ use super::{
     dedicated_runs::{discover_dedicated_workspace_projects, init_dedicated_project_state},
     install::{NodeInstallJob, init_shared_state},
 };
+use crate::cli_args::clean::CiCleanPlan;
 use futures_util::stream::{StreamExt as _, TryStreamExt as _};
 use pnpm_package_manager::PreparedFrozenInstall;
 use std::{collections::HashMap, sync::Mutex};
@@ -36,14 +37,17 @@ impl NodeInstallJob {
         if !self.cleans_before_install() {
             return Ok(PreparedCiValidation::default());
         }
-        let prepared = self.validate_plan::<Reporter>(plan, lockfile, http_client).await?;
-        crate::cli_args::clean::run_for_ci(self.cfg, &self.prefix, plan)?;
+        let clean_plan = crate::cli_args::clean::plan_for_ci(self.cfg, &self.prefix, plan)?;
+        let prepared =
+            self.validate_plan::<Reporter>(plan, &clean_plan, lockfile, http_client).await?;
+        clean_plan.execute()?;
         Ok(prepared)
     }
 
     async fn validate_plan<Reporter: self::Reporter + 'static>(
         &self,
         plan: &InstallFamilyPlan,
+        clean_plan: &CiCleanPlan,
         lockfile: &mut Option<pnpm_lockfile::LazyLockfile>,
         http_client: &Arc<ThrottledClient>,
     ) -> miette::Result<PreparedCiValidation> {
@@ -53,6 +57,7 @@ impl NodeInstallJob {
                     &self.args,
                     self.cfg,
                     projects,
+                    clean_plan,
                     self.require_lockfile,
                     http_client,
                 )
@@ -65,6 +70,7 @@ impl NodeInstallJob {
                 }
                 let shared = self.validate_with_shared_state::<Reporter>(
                     Some(selection),
+                    clean_plan,
                     lockfile,
                     http_client,
                 )
@@ -72,13 +78,14 @@ impl NodeInstallJob {
                 Ok(PreparedCiValidation { shared, ..Default::default() })
             }
             InstallFamilyPlan::Single => {
-                self.validate_single_plan::<Reporter>(lockfile, http_client).await
+                self.validate_single_plan::<Reporter>(clean_plan, lockfile, http_client).await
             }
         }
     }
 
     async fn validate_single_plan<Reporter: self::Reporter + 'static>(
         &self,
+        clean_plan: &CiCleanPlan,
         lockfile: &mut Option<pnpm_lockfile::LazyLockfile>,
         http_client: &Arc<ThrottledClient>,
     ) -> miette::Result<PreparedCiValidation> {
@@ -90,6 +97,7 @@ impl NodeInstallJob {
                 &self.args,
                 self.cfg,
                 &projects,
+                clean_plan,
                 self.require_lockfile,
                 http_client,
             )
@@ -101,18 +109,18 @@ impl NodeInstallJob {
             });
         }
         let shared =
-            self.validate_with_shared_state::<Reporter>(None, lockfile, http_client).await?;
+            self.validate_with_shared_state::<Reporter>(None, clean_plan, lockfile, http_client)
+                .await?;
         Ok(PreparedCiValidation { shared, ..Default::default() })
     }
 
     async fn validate_with_shared_state<Reporter: self::Reporter + 'static>(
         &self,
         selection: Option<&InstallFamilySelection>,
+        clean_plan: &CiCleanPlan,
         lockfile: &mut Option<pnpm_lockfile::LazyLockfile>,
         http_client: &Arc<ThrottledClient>,
     ) -> miette::Result<Option<PreparedFrozenInstall>> {
-        let virtual_store_clean =
-            crate::cli_args::clean::ci_virtual_store_clean(self.cfg, &self.prefix);
         let state = init_shared_state(
             self.manifest_path.clone(),
             self.cfg,
@@ -120,6 +128,7 @@ impl NodeInstallJob {
             lockfile.take(),
             Arc::clone(http_client),
         )?;
+        let virtual_store_clean = clean_plan.virtual_store_clean(&state.config.install_state_dir);
         let prepared =
             Box::pin(self.args.prepare_for_ci::<Reporter>(&state, selection, virtual_store_clean))
                 .await;
@@ -132,6 +141,7 @@ async fn validate_dedicated_projects<Reporter: self::Reporter + 'static>(
     args: &InstallArgs,
     cfg: &Config,
     projects: &DedicatedProjects,
+    clean_plan: &CiCleanPlan,
     require_lockfile: bool,
     http_client: &Arc<ThrottledClient>,
 ) -> miette::Result<Arc<Mutex<HashMap<PathBuf, PreparedDedicatedProject>>>> {
@@ -153,7 +163,7 @@ async fn validate_dedicated_projects<Reporter: self::Reporter + 'static>(
                 )?
                 .into_dedicated_project(caches, None, Some(projects.workspace.clone()));
                 let virtual_store_clean =
-                    crate::cli_args::clean::ci_virtual_store_clean(state.config, project_dir);
+                    clean_plan.virtual_store_clean(&state.config.install_state_dir);
                 if let Some(install) =
                     Box::pin(args.prepare_for_ci::<Reporter>(&state, None, virtual_store_clean))
                         .await?

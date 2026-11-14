@@ -35,13 +35,23 @@ export async function handler (
     opts.lockfileOnly ||
     (opts.cliOptions as { 'resolution-only'?: boolean } | undefined)?.['resolution-only']
   )
+  let cleanPlanPromise: Promise<clean.CiCleanPlan> | undefined
+  const getCleanPlan = async (): Promise<clean.CiCleanPlan> => {
+    cleanPlanPromise ??= clean.prepareCiCleanPlan(opts)
+    return cleanPlanPromise
+  }
   const preparedCi = skipsClean
     ? undefined
-    : await validateCiFrozenInstall({ ...opts, frozenLockfile: true } as any) // eslint-disable-line
+    : await validateCiFrozenInstall({
+      ...opts,
+      _cleansModulesDir: async (anchorDir: string, modulesDir?: string) =>
+        (await getCleanPlan()).cleansModulesDir(anchorDir, modulesDir),
+      frozenLockfile: true,
+    } as any) // eslint-disable-line
   try {
     if (!skipsClean) {
       // `--lockfile` here is the install setting, not `pnpm clean --lockfile`.
-      await clean.cleanProjects({ ...opts, removeLockfile: false })
+      await (await getCleanPlan()).execute()
     }
     return await install.handler(
       { ...opts, _preparedCi: preparedCi, frozenLockfile: true, optimisticRepeatInstall: false } as any, // eslint-disable-line

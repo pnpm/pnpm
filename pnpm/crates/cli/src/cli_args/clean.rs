@@ -1,5 +1,6 @@
 mod discovery;
 mod fs_ops;
+mod planned;
 mod removal;
 
 use super::{
@@ -7,10 +8,11 @@ use super::{
     recursive::selectors_narrow_the_run,
 };
 use discovery::{ci_clean_targets, select_clean_targets};
+use planned::PlannedClean;
 use pnpm_config::Config;
 use pnpm_package_manager::FrozenVirtualStoreClean;
 use removal::CleanRun;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// `pnpm clean` / `pnpm purge`: safely remove the `node_modules`
 /// directories of the current project (or the selected workspace projects)
@@ -64,16 +66,43 @@ pub(super) fn run(
     .clean_dirs(&targets.dirs)
 }
 
-/// Clean the `node_modules` directories `pnpm ci` is about to reinstall,
-/// after frozen-lockfile validation has succeeded.
-pub(crate) fn run_for_ci(
+pub(crate) struct CiCleanPlan {
+    real_root_dir: Option<PathBuf>,
+    planned: Option<PlannedClean>,
+}
+
+impl CiCleanPlan {
+    /// Whether [`Self::execute`] removes `<install_state_dir>/lock.yaml`.
+    pub(crate) fn virtual_store_clean(&self, install_state_dir: &Path) -> FrozenVirtualStoreClean {
+        let (Some(real_root_dir), Some(planned)) = (&self.real_root_dir, &self.planned) else {
+            return FrozenVirtualStoreClean::PreservesVirtualStore;
+        };
+        if planned.removes_install_state(real_root_dir, install_state_dir) {
+            FrozenVirtualStoreClean::RemovesVirtualStore
+        } else {
+            FrozenVirtualStoreClean::PreservesVirtualStore
+        }
+    }
+
+    pub(crate) fn execute(self) -> miette::Result<()> {
+        let (Some(real_root_dir), Some(planned)) = (self.real_root_dir, self.planned) else {
+            return Ok(());
+        };
+        let cwd = std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_default();
+        planned.execute(&cwd, &real_root_dir)
+    }
+}
+
+/// Plan the cleanup `pnpm ci` runs once frozen-lockfile validation succeeds, so
+/// preflight hook simulation and cleanup inspect the exact same target set.
+pub(crate) fn plan_for_ci(
     config: &Config,
     prefix: &Path,
     plan: &InstallFamilyPlan,
-) -> miette::Result<()> {
+) -> miette::Result<CiCleanPlan> {
     let root_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
     let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
-        return Ok(());
+        return Ok(CiCleanPlan { real_root_dir: None, planned: None });
     };
     let scope = if is_narrowed_workspace_clean(config) {
         CleanScope::Narrowed
@@ -81,7 +110,7 @@ pub(crate) fn run_for_ci(
         CleanScope::WholeWorkspace
     };
     let targets = ci_clean_targets(config, prefix, root_dir, &real_root_dir, plan, scope)?;
-    CleanRun {
+    let planned = CleanRun {
         config,
         root_dir,
         real_root_dir: &real_root_dir,
@@ -90,59 +119,8 @@ pub(crate) fn run_for_ci(
         raw_lockfile_dir: raw_configured_lockfile_dir(config),
         protected_member_dirs: &targets.protected_member_dirs,
     }
-    .clean_dirs(&targets.dirs)
-}
-
-/// Whether [`run_for_ci`] removes or preserves `<install_state_dir>/lock.yaml`
-/// for the install anchored at `prefix`.
-pub(crate) fn ci_virtual_store_clean(config: &Config, prefix: &Path) -> FrozenVirtualStoreClean {
-    let root_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
-    let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
-        return FrozenVirtualStoreClean::PreservesVirtualStore;
-    };
-    let scope = if is_narrowed_workspace_clean(config) {
-        CleanScope::Narrowed
-    } else {
-        CleanScope::WholeWorkspace
-    };
-    if matches!(scope, CleanScope::Narrowed)
-        && config.workspace_dir.is_some()
-        && config.shares_one_lockfile()
-    {
-        return FrozenVirtualStoreClean::PreservesVirtualStore;
-    }
-    let Some(real_state_dir) = fs_ops::resolve_inside(&real_root_dir, &config.install_state_dir)
-    else {
-        return FrozenVirtualStoreClean::PreservesVirtualStore;
-    };
-    if !config.shares_one_lockfile()
-        && config.workspace_dir.is_some()
-        && !dedicated_state_removed_by_clean(config, prefix, &real_root_dir, &real_state_dir, scope)
-    {
-        return FrozenVirtualStoreClean::PreservesVirtualStore;
-    }
-    FrozenVirtualStoreClean::RemovesVirtualStore
-}
-
-fn dedicated_state_removed_by_clean(
-    config: &Config,
-    project_dir: &Path,
-    real_root_dir: &Path,
-    real_state_dir: &Path,
-    scope: CleanScope,
-) -> bool {
-    let root_dir = config.workspace_dir.as_deref().unwrap_or(project_dir);
-    let in_project = dunce::canonicalize(project_dir)
-        .ok()
-        .and_then(|real_project| fs_ops::resolve_inside(&real_project, &config.install_state_dir))
-        .is_some();
-    let in_whole_workspace_vs = matches!(scope, CleanScope::WholeWorkspace)
-        && fs_ops::resolve_inside(
-            real_root_dir,
-            &removal::configured_virtual_store_dir(root_dir, config),
-        )
-        .is_some_and(|vs_dir| pnpm_fs::is_subdir(&vs_dir, real_state_dir));
-    in_project || in_whole_workspace_vs
+    .plan(&targets.dirs);
+    Ok(CiCleanPlan { real_root_dir: Some(real_root_dir), planned: Some(planned) })
 }
 
 pub(super) fn is_narrowed_workspace_clean(config: &Config) -> bool {

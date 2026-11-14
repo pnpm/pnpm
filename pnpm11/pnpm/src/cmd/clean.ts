@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { docsUrl } from '@pnpm/cli.utils'
 import { anchorRawLockfileDir, types as allTypes } from '@pnpm/config.reader'
 import type { ProjectsGraph } from '@pnpm/types'
@@ -116,15 +118,50 @@ interface CleanRunScope {
   targets: CleanTarget[]
 }
 
+export interface CiCleanPlan {
+  cleansModulesDir: (anchorDir: string, modulesDir?: string) => Promise<boolean>
+  execute: () => Promise<void>
+}
+
 export async function cleanProjects (opts: CleanOptions & { removeLockfile: boolean }): Promise<void> {
   const scope = await buildCleanRunScope(opts)
   if (scope == null) return
   const modulesTargets = await collectModulesTargets(opts, scope)
+  await executePlannedClean(opts, { modulesTargets, removeLockfile: opts.removeLockfile, scope })
+}
+
+export async function prepareCiCleanPlan (opts: CleanOptions): Promise<CiCleanPlan> {
+  const scope = await buildCleanRunScope(opts)
+  if (scope == null) {
+    return {
+      cleansModulesDir: async () => false,
+      execute: async () => {},
+    }
+  }
+  const modulesTargets = await collectModulesTargets(opts, scope)
+  const allModeDirs = new Set(modulesTargets.filter(({ mode }) => mode === 'all').map(({ dir }) => dir))
+  return {
+    cleansModulesDir: async (anchorDir: string, modulesDir = 'node_modules') => {
+      const resolved = await resolveInside(scope.realRootDir, path.resolve(anchorDir, modulesDir))
+      return resolved != null && allModeDirs.has(resolved)
+    },
+    execute: async () => executePlannedClean(opts, { modulesTargets, removeLockfile: false, scope }),
+  }
+}
+
+async function executePlannedClean (
+  opts: CleanOptions,
+  { modulesTargets, removeLockfile, scope }: {
+    modulesTargets: Array<{ dir: string, mode: ModulesCleanMode }>
+    removeLockfile: boolean
+    scope: CleanRunScope
+  }
+): Promise<void> {
   await Promise.all(modulesTargets.map(async ({ dir, mode }) => cleanModulesDir(scope.cwd, dir, mode)))
   if (scope.sharedModulesDir != null) {
     await invalidateWorkspaceState(scope.realRootDir, scope.sharedModulesDir)
   }
-  if (opts.removeLockfile) {
+  if (removeLockfile) {
     const lockfileTargets = await collectLockfileTargets(scope)
     await Promise.all(lockfileTargets.map(async (lockfilePath) => removeLockfilePath(scope.cwd, lockfilePath)))
   }

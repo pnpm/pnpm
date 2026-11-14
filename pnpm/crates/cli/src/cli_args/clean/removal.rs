@@ -4,6 +4,7 @@ use super::{
         inspect_existing_path, print_removing, remove_path, resolve_configured_lockfile_dir,
         resolve_inside, resolve_project_modules_dir,
     },
+    planned::{ModulesCleanMode, PlannedClean},
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
@@ -19,7 +20,7 @@ use std::{
 /// The pnpm hidden entries inside `node_modules` that `clean` removes
 /// alongside the regular package directories. Any other dotfile (e.g.
 /// `.cache`) is left in place.
-const PNPM_HIDDEN_ENTRIES: &[&str] =
+pub(super) const PNPM_HIDDEN_ENTRIES: &[&str] =
     &[".bin", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
 
 /// Hidden entries removed from the shared workspace `node_modules` when a
@@ -28,12 +29,6 @@ const PNPM_HIDDEN_ENTRIES: &[&str] =
 /// `.pnpm-workspace-state-v1.json` is removed so subsequent installs do not
 /// short-circuit over the cleaned project.
 const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES: &[&str] = &[".bin", ".pnpm-workspace-state-v1.json"];
-
-#[derive(Clone, Copy)]
-enum ModulesCleanMode {
-    AllEntries,
-    PreserveSharedVirtualStore,
-}
 
 pub(super) struct CleanRun<'a> {
     pub(super) config: &'a Config,
@@ -46,6 +41,26 @@ pub(super) struct CleanRun<'a> {
 }
 
 impl CleanRun<'_> {
+    pub(super) fn plan(&self, dirs: &[PathBuf]) -> PlannedClean {
+        let modules_leaf = configured_modules_leaf(self.config);
+        let resolved_lockfile_dir = self.raw_lockfile_dir.and_then(|lockfile_dir| {
+            resolve_configured_lockfile_dir(self.real_root_dir, lockfile_dir)
+        });
+        let shared_modules_dir =
+            self.shared_workspace_modules_dir(&modules_leaf, resolved_lockfile_dir.as_deref());
+        let modules_targets = self.collect_modules_targets(
+            dirs,
+            &modules_leaf,
+            resolved_lockfile_dir.as_deref(),
+            shared_modules_dir.as_deref(),
+        );
+        let external_virtual_store_dir = match self.scope {
+            CleanScope::WholeWorkspace => self.external_virtual_store_target(&modules_leaf),
+            CleanScope::Narrowed => None,
+        };
+        PlannedClean { modules_targets, shared_modules_dir, external_virtual_store_dir }
+    }
+
     pub(super) fn clean_dirs(&self, dirs: &[PathBuf]) -> miette::Result<()> {
         // The `Removing <path>` lines render each target relative to the cwd.
         // It is canonicalized once here so it shares the symlink-resolved
@@ -53,30 +68,33 @@ impl CleanRun<'_> {
         // Windows the raw `current_dir()` can differ (casing, 8.3 short names,
         // junctions) and defeat the relative-path computation.
         let cwd = std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_default();
-        let modules_leaf = configured_modules_leaf(self.config);
-        let cleans_root = self.cleans_root(dirs);
-        let resolved_lockfile_dir = self.raw_lockfile_dir.and_then(|lockfile_dir| {
-            resolve_configured_lockfile_dir(self.real_root_dir, lockfile_dir)
-        });
-        self.clean_all_modules(&cwd, dirs, &modules_leaf, resolved_lockfile_dir.as_deref())?;
-        match self.lockfile_removal {
-            LockfileRemoval::Remove => {
-                remove_lockfiles(
-                    &cwd,
-                    self.real_root_dir,
-                    self.root_dir,
-                    dirs,
-                    cleans_root,
-                    resolved_lockfile_dir.as_deref(),
-                )?;
-            }
-            LockfileRemoval::Keep => {}
+        let planned = self.plan(dirs);
+        for (modules_dir, mode) in &planned.modules_targets {
+            clean_modules_dir(&cwd, modules_dir, *mode)?;
         }
-        match self.scope {
-            CleanScope::WholeWorkspace => {
-                self.remove_external_virtual_store(&cwd, &modules_leaf)?;
-            }
-            CleanScope::Narrowed => {}
+        if let Some(shared_modules) = planned.shared_modules_dir.as_deref() {
+            invalidate_workspace_state(self.real_root_dir, shared_modules)?;
+        }
+        if matches!(self.lockfile_removal, LockfileRemoval::Remove) {
+            let resolved_lockfile_dir = self.raw_lockfile_dir.and_then(|lockfile_dir| {
+                resolve_configured_lockfile_dir(self.real_root_dir, lockfile_dir)
+            });
+            remove_lockfiles(
+                &cwd,
+                self.real_root_dir,
+                self.root_dir,
+                dirs,
+                self.cleans_root(dirs),
+                resolved_lockfile_dir.as_deref(),
+            )?;
+        }
+        if let Some(virtual_store_in_project) = planned
+            .external_virtual_store_dir
+            .as_deref()
+            && inspect_existing_path(virtual_store_in_project)?.is_some()
+        {
+            print_removing(&cwd, virtual_store_in_project);
+            remove_path(virtual_store_in_project)?;
         }
         Ok(())
     }
@@ -127,88 +145,62 @@ impl CleanRun<'_> {
             && !self.protected_member_dirs.iter().any(|member_dir| is_subdir(candidate, member_dir))
     }
 
-    fn clean_all_modules(
+    fn collect_modules_targets(
         &self,
-        cwd: &Path,
         dirs: &[PathBuf],
         modules_leaf: &Path,
         resolved_lockfile_dir: Option<&Path>,
-    ) -> miette::Result<()> {
-        let shared_modules_dir =
-            self.shared_workspace_modules_dir(modules_leaf, resolved_lockfile_dir);
+        shared_modules_dir: Option<&Path>,
+    ) -> Vec<(PathBuf, ModulesCleanMode)> {
         let mut cleaned_modules_dirs = HashSet::new();
+        let mut targets = Vec::new();
         for dir in dirs {
             let project_leaf = modules_leaf_for_project(self.config, dir, modules_leaf);
             if let Some(modules_in_project) =
                 resolve_project_modules_dir(self.real_root_dir, dir, &project_leaf)
                 && self.is_cleanable_modules_dir(&modules_in_project, &cleaned_modules_dirs)
             {
-                let mode = if shared_modules_dir.as_deref() == Some(modules_in_project.as_path()) {
+                let mode = if shared_modules_dir == Some(modules_in_project.as_path()) {
                     ModulesCleanMode::PreserveSharedVirtualStore
                 } else {
                     ModulesCleanMode::AllEntries
                 };
                 cleaned_modules_dirs.insert(modules_in_project.clone());
-                clean_modules_dir(cwd, &modules_in_project, mode)?;
+                targets.push((modules_in_project, mode));
             }
         }
-        if let Some(shared_modules) = shared_modules_dir.as_deref() {
-            invalidate_workspace_state(self.real_root_dir, shared_modules)?;
-        }
-        self.clean_lockfile_dir_modules(
-            cwd,
-            modules_leaf,
-            resolved_lockfile_dir,
-            &cleaned_modules_dirs,
-        )
-    }
-
-    fn clean_lockfile_dir_modules(
-        &self,
-        cwd: &Path,
-        modules_leaf: &Path,
-        resolved_lockfile_dir: Option<&Path>,
-        cleaned_modules_dirs: &HashSet<PathBuf>,
-    ) -> miette::Result<()> {
-        match self.scope {
-            CleanScope::Narrowed => return Ok(()),
-            CleanScope::WholeWorkspace => {}
-        }
-        if let Some(lockfile_dir) = resolved_lockfile_dir
+        if matches!(self.scope, CleanScope::WholeWorkspace)
+            && let Some(lockfile_dir) = resolved_lockfile_dir
             && let Some(lockfile_modules_dir) =
                 resolve_project_modules_dir(self.real_root_dir, lockfile_dir, modules_leaf)
-            && self.is_cleanable_modules_dir(&lockfile_modules_dir, cleaned_modules_dirs)
+            && self.is_cleanable_modules_dir(&lockfile_modules_dir, &cleaned_modules_dirs)
         {
-            clean_modules_dir(cwd, &lockfile_modules_dir, ModulesCleanMode::AllEntries)?;
+            targets.push((lockfile_modules_dir, ModulesCleanMode::AllEntries));
         }
-        Ok(())
+        targets
     }
 
-    fn remove_external_virtual_store(&self, cwd: &Path, modules_leaf: &Path) -> miette::Result<()> {
+    fn external_virtual_store_target(&self, modules_leaf: &Path) -> Option<PathBuf> {
         let root_dir = self.config.workspace_dir.as_deref().unwrap_or(self.real_root_dir);
         let resolved_virtual_store_dir = configured_virtual_store_dir(root_dir, self.config);
-        let Some(virtual_store_in_project) =
-            resolve_inside(self.real_root_dir, &resolved_virtual_store_dir)
-        else {
-            return Ok(());
-        };
+        let virtual_store_in_project =
+            resolve_inside(self.real_root_dir, &resolved_virtual_store_dir)?;
         if resolve_inside(self.real_root_dir, &root_dir.join(modules_leaf))
             .is_some_and(|root_modules_dir| is_subdir(&root_modules_dir, &virtual_store_in_project))
             || self.protected_member_dirs
                 .iter()
                 .any(|member_dir| is_subdir(&virtual_store_in_project, member_dir))
         {
-            return Ok(());
+            return None;
         }
-        if inspect_existing_path(&virtual_store_in_project)?.is_some() {
-            print_removing(cwd, &virtual_store_in_project);
-            remove_path(&virtual_store_in_project)?;
-        }
-        Ok(())
+        Some(virtual_store_in_project)
     }
 }
 
-fn invalidate_workspace_state(real_root_dir: &Path, shared_modules: &Path) -> miette::Result<()> {
+pub(super) fn invalidate_workspace_state(
+    real_root_dir: &Path,
+    shared_modules: &Path,
+) -> miette::Result<()> {
     let Some(state_path) =
         resolve_inside(real_root_dir, &shared_modules.join(".pnpm-workspace-state-v1.json"))
     else {
@@ -314,7 +306,11 @@ pub(super) fn configured_virtual_store_dir(root_dir: &Path, config: &Config) -> 
     }
 }
 
-fn clean_modules_dir(cwd: &Path, modules_dir: &Path, mode: ModulesCleanMode) -> miette::Result<()> {
+pub(super) fn clean_modules_dir(
+    cwd: &Path,
+    modules_dir: &Path,
+    mode: ModulesCleanMode,
+) -> miette::Result<()> {
     let Some(metadata) = inspect_existing_path(modules_dir)? else {
         return Ok(());
     };
@@ -369,6 +365,6 @@ fn removable_modules_entries(
     Ok(removable)
 }
 
-fn is_pnpm_entry(name: &str, hidden_entries: &[&str]) -> bool {
+pub(super) fn is_pnpm_entry(name: &str, hidden_entries: &[&str]) -> bool {
     !name.starts_with('.') || hidden_entries.contains(&name)
 }

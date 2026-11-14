@@ -565,3 +565,95 @@ test('pnpm ci in dedicated workspace with external modulesDir preserves currentL
     .map((line) => JSON.parse(line) as { exists: boolean, hasPackages: boolean })
   expect(entries).toStrictEqual([{ exists: true, hasPackages: true }])
 })
+
+test('pnpm ci in dedicated workspace with workspace-internal shared modulesDir cleans on unfiltered ci and preserves under --filter', () => {
+  tempDir()
+  const workspace = process.cwd()
+  const sharedModules = path.join(workspace, 'shared_nm')
+  fs.mkdirSync(path.join(workspace, 'packages/pkg-a'), { recursive: true })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+    modulesDir: sharedModules,
+  })
+  fs.writeFileSync('.pnpmfile.cjs', [
+    'const fs = require("fs")',
+    'const path = require("path")',
+    'module.exports = {',
+    '  hooks: {',
+    '    preResolution (ctx) {',
+    '      const hasPackages = Boolean(ctx.currentLockfile?.packages && Object.keys(ctx.currentLockfile.packages).length > 0)',
+    '      fs.appendFileSync(path.join(__dirname, "pre-res.jsonl"), JSON.stringify({ exists: ctx.existsCurrentLockfile, hasPackages }) + "\\n")',
+    '    },',
+    '  },',
+    '}',
+  ].join('\n'))
+  fs.writeFileSync('packages/pkg-a/package.json', JSON.stringify({
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(fs.existsSync(path.join(sharedModules, '.pnpm/lock.yaml'))).toBe(true)
+
+  fs.writeFileSync(path.join(sharedModules, 'stale-marker'), 'remove-me')
+  fs.unlinkSync('pre-res.jsonl')
+  expect(execPnpmSync(['ci']).status).toBe(0)
+  expect(fs.existsSync(path.join(sharedModules, 'stale-marker'))).toBe(false)
+  const unfilteredEntries = fs.readFileSync('pre-res.jsonl', 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as { exists: boolean, hasPackages: boolean })
+  expect(unfilteredEntries).toStrictEqual([{ exists: false, hasPackages: false }])
+
+  fs.writeFileSync(path.join(sharedModules, 'stale-marker'), 'keep-me')
+  fs.unlinkSync('pre-res.jsonl')
+  expect(execPnpmSync(['--filter', 'pkg-a', 'ci']).status).toBe(0)
+  expect(fs.existsSync(path.join(sharedModules, 'stale-marker'))).toBe(true)
+  const filteredEntries = fs.readFileSync('pre-res.jsonl', 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as { exists: boolean, hasPackages: boolean })
+  expect(filteredEntries).toStrictEqual([{ exists: true, hasPackages: true }])
+})
+
+test('pnpm ci in rootless workspace with modulesDir overlapping member packages preserves currentLockfile', () => {
+  tempDir()
+  fs.mkdirSync('packages/pkg-a', { recursive: true })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    modulesDir: 'packages',
+  })
+  fs.writeFileSync('.pnpmfile.cjs', [
+    'const fs = require("fs")',
+    'const path = require("path")',
+    'module.exports = {',
+    '  hooks: {',
+    '    preResolution (ctx) {',
+    '      const hasPackages = Boolean(ctx.currentLockfile?.packages && Object.keys(ctx.currentLockfile.packages).length > 0)',
+    '      fs.appendFileSync(path.join(__dirname, "pre-res.jsonl"), JSON.stringify({ exists: ctx.existsCurrentLockfile, hasPackages }) + "\\n")',
+    '    },',
+    '  },',
+    '}',
+  ].join('\n'))
+  fs.writeFileSync('packages/pkg-a/package.json', JSON.stringify({
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(fs.existsSync('packages/.pnpm/lock.yaml')).toBe(true)
+  fs.unlinkSync('pre-res.jsonl')
+
+  const ciRes = execPnpmSync(['ci'])
+  expect(ciRes.status).toBe(0)
+  expect(fs.existsSync('packages/pkg-a/package.json')).toBe(true)
+  expect(fs.existsSync('packages/.pnpm/lock.yaml')).toBe(true)
+  const entries = fs.readFileSync('pre-res.jsonl', 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as { exists: boolean, hasPackages: boolean })
+  expect(entries).toStrictEqual([{ exists: true, hasPackages: true }])
+})

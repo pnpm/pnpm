@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { binDirOf, getWorkspaceConcurrency } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import {
   type InstallOptions,
   type PreparedFrozenMutation,
@@ -14,7 +14,7 @@ import { createStoreController } from '@pnpm/store.connection-manager'
 import type { IncludedDependencies, Project, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
-import { strict as isStrictSubdir } from 'is-subdir'
+import { isSubdir, strict as isStrictSubdir } from 'is-subdir'
 
 import type { InstallCommandOptions } from './install.js'
 import {
@@ -32,6 +32,9 @@ import { loadLockedRegistriesByScope } from './workspaceStateUpdate.js'
 
 type StoreControllerAndDir = Awaited<ReturnType<typeof createStoreController>>
 
+export type CleansModulesDirFn = (anchorDir: string, modulesDir?: string) => Promise<boolean>
+type CiInstallDepsOptions = InstallDepsOptions & { _cleansModulesDir?: CleansModulesDirFn }
+
 export interface PreparedCiInstall {
   allProjects: Project[]
   close: () => Promise<void>
@@ -45,7 +48,9 @@ export interface PreparedCiInstall {
  * any `node_modules` directory is removed, returning reusable store and hook
  * state for the post-clean install.
  */
-export async function validateCiFrozenInstall (opts: InstallCommandOptions): Promise<PreparedCiInstall | undefined> {
+export async function validateCiFrozenInstall (
+  opts: InstallCommandOptions & { _cleansModulesDir?: CleansModulesDirFn }
+): Promise<PreparedCiInstall | undefined> {
   if (opts.global) {
     throw new PnpmError('GLOBAL_INSTALL_NOT_SUPPORTED',
       '"pnpm install -g" is not supported. Use "pnpm add -g <pkg>" to install global packages.')
@@ -56,7 +61,7 @@ export async function validateCiFrozenInstall (opts: InstallCommandOptions): Pro
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  const installDepsOptions: InstallDepsOptions = {
+  const installDepsOptions: CiInstallDepsOptions = {
     ...opts,
     frozenLockfile: true,
     frozenLockfileIfExists: false,
@@ -86,7 +91,7 @@ export async function validateCiFrozenInstall (opts: InstallCommandOptions): Pro
 interface ValidateWithStoreOptions {
   close: () => Promise<void>
   include: IncludedDependencies
-  installDepsOptions: InstallDepsOptions
+  installDepsOptions: CiInstallDepsOptions
   store: StoreControllerAndDir
 }
 
@@ -130,7 +135,7 @@ async function validateSingleProjectCi (
   { allProjects, includeDirect, opts, preparedCi, store }: {
     allProjects: Project[]
     includeDirect: IncludedDependencies
-    opts: InstallDepsOptions
+    opts: CiInstallDepsOptions
     preparedCi: PreparedCiInstall
     store: StoreControllerAndDir
   }
@@ -141,11 +146,11 @@ async function validateSingleProjectCi (
   )
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
   const anchorDir = opts.lockfileDir ?? rootDir
-  const cleansVirtualStore = await cleansAnchoredModulesDir({
+  const cleansVirtualStore = await (opts._cleansModulesDir?.(anchorDir, opts.modulesDir) ?? cleansAnchoredModulesDir({
     anchorDir,
     cleanupRootDir: rootDir,
     modulesDir: opts.modulesDir,
-  })
+  }))
   const validated = await validateFrozenInstall(
     [{ mutation: 'install', pruneDirectDependencies: opts.pruneDirectDependencies, rootDir }],
     {
@@ -167,7 +172,7 @@ async function validateSingleProjectCi (
 async function validateWorkspaceCi (
   { allProjects, opts, preparedCi, selectedProjectsGraph, store, workspaceDir }: {
     allProjects: Project[]
-    opts: InstallDepsOptions
+    opts: CiInstallDepsOptions
     preparedCi: PreparedCiInstall
     selectedProjectsGraph: ProjectsGraph
     store: StoreControllerAndDir
@@ -199,7 +204,7 @@ async function validateWorkspaceCi (
     await validateSharedLockfileWorkspace(ctx, opts, preparedCi)
     return
   }
-  await validateDedicatedLockfilesWorkspace(ctx, preparedCi)
+  await validateDedicatedLockfilesWorkspace(ctx, opts, preparedCi)
 }
 
 function isNarrowedWorkspaceCi (opts: InstallDepsOptions): boolean {
@@ -213,17 +218,18 @@ function isNarrowedWorkspaceCi (opts: InstallDepsOptions): boolean {
 
 async function validateSharedLockfileWorkspace (
   ctx: RecursiveContext,
-  opts: InstallDepsOptions,
+  opts: CiInstallDepsOptions,
   preparedCi: PreparedCiInstall
 ): Promise<void> {
   const mutatedImporters = await prepareSharedLockfileImporters(ctx)
   if (mutatedImporters == null) return
   const cleansVirtualStore = !isNarrowedWorkspaceCi(opts) &&
-    (ctx.opts.lockfileDir == null || await cleansAnchoredModulesDir({
+    (ctx.opts.lockfileDir == null || await (opts._cleansModulesDir?.(ctx.opts.lockfileDir, opts.modulesDir) ?? cleansAnchoredModulesDir({
+      allProjects: ctx.allProjects,
       anchorDir: ctx.opts.lockfileDir,
       cleanupRootDir: ctx.opts.workspaceDir,
       modulesDir: opts.modulesDir,
-    }))
+    })))
   const validated = await validateFrozenInstall(mutatedImporters, {
     ...ctx.installOpts,
     _cleansVirtualStore: cleansVirtualStore,
@@ -237,11 +243,13 @@ async function validateSharedLockfileWorkspace (
 
 async function validateDedicatedLockfilesWorkspace (
   ctx: RecursiveContext,
+  opts: CiInstallDepsOptions,
   preparedCi: PreparedCiInstall
 ): Promise<void> {
   const pkgPaths = (Object.keys(ctx.opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
   const validatedDirs = new Set<ProjectRootDir>()
   const lockfilesByDir = new Map<ProjectRootDir, LockfileObject>()
+  const dedicatedEnv: DedicatedValidationEnv = { cleansModulesDir: opts._cleansModulesDir, narrowed: isNarrowedWorkspaceCi(opts), preparedCi }
   let firstError: unknown
   await scheduleGraph(new Map(pkgPaths.map((rootDir) => [rootDir, []])), {
     bail: true,
@@ -251,7 +259,7 @@ async function validateDedicatedLockfilesWorkspace (
     runNode: async (rootDir): Promise<TaskCompletion> => {
       if (ctx.opts.ignoredPackages?.has(rootDir)) return 'passed'
       try {
-        const lockfile = await validateSingleDedicatedProject(ctx, rootDir, preparedCi)
+        const lockfile = await validateSingleDedicatedProject(ctx, rootDir, dedicatedEnv)
         validatedDirs.add(rootDir)
         if (lockfile != null) lockfilesByDir.set(rootDir, lockfile)
         return 'passed'
@@ -288,23 +296,23 @@ async function verifyDedicatedWorkspacePatches (
   })
 }
 
+interface DedicatedValidationEnv {
+  cleansModulesDir?: CleansModulesDirFn
+  narrowed: boolean
+  preparedCi: PreparedCiInstall
+}
+
 async function validateSingleDedicatedProject (
   ctx: RecursiveContext,
   rootDir: ProjectRootDir,
-  preparedCi: PreparedCiInstall
+  { cleansModulesDir, narrowed, preparedCi }: DedicatedValidationEnv
 ): Promise<LockfileObject | undefined> {
   const hooks = await loadProjectHooks(ctx.opts, rootDir)
   preparedCi.projectHooksByRootDir.set(rootDir, hooks)
   const { manifest } = ctx.manifestsByPath[rootDir]
   const localConfig = ctx.getProjectConfig(manifest) ?? {}
   const modulesDir = localConfig.modulesDir ?? ctx.opts.modulesDir
-  const binsDir = binDirOf(rootDir, modulesDir)
-  const cleansVirtualStore = await cleansAnchoredModulesDir({
-    anchorDir: rootDir,
-    cleanupRootDir: ctx.opts.workspaceDir,
-    modulesDir,
-    projectDir: rootDir,
-  })
+  const cleansVirtualStore = await cleansDedicatedProjectModules(ctx, rootDir, { cleansModulesDir, modulesDir, narrowed })
   const validated = await validateFrozenInstall(
     [{ mutation: 'install', rootDir }],
     {
@@ -318,12 +326,7 @@ async function validateSingleDedicatedProject (
       ignoreScripts: true,
       storeController: ctx.store.ctrl,
       resolutionVerifiers: ctx.store.resolutionVerifiers,
-      allProjects: [{
-        buildIndex: 0,
-        manifest,
-        rootDir,
-        binsDir,
-      }],
+      allProjects: [{ buildIndex: 0, manifest, rootDir, binsDir: binDirOf(rootDir, modulesDir) }],
     }
   )
   if (validated?.prepared != null) {
@@ -332,8 +335,29 @@ async function validateSingleDedicatedProject (
   return validated?.wantedLockfile
 }
 
+async function cleansDedicatedProjectModules (
+  ctx: RecursiveContext,
+  rootDir: ProjectRootDir,
+  { cleansModulesDir, modulesDir, narrowed }: { cleansModulesDir?: CleansModulesDirFn, modulesDir?: string, narrowed: boolean }
+): Promise<boolean> {
+  if (cleansModulesDir != null) return cleansModulesDir(rootDir, modulesDir)
+  const allowRootModulesTarget = !narrowed &&
+    path.resolve(ctx.opts.workspaceDir, ctx.opts.modulesDir ?? 'node_modules') ===
+    path.resolve(rootDir, modulesDir ?? 'node_modules')
+  return cleansAnchoredModulesDir({
+    allProjects: ctx.allProjects,
+    allowRootModulesTarget,
+    anchorDir: rootDir,
+    cleanupRootDir: ctx.opts.workspaceDir,
+    modulesDir,
+    projectDir: rootDir,
+  })
+}
+
 async function cleansAnchoredModulesDir (
-  { anchorDir, cleanupRootDir, modulesDir = 'node_modules', projectDir }: {
+  { allProjects, allowRootModulesTarget = false, anchorDir, cleanupRootDir, modulesDir = 'node_modules', projectDir }: {
+    allProjects?: Project[]
+    allowRootModulesTarget?: boolean
     anchorDir: string
     cleanupRootDir: string
     modulesDir?: string
@@ -341,16 +365,37 @@ async function cleansAnchoredModulesDir (
   }
 ): Promise<boolean> {
   const candidate = path.resolve(anchorDir, modulesDir)
+  const [realCleanupRoot, realParent, realProjectDir] = await Promise.all([
+    realpathIfExists(cleanupRootDir),
+    realpathIfExists(path.dirname(candidate)),
+    projectDir != null ? realpathIfExists(projectDir) : Promise.resolve(undefined),
+  ])
+  if (realCleanupRoot == null || realParent == null) return false
+  const resolved = path.join(realParent, path.basename(candidate))
+  if (!isStrictSubdir(realCleanupRoot, resolved)) return false
+  if (!allowRootModulesTarget && realProjectDir != null && !isStrictSubdir(realProjectDir, resolved)) {
+    return false
+  }
+  return !(await overlapsProtectedMember(resolved, realCleanupRoot, allProjects))
+}
+
+async function overlapsProtectedMember (
+  resolved: string,
+  realCleanupRoot: string,
+  allProjects: Project[] | undefined
+): Promise<boolean> {
+  if (!allProjects?.length) return false
+  const realMemberDirs = await Promise.all(allProjects.map(async ({ rootDir }) => realpathIfExists(rootDir)))
+  return realMemberDirs.some((dir) => dir != null && dir !== realCleanupRoot && isSubdir(resolved, dir))
+}
+
+async function realpathIfExists (targetPath: string): Promise<string | undefined> {
   try {
-    const [realCleanupRoot, realParent, realProjectDir] = await Promise.all([
-      fs.realpath(cleanupRootDir),
-      fs.realpath(path.dirname(candidate)),
-      projectDir != null ? fs.realpath(projectDir) : Promise.resolve(undefined),
-    ])
-    const resolved = path.join(realParent, path.basename(candidate))
-    return isStrictSubdir(realCleanupRoot, resolved) &&
-      (realProjectDir == null || isStrictSubdir(realProjectDir, resolved))
-  } catch {
-    return true
+    return await fs.realpath(targetPath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR' || err.code === 'ELOOP')) {
+      return undefined
+    }
+    throw err
   }
 }
