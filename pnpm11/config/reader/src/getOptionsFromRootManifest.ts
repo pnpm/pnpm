@@ -97,6 +97,8 @@ export function getOptionsFromPnpmSettings (
   }
   assertOptionalBoolean(settings.allowUnusedPatches, 'allowUnusedPatches')
   assertOptionalBoolean(settings.autoInstallPeersFromHighestMatch, 'autoInstallPeersFromHighestMatch')
+  assertOptionalBoolean(settings.strictSsl, 'strictSsl')
+  assertOptionalString(settings.localAddress, 'localAddress')
   if (rawExternalDependencies != null) {
     assertStringArray(rawExternalDependencies, 'externalDependencies')
     settings.externalDependencies = new Set(rawExternalDependencies)
