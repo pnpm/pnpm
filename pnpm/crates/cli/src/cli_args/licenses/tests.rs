@@ -1,7 +1,7 @@
 use super::{
-    BelongsTo, Config, Include, LicenseInfo, LicensesArgs, LicensesDependencyOptions,
-    collect_dependencies, compare_package_names, extract_license_author, extract_license_homepage,
-    record_license, render_package_name, select_newer_version,
+    BelongsTo, Config, Include, LicenseInfo, LicensedDependency, LicensesArgs,
+    LicensesDependencyOptions, collect_dependencies, compare_package_names, extract_license_author,
+    extract_license_homepage, record_license, render_package_name, select_newer_version,
 };
 use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
 use pnpm_package_is_installable::InstallabilityOptions;
@@ -230,6 +230,7 @@ fn renders_dev_classification() {
         versions: vec!["1.0.0".to_string()],
         paths: Vec::new(),
         license: "MIT".to_string(),
+        registry_name: None,
         belongs_to: BelongsTo::Dev,
         selected_version: "1.0.0".to_string(),
         author: None,
@@ -243,12 +244,35 @@ fn renders_dev_classification() {
 }
 
 #[test]
+fn renders_named_registry_alias_and_dev_classification() {
+    let prod = LicenseInfo {
+        name: "pkg-a".to_string(),
+        versions: vec!["1.0.0".to_string()],
+        paths: Vec::new(),
+        license: "MIT".to_string(),
+        registry_name: Some("work".to_string()),
+        belongs_to: BelongsTo::Prod,
+        selected_version: "1.0.0".to_string(),
+        author: None,
+        homepage: None,
+        description: None,
+    };
+    let rendered_prod = console::strip_ansi_codes(&render_package_name(&prod)).into_owned();
+    assert_eq!(rendered_prod, "pkg-a (work)");
+
+    let dev = LicenseInfo { belongs_to: BelongsTo::Dev, ..prod };
+    let rendered_dev = console::strip_ansi_codes(&render_package_name(&dev)).into_owned();
+    assert_eq!(rendered_dev, "pkg-a (work) (dev)");
+}
+
+#[test]
 fn selects_latest_version_classification_with_semver_precedence() {
     let mut info = LicenseInfo {
         name: "multiple-versions".to_string(),
         versions: vec!["2.0.0".to_string()],
         paths: Vec::new(),
         license: "MIT".to_string(),
+        registry_name: None,
         belongs_to: BelongsTo::Prod,
         selected_version: "2.0.0".to_string(),
         author: None,
@@ -432,12 +456,57 @@ async fn license_report_keeps_newest_metadata_and_every_installed_version() {
             .to_string(),
         )
         .unwrap();
-        record_license(&mut groups, BelongsTo::Prod, "alpha", version, &dir).await;
+        let dependency = LicensedDependency {
+            key: format!("alpha@{version}").parse().unwrap(),
+            belongs_to: BelongsTo::Prod,
+            name: "alpha".to_string(),
+            version: version.to_string(),
+            registry_name: None,
+        };
+        record_license(&mut groups, &dependency, &dir).await;
     }
-    let info = &groups["MIT"]["alpha"];
+    let info = &groups["MIT"][&("alpha".to_string(), None)];
     assert_eq!(info.author.as_deref(), Some("3.0.0"));
     assert_eq!(info.homepage.as_deref(), Some("https://example.com/3.0.0"));
     assert_eq!(info.description.as_deref(), Some("3.0.0"));
     assert_eq!(info.versions, ["1.0.0", "3.0.0", "2.0.0"]);
     assert_eq!(info.paths.len(), 3);
+}
+
+#[tokio::test]
+async fn license_report_separates_default_and_named_registry_packages() {
+    let workspace = TempDir::new().unwrap();
+    let mut groups = indexmap::IndexMap::new();
+
+    for (subdir, key_str, version, registry_name) in [
+        ("default", "alpha@1.0.0", "1.0.0", None),
+        ("work-1", "alpha@work:1.0.0", "1.0.0", Some("work".to_string())),
+        ("work-2", "alpha@work:2.0.0", "2.0.0", Some("work".to_string())),
+    ] {
+        let dir = workspace.path().join(subdir);
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::write(
+            dir.join("package.json"),
+            json!({ "name": "alpha", "version": version, "license": "MIT" }).to_string(),
+        )
+        .unwrap();
+        let dependency = LicensedDependency {
+            key: key_str.parse().unwrap(),
+            belongs_to: BelongsTo::Prod,
+            name: "alpha".to_string(),
+            version: version.to_string(),
+            registry_name,
+        };
+        record_license(&mut groups, &dependency, &dir).await;
+    }
+
+    let mit = &groups["MIT"];
+    assert_eq!(mit.len(), 2);
+    let default_entry = &mit[&("alpha".to_string(), None)];
+    assert_eq!(default_entry.versions, ["1.0.0"]);
+    assert_eq!(default_entry.registry_name, None);
+
+    let work_entry = &mit[&("alpha".to_string(), Some("work".to_string()))];
+    assert_eq!(work_entry.versions, ["1.0.0", "2.0.0"]);
+    assert_eq!(work_entry.registry_name.as_deref(), Some("work"));
 }

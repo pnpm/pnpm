@@ -1024,4 +1024,5 @@ fn spdx_package<'a>(document: &'a serde_json::Value, name: &str) -> &'a serde_js
 
 mod license;
 mod metadata;
+mod named_registries;
 mod workspace;

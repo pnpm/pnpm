@@ -157,8 +157,14 @@ fn licensed_lockfiles(
 }
 
 /// A listed package: its lockfile key, the dependency group it belongs
-/// to, its name and its manifest version.
-pub(super) type LicensedDependency = (PackageKey, BelongsTo, String, String);
+/// to, its name, its manifest version, and its named-registry alias if any.
+pub(super) struct LicensedDependency {
+    pub key: PackageKey,
+    pub belongs_to: BelongsTo,
+    pub name: String,
+    pub version: String,
+    pub registry_name: Option<String>,
+}
 
 /// The listed packages with their manifest versions, in the order the
 /// report renders them.
@@ -169,13 +175,15 @@ fn sorted_licensed_dependencies(
     let pkgs = lockfile.packages.as_ref();
     let mut dependencies = belongs_to
         .into_iter()
-        .map(|(key, kind)| {
+        .map(|(key, belongs_to)| {
             let name = key.name.to_string();
+            let registry_name = key.suffix.registry_qualified().map(|(alias, _)| alias.to_owned());
             let version = pkgs
                 .and_then(|packages| packages.get(&key.without_peer()))
                 .and_then(|meta| meta.version.clone())
+                .or_else(|| key.suffix.registry_version().map(ToString::to_string))
                 .unwrap_or_else(|| key.suffix.version().to_string());
-            (key, kind, name, version)
+            LicensedDependency { key, belongs_to, name, version, registry_name }
         })
         .collect::<Vec<_>>();
     dependencies.sort_by(compare_licensed_dependencies);
@@ -186,14 +194,15 @@ fn compare_licensed_dependencies(
     left: &LicensedDependency,
     right: &LicensedDependency,
 ) -> Ordering {
-    compare_package_names(&left.2, &right.2)
-        .then_with(|| compare_versions(&left.3, &right.3))
+    compare_package_names(&left.name, &right.name)
+        .then_with(|| compare_versions(&left.version, &right.version))
+        .then_with(|| left.registry_name.cmp(&right.registry_name))
         .then_with(|| {
-            left.0
+            left.key
                 .to_string()
-                .cmp(&right.0.to_string())
+                .cmp(&right.key.to_string())
         })
-        .then_with(|| left.1.cmp(&right.1))
+        .then_with(|| left.belongs_to.cmp(&right.belongs_to))
 }
 
 /// Where each locked package's files live, checked to sit inside the
