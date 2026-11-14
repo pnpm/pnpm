@@ -10,6 +10,23 @@ pub(crate) fn opted_in(include_github_actions: bool, config: &Config) -> bool {
     include_github_actions || config.update_config.github_actions == Some(true)
 }
 
+pub(crate) fn without_action_selectors(selectors: &[String]) -> Vec<String> {
+    selectors
+        .iter()
+        .filter(|selector| !pnpm_github_actions::is_selector(selector))
+        .cloned()
+        .collect()
+}
+
+pub(crate) fn selects_actions_only(selectors: &[String], package_selectors: &[String]) -> bool {
+    package_selectors.is_empty()
+        && selectors
+            .iter()
+            .any(|selector| {
+                !selector.starts_with('!') && pnpm_github_actions::is_selector(selector)
+            })
+}
+
 /// The `minimumReleaseAge` policy GitHub Actions versions are held to: the
 /// one registry packages are, with `minimumReleaseAgeExclude` matched against
 /// the action and repository names.

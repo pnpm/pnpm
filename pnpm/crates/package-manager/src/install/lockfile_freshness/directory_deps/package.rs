@@ -27,28 +27,18 @@ fn read_and_override_manifest(
         workspace_root: dep.dirs.workspace_root,
         manifests_by_dir: check.workspace.manifests_by_dir,
     };
-    overridden_unhooked_manifest(
-        &injected,
-        check.parsed_overrides,
-        check.config.root_project_manifest_dir(check.lockfile_dir),
-        check.workspace.catalogs,
-    )
-    .ok_or_else(|| dep.outdated())
+    overridden_unhooked_manifest(&injected, check.overrider).ok_or_else(|| dep.outdated())
 }
 
 /// [`unhooked_manifest`] with the overrides applied, as the check reads a
 /// directory package that no hooked manifest covers.
 pub(in crate::install::lockfile_freshness) fn overridden_unhooked_manifest(
     injected: &InjectedDirectory<'_>,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    lockfile_dir: &std::path::Path,
-    catalogs: &pnpm_catalogs_types::Catalogs,
+    overrider: Option<&crate::VersionsOverrider>,
 ) -> Option<PackageManifest> {
     let mut manifest = unhooked_manifest(injected)?;
-    if let Some(parsed) = parsed_overrides {
-        crate::VersionsOverrider::new(parsed, lockfile_dir)
-            .with_catalogs(catalogs)
-            .apply(&mut manifest, Some(injected.dir));
+    if let Some(overrider) = overrider {
+        overrider.apply(&mut manifest, Some(injected.dir));
     }
     Some(manifest)
 }

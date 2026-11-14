@@ -1,11 +1,16 @@
+pub(super) mod key;
+
+pub(super) use key::create_cache_key;
+
 use super::{
     BTreeMap, CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Config, Context,
     DependencyGroup, DlxError, Duration, IntoDiagnostic, Path, PathBuf, RangeSpecStyle, Reporter,
-    State, SupportedArchitectures, SupportedArchitecturesArgs, SystemTime, UNIX_EPOCH, Value,
-    add_package, configured_catalogs, create_short_hash, force_symlink_dir, fs, json,
-    parse_catalog_protocol, parse_manifest, parse_overrides_iter, parse_wanted_dependency,
-    resolve_from_catalog,
+    State, SupportedArchitecturesArgs, SystemTime, UNIX_EPOCH, Value, add_package,
+    configured_catalogs, force_symlink_dir, fs, json, parse_catalog_protocol, parse_manifest,
+    parse_overrides_iter, parse_wanted_dependency, resolve_from_catalog,
 };
+use crate::cli_args::add::{AllowBuildSelector, parse_allow_build_selectors};
+use key::{CacheKeyInputs, CachePolicyInputs};
 use pnpm_graph_hasher::{detect_node_major, engine_name};
 
 /// Install the packages into a fresh prepare directory and point the
@@ -14,7 +19,7 @@ pub(super) async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
     dlx_command_cache_dir: &Path,
     cache_link: &Path,
     pkgs: &[String],
-    allow_build: &[String],
+    allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
 ) -> miette::Result<PathBuf> {
@@ -49,7 +54,7 @@ pub(super) async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
 async fn install_into_cache<Reporter: self::Reporter + 'static>(
     prepare_dir: &Path,
     pkgs: &[String],
-    allow_build: &[String],
+    allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
 ) -> miette::Result<()> {
@@ -159,93 +164,6 @@ fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
     map
 }
 
-/// Build the dlx cache key from the sorted package specs, sorted
-/// registries, the optional `allow_build` list, each non-empty
-/// `supportedArchitectures` axis, and the Node.js engine name, all hashed
-/// together. pacquet keys on the raw specs (not
-/// resolved ids) and uses [`create_short_hash`] rather than a full-length
-/// hex digest; the dlx caches are not shared between the two
-/// implementations, so the key format is not a cross-tool contract.
-pub(super) fn create_cache_key(
-    pkgs: &[String],
-    registries: &BTreeMap<String, String>,
-    allow_build: &[String],
-    supported_architectures: Option<&SupportedArchitectures>,
-    engine: Option<&str>,
-) -> String {
-    let mut sorted: Vec<&str> = pkgs
-        .iter()
-        .map(String::as_str)
-        .collect();
-    sorted.sort_unstable();
-    let registry_pairs: Vec<(&str, &str)> = registries
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
-    let mut args = vec![json!(sorted), json!(registry_pairs)];
-    if !allow_build.is_empty() {
-        let mut sorted_allow: Vec<&str> = allow_build
-            .iter()
-            .map(String::as_str)
-            .collect();
-        sorted_allow.sort_unstable();
-        args.push(json!({ "allowBuild": sorted_allow }));
-    }
-    args.extend(architecture_key_inputs(supported_architectures));
-    // `null` when no `node` is found, which still differs from a key that
-    // records no engine at all.
-    args.push(json!({ "engine": engine }));
-    create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
-}
-
-/// What the platforms an install prepares for contribute to its cache
-/// key.
-///
-/// The axes are recorded one axis at a time, each named once and sorted,
-/// since rewriting them in another order asks for the same install.
-///
-/// A platform list is recorded as the platforms it resolves to, in the
-/// order it named them. The order matters because which platform comes
-/// first decides which runtime archive the install takes when this
-/// machine is none of them, and resolving matters because `current` is a
-/// different platform on each machine while the word is the same.
-fn architecture_key_inputs(supported: Option<&SupportedArchitectures>) -> Vec<Value> {
-    match supported {
-        None => Vec::new(),
-        Some(SupportedArchitectures::Axes(axes)) => {
-            [("cpu", &axes.cpu), ("libc", &axes.libc), ("os", &axes.os)]
-                .into_iter()
-                .filter_map(|(key, values)| {
-                    let values = values
-                        .as_ref()
-                        .filter(|values| !values.is_empty())?;
-                    Some(json!({ "supportedArchitectures": { key: sorted_once(values) } }))
-                })
-                .collect()
-        }
-        Some(supported @ SupportedArchitectures::Platforms(_)) => {
-            let named: Vec<String> = supported
-                .host_platforms()
-                .iter()
-                .map(ToString::to_string)
-                .collect();
-            vec![json!({ "supportedArchitectures": named })]
-        }
-    }
-}
-
-/// The values as the cache key records them: named once, in an order
-/// rewriting the configuration cannot change.
-fn sorted_once(values: &[String]) -> Vec<&str> {
-    let mut deduped: Vec<&str> = values
-        .iter()
-        .map(String::as_str)
-        .collect();
-    deduped.sort_unstable();
-    deduped.dedup();
-    deduped
-}
-
 /// Return the cache target behind `cache_link` when it is a symlink or junction whose
 /// own mtime is within `max_age_minutes` of `now`.
 pub(super) fn get_valid_cache_dir(
@@ -312,10 +230,39 @@ pub(super) fn read_json(path: &Path) -> Result<Value, DlxError> {
         })
 }
 
+/// Drop workspace-manifest resolution mutations (`overrides`,
+/// `packageExtensions`, `blockExoticSubdeps`) unless supplied via CLI flags or
+/// `PNPM_CONFIG_*` environment variables, then expand `catalog:` overrides.
+fn isolate_dlx_caller_settings(config: &mut Config) -> miette::Result<()> {
+    let mut env_settings =
+        pnpm_config::TrustedSettings::from_pnpm_config_env::<pnpm_config::Host>();
+    env_settings.substitute_env_trusted::<pnpm_config::Host>();
+    let cli = &config.cli.setting_values;
+    let cli_overrides = cli
+        .get("overrides")
+        .and_then(|raw| serde_json::from_str(raw).ok());
+    let cli_extensions = cli
+        .get("package-extensions")
+        .or_else(|| cli.get("packageExtensions"))
+        .and_then(|raw| serde_json::from_str(raw).ok());
+    let cli_block_exotic = cli
+        .get("block-exotic-subdeps")
+        .or_else(|| cli.get("blockExoticSubdeps"))
+        .and_then(|raw| serde_json::from_str(raw).ok());
+    config.overrides = cli_overrides
+        .or(env_settings.settings.overrides)
+        .filter(|map| !map.is_empty());
+    config.package_extensions = cli_extensions
+        .or(env_settings.settings.package_extensions)
+        .filter(|map| !map.is_empty());
+    config.block_exotic_subdeps =
+        cli_block_exotic.or(env_settings.settings.block_exotic_subdeps).unwrap_or(true);
+    resolve_cache_overrides(config)
+}
+
 /// Resolve caller catalogs before the cache install severs its workspace anchor.
 fn resolve_cache_overrides(config: &mut Config) -> miette::Result<()> {
     if let Some(overrides) = config.overrides.as_ref()
-        && config.workspace_dir.is_some()
         && overrides
             .values()
             .any(|spec| spec.starts_with("catalog:"))
@@ -334,23 +281,31 @@ fn resolve_cache_overrides(config: &mut Config) -> miette::Result<()> {
 pub(super) fn command_cache_dir(
     config: &Config,
     pkgs: &[String],
-    allow_build: &[String],
+    allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
 ) -> miette::Result<PathBuf> {
-    dlx_command_cache_dir(
-        config,
-        &create_cache_key(
-            pkgs,
-            &build_registries_map(config),
-            allow_build,
-            supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
-            detect_node_major().map(|major| engine_name(major, None, None)).as_deref(),
-        ),
-    )
+    let registries = build_registries_map(config);
+    let resolved_architectures =
+        supported_architectures.apply_to(config.supported_architectures.clone());
+    let engine = detect_node_major().map(|major| engine_name(major, None, None));
+    let cache_key = create_cache_key(&CacheKeyInputs {
+        pkgs,
+        registries: &registries,
+        allow_build,
+        supported_architectures: resolved_architectures.as_ref(),
+        engine: engine.as_deref(),
+        policy: CachePolicyInputs::from_config(config),
+    });
+    dlx_command_cache_dir(config, &cache_key)
 }
 
-/// Only requested packages and explicit CLI additions may run builds in the cache install.
-fn apply_dlx_build_policy(config: &mut Config, pkgs: &[String], allow_build: &[String]) {
+/// Requested packages default to allowed; explicit `--allow-build` selectors
+/// (`pkg` or `!pkg`) apply afterward so a negation overrides the default.
+pub(super) fn apply_dlx_build_policy(
+    config: &mut Config,
+    pkgs: &[String],
+    allow_build: &[AllowBuildSelector<'_>],
+) {
     config.dangerously_allow_all_builds = false;
     config.allow_builds.clear();
     config.disable_agent_skills();
@@ -359,8 +314,8 @@ fn apply_dlx_build_policy(config: &mut Config, pkgs: &[String], allow_build: &[S
             config.allow_builds.insert(alias, true);
         }
     }
-    for name in allow_build {
-        config.allow_builds.insert(name.clone(), true);
+    for &AllowBuildSelector { name, allowed } in allow_build {
+        config.allow_builds.insert(name.to_string(), allowed);
     }
 }
 
@@ -368,7 +323,7 @@ pub(super) fn configure_cache_install(
     config: &mut Config,
     prepare_dir: &Path,
     pkgs: &[String],
-    allow_build: &[String],
+    allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
 ) -> miette::Result<()> {
     // Per-axis CLI overrides (`--cpu` / `--os` / `--libc`) replace the
@@ -428,7 +383,10 @@ pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
     allow_build: &[String],
     supported_architectures: &SupportedArchitecturesArgs,
 ) -> miette::Result<PathBuf> {
-    let command_dir = command_cache_dir(config, pkgs, allow_build, supported_architectures)?;
+    let parsed_allow_build = parse_allow_build_selectors(allow_build)?;
+    isolate_dlx_caller_settings(config)?;
+    let command_dir =
+        command_cache_dir(config, pkgs, &parsed_allow_build, supported_architectures)?;
     let cache_link = command_dir.join("pkg");
     match get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now()) {
         Some(cached_dir) if cached_dir.join("pnpm-lock.yaml").is_file() => {
@@ -436,7 +394,7 @@ pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
                 config,
                 &cached_dir,
                 pkgs,
-                allow_build,
+                &parsed_allow_build,
                 supported_architectures,
             )?;
             crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
@@ -452,7 +410,7 @@ pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
                 &command_dir,
                 &cache_link,
                 pkgs,
-                allow_build,
+                &parsed_allow_build,
                 supported_architectures,
                 config,
             )

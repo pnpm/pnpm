@@ -1,4 +1,6 @@
-use super::{ApproveBuildsArgs, ApproveBuildsError, partition_params, sort_unique};
+use super::{
+    ApproveBuildsArgs, ApproveBuildsError, PromptAvailability, partition_params, sort_unique,
+};
 use pnpm_reporter::SilentReporter;
 
 fn pending(names: &[&str]) -> Vec<String> {
@@ -50,7 +52,7 @@ fn reports_an_unknown_denied_package_as_pre_emptive() {
 #[test]
 fn rejects_contradictory_arguments() {
     let err = args(&["foo", "!foo"])
-        .decide::<SilentReporter>(&pending(&["foo"]))
+        .decide::<SilentReporter>(&pending(&["foo"]), false)
         .err()
         .expect("contradicting arguments are rejected");
     let ApproveBuildsError::ContradictingArgs(names) = approve_builds_error(err) else {
@@ -76,6 +78,42 @@ fn rejects_positional_arguments_with_all() {
         .validate()
         .unwrap_err();
     assert!(matches!(approve_builds_error(err), ApproveBuildsError::AllWithArgs));
+}
+
+#[test]
+fn rejects_interactive_approval_when_prompting_is_unavailable() {
+    let err = args(&[])
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
+        .err()
+        .expect("interactive approval without a prompt is rejected");
+    assert!(matches!(approve_builds_error(err), ApproveBuildsError::NonInteractive));
+
+    assert!(
+        args(&[])
+            .decide_with_prompt::<SilentReporter>(&[], PromptAvailability::Unavailable)
+            .expect("no pending builds needs no prompt")
+            .is_none(),
+    );
+    let all = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
+        .expect("--all needs no prompt")
+        .expect("decision for --all");
+    assert_eq!(all.build_packages, vec!["esbuild".to_string()]);
+
+    let named = args(&["esbuild"])
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
+        .expect("named package needs no prompt")
+        .expect("decision for named package");
+    assert_eq!(named.build_packages, vec!["esbuild".to_string()]);
 }
 
 #[test]
@@ -136,7 +174,7 @@ fn build_choices_distinguishes_colliding_labels() {
         "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
         "bar@1.0.0".to_string(),
     ];
-    let choices = super::build_choices(&keys);
+    let choices = super::prompt::build_choices(&keys);
     assert_eq!(
         choices,
         vec![
@@ -151,4 +189,36 @@ fn build_choices_distinguishes_colliding_labels() {
             ("bar@1.0.0".to_string(), "bar".to_string()),
         ],
     );
+}
+
+#[test]
+fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
+    let dir = tempfile::TempDir::new().expect("create temp dir");
+    let manifest_path = dir.path().join("package.json");
+    std::fs::write(&manifest_path, r#"{"name":"app","version":"1.0.0"}"#).expect("write manifest");
+
+    let mut config = pnpm_config::Config {
+        workspace_dir: Some(dir.path().to_path_buf()),
+        ..pnpm_config::Config::default()
+    };
+    config.allow_builds.insert("denied-pkg".to_string(), false);
+
+    let mut scan = crate::cli_args::ignored_builds::IgnoredBuildsScan {
+        names: Some(vec!["denied-pkg".to_string(), "pending-pkg".to_string()]),
+        modules_dir: dir.path().join("node_modules"),
+        modules_manifest: None,
+    };
+    super::exclude_disallowed_builds(&mut scan, &config);
+    assert_eq!(scan.names.as_deref(), Some(["pending-pkg".to_string()].as_slice()));
+
+    let (_, build_packages) = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
+        .prepare_with_scan::<SilentReporter>(dir.path(), &config, &config, &manifest_path, scan)
+        .expect("prepare install approvals")
+        .expect("pending-pkg awaits rebuild");
+
+    assert_eq!(build_packages, vec!["pending-pkg".to_string()]);
+    let overlaid =
+        super::config_with_install_approvals(&config, dir.path()).expect("overlay approvals");
+    assert_eq!(overlaid.allow_builds.get("denied-pkg"), Some(&false));
+    assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
 }

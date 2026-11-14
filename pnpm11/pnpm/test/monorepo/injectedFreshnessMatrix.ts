@@ -20,15 +20,23 @@ import { execPnpm } from '../utils/index.js'
 //   project.
 
 type Injection = 'injectWorkspacePackages' | 'dependenciesMeta' | 'fileSpec'
+type ChildSpec = 'link:../child' | '../child'
 type Edit = 'none' | 'dependency' | 'peer' | 'optionalPeer' | 'catalogPeer' | 'catalogChild'
 
 interface Layout {
   sharedWorkspaceLockfile: boolean
   injection: Injection
+  childSpec?: ChildSpec
 }
 
 const LAYOUTS: Layout[] = [true, false].flatMap((sharedWorkspaceLockfile) =>
-  (['injectWorkspacePackages', 'dependenciesMeta', 'fileSpec'] as const).map((injection) => ({ sharedWorkspaceLockfile, injection }))
+  (['injectWorkspacePackages', 'dependenciesMeta', 'fileSpec'] as const).flatMap((injection) =>
+    (injection === 'fileSpec' ? [undefined] : ['link:../child', '../child'] as const).map((childSpec) => ({
+      sharedWorkspaceLockfile,
+      injection,
+      ...(childSpec == null ? {} : { childSpec }),
+    }))
+  )
 )
 const EDITS: Edit[] = ['none', 'dependency', 'peer', 'optionalPeer', 'catalogPeer', 'catalogChild']
 const FILTERS: string[][] = [[], ['--filter=app']]
@@ -60,6 +68,10 @@ describe.each(LAYOUTS)('injected package edits: %j', (layout) => {
 
     prepareWorkspace(layout)
     await execPnpm(['install'])
+    if (layout.childSpec != null) {
+      const injectedLib = fs.realpathSync('app/node_modules/lib')
+      expect(fs.realpathSync(path.join(injectedLib, '../child'))).toBe(fs.realpathSync('child'))
+    }
     applyEdit(layout, edit)
     if (layout.injection === 'fileSpec' && edit === 'catalogChild') {
       // The children of a dependency declared by path keep their `catalog:`
@@ -109,8 +121,15 @@ function prepareWorkspace (layout: Layout): void {
     {
       name: 'lib',
       version: '1.0.0',
-      dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+      dependencies: {
+        '@pnpm.e2e/foo': '100.0.0',
+        ...(layout.childSpec == null ? {} : { child: layout.childSpec }),
+      },
       peerDependencies: { '@pnpm.e2e/bar': 'catalog:' },
+    },
+    {
+      name: 'child',
+      version: '1.0.0',
     },
   ])
   writeWorkspaceYaml(layout, '^100.0.0')

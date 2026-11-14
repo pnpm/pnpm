@@ -360,3 +360,5 @@ fn lockfile_staging_entries_are_pruned_before_visiting_even_with_a_files_allowli
         );
     }
 }
+
+mod vanished_entries;

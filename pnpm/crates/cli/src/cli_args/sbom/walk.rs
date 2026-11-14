@@ -1,10 +1,11 @@
 use super::{
     DepType, HashMap, HashSet, IncludeFilter, IndexMap, InstallabilityOptions, PackageKey,
-    PackageMetadata, Path, PathBuf, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, SbomComponent,
-    SbomRelationship, SnapshotEntry, State, build_purl, confined_importer_dir, extract_author,
+    PackageMetadata, Path, PathBuf, PeerSatisfactionEdges, PkgName, PkgNameVerPeer,
+    SanitizedNamedRegistry, SanitizedRegistries, SbomComponent, SbomRelationship, SnapshotEntry,
+    State, build_purl, build_purl_with_encoded_registry, confined_importer_dir, extract_author,
     extract_bugs_url, extract_homepage, extract_repository, integrity_string, normalize_link_path,
     peer_names_from_manifest, platform_incompatible_optional, read_pkg_metadata_from_store,
-    safe_read_project_manifest_from_dir, tarball_url_for_component,
+    safe_read_project_manifest_from_dir,
 };
 use std::sync::OnceLock;
 
@@ -12,7 +13,7 @@ pub(super) struct WalkContext<'a> {
     pub(super) snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub(super) packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub(super) dep_types: &'a HashMap<PackageKey, DepType>,
-    pub(super) default_registry: &'a str,
+    pub(super) registries: SanitizedRegistries,
     pub(super) virtual_store_dirs: &'a [PathBuf],
     pub(super) virtual_store_dir_max_length: usize,
     pub(super) transitive: TransitiveEdges<'a>,
@@ -139,7 +140,7 @@ fn collect_importer_components(
                 walk.components_map,
                 walk.relationships,
                 walk.visited,
-            );
+            )?;
         }
     }
     Ok(())
@@ -253,42 +254,59 @@ fn walk_snapshot(
     components_map: &mut IndexMap<String, SbomComponent>,
     relationships: &mut Vec<SbomRelationship>,
     visited: &mut HashSet<PackageKey>,
-) {
+) -> miette::Result<()> {
     let mut queue: Vec<(PkgNameVerPeer, String)> =
         vec![(initial_key.clone(), initial_parent_purl.to_string())];
 
     while let Some((key, parent_purl)) = queue.pop() {
-        let name = key.name.to_string();
         let pkg_meta = ctx.packages.and_then(|pkgs| pkgs.get(&key.without_peer()));
-        let version = pkg_meta
-            .and_then(|meta| meta.version.clone())
-            .unwrap_or_else(|| key.suffix.version().to_string());
-
         if skipped_optional_package(&key, pkg_meta, ctx) {
             continue;
         }
-
-        let purl = build_purl(&name, &version);
+        let name = key.name.to_string();
+        let version = snapshot_version(&key, pkg_meta);
+        let named_registry = ctx.registries.resolve_named(&key)?;
+        let purl = build_purl_with_encoded_registry(
+            &name,
+            &version,
+            named_registry.map(|entry| entry.encoded_repository_url.as_str()),
+        );
 
         relationships.push(SbomRelationship { from: parent_purl, to: purl.clone() });
-
         if !visited.insert(key.clone()) {
             continue;
         }
-
         if !components_map.contains_key(&purl) {
-            components_map.insert(purl.clone(), snapshot_component(&key, name, version, ctx));
+            let component =
+                snapshot_component(&key, name, version, purl.clone(), named_registry, ctx);
+            components_map.insert(purl.clone(), component);
         }
-
-        let Some(snapshot) = ctx.snapshots.and_then(|snapshots| snapshots.get(&key)) else {
-            continue;
-        };
-        queue.extend(
-            ctx.transitive
-                .children(&key, snapshot)
-                .map(|child| (child, purl.clone())),
-        );
+        enqueue_snapshot_children(&mut queue, &key, &purl, ctx);
     }
+    Ok(())
+}
+
+fn snapshot_version(key: &PkgNameVerPeer, pkg_meta: Option<&PackageMetadata>) -> String {
+    pkg_meta
+        .and_then(|meta| meta.version.clone())
+        .or_else(|| key.suffix.registry_version().map(ToString::to_string))
+        .unwrap_or_else(|| key.suffix.version().to_string())
+}
+
+fn enqueue_snapshot_children(
+    queue: &mut Vec<(PkgNameVerPeer, String)>,
+    key: &PkgNameVerPeer,
+    parent_purl: &str,
+    ctx: &WalkContext<'_>,
+) {
+    let Some(snapshot) = ctx.snapshots.and_then(|snapshots| snapshots.get(key)) else {
+        return;
+    };
+    queue.extend(
+        ctx.transitive
+            .children(key, snapshot)
+            .map(|child| (child, parent_purl.to_owned())),
+    );
 }
 
 /// Whether the package is an optional dependency this host cannot
@@ -316,15 +334,22 @@ fn snapshot_component(
     key: &PkgNameVerPeer,
     name: String,
     version: String,
+    purl: String,
+    named_registry: Option<&SanitizedNamedRegistry>,
     ctx: &WalkContext<'_>,
 ) -> SbomComponent {
     let pkg_meta = ctx.packages.and_then(|packages| packages.get(&key.without_peer()));
     let store_meta = read_pkg_metadata_from_store(key, &name, ctx);
     SbomComponent {
-        purl: build_purl(&name, &version),
+        purl,
         integrity: pkg_meta.and_then(|meta| integrity_string(&meta.resolution)),
         tarball_url: pkg_meta.and_then(|meta| {
-            tarball_url_for_component(&meta.resolution, &name, &version, ctx.default_registry)
+            ctx.registries.tarball_url_for_component(
+                &meta.resolution,
+                &name,
+                &version,
+                named_registry,
+            )
         }),
         name,
         version,
@@ -375,7 +400,7 @@ pub(super) fn component_walk_context<'a>(
         snapshots: lockfile.snapshots.as_ref(),
         packages: lockfile.packages.as_ref(),
         dep_types,
-        default_registry: &state.config.registry,
+        registries: SanitizedRegistries::new(state.config.registry_context()),
         virtual_store_dirs,
         virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
         transitive,

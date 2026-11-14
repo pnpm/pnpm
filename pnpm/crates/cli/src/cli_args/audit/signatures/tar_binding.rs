@@ -192,7 +192,7 @@ async fn download_tie(
         },
         auth_headers: &config.auth_headers,
         retry_opts: config.retry_opts(),
-        tar_limits: config.tar_limits(),
+        tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),
         manifest_subdir: None,
         revision_addressed: false,
     }

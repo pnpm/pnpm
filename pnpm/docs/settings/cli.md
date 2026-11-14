@@ -105,11 +105,12 @@ Overrides the `onFail` behavior of both the `packageManager` field and `devEngin
 
 A part of the configuration pnpm cannot read does not stop it from switching to the declared pnpm version, which reads the configuration itself. pnpm leaves out only what it cannot read, so it switches only when the `pmOnFail` it can read is `download`.
 
-Can be set via CLI flag, environment variable, or `pnpm-workspace.yaml`:
+Can be set via CLI flag, environment variable, the [global configuration file](../cli/config.md), or `pnpm-workspace.yaml`:
 
 ```sh
 pnpm install --pm-on-fail=ignore
 pnpm_config_pm_on_fail=ignore pnpm install
+pnpm config set --global pm-on-fail ignore
 ```
 
 ```yaml title="pnpm-workspace.yaml"
@@ -181,7 +182,7 @@ Added in: v12.5.0
 * Default: **undefined**
 * Type: **Object**
 
-Configure download sources for the programs pnpm installs. Set `tools` in the [global configuration file](../cli/config.md) or as JSON in `PNPM_CONFIG_TOOLS`. Tool mirrors in `pnpm-workspace.yaml` are ignored.
+Configure download sources for the programs pnpm installs. Set `tools` in the [global configuration file](../cli/config.md) with `pnpm config set --global --json tools`, or as JSON in `PNPM_CONFIG_TOOLS`. Tool mirrors in `pnpm-workspace.yaml` are ignored.
 
 ```yaml title="config.yaml"
 tools:

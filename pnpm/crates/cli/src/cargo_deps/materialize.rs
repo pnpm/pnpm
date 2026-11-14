@@ -134,7 +134,7 @@ async fn create_crate_download(options: &DownloadOptions) -> Result<CrateDownloa
         download_template: registry_config.dl,
         retry_opts: options.config.retry_opts(),
         offline: options.config.offline,
-        tar_limits: options.config.tar_limits(),
+        tar_limits: pnpm_tarball::TarLimits::new(options.config.max_tarball_unpacked_size),
         requester: options.requester.clone(),
     })
 }

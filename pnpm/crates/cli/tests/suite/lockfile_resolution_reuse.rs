@@ -778,6 +778,11 @@ fn combined_manifest_and_ignore_list_drift_skips_resolution() {
         .to_string(),
     )
     .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -796,7 +801,6 @@ fn combined_manifest_and_ignore_list_drift_skips_resolution() {
         .to_string(),
     )
     .expect("drop one prod dependency");
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
     fs::write(

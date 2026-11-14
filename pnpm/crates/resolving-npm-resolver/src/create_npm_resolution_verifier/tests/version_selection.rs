@@ -16,15 +16,14 @@ async fn verify_short_circuits_non_semver_version() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// With `registrySupportsTimeField`, a version's publish timestamp is
-/// taken from the `time` map of the abbreviated document the verifier
+/// A version's publish timestamp is taken from the `time` map of the abbreviated document the verifier
 /// already fetched. The `modified` shortcut cannot answer here (the
 /// package was modified inside the cutoff window), and no other source
 /// is mocked, so a passing verification proves the timestamp came from
 /// the abbreviated document — the attestation round-trip and the
 /// full-packument download never happen.
 #[tokio::test]
-async fn registry_supports_time_field_reads_version_time_from_abbreviated_meta() {
+async fn reads_version_time_from_abbreviated_meta_that_carries_it() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let server_url = server.url();
@@ -58,14 +57,12 @@ async fn registry_supports_time_field_reads_version_time_from_abbreviated_meta()
         .with_status(200)
         .with_body(meta.to_string())
         // The whole point: one abbreviated fetch answers everything. A
-        // second hit would be the full-packument fallback this flag
-        // exists to avoid.
+        // second hit would be the full-packument fallback.
         .expect(1)
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
     opts.release_age.minimum_minutes = Some(60 * 24); // 24h
-    opts.metadata.registry_supports_time_field = true;
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),

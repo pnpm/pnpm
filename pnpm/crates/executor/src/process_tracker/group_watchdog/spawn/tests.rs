@@ -123,3 +123,53 @@ fn wait_for_gate(ready: std::os::fd::RawFd, gate: std::os::fd::RawFd) -> std::io
     };
     if succeeded { Ok(()) } else { Err(std::io::Error::last_os_error()) }
 }
+
+#[test]
+fn concurrent_registered_spawns_do_not_hold_each_others_exec_pipe() {
+    use crate::process_tracker::group_watchdog::{release, spawn};
+    use std::{
+        sync::{Arc, Barrier, mpsc},
+        thread,
+        time::Duration,
+    };
+
+    const SLEEPERS: usize = 7;
+    let barrier = Arc::new(Barrier::new(SLEEPERS + 1));
+    let sleepers: Vec<_> = (0..SLEEPERS)
+        .map(|_| {
+            let barrier = Arc::clone(&barrier);
+            thread::spawn(move || {
+                let mut command = Command::new("sleep");
+                command.arg("30").process_group(0);
+                barrier.wait();
+                spawn(&mut command).expect("spawn sleeper")
+            })
+        })
+        .collect();
+    let (done_tx, done_rx) = mpsc::channel();
+    let fast = {
+        let barrier = Arc::clone(&barrier);
+        thread::spawn(move || {
+            let mut command = Command::new("true");
+            command.process_group(0);
+            barrier.wait();
+            let mut child = spawn(&mut command).expect("spawn fast child");
+            let status = child.child.wait().expect("wait for fast child");
+            assert!(status.success());
+            release(child.child.id());
+            done_tx
+                .send(())
+                .expect("report fast child completion");
+        })
+    };
+
+    let completed = done_rx.recv_timeout(Duration::from_secs(10));
+    for handle in sleepers {
+        let mut child = handle.join().expect("join sleeper spawn thread");
+        let _ = child.child.kill();
+        let _ = child.child.wait();
+        release(child.child.id());
+    }
+    fast.join().expect("join fast child thread");
+    completed.expect("fast child spawn must not wait on a sibling sleeper's inherited pipe");
+}

@@ -179,12 +179,26 @@ fn resolve_workspace<'a>(
 ) -> Result<ResolvedWorkspace<'a>, VersioningError> {
     let refs = index_project_refs(projects, workspace_dir);
     let participants = collect_participants(projects, workspace_dir, &refs, versioning)?;
-    let lanes_by_dir = resolve_lanes(&refs, versioning)?;
+    let lanes_by_dir = resolve_lanes(&refs, &participants, versioning)?;
     let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
     validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
     let epics = resolve_epics(&refs, &participants, versioning)?;
     validate_epics(&epics, &fixed_groups)?;
     Ok(ResolvedWorkspace { refs, participants, lanes_by_dir, fixed_groups, epics })
+}
+
+/// Validates `versioning.lanes` against `versioning.fixed` so a lane edit can
+/// reject a split fixed group before writing `pnpm-workspace.yaml`.
+pub fn validate_versioning_lanes(
+    projects: &[WorkspaceProject],
+    workspace_dir: &Path,
+    versioning: &VersioningSettings,
+) -> Result<(), VersioningError> {
+    let refs = index_project_refs(projects, workspace_dir);
+    let participants = collect_participants(projects, workspace_dir, &refs, Some(versioning))?;
+    let lanes_by_dir = resolve_lanes(&refs, &participants, Some(versioning))?;
+    let fixed_groups = resolve_fixed_groups(&refs, &participants, Some(versioning))?;
+    validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, Some(versioning))
 }
 
 /// The kind of committed-version invariant [`check_versioning_invariants`]

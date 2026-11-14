@@ -425,6 +425,7 @@ impl CliCommand {
                 | CliCommand::Root(_)
                 | CliCommand::Bin(_),
         ) || self.prints_upload_values()
+            || matches!(self, CliCommand::Version(args) if args.json)
     }
 
     /// `publish --upload-variant` prints the values a later publish takes,

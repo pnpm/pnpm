@@ -1,12 +1,11 @@
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
+import { promises as fs, type Stats } from 'node:fs'
+import path, { type ParsedPath } from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
+import { isError } from '@pnpm/error'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { rimraf } from '@zkochan/rimraf'
-import { isSubdir } from 'is-subdir'
-import { pathAbsolute } from 'path-absolute'
-import { pathExists } from 'path-exists'
+import { isSubdir, strict as isStrictSubdir } from 'is-subdir'
 import { renderHelp } from 'render-help'
 
 export const commandNames = ['clean', 'purge']
@@ -68,76 +67,216 @@ export async function handler (
   await cleanProjects({ ...opts, removeLockfile: opts.cliOptions?.lockfile === true })
 }
 
+interface CleanProjectContext {
+  cwd: string
+  modulesDir: string
+  realRootDir: string
+  removeLockfile: boolean
+}
+
 export async function cleanProjects (opts: CleanOptions & { removeLockfile: boolean }): Promise<void> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const rootDir = opts.workspaceDir ?? opts.dir
-  const cleanOpts = { modulesDir, removeLockfile: opts.removeLockfile }
+  const realRootDir = await tryRealpath(rootDir)
+  if (realRootDir == null) return
+  const cwd = await tryRealpath(process.cwd()) ?? process.cwd()
+  const cleanOpts: CleanProjectContext = {
+    cwd,
+    modulesDir,
+    realRootDir,
+    removeLockfile: opts.removeLockfile,
+  }
   const dirs = await getProjectDirs(opts)
-  await Promise.all(dirs.map(cleanProjectDir.bind(null, cleanOpts)))
+  await Promise.all(dirs.map(async (dir) => cleanProjectDir(cleanOpts, dir)))
   if (opts.virtualStoreDir) {
-    // virtualStoreDir is resolved relative to the project/workspace root,
-    // matching how pnpm resolves it in get-context (via pathAbsolute).
-    // The default 'node_modules/.pnpm' is inside node_modules and already
-    // cleaned above, so we only need to handle the case where it's outside.
-    const resolvedVirtualStoreDir = path.isAbsolute(opts.virtualStoreDir)
-      ? opts.virtualStoreDir
-      : path.resolve(rootDir, opts.virtualStoreDir)
-    const rootModulesDir = pathAbsolute(modulesDir, rootDir)
-    if (
-      !isSubdir(rootModulesDir, resolvedVirtualStoreDir) &&
-      isSubdir(rootDir, resolvedVirtualStoreDir) &&
-      await pathExists(resolvedVirtualStoreDir)
-    ) {
-      printRemoving(resolvedVirtualStoreDir)
-      await rimraf(resolvedVirtualStoreDir)
-    }
+    await removeExternalVirtualStore({
+      cwd,
+      modulesDir,
+      rootDir,
+      virtualStoreDir: opts.virtualStoreDir,
+    })
   }
 }
 
-function printRemoving (dir: string): void {
-  process.stdout.write(`Removing ${path.relative(process.cwd(), dir) || '.'}\n`)
-}
-
-async function cleanProjectDir (opts: { modulesDir: string, removeLockfile?: boolean }, dir: string): Promise<void> {
-  const fullModulesDir = pathAbsolute(opts.modulesDir, dir)
-  if (await hasContentsToRemove(fullModulesDir)) {
-    printRemoving(fullModulesDir)
-    await removeModulesDirContents(fullModulesDir)
+async function cleanProjectDir (opts: CleanProjectContext, dir: string): Promise<void> {
+  const fullModulesDir = await resolveProjectModulesDir({
+    modulesDir: opts.modulesDir,
+    projectDir: dir,
+    realRootDir: opts.realRootDir,
+  })
+  if (fullModulesDir != null) {
+    await cleanModulesDir(opts.cwd, fullModulesDir)
   }
   if (opts.removeLockfile) {
-    const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
-    if (await pathExists(lockfilePath)) {
-      printRemoving(lockfilePath)
-      await rimraf(lockfilePath)
-    }
+    await removeProjectLockfile(opts, dir)
   }
+}
+
+async function resolveProjectModulesDir (
+  opts: {
+    modulesDir: string
+    projectDir: string
+    realRootDir: string
+  }
+): Promise<string | undefined> {
+  const resolved = await resolveInside(opts.projectDir, opts.modulesDir)
+  if (resolved == null || !isStrictSubdir(opts.realRootDir, resolved)) {
+    return undefined
+  }
+  return resolved
 }
 
 const PNPM_HIDDEN_ENTRIES = new Set(['.bin', '.modules.yaml', '.pnpm', '.pnpm-workspace-state-v1.json'])
 
-async function hasContentsToRemove (modulesDir: string): Promise<boolean> {
-  let items: string[]
-  try {
-    items = await fs.readdir(modulesDir)
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
-    throw err
+async function cleanModulesDir (cwd: string, modulesDir: string): Promise<void> {
+  const stat = await lstatIfExists(modulesDir)
+  if (stat == null) return
+  if (stat.isSymbolicLink()) {
+    printRemoving(cwd, modulesDir)
+    await rimraf(modulesDir)
+    return
   }
-  return items.some((item) => item[0] !== '.' || PNPM_HIDDEN_ENTRIES.has(item))
+  if (!stat.isDirectory()) return
+  const entries = await removableModulesEntries(modulesDir)
+  if (entries.length === 0) return
+  printRemoving(cwd, modulesDir)
+  await Promise.all(entries.map(async (entry) => rimraf(entry)))
 }
 
-async function removeModulesDirContents (modulesDir: string): Promise<void> {
+async function removableModulesEntries (modulesDir: string): Promise<string[]> {
   let items: string[]
   try {
     items = await fs.readdir(modulesDir)
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return []
     throw err
   }
-  await Promise.all(items.map(async (item) => {
-    if (item[0] === '.' && !PNPM_HIDDEN_ENTRIES.has(item)) return
-    await rimraf(path.join(modulesDir, item))
-  }))
+  return items
+    .filter((item) => item[0] !== '.' || PNPM_HIDDEN_ENTRIES.has(item))
+    .map((item) => path.join(modulesDir, item))
+}
+
+async function removeProjectLockfile (opts: CleanProjectContext, dir: string): Promise<void> {
+  const lockfilePath = await resolveInside(dir, 'pnpm-lock.yaml')
+  if (lockfilePath == null || !isStrictSubdir(opts.realRootDir, lockfilePath)) return
+  const stat = await lstatIfExists(lockfilePath)
+  if (stat == null || (!stat.isSymbolicLink() && stat.isDirectory())) return
+  printRemoving(opts.cwd, lockfilePath)
+  await rimraf(lockfilePath)
+}
+
+async function removeExternalVirtualStore (
+  opts: {
+    cwd: string
+    modulesDir: string
+    rootDir: string
+    virtualStoreDir: string
+  }
+): Promise<void> {
+  const virtualStoreInProject = await resolveInside(opts.rootDir, opts.virtualStoreDir)
+  if (virtualStoreInProject == null) return
+  const rootModulesDir = await resolveInside(opts.rootDir, opts.modulesDir)
+  if (rootModulesDir != null && isSubdir(rootModulesDir, virtualStoreInProject)) return
+  if (await lstatIfExists(virtualStoreInProject) == null) return
+  printRemoving(opts.cwd, virtualStoreInProject)
+  await rimraf(virtualStoreInProject)
+}
+
+async function resolveInside (rootDir: string, targetSpec: string): Promise<string | undefined> {
+  const realRoot = await tryRealpath(rootDir)
+  if (realRoot == null) {
+    return undefined
+  }
+  const candidatePath = normalizeTargetSpec(realRoot, targetSpec)
+  if (candidatePath == null) {
+    return undefined
+  }
+  const parsed = path.parse(candidatePath)
+  if (parsed.base.replace(/[. ]+$/u, '') === '') {
+    return undefined
+  }
+  const realParent = await resolveParentDir(realRoot, parsed)
+  if (realParent == null) {
+    return undefined
+  }
+  const resolved = path.join(realParent, parsed.base)
+  return isStrictSubdir(realRoot, resolved) ? resolved : undefined
+}
+
+async function resolveParentDir (realRoot: string, parsed: ParsedPath): Promise<string | undefined> {
+  if (parsed.dir === realRoot) {
+    return realRoot
+  }
+  if (!parsed.dir.split(path.sep).some(needsStepwiseResolution)) {
+    return tryRealpath(parsed.dir)
+  }
+  return resolveParentSegments(realRoot, parsed)
+}
+
+function needsStepwiseResolution (segment: string): boolean {
+  return segment === '..' || (path.sep === '\\' && segment !== '' && segment.replace(/[. ]+$/u, '') === '')
+}
+
+async function resolveParentSegments (realRoot: string, parsed: ParsedPath): Promise<string | undefined> {
+  const rootPrefix = appendPathSep(realRoot)
+  const underRealRoot = parsed.dir.startsWith(rootPrefix)
+  const anchor = underRealRoot ? realRoot : await tryRealpath(parsed.root)
+  if (anchor == null) {
+    return undefined
+  }
+  const tail = underRealRoot ? parsed.dir.slice(rootPrefix.length) : parsed.dir.slice(parsed.root.length)
+  const segments = tail.split(path.sep).filter((segment) => segment !== '' && segment !== '.')
+  return segments.reduce<Promise<string | undefined>>(
+    async (currentPromise, segment) => stepParentSegment(await currentPromise, segment),
+    Promise.resolve(anchor)
+  )
+}
+
+async function stepParentSegment (current: string | undefined, segment: string): Promise<string | undefined> {
+  if (current == null) {
+    return undefined
+  }
+  return segment === '..' ? path.dirname(current) : tryRealpath(path.join(current, segment))
+}
+
+function normalizeTargetSpec (realRoot: string, targetSpec: string): string | undefined {
+  const nativeSpec = path.sep === '\\' ? targetSpec.replaceAll('/', '\\') : targetSpec
+  if (path.parse(nativeSpec).root === '') {
+    return `${appendPathSep(realRoot)}${nativeSpec}`
+  }
+  return path.isAbsolute(nativeSpec) ? nativeSpec : undefined
+}
+
+function appendPathSep (dirPath: string): string {
+  return dirPath.endsWith(path.sep) ? dirPath : `${dirPath}${path.sep}`
+}
+
+async function tryRealpath (targetPath: string): Promise<string | undefined> {
+  try {
+    return await fs.realpath(targetPath)
+  } catch (err: unknown) {
+    if (isExpectedResolutionError(err)) return undefined
+    throw err
+  }
+}
+
+async function lstatIfExists (targetPath: string): Promise<Stats | undefined> {
+  try {
+    return await fs.lstat(targetPath)
+  } catch (err: unknown) {
+    if (isExpectedResolutionError(err)) return undefined
+    throw err
+  }
+}
+
+function isExpectedResolutionError (err: unknown): boolean {
+  return isError(err) &&
+    'code' in err &&
+    (err.code === 'ENOENT' || err.code === 'ENOTDIR' || err.code === 'ELOOP')
+}
+
+function printRemoving (cwd: string, dir: string): void {
+  process.stdout.write(`Removing ${path.relative(cwd, dir) || '.'}\n`)
 }
 
 async function getProjectDirs (

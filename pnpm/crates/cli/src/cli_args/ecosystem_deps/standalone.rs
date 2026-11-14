@@ -4,8 +4,8 @@ use crate::{
     cli_args::{
         pipelines::WorkspaceScope,
         recursive::{
-            AutoExcludeRoot, RecursiveSelection, filter_against, recursive_filter_options,
-            select_recursive_projects_deferring_no_match,
+            AutoExcludeRoot, RecursiveSelection, filter_graphs, parse_configured_selectors,
+            recursive_filter_options, select_recursive_projects_deferring_no_match,
         },
     },
     ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, python},
@@ -282,32 +282,28 @@ fn resolve_cargo_edge_target(
         return index.by_norm_dir.get(&norm).cloned();
     }
     if dep_table.get("workspace").and_then(toml::Value::as_bool) == Some(true) {
-        let ws_key = dep_table
-            .get("package")
-            .and_then(toml::Value::as_str)
-            .unwrap_or(key);
-        return resolve_workspace_cargo_edge(ws_key, dir, index);
+        let dep_package = dep_table.get("package").and_then(toml::Value::as_str);
+        return resolve_workspace_cargo_edge(key, dep_package, dir, index);
     }
     None
 }
 
 fn resolve_workspace_cargo_edge(
-    ws_key: &str,
+    dep_key: &str,
+    dep_package: Option<&str>,
     dir: &Path,
     index: &CargoWorkspaceIndex,
 ) -> Option<PathBuf> {
-    if let Some(spec) = workspace_dependency_spec(dir, ws_key) {
-        if let Some(rel_path) = spec.path {
-            let norm = pnpm_fs::lexical_normalize(&spec.workspace_root.join(rel_path));
-            if let Some(target) = index.by_norm_dir.get(&norm) {
-                return Some(target.clone());
-            }
-        }
-        if let Some(target) = index.by_name.get(&spec.package_name) {
+    let Some(spec) = workspace_dependency_spec(dir, dep_key, dep_package) else {
+        return index.by_name.get(dep_key).cloned();
+    };
+    if let Some(rel_path) = spec.path {
+        let norm = pnpm_fs::lexical_normalize(&spec.workspace_root.join(rel_path));
+        if let Some(target) = index.by_norm_dir.get(&norm) {
             return Some(target.clone());
         }
     }
-    index.by_name.get(ws_key).cloned()
+    index.by_name.get(&spec.package_name).cloned()
 }
 
 fn filter_standalone_graph<Pkg: BaseProject>(
@@ -317,29 +313,11 @@ fn filter_standalone_graph<Pkg: BaseProject>(
     prefix: &Path,
 ) -> Result<HashSet<PathBuf>> {
     let root_selector = AutoExcludeRoot::Disabled.root_selector(config, prefix);
-    let prod = !config.filter_prod.is_empty();
     let options = recursive_filter_options(config, prefix);
-    let mut selected: HashSet<PathBuf> = filter_against(
-        all_graph,
-        &config.filter,
-        root_selector.as_deref().filter(|_| !prod),
-        false,
-        prefix,
-        &options,
-    )?
-    .into_iter()
-    .collect();
-    if prod {
-        selected.extend(filter_against(
-            prod_graph,
-            &config.filter_prod,
-            root_selector.as_deref().filter(|_| prod),
-            true,
-            prefix,
-            &options,
-        )?);
-    }
-    Ok(selected)
+    let selectors = parse_configured_selectors(config, root_selector.as_deref(), prefix);
+    let prod = (!config.filter_prod.is_empty()).then_some(prod_graph);
+    let filtered = filter_graphs(all_graph, prod, &selectors, &options)?;
+    Ok(filtered.selected_projects.into_iter().collect())
 }
 
 async fn select_standalone_python_dirs(

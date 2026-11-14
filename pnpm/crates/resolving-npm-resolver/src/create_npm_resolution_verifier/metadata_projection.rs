@@ -150,5 +150,6 @@ pub(super) fn project_artifact_history(
             tarball: (!dist.tarball.is_empty()).then(|| dist.tarball.clone()),
         },
         revisions,
+        install_v2: dist.install_v2_entry(),
     }
 }

@@ -33,3 +33,38 @@ fn censors_in_place() {
     assert_eq!(map["username"], json!("(protected)"));
     assert_eq!(map["//my-org.example.com:username"], json!("(protected)"));
 }
+
+#[test]
+fn censors_nested_cache_signing_keys() {
+    let mut map = json!({
+        "remoteCache": {
+            "url": "https://cache.example.com",
+            "privateKey": "secret-a"
+        },
+        "remoteSideEffectsCache": {
+            "org": "acme",
+            "packages": ["pkg"],
+            "privateKey": "secret-b"
+        },
+        "sideEffectsCache": {
+            "read": true,
+            "remote": {
+                "org": "acme",
+                "packages": ["pkg"],
+                "privateKey": "secret-c"
+            }
+        }
+    })
+    .as_object()
+    .unwrap()
+    .clone();
+
+    censor_protected_settings(&mut map);
+
+    assert_eq!(map["remoteCache"]["url"], json!("https://cache.example.com"));
+    assert_eq!(map["remoteCache"]["privateKey"], json!("(protected)"));
+    assert_eq!(map["remoteSideEffectsCache"]["org"], json!("acme"));
+    assert_eq!(map["remoteSideEffectsCache"]["privateKey"], json!("(protected)"));
+    assert_eq!(map["sideEffectsCache"]["read"], json!(true));
+    assert_eq!(map["sideEffectsCache"]["remote"]["privateKey"], json!("(protected)"));
+}

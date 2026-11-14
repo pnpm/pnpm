@@ -114,13 +114,15 @@ fn restrict(full: &SnapshotEntry, archive: &Declared, by_any: &HashSet<&String>)
 
 /// `<name>@<version>/variants/<tag>`, with the peer suffix of `key` after it.
 fn variant_key(key: &PackageKey, tag: &str) -> Option<PackageKey> {
-    let key = key.to_string();
-    let at = key[1..].find('@')? + 1;
-    let (name_version, peers) = match key[at..].find('(') {
-        Some(paren) => key.split_at(at + paren),
-        None => (key.as_str(), ""),
-    };
-    format!("{name_version}/variants/{tag}{peers}").parse().ok()
+    let suffix = format!(
+        "{}{}/variants/{tag}{}",
+        key.suffix.prefix(),
+        key.suffix.version(),
+        key.suffix.peer(),
+    )
+    .parse()
+    .ok()?;
+    Some(PackageKey::new(key.name.clone(), suffix))
 }
 
 #[cfg(test)]

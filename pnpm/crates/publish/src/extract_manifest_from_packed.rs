@@ -28,9 +28,13 @@ pub fn is_tarball_path(path: &str) -> bool {
 
 /// Read and parse `package/package.json` from the gzipped tarball at
 /// `tarball_path`.
-pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, ExtractManifestError> {
+pub fn extract_manifest_from_packed(
+    tarball_path: impl AsRef<Path>,
+) -> Result<Value, ExtractManifestError> {
+    let tarball_path = tarball_path.as_ref();
+    let display_path = || tarball_path.display().to_string();
     let read_err = |source: std::io::Error| ExtractManifestError::Read {
-        tarball_path: tarball_path.to_owned(),
+        tarball_path: display_path(),
         source,
     };
     let file = File::open(tarball_path).map_err(read_err)?;
@@ -47,13 +51,13 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
         let text = read_packed_text(&mut entry).map_err(read_err)?;
         return parse_manifest(&text)
             .map_err(|source| ExtractManifestError::Parse {
-                tarball_path: tarball_path.to_owned(),
+                tarball_path: display_path(),
                 source,
             });
     }
 
     Err(ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
-        tarball_path: tarball_path.to_owned(),
+        tarball_path: display_path(),
     }))
 }
 
@@ -63,10 +67,12 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
 /// pacote's `fullReadJson`) so the registry gets it as metadata even though it
 /// isn't stored in the packed `package.json`.
 pub fn extract_publish_manifest_from_packed(
-    tarball_path: &str,
+    tarball_path: impl AsRef<Path>,
 ) -> Result<Value, ExtractManifestError> {
+    let tarball_path = tarball_path.as_ref();
+    let display_path = || tarball_path.display().to_string();
     let read_err = |source: std::io::Error| ExtractManifestError::Read {
-        tarball_path: tarball_path.to_owned(),
+        tarball_path: display_path(),
         source,
     };
     let file = File::open(tarball_path).map_err(read_err)?;
@@ -77,14 +83,11 @@ pub fn extract_publish_manifest_from_packed(
 
     let manifest_text = manifest_text.ok_or_else(|| {
         ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
-            tarball_path: tarball_path.to_owned(),
+            tarball_path: display_path(),
         })
     })?;
     let mut manifest: Value = parse_manifest(&manifest_text)
-        .map_err(|source| ExtractManifestError::Parse {
-            tarball_path: tarball_path.to_owned(),
-            source,
-        })?;
+        .map_err(|source| ExtractManifestError::Parse { tarball_path: display_path(), source })?;
     if let Some(readme) = readme
         && manifest.get("readme").is_none_or(Value::is_null)
         && let Some(object) = manifest.as_object_mut()

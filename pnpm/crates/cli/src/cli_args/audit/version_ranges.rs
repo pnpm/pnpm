@@ -89,66 +89,12 @@ pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> S
 }
 
 pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {
-    let Ok(dom_range) = dom.trim().parse::<Range>() else { return false };
     let sub = sub.trim();
-    if sub.is_empty() || !sub_prereleases_admitted_by_dom(sub, dom) {
+    let dom = dom.trim();
+    if sub.is_empty() || dom.is_empty() {
         return false;
     }
-    sub.split("||")
-        .all(|sub_part| {
-            let Ok(sub_range) = sub_part.trim().parse::<Range>() else { return false };
-            dom_range.allows_all(&sub_range)
-        })
-}
-
-fn sub_prereleases_admitted_by_dom(sub: &str, dom: &str) -> bool {
-    for comparator in extract_comparators(sub) {
-        let (_, version_str) = comparator_operator_and_version(&comparator);
-        let Ok(version) = version_str.parse::<Version>() else { continue };
-        if version.is_prerelease()
-            && !has_matching_prerelease_tuple(dom, version.major, version.minor, version.patch)
-        {
-            return false;
-        }
-    }
-    true
-}
-
-fn has_matching_prerelease_tuple(dom: &str, major: u64, minor: u64, patch: u64) -> bool {
-    extract_comparators(dom)
-        .into_iter()
-        .any(|comparator| {
-            let (_, version_str) = comparator_operator_and_version(&comparator);
-            version_str
-                .parse::<Version>()
-                .is_ok_and(|version| {
-                    version.is_prerelease()
-                        && version.major == major
-                        && version.minor == minor
-                        && version.patch == patch
-                })
-        })
-}
-
-fn extract_comparators(range_str: &str) -> Vec<String> {
-    let mut comparators = Vec::new();
-    for part in range_str.split("||") {
-        let tokens: Vec<&str> = part.split_whitespace().collect();
-        let mut index = 0;
-        while index < tokens.len() {
-            let token = tokens[index];
-            if matches!(token, ">=" | "<=" | ">" | "<" | "=" | "^" | "~")
-                && index + 1 < tokens.len()
-            {
-                comparators.push(format!("{}{}", token, tokens[index + 1]));
-                index += 2;
-            } else {
-                comparators.push(token.to_string());
-                index += 1;
-            }
-        }
-    }
-    comparators
+    pnpm_semver_include_prerelease::is_semver_subset(sub, dom)
 }
 
 pub(crate) fn min_version_from_range(range_str: &str) -> Option<Version> {

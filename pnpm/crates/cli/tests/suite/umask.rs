@@ -15,7 +15,10 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::WORKSPACE_STATE_FILENAME;
 use std::{
     fs,
-    os::unix::{fs::PermissionsExt, process::CommandExt},
+    os::unix::{
+        fs::PermissionsExt,
+        process::{CommandExt, ExitStatusExt},
+    },
     path::{Path, PathBuf},
     process::Command,
 };
@@ -54,7 +57,9 @@ fn pnpm_with_umask(dir: &Path, umask: libc::mode_t, args: &[&str]) {
         .expect("run pnpm");
     assert!(
         output.status.success(),
-        "{args:?} under umask {umask:#o} failed\nstdout:\n{}\nstderr:\n{}",
+        "{args:?} under umask {umask:#o} failed: {} (signal: {:?})\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        output.status.signal(),
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );

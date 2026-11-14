@@ -459,7 +459,7 @@ fn merge_repair_lockfile_views(
 
 /// Which wanted-lockfile file an install reads and writes, and whether the
 /// other branches' lockfiles are folded into it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WantedLockfileSelection {
     /// The file the install reads first and writes back:
     /// `pnpm-lock.yaml`, or the `pnpm-lock.<branch>.yaml` that
@@ -505,7 +505,7 @@ impl WantedLockfileSelection {
     }
 
     /// The file names to try, most specific first.
-    fn read_order(&self) -> impl Iterator<Item = &str> {
+    pub fn read_order(&self) -> impl Iterator<Item = &str> {
         let branch_file = (self.file_name != Lockfile::FILE_NAME).then_some(&*self.file_name);
         self.branch_lockfile_candidates
             .iter()

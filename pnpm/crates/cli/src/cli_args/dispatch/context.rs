@@ -50,6 +50,7 @@ pub(crate) struct CommandLocations<'a> {
 
 pub(crate) struct WorkspaceInvocation<'a> {
     pub(crate) recursive: bool,
+    pub(crate) recursive_from_command_line: bool,
     pub(crate) resume_from: Option<&'a str>,
     pub(crate) report_summary: bool,
     pub(crate) parallel: bool,
@@ -137,6 +138,7 @@ impl<'a> From<&'a crate::cli_args::cli_command::CliWorkspaceArgs> for WorkspaceI
     fn from(args: &'a crate::cli_args::cli_command::CliWorkspaceArgs) -> Self {
         Self {
             recursive: args.recursive,
+            recursive_from_command_line: args.recursive_from_command_line,
             resume_from: args.ordering.resume_from.as_deref(),
             report_summary: args.execution.report_summary,
             parallel: args.ordering.parallel,

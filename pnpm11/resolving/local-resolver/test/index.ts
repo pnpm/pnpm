@@ -466,7 +466,7 @@ test('isLocalFilesystemSpecifier reads a tarball suffix literally', () => {
 // resolver, and `<letter>:` is a single-letter named registry as much as a
 // Windows drive path.
 test('barePathIsUnambiguous recognizes only path-prefixed specifiers', () => {
-  for (const specifier of ['./pkg', '../pkg', '/abs/pkg', '~/pkg', '.', '..', '.hidden/pkg']) {
+  for (const specifier of ['./pkg', '../pkg', '../child:local', '/abs/pkg', '~/pkg', '.', '..', '.hidden/pkg']) {
     expect([specifier, barePathIsUnambiguous(specifier)]).toEqual([specifier, true])
   }
   for (const specifier of ['C:/pkg', 'C:pkg', 'pkg-1.0.0.tgz', 'deps/pkg-1.0.0.tar.gz', 'is-positive', '^1.0.0', 'npm:is-positive@1', 'user/repo', 'gh:@scope/pkg', 'workspace:*']) {

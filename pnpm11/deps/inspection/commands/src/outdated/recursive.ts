@@ -1,6 +1,12 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { createMatcher } from '@pnpm/config.matcher'
-import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions } from '@pnpm/deps.github-actions'
+import {
+  expandGitHubActionSelectors,
+  findOutdatedGitHubActions,
+  hasPositiveGitHubActionSelector,
+  isGitHubActionSelector,
+  shouldCheckGitHubActions,
+} from '@pnpm/deps.github-actions'
 import {
   outdatedDepsOfProjects,
 } from '@pnpm/deps.inspection.outdated'
@@ -70,7 +76,7 @@ export async function outdatedRecursive (
     throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
       'None of the specified packages were found in the dependencies of any of the projects.')
   }
-  const outdatedPackagesByProject = params.length === 0 || packageParams.length > 0
+  const outdatedPackagesByProject = packageParams.length > 0 || !hasPositiveGitHubActionSelector(params)
     ? await outdatedDepsOfProjects(pkgs, packageParams, {
       ...opts,
       fullMetadata: opts.long,
@@ -127,7 +133,7 @@ async function addOutdatedGitHubActions (
   const outdatedActions = await findOutdatedGitHubActions({
     compatible: opts.compatible,
     dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-    match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+    match: params.length > 0 ? createMatcher(expandGitHubActionSelectors(params)) : undefined,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     serverUrl: opts.updateConfig?.githubActionsServer,

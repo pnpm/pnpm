@@ -315,4 +315,53 @@ describe('change command and intent-consuming version -r', () => {
     await expect(change.handler(opts as any, ['status'])).rejects.toThrow('registry unreachable') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     await expect(version.handler(opts as any, [])).rejects.toThrow('registry unreachable') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
   })
+
+  it('lane rejects a partial move of a versioning.fixed group without writing pnpm-workspace.yaml', async () => {
+    const pkgA = addPkg({ name: 'pkg-a', version: '1.0.0' })
+    const pkgB = addPkg({ name: 'pkg-b', version: '1.0.0' })
+    const workspaceYamlPath = path.join(tempDir, 'pnpm-workspace.yaml')
+    const initialYaml = 'packages:\n  - packages/*\nversioning:\n  fixed:\n    - [pkg-a, pkg-b]\n'
+    fs.writeFileSync(workspaceYamlPath, initialYaml)
+
+    const partialToAlpha = {
+      ...baseOpts([pkgA, pkgB]),
+      versioning: { fixed: [['pkg-a', 'pkg-b']] },
+      filter: ['pkg-a'],
+      selectedProjectsGraph: {
+        [pkgA.rootDir]: { dependencies: [], package: { rootDir: pkgA.rootDir, manifest: pkgA.manifest } },
+      },
+    }
+
+    await expect(
+      lane.handler(partialToAlpha as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_CONFLICTING_CONFIG' })
+    expect(fs.readFileSync(workspaceYamlPath, 'utf8')).toBe(initialYaml)
+
+    const bothToAlpha = {
+      ...baseOpts([pkgA, pkgB]),
+      versioning: { fixed: [['pkg-a', 'pkg-b']] },
+      filter: ['pkg-a', 'pkg-b'],
+      selectedProjectsGraph: {
+        [pkgA.rootDir]: { dependencies: [], package: { rootDir: pkgA.rootDir, manifest: pkgA.manifest } },
+        [pkgB.rootDir]: { dependencies: [], package: { rootDir: pkgB.rootDir, manifest: pkgB.manifest } },
+      },
+    }
+    await lane.handler(bothToAlpha as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    const onAlphaYaml = fs.readFileSync(workspaceYamlPath, 'utf8')
+    expect(onAlphaYaml).toContain('pkg-a: alpha')
+    expect(onAlphaYaml).toContain('pkg-b: alpha')
+
+    const partialToMain = {
+      ...baseOpts([pkgA, pkgB]),
+      versioning: { fixed: [['pkg-a', 'pkg-b']], lanes: { 'pkg-a': 'alpha', 'pkg-b': 'alpha' } },
+      filter: ['pkg-a'],
+      selectedProjectsGraph: {
+        [pkgA.rootDir]: { dependencies: [], package: { rootDir: pkgA.rootDir, manifest: pkgA.manifest } },
+      },
+    }
+    await expect(
+      lane.handler(partialToMain as any, ['main']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_CONFLICTING_CONFIG' })
+    expect(fs.readFileSync(workspaceYamlPath, 'utf8')).toBe(onAlphaYaml)
+  })
 })

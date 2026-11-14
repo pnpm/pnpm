@@ -1,5 +1,5 @@
 use super::{
-    ApproveArgs, Capabilities,
+    ApproveArgs, Capabilities, PromptAvailability,
     decisions::{PackageDecisions, confirmation},
     render_permissions,
 };
@@ -100,6 +100,38 @@ fn rejects_contradictory_arguments() {
         .decide::<SilentReporter>(&BTreeMap::new(), decide_config(), Path::new("/workspace"))
         .expect_err("contradiction");
     assert!(error.to_string().contains("both approved and denied"));
+}
+
+#[test]
+fn rejects_interactive_approval_when_prompting_is_unavailable() {
+    let pending = pending(&[("esbuild", &[Build])]);
+    let error = args(&[], false)
+        .decide_with_prompt::<SilentReporter>(
+            &pending,
+            decide_config(),
+            Path::new("/workspace"),
+            PromptAvailability::Unavailable,
+        )
+        .expect_err("interactive approval without a prompt is rejected");
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_APPROVE_NON_INTERACTIVE"),
+    );
+
+    assert!(
+        args(&[], false)
+            .decide_with_prompt::<SilentReporter>(
+                &BTreeMap::new(),
+                decide_config(),
+                Path::new("/workspace"),
+                PromptAvailability::Unavailable,
+            )
+            .expect("no pending permissions needs no prompt")
+            .is_none(),
+    );
 }
 
 #[test]
@@ -376,4 +408,50 @@ fn clear_decided_removes_decided_entries_from_modules_manifest() {
         .unwrap();
     assert!(updated.ignored_builds.is_none());
     assert!(updated.pending_skills.is_none());
+}
+
+#[test]
+fn pending_permissions_and_clear_decided_key_local_directory_skills_by_package_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = config_awaiting(
+        &dir,
+        &[
+            "@example/my-skills@link:packages/my-skills",
+            "@example/file-skills@file:../file-skills",
+            "tar-skills@file:./tar-skills.tgz",
+        ],
+    );
+
+    let actual = super::pending_permissions(&config).unwrap();
+    assert_eq!(
+        actual.by_package,
+        pending(&[
+            ("@example/file-skills", &[Skills]),
+            ("@example/my-skills", &[Skills]),
+            ("tar-skills@file:./tar-skills.tgz", &[Skills]),
+        ]),
+    );
+
+    let mut decisions = BTreeMap::new();
+    decisions.insert(
+        "@example/my-skills".to_string(),
+        decided(None, Some(SkillsPermission::All(true))),
+    );
+    decisions.insert(
+        "@example/file-skills".to_string(),
+        decided(None, Some(SkillsPermission::All(false))),
+    );
+    super::decisions::clear_decided(actual.scan, &decisions).unwrap();
+
+    let updated = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &dir.path().join("node_modules"),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        updated.pending_skills,
+        Some(indexmap::IndexSet::from([pnpm_modules_yaml::DepPath::from(
+            "tar-skills@file:./tar-skills.tgz".to_string(),
+        )])),
+    );
 }

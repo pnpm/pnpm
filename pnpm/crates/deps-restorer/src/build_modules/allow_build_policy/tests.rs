@@ -58,3 +58,11 @@ fn tells_local_directories_and_tarballs_apart() {
     assert_eq!(short_package_label("pkg@file:./skipped/pkg.tar.gz"), "pkg (tarball)");
     assert_eq!(short_package_label("pkg@link:../lib"), "pkg (local)");
 }
+
+#[test]
+fn handles_multibyte_utf8_package_names() {
+    assert_eq!(short_package_label("ä@1.0.0"), "ä");
+    assert_eq!(short_package_label("@ä/ü@1.0.0"), "@ä/ü");
+    assert_eq!(short_package_label("ä@https://example.invalid/a.tgz"), "ä (tarball)");
+    assert_eq!(super::allow_build_key_from_ignored_build("ä@1.0.0"), "ä");
+}

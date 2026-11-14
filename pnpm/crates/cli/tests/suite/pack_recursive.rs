@@ -231,6 +231,68 @@ fn recursive_pack_resolves_catalog_specifiers_from_the_workspace_manifest() {
     drop(root);
 }
 
+#[test]
+fn pack_out_does_not_expand_placeholders_in_cwd_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let special_ws = workspace.join("dir-%s-%v-ws");
+    fs::create_dir_all(&special_ws).expect("create special workspace dir");
+    write_workspace(&special_ws, &["pkg-a", "pkg-b"]);
+
+    pacquet
+        .with_current_dir(&special_ws)
+        .with_args(["-r", "pack", "--out", "%s-%v.tgz"])
+        .assert()
+        .success();
+
+    for name in ["pkg-a", "pkg-b"] {
+        let tarball = special_ws.join(format!("{name}-1.0.0.tgz"));
+        assert!(tarball.is_file(), "expected {} in workspace", tarball.display());
+        assert_eq!(read_manifest_from_tarball(&tarball)["name"], name);
+        let escaped_dir = workspace.join(format!("dir-{name}-1.0.0-ws"));
+        assert!(!escaped_dir.exists(), "must not create sibling dir {}", escaped_dir.display());
+    }
+
+    let CommandTempCwd {
+        pacquet: single_cmd,
+        root: single_root,
+        ..
+    } = CommandTempCwd::init();
+    single_cmd
+        .with_current_dir(special_ws.join("pkg-a"))
+        .with_args(["pack", "--out", "single-%s-%v.tgz"])
+        .assert()
+        .success();
+    assert!(
+        special_ws
+            .join("pkg-a")
+            .join("single-pkg-a-1.0.0.tgz")
+            .is_file(),
+    );
+    assert!(!workspace.join("dir-pkg-a-1.0.0-ws").exists());
+
+    drop(single_root);
+    drop(root);
+}
+
+#[test]
+fn recursive_pack_literal_out_in_placeholder_cwd_serializes_and_writes_inside_cwd() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let special_ws = workspace.join("dir-%s-%v-ws");
+    fs::create_dir_all(&special_ws).expect("create special workspace dir");
+    write_workspace(&special_ws, &["pkg-a", "pkg-b"]);
+
+    pacquet
+        .with_current_dir(&special_ws)
+        .with_args(["-r", "pack", "--out", "artifact.tgz"])
+        .assert()
+        .success();
+
+    assert!(special_ws.join("artifact.tgz").is_file());
+    assert!(!workspace.join("dir-pkg-a-1.0.0-ws").exists());
+    assert!(!workspace.join("dir-pkg-b-1.0.0-ws").exists());
+    drop(root);
+}
+
 /// Extract `package/package.json` from a packed tarball.
 fn read_manifest_from_tarball(tarball: &Path) -> serde_json::Value {
     use std::io::Read as _;

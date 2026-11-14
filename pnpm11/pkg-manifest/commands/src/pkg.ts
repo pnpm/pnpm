@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { docsUrl, readProjectManifest, readProjectManifestOnly } from '@pnpm/cli.utils'
+import { docsUrl, readRawProjectManifest, readRawProjectManifestOnly } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -8,7 +8,7 @@ import {
   getObjectValueByPropertyPathString,
   setObjectValueByPropertyPathString,
 } from '@pnpm/object.property-path'
-import type { ProjectManifest } from '@pnpm/types'
+import { isPlainObject } from '@pnpm/types'
 import HostedGit from 'hosted-git-info'
 import { renderHelp } from 'render-help'
 
@@ -88,7 +88,7 @@ async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, 
 
   if (subcmd === 'get') {
     const projects = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
-      const manifest = await readProjectManifestOnly(pkg.rootDir) as Record<string, unknown>
+      const manifest = await readRawProjectManifestOnly(pkg.rootDir)
       return {
         identity: {
           name: manifest.name == null ? undefined : String(manifest.name),
@@ -107,7 +107,7 @@ async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, 
 }
 
 async function pkgGet (opts: PkgCommandOptions, args: string[]): Promise<string> {
-  const manifest = await readProjectManifestOnly(opts.dir) as Record<string, unknown>
+  const manifest = await readRawProjectManifestOnly(opts.dir)
 
   if (args.length === 1) {
     const value = getObjectValueByPropertyPathString(manifest, args[0])
@@ -135,7 +135,7 @@ async function pkgSet (opts: PkgCommandOptions, args: string[]): Promise<void> {
     })
   }
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
+  const { manifest, writeProjectManifest } = await readRawProjectManifest(opts.dir)
 
   for (const arg of args) {
     const eqIndex = arg.indexOf('=')
@@ -156,7 +156,7 @@ async function pkgSet (opts: PkgCommandOptions, args: string[]): Promise<void> {
       }
     }
 
-    setObjectValueByPropertyPathString(manifest as unknown as Record<string, unknown>, key, value)
+    setObjectValueByPropertyPathString(manifest, key, value)
   }
 
   await writeProjectManifest(manifest)
@@ -169,27 +169,26 @@ async function pkgDelete (opts: PkgCommandOptions, args: string[]): Promise<void
     })
   }
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
+  const { manifest, writeProjectManifest } = await readRawProjectManifest(opts.dir)
 
   for (const key of args) {
-    deleteObjectValueByPropertyPathString(manifest as unknown as Record<string, unknown>, key)
+    deleteObjectValueByPropertyPathString(manifest, key)
   }
 
   await writeProjectManifest(manifest)
 }
 
 async function pkgFix (opts: PkgCommandOptions): Promise<void> {
-  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
-  const untypedManifest = manifest as ProjectManifest & Record<string, unknown>
+  const { manifest, writeProjectManifest } = await readRawProjectManifest(opts.dir)
 
-  removeIllTypedField(untypedManifest, 'name', (value) => typeof value === 'string')
-  removeIllTypedField(untypedManifest, 'version', (value) => typeof value === 'string')
+  removeIllTypedField(manifest, 'name', (value) => typeof value === 'string')
+  removeIllTypedField(manifest, 'version', (value) => typeof value === 'string')
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
-    removeIllTypedField(untypedManifest, field, isPlainObject)
+    removeIllTypedField(manifest, field, isPlainObject)
   }
-  removeIllTypedField(untypedManifest, 'bin', (value) => typeof value === 'string' || isPlainObject(value))
+  removeIllTypedField(manifest, 'bin', (value) => typeof value === 'string' || isPlainObject(value))
 
-  normalizeRepository(untypedManifest)
+  normalizeRepository(manifest)
 
   await writeProjectManifest(manifest)
 }
@@ -215,10 +214,6 @@ function normalizeRepository (manifest: Record<string, unknown>): void {
   // A gist has no owner, but any other host renders an ownerless shortcut such as `github:skills` as a broken URL.
   if (hosted == null || (hosted.user == null && hosted.type !== 'gist')) return
   repository.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
-}
-
-function isPlainObject (value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 const COMMANDS = {

@@ -1,8 +1,9 @@
+pub use pnpm_package_name::{PythonNameError, canonicalize_python_name};
+
 use derive_more::{Display, Error};
-use pep508_rs::PackageName as PythonPackageName;
 use pnpr_error::RegistryError;
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+use std::fmt;
 use strum::{EnumIter, IntoEnumIterator as _};
 
 /// The protocol whose naming rules a registry surface follows.
@@ -72,12 +73,6 @@ pub enum CrateNameError {
     InvalidStart { name: String },
     #[display("crate name {name:?} may only contain ASCII letters, digits, `-` and `_`")]
     InvalidCharacter { name: String },
-}
-
-#[derive(Debug, Display, Error, Clone, PartialEq, Eq)]
-#[display("{name:?} is not a valid Python project name")]
-pub struct PythonNameError {
-    pub name: String,
 }
 
 /// The OCI distribution spec's limit on a whole repository name.
@@ -287,28 +282,6 @@ pub fn canonicalize_crate_name(name: &str) -> Result<String, CrateNameError> {
         return Err(CrateNameError::InvalidCharacter { name: name.to_string() });
     }
     Ok(name.to_ascii_lowercase().replace('_', "-"))
-}
-
-pub fn canonicalize_python_name(raw: &str) -> Result<String, PythonNameError> {
-    let invalid = || PythonNameError { name: raw.to_string() };
-    let normalized = PythonPackageName::from_str(raw)
-        .map_err(|_| invalid())?
-        .as_ref()
-        .to_string();
-    let well_formed = normalized
-        .chars()
-        .all(|character| {
-            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
-        })
-        && normalized
-            .chars()
-            .next()
-            .is_some_and(|character| character.is_ascii_alphanumeric())
-        && normalized
-            .chars()
-            .next_back()
-            .is_some_and(|character| character.is_ascii_alphanumeric());
-    well_formed.then_some(normalized).ok_or_else(invalid)
 }
 
 /// Normalize and validate an OCI repository name against the distribution

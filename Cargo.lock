@@ -726,9 +726,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.20.3"
+version = "3.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+checksum = "87a0cf66fd1eb2fb7b822cb78370d82303750809bc6ba855f3f58e517d3238db"
 
 [[package]]
 name = "bytecount"
@@ -834,9 +834,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.11.1"
+version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ff2a8126fff0f8c839080d619675a585e61720bb12d2baceae45769fd66f155"
+checksum = "33ef9e3e8154a45c7a95cff4c1299702106ad94062d7bb85fdc5d3a5afd91d45"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -1398,9 +1398,12 @@ dependencies = [
 
 [[package]]
 name = "ctor"
-version = "1.0.13"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "914a755b7c2d4af2bdcff7ce1739e2db9a1b81a9b07123d8015786ae03c0980d"
+checksum = "ea691ed9f36489d087419b8b2ba3ef27d89621380b4178c73e2445a379e4e0f4"
+dependencies = [
+ "link-section",
+]
 
 [[package]]
 name = "ctr"
@@ -3426,9 +3429,9 @@ dependencies = [
 
 [[package]]
 name = "libloading"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
+checksum = "a1832accd5a4ca2795ace4d05d15c4039be15b62d3b950eff99746a990e3cc10"
 dependencies = [
  "cfg-if",
  "windows-link",
@@ -3614,6 +3617,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "link-section"
+version = "0.19.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d9aae57673c1a235149777a74d152f3210ebd3e3b13346d2cdb6809e566bd3c"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3797,9 +3806,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.2.4"
+version = "1.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1788edb87fdc09c7e26304471e2f5be8cdefb1b6930d6e3985fc02ff53bf86ee"
+checksum = "20521a903f02b0a573cd6840e9d0a5a0cc043d361fe924092cd70f8556cc9c4a"
 dependencies = [
  "libc",
  "log",
@@ -3903,7 +3912,7 @@ version = "3.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d153beb7d5c973f4b9395be8a83054a28968b61188f1dd1a2cc2321af22daea2"
 dependencies = [
- "libloading 0.9.0",
+ "libloading 0.9.1",
 ]
 
 [[package]]
@@ -5022,17 +5031,16 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
- "pnpm-patching",
+ "pnpm-package-name",
+ "pnpm-patching-config",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
- "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-version-policy",
  "pnpm-versioning",
  "pnpm-workspace",
  "pnpm-workspace-state",
  "pnpm-workspace-task-scheduler",
- "pnpr-registry",
  "pretty_assertions",
  "same-file",
  "serde",
@@ -5043,6 +5051,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "yaml_serde",
 ]
 
 [[package]]
@@ -5068,6 +5077,7 @@ dependencies = [
  "clap",
  "pretty_assertions",
  "serde",
+ "tempfile",
  "toml",
 ]
 
@@ -6168,6 +6178,10 @@ dependencies = [
 [[package]]
 name = "pnpm-package-name"
 version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pep508_rs",
+]
 
 [[package]]
 name = "pnpm-patching"
@@ -6185,7 +6199,6 @@ dependencies = [
  "pnpm-process",
  "pretty_assertions",
  "serde_json",
- "sha2 0.10.9",
  "tempfile",
  "text-block-macros",
 ]
@@ -6195,9 +6208,12 @@ name = "pnpm-patching-config"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "indexmap 2.14.2",
  "miette 7.6.0",
  "node-semver",
  "pretty_assertions",
+ "sha2 0.10.9",
+ "tempfile",
 ]
 
 [[package]]
@@ -6916,6 +6932,7 @@ dependencies = [
  "miette 7.6.0",
  "pathdiff",
  "pnpm-catalogs-types",
+ "pnpm-env-replace",
  "pnpm-fs",
  "pnpm-local-spec",
  "pnpm-package-manifest",
@@ -6943,6 +6960,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-config-parse-overrides",
+ "pnpm-deps-path",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-workspace",
@@ -7326,7 +7344,6 @@ name = "pnpr-package-name"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "pep508_rs",
  "pnpm-package-name",
  "pnpr-error",
  "serde",

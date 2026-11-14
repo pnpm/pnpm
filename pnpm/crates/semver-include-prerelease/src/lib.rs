@@ -1,12 +1,14 @@
 //! npm `semver` range semantics, built on `node_semver`.
 
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
+pub use subset::{ParsedSemverRange, is_semver_subset};
 
 use std::borrow::Cow;
 
 use node_semver::{Range, Version};
 
 mod semver_range;
+mod subset;
 
 /// A semver range evaluated the way npm's `semver` does with
 /// `includePrerelease: true`.
@@ -135,7 +137,7 @@ fn comparators(alternative: &str) -> Option<Vec<Comparator>> {
 
 /// Removes the whitespace an operator may carry before its version, so
 /// `>= 1.2` stays one comparator instead of splitting into two tokens.
-fn glue_operators_to_versions(alternative: &str) -> String {
+pub(crate) fn glue_operators_to_versions(alternative: &str) -> String {
     let mut glued = String::with_capacity(alternative.len());
     let mut chars = alternative.chars().peekable();
     while let Some(char) = chars.next() {
@@ -175,25 +177,29 @@ fn omits_a_component(token: &str) -> bool {
 /// the eligibility rule is dropped, so `<` is rewritten before it sees
 /// it. Returns `None` for every other token, `<=` included: its X-Range
 /// expansion is one `node_semver` already agrees on.
-fn npm_upper_bound(token: &str) -> Option<String> {
+pub(crate) fn npm_upper_bound(token: &str) -> Option<String> {
     let version = token.strip_prefix('<')?;
     if version.starts_with('=') || version.contains(['-', '+']) {
         return None;
     }
-    let version = version.trim_start_matches('v');
-    let mut components = version.split('.');
+    let mut components = version.trim_start_matches('v').split('.');
     let major: u64 = components.next()?.parse().ok()?;
-    let minor: Option<u64> = components
-        .next()
-        .and_then(|minor| minor.parse().ok());
-    let patch_is_named = components
-        .next()
-        .is_some_and(|patch| patch.parse::<u64>().is_ok())
-        && minor.is_some();
-    match (minor, patch_is_named) {
-        (_, true) => None,
+    let minor = parse_optional_component(components.next())?;
+    let patch = parse_optional_component(components.next())?;
+    if components.next().is_some() {
+        return None;
+    }
+    match (minor, patch) {
+        (Some(_), Some(_)) => None,
         (None, _) => Some(format!("<{major}.0.0-0")),
-        (Some(minor), _) => Some(format!("<{major}.{minor}.0-0")),
+        (Some(minor), None) => Some(format!("<{major}.{minor}.0-0")),
+    }
+}
+
+fn parse_optional_component(part: Option<&str>) -> Option<Option<u64>> {
+    match part {
+        None | Some("x" | "X" | "*") => Some(None),
+        Some(digits) => digits.parse::<u64>().ok().map(Some),
     }
 }
 

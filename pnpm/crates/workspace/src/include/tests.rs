@@ -691,3 +691,45 @@ fn merging_at_a_revision_measures_paths_from_each_fragment() {
             .expect("expected settings parse");
     assert_eq!(merged, expected);
 }
+
+#[test]
+fn flow_placeholders_survive_root_and_fragment_include_discovery() {
+    let dir = workspace(&[
+        (
+            "pnpm-workspace.yaml",
+            "{include: {'./config/shared.yaml': [shamefullyHoist, modulesDir]}, userAgent: agent/${MISSING}}\n",
+        ),
+        ("config/shared.yaml", "{shamefullyHoist: true, modulesDir: ${NM}/node_modules}\n"),
+    ]);
+    let document = load(dir.path()).expect("load");
+    assert_eq!(
+        local_owner(&document, &setting("shamefullyHoist")).as_deref(),
+        Some("./config/shared.yaml"),
+    );
+    let expected: yaml_serde::Value = yaml_serde::from_str(
+        "userAgent: agent/${MISSING}\nshamefullyHoist: true\nmodulesDir: ${NM}/node_modules\n",
+    )
+    .expect("parse expected");
+    assert_eq!(merged(dir.path()), expected);
+}
+
+#[test]
+fn root_with_invalid_catalogs_and_flow_placeholder_still_reports_parse_root() {
+    let error = load_error(&[
+        (
+            "pnpm-workspace.yaml",
+            "{include: {'./a.yaml': '*'}, catalogs: [react], userAgent: agent/${MISSING}}\n",
+        ),
+        ("a.yaml", ""),
+    ]);
+    assert!(matches!(error, IncludeError::ParseRoot { .. }), "{error:?}");
+}
+
+#[test]
+fn duplicate_placeholder_keys_in_fragment_are_rejected() {
+    let error = load_error(&[
+        ("pnpm-workspace.yaml", "include:\n  ./a.yaml: '*'\n"),
+        ("a.yaml", "{https://example.com/${DUP}: 1, https://example.com/${DUP}: 2}\n"),
+    ]);
+    assert!(matches!(error, IncludeError::ParseFragment { .. }), "{error:?}");
+}

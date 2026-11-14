@@ -8,6 +8,7 @@ use super::{
 
 pub(super) fn resolve_lanes(
     refs: &ProjectRefIndex,
+    participants: &BTreeMap<String, Participant<'_>>,
     versioning: Option<&VersioningSettings>,
 ) -> Result<BTreeMap<String, String>, VersioningError> {
     let mut lanes_by_dir = BTreeMap::new();
@@ -22,7 +23,9 @@ pub(super) fn resolve_lanes(
             });
         }
         for dir in resolve_config_ref(refs, reference, "versioning.lanes")? {
-            lanes_by_dir.insert(dir, lane.clone());
+            if participants.contains_key(&dir) {
+                lanes_by_dir.insert(dir, lane.clone());
+            }
         }
     }
     Ok(lanes_by_dir)

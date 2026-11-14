@@ -6,13 +6,15 @@
     reason = "developer tool, not part of the pnpm binary"
 )]
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
+use cochange::CoChange;
 use dependencies::Reach;
 use graph::CrateGraph;
 use layers::Layers;
 use problem::Metric;
 use std::{
     collections::BTreeMap,
+    fs,
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -20,9 +22,11 @@ use tree::{GitRevision, Tree, WorkingTree};
 
 mod boundary;
 mod cfg;
+mod cochange;
 mod cycles;
 mod dependencies;
 mod diff;
+mod dsm;
 mod extent;
 mod graph;
 mod item;
@@ -30,6 +34,7 @@ mod layers;
 mod leaks;
 mod lexer;
 mod modules;
+mod page;
 mod problem;
 mod ratchet;
 mod report;
@@ -100,6 +105,26 @@ enum Command {
         #[clap(long, conflicts_with = "crate_name")]
         baseline: bool,
     },
+    /// Write a dependency structure matrix of the workspace crates as an HTML
+    /// page, shaded by how often each pair changed in the same commit.
+    Dsm(DsmArgs),
+}
+
+#[derive(Debug, Args)]
+struct DsmArgs {
+    /// Show one crate's top-level modules instead of the workspace crates.
+    #[clap(long = "crate")]
+    crate_name: Option<String>,
+    /// How many of the latest commits to count changes in.
+    #[clap(long, default_value_t = 1000)]
+    commits: usize,
+    /// Leave a commit out of the pair counts when it changes more than this
+    /// many crates, or modules with `--crate`.
+    #[clap(long, default_value_t = 10)]
+    max_changed: usize,
+    /// Write the page to this file instead of stdout.
+    #[clap(long)]
+    output: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -116,6 +141,7 @@ fn main() -> ExitCode {
         Command::Dependencies { crate_name, baseline } => {
             dependencies(&args.root, &View::new(crate_name.as_deref(), *baseline))
         }
+        Command::Dsm(dsm_args) => dsm(&args.root, dsm_args),
     };
     result.unwrap_or_else(|error| {
         eprintln!("{error}");
@@ -244,6 +270,46 @@ fn leaks(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
     };
     print!("{output}");
     Ok(ExitCode::SUCCESS)
+}
+
+fn dsm(root: &Path, args: &DsmArgs) -> Result<ExitCode, String> {
+    let working_tree = WorkingTree { root: root.to_path_buf() };
+    let graph = graph::read(&working_tree)?;
+    let log = cochange::read_log(root, args.commits)?;
+    let matrix = if let Some(name) = &args.crate_name {
+        let dir = graph.dirs
+            .get(name)
+            .ok_or_else(|| format!("{name} is not a workspace crate"))?;
+        module_matrix(&working_tree, (name, dir), &log, args.max_changed)?
+    } else {
+        let unit_of = cochange::crate_of(&graph.dirs);
+        let co_change = CoChange::count(&log, unit_of, args.max_changed);
+        dsm::crates(&graph, &load_layers(&working_tree)?, co_change)
+    };
+    let html = page::render(&matrix);
+    match &args.output {
+        Some(path) => {
+            fs::write(path, html).map_err(|error| format!("write {path:?}: {error}"))?;
+        }
+        None => print!("{html}"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The matrix of a crate's top-level modules. Paths in modules the graph
+/// leaves out, such as test-only ones, do not count toward `max_changed`.
+fn module_matrix(
+    tree: &dyn Tree,
+    (name, dir): (&str, &str),
+    log: &str,
+    max_changed: usize,
+) -> Result<dsm::Matrix, String> {
+    let module_graph = modules::CrateModules::read(tree, dir)?.top_level_graph();
+    let module_of = cochange::module_of(dir);
+    let shown_module_of =
+        |path: &str| module_of(path).filter(|module| module_graph.code_lines.contains_key(module));
+    let co_change = CoChange::count(log, shown_module_of, max_changed);
+    Ok(dsm::modules(name, &module_graph, co_change))
 }
 
 fn load_layers(tree: &dyn Tree) -> Result<Layers, String> {

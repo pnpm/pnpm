@@ -260,7 +260,7 @@ async function runCommandWithConfig (parsedCliArgs: ParsedCliArgsWithBuiltIn, { 
   checkSudo({ cmd: parsedCliArgs.cmd, cliParams, global: cliOptions.global, location: cliOptions.location, printLogs })
 
   const cmd = await redirectToOverridingScript(parsedCliArgs, { config, context })
-  const invocation: CommandInvocation = { cmd, cliParams, cliOptions, workspaceDir }
+  const invocation: CommandInvocation = { cmd, cliParams, cliOptions, workspaceDir, cookedArgv: parsedCliArgs.argv.cooked }
   enableRecursiveByDefault(invocation, config)
   if (cliOptions['recursive'] && !await selectWorkspaceProjects(invocation, { config, context, printLogs })) {
     return

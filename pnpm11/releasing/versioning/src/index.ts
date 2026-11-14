@@ -18,7 +18,9 @@ export {
   type ProjectRefIndex,
   type ReleaseCause,
   type ReleasePlan,
+  type ResolveWorkspaceVersioningOptions,
   toProjectDir,
+  validateVersioningLanes,
   type VersioningInvariantViolation,
   type WorkspaceProject,
 } from './assembleReleasePlan.js'

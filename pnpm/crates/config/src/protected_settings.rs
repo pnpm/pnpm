@@ -24,12 +24,42 @@ pub fn is_setting_protected(key: &str) -> bool {
     }
 }
 
-/// Replace every protected setting's value with [`PROTECTED_PLACEHOLDER`].
+/// Replace every protected setting's value (and nested cache signing keys)
+/// with [`PROTECTED_PLACEHOLDER`].
 pub fn censor_protected_settings(config: &mut Map<String, Value>) {
     for (key, value) in config.iter_mut() {
-        if is_setting_protected(key) {
-            *value = Value::String(PROTECTED_PLACEHOLDER.to_string());
+        censor_protected_setting_value(key, value);
+    }
+}
+
+/// Mask `value` in place when `key` is a protected setting or carries nested
+/// cache signing credentials (`privateKey`).
+pub fn censor_protected_setting_value(key: &str, value: &mut Value) {
+    if is_setting_protected(key) {
+        *value = Value::String(PROTECTED_PLACEHOLDER.to_string());
+        return;
+    }
+    match key {
+        "remoteCache" | "remoteSideEffectsCache" => censor_private_key_field(value),
+        "sideEffectsCache" => {
+            if let Some(remote) = value
+                .as_object_mut()
+                .and_then(|map| map.get_mut("remote"))
+            {
+                censor_private_key_field(remote);
+            }
         }
+        _ => {}
+    }
+}
+
+fn censor_private_key_field(section: &mut Value) {
+    if let Some(private_key) = section
+        .as_object_mut()
+        .and_then(|map| map.get_mut("privateKey"))
+        .filter(|field| !field.is_null())
+    {
+        *private_key = Value::String(PROTECTED_PLACEHOLDER.to_string());
     }
 }
 

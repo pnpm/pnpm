@@ -61,6 +61,12 @@ pnx --allow-build=esbuild my-bundler bundle
 
 The actual packages executed by `dlx` are allowed to run postinstall scripts by default. So if in the above example `my-bundler` has to be built before execution, it will be built.
 
+Prefixing a name with `!` denies its postinstall scripts, including for the executed package itself:
+
+```sh
+pnx --allow-build=!my-bundler my-bundler bundle
+```
+
 ### --shell-mode, -c
 
 Runs the command inside of a shell. Uses `/bin/sh` on UNIX and `\cmd.exe` on Windows.

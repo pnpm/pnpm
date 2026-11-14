@@ -3,6 +3,71 @@ use super::{
     Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
 };
 
+#[derive(Clone)]
+pub(super) struct ManifestFormatting {
+    insert_final_newline: bool,
+    crlf: bool,
+    /// One indentation level. Empty for a single-line source document,
+    /// which then round-trips back to its compact form.
+    indent: String,
+    /// The blank lines of a JSON source file, restored on save.
+    blank_lines: BlankLines,
+}
+
+impl ManifestFormatting {
+    pub(super) fn in_memory() -> Self {
+        Self {
+            insert_final_newline: true,
+            crlf: false,
+            indent: DEFAULT_INDENT.to_string(),
+            blank_lines: BlankLines::default(),
+        }
+    }
+
+    pub(super) fn detect(path: &Path, raw_contents: &str, stripped_contents: &str) -> Self {
+        let blank_lines = if is_yaml_path(path) || is_json5_path(path) {
+            BlankLines::default()
+        } else {
+            BlankLines::detect(stripped_contents)
+        };
+        Self {
+            insert_final_newline: stripped_contents.ends_with('\n'),
+            crlf: raw_contents.contains("\r\n"),
+            indent: detect_indent(stripped_contents).to_string(),
+            blank_lines,
+        }
+    }
+
+    fn serialize(&self, path: &Path, value: &Value) -> Result<String, PackageManifestError> {
+        let mut contents = if is_yaml_path(path) {
+            serialize_yaml(path, value)?
+        } else {
+            let mut contents = if is_json5_path(path) {
+                serialize_json5(path, value, &self.indent)?
+            } else {
+                self.blank_lines.restore(&serialize_with_indent(value, &self.indent)?)
+            };
+            if self.insert_final_newline {
+                contents.push('\n');
+            }
+            contents
+        };
+        if self.crlf {
+            contents = normalize_crlf(&contents);
+        }
+        Ok(contents)
+    }
+
+    pub(super) fn write(&mut self, path: &Path, value: &Value) -> Result<(), PackageManifestError> {
+        let contents = self.serialize(path, value)?;
+        PackageManifest::write_atomic(path, &contents)?;
+        if !is_yaml_path(path) && !is_json5_path(path) {
+            self.blank_lines = BlankLines::detect(&contents);
+        }
+        Ok(())
+    }
+}
+
 const DEPENDENCY_FIELDS: [&str; 4] =
     ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 
@@ -103,8 +168,19 @@ pub fn parse_manifest_bytes(bytes: &[u8]) -> serde_json::Result<Value> {
     serde_json::from_slice(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes))
 }
 
-fn strip_utf8_bom(contents: &str) -> &str {
+pub(super) fn strip_utf8_bom(contents: &str) -> &str {
     contents.strip_prefix('\u{feff}').unwrap_or(contents)
+}
+
+pub(super) fn invalid_root_error(path: &Path) -> PackageManifestError {
+    if is_yaml_path(path) {
+        PackageManifestError::InvalidAttribute(format!(
+            "{}: the manifest root must be an object",
+            path.display(),
+        ))
+    } else {
+        PackageManifestError::InvalidRoot { path: path.to_path_buf() }
+    }
 }
 
 pub(super) fn parse_project_manifest(
@@ -132,14 +208,7 @@ pub(super) fn parse_project_manifest(
         return Ok(serde_json::json!({}));
     }
     if !value.is_object() {
-        return Err(if is_yaml_path(path) {
-            PackageManifestError::InvalidAttribute(format!(
-                "{}: the manifest root must be an object",
-                path.display(),
-            ))
-        } else {
-            PackageManifestError::InvalidRoot { path: path.to_path_buf() }
-        });
+        return Err(invalid_root_error(path));
     }
     Ok(value)
 }
@@ -219,27 +288,16 @@ impl PackageManifest {
     }
 
     pub(super) fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        let file_contents = fs::read_to_string(&path)?;
-        let contents = strip_utf8_bom(&file_contents);
-        let mut value = parse_project_manifest(&path, contents)?;
-        let empty_dependency_fields = empty_dependency_fields(&value);
+        let (mut value, formatting) = read_raw_project_manifest(&path)?;
         let mut on_disk = value.clone();
+        let empty_dependency_fields = empty_dependency_fields(&value);
         normalize_dependency_fields(&mut on_disk, &empty_dependency_fields);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
-        let crlf = file_contents.contains("\r\n");
-        let blank_lines = if is_yaml_path(&path) || is_json5_path(&path) {
-            BlankLines::default()
-        } else {
-            BlankLines::detect(contents)
-        };
         Ok(PackageManifest {
             path,
             value,
-            insert_final_newline: contents.ends_with('\n'),
-            crlf,
-            indent: detect_indent(contents).to_string(),
-            blank_lines,
+            formatting,
             on_disk: Some(on_disk),
             empty_dependency_fields,
         })
@@ -250,15 +308,7 @@ impl PackageManifest {
         // same missing-manifest error a pre-check would raise, without
         // paying a stat before every successful read.
         let rendered_path = path.display().to_string();
-        PackageManifest::read_from_file(path)
-            .map_err(|error| match error {
-                PackageManifestError::Io(io_error)
-                    if io_error.kind() == io::ErrorKind::NotFound =>
-                {
-                    PackageManifestError::NoImporterManifestFound(rendered_path)
-                }
-                other => other,
-            })
+        map_not_found_to_missing_manifest(rendered_path, PackageManifest::read_from_file(path))
     }
 
     /// The manifest at `path`, or the scaffold [`Self::create_if_needed`]
@@ -284,6 +334,28 @@ impl PackageManifest {
     }
 }
 
+pub(super) fn read_raw_project_manifest(
+    path: &Path,
+) -> Result<(Value, ManifestFormatting), PackageManifestError> {
+    let raw_contents = fs::read_to_string(path)?;
+    let stripped_contents = strip_utf8_bom(&raw_contents);
+    let value = parse_project_manifest(path, stripped_contents)?;
+    let formatting = ManifestFormatting::detect(path, &raw_contents, stripped_contents);
+    Ok((value, formatting))
+}
+
+pub(super) fn map_not_found_to_missing_manifest<Manifest>(
+    rendered_path: String,
+    result: Result<Manifest, PackageManifestError>,
+) -> Result<Manifest, PackageManifestError> {
+    result.map_err(|error| match error {
+        PackageManifestError::Io(io_error) if io_error.kind() == io::ErrorKind::NotFound => {
+            PackageManifestError::NoImporterManifestFound(rendered_path)
+        }
+        other => other,
+    })
+}
+
 fn is_yaml_path(path: &Path) -> bool {
     path.file_name()
         .is_some_and(|name| name.eq_ignore_ascii_case("package.yaml"))
@@ -294,52 +366,46 @@ fn is_json5_path(path: &Path) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case("package.json5"))
 }
 
-impl PackageManifest {
-    pub(super) fn is_json5(&self) -> bool {
-        is_json5_path(&self.path)
-    }
-
-    pub(super) fn serialize_json5(&self, value: &Value) -> Result<String, PackageManifestError> {
-        let serialized = crate::json5::stringify(value, &self.indent);
-        let text = match fs::read_to_string(&self.path) {
-            Ok(text) => text,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(serialized),
-            Err(source) => {
-                return Err(PackageManifestError::Read { path: self.path.clone(), source });
-            }
-        };
-        parse_project_manifest(&self.path, &text)?;
-        let restored = crate::json5::restore_comments(strip_utf8_bom(&text), &serialized);
-        if parse_project_manifest(&self.path, &restored)? != *value {
-            return Err(PackageManifestError::InvalidAttribute(format!(
-                "{}: preserving JSON5 comments changed the manifest value",
-                self.path.display(),
-            )));
+fn serialize_json5(
+    path: &Path,
+    value: &Value,
+    indent: &str,
+) -> Result<String, PackageManifestError> {
+    let serialized = crate::json5::stringify(value, indent);
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(serialized),
+        Err(source) => {
+            return Err(PackageManifestError::Read { path: path.to_path_buf(), source });
         }
-        Ok(restored)
+    };
+    parse_project_manifest(path, &text)?;
+    let restored = crate::json5::restore_comments(strip_utf8_bom(&text), &serialized);
+    if parse_project_manifest(path, &restored)? != *value {
+        return Err(PackageManifestError::InvalidAttribute(format!(
+            "{}: preserving JSON5 comments changed the manifest value",
+            path.display(),
+        )));
     }
+    Ok(restored)
+}
 
-    pub(super) fn is_yaml(&self) -> bool {
-        is_yaml_path(&self.path)
-    }
-
-    pub(super) fn serialize_yaml(&self, value: &Value) -> Result<String, PackageManifestError> {
-        let text = match fs::read_to_string(&self.path) {
-            Ok(text) => text,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                return pnpm_yaml_document_sync::serialize(value)
-                    .map_err(|source| PackageManifestError::EditYaml {
-                        path: self.path.clone(),
-                        source,
-                    });
-            }
-            Err(source) => {
-                return Err(PackageManifestError::Read { path: self.path.clone(), source });
-            }
-        };
-        pnpm_yaml_document_sync::sync(strip_utf8_bom(&text), value)
-            .map_err(|source| PackageManifestError::EditYaml { path: self.path.clone(), source })
-    }
+fn serialize_yaml(path: &Path, value: &Value) -> Result<String, PackageManifestError> {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return pnpm_yaml_document_sync::serialize(value)
+                .map_err(|source| PackageManifestError::EditYaml {
+                    path: path.to_path_buf(),
+                    source,
+                });
+        }
+        Err(source) => {
+            return Err(PackageManifestError::Read { path: path.to_path_buf(), source });
+        }
+    };
+    pnpm_yaml_document_sync::sync(strip_utf8_bom(&text), value)
+        .map_err(|source| PackageManifestError::EditYaml { path: path.to_path_buf(), source })
 }
 
 pub(super) fn normalize_crlf(input: &str) -> String {

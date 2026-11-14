@@ -23,7 +23,7 @@ import {
   DEV_PREINSTALL,
   installRunsDevPreinstall,
   isCheckOnlyInstall,
-  matchUpdateTargetsReplacedEverywhere,
+  matchReplacedLockfileEntries,
   rootProjectRunsPreinstallEarly,
 } from './installPredicates.js'
 import type {
@@ -356,7 +356,7 @@ async function startLockfileVerification (
   const verifyLockfilePromise = verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
     cacheDir: opts.cacheDir,
     lockfilePath: wantedLockfilePath,
-    isReplaced: matchUpdateTargetsReplacedEverywhere(projects, ctx, opts.depth),
+    isReplaced: matchReplacedLockfileEntries(projects, ctx, opts),
   })
   // Keep the rejection from going unhandled in the window before
   // `settleInstall` awaits the verdict — a preResolution hook or the

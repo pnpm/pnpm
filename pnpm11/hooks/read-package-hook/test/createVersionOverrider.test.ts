@@ -1481,3 +1481,241 @@ test('createVersionsOverrider() matches version-selector overrides against catal
   })
 })
 
+describe('createVersionsOverrider() range specificity', () => {
+  const rootDir = process.cwd()
+
+  test.each([
+    [
+      'broad before exact',
+      { 'my-lib@^1.0.0': 'file:./lib-broad', 'my-lib@1.0.0': 'file:./lib-exact' },
+    ],
+    [
+      'exact before broad',
+      { 'my-lib@1.0.0': 'file:./lib-exact', 'my-lib@^1.0.0': 'file:./lib-broad' },
+    ],
+  ])('exact target range beats enclosing caret range (%s)', (_label, rawOverrides) => {
+    const overrides = parseOverrides(rawOverrides)
+    const overrider = createVersionsOverrider(overrides, rootDir)
+    expect(overrider({ dependencies: { 'my-lib': '1.0.0' } }, rootDir)).toStrictEqual({
+      dependencies: { 'my-lib': 'file:lib-exact' },
+    })
+    expect(overrider({ dependencies: { 'my-lib': '1.2.0' } }, rootDir)).toStrictEqual({
+      dependencies: { 'my-lib': 'file:lib-broad' },
+    })
+    const depOverrider = createDependencyOverrider(overrides, rootDir)!
+    expect(depOverrider('my-lib', '1.0.0', rootDir)).toBe('file:lib-exact')
+  })
+
+  test.each([
+    [
+      'caret before tilde',
+      { 'my-lib@^1.0.0': '1.9.0', 'my-lib@~1.2.0': '1.2.5' },
+    ],
+    [
+      'tilde before caret',
+      { 'my-lib@~1.2.0': '1.2.5', 'my-lib@^1.0.0': '1.9.0' },
+    ],
+  ])('tilde target range beats enclosing caret range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { 'my-lib': '1.2.3' } })).toStrictEqual({
+      dependencies: { 'my-lib': '1.2.5' },
+    })
+  })
+
+  test.each([
+    [
+      'star before upper-only',
+      { 'foo@*': '2.0.0', 'foo@<1.0.0': '0.9.9' },
+    ],
+    [
+      'upper-only before star',
+      { 'foo@<1.0.0': '0.9.9', 'foo@*': '2.0.0' },
+    ],
+  ])('upper-only target range beats star (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '0.5.0' } })).toStrictEqual({
+      dependencies: { foo: '0.9.9' },
+    })
+    expect(overrider({ dependencies: { foo: '1.5.0' } })).toStrictEqual({
+      dependencies: { foo: '2.0.0' },
+    })
+  })
+
+  test.each([
+    [
+      'unversioned first',
+      { foo: '3.0.0', 'foo@*': '3.5.0', 'foo@^3.0.0': '4.0.0' },
+    ],
+    [
+      'narrowest first',
+      { 'foo@^3.0.0': '4.0.0', 'foo@*': '3.5.0', foo: '3.0.0' },
+    ],
+  ])('versioned target beats star and unversioned target (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '^3.0.0' } })).toStrictEqual({
+      dependencies: { foo: '4.0.0' },
+    })
+    expect(overrider({ dependencies: { foo: '^2.0.0' } })).toStrictEqual({
+      dependencies: { foo: '3.5.0' },
+    })
+    expect(overrider({ dependencies: { foo: 'github:org/foo' } })).toStrictEqual({
+      dependencies: { foo: '3.0.0' },
+    })
+  })
+
+  test.each([
+    [
+      'union first',
+      { 'foo@^1.0.0 || ^2.0.0': '2.5.0', 'foo@^1.0.0': '1.5.0' },
+    ],
+    [
+      'single branch first',
+      { 'foo@^1.0.0': '1.5.0', 'foo@^1.0.0 || ^2.0.0': '2.5.0' },
+    ],
+  ])('single-branch range beats enclosing union range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '^1.2.0' } })).toStrictEqual({
+      dependencies: { foo: '1.5.0' },
+    })
+    expect(overrider({ dependencies: { foo: '^2.1.0' } })).toStrictEqual({
+      dependencies: { foo: '2.5.0' },
+    })
+  })
+
+  test.each([
+    [
+      'broad parent first',
+      { 'parent>dep': '1.0.0', 'parent@^1.0.0>dep': '2.0.0', 'parent@1.2.0>dep': '3.0.0' },
+    ],
+    [
+      'narrow parent first',
+      { 'parent@1.2.0>dep': '3.0.0', 'parent@^1.0.0>dep': '2.0.0', 'parent>dep': '1.0.0' },
+    ],
+  ])('narrower parent range beats broader parent range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ name: 'parent', version: '1.2.0', dependencies: { dep: '^1.0.0' } })).toStrictEqual({
+      name: 'parent',
+      version: '1.2.0',
+      dependencies: { dep: '3.0.0' },
+    })
+    expect(overrider({ name: 'parent', version: '1.5.0', dependencies: { dep: '^1.0.0' } })).toStrictEqual({
+      name: 'parent',
+      version: '1.5.0',
+      dependencies: { dep: '2.0.0' },
+    })
+    expect(overrider({ name: 'parent', version: '2.0.0', dependencies: { dep: '^1.0.0' } })).toStrictEqual({
+      name: 'parent',
+      version: '2.0.0',
+      dependencies: { dep: '1.0.0' },
+    })
+  })
+
+  test('incomparable overlapping ranges keep declaration order and never revive a dominated broad range', () => {
+    const leftFirst = createVersionsOverrider(parseOverrides({
+      'foo@>=1.0.0 <2.0.0': '1.8.0',
+      'foo@>=1.5.0 <3.0.0': '2.8.0',
+    }), rootDir)
+    const rightFirst = createVersionsOverrider(parseOverrides({
+      'foo@>=1.5.0 <3.0.0': '2.8.0',
+      'foo@>=1.0.0 <2.0.0': '1.8.0',
+    }), rootDir)
+    expect(leftFirst({ dependencies: { foo: '1.6.0' } })).toStrictEqual({
+      dependencies: { foo: '1.8.0' },
+    })
+    expect(rightFirst({ dependencies: { foo: '1.6.0' } })).toStrictEqual({
+      dependencies: { foo: '2.8.0' },
+    })
+
+    const chain = createVersionsOverrider(parseOverrides({
+      'foo@>=1.0.0 <2.0.0': 'broad',
+      'foo@>=1.2.0 <2.5.0': 'incomparable',
+      'foo@>=1.0.0 <1.5.0': 'narrow',
+    }), rootDir)
+    expect(chain({ dependencies: { foo: '1.3.0' } })).toStrictEqual({
+      dependencies: { foo: 'incomparable' },
+    })
+  })
+
+  test.each([
+    [
+      'broad prerelease first',
+      { 'foo@^1.0.0-alpha.0': '1.9.0', 'foo@1.0.0-alpha.1': '1.0.0-alpha.2' },
+    ],
+    [
+      'exact prerelease first',
+      { 'foo@1.0.0-alpha.1': '1.0.0-alpha.2', 'foo@^1.0.0-alpha.0': '1.9.0' },
+    ],
+    [
+      'caret before prerelease union',
+      { 'foo@^1.0.0-alpha.0': '1.9.0', 'foo@1.0.0-alpha.1 || 1.0.0': '1.0.0-alpha.2' },
+    ],
+    [
+      'prerelease union before caret',
+      { 'foo@1.0.0-alpha.1 || 1.0.0': '1.0.0-alpha.2', 'foo@^1.0.0-alpha.0': '1.9.0' },
+    ],
+  ])('exact prerelease and prerelease union beat enclosing prerelease caret range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '1.0.0-alpha.1' } })).toStrictEqual({
+      dependencies: { foo: '1.0.0-alpha.2' },
+    })
+  })
+
+  test.each([
+    [
+      'union first',
+      { 'foo@^1.0.0 || ^2.0.0': '2.9.0', 'foo@>=1.5.0 <2.5.0': '2.4.0' },
+    ],
+    [
+      'cross-branch range first',
+      { 'foo@>=1.5.0 <2.5.0': '2.4.0', 'foo@^1.0.0 || ^2.0.0': '2.9.0' },
+    ],
+  ])('cross-branch narrower range beats enclosing union range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '2.1.0' } })).toStrictEqual({
+      dependencies: { foo: '2.4.0' },
+    })
+    expect(overrider({ dependencies: { foo: '2.6.0' } })).toStrictEqual({
+      dependencies: { foo: '2.9.0' },
+    })
+  })
+
+  test('wildcard union normalized by node-semver preserves declaration order against wildcard', () => {
+    const unionFirst = createVersionsOverrider(parseOverrides({
+      'foo@* || 1.0.0-alpha.1': '1.0.0',
+      'foo@*': '2.0.0',
+    }), rootDir)
+    const starFirst = createVersionsOverrider(parseOverrides({
+      'foo@*': '2.0.0',
+      'foo@* || 1.0.0-alpha.1': '1.0.0',
+    }), rootDir)
+    expect(unionFirst({ dependencies: { foo: '^1.0.0' } })).toStrictEqual({
+      dependencies: { foo: '1.0.0' },
+    })
+    expect(starFirst({ dependencies: { foo: '^1.0.0' } })).toStrictEqual({
+      dependencies: { foo: '2.0.0' },
+    })
+  })
+
+  test.each([
+    [
+      'broad large-identifier range first',
+      {
+        'foo@>=1.0.0-9007199254740992': '1.0.0-broad',
+        'foo@>=1.0.0-9007199254740992 <1.0.0-10000000000000000': '1.0.0-narrow',
+      },
+    ],
+    [
+      'narrow large-identifier range first',
+      {
+        'foo@>=1.0.0-9007199254740992 <1.0.0-10000000000000000': '1.0.0-narrow',
+        'foo@>=1.0.0-9007199254740992': '1.0.0-broad',
+      },
+    ],
+  ])('large numeric prerelease bounds select narrower range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '1.0.0-9007199254740992' } })).toStrictEqual({
+      dependencies: { foo: '1.0.0-narrow' },
+    })
+  })
+})
+

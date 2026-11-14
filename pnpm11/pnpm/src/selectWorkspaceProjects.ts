@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
+import { filterProjectsFromDir, orderWorkspaceFilters, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
 import { isEmpty } from 'ramda'
 
 import { recursiveByDefaultCommands } from './cmd/index.js'
@@ -14,6 +14,7 @@ export interface CommandInvocation {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
   cliOptions: Record<string, any>
   workspaceDir: string | undefined
+  cookedArgv?: string[]
 }
 
 /**
@@ -23,17 +24,13 @@ export interface CommandInvocation {
  */
 export function enableRecursiveByDefault (invocation: CommandInvocation, config: Config): void {
   const { cmd, cliOptions, workspaceDir } = invocation
-  const hasFilter = Boolean(config.filter?.length || config.filterProd?.length)
-  const isWorkspaceSubdirectory = typeof workspaceDir === 'string' &&
-    getRealPathSync(config.dir) !== getRealPathSync(workspaceDir)
-  const isListCommand = cmd === 'list' || cmd === 'll'
+  if (cmd == null || !recursiveByDefaultCommands.has(cmd) || typeof workspaceDir !== 'string') {
+    return
+  }
   const hasExplicitRecursive = cliOptions['recursive'] === true
-
-  if (
-    cmd == null || !recursiveByDefaultCommands.has(cmd) ||
-    typeof workspaceDir !== 'string' ||
-    (isListCommand && isWorkspaceSubdirectory && !hasFilter)
-  ) return
+  if (staysSingleProjectInSubdirectory(cmd, config, workspaceDir, hasExplicitRecursive)) {
+    return
+  }
 
   cliOptions['recursive'] = true
   config.recursive = true
@@ -43,6 +40,27 @@ export function enableRecursiveByDefault (invocation: CommandInvocation, config:
   } else if (!config.recursiveInstall && !config.filter && !config.filterProd) {
     config.filter = ['{.}...']
   }
+}
+
+function staysSingleProjectInSubdirectory (
+  cmd: string,
+  config: Config,
+  workspaceDir: string,
+  hasExplicitRecursive: boolean
+): boolean {
+  if (config.filter?.length || config.filterProd?.length || config.workspaceRoot) {
+    return false
+  }
+  if (getRealPathSync(config.dir) === getRealPathSync(workspaceDir)) {
+    return false
+  }
+  if (cmd === 'list' || cmd === 'll') {
+    return true
+  }
+  return cmd === 'peers' &&
+    config.sharedWorkspaceLockfile === false &&
+    !config.lockfileDir &&
+    !hasExplicitRecursive
 }
 
 /**
@@ -99,10 +117,12 @@ function buildWorkspaceFilters (
   scope: CommandInvocation & { wsDir: string, filter: string[], filterProd: string[] }
 ): WorkspaceFilter[] {
   const { cmd, workspaceDir, wsDir } = scope
-  const filters: WorkspaceFilter[] = [
-    ...scope.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
-    ...scope.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
-  ]
+  const filters: WorkspaceFilter[] = orderWorkspaceFilters({
+    filter: scope.filter,
+    filterProd: scope.filterProd,
+    cliOptions: scope.cliOptions,
+    cookedArgv: scope.cookedArgv,
+  })
   const relativeWSDirPath = () => path.relative(config.dir, wsDir) || '.'
   // Both of the selectors below are pnpm's own; the user did not write
   // them. Each has to mean "the project whose directory is the workspace

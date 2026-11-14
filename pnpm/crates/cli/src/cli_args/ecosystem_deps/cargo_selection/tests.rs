@@ -12,7 +12,8 @@ use std::path::PathBuf;
 
 fn tower_0_4() -> DeclaredCargoDep {
     DeclaredCargoDep {
-        alias: "tower-0-4".to_string(),
+        aliases: vec!["tower-0-4".to_string()],
+        manifest_key: "tower-0-4".to_string(),
         package_name: "tower".to_string(),
         raw_spec: "0.4.0".to_string(),
         version_req: VersionReq::parse("0.4.0").unwrap(),

@@ -42,12 +42,12 @@ pub use pnpm_resolving_resolver_base::{
 };
 pub use pnpm_version_policy as version_policy;
 pub use setting_types::{
-    AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
+    AuditConfig, AuditLevel, CatalogMode, ColorMode, FilterSource, HoistingLimits, InitType,
     LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
     PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
 };
-pub use settings::{Config, HoistPatterns};
+pub use settings::{Config, HoistPatterns, ordered_filter_entries};
 pub use settings_read::{PIN_DECISION_SETTINGS, SettingsRead};
 pub use shim_policy::{
     GlobalShims, GlobalShimsSetting, NamedShimPolicy, ShimPolicy, ShimPolicyValue,
@@ -61,13 +61,13 @@ pub use workspace_yaml::{
     RemoteCacheSettings, RemoteSideEffectsCacheSettings, SkillsPermission, SkillsSettings,
     TaskSettings, Tool, ToolSettings, TrustedSettings, UnrecognizedSettings, UpdateConfig,
     UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
-    decided_allow_builds, decided_permissions,
+    YamlConfigTarget, decided_allow_builds, decided_permissions,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{
         self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
         RegistryLookups, RegistryPrefixes,
     },
-    workspace_root_or,
+    render_yaml_top_level_field, validate_structured_setting, workspace_root_or,
 };
 
 mod api;
@@ -103,7 +103,7 @@ use pipe_trait::Pipe;
 use pnpm_git_utils::{Host as GitHost, get_branches_containing_head, get_current_branch};
 use pnpm_lockfile::{Lockfile, RegistryOptions, SymlinkedLockfile, WantedLockfileSelection};
 use pnpm_matcher::create_matcher;
-use pnpm_patching::{
+use pnpm_patching_config::{
     CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
     create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,
 };
@@ -245,6 +245,10 @@ fn collect_explicit_settings(
     if let Some(level) = settings.audit.as_ref().and_then(|audit| audit.level) {
         let Ok(level) = serde_json::to_value(level) else { return };
         target.insert("auditLevel".to_string(), level);
+    }
+    if let Some(max_sockets) = settings.max_sockets.or(settings.maxsockets) {
+        target.insert("maxSockets".to_string(), max_sockets.into());
+        target.insert("maxsockets".to_string(), max_sockets.into());
     }
 }
 

@@ -46,6 +46,13 @@ impl Matcher {
         self.0.matches(input).is_some()
     }
 
+    /// Evaluates the ordered include and ignore rules across all `inputs`
+    /// representing one item (such as a package name and its manifest aliases).
+    #[must_use]
+    pub fn matches_any(&self, inputs: &[&str]) -> bool {
+        !inputs.is_empty() && self.0.0.matches_any(inputs)
+    }
+
     /// `true` iff this matcher is statically guaranteed to never
     /// match any input — i.e. compiled from an empty pattern list.
     /// Lets callers short-circuit before they walk a graph and call
@@ -91,6 +98,33 @@ impl MatcherImpl {
             MatcherImpl::Mixed(patterns) => last_verdict(patterns, input),
         }
     }
+
+    fn matches_any(&self, inputs: &[&str]) -> bool {
+        match self {
+            MatcherImpl::Never => false,
+            MatcherImpl::Single(single) => single.matches_any(inputs),
+            MatcherImpl::AllInclude(patterns) => inputs
+                .iter()
+                .any(|input| first_include(patterns, input).is_some()),
+            MatcherImpl::AllIgnore(patterns) => !inputs
+                .iter()
+                .any(|input| none_ignores(patterns, input).is_none()),
+            MatcherImpl::Mixed(patterns) => mixed_verdict_any(patterns, inputs),
+        }
+    }
+}
+
+fn mixed_verdict_any(patterns: &[CompiledPattern], inputs: &[&str]) -> bool {
+    let mut included = false;
+    for pattern in patterns {
+        if inputs
+            .iter()
+            .any(|input| pattern.matches(input))
+        {
+            included = !pattern.is_ignore;
+        }
+    }
+    included
 }
 
 /// The first include pattern that matches, by position.
@@ -143,6 +177,13 @@ impl SingleMatcher {
         let raw = self.glob.matches(input);
         let matched = if self.is_ignore { !raw } else { raw };
         matched.then_some(0)
+    }
+
+    fn matches_any(&self, inputs: &[&str]) -> bool {
+        let any_hit = inputs
+            .iter()
+            .any(|input| self.glob.matches(input));
+        if self.is_ignore { !any_hit } else { any_hit }
     }
 }
 

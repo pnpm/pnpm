@@ -250,10 +250,7 @@ async fn pnpr_registry_frozen_lockfile_fetches_abbreviated_metadata_for_age_and_
     packument["modified"] = serde_json::json!("2025-11-30T23:00:00.000Z");
     let abbrev_mock = server
         .mock("GET", "/acme")
-        .match_header(
-            "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
-        )
+        .match_header("accept", crate::fetch_full_metadata::ACCEPT_PNPR_DOC)
         .with_status(200)
         .with_body(packument.to_string())
         .expect_at_least(1)

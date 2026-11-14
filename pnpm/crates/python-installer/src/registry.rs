@@ -301,7 +301,7 @@ impl<'a> Registry<'a> {
                 auth_headers: &self.index.auth,
                 retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
-                tar_limits: self.config.tar_limits(),
+                tar_limits: pnpm_tarball::TarLimits::new(self.config.max_tarball_unpacked_size),
             },
             package: pnpm_tarball::ZipArchivePackage {
                 max_bytes: Some(super::sources::MAX_WHEEL_BYTES),

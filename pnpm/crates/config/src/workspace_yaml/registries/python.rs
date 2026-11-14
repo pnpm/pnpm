@@ -1,5 +1,5 @@
 use super::{LoadWorkspaceYamlError, redact_registry_url};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use pnpm_package_name::canonicalize_python_name;
 
 /// One ecosystem index and the Python namespace it owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,66 +53,87 @@ impl PythonRegistryRoute {
     }
 }
 
+/// One entry of a Python index's `packages` list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum PythonPattern {
-    Name(PackagePattern),
+    /// `*` or `**`: every project.
+    All,
+    /// A normalized project name.
+    Exact(String),
+    /// The normalized start of a project name, written `<prefix>*`.
     Prefix(String),
 }
 
+/// The longest package name a registry stores.
+const MAX_NAME_LENGTH: usize = 214;
+
 impl PythonPattern {
     pub(super) fn parse(pattern: &str) -> Result<Self, String> {
-        if pattern == "*" {
-            return Ok(Self::Name(PackagePattern::All));
+        if pattern == "*" || pattern == "**" {
+            return Ok(Self::All);
         }
-        if pattern != "**"
-            && let Some(prefix) = pattern.strip_suffix('*')
-        {
+        if let Some(prefix) = pattern.strip_suffix('*') {
             // A prefix may end with a separator, but a complete Python name cannot.
-            let name = PackagePattern::parse(&format!("{prefix}x"), Ecosystem::Pypi)
-                .map_err(|error| error.to_string())?;
-            let normalized = name.to_string();
+            let name = exact_name(&format!("{prefix}x"), pattern)?;
             return Ok(Self::Prefix(
-                normalized
-                    .strip_suffix('x')
+                name.strip_suffix('x')
                     .expect("Python name normalization preserves the final ASCII letter")
                     .to_string(),
             ));
         }
-        PackagePattern::parse(pattern, Ecosystem::Pypi)
-            .map(Self::Name)
-            .map_err(|error| error.to_string())
+        exact_name(pattern, pattern).map(Self::Exact)
     }
 
     pub(super) fn matches(&self, name: &str) -> bool {
         match self {
-            Self::Name(pattern) => pattern.matches(name),
+            Self::All => true,
+            Self::Exact(exact) => exact == name,
             Self::Prefix(prefix) => name.starts_with(prefix),
         }
     }
 
     fn overlaps(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::All, _) | (_, Self::All) => true,
+            (Self::Exact(a), Self::Exact(b)) => a == b,
             (Self::Prefix(a), Self::Prefix(b)) => a.starts_with(b) || b.starts_with(a),
-            (Self::Name(PackagePattern::Exact(name)), Self::Prefix(prefix))
-            | (Self::Prefix(prefix), Self::Name(PackagePattern::Exact(name))) => {
-                name.starts_with(prefix)
-            }
-            (Self::Name(a), Self::Name(b)) => a.covers(b) || b.covers(a),
-            _ => true,
+            (Self::Exact(name), Self::Prefix(prefix))
+            | (Self::Prefix(prefix), Self::Exact(name)) => name.starts_with(prefix),
         }
     }
 
     pub(super) fn is_default(&self) -> bool {
-        matches!(self, Self::Name(PackagePattern::All))
+        matches!(self, Self::All)
     }
 
     pub(super) fn normalized(&self) -> String {
         match self {
-            Self::Name(PackagePattern::All) => "*".to_string(),
-            Self::Name(pattern) => pattern.to_string(),
+            Self::All => "*".to_string(),
+            Self::Exact(name) => name.clone(),
             Self::Prefix(prefix) => format!("{prefix}*"),
         }
     }
+}
+
+/// The shapes a Python index's `packages` entry may take, for the message
+/// that rejects one.
+const PATTERN_SHAPES: &str = "use an exact name, a prefix such as `company-*`, or `**`";
+
+/// The normalized project name `candidate` spells, or why `pattern`, the
+/// entry it was derived from, spells none.
+fn exact_name(candidate: &str, pattern: &str) -> Result<String, String> {
+    if candidate.is_empty() || candidate.contains('*') {
+        return Err(format!("unsupported pypi registry pattern {pattern:?}: {PATTERN_SHAPES}"));
+    }
+    canonicalize_python_name(candidate)
+        .ok()
+        .filter(|name| name.len() <= MAX_NAME_LENGTH)
+        .ok_or_else(|| {
+            format!(
+                "registry pattern {pattern:?} is not a valid pypi package name, so it can never \
+                 match; {PATTERN_SHAPES}",
+            )
+        })
 }
 
 pub(super) fn patterns(
@@ -123,7 +144,7 @@ pub(super) fn patterns(
         reason,
     };
     let Some(packages) = &index.packages else {
-        return Ok(vec![PythonPattern::Name(PackagePattern::All)]);
+        return Ok(vec![PythonPattern::All]);
     };
     if packages.is_empty() {
         return Err(invalid("packages must not be empty".to_string()));

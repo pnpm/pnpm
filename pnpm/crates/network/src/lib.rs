@@ -126,6 +126,10 @@ pub const DEFAULT_FETCH_WARN_TIMEOUT_MS: u64 = 10_000;
 /// `fetchMinSpeedKiBps` default of `50`.
 pub const DEFAULT_FETCH_MIN_SPEED_KI_BPS: u64 = 50;
 
+/// Default ceiling, in bytes, on the summed size of the files one package
+/// archive may unpack to: the `maxTarballUnpackedSize` default of 4 GiB.
+pub const DEFAULT_MAX_TARBALL_UNPACKED_SIZE: u64 = 4 * 1024 * 1024 * 1024;
+
 /// Default socket limit per host/origin when `maxSockets` is not explicitly configured
 /// (used for proxied connections, matching undici / pnpm v11).
 pub const DEFAULT_MAX_SOCKETS: usize = 50;

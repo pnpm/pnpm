@@ -1,26 +1,31 @@
+pub(crate) use prompt::disambiguated_labels;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use prompt::{confirm, prompt_for_choices};
+#[cfg(target_family = "wasm")]
+pub(crate) use wasm::{confirm, prompt_for_choices};
+
+mod prompt;
 #[cfg(target_family = "wasm")]
 mod wasm;
-use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
+
+use crate::{
+    State,
+    cli_args::ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
+    confirm_prompt::PromptAvailability,
+};
 use clap::Args;
 use derive_more::{Display, Error};
-#[cfg(not(target_family = "wasm"))]
-use dialoguer::{Confirm, MultiSelect};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, WorkspaceSettings};
 use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::{
-    allow_build_key_from_ignored_build, parse_allow_build_selector, short_package_label,
-};
+use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
 use pnpm_reporter::{Reporter, emit_global_warning};
 use pnpm_workspace_manifest_writer::{PermissionValue, set_permissions};
-#[cfg(not(target_family = "wasm"))]
-use std::io::IsTerminal;
+use prompt::{confirm_builds_prompt, prompt_for_builds};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, HashSet},
     path::Path,
 };
-#[cfg(target_family = "wasm")]
-pub(crate) use wasm::{confirm, prompt_for_choices};
 
 /// Approve dependencies for running scripts during installation.
 #[derive(Debug, Args)]
@@ -55,6 +60,17 @@ enum ApproveBuildsError {
     #[display("The following packages are both approved and denied: {}", _0.join(", "))]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_CONTRADICTING_ARGS))]
     ContradictingArgs(#[error(not(source))] Vec<String>),
+
+    #[display(
+        r#""pnpm approve-builds" without package arguments or --all requires an interactive terminal"#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE),
+        help(
+            r#"Run "pnpm approve-builds" in an interactive terminal outside CI, pass --all, or pass the package names to approve (<pkg>) or deny (!<pkg>)."#
+        )
+    )]
+    NonInteractive,
 }
 
 pub(crate) struct ApprovalDecision {
@@ -83,12 +99,24 @@ impl ApproveBuildsArgs {
     ) -> miette::Result<Option<(State, Vec<String>)>> {
         self.validate()?;
         let scan = get_automatically_ignored_builds(config)?;
+        self.prepare_with_scan::<Reporter>(dir, config, rebuild_config, manifest_path, scan)
+    }
+
+    pub(crate) fn prepare_with_scan<Reporter: self::Reporter>(
+        self,
+        dir: &Path,
+        config: &Config,
+        rebuild_config: &Config,
+        manifest_path: &Path,
+        scan: IgnoredBuildsScan,
+    ) -> miette::Result<Option<(State, Vec<String>)>> {
+        self.validate()?;
         let pending = scan.names.unwrap_or_default();
         if pending.is_empty() && self.packages.is_empty() {
             pnpm_diagnostics::println!("There are no packages awaiting approval");
             return Ok(None);
         }
-        let Some(decision) = self.decide::<Reporter>(&pending)? else {
+        let Some(decision) = self.decide::<Reporter>(&pending, config.ci)? else {
             return Ok(None);
         };
 
@@ -119,11 +147,18 @@ impl ApproveBuildsArgs {
     pub(crate) fn decide<Reporter: self::Reporter>(
         self,
         pending: &[String],
+        ci: bool,
+    ) -> miette::Result<Option<ApprovalDecision>> {
+        self.decide_with_prompt::<Reporter>(pending, PromptAvailability::detect(ci))
+    }
+
+    pub(crate) fn decide_with_prompt<Reporter: self::Reporter>(
+        self,
+        pending: &[String],
+        prompt: PromptAvailability,
     ) -> miette::Result<Option<ApprovalDecision>> {
         self.validate()?;
-        let ApproveBuildsArgs { packages, all, global: _ } = self;
-
-        let partition = partition_params(&packages, pending);
+        let partition = partition_params(&self.packages, pending);
         if !partition.unknown.is_empty() {
             emit_global_warning::<Reporter>(&format!(
                 "The following packages are not awaiting approval: {}",
@@ -131,34 +166,54 @@ impl ApproveBuildsArgs {
             ));
         }
         partition.reject_contradictions()?;
-        let Partition { approved, denied, .. } = partition;
-        let build_packages: Vec<String> = if !packages.is_empty() {
-            sort_unique(approved.clone())
-        } else if all {
-            sort_unique(pending.to_owned())
-        } else {
-            let Some(selected) = prompt_for_builds(pending)? else {
-                return Ok(None);
-            };
-            selected
+        let Some(build_packages) = self.select_builds(&partition.approved, pending, prompt)? else {
+            return Ok(None);
         };
 
-        let decisions = if packages.is_empty() {
+        let decisions = if self.packages.is_empty() {
             pending
                 .iter()
                 .map(|pkg| (pkg.clone(), build_packages.contains(pkg)))
                 .collect()
         } else {
-            named_decisions(&approved, &denied)
+            named_decisions(&partition.approved, &partition.denied)
         };
 
         // Only the interactive path asks for confirmation: named
         // packages and `--all` are the answer already.
-        if !all && packages.is_empty() && !confirm_selected_builds(&build_packages, pending)? {
+        if !self.all
+            && self.packages.is_empty()
+            && !confirm_selected_builds(&build_packages, pending)?
+        {
             return Ok(None);
         }
 
-        Ok(Some(ApprovalDecision { build_packages, decisions, clear_all: packages.is_empty() }))
+        Ok(Some(ApprovalDecision {
+            build_packages,
+            decisions,
+            clear_all: self.packages.is_empty(),
+        }))
+    }
+
+    fn select_builds(
+        &self,
+        approved: &[String],
+        pending: &[String],
+        prompt: PromptAvailability,
+    ) -> miette::Result<Option<Vec<String>>> {
+        if !self.packages.is_empty() {
+            return Ok(Some(sort_unique(approved.to_owned())));
+        }
+        if self.all {
+            return Ok(Some(sort_unique(pending.to_owned())));
+        }
+        if pending.is_empty() {
+            return Ok(None);
+        }
+        if !prompt.is_available() {
+            return Err(ApproveBuildsError::NonInteractive.into());
+        }
+        prompt_for_builds(pending)
     }
 
     pub(crate) fn validate(&self) -> miette::Result<()> {
@@ -263,109 +318,6 @@ pub(crate) fn partition_params(
     partition
 }
 
-/// Given package keys, format each into a short label, appending
-/// `[{key}]` if the short label collides with another key's. A key given
-/// twice is one key.
-pub(crate) fn disambiguated_labels<'a>(
-    keys: impl IntoIterator<Item = &'a str>,
-) -> BTreeMap<&'a str, String> {
-    let items: BTreeSet<&'a str> = keys.into_iter().collect();
-    let mut counts = std::collections::BTreeMap::<String, usize>::new();
-    for &key in &items {
-        *counts
-            .entry(short_package_label(key))
-            .or_default() += 1;
-    }
-    items
-        .into_iter()
-        .map(|key| {
-            let base = short_package_label(key);
-            let label = if counts.get(&base).copied().unwrap_or(0) > 1 {
-                format!("{base} [{key}]")
-            } else {
-                base
-            };
-            (key, label)
-        })
-        .collect()
-}
-
-/// Turn `keys` into `(key, label)` choices for a checkbox prompt,
-/// keeping choices with colliding short labels distinguishable by
-/// appending their approval key.
-pub(crate) fn build_choices(keys: &[String]) -> Vec<(String, String)> {
-    let labels = disambiguated_labels(keys.iter().map(String::as_str));
-    keys.iter()
-        .map(|key| (key.clone(), labels[key.as_str()].clone()))
-        .collect()
-}
-
-/// Show the checkbox prompt and return the chosen package names, or `None`
-/// when the prompt is interrupted.
-fn prompt_for_builds(
-    automatically_ignored_builds: &[String],
-) -> miette::Result<Option<Vec<String>>> {
-    let choices = build_choices(&sort_unique(automatically_ignored_builds.to_vec()));
-    prompt_for_choices("Choose which packages to build", &choices)
-}
-
-/// Show a checkbox prompt over `choices` (value, label) and return the
-/// chosen values, or `None` when the prompt is interrupted.
-#[cfg(not(target_family = "wasm"))]
-pub(crate) fn prompt_for_choices(
-    prompt: &str,
-    choices: &[(String, String)],
-) -> miette::Result<Option<Vec<String>>> {
-    let labels: Vec<&str> = choices
-        .iter()
-        .map(|(_, label)| label.as_str())
-        .collect();
-    match MultiSelect::new()
-        .with_prompt(format!("{prompt} (<space> to select, <enter> to confirm)"))
-        .items(&labels)
-        .interact_opt()
-        .into_diagnostic()?
-    {
-        Some(indices) => Ok(Some(
-            indices
-                .into_iter()
-                .map(|index| choices[index].0.clone())
-                .collect(),
-        )),
-        None => Ok(None),
-    }
-}
-
-/// The confirmation prompt text for building `build_packages`, labelled
-/// as the checkbox prompt over `pending` labelled them.
-pub(crate) fn confirm_builds_prompt(build_packages: &[String], pending: &[String]) -> String {
-    let labels = disambiguated_labels(pending.iter().map(String::as_str));
-    format!(
-        "Build {}?",
-        build_packages
-            .iter()
-            .map(|key| {
-                labels
-                    .get(key.as_str())
-                    .cloned()
-                    .unwrap_or_else(|| short_package_label(key))
-            })
-            .collect::<Vec<_>>()
-            .join(", "),
-    )
-}
-
-/// Ask a yes/no question that defaults to "no", matching pnpm's
-/// `confirm({ default: false })`.
-#[cfg(not(target_family = "wasm"))]
-pub(crate) fn confirm(message: &str) -> miette::Result<bool> {
-    Confirm::new()
-        .with_prompt(message)
-        .default(false)
-        .interact()
-        .into_diagnostic()
-}
-
 /// Drop the now-decided entries from `.modules.yaml`'s `ignoredBuilds` so a
 /// later `ignored-builds` / install no longer reports them. With positional
 /// arguments only the decided (approved + denied) packages are removed,
@@ -414,25 +366,27 @@ fn sort_unique(mut names: Vec<String>) -> Vec<String> {
 #[cfg(test)]
 mod tests;
 
+pub(crate) fn exclude_disallowed_builds(scan: &mut IgnoredBuildsScan, config: &Config) {
+    if let Some(names) = scan.names.as_mut() {
+        names.retain(|name| config.allow_builds.get(name) != Some(&false));
+    }
+}
+
 /// Run the interactive build-approval flow against the just-installed
 /// packages. No-op when nothing is awaiting approval, or when stdin is not a
-/// TTY (unless the test auto-approve env var is set).
+/// TTY / CI is active (unless the test auto-approve env var is set).
 pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     install_dir: &Path,
     settings_dir: &Path,
 ) -> miette::Result<()> {
-    let pending = get_automatically_ignored_builds(config)?.names.filter(|names| !names.is_empty());
-    if pending.is_none() {
+    let mut scan = get_automatically_ignored_builds(config)?;
+    exclude_disallowed_builds(&mut scan, config);
+    if scan.names.as_ref().is_none_or(Vec::is_empty) {
         return Ok(());
     }
     let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
-    #[cfg(target_family = "wasm")]
-    if !auto_approve && !wasm::stdin_is_terminal()? {
-        return Ok(());
-    }
-    #[cfg(not(target_family = "wasm"))]
-    if !auto_approve && !std::io::stdin().is_terminal() {
+    if !auto_approve && !PromptAvailability::detect(config.ci).is_available() {
         return Ok(());
     }
 
@@ -441,9 +395,13 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
     settings_config.workspace_dir = Some(settings_dir.to_path_buf());
 
     let args = ApproveBuildsArgs { packages: Vec::new(), all: auto_approve, global: false };
-    if let Some((rebuild_state, build_packages)) =
-        args.prepare::<Reporter>(settings_dir, &settings_config, config, &manifest_path)?
-    {
+    if let Some((rebuild_state, build_packages)) = args.prepare_with_scan::<Reporter>(
+        settings_dir,
+        &settings_config,
+        config,
+        &manifest_path,
+        scan,
+    )? {
         let selection = crate::cli_args::rebuild::RebuildSelection {
             names: Some(build_packages),
             projects: Vec::new(),

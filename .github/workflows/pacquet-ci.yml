@@ -171,7 +171,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pnpm
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
       - name: Validate changeset files
@@ -241,7 +241,7 @@ jobs:
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 
@@ -517,7 +517,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: $/.github/actions/rustup
-      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
       - run: pnpm runtime set node 22 --global
@@ -572,7 +572,7 @@ jobs:
         uses: $/.github/actions/rustup
 
       - name: Install pnpm
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 
@@ -639,7 +639,7 @@ jobs:
           clippy: true
 
       - name: Install pnpm
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 
@@ -686,7 +686,7 @@ jobs:
           docs: true
 
       - name: Install pnpm
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 
@@ -736,7 +736,7 @@ jobs:
       # project, which is what pins the repository's runtime, and get-pnpm's
       # TypeScript tests need 22.18 or newer.
       - name: Install pnpm and Node
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           runtime: node@24
           install: false
@@ -838,7 +838,7 @@ jobs:
 
       - name: Install pnpm
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 
@@ -860,6 +860,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The dependency structure matrix reads co-changes from the
+          # latest 1000 commits, the default of its `--commits`. It leaves
+          # out the oldest commit of a shallow clone.
+          fetch-depth: 1001
 
       - name: Install Rust
         uses: $/.github/actions/rustup
@@ -867,11 +871,26 @@ jobs:
           restore-cache: false
 
       - name: Install pnpm
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 
       - run: pnpm pipeline rust-layers --include-workspace-root --full --no-cache
+
+      # Runs before the shallow fetch below, which can cut the history short.
+      - name: Write the dependency structure matrix
+        if: ${{ !cancelled() }}
+        run: cargo run --locked --quiet -p pnpm-crate-layers -- dsm --output crate-dsm.html
+
+      - name: Upload the dependency structure matrix
+        if: ${{ !cancelled() }}
+        # The page is a report, so an upload failure leaves the check green.
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: crate-dsm
+          path: crate-dsm.html
+          retention-days: 30
 
       # Lists the crate dependency edges the pull request adds or removes, so
       # a review sees a new coupling even when it points downward.
@@ -904,7 +923,7 @@ jobs:
           packages: taplo-cli@0.8.1
 
       - name: Install pnpm
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 
@@ -1010,7 +1029,7 @@ jobs:
           packages: cargo-dylint@6.3.0 dylint-link@6.3.0
 
       - name: Install pnpm
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 

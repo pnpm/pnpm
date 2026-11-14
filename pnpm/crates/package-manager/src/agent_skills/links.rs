@@ -1,7 +1,7 @@
 //! Placing and removing the links of agent skills in the agent skill
 //! directories.
 
-use super::AgentSkillsError;
+use super::{AgentSkillsError, discovery::MAX_SKILL_DIR_DEPTH, targets::STANDARD_AGENT_DIRS};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io,
@@ -19,7 +19,7 @@ pub(super) fn prune(
         .filter(|entry| recorded_parent_is_within_workspace(workspace_root, entry))
     {
         let path = workspace_root.join(entry);
-        if links_to_a_package_skill(&path) {
+        if links_to_a_package_skill(workspace_root, &path) {
             remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
         }
     }
@@ -44,33 +44,97 @@ pub(super) fn is_within_workspace(entry: &str) -> bool {
         .all(|component| matches!(component, Component::Normal(_)))
 }
 
-/// Whether `path` is a link into the `skills` directory of a package in
-/// `node_modules`, as every link pnpm creates is, even after `node_modules`
+/// Whether `path` is a link into the `skills` directory of an installed or
+/// linked package, as every link pnpm creates is, even after `node_modules`
 /// is removed.
-fn links_to_a_package_skill(path: &Path) -> bool {
-    let Ok(target) = fs::read_link(path) else { return false };
-    let components: Vec<&std::ffi::OsStr> = target
-        .components()
-        .map(Component::as_os_str)
-        .collect();
-    let Some(modules) = components
+fn links_to_a_package_skill(workspace_root: &Path, path: &Path) -> bool {
+    let Ok(target) = pnpm_fs::read_symlink_dir(path) else { return false };
+    let components: Vec<Component<'_>> = target.components().collect();
+    if components
         .iter()
-        .rposition(|component| *component == "node_modules")
-    else {
-        return false;
-    };
-    let package = &components[modules + 1..];
-    let name_len = if package
-        .first()
-        .is_some_and(|name| name.as_encoded_bytes().starts_with(b"@"))
+        .any(|component| component.as_os_str() == "node_modules")
     {
-        2
-    } else {
-        1
+        return (0..components.len())
+            .rev()
+            .any(|idx| {
+                components[idx].as_os_str() == "node_modules"
+                    && is_modules_package_skill(&components[idx + 1..])
+            });
+    }
+    is_local_package_skill(workspace_root, path, &target)
+}
+
+fn is_local_package_skill(workspace_root: &Path, path: &Path, target: &Path) -> bool {
+    let Some(parent) = path.parent() else { return false };
+    let root = canonical_or_lexical(workspace_root);
+    let link_parent = canonical_or_lexical(parent);
+    let resolved = pnpm_fs::lexical_normalize(&link_parent.join(target));
+    let parts: Vec<Component<'_>> = resolved.components().collect();
+    (0..parts.len()).any(|idx| {
+        parts[idx].as_os_str() == "skills"
+            && is_local_skills_boundary(&root, &link_parent, &parts, idx)
+    })
+}
+
+fn is_local_skills_boundary(
+    root: &Path,
+    link_parent: &Path,
+    parts: &[Component<'_>],
+    skills_idx: usize,
+) -> bool {
+    if !is_valid_skill_subpath(&parts[skills_idx + 1..]) {
+        return false;
+    }
+    let pkg_dir: PathBuf = parts[..skills_idx].iter().collect();
+    if pkg_dir.as_os_str().is_empty() || (pkg_dir != root && pkg_dir.parent().is_none()) {
+        return false;
+    }
+    let skills_dir = pkg_dir.join("skills");
+    skills_dir != link_parent
+        && !STANDARD_AGENT_DIRS
+            .iter()
+            .any(|dir| skills_dir == root.join(dir))
+}
+
+fn canonical_or_lexical(path: &Path) -> PathBuf {
+    dunce::canonicalize(path).unwrap_or_else(|_| pnpm_fs::lexical_normalize(path))
+}
+
+fn is_modules_package_skill(package: &[Component<'_>]) -> bool {
+    let name_len = match package.first() {
+        Some(Component::Normal(first)) if first.as_encoded_bytes().starts_with(b"@") => 2,
+        Some(Component::Normal(_)) => 1,
+        _ => return false,
     };
     package
-        .get(name_len)
-        .is_some_and(|dir| *dir == "skills")
+        .get(..name_len)
+        .is_some_and(|segments| {
+            segments
+                .iter()
+                .copied()
+                .all(is_valid_skill_segment)
+        })
+        && package
+            .get(name_len)
+            .is_some_and(|dir| dir.as_os_str() == "skills")
+        && is_valid_skill_subpath(&package[name_len + 1..])
+}
+
+fn is_valid_skill_subpath(segments: &[Component<'_>]) -> bool {
+    (1..=MAX_SKILL_DIR_DEPTH).contains(&segments.len())
+        && segments
+            .iter()
+            .copied()
+            .all(is_valid_skill_segment)
+}
+
+fn is_valid_skill_segment(component: Component<'_>) -> bool {
+    let Component::Normal(segment) = component else { return false };
+    segment
+        .to_str()
+        .is_some_and(|name| {
+            !name.is_empty() && !name.starts_with('.') && !name.chars().any(char::is_control)
+        })
 }
 
 /// Remove a link or junction without following it. Anything else at the path

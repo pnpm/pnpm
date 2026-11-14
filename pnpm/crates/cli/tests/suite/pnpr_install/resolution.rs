@@ -594,7 +594,7 @@ fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() 
         workspace,
         npmrc_info,
         ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    } = CommandTempCwd::init().add_recording_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(mock_instance.url());
@@ -614,19 +614,13 @@ fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() 
         .assert()
         .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    let _ = mock_instance.take_requests();
 
     let mut silent_pnpr = mockito::Server::new();
     let no_pnpr_requests = silent_pnpr
         .mock("POST", mockito::Matcher::Any)
         .expect(0)
         .create();
-    // The warm store must serve every tarball; reject any registry fetch.
-    let mut silent_registry = mockito::Server::new();
-    let no_downloads = silent_registry
-        .mock("GET", mockito::Matcher::Any)
-        .expect(0)
-        .create();
-    point_npmrc_registry_at(&npmrc_path, &silent_registry.url());
 
     pacquet_at(&workspace)
         .with_arg("install")
@@ -636,7 +630,9 @@ fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() 
         .success();
 
     no_pnpr_requests.assert();
-    no_downloads.assert();
+    // The warm store and verification cache must serve without hitting the registry.
+    let requests = mock_instance.take_requests();
+    assert!(requests.is_empty(), "expected zero registry requests, got {requests:?}");
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
     assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
 

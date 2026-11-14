@@ -1,6 +1,10 @@
-//! npm package-name validation for dependencies and new publications.
+//! Package-name validation: npm names for dependencies and new
+//! publications, and Python project names.
 
 pub use is_valid_old_npm_package_name as is_valid_dependency_alias;
+pub use python::{PythonNameError, canonicalize_python_name};
+
+mod python;
 
 /// Whether `version` is a valid package version component for the filesystem.
 /// Rejects path traversal (`..`), path separators (`/`, `\`), current directory (`.`),

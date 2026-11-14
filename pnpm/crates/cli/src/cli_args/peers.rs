@@ -1,17 +1,24 @@
 use crate::cli_args::{
-    catalogs::configured_catalogs,
-    global::GlobalError,
-    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    catalogs::configured_catalogs, global::GlobalError, listed_projects::listed_projects,
 };
 use clap::{Args, CommandFactory};
 use miette::{Context, IntoDiagnostic};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::{
-    IssuesByProjects, check_peer_dependencies_from_lockfile, filter_peer_issues, render_peer_issues,
+    IssuesByProjects, LinkedLockfileLoader, LockfilePeerCheck,
+    check_peer_dependencies_from_lockfile, filter_peer_issues,
 };
-use pnpm_global::scan_global_packages;
-use pnpm_lockfile::Lockfile;
-use std::{collections::BTreeSet, path::Path};
+use pnpm_global::{GlobalPackageInfo, scan_global_packages};
+use pnpm_lockfile::{Lockfile, WantedLockfileSelection};
+use report::{UndeclaredWarnings, report_issues, undeclared_warnings};
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+mod report;
 
 #[derive(Debug, Args)]
 pub struct PeersArgs {
@@ -55,17 +62,89 @@ impl PeersArgs {
         }
 
         let (issues, undeclared) = if self.global {
-            (self.global_issues(config)?, std::collections::BTreeMap::new())
+            (self.global_issues(config)?, UndeclaredWarnings::new())
         } else {
-            let lockfile_dir = config.lockfile_dir_for(dir);
-            let project_dirs = checked_project_dirs(config, dir, recursive)?;
-            let lockfile = self.load_lockfile(&config.install_state_dir, lockfile_dir)?;
-            let issues = checked_issues(config, lockfile_dir, &project_dirs, lockfile.as_ref())?;
-            let undeclared =
-                undeclared_warnings(config, lockfile_dir, &project_dirs, lockfile.as_ref());
-            (issues, undeclared)
+            self.workspace_issues(config, dir, recursive)?
         };
-        self.print_issues(&issues, &undeclared)
+        report_issues(&issues, &undeclared, self.json)
+    }
+
+    fn workspace_issues(
+        &self,
+        config: &Config,
+        dir: &Path,
+        recursive: bool,
+    ) -> miette::Result<(IssuesByProjects, UndeclaredWarnings)> {
+        let projects = listed_projects(config, dir, recursive)?;
+        if config.shares_one_lockfile() || config.workspace_dir.is_none() {
+            self.shared_lockfile_issues(config, dir, projects)
+        } else {
+            self.dedicated_lockfile_issues(config, dir, projects, recursive)
+        }
+    }
+
+    fn shared_lockfile_issues(
+        &self,
+        config: &Config,
+        dir: &Path,
+        projects: Vec<(PathBuf, Option<String>)>,
+    ) -> miette::Result<(IssuesByProjects, UndeclaredWarnings)> {
+        let lockfile_dir = config.lockfile_dir_for(dir);
+        let project_dirs: Vec<PathBuf> = projects
+            .into_iter()
+            .map(|(project_dir, _)| project_dir)
+            .collect();
+        let lockfile = self.load_lockfile(
+            &config.install_state_dir,
+            lockfile_dir,
+            &config.wanted_lockfile_selection(),
+        )?;
+        let catalogs = resolved_catalogs(config)?;
+        let issues = checked_issues(
+            config,
+            lockfile_dir,
+            &project_dirs,
+            lockfile.as_ref(),
+            catalogs.as_ref(),
+            None,
+        )?;
+        let undeclared =
+            undeclared_warnings(config, lockfile_dir, &project_dirs, lockfile.as_ref());
+        Ok((issues, undeclared))
+    }
+
+    fn dedicated_lockfile_issues(
+        &self,
+        config: &Config,
+        dir: &Path,
+        projects: Vec<(PathBuf, Option<String>)>,
+        recursive: bool,
+    ) -> miette::Result<(IssuesByProjects, UndeclaredWarnings)> {
+        let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
+        let catalogs = resolved_catalogs(config)?;
+        let mut cache = DedicatedLockfiles::new(self, config, &projects);
+        let mut issues = IssuesByProjects::new();
+        let mut undeclared = UndeclaredWarnings::new();
+        for (project_dir, name) in projects {
+            let project_key = if recursive {
+                pnpm_workspace::importer_id_from_root_dir(workspace_root, &project_dir)
+            } else {
+                ".".to_string()
+            };
+            let (mut project_issues, mut project_undeclared) = dedicated_project_issues(
+                &mut cache,
+                &project_dir,
+                name.as_deref(),
+                catalogs.as_ref(),
+            )?;
+            if let Some(entry) = project_issues.remove(".") {
+                issues.insert(project_key.clone(), entry);
+            }
+            if let Some(peers) = project_undeclared.remove(".") {
+                undeclared.insert(project_key, peers);
+            }
+        }
+        Ok((issues, undeclared))
     }
 
     fn global_issues(&self, config: &Config) -> miette::Result<IssuesByProjects> {
@@ -80,6 +159,7 @@ impl PeersArgs {
         let mut group_config = config.clone();
         group_config.catalogs = None;
         group_config.workspace_dir = None;
+        let default_selection = WantedLockfileSelection::default();
         let mut checked_dirs = BTreeSet::new();
         let mut issues = IssuesByProjects::new();
         for group in groups {
@@ -87,43 +167,23 @@ impl PeersArgs {
                 continue;
             }
             let install_state_dir = group.install_dir.join("node_modules").join(".pnpm");
-            let lockfile = self.load_lockfile(&install_state_dir, &group.install_dir)?;
+            let lockfile =
+                self.load_lockfile(&install_state_dir, &group.install_dir, &default_selection)?;
             let mut group_issues = checked_issues(
                 &group_config,
                 &group.install_dir,
                 std::slice::from_ref(&group.install_dir),
                 lockfile.as_ref(),
+                None,
+                None,
             )?;
             if let Some(root_issues) = group_issues.remove(".") {
-                let mut aliases = group.aliases();
-                aliases.sort();
-                let mut key = aliases.join(", ");
-                if issues.contains_key(&key) {
-                    key = format!("{key} ({})", group.hash);
-                }
-                issues.insert(key, root_issues);
+                issues.insert(global_group_key(&group, &issues), root_issues);
             }
         }
         Ok(issues)
     }
 
-    fn print_issues(
-        &self,
-        issues: &IssuesByProjects,
-        undeclared: &UndeclaredWarnings,
-    ) -> miette::Result<PeersOutcome> {
-        let no_issues = issues
-            .values()
-            .all(|pi| pi.bad.is_empty() && pi.missing.is_empty());
-
-        if self.json {
-            print_json_issues(issues, undeclared)?;
-        } else {
-            print_text_issues(issues, undeclared, no_issues);
-        }
-
-        Ok(if no_issues { PeersOutcome::NoIssues } else { PeersOutcome::IssuesFound })
-    }
     /// The lockfile the check reads: the materialized current lockfile
     /// when there is one, and the wanted lockfile otherwise.
     /// `--lockfile-only` reads the wanted lockfile outright.
@@ -131,6 +191,7 @@ impl PeersArgs {
         &self,
         install_state_dir: &Path,
         lockfile_dir: &Path,
+        selection: &WantedLockfileSelection,
     ) -> miette::Result<Option<Lockfile>> {
         let current = if self.lockfile_only {
             None
@@ -143,11 +204,18 @@ impl PeersArgs {
         };
         match current {
             Some(lockfile) => Ok(Some(lockfile)),
-            None => Lockfile::load_wanted_from_dir(lockfile_dir)
+            None => Lockfile::load_wanted(lockfile_dir, selection)
                 .into_diagnostic()
                 .wrap_err_with(|| format!("load lockfile in {}", lockfile_dir.display())),
         }
     }
+}
+
+fn global_group_key(group: &GlobalPackageInfo, existing: &IssuesByProjects) -> String {
+    let mut aliases = group.aliases();
+    aliases.sort();
+    let key = aliases.join(", ");
+    if existing.contains_key(&key) { format!("{key} ({})", group.hash) } else { key }
 }
 
 fn print_peers_help() {
@@ -159,111 +227,120 @@ fn print_peers_help() {
         .print_help();
 }
 
-/// The projects the check covers: the `--filter` selection under
-/// `--recursive`, the current directory otherwise.
-fn checked_project_dirs(
-    config: &Config,
-    dir: &std::path::Path,
-    recursive: bool,
-) -> miette::Result<Vec<std::path::PathBuf>> {
-    if !recursive {
-        return Ok(vec![dir.to_path_buf()]);
+struct DedicatedLockfiles<'a> {
+    args: &'a PeersArgs,
+    base_config: &'a Config,
+    names_by_dir: HashMap<PathBuf, String>,
+    by_dir: HashMap<PathBuf, Option<Arc<Lockfile>>>,
+}
+
+impl<'a> DedicatedLockfiles<'a> {
+    fn new(
+        args: &'a PeersArgs,
+        base_config: &'a Config,
+        projects: &[(PathBuf, Option<String>)],
+    ) -> Self {
+        let names_by_dir = projects
+            .iter()
+            .filter_map(|(dir, name)| Some((canonical_key(dir), name.clone()?)))
+            .collect();
+        Self { args, base_config, names_by_dir, by_dir: HashMap::new() }
     }
-    let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-    let (projects, _) = discover_workspace_projects(workspace_root, config)?;
-    Ok(select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?
-        .selected
-        .keys()
-        .cloned()
-        .collect())
+
+    fn load(
+        &mut self,
+        dir: &Path,
+        name_hint: Option<&str>,
+    ) -> miette::Result<Option<Arc<Lockfile>>> {
+        let key = canonical_key(dir);
+        if let Some(cached) = self.by_dir.get(&key) {
+            return Ok(cached.clone());
+        }
+        let name = name_hint.or_else(|| self.names_by_dir.get(&key).map(String::as_str));
+        let mut project_config = self.base_config.clone();
+        project_config.anchor_dedicated_project(dir, name);
+        let lockfile = self.args
+            .load_lockfile(
+                &project_config.install_state_dir,
+                dir,
+                &project_config.wanted_lockfile_selection(),
+            )?
+            .map(Arc::new);
+        self.by_dir.insert(key, lockfile.clone());
+        Ok(lockfile)
+    }
+}
+
+fn canonical_key(dir: &Path) -> PathBuf {
+    dunce::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf())
+}
+
+fn dedicated_project_issues(
+    cache: &mut DedicatedLockfiles<'_>,
+    project_dir: &Path,
+    name: Option<&str>,
+    catalogs: Option<&Catalogs>,
+) -> miette::Result<(IssuesByProjects, UndeclaredWarnings)> {
+    let lockfile = cache.load(project_dir, name)?;
+    let mut project_config = cache.base_config.clone();
+    project_config.anchor_dedicated_project(project_dir, name);
+    project_config.resolve_peers_from_workspace_root = false;
+    let project_dirs = [project_dir.to_path_buf()];
+    let mut sibling_err: Option<miette::Report> = None;
+    let mut load_sibling = |sibling_dir: &Path, sibling_name: Option<&str>| match cache.load(
+        sibling_dir,
+        sibling_name,
+    ) {
+        Ok(loaded) => loaded,
+        Err(err) => {
+            sibling_err.get_or_insert(err);
+            None
+        }
+    };
+    let issues = checked_issues(
+        &project_config,
+        project_dir,
+        &project_dirs,
+        lockfile.as_deref(),
+        catalogs,
+        Some(&mut load_sibling),
+    )?;
+    if let Some(err) = sibling_err {
+        return Err(err);
+    }
+    let undeclared =
+        undeclared_warnings(&project_config, project_dir, &project_dirs, lockfile.as_deref());
+    Ok((issues, undeclared))
+}
+
+fn resolved_catalogs(config: &Config) -> miette::Result<Option<Catalogs>> {
+    if config.workspace_dir.is_none() && config.catalogs.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(configured_catalogs(config)?))
 }
 
 fn checked_issues(
     config: &Config,
     lockfile_dir: &Path,
-    project_dirs: &[std::path::PathBuf],
+    project_dirs: &[PathBuf],
     lockfile: Option<&Lockfile>,
+    catalogs: Option<&Catalogs>,
+    linked_lockfiles: Option<&mut LinkedLockfileLoader<'_>>,
 ) -> miette::Result<IssuesByProjects> {
-    let catalogs = configured_catalogs(config)?;
-    let catalogs =
-        (config.workspace_dir.is_some() || config.catalogs.is_some()).then_some(&catalogs);
     let issues = match lockfile {
         Some(lockfile) => check_peer_dependencies_from_lockfile(
-            lockfile,
-            lockfile_dir,
-            project_dirs,
-            catalogs,
-            config.resolve_peers_from_workspace_root,
+            LockfilePeerCheck {
+                lockfile,
+                lockfile_dir,
+                workspace_dir: config.workspace_dir.as_deref(),
+                project_dirs,
+                catalogs,
+                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+            },
+            linked_lockfiles,
         )?,
         None => IssuesByProjects::new(),
     };
     Ok(filter_peer_issues(issues, &config.peer_dependency_rules))
-}
-
-type UndeclaredWarnings =
-    std::collections::BTreeMap<String, Vec<pnpm_deps_inspection_peers::UndeclaredPeer>>;
-
-fn undeclared_warnings(
-    config: &Config,
-    lockfile_dir: &Path,
-    project_dirs: &[std::path::PathBuf],
-    lockfile: Option<&Lockfile>,
-) -> UndeclaredWarnings {
-    if config.auto_install_peers || !config.dedupe_peer_dependents {
-        return UndeclaredWarnings::new();
-    }
-    let Some(lockfile) = lockfile else { return UndeclaredWarnings::new() };
-    let mut inspector =
-        pnpm_deps_inspection_peers::UndeclaredPeerInspector::new(lockfile, lockfile_dir);
-    project_dirs
-        .iter()
-        .filter_map(|dir| {
-            let importer = pnpm_workspace::importer_id_from_root_dir(lockfile_dir, dir);
-            let peers = inspector.check(&importer, config.resolve_peers_from_workspace_root.into());
-            (!peers.is_empty()).then_some((importer, peers))
-        })
-        .collect()
-}
-
-fn print_undeclared_warnings(warnings: &UndeclaredWarnings) {
-    for (project, peers) in warnings {
-        for peer in peers {
-            pnpm_diagnostics::println!(
-                "WARN {}: required peer {}@{} of {} is resolved but is not declared by this project or provided by its dependency ancestors. Declare the peer directly if this project's scripts use it.",
-                pnpm_text_sanitize::sanitize_inline(project),
-                pnpm_text_sanitize::sanitize_inline(&peer.peer),
-                pnpm_text_sanitize::sanitize_inline(&peer.found_version),
-                pnpm_text_sanitize::sanitize_inline(&peer.package),
-            );
-        }
-    }
-}
-
-fn print_json_issues(
-    issues: &IssuesByProjects,
-    undeclared: &UndeclaredWarnings,
-) -> miette::Result<()> {
-    let mut report = serde_json::to_value(issues).into_diagnostic()?;
-    for (project, peers) in undeclared {
-        report[project]["undeclared"] = serde_json::to_value(peers).into_diagnostic()?;
-    }
-    let output = serde_json::to_string_pretty(&report)
-        .into_diagnostic()
-        .wrap_err("serialize issues to JSON")?;
-    pnpm_diagnostics::println!("{output}");
-    Ok(())
-}
-
-fn print_text_issues(issues: &IssuesByProjects, undeclared: &UndeclaredWarnings, no_issues: bool) {
-    match (no_issues, undeclared.is_empty()) {
-        (true, true) => pnpm_diagnostics::println!("No peer dependency issues found"),
-        (true, false) => pnpm_diagnostics::println!(
-            "Peer dependencies are satisfied. Declaration warnings follow.",
-        ),
-        (false, _) => {
-            pnpm_diagnostics::println!("Issues with peer dependencies found\n");
-            pnpm_diagnostics::println!("{}", render_peer_issues(issues));
-        }
-    }
-    print_undeclared_warnings(undeclared);
 }

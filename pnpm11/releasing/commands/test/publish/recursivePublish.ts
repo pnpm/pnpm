@@ -10,6 +10,7 @@ import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
@@ -479,5 +480,42 @@ test('recursive publish resolves workspace protocol when node_modules is not ins
   const { stdout } = await execa('pnpm', ['view', pkgB.name, 'dependencies', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`, '--json'])
   const dependencies = JSON.parse(stdout?.toString() ?? '{}')
   expect(dependencies[pkgA.name]).toBe('^1.2.3')
+})
+
+test('recursive publish skips manifests with empty name or empty version without private: true', async () => {
+  const suffix = Date.now()
+  const validPkg = {
+    name: `@pnpmtest/test-empty-manifest-fields-${suffix}`,
+    version: '1.0.0',
+  }
+  preparePackages([
+    validPkg,
+    {
+      location: 'empty-version-pkg',
+      package: {
+        name: `@pnpmtest/test-empty-version-${suffix}`,
+        version: '',
+      },
+    },
+    {
+      location: 'empty-name-pkg',
+      package: {
+        name: '',
+        version: '1.0.0',
+      },
+    },
+  ])
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'monorepo-root', version: '' }))
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    recursive: true,
+  }, [])
+
+  await checkPkgExists(validPkg.name, validPkg.version)
 })
 

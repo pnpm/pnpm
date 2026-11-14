@@ -25,7 +25,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { symlinkDir } from 'symlink-dir'
 
-import { createCacheKey, type DlxCache, findCache, getValidCacheDir } from './dlxCache.js'
+import { createCacheKey, type DlxCache, findCache, getValidCacheDir, resolveDlxOverrides } from './dlxCache.js'
 import { makeEnv } from './makeEnv.js'
 import { trackedExeca, waitForTracked } from './trackedExeca.js'
 
@@ -76,7 +76,7 @@ export function help (): string {
             name: '--package',
           },
           {
-            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            description: 'A list of package names that are allowed to run postinstall scripts during installation. Prefix a name with ! to deny its scripts instead',
             name: '--allow-build',
           },
           {
@@ -97,7 +97,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registriesByScope' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Partial<Pick<ConfigContext, 'cliOptions'>> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registriesByScope' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Partial<Pick<Config, 'blockExoticSubdeps'>> & Partial<Pick<ConfigContext, 'cliOptions'>> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -110,21 +110,25 @@ export async function handler (
     }
     throw new PnpmError('DLX_MISSING_COMMAND', "'pnpm dlx' requires a command to run")
   }
+  const allowBuildSelectors = add.parseAllowBuildSelectors({ allowBuild: opts.allowBuild })
+  const resolvedOverrides = resolveDlxOverrides(opts.overrides, opts.catalogs)
   const { resolvedPkgs, resolvedPkgAliases } = await resolveDlxPackages(opts, opts.package ?? [command])
   const enableGlobalVirtualStore = opts.enableGlobalVirtualStore ?? true
-  const cache = findCache({
-    packages: resolvedPkgs,
-    dlxCacheMaxAge: opts.dlxCacheMaxAge,
-    cacheDir: opts.cacheDir,
-    registriesByScope: opts.registriesByScope,
-    allowBuild: opts.allowBuild,
-    supportedArchitectures: opts.supportedArchitectures,
-    nodeVersion: getSystemNodeVersion(),
-  })
-  const allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true]))
+  const cache = findDlxCache(opts, resolvedPkgs, resolvedOverrides)
+  const allowBuilds = add.applyAllowBuildSelectors(
+    Object.fromEntries(resolvedPkgAliases.map(pkg => [pkg, true])),
+    allowBuildSelectors
+  )
   let cachedDir = cache.cachedDir
   if (!cache.cacheExists) {
-    cachedDir = await installIntoDlxCache({ opts, commands, allowBuilds, resolvedPkgs, enableGlobalVirtualStore }, cache)
+    cachedDir = await installIntoDlxCache({
+      opts,
+      commands,
+      allowBuilds,
+      resolvedPkgs,
+      resolvedOverrides,
+      enableGlobalVirtualStore,
+    }, cache)
   } else {
     await promptApproveDlxBuilds({ cachedDir, allowBuilds, inheritedOpts: opts }, commands)
   }
@@ -136,6 +140,33 @@ export async function handler (
     cwd: (opts.cliOptions?.dir as string | undefined) ?? process.cwd(),
     env,
     shellMode: opts.shellMode,
+  })
+}
+
+function findDlxCache (
+  opts: DlxCommandOptions,
+  packages: string[],
+  overrides: Record<string, string> | undefined
+): DlxCache {
+  return findCache({
+    packages,
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
+    cacheDir: opts.cacheDir,
+    registriesByScope: opts.registriesByScope,
+    allowBuild: opts.allowBuild,
+    supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion: getSystemNodeVersion(),
+    overrides,
+    packageExtensions: opts.packageExtensions,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
+    minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+    trustLockfile: opts.trustLockfile,
+    blockExoticSubdeps: opts.blockExoticSubdeps,
   })
 }
 
@@ -206,8 +237,9 @@ function createDlxResolver (opts: DlxCommandOptions): DlxResolve {
 interface DlxInstallContext {
   opts: DlxCommandOptions
   commands?: CommandHandlerMap
-  allowBuilds: Record<string, boolean>
+  allowBuilds: Record<string, boolean | string>
   resolvedPkgs: string[]
+  resolvedOverrides?: Record<string, string>
   enableGlobalVirtualStore: boolean
 }
 
@@ -238,6 +270,8 @@ async function installIntoDlxCache (ctx: DlxInstallContext, cache: DlxCache): Pr
 function createDlxAddOptions (ctx: DlxInstallContext, cachedDir: string): add.AddCommandOptions {
   return {
     ...ctx.opts,
+    allowBuild: undefined,
+    overrides: ctx.resolvedOverrides,
     // Mirror the global install flow: dlx prompts via `approve-builds`
     // when transitive deps have skipped build scripts, so it must not let
     // strictDepBuilds (the v11 default) turn that into a hard error.
@@ -412,12 +446,14 @@ async function promptApproveDlxBuilds (
 ): Promise<void> {
   if (!commands?.['approve-builds']) return
   const autoApproveForTests = process.env[AUTO_APPROVE_FOR_TESTS_ENV] === '1'
-  if (!autoApproveForTests && !process.stdin.isTTY) return
+  const inCi = (opts.inheritedOpts as { ci?: boolean }).ci
+  if (!autoApproveForTests && (inCi || !process.stdin.isTTY)) return
   const { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds({
     dir: opts.cachedDir,
     lockfileDir: opts.cachedDir,
   })
-  if (!automaticallyIgnoredBuilds?.length) return
+  const pendingBuilds = automaticallyIgnoredBuilds?.filter((pkg) => opts.allowBuilds[pkg] !== false)
+  if (!pendingBuilds?.length) return
   await commands['approve-builds']({
     ...opts.inheritedOpts,
     dir: opts.cachedDir,

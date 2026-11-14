@@ -1,21 +1,23 @@
+pub use filters::ordered_filter_entries;
+
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
-    ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
-    PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
-    PythonSettings, RegistryOptions, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
-    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, SmartDefault, StoreDir,
-    StoreIndexFormat, SystemTime, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
-    WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
-    default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
-    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
-    default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
-    default_hoist_pattern, default_install_state_dir, default_max_tarball_unpacked_size,
-    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
-    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
-    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
-    side_effects_cache_remote_env, source_date_epoch, workspace_yaml,
+    ConfigDependency, Ecosystem, EnvVar, FilterSource, GlobalShims, HashMap, HoistingLimits, Host,
+    IndexMap, InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode,
+    NodePackageMapType, PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail,
+    ProjectConfig, PythonSettings, RegistryOptions, RemoteCacheSettings,
+    RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
+    SaveWorkspaceProtocol, SmartDefault, StoreDir, StoreIndexFormat, SystemTime, Tool,
+    ToolSettings, TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
+    default_git_shallow_hosts, default_hoist_pattern, default_install_state_dir,
+    default_max_tarball_unpacked_size, default_modules_cache_max_age, default_modules_dir,
+    default_peers_suffix_max_length, default_public_hoist_pattern, default_registry,
+    default_state_dir, default_store_dir, default_tag_version_prefix, default_unsafe_perm,
+    default_user_agent, default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci,
+    npmrc_auth, side_effects_cache_remote_env, source_date_epoch, workspace_yaml,
 };
 use crate::MacosBackupConfig;
 
@@ -436,7 +438,7 @@ pub struct Config {
     /// virtual-store paths stay under the OS component-name limit.
     ///
     /// Configurable via `peersSuffixMaxLength` in
-    /// `pnpm-workspace.yaml`, global `config.yaml`, or
+    /// `pnpm-workspace.yaml` or
     /// `PNPM_CONFIG_PEERS_SUFFIX_MAX_LENGTH`. The same value is
     /// persisted into the lockfile's `settings.peersSuffixMaxLength`
     /// (omitted when it equals the default) so subsequent installs
@@ -1096,7 +1098,7 @@ pub struct Config {
 
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`](crate::WorkspaceSettings::apply_to) when yaml was found, so
-    /// later install-time code (notably [`pnpm_patching::resolve_and_group`] for
+    /// later install-time code (notably [`pnpm_patching_config::resolve_and_group`] for
     /// `patchedDependencies`) can resolve relative paths against the
     /// same dir pnpm does. `None` when no `pnpm-workspace.yaml` exists
     /// anywhere up the tree — in that case there are no patches /
@@ -1319,8 +1321,8 @@ pub struct Config {
     #[default(_code = "default_child_concurrency()")]
     pub child_concurrency: u32,
 
-    /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
-    /// `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`, overridable
+    /// `workspaceConcurrency` from `pnpm-workspace.yaml` /
+    /// `PNPM_CONFIG_WORKSPACE_CONCURRENCY`, overridable
     /// per-invocation by the `--workspace-concurrency` CLI flag. The
     /// maximum number of workspace projects pnpm processes in parallel
     /// during a recursive operation. Resolved through
@@ -1369,6 +1371,12 @@ pub struct Config {
     /// each selector follows production dependencies only when its
     /// dependency walk runs. Populated the same way.
     pub filter_prod: Vec<String>,
+
+    /// Relative command-line order of [`Self::filter`] and [`Self::filter_prod`]
+    /// entries when set from CLI flags. Empty when selectors were not
+    /// interleaved on the command line or after an `updateConfig` hook rewrites
+    /// them.
+    pub filter_order: Vec<FilterSource>,
 
     /// `--workspace-root` / `-w`: run the command on the root workspace
     /// project. CLI-only, like [`Self::filter`].
@@ -1867,12 +1875,6 @@ pub struct Config {
 }
 
 impl Config {
-    /// The decoded-output budget archives are extracted under.
-    #[must_use]
-    pub fn tar_limits(&self) -> pnpm_tarball::TarLimits {
-        pnpm_tarball::TarLimits::new(self.max_tarball_unpacked_size)
-    }
-
     /// Whether this install materializes every snapshot the lockfile
     /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
     /// under [`force_ignores_platform`](Self::force_ignores_platform).
@@ -1927,5 +1929,6 @@ impl Config {
 }
 
 mod cache;
+mod filters;
 mod patches;
 mod tools;

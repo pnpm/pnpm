@@ -55,6 +55,34 @@ export interface MovedRegistryKey {
 }
 
 /**
+ * Matches plain semver lockfile entries whose scope route moved since the
+ * lockfile was resolved. Returns `undefined` when `lockedRegistriesByScope` is
+ * absent or every scope still routes to the same registry, avoiding any
+ * `lockfile.packages` scan on warm-cache installs.
+ */
+export function createMovedRegistryRouteMatcher (
+  registries: RegistryContext
+): ((entry: { name: string, nonSemverVersion?: string, registryName?: string }) => boolean) | undefined {
+  if (registries.lockedRegistriesByScope == null) return undefined
+  const locked = lockedRegistriesByScope(registries)
+  const current = registries.registriesByScope
+  const scopes = new Set([
+    ...Object.keys(registries.lockedRegistriesByScope),
+    ...Object.keys(current),
+  ])
+  scopes.delete('default')
+  const anyScopeMoved = [...scopes].some((scope) => !isSameRegistry(
+    Object.hasOwn(locked, scope) ? locked[scope] : current.default,
+    Object.hasOwn(current, scope) ? current[scope] : current.default
+  ))
+  if (!anyScopeMoved) return undefined
+  return ({ name, nonSemverVersion, registryName }) => {
+    if (nonSemverVersion != null || registryName != null) return false
+    return !isSameRegistry(pickRegistryForPackage(locked, name), pickRegistryForPackage(current, name))
+  }
+}
+
+/**
  * The smallest plain `packages:` key whose package resolved from a registry
  * its scope no longer routes to, with that registry and the current one.
  * `undefined` without a record of the routes the lockfile was resolved under.

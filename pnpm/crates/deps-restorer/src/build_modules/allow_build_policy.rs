@@ -226,6 +226,9 @@ impl AllowBuildPolicy {
 /// [`PkgVerPeer::without_peer`]: pnpm_lockfile::PkgVerPeer::without_peer
 #[must_use]
 pub fn normalize_build_dep_path(dep_path: &str) -> String {
+    if is_link_dep_path(dep_path) {
+        return dep_path.to_string();
+    }
     remove_suffix(dep_path).to_string()
 }
 
@@ -234,6 +237,9 @@ pub fn normalize_build_dep_path(dep_path: &str) -> String {
 /// git/tarball artifacts (whose name alone must not approve builds).
 #[must_use]
 pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
+    if is_link_dep_path(dep_path) {
+        return dep_path.to_string();
+    }
     let pkg_id_with_patch_hash = get_pkg_id_with_patch_hash(dep_path);
     match parse_dep_path_name_version(pkg_id_with_patch_hash) {
         Some((name, version)) if node_semver::Version::parse(version).is_ok() => name.to_string(),
@@ -252,7 +258,7 @@ pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
 /// ever display text and cannot be fed back as a key.
 #[must_use]
 pub fn short_package_label(key: &str) -> String {
-    let pkg_id = get_pkg_id_with_patch_hash(key);
+    let pkg_id = if is_link_dep_path(key) { key } else { get_pkg_id_with_patch_hash(key) };
     // A key with no name@version separator is a bare package name; with
     // one, a version that parses as semver is a registry package and
     // anything else a source. Git-host packages are tagged `(git)`
@@ -275,10 +281,7 @@ pub fn short_package_label(key: &str) -> String {
 /// git-hosted: `tarball` for a URL, including a local archive name; `local`
 /// for a directory a `file:` / `link:` spec resolves to.
 fn source_tag(version: &str) -> &'static str {
-    if version.starts_with("file:") || version.starts_with("link:") {
-        if version.ends_with(".tgz") || version.ends_with(".tar.gz") {
-            return "tarball";
-        }
+    if super::skills_policy::is_local_directory_version(version) {
         return "local";
     }
     "tarball"
@@ -301,17 +304,22 @@ pub fn parse_allow_build_selector(selector: &str) -> (&str, bool) {
 /// Split a peer-suffix-free depPath / pkgId into its `name` and `version`
 /// (with any `(patch_hash=…)` segment stripped) — the half of depPath
 /// parsing that [`allow_build_key_from_ignored_build`] consumes. Returns
-/// `None` when there is no `@` version separator past position 0 or the
-/// version is empty — the cases that yield a name-less result.
-pub(crate) fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
-    let sep = pkg_id
-        .get(1..)?
-        .find('@')
-        .map(|off| off + 1)?;
+/// `None` when there is no `@` version separator past position 0, the prefix
+/// contains a URL scheme `:`, or the version is empty — the cases that yield a
+/// name-less result.
+#[must_use]
+pub fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
+    let sep = pnpm_deps_path::version_separator_index(pkg_id)?;
     let name = &pkg_id[..sep];
+    if name.contains(':') {
+        return None;
+    }
     let mut version = &pkg_id[sep + 1..];
     if version.is_empty() {
         return None;
+    }
+    if version.starts_with("link:") {
+        return Some((name, version));
     }
     let suffix = index_of_dep_path_suffix(version);
     if let Some(idx) = suffix.patch_hash_index {
@@ -320,6 +328,10 @@ pub(crate) fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> 
         version = &version[..idx];
     }
     Some((name, version))
+}
+
+fn is_link_dep_path(dep_path: &str) -> bool {
+    parse_dep_path_name_version(dep_path).is_some_and(|(_, version)| version.starts_with("link:"))
 }
 
 /// One side of `allowBuilds`, split by the shape of its keys.
@@ -452,11 +464,10 @@ pub(crate) fn is_dep_path_allow_build_key(spec: &str) -> bool {
     if spec.contains("||") {
         return false;
     }
-    let (_, version) = parse_name_version_from_key(spec);
-    if version.is_empty() {
+    let Some((_, version)) = parse_dep_path_name_version(spec) else {
         return !spec.starts_with('@') && (spec.contains('/') || spec.contains(':'));
-    }
-    node_semver::Version::parse(&version).is_err() && is_source_like_dep_path_version(&version)
+    };
+    node_semver::Version::parse(version).is_err() && is_source_like_dep_path_version(version)
 }
 
 pub(crate) fn is_source_like_dep_path_version(version: &str) -> bool {

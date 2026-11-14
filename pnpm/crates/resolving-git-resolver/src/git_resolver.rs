@@ -148,10 +148,16 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
-        _opts: &ResolveOptions,
+        opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(bare) = wanted_dependency.bare_specifier.as_deref() else { return Ok(None) };
         let Some(partial) = parse_bare_specifier(bare) else { return Ok(None) };
+        if let Some(kept) = kept_locked_resolution(wanted_dependency, opts) {
+            return Ok(Some(ResolveResult {
+                normalized_bare_specifier: Some(partial.finalize().normalized_bare_specifier),
+                ..kept
+            }));
+        }
         let cell = Arc::clone(
             self.resolved
                 .lock()
@@ -326,34 +332,70 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
             .map_err(|err| ref_resolution_error(err, wanted_dependency, &spec.fetch_spec))?;
 
     let resolution = pick_resolution(&spec, probe, &commit).await;
+    let mut result = git_resolve_result(resolution, wanted_dependency, None)
+        .expect("pick_resolution returns Tarball or Git only");
+    result.normalized_bare_specifier = Some(spec.normalized_bare_specifier);
+    Ok(result)
+}
 
-    let id_string = match &resolution {
-        LockfileResolution::Tarball(t) => {
-            let mut id = t.tarball.clone();
-            if let Some(path) = &t.path {
-                id.push_str("#path:");
-                id.push_str(path);
+/// The prior lockfile's git resolution, with the manifest the lockfile
+/// records, when the walk keeps this edge locked. Returning it skips
+/// `git ls-remote` and the package read, so an install that leaves the
+/// specifier unchanged needs no access to the repository.
+///
+/// A `readPackage` hook needs the package's own manifest, which the
+/// lockfile does not record, so it re-resolves.
+fn kept_locked_resolution(
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<ResolveResult> {
+    let refresh = &opts.refresh;
+    if refresh.refreshes_metadata()
+        || refresh.update_checksums
+        || refresh.repick_current_version
+        || opts.requires_original_manifest
+    {
+        return None;
+    }
+    let current = refresh.current_pkg.as_ref()?;
+    git_resolve_result(
+        current.resolution.clone(),
+        wanted_dependency,
+        current.manifest.as_ref().map(Arc::clone),
+    )
+}
+
+/// A [`ResolveResult`] for a git `resolution`: a `type: git` one or a git
+/// host's archive. `None` for any other resolution.
+fn git_resolve_result(
+    resolution: LockfileResolution,
+    wanted_dependency: &WantedDependency,
+    manifest: Option<Arc<serde_json::Value>>,
+) -> Option<ResolveResult> {
+    let id = match &resolution {
+        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => {
+            match &tarball.path {
+                Some(path) => format!("{}#path:{path}", tarball.tarball),
+                None => tarball.tarball.clone(),
             }
-            id
         }
-        LockfileResolution::Git(g) => {
-            create_git_hosted_pkg_id(&g.repo, &g.commit, g.path.as_deref())
+        LockfileResolution::Git(git) => {
+            create_git_hosted_pkg_id(&git.repo, &git.commit, git.path.as_deref())
         }
-        _ => unreachable!("pick_resolution returns Tarball or Git only"),
+        _ => return None,
     };
-
-    Ok(ResolveResult {
-        id: id_string.into(),
+    Some(ResolveResult {
+        id: id.into(),
         resolution,
         resolved_via: "git-repository".to_string(),
-        normalized_bare_specifier: Some(spec.normalized_bare_specifier),
+        normalized_bare_specifier: None,
         alias: wanted_dependency.alias.clone(),
         policy_violation: None,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
             name_ver: None,
             latest: None,
             published_at: None,
-            manifest: None,
+            manifest,
             non_deprecated_alternative: None,
         },
     })

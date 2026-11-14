@@ -5,8 +5,7 @@ pub(crate) mod selectors;
 pub(crate) mod standalone;
 
 pub(crate) use selectors::{
-    EcosystemFilterKind, excludes_only, is_purl, patterns_for_ecosystem,
-    validate_ecosystem_selectors,
+    EcosystemFilterKind, excludes_only, patterns_for_ecosystem, validate_ecosystem_selectors,
 };
 pub(crate) use standalone::{
     select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,
@@ -104,12 +103,16 @@ pub(crate) fn declared_ecosystem_dep_names(
     let mut names = Vec::new();
     if config.cargo.enabled {
         let deps = declared_cargo_deps(project_dir, config.workspace_dir.as_deref())?;
-        for dep in deps
+        for name in deps
             .into_iter()
             .filter(|dep| include.contains(&dep.group))
+            .flat_map(|dep| {
+                dep.aliases
+                    .into_iter()
+                    .chain([dep.package_name])
+            })
         {
-            names.extend([dep.alias.clone(), format!("crate:{}", dep.alias)]);
-            names.extend([dep.package_name.clone(), format!("crate:{}", dep.package_name)]);
+            names.extend([format!("crate:{name}"), name]);
         }
     }
     if config.python.enabled {

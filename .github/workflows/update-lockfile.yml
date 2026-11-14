@@ -26,6 +26,9 @@ jobs:
       # compile/lint (and, when the remote branch doesn't exist yet, the Rust
       # clippy/doc sweep) during the action's push.
       HUSKY: 0
+      # Let the install regenerate the embedded esm-loader bundle when a bumped
+      # dependency changes it. The update PR's CI checks the committed result.
+      PNPM_ESM_LOADER_REFRESH_BUNDLE: 'true'
     steps:
     - name: Checkout Commit
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,7 +50,7 @@ jobs:
     # pnpm/update runs the install itself, so the action's auto-install would
     # be wasted work.
     - name: Install pnpm
-      uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         install: false
 

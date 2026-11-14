@@ -9,18 +9,21 @@ use std::{
 };
 
 use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
+use pnpm_lockfile::{
+    IntegrityTarget, Lockfile, LockfileFormat, LockfileResolution, PackageKey, PackageMetadata,
+    TarballResolution,
+};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::Project;
 use serde_json::json;
 
 use super::{
-    ConvertCtx, ProjectInfo, ProjectPathKey, SelectedProject, apply_deploy_hook,
-    convert_package_key, convert_package_metadata, create_deploy_files, create_file_url_key,
-    index_projects,
+    ConvertCtx, DeployWorkspaceSettings, ProjectInfo, ProjectPathKey, SelectedProject,
+    apply_deploy_hook, convert_package_key, convert_package_metadata, create_deploy_files,
+    create_file_url_key, index_projects,
 };
 #[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceSettings, write_deploy_files};
+use super::{DeployFiles, write_deploy_files};
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
 use crate::cli_args::deploy::{
@@ -414,4 +417,46 @@ fn deploy_preserves_metadata_only_peers_in_an_excluded_group() {
             .unwrap()
             .contains_key(&"peer@1.0.0".parse().unwrap()),
     );
+}
+
+#[test]
+fn deploy_workspace_settings_omits_default_lockfile_format_and_tarball_url() {
+    let settings = DeployWorkspaceSettings::from_config(&Config::default());
+    let manifest = settings.to_workspace_manifest().expect("build workspace manifest");
+
+    assert!(!manifest.contains_key("lockfile"));
+    assert!(!manifest.contains_key("lockfileIncludeTarballUrl"));
+}
+
+#[test]
+fn deploy_workspace_settings_preserves_v13_lockfile_format_and_tarball_url() {
+    let source_config = Config {
+        lockfile_format: LockfileFormat::V13,
+        lockfile_include_tarball_url: true,
+        lockfile_integrity_target: IntegrityTarget::Tar,
+        ..Default::default()
+    };
+
+    let settings = DeployWorkspaceSettings::from_config(&source_config);
+    let manifest = settings.to_workspace_manifest().expect("build workspace manifest");
+
+    assert_eq!(
+        manifest.get("lockfile"),
+        Some(&json!({
+            "format": "v13",
+            "integrityTarget": "tar",
+        })),
+    );
+    assert_eq!(manifest.get("lockfileIncludeTarballUrl"), Some(&json!(true)));
+
+    let mut target_config = Config::default();
+    settings.apply_to_config(&mut target_config, Path::new("deploy"));
+    assert_eq!(target_config.lockfile_format, LockfileFormat::V13);
+    assert!(target_config.lockfile_include_tarball_url);
+    assert_eq!(target_config.lockfile_integrity_target, IntegrityTarget::Tar);
+
+    let mut deploy_lockfile: Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse lockfile");
+    settings.apply_to_lockfile(&mut deploy_lockfile);
+    assert_eq!(deploy_lockfile.lockfile_version, LockfileFormat::V13.version());
 }

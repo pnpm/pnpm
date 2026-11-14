@@ -222,6 +222,7 @@ fn create_config(
         recursive: false,
         filter: Vec::new(),
         filter_prod: Vec::new(),
+        filter_order: Vec::new(),
         workspace_root: false,
         fail_if_no_match: false,
         test_pattern: Vec::new(),

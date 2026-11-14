@@ -1,7 +1,8 @@
-use super::{
-    EnvVar, Placeholder, drop_placeholders, resolvable_placeholders, resolve_placeholders,
-};
+use super::{DocumentPlaceholders, EnvVar, Placeholder, document_placeholders};
+use restore::deserialize_restoring;
 use serde::de::DeserializeOwned;
+
+mod restore;
 
 /// What a failed read reports in place of a value that came from the
 /// environment. `nodeLinker: ${NPM_TOKEN}` written by mistake must not put
@@ -22,101 +23,169 @@ const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 /// anything written by hand, and is read as written.
 const MAX_DOCUMENT_READS: u32 = 512;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlaceholderChoice {
+    Sentinel,
+    Expanded,
+}
+
+struct Prober<'text> {
+    text: &'text str,
+    placeholders: &'text DocumentPlaceholders,
+    choices: Vec<PlaceholderChoice>,
+    reads: u32,
+}
+
+impl<'text> Prober<'text> {
+    fn new(text: &'text str, placeholders: &'text DocumentPlaceholders) -> Self {
+        let choices = placeholders.items
+            .iter()
+            .map(|placeholder| {
+                if placeholder.resolved.is_some() {
+                    PlaceholderChoice::Expanded
+                } else {
+                    PlaceholderChoice::Sentinel
+                }
+            })
+            .collect();
+        Self { text, placeholders, choices, reads: 0 }
+    }
+
+    fn read<Settings: DeserializeOwned + Default>(&self) -> Option<Settings> {
+        read_candidate(self.text, self.placeholders, &self.choices)
+    }
+
+    /// Demote as many indices in `group` as possible from `Expanded` to
+    /// `Sentinel` while `self.read::<Settings>()` continues to succeed,
+    /// returning `false` if [`MAX_DOCUMENT_READS`] is exceeded.
+    fn demote<Settings: DeserializeOwned + Default>(&mut self, group: &[usize]) -> bool {
+        if group.is_empty() {
+            return true;
+        }
+        if self.reads >= MAX_DOCUMENT_READS {
+            return false;
+        }
+        self.reads += 1;
+        self.set_group(group, PlaceholderChoice::Sentinel);
+        if self.read::<Settings>().is_some() {
+            return true;
+        }
+        self.set_group(group, PlaceholderChoice::Expanded);
+        if group.len() == 1 {
+            return true;
+        }
+        let (left, right) = group.split_at(group.len() / 2);
+        self.demote::<Settings>(left) && self.demote::<Settings>(right)
+    }
+
+    /// Confirm every placeholder left `Expanded` is rejected even as an
+    /// unrestored sentinel by `serde_saphyr`, ruling out free-text slots whose
+    /// restoration failed on a quote or duplicate-key check.
+    fn verify_expanded_require_resolution<Settings: DeserializeOwned + Default>(&mut self) -> bool {
+        for index in 0..self.choices.len() {
+            if self.choices[index] != PlaceholderChoice::Expanded {
+                continue;
+            }
+            if self.reads >= MAX_DOCUMENT_READS {
+                return false;
+            }
+            self.reads += 1;
+            self.choices[index] = PlaceholderChoice::Sentinel;
+            let candidate = render_choices(self.text, self.placeholders, &self.choices);
+            self.choices[index] = PlaceholderChoice::Expanded;
+            if serde_saphyr::from_str::<Option<Settings>>(&candidate).is_ok() {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn set_group(&mut self, group: &[usize], choice: PlaceholderChoice) {
+        for &index in group {
+            self.choices[index] = choice;
+        }
+    }
+}
+
 /// Read the settings of a `pnpm-workspace.yaml` / `config.yaml`, resolving a
 /// setting written as `${VAR}` or `${VAR:-fallback}`.
 ///
 /// Only the placeholders the document cannot be read without are resolved
-/// here. A setting that takes free text reads as written, so its placeholder
-/// is left for the trusted / untrusted substitution that follows — which is
-/// what keeps a repository-controlled file from naming a request destination
-/// out of the environment. A document that reads as written resolves nothing
-/// at all and is returned exactly as it was read, so what a file means today
-/// it goes on meaning.
+/// here. Placeholders whose YAML syntax indicators (`{`, `}`, `: `) would
+/// break parsing stand in as style-probing sentinels and are restored to their
+/// decoded `${...}` text as serde reads string values. Free-text settings are
+/// therefore always left unexpanded for the trusted / untrusted substitution
+/// that follows. A document that reads as written resolves nothing at all.
 pub(crate) fn parse_settings<Sys: EnvVar, Settings: DeserializeOwned + Default>(
     text: &str,
 ) -> Result<Settings, Box<serde_saphyr::Error>> {
-    // A placeholder reaches serde as its own text, which only a string-valued
-    // setting can hold, so a document carrying one for any other setting has
-    // to be read a second time with that placeholder already resolved.
     let as_written = match serde_saphyr::from_str::<Option<Settings>>(text) {
         Ok(Some(settings)) => return Ok(settings),
         Ok(None) => return Ok(Settings::default()),
         Err(error) => error,
     };
-    let placeholders = resolvable_placeholders::<Sys>(text);
-    if placeholders.is_empty() {
+    let Some(placeholders) = document_placeholders::<Sys>(text) else {
+        return Err(Box::new(as_written));
+    };
+    let mut prober = Prober::new(text, &placeholders);
+    prober.reads = 1;
+    if prober.read::<Settings>().is_none() {
+        if placeholders.resolvable.is_empty() {
+            return Err(Box::new(as_written));
+        }
+        return Err(Box::new(classify::<Settings>(text, &placeholders, as_written)));
+    }
+    if !prober.demote::<Settings>(&placeholders.resolvable)
+        || !prober.verify_expanded_require_resolution::<Settings>()
+    {
         return Err(Box::new(as_written));
     }
-    let mut resolved = vec![true; placeholders.len()];
-    let mut reads = 1;
-    if read_text::<Settings>(&resolve_placeholders(text, &placeholders, |index| resolved[index]))
-        .is_none()
-    {
-        return Err(Box::new(classify::<Settings>(text, &placeholders)));
-    }
-    // Resolving a placeholder the document reads without would take a setting
-    // out of the hands of the substitution that knows which layer the file
-    // came from, so each one that turns out not to be needed is put back.
-    if !decide::<Settings>(text, &placeholders, &mut resolved, 0..placeholders.len(), &mut reads) {
-        return Err(Box::new(as_written));
-    }
-    read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index]))
-        .ok_or_else(|| Box::new(as_written))
+    prober.read().ok_or_else(|| Box::new(as_written))
 }
 
-/// Work out which of `group` the document cannot be read without, leaving
-/// `resolved` false for the rest, and report whether it stayed inside
-/// [`MAX_DOCUMENT_READS`].
-///
-/// Resolving one placeholder says nothing about whether another is needed, so
-/// a group put back all at once answers for every placeholder in it: the
-/// document reads when none of them was needed, and otherwise the group is
-/// halved.
-fn decide<Settings: DeserializeOwned + Default>(
-    text: &str,
-    placeholders: &[Placeholder],
-    resolved: &mut [bool],
-    group: std::ops::Range<usize>,
-    reads: &mut u32,
-) -> bool {
-    if *reads >= MAX_DOCUMENT_READS {
-        return false;
-    }
-    *reads += 1;
-    resolved[group.clone()].fill(false);
-    if read_text::<Settings>(&resolve_placeholders(text, placeholders, |index| resolved[index]))
-        .is_some()
-    {
-        return true;
-    }
-    resolved[group.clone()].fill(true);
-    if group.len() == 1 {
-        return true;
-    }
-    let middle = group.start + group.len() / 2;
-    decide::<Settings>(text, placeholders, resolved, group.start..middle, reads)
-        && decide::<Settings>(text, placeholders, resolved, middle..group.end, reads)
-}
-
-/// The error a document that will not read even with its placeholders
-/// resolved reports.
-///
-/// The document read without them answers which it is. It reads when a
-/// placeholder is what the reader stumbled over, and the message must not
-/// repeat what one resolved to. Otherwise the file says something it cannot
-/// mean on its own, and that read is the one that says what: the first read
-/// stops at the placeholder, which is not the problem and whose line would
-/// send a reader to the wrong setting.
+/// Report the error for a document that will not read even with its resolvable
+/// placeholders expanded, redacting expanded values while keeping source
+/// locations when another setting is at fault.
 fn classify<Settings: DeserializeOwned + Default>(
     text: &str,
-    placeholders: &[Placeholder],
+    placeholders: &DocumentPlaceholders,
+    as_written: serde_saphyr::Error,
 ) -> serde_saphyr::Error {
-    match serde_saphyr::from_str::<Option<Settings>>(&drop_placeholders(text, placeholders)) {
-        Ok(_) => serde::de::Error::custom(INVALID_EXPANSION),
+    let dropped_with_sentinels = placeholders.render(text, |_, placeholder| {
+        if placeholder.resolved.is_some() { "null" } else { &placeholder.sentinel }
+    });
+    if deserialize_restoring::<Settings>(&dropped_with_sentinels, text, placeholders).is_some() {
+        return serde::de::Error::custom(INVALID_EXPANSION);
+    }
+    let dropped_as_written = placeholders.render(text, |_, placeholder| {
+        if placeholder.resolved.is_some() { "null" } else { &text[placeholder.range.clone()] }
+    });
+    match serde_saphyr::from_str::<Option<Settings>>(&dropped_as_written) {
+        Ok(_) => as_written,
         Err(dropped) => dropped,
     }
 }
 
-fn read_text<Settings: DeserializeOwned + Default>(text: &str) -> Option<Settings> {
-    serde_saphyr::from_str::<Option<Settings>>(text).ok().map(Option::unwrap_or_default)
+fn render_choices(
+    text: &str,
+    placeholders: &DocumentPlaceholders,
+    choices: &[PlaceholderChoice],
+) -> String {
+    placeholders.render(text, |index, placeholder: &Placeholder| {
+        match (choices[index], placeholder.resolved.as_deref()) {
+            (PlaceholderChoice::Expanded, Some(value)) => value,
+            (PlaceholderChoice::Expanded, None) | (PlaceholderChoice::Sentinel, _) => {
+                &placeholder.sentinel
+            }
+        }
+    })
+}
+
+fn read_candidate<Settings: DeserializeOwned + Default>(
+    text: &str,
+    placeholders: &DocumentPlaceholders,
+    choices: &[PlaceholderChoice],
+) -> Option<Settings> {
+    let candidate = render_choices(text, placeholders, choices);
+    deserialize_restoring(&candidate, text, placeholders)
 }

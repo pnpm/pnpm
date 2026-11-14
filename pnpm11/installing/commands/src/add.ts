@@ -309,11 +309,15 @@ function assertNotAddingToWorkspaceRoot (opts: AddCommandOptions): void {
   }
 }
 
-function parseAllowBuildSelectors (opts: AddCommandOptions): AllowBuildSelector[] {
+export { parseAllowBuildSelector }
+
+export function parseAllowBuildSelectors (
+  opts: { allowBuild?: string[], argv?: { original?: string[] } }
+): AllowBuildSelector[] {
   const allowBuildSelectors = opts.allowBuild?.map(parseAllowBuildSelector) ?? []
   if (
     allowBuildSelectors.length &&
-    (opts.argv.original.includes('--allow-build') || allowBuildSelectors.some(({ name }) => name === ''))
+    (opts.argv?.original?.includes('--allow-build') || allowBuildSelectors.some(({ name }) => name === ''))
   ) {
     throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
   }
@@ -394,7 +398,7 @@ async function warnIfLinkedWithPeers (param: string, projectDir: string): Promis
   warnAboutLinkedPeerDependencies(await safeReadProjectManifestOnly(pkgDir), { pkgDir, prefix: projectDir })
 }
 
-function applyAllowBuildSelectors (
+export function applyAllowBuildSelectors (
   allowBuilds: Record<string, boolean | string> | undefined,
   selectors: AllowBuildSelector[]
 ): Record<string, boolean | string> {

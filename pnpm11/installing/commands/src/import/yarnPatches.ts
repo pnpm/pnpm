@@ -8,6 +8,8 @@ import type { ProjectManifest } from '@pnpm/types'
 import { semverUtils, structUtils } from '@yarnpkg/core'
 import normalizePath from 'normalize-path'
 
+import { splitDescriptor } from './yarnUtil.js'
+
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const
 
 /**
@@ -49,12 +51,6 @@ export function parseYarnPatchSpecifier (specifier: string): YarnPatchSpecifier 
 // packages to Plug'n'Play and have no file.
 function isBuiltinPatch (patchPath: string): boolean {
   return patchPath.replace(/^optional!/, '').startsWith('builtin<')
-}
-
-function splitDescriptor (descriptor: string): [string, string] | undefined {
-  const at = descriptor.indexOf('@', 1)
-  if (at === -1) return undefined
-  return [descriptor.slice(0, at), descriptor.slice(at + 1)]
 }
 
 function getPatchKey (name: string, range: string): string {
