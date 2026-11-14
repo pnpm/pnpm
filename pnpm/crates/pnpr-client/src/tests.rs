@@ -1034,6 +1034,7 @@ async fn a_cargo_resolve_accepts_a_server_that_predates_lockfile_format() {
         let resolved = PnprClient::new(server.url())
             .resolve_cargo(super::CargoResolveOptions {
                 metadata: "{}".to_string(),
+                preferred_versions: BTreeMap::new(),
                 registry: "https://index.crates.io/".to_string(),
                 authorization: None,
             })

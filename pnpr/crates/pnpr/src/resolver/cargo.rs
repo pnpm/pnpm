@@ -131,10 +131,11 @@ pub(super) async fn handle_resolve(
     }
     let index = IndexFetcher::new(runtime, identity, registry);
     let metadata = request.metadata;
+    let preferred_versions = request.preferred_versions;
     let source = pnpm_cargo_resolver::registry_source(&index.registry);
     match tokio::time::timeout_at(
         deadline,
-        run_solve_cargo(index, metadata, source, permit, deadline),
+        run_solve_cargo(index, metadata, source, preferred_versions, permit, deadline),
     )
     .await
     {

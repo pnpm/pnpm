@@ -188,6 +188,7 @@ impl PnprClient {
         let request = serde_json::json!({
             "ecosystem": CARGO_ECOSYSTEM,
             "metadata": opts.metadata,
+            "preferredVersions": opts.preferred_versions,
             "registry": opts.registry,
         });
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;

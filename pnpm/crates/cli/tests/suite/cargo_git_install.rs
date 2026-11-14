@@ -314,7 +314,7 @@ fn failed_resolution_restores_manifest_lockfile_and_sources() {
         eprintln!("Failed resolution must roll back the native metadata: {output:?}");
         assert!(!output.status.success());
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains("generate-lockfile failed"));
+        assert!(stderr.contains("cargo update failed"));
         assert!(stderr.contains("no matching package named `missing-crate` found"), "{stderr}");
         for (path, contents) in paths.into_iter().zip(original) {
             assert_eq!(fs::read(root.path().join(path)).unwrap(), contents, "{path}");

@@ -157,6 +157,69 @@ fn resolves_newest_non_yanked_versions_into_a_cargo_lockfile() {
     );
 }
 
+#[test]
+fn prefers_compatible_locked_transitive_versions() {
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), FOO_INDEX.to_string()),
+    ]);
+    let preferences = BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]);
+    let encoded =
+        super::resolve_lockfile_with_preferences(METADATA, &files, CRATES_IO_SOURCE, &preferences)
+            .unwrap();
+    let lockfile = Lockfile::from_str(&encoded).unwrap();
+
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            })
+    );
+}
+
+#[test]
+fn skips_incompatible_locked_versions() {
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), FOO_INDEX.to_string()),
+    ]);
+    let preferences = BTreeMap::from([("foo".to_string(), vec!["2.0.0".to_string()])]);
+    let encoded =
+        super::resolve_lockfile_with_preferences(METADATA, &files, CRATES_IO_SOURCE, &preferences)
+            .unwrap();
+    let lockfile = Lockfile::from_str(&encoded).unwrap();
+
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 1, 0)
+            })
+    );
+}
+
+#[test]
+fn keeps_a_yanked_compatible_locked_version() {
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), FOO_INDEX.to_string()),
+    ]);
+    let preferences = BTreeMap::from([("bar".to_string(), vec!["2.1.0".to_string()])]);
+    let encoded =
+        super::resolve_lockfile_with_preferences(METADATA, &files, CRATES_IO_SOURCE, &preferences)
+            .unwrap();
+    let lockfile = Lockfile::from_str(&encoded).unwrap();
+
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "bar" && package.version == semver::Version::new(2, 1, 0)
+            })
+    );
+}
+
 /// The workspace names no registry, so its crates belong to crates.io even
 /// though a configured registry served the index. `cargo` records the source
 /// a dependency named, not the replacement that served it.
