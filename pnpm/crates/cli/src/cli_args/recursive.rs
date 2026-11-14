@@ -16,6 +16,7 @@ pub use unmatched::UnmatchedFilters;
 mod dependencies;
 mod execution_args;
 mod importer_selection;
+mod selection_order;
 mod unmatched;
 
 use crate::{
@@ -44,6 +45,7 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
+
 use unmatched::unmatched_filters;
 
 /// `Cannot find package {resume_from}` — raised by both recursive `run`
@@ -162,15 +164,6 @@ pub struct RecursiveSelection<'a> {
     pub all: Option<ProjectGraph<GraphPkg<'a>>>,
     pub prod_all: Option<ProjectGraph<GraphPkg<'a>>>,
     pub prod_only_selected: HashSet<PathBuf>,
-}
-
-impl<'a> RecursiveSelection<'a> {
-    /// The full graph the sort resolves transitive edges through: `all` when
-    /// present, otherwise `selected`. See the `all` field for why `selected`
-    /// suffices when nothing narrowed the run.
-    pub fn full_graph(&self) -> &ProjectGraph<GraphPkg<'a>> {
-        self.all.as_ref().unwrap_or(&self.selected)
-    }
 }
 
 /// Build the `--filter`-selected workspace projects the recursive command
