@@ -7,7 +7,8 @@ import { renderHelp } from 'render-help'
 import { api, toPackResultJson } from './packApi.js'
 import { type PackDestinationLocker, packRecursively } from './packRecursive.js'
 
-export { api, type PackResult, resolvePackOutput } from './packApi.js'
+export { api, type PackResult } from './packApi.js'
+export { resolvePackOutput } from './packOutput.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
@@ -129,6 +130,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   }
   dryRun?: boolean
   engineStrict?: boolean
+  outputBaseDir?: string
   packDestination?: string
   out?: string
   packDestinationLocker?: PackDestinationLocker

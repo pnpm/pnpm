@@ -11,6 +11,8 @@ import * as tar from 'tar'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import type { PackResultJson } from '../../src/publish/pack.js'
+import { canonicalizePackDestination, type PackDestinationCache, resolvePackOutput, resolveRelativeTarget } from '../../src/publish/packOutput.js'
+import { createPackDestinationLocker } from '../../src/publish/packRecursive.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 test('pack: package with package.json', async () => {
@@ -1905,4 +1907,375 @@ test('pack: preserves internal symlinks in package tarball and excludes external
     fs.rmSync(outsideDir, { recursive: true, force: true })
   }
 })
+
+test('pack: recursive --out does not expand %s/%v placeholders in working directory path', async () => {
+  const outer = tempDir()
+  const dir = path.join(outer, 'dir-%s-%v-ws')
+  fs.mkdirSync(dir, { recursive: true })
+  prepare({ private: true }, { tempDir: dir })
+  preparePackages([
+    { name: 'pkg-a', version: '1.0.0' },
+    { name: 'pkg-b', version: '2.0.0' },
+  ], { tempDir: path.join(dir, 'packages') })
+  writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: ['pkg-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    out: '%s-%v.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+  })
+
+  expect(fs.existsSync(path.join(dir, 'pkg-a-1.0.0.tgz'))).toBe(true)
+  expect(fs.existsSync(path.join(dir, 'pkg-b-2.0.0.tgz'))).toBe(true)
+  expect(fs.existsSync(path.join(outer, 'dir-pkg-a-1.0.0-ws'))).toBe(false)
+  expect(fs.existsSync(path.join(outer, 'dir-pkg-b-2.0.0-ws'))).toBe(false)
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    out: 'artifact.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+  })
+  expect(fs.existsSync(path.join(dir, 'artifact.tgz'))).toBe(true)
+})
+
+test.each([
+  '.',
+  '..',
+  '+build',
+  'C:',
+  'C:1.0.0',
+  '1.0.0/../../escape',
+  '1.0.0\\..\\..\\escape',
+])('pack: rejects invalid package version %j containing path segments', async (version) => {
+  prepare({
+    name: 'test-invalid-version-pkg',
+    version,
+  })
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_PACKAGE_VERSION',
+  })
+})
+
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('pack: relative and absolute --pack-destination with symlink and .. follow symlink target', async () => {
+  const outer = tempDir()
+  const realParent = path.join(outer, 'real-parent')
+  const realSub = path.join(realParent, 'sub')
+  const pkgDir = path.join(outer, 'pkg')
+  fs.mkdirSync(realSub, { recursive: true })
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.symlinkSync(realSub, path.join(pkgDir, 'link'))
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.2.3' }))
+
+  const relResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    packDestination: 'link/../tarballs',
+  })
+  expect(fs.existsSync(path.join(realParent, 'tarballs', 'pkg-a-1.2.3.tgz'))).toBe(true)
+  expect(fs.existsSync(relResult.tarballPath)).toBe(true)
+  expect(fs.existsSync(path.join(pkgDir, 'tarballs'))).toBe(false)
+
+  const absResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    packDestination: `${pkgDir}/link/../abs-tarballs`,
+  })
+  expect(fs.existsSync(path.join(realParent, 'abs-tarballs', 'pkg-a-1.2.3.tgz'))).toBe(true)
+  expect(fs.existsSync(absResult.tarballPath)).toBe(true)
+  expect(fs.existsSync(path.join(pkgDir, 'abs-tarballs'))).toBe(false)
+})
+
+testOnPosix('pack: POSIX --pack-destination preserves literal backslashes as directory names', async () => {
+  const pkgDir = tempDir()
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.2.3' }))
+
+  const trailingBackslashResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    packDestination: 'dist\\',
+  })
+  const expectedTrailingPath = `${pkgDir}/dist\\/pkg-a-1.2.3.tgz`
+  expect(fs.existsSync(expectedTrailingPath)).toBe(true)
+  expect(fs.existsSync(`${pkgDir}/dist\\pkg-a-1.2.3.tgz`)).toBe(false)
+  expect(trailingBackslashResult.tarballPath).toBe(expectedTrailingPath)
+
+  const leadingDotBackslashResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    packDestination: '.\\sub',
+  })
+  const expectedLeadingPath = `${pkgDir}/.\\sub/pkg-a-1.2.3.tgz`
+  expect(fs.existsSync(expectedLeadingPath)).toBe(true)
+  expect(leadingDotBackslashResult.tarballPath).toBe(expectedLeadingPath)
+})
+
+testOnPosix('pack: packDestinationLocker serializes concurrent packs sharing a symlinked destination', async () => {
+  const outer = tempDir()
+  const realParent = path.join(outer, 'real-parent')
+  const realSub = path.join(realParent, 'sub')
+  const realTarballs = path.join(realParent, 'tarballs')
+  const pkgA = path.join(outer, 'pkg-a')
+  const pkgB = path.join(outer, 'pkg-b')
+  fs.mkdirSync(realSub, { recursive: true })
+  fs.mkdirSync(pkgA, { recursive: true })
+  fs.mkdirSync(pkgB, { recursive: true })
+  fs.symlinkSync(realSub, path.join(pkgB, 'link'))
+  fs.writeFileSync(path.join(pkgA, 'package.json'), JSON.stringify({ name: 'shared-pkg', version: '1.0.0' }))
+  fs.writeFileSync(path.join(pkgA, 'index.js'), 'module.exports = "a"\n')
+  fs.writeFileSync(path.join(pkgB, 'package.json'), JSON.stringify({ name: 'shared-pkg', version: '1.0.0' }))
+  fs.writeFileSync(path.join(pkgB, 'index.js'), 'module.exports = "b"\n')
+
+  const baseLocker = createPackDestinationLocker()
+  const seenKeys: string[] = []
+  let activeWrites = 0
+  let maxActiveWrites = 0
+  const packDestinationLocker = async (destination: string, write: () => Promise<void>): Promise<void> => {
+    seenKeys.push(destination)
+    await baseLocker(destination, async () => {
+      activeWrites += 1
+      maxActiveWrites = Math.max(maxActiveWrites, activeWrites)
+      await new Promise((resolve) => setTimeout(resolve, 25))
+      try {
+        await write()
+      } finally {
+        activeWrites -= 1
+      }
+    })
+  }
+
+  await Promise.all([
+    pack.api({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: pkgA,
+      extraBinPaths: [],
+      packDestination: realTarballs,
+      packDestinationLocker,
+    }),
+    pack.api({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: pkgB,
+      extraBinPaths: [],
+      packDestination: 'link/../tarballs',
+      packDestinationLocker,
+    }),
+  ])
+
+  expect(seenKeys).toHaveLength(2)
+  expect(seenKeys[0]).toBe(seenKeys[1])
+  expect(maxActiveWrites).toBe(1)
+
+  const tarballFile = path.join(realTarballs, 'shared-pkg-1.0.0.tgz')
+  const entries: string[] = []
+  await tar.t({
+    file: tarballFile,
+    onReadEntry: (entry) => {
+      entries.push(entry.path)
+    },
+  })
+  expect(entries).toEqual(expect.arrayContaining(['package/package.json', 'package/index.js']))
+})
+
+testOnPosix('pack: recursive --out with symlinked %s/../ destinations packs distinct targets concurrently', async () => {
+  const outer = tempDir()
+  const wsDir = path.join(outer, 'workspace')
+  const dest1 = path.join(outer, 'dest-1')
+  const dest2 = path.join(outer, 'dest-2')
+  fs.mkdirSync(path.join(dest1, 'inner'), { recursive: true })
+  fs.mkdirSync(path.join(dest2, 'inner'), { recursive: true })
+  const eventsFile = path.join(outer, 'pack-events.txt')
+  const pkgs = ['project-1', 'project-2'].map((name) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      postpack: `node -e "const fs=require('fs');const [filePath,pkgName]=process.argv.slice(1);fs.appendFileSync(filePath,pkgName+':start\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,250);fs.appendFileSync(filePath,pkgName+':end\\n')" ${JSON.stringify(eventsFile)} ${name}`,
+    },
+  }))
+  prepare({ private: true }, { tempDir: wsDir })
+  preparePackages(pkgs, { tempDir: path.join(wsDir, 'packages') })
+  fs.symlinkSync(path.join(dest1, 'inner'), path.join(wsDir, 'link-project-1'))
+  fs.symlinkSync(path.join(dest2, 'inner'), path.join(wsDir, 'link-project-2'))
+  writeYamlFileSync(path.join(wsDir, 'pnpm-workspace.yaml'), { packages: ['project-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(wsDir, [])
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: wsDir,
+    extraBinPaths: [],
+    ignoreScripts: false,
+    out: 'link-%s/../sub/bundle.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 2,
+  })
+
+  const events = fs.readFileSync(eventsFile, 'utf8').trim().split('\n')
+  expect(events.slice(0, 2).sort()).toStrictEqual(['project-1:start', 'project-2:start'])
+  expect(fs.existsSync(path.join(dest1, 'sub', 'bundle.tgz'))).toBe(true)
+  expect(fs.existsSync(path.join(dest2, 'sub', 'bundle.tgz'))).toBe(true)
+})
+
+testOnPosix('pack: recursive --out with symlinked %s/../ destinations serializes shared targets', async () => {
+  const outer = tempDir()
+  const wsDir = path.join(outer, 'workspace')
+  const sharedParent = path.join(outer, 'shared')
+  fs.mkdirSync(path.join(sharedParent, 'inner-1'), { recursive: true })
+  fs.mkdirSync(path.join(sharedParent, 'inner-2'), { recursive: true })
+  const eventsFile = path.join(outer, 'pack-events.txt')
+  const pkgs = ['project-1', 'project-2'].map((name) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      postpack: `node -e "const fs=require('fs');const [filePath,pkgName]=process.argv.slice(1);fs.appendFileSync(filePath,pkgName+':start\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,200);fs.appendFileSync(filePath,pkgName+':end\\n')" ${JSON.stringify(eventsFile)} ${name}`,
+    },
+  }))
+  prepare({ private: true }, { tempDir: wsDir })
+  preparePackages(pkgs, { tempDir: path.join(wsDir, 'packages') })
+  fs.symlinkSync(path.join(sharedParent, 'inner-1'), path.join(wsDir, 'link-project-1'))
+  fs.symlinkSync(path.join(sharedParent, 'inner-2'), path.join(wsDir, 'link-project-2'))
+  writeYamlFileSync(path.join(wsDir, 'pnpm-workspace.yaml'), { packages: ['project-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(wsDir, [])
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: wsDir,
+    extraBinPaths: [],
+    ignoreScripts: false,
+    out: 'link-%s/../sub/bundle.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 2,
+  })
+
+  const events = fs.readFileSync(eventsFile, 'utf8').trim().split('\n')
+  expect(events).toHaveLength(4)
+  for (let index = 0; index < events.length; index += 2) {
+    const project = events[index].replace(/:start$/, '')
+    expect(events[index + 1]).toBe(`${project}:end`)
+  }
+  expect(fs.existsSync(path.join(sharedParent, 'sub', 'bundle.tgz'))).toBe(true)
+})
+
+test('canonicalizePackDestination caches shared lookups and rethrows non-missing filesystem errors', async () => {
+  const dir = tempDir()
+  const cache: PackDestinationCache = new Map()
+  const realpathSpy = jest.spyOn(fs.promises, 'realpath')
+  try {
+    const [first, second] = await Promise.all([
+      canonicalizePackDestination(dir, cache),
+      canonicalizePackDestination(dir, cache),
+    ])
+    expect(first).toBe(second)
+    expect(realpathSpy).toHaveBeenCalledTimes(1)
+
+    // Non-native Error subclass (e.g. WebContainers) with ENOENT falls back to missing-path resolution.
+    const webContainerEnoent = Object.assign(Object.create(Error.prototype) as Error, {
+      code: 'ENOENT',
+      message: 'ENOENT',
+    })
+    realpathSpy.mockRejectedValueOnce(webContainerEnoent)
+    const missingLeaf = path.join(dir, 'missing-leaf')
+    const resolvedMissing = await canonicalizePackDestination(missingLeaf, cache)
+    expect(resolvedMissing).toBe(path.join(first, 'missing-leaf'))
+
+    const eacces = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+    realpathSpy.mockRejectedValueOnce(eacces)
+    const restrictedDir = path.join(dir, 'restricted')
+    await expect(canonicalizePackDestination(restrictedDir, cache)).rejects.toThrow('EACCES: permission denied')
+    expect(cache.has(restrictedDir)).toBe(false)
+  } finally {
+    realpathSpy.mockRestore()
+  }
+})
+
+describe('resolveRelativeTarget and resolvePackOutput cross-platform behavior', () => {
+  test.each([
+    ['/ws', undefined, '/ws'],
+    ['/ws', '', '/ws'],
+    ['/ws', '.', '/ws'],
+    ['/ws', './.', '/ws'],
+    ['/ws', './rel/pkg', '/ws/rel/pkg'],
+    ['/ws/', 'rel/pkg', '/ws/rel/pkg'],
+    ['/ws', 'link/../pkg', '/ws/link/../pkg'],
+    ['/ws', '/abs/pkg', '/abs/pkg'],
+    ['/ws', '.\\literal', '/ws/.\\literal'],
+    ['/ws/dist\\', 'pkg-1.0.0.tgz', '/ws/dist\\/pkg-1.0.0.tgz'],
+  ])('POSIX resolveRelativeTarget(%j, %j) -> %j', (baseDir, targetPath, expected) => {
+    expect(resolveRelativeTarget(baseDir, targetPath, path.posix)).toBe(expected)
+  })
+
+  test.each([
+    ['C:\\ws', undefined, 'C:\\ws'],
+    ['C:\\ws', '.\\rel\\pkg', 'C:\\ws\\rel\\pkg'],
+    ['C:\\ws\\', 'rel\\pkg', 'C:\\ws\\rel\\pkg'],
+    ['C:\\ws', '..\\escape', 'C:\\ws\\..\\escape'],
+    ['C:\\ws', 'link\\..\\pkg', 'C:\\ws\\link\\..\\pkg'],
+    ['C:\\ws\\selected', 'C:', 'C:\\ws\\selected'],
+    ['C:\\ws\\selected', 'C:foo.tgz', 'C:\\ws\\selected\\foo.tgz'],
+    ['C:\\ws\\selected', 'c:link\\..\\pkg', 'C:\\ws\\selected\\link\\..\\pkg'],
+    ['D:\\ws\\selected', '\\out\\foo.tgz', 'D:\\out\\foo.tgz'],
+    ['\\\\server\\share\\selected', '\\out\\foo.tgz', '\\\\server\\share\\out\\foo.tgz'],
+    ['\\\\server\\share\\selected', 'rel\\pkg', '\\\\server\\share\\selected\\rel\\pkg'],
+    ['\\\\server\\share\\selected', '\\\\other\\share\\foo.tgz', '\\\\other\\share\\foo.tgz'],
+    ['C:\\ws\\selected', 'C:\\abs\\foo.tgz', 'C:\\abs\\foo.tgz'],
+  ])('Win32 resolveRelativeTarget(%j, %j) -> %j', (baseDir, targetPath, expected) => {
+    expect(resolveRelativeTarget(baseDir, targetPath, path.win32)).toBe(expected)
+  })
+
+  test('Win32 resolvePackOutput anchors drive-relative --out under outputBaseDir', () => {
+    expect(resolvePackOutput({
+      dir: 'C:\\ws\\packages\\pkg-a',
+      outputBaseDir: 'C:\\ws\\selected',
+      out: 'C:foo.tgz',
+      pathImpl: path.win32,
+      publishedName: 'pkg-a',
+      publishedVersion: '1.0.0',
+    })).toStrictEqual({
+      destDir: 'C:\\ws\\selected',
+      outputPath: 'C:\\ws\\selected\\foo.tgz',
+      tarballName: 'foo.tgz',
+    })
+
+    expect(resolvePackOutput({
+      dir: 'C:\\ws\\packages\\pkg-a',
+      outputBaseDir: 'C:\\ws\\selected',
+      out: 'C:sub\\..\\foo.tgz',
+      pathImpl: path.win32,
+      publishedName: 'pkg-a',
+      publishedVersion: '1.0.0',
+    })).toStrictEqual({
+      destDir: 'C:\\ws\\selected\\sub\\..',
+      outputPath: 'C:\\ws\\selected\\sub\\..\\foo.tgz',
+      tarballName: 'foo.tgz',
+    })
+  })
+})
+
 

@@ -117,6 +117,7 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
         output: pnpm_pack::PackOutputOptions {
             gzip_level: options.pack_gzip_level,
             dry_run: options.dry_run.unwrap_or(false),
+            base_dir: None,
             destination: options.pack_destination,
             out: options.out,
             // Bit composes and injects changelogs itself; the pack bridge does not.

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { describe, expect, jest, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { pack, publish } from '@pnpm/releasing.commands'
@@ -1105,4 +1105,129 @@ test('publish inherits registry from workspace root .npmrc (pnpm/pnpm#7182)', as
 
   await checkPkgExists(pkgName, '1.0.0')
 })
+
+test('publish with -C <dir> resolves relative tarball and folder targets against <dir>', async () => {
+  const suffix = Date.now()
+  const tarballPkg = {
+    name: `@pnpmtest/test-c-flag-tarball-${suffix}`,
+    version: '1.0.0',
+  }
+  const folderPkg = {
+    name: `@pnpmtest/test-c-flag-folder-${suffix}`,
+    version: '1.0.0',
+  }
+  prepare({ private: true })
+  const outerDir = process.cwd()
+  const subDir = path.join(outerDir, 'subdir')
+  const nestedPkgDir = path.join(subDir, 'nested-pkg')
+  fs.mkdirSync(nestedPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(subDir, '.npmrc'), `registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/\n//localhost:${REGISTRY_MOCK_PORT}/:_authToken=${getRegistryMockToken()}\n`)
+  fs.writeFileSync(path.join(subDir, 'package.json'), JSON.stringify(tarballPkg))
+  fs.writeFileSync(path.join(nestedPkgDir, 'package.json'), JSON.stringify(folderPkg))
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: subDir,
+    extraBinPaths: [],
+    out: 'built.tgz',
+  })
+  fs.rmSync(path.join(subDir, 'package.json'))
+
+  const tarballResult = crossSpawn.sync(pnpmBin, ['-C', subDir, 'publish', './built.tgz', '--no-git-checks'], {
+    cwd: outerDir,
+    env: SPAWN_ENV,
+  })
+  if (tarballResult.status !== 0) {
+    throw new Error(`pnpm -C subdir publish ./built.tgz failed: ${tarballResult.stdout?.toString()}\n${tarballResult.stderr?.toString()}`)
+  }
+  await checkPkgExists(tarballPkg.name, tarballPkg.version)
+
+  const folderResult = crossSpawn.sync(pnpmBin, ['--dir', subDir, 'publish', './nested-pkg', '--no-git-checks'], {
+    cwd: outerDir,
+    env: SPAWN_ENV,
+  })
+  if (folderResult.status !== 0) {
+    throw new Error(`pnpm --dir subdir publish ./nested-pkg failed: ${folderResult.stdout?.toString()}\n${folderResult.stderr?.toString()}`)
+  }
+  await checkPkgExists(folderPkg.name, folderPkg.version)
+})
+
+const testOnPosix = isWindows() ? test.skip : test
+
+testOnPosix('publish preserves symlink parents before .. in relative tarball and folder targets', async () => {
+  const suffix = Date.now()
+  const tarballPkg = {
+    name: `@pnpmtest/test-symlink-tarball-${suffix}`,
+    version: '1.0.0',
+  }
+  const folderPkg = {
+    name: `@pnpmtest/test-symlink-folder-${suffix}`,
+    version: '1.0.0',
+  }
+  prepare({ private: true })
+  const baseDir = process.cwd()
+  const realReleaseDir = path.join(temporaryDirectory(), 'release')
+  const realBuildSub = path.join(realReleaseDir, 'build')
+  const realFolderPkg = path.join(realReleaseDir, 'pkg')
+  fs.mkdirSync(realBuildSub, { recursive: true })
+  fs.mkdirSync(realFolderPkg, { recursive: true })
+  fs.symlinkSync(realBuildSub, path.join(baseDir, 'link'))
+
+  fs.writeFileSync(path.join(realReleaseDir, 'package.json'), JSON.stringify(tarballPkg))
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: realReleaseDir,
+    extraBinPaths: [],
+    out: 'package.tgz',
+  })
+  fs.rmSync(path.join(realReleaseDir, 'package.json'))
+  fs.writeFileSync(path.join(realFolderPkg, 'package.json'), JSON.stringify(folderPkg))
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', 'link/../package.tgz', '--no-git-checks'] },
+    configByUri: CONFIG_BY_URI,
+    dir: baseDir,
+    gitChecks: false,
+  }, ['link/../package.tgz'])
+  await checkPkgExists(tarballPkg.name, tarballPkg.version)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', 'link/../pkg', '--no-git-checks'] },
+    configByUri: CONFIG_BY_URI,
+    dir: baseDir,
+    gitChecks: false,
+  }, ['link/../pkg'])
+  await checkPkgExists(folderPkg.name, folderPkg.version)
+})
+
+test('publish rethrows unexpected filesystem errors when inspecting a folder target', async () => {
+  prepare({ private: true })
+  const baseDir = process.cwd()
+  const targetDir = path.join(baseDir, 'inaccessible-pkg')
+  const permissionError = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+  const realStatSync = fs.statSync.bind(fs)
+  const statSpy = jest.spyOn(fs, 'statSync').mockImplementation((filePath, options) => {
+    if (String(filePath) === targetDir) {
+      throw permissionError
+    }
+    return realStatSync(filePath, options as Parameters<typeof fs.statSync>[1])
+  })
+
+  try {
+    await expect(publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', 'inaccessible-pkg', '--no-git-checks'] },
+      configByUri: CONFIG_BY_URI,
+      dir: baseDir,
+      gitChecks: false,
+    }, ['inaccessible-pkg'])).rejects.toThrow(permissionError)
+  } finally {
+    statSpy.mockRestore()
+  }
+})
+
 

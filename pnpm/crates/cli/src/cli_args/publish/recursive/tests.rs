@@ -28,6 +28,13 @@ fn missing_name_or_version_is_skipped() {
     assert_eq!(publish_eligible(&json!({})), None);
 }
 
+#[test]
+fn empty_name_or_version_is_skipped() {
+    assert_eq!(publish_eligible(&json!({ "name": "", "version": "1.2.3" })), None);
+    assert_eq!(publish_eligible(&json!({ "name": "pkg", "version": "" })), None);
+    assert_eq!(publish_eligible(&json!({ "name": "", "version": "" })), None);
+}
+
 fn summary_for(name: &str, version: &str) -> pnpm_publish::PublishSummary {
     let manifest = json!({ "name": name, "version": version });
     create_publish_summary(
