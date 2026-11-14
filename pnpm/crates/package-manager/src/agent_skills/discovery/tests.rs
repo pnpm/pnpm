@@ -761,3 +761,76 @@ fn revoking_descendant_link_package_inside_configured_skills_dir_prunes_symlink(
     assert!(revoked.linked.is_empty());
     assert!(std::fs::symlink_metadata(root.path().join("ai-skills/guide")).is_err());
 }
+
+#[test]
+fn long_sibling_skill_names_do_not_erase_colliding_local_package_labels() {
+    let root = tempfile::tempdir().unwrap();
+    let seg = "nested-segment-with-twenty-eight-chars";
+    let rel_a = format!("{seg}/{seg}/{seg}/{seg}/{seg}/alpha");
+    let rel_b = format!("{seg}/{seg}/{seg}/{seg}/{seg}/bravo");
+    let dir_a = root.path().join(&rel_a);
+    let dir_b = root.path().join(&rel_b);
+    let long_shared = format!("shared-{}", "s".repeat(242));
+    let long_only_a = format!("only-a-{}", "a".repeat(242));
+    let long_only_b = format!("only-b-{}", "b".repeat(242));
+    for (dir, unique_long) in [(&dir_a, &long_only_a), (&dir_b, &long_only_b)] {
+        for skill in ["guide", long_shared.as_str(), unique_long.as_str()] {
+            std::fs::create_dir_all(dir.join("skills").join(skill)).unwrap();
+            std::fs::write(
+                dir.join("skills")
+                    .join(skill)
+                    .join("SKILL.md"),
+                "# skill\n",
+            )
+            .unwrap();
+        }
+    }
+    for (imp, target) in [("packages/a", &dir_a), ("packages/b", &dir_b)] {
+        let slot = root
+            .path()
+            .join(imp)
+            .join("node_modules/foo");
+        std::fs::create_dir_all(slot.parent().unwrap()).unwrap();
+        pnpm_fs::force_symlink_dir(target, &slot).unwrap();
+    }
+    std::fs::create_dir_all(root.path().join(".agents/skills")).unwrap();
+
+    let yaml = format!(
+        "lockfileVersion: '9.0'\nimporters:\n  packages/a:\n    dependencies:\n      foo:\n        specifier: link:../../{rel_a}\n        version: link:../../{rel_a}\n  packages/b:\n    dependencies:\n      foo:\n        specifier: link:../../{rel_b}\n        version: link:../../{rel_b}\n",
+    );
+    let mut config = Config {
+        modules_dir: root.path().join("node_modules"),
+        install_state_dir: root.path().join("node_modules/.pnpm"),
+        ..Config::default()
+    };
+    config.allow_skills.insert("foo".to_string(), SkillsPermission::All(true));
+
+    let state = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &serde_saphyr::from_str::<Lockfile>(&yaml).unwrap(),
+        included: IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        },
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: None,
+    })
+    .unwrap();
+
+    assert_eq!(state.linked.len(), 6);
+    for entry in &state.linked {
+        let name = root
+            .path()
+            .join(entry)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(name.len() <= 255, "filename exceeded 255 bytes: {name}");
+        assert!(!name.starts_with("pnpm--"), "erased package label: {name}");
+    }
+}

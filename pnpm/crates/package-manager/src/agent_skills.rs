@@ -47,8 +47,8 @@ use derive_more::{Display, Error};
 use discovery::{
     Skill, SkillSource, discover_skill_sources,
     local_identity::{
-        MAX_SKILL_ENTRY_BYTES, dedup_approved_local_copies, disambiguate_local_segments,
-        hashed_segment,
+        DIGEST_HEX_LEN, MAX_SKILL_ENTRY_BYTES, dedup_approved_local_copies,
+        disambiguate_local_segments, truncate_utf8,
     },
 };
 use gitignore::update_gitignores;
@@ -322,21 +322,31 @@ fn target_of(source: &SkillSource, skill: &Skill) -> PathBuf {
 }
 
 /// The fallback entry name: `pnpm-<package>-<skill>`, shortened with a SHA-256
-/// digest when the combined name would exceed [`MAX_SKILL_ENTRY_BYTES`].
+/// digest of `(dep_path, skill)` when the combined name would exceed
+/// [`MAX_SKILL_ENTRY_BYTES`].
 fn prefixed_name(source: &SkillSource, skill: &Skill) -> String {
     let full = format!("{AGENT_SKILL_LINK_PREFIX}{}-{}", source.link_segment, skill.name);
     if full.len() <= MAX_SKILL_ENTRY_BYTES {
         return full;
     }
-    let segment =
-        hashed_segment(&source.link_segment, &source.dep_path, std::slice::from_ref(skill));
-    let shortened = format!("{AGENT_SKILL_LINK_PREFIX}{segment}-{}", skill.name);
-    if shortened.len() <= MAX_SKILL_ENTRY_BYTES {
-        return shortened;
+    let digest =
+        &pnpm_crypto_hash::create_short_hash(&format!("{}\0{}", source.dep_path, skill.name))
+            [..DIGEST_HEX_LEN];
+    let min_with_skill =
+        AGENT_SKILL_LINK_PREFIX.len() + DIGEST_HEX_LEN + 1 + skill.name.len();
+    if min_with_skill <= MAX_SKILL_ENTRY_BYTES {
+        let room = MAX_SKILL_ENTRY_BYTES - min_with_skill;
+        if room > 1 {
+            let prefix = truncate_utf8(&source.link_segment, room - 1);
+            if !prefix.is_empty() {
+                return format!("{AGENT_SKILL_LINK_PREFIX}{prefix}-{digest}-{}", skill.name);
+            }
+        }
+        return format!("{AGENT_SKILL_LINK_PREFIX}{digest}-{}", skill.name);
     }
-    let fallback_hash =
-        pnpm_crypto_hash::create_short_hash(&format!("{}\0{}", source.dep_path, skill.name));
-    format!("{AGENT_SKILL_LINK_PREFIX}{fallback_hash}")
+    let skill_room = MAX_SKILL_ENTRY_BYTES - AGENT_SKILL_LINK_PREFIX.len() - DIGEST_HEX_LEN - 1;
+    let skill_prefix = truncate_utf8(&skill.name, skill_room);
+    format!("{AGENT_SKILL_LINK_PREFIX}{digest}-{skill_prefix}")
 }
 
 /// Whether every target directory can take an entry named `name`: an

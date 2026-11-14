@@ -1,5 +1,4 @@
-use super::{Skill, SkillSource};
-use crate::AGENT_SKILL_LINK_PREFIX;
+use super::SkillSource;
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_deps_restorer::{is_local_directory_version, parse_dep_path_name_version};
 use std::collections::{HashMap, HashSet};
@@ -7,12 +6,19 @@ use std::collections::{HashMap, HashSet};
 /// Maximum filesystem entry byte length (`NAME_MAX` on Linux, macOS, and Windows).
 pub(in crate::agent_skills) const MAX_SKILL_ENTRY_BYTES: usize = 255;
 
+/// Hex characters taken from [`create_short_hash`] when shortening a segment or
+/// entry name.
+pub(in crate::agent_skills) const DIGEST_HEX_LEN: usize = 16;
+
 /// Maximum byte length of a readable local directory slug before switching to a
 /// digest suffix.
 const MAX_DIR_SLUG_BYTES: usize = 48;
 
-/// Hex characters taken from [`create_short_hash`] when shortening a segment.
-const DIGEST_HEX_LEN: usize = 16;
+/// Maximum byte length of a slug-disambiguated `link_segment`.
+const MAX_SLUG_SEGMENT_BYTES: usize = 128;
+
+/// Maximum byte length of `base` retained before appending a digest suffix.
+const MAX_HASHED_BASE_BYTES: usize = 64;
 
 /// Whether `dep_path` names a registry version (`<name>@<semver>`).
 pub(super) fn is_registry_dep_path(dep_path: &str) -> bool {
@@ -109,12 +115,12 @@ fn apply_dir_slug_or_hash_if_colliding(
     let slug = local_dir_slug(&dir);
     if !slug.is_empty() && slug.len() <= MAX_DIR_SLUG_BYTES {
         let candidate = format!("{base}-{slug}");
-        if candidate.len() <= max_segment_bytes(&source.skills) {
+        if candidate.len() <= MAX_SLUG_SEGMENT_BYTES {
             source.link_segment = candidate;
             return;
         }
     }
-    source.link_segment = hashed_segment(base, &source.dep_path, &source.skills);
+    source.link_segment = hashed_local_segment(base, &source.dep_path);
 }
 
 fn apply_hash_if_colliding(source: &mut SkillSource, base: &str, counts: &HashMap<String, usize>) {
@@ -127,39 +133,17 @@ fn apply_hash_if_colliding(source: &mut SkillSource, base: &str, counts: &HashMa
         return;
     }
     if local_dir_identity(&source.dep_path).is_some() {
-        source.link_segment = hashed_segment(base, &source.dep_path, &source.skills);
+        source.link_segment = hashed_local_segment(base, &source.dep_path);
     }
 }
 
-fn max_segment_bytes(skills: &[Skill]) -> usize {
-    let max_skill = skills
-        .iter()
-        .map(|skill| skill.name.len())
-        .max()
-        .unwrap_or(0);
-    MAX_SKILL_ENTRY_BYTES.saturating_sub(AGENT_SKILL_LINK_PREFIX.len() + 1 + max_skill)
-}
-
-pub(in crate::agent_skills) fn hashed_segment(
-    base: &str,
-    dep_path: &str,
-    skills: &[Skill],
-) -> String {
+fn hashed_local_segment(base: &str, dep_path: &str) -> String {
     let digest = &create_short_hash(dep_path)[..DIGEST_HEX_LEN];
-    let budget = max_segment_bytes(skills);
-    if base.len() + 1 + DIGEST_HEX_LEN <= budget {
-        return format!("{base}-{digest}");
-    }
-    if DIGEST_HEX_LEN < budget {
-        let prefix = truncate_utf8(base, budget - 1 - DIGEST_HEX_LEN);
-        if !prefix.is_empty() {
-            return format!("{prefix}-{digest}");
-        }
-    }
-    digest[..budget.min(DIGEST_HEX_LEN)].to_string()
+    let prefix = truncate_utf8(base, MAX_HASHED_BASE_BYTES);
+    if prefix.is_empty() { digest.to_string() } else { format!("{prefix}-{digest}") }
 }
 
-fn truncate_utf8(text: &str, max_bytes: usize) -> &str {
+pub(in crate::agent_skills) fn truncate_utf8(text: &str, max_bytes: usize) -> &str {
     let mut end = max_bytes.min(text.len());
     while end > 0 && !text.is_char_boundary(end) {
         end -= 1;
