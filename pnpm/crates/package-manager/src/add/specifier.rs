@@ -379,15 +379,10 @@ pub(super) async fn resolve_node_runtime_specifier(
     Err(AddError::RuntimeProvisioningUnavailable)
 }
 /// Split a `pacquet add` argument into its package name and optional
-/// `@<version>` part. The version separator is the first `@` at or after
-/// index 1, so a leading scope `@` (`@scope/pkg`) is never mistaken for a
-/// version.
+/// `@<version>` part, without mistaking a leading scope `@` (`@scope/pkg`)
+/// for a version separator.
 pub(super) fn split_name_spec(input: &str) -> (&str, Option<&str>) {
-    match input
-        .get(1..)
-        .and_then(|rest| rest.find('@'))
-        .map(|offset| offset + 1)
-    {
+    match pnpm_deps_path::version_separator_index(input) {
         Some(idx) => (&input[..idx], Some(&input[idx + 1..])),
         None => (input, None),
     }
@@ -411,3 +406,6 @@ pub(super) fn normalized_save_specifier(spec: &str) -> String {
         _ => spec.to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests;

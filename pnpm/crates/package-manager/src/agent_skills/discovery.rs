@@ -229,17 +229,19 @@ fn skill_source(
     let approval_key = allow_build_key_from_ignored_build(&dep_path);
     // The name ends at the first `@` past a scope: a git URL such as
     // `git+ssh://git@host/...` holds another one.
-    let name = dep_path
-        .get(1..)
-        .and_then(|rest| rest.find('@'))
-        .map_or(dep_path.as_str(), |at| &dep_path[..=at]);
-    // A registry or git package has a unique name. A tarball or a local
-    // directory does not, so it takes the name the project gave it.
-    let link_segment = if approval_key == name || is_git_hosted_dep_path(&dep_path) {
-        name.to_string()
-    } else {
-        alias.to_string()
+    let name = match pnpm_deps_path::version_separator_index(&dep_path) {
+        Some(at) => &dep_path[..at],
+        None => dep_path.as_str(),
     };
+    // A registry or git package has a unique name. A tarball, a local
+    // directory, or a lockfile key whose prefix is not a package name takes
+    // the alias the project gave it.
+    let link_segment =
+        if (approval_key == name || is_git_hosted_dep_path(&dep_path)) && is_package_name(name) {
+            name.to_string()
+        } else {
+            alias.to_string()
+        };
     SkillSource {
         skills,
         dep_path,

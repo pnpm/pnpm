@@ -1,4 +1,5 @@
 /// <reference path="../../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -6,6 +7,7 @@ import { getConfig } from '@pnpm/config.reader'
 import type { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 import { catFile } from '@pnpm/store.commands'
+import { getStorePath } from '@pnpm/store.path'
 import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
@@ -196,11 +198,58 @@ test('print hash file content error', async () => {
         version: '8.12.1',
       },
     })
-    await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08'])
+    await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa0'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 
   expect(err.code).toBe('ERR_PNPM_INVALID_HASH')
   expect(err.message).toBe('Corresponding hash file not found')
+})
+
+test('reject malformed or short hash inputs with ERR_PNPM_INVALID_HASH', async () => {
+  prepare({})
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '8.12.1',
+    },
+  })
+  const storeDir = await getStorePath({
+    pkgRoot: process.cwd(),
+    storePath: config.storeDir,
+    pnpmHomeDir: config.pnpmHomeDir,
+  })
+  fs.mkdirSync(path.join(storeDir, 'files', '61'), { recursive: true })
+  fs.writeFileSync(path.join(storeDir, 'files', '61', '6263'), 'abc')
+  fs.writeFileSync(path.join(storeDir, 'files', '61', '62'), 'ab')
+
+  expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWJj'])).toBe('abc')
+  expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWI'])).toBe('ab')
+  expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWI='])).toBe('ab')
+
+  const invalidHashes = [
+    'sha512-',
+    'invalid_hash_format',
+    '-abc',
+    'sha512-InvalidBase64!!!',
+    'sha512-==',
+    'sha512-YQ==',
+    'sha512-YQ',
+    'sha512-YWJjA',
+    'sha512-YWJj=',
+    'sha512-YWI===',
+    'sha512-YW=Jj',
+    'sha512-YWJ=',
+    'sha512-YWJ',
+  ]
+  await Promise.all(invalidHashes.map(async (invalid) => {
+    await expect(
+      catFile.handler(config as catFile.CatFileCommandOptions, [invalid])
+    ).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_HASH',
+      message: `Invalid hash format. Expected something like sha512-..., got ${invalid}`,
+    })
+  }))
 })

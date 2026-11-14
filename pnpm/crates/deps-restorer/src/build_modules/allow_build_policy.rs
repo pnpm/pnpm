@@ -304,10 +304,7 @@ pub fn parse_allow_build_selector(selector: &str) -> (&str, bool) {
 /// `None` when there is no `@` version separator past position 0 or the
 /// version is empty — the cases that yield a name-less result.
 pub(crate) fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
-    let sep = pkg_id
-        .get(1..)?
-        .find('@')
-        .map(|off| off + 1)?;
+    let sep = pnpm_deps_path::version_separator_index(pkg_id)?;
     let name = &pkg_id[..sep];
     let mut version = &pkg_id[sep + 1..];
     if version.is_empty() {

@@ -1,4 +1,8 @@
 use super::{Skill, SkillSource, keep_highest};
+use crate::agent_skills::{SyncAgentSkills, sync_agent_skills};
+use pnpm_config::{Config, SkillsPermission};
+use pnpm_lockfile::Lockfile;
+use pnpm_modules_yaml::IncludedDependencies;
 use std::{collections::BTreeMap, path::PathBuf};
 
 fn top_level() -> Skill {
@@ -127,10 +131,73 @@ fn a_git_ssh_package_is_named_up_to_its_first_at() {
     for (dep_path, segment) in [
         ("foo@git+ssh://git@github.com/org/foo.git#abc123", "foo"),
         ("@scope/foo@git+ssh://git@github.com/org/foo.git#abc123", "@scope+foo"),
+        ("ä@git+ssh://git@github.com/org/foo.git#abc123", "ä"),
+        ("ä@1.0.0", "ä"),
     ] {
         let source = super::skill_source((Vec::new(), PathBuf::from("pkg")), dep_path, "alias");
         assert_eq!(source.link_segment, segment, "{dep_path}");
     }
+}
+
+#[test]
+fn non_package_name_prefixes_fall_back_to_alias() {
+    for dep_path in [
+        r"ä\..\..\outside@1.0.0",
+        r"a\..\..\outside@1.0.0",
+        "../outside@1.0.0",
+        "../outside@git+ssh://git@github.com/org/foo.git#abc123",
+        r"@scope/..\outside@1.0.0",
+    ] {
+        let source =
+            super::skill_source((Vec::new(), PathBuf::from("pkg")), dep_path, "safe-alias");
+        assert_eq!(source.link_segment, "safe-alias", "{dep_path}");
+    }
+}
+
+#[test]
+fn sync_does_not_escape_skills_dir_on_backslash_traversal_dep_path() {
+    let workspace = tempfile::tempdir().unwrap();
+    let root = workspace.path().join("workspace");
+    let skill_dir = root.join("node_modules/safe-alias/skills/guide");
+    std::fs::create_dir_all(&skill_dir).unwrap();
+    std::fs::write(skill_dir.join("SKILL.md"), "# guide\n").unwrap();
+    let skills_dir = root.join(".claude/skills");
+    std::fs::create_dir_all(skills_dir.join("guide")).unwrap();
+    std::fs::create_dir_all(skills_dir.join("pnpm-ä")).unwrap();
+
+    let yaml = "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      safe-alias:\n        specifier: npm:foo@1.0.0\n        version: 'ä\\..\\..\\outside@1.0.0'\n";
+    let mut config = Config {
+        modules_dir: root.join("node_modules"),
+        install_state_dir: root.join("node_modules/.pnpm"),
+        skills_dirs: Some(vec![".claude/skills".to_string()]),
+        ..Config::default()
+    };
+    config.allow_skills.insert(r"ä\..\..\outside".to_string(), SkillsPermission::All(true));
+
+    let state = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: &root,
+        lockfile: &serde_saphyr::from_str::<Lockfile>(yaml).unwrap(),
+        included: IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        },
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: None,
+    })
+    .unwrap();
+
+    assert_eq!(state.linked, [".claude/skills/pnpm-safe-alias-guide"]);
+    assert!(skills_dir.join("pnpm-safe-alias-guide").exists());
+    assert!(!root.join(".claude/outside-guide").exists());
+    assert!(
+        !workspace
+            .path()
+            .join("outside-guide")
+            .exists(),
+    );
 }
 
 #[test]
