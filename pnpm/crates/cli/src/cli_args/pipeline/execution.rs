@@ -385,16 +385,19 @@ fn sync_injected_deps_if_configured(
     Ok(())
 }
 
+pub(super) fn is_output_cacheable(settings: Option<&pnpm_config::TaskSettings>) -> bool {
+    settings.is_some_and(|settings| {
+        settings.outputs.is_some()
+            && settings.cache != Some(false)
+            && settings.cargo_target_dir.is_none()
+    })
+}
+
 fn task_cacheable(
     invocation: &PipelineInvocation,
     settings: Option<&pnpm_config::TaskSettings>,
 ) -> bool {
-    !invocation.no_cache
-        && settings.is_some_and(|settings| {
-            settings.outputs.is_some()
-                && settings.cache != Some(false)
-                && settings.cargo_target_dir.is_none()
-        })
+    !invocation.no_cache && is_output_cacheable(settings)
 }
 
 pub(super) fn task_environment(

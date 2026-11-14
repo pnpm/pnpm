@@ -59,7 +59,7 @@ pub struct TaskCache {
     tasks_dir: PathBuf,
     state_dir: PathBuf,
     workspace_root: PathBuf,
-    lockfile_hash: String,
+    lockfile_hashes: Mutex<HashMap<PathBuf, String>>,
     runtime_fingerprint: String,
     /// Per-project tracked-file hashes, shared by every task of the
     /// project: enumeration and hashing run once, per-task input specs
@@ -114,6 +114,8 @@ struct RecordedFile {
 pub struct TaskKeyInputs<'a> {
     pub node: &'a TaskNode,
     pub settings: Option<&'a TaskSettings>,
+    /// The wanted lockfile path governing this project.
+    pub lockfile_path: &'a Path,
     /// The cache keys of the tasks this task depends on, sorted.
     pub dependency_keys: &'a [&'a str],
     /// `(stage, body)` of every script the task runs, in run order.
@@ -128,8 +130,6 @@ impl TaskCache {
         fs::create_dir_all(&tasks_dir)
             .and_then(|()| fs::create_dir_all(&state_dir))
             .map_err(|error| miette::miette!("creating the pipeline cache directories: {error}"))?;
-        let lockfile_hash = create_hex_hash_from_file(&workspace_root.join("pnpm-lock.yaml"))
-            .unwrap_or_else(|_| "no-lockfile".to_string());
         // Resolved from the workspace, not the invoking process: with
         // context-aware toolchains (pnpm's own shims included) the
         // runtime is a function of the directory, and a `--dir`
@@ -148,7 +148,7 @@ impl TaskCache {
             tasks_dir,
             state_dir,
             workspace_root: workspace_root.to_path_buf(),
-            lockfile_hash,
+            lockfile_hashes: Mutex::new(HashMap::new()),
             runtime_fingerprint,
             project_files: Mutex::new(HashMap::new()),
         })
@@ -380,9 +380,31 @@ fn remove_stale_outputs(
     }
     for recorded in stale {
         validate_output_path(project_dir, &recorded.path)?;
-        fs::remove_file(project_dir.join(&recorded.path)).map_err(|error| error.to_string())?;
+        remove_output_file(&project_dir.join(&recorded.path)).map_err(|error| error.to_string())?;
     }
     Ok(())
+}
+
+/// Unlink an existing output file before overwriting or pruning it, so
+/// read-only (`0444`) outputs do not fail `fs::copy` with `EACCES` and
+/// hard-linked outputs are never mutated in place.
+fn remove_output_file(target: &Path) -> io::Result<()> {
+    let metadata = match fs::symlink_metadata(target) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if metadata.is_dir() {
+        let target_display = target.display();
+        return Err(io::Error::other(format!("output path is a directory: {target_display}")));
+    }
+    #[cfg(windows)]
+    if metadata.permissions().readonly() {
+        let mut permissions = metadata.permissions();
+        permissions.set_readonly(false);
+        fs::set_permissions(target, permissions)?;
+    }
+    fs::remove_file(target)
 }
 
 /// Copy the artifact's outputs into the project, returning what to
@@ -399,6 +421,7 @@ fn copy_cached_outputs(
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
+        remove_output_file(&target).map_err(|error| format!("removing {rel_path}: {error}"))?;
         if let Err(error) = fs::copy(&source, &target) {
             return Err(format!("copying {rel_path}: {error}"));
         }

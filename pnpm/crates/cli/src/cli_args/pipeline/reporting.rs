@@ -2,7 +2,8 @@ use super::{
     Config, ExecutionStatus, GraphPkg, HashMap, HashSet, IndexMap, IntoDiagnostic, Mutex, Path,
     PathBuf, PipelineInvocation, PipelineOutcome, PipelineResults, PipelineRun, ProjectGraph,
     RunReport, SelectionMode, Status, TaskCache, TaskCompletion, TaskGraph, TaskKey, TaskNode,
-    Value, cache, format_task, render_task_graph_dry_run, task_environment, task_graph_to_json,
+    Value, cache, format_task, is_output_cacheable, render_task_graph_dry_run, task_environment,
+    task_graph_to_json,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 
@@ -126,16 +127,19 @@ pub(super) fn compute_task_keys(
         let script_bodies = task_script_bodies(node, manifest, config.enable_pre_post_scripts);
         let Some(mut dependency_keys) = node.dependencies
             .iter()
-            .map(|dependency| keys[dependency].as_deref())
+            .map(|dependency| dependency_cache_key(task_graph, dependency, &keys, config))
             .collect::<Option<Vec<&str>>>()
         else {
             keys.insert(key.clone(), None);
             continue;
         };
         dependency_keys.sort_unstable();
+        let lockfile_path =
+            config.lockfile_dir_for(&node.project).join(config.wanted_lockfile_name());
         let task_key = cache.compute_task_key(&cache::TaskKeyInputs {
             node,
             settings: config.tasks.get(&node.task_name),
+            lockfile_path: &lockfile_path,
             dependency_keys: &dependency_keys,
             script_bodies: &script_bodies,
             environment: &task_environment(
@@ -150,6 +154,24 @@ pub(super) fn compute_task_keys(
         keys.insert(key.clone(), task_key);
     }
     Ok(keys)
+}
+
+/// Executable tasks without output caching (`cache: false`, omitted
+/// `outputs`, or `cargoTargetDir`) run every time and may rewrite files
+/// on disk, so their dependents cannot reuse a static cached result.
+fn dependency_cache_key<'keys>(
+    task_graph: &TaskGraph,
+    dependency: &TaskKey,
+    keys: &'keys HashMap<TaskKey, Option<String>>,
+    config: &Config,
+) -> Option<&'keys str> {
+    let dependency_node = &task_graph[dependency];
+    if !dependency_node.scripts.is_empty()
+        && !is_output_cacheable(config.tasks.get(&dependency_node.task_name))
+    {
+        return None;
+    }
+    keys[dependency].as_deref()
 }
 
 /// Explain a task that runs without a cache key because git cannot

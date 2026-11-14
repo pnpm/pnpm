@@ -1,8 +1,10 @@
-use super::{InputsUnavailable, RecordedFile, TaskCache, collect_output_files};
+use super::{InputsUnavailable, RecordedFile, TaskCache, TaskKeyInputs, collect_output_files};
+use pnpm_config::TaskSettings;
 #[cfg(unix)]
 use pnpm_crypto_hash::{create_hex_hash_bytes, create_hex_hash_from_file};
 use pnpm_testing_utils::git_repo::GitRepoFixture;
-use std::fs;
+use pnpm_workspace_task_scheduler::TaskNode;
+use std::{collections::HashMap, fs, path::Path};
 
 fn setup() -> (tempfile::TempDir, tempfile::TempDir, TaskCache) {
     let project = tempfile::tempdir().unwrap();
@@ -416,4 +418,198 @@ fn inputs_in_bare_git_repo_are_uncacheable() {
             .is_none(),
     );
     assert_eq!(cache.inputs_unavailable(repo_dir.path()), Some(InputsUnavailable::NoGit));
+}
+
+fn make_readonly(path: &Path) {
+    let mut permissions = fs::metadata(path).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(path, permissions).unwrap();
+}
+
+#[test]
+fn restoring_cached_outputs_replaces_and_prunes_readonly_files_without_mutating_hardlinks() {
+    let project = tempfile::tempdir().unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let cache = TaskCache::open(storage.path(), project.path()).unwrap();
+    fs::create_dir(project.path().join("out")).unwrap();
+    fs::write(project.path().join("out/result"), "first").unwrap();
+    fs::write(project.path().join("out/stale"), "stale").unwrap();
+    make_readonly(&project.path().join("out/result"));
+    make_readonly(&project.path().join("out/stale"));
+    cache
+        .store("111111", project.path(), "build", &["out/**".to_string()], Vec::new())
+        .unwrap();
+
+    let hardlink_observer = storage.path().join("observer");
+    fs::hard_link(project.path().join("out/result"), &hardlink_observer).unwrap();
+
+    let alt_project = tempfile::tempdir().unwrap();
+    fs::create_dir(alt_project.path().join("out")).unwrap();
+    fs::write(alt_project.path().join("out/result"), "second").unwrap();
+    make_readonly(&alt_project.path().join("out/result"));
+    let alt_cache = TaskCache::open(storage.path(), alt_project.path()).unwrap();
+    alt_cache
+        .store("222222", alt_project.path(), "other", &["out/**".to_string()], Vec::new())
+        .unwrap();
+
+    let second = cache.lookup("222222").unwrap();
+    cache.restore(&second, project.path(), "build").unwrap();
+    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "second");
+    assert_eq!(fs::read_to_string(&hardlink_observer).unwrap(), "first");
+    let stale_exists = project
+        .path()
+        .join("out/stale")
+        .exists();
+    assert!(!stale_exists);
+
+    let first = cache.lookup("111111").unwrap();
+    cache.restore(&first, project.path(), "build").unwrap();
+    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "first");
+    assert_eq!(fs::read_to_string(project.path().join("out/stale")).unwrap(), "stale");
+}
+
+fn task_node_at(project: &Path) -> TaskNode {
+    TaskNode {
+        project: project.to_path_buf(),
+        task_name: "build".to_string(),
+        concurrency: None,
+        scripts: vec!["build".to_string()],
+        requested: true,
+        dependencies: Vec::new(),
+    }
+}
+
+fn key_for_inputs(
+    workspace_root: &Path,
+    project: &Path,
+    inputs: Option<Vec<String>>,
+    lockfile_path: &Path,
+) -> miette::Result<String> {
+    let storage = tempfile::tempdir().unwrap();
+    let cache = TaskCache::open(storage.path(), workspace_root)?;
+    let node = task_node_at(project);
+    let mut settings = TaskSettings::default();
+    settings.inputs = inputs;
+    settings.outputs = Some(vec!["dist/**".to_string()]);
+    let environment = HashMap::new();
+    let script_bodies = vec![("build".to_string(), "echo build".to_string())];
+    Ok(cache
+        .compute_task_key(&TaskKeyInputs {
+            node: &node,
+            settings: Some(&settings),
+            lockfile_path,
+            dependency_keys: &[],
+            environment: &environment,
+            script_bodies: &script_bodies,
+        })?
+        .expect("cache key is available"))
+}
+
+#[test]
+fn empty_inputs_hashes_zero_files_while_omitted_inputs_hashes_tracked_files() {
+    let (root, repo, _cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    let lockfile = project.join("pnpm-lock.yaml");
+    let empty_before = key_for_inputs(&project, &project, Some(Vec::new()), &lockfile).unwrap();
+    let default_before = key_for_inputs(&project, &project, None, &lockfile).unwrap();
+
+    repo.write_file("input", "modified");
+    repo.write_file("extra.txt", "extra");
+    let empty_after = key_for_inputs(&project, &project, Some(Vec::new()), &lockfile).unwrap();
+    let default_after = key_for_inputs(&project, &project, None, &lockfile).unwrap();
+
+    assert_eq!(empty_before, empty_after);
+    assert_ne!(default_before, default_after);
+}
+
+#[test]
+fn additive_and_excluded_input_globs_cover_gitignored_and_sibling_files() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = GitRepoFixture::init(root.path(), "ws");
+    let workspace = root.path().join("ws-src");
+    let project = workspace.join("packages/app");
+    let lockfile = workspace.join("pnpm-lock.yaml");
+    repo.write_file(".gitignore", ".env.local\ndist/\n");
+    repo.write_file("packages/app/src/index.js", "v1");
+    repo.write_file("packages/app/README.md", "docs-v1");
+    repo.write_file("packages/shared/common.txt", "shared-v1");
+    repo.write_file("packages/shared/ignored.bak", "bak-v1");
+    let _ = repo.commit("workspace fixture");
+
+    let env_only_spec = || Some(vec![String::from("+.env.local")]);
+    let without_env = key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    fs::write(project.join(".env.local"), "MODE=1").unwrap();
+    let with_env_v1 = key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    fs::write(project.join(".env.local"), "MODE=2").unwrap();
+    let with_env_v2 = key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    fs::remove_file(project.join(".env.local")).unwrap();
+    let after_delete = key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    assert_ne!(without_env, with_env_v1);
+    assert_ne!(with_env_v1, with_env_v2);
+    assert_eq!(without_env, after_delete);
+
+    repo.write_file("packages/app/src/index.js", "v2");
+    let after_tracked_edit =
+        key_for_inputs(&workspace, &project, env_only_spec(), &lockfile).unwrap();
+    assert_ne!(without_env, after_tracked_edit);
+
+    let combined = || {
+        Some(vec![
+            String::from("src/**"),
+            String::from("+../shared/**"),
+            String::from("!../shared/*.bak"),
+        ])
+    };
+    let baseline = key_for_inputs(&workspace, &project, combined(), &lockfile).unwrap();
+    repo.write_file("packages/app/README.md", "docs-v2");
+    repo.write_file("packages/shared/ignored.bak", "bak-v2");
+    assert_eq!(baseline, key_for_inputs(&workspace, &project, combined(), &lockfile).unwrap());
+    repo.write_file("packages/shared/common.txt", "shared-v2");
+    assert_ne!(baseline, key_for_inputs(&workspace, &project, combined(), &lockfile).unwrap());
+}
+
+#[test]
+fn additive_input_globs_reject_workspace_escape_and_invalid_paths() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = GitRepoFixture::init(root.path(), "ws");
+    let workspace = root.path().join("ws-src");
+    let project = workspace.join("packages/app");
+    let lockfile = workspace.join("pnpm-lock.yaml");
+    repo.write_file("packages/app/src/index.js", "v1");
+    fs::write(root.path().join("outside.txt"), "secret").unwrap();
+    let _ = repo.commit("workspace fixture");
+
+    for invalid in ["+../../../outside.txt", "+/etc/passwd", "+../.git/HEAD", "+../node_modules/a"]
+    {
+        let result =
+            key_for_inputs(&workspace, &project, Some(vec![invalid.to_string()]), &lockfile);
+        assert!(result.is_err(), "expected {invalid} to be rejected");
+    }
+    #[cfg(unix)]
+    {
+        let outside_dir = tempfile::tempdir().unwrap();
+        fs::write(outside_dir.path().join("secret.txt"), "secret").unwrap();
+        std::os::unix::fs::symlink(outside_dir.path(), project.join("linked")).unwrap();
+        let result =
+            key_for_inputs(&workspace, &project, Some(vec![String::from("+linked/**")]), &lockfile);
+        assert!(result.is_err(), "symlinked additive directory must be rejected");
+    }
+}
+
+#[test]
+fn lockfile_path_hashes_each_configured_lockfile_independently() {
+    let (root, _repo, _cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    let first_lockfile = root.path().join("first-lock.yaml");
+    let second_lockfile = root.path().join("second-lock.yaml");
+    fs::write(&first_lockfile, "lockfileVersion: '9.0'\nimporters: {}\n").unwrap();
+    fs::write(&second_lockfile, "lockfileVersion: '9.0'\nimporters: {}\n").unwrap();
+
+    let initial = key_for_inputs(&project, &project, None, &first_lockfile).unwrap();
+    assert_eq!(initial, key_for_inputs(&project, &project, None, &second_lockfile).unwrap());
+
+    fs::write(&first_lockfile, "lockfileVersion: '9.0'\nsettings: { autoInstallPeers: false }\n")
+        .unwrap();
+    assert_ne!(initial, key_for_inputs(&project, &project, None, &first_lockfile).unwrap());
+    assert_eq!(initial, key_for_inputs(&project, &project, None, &second_lockfile).unwrap());
 }

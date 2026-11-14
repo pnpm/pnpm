@@ -25,7 +25,7 @@ use crate::{cli_args::recursive::filtered_projects_dependencies, process::Comman
 
 use cache::{CacheDisposition, TaskCache};
 use derive_more::{Display, Error};
-use execution::{RunTaskOptions, run_pipeline_task, task_environment};
+use execution::{RunTaskOptions, is_output_cacheable, run_pipeline_task, task_environment};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
