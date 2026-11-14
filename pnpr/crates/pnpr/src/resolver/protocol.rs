@@ -29,12 +29,9 @@ pub struct EcosystemProbe {
 /// Body of `POST /-/pnpr/v0/resolve` with `"ecosystem": "cargo"`.
 /// Refuses unknown fields, like [`ResolveRequest`].
 ///
-/// Cargo resolution reads one input only the client has — its workspace
-/// manifests — so the request carries them as a `cargo metadata`
-/// document, and the server runs the same resolver the client would have
-/// run locally against index files it fetches (and caches) itself. pnpm
-/// sends the document reduced to the dependency graph, but a full
-/// `cargo metadata` output resolves the same way.
+/// Cargo resolution uses the client's workspace dependency graph and
+/// lockfile preferences. The server resolves them against index files it
+/// fetches (and caches) itself.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CargoResolveRequest {
@@ -44,6 +41,8 @@ pub struct CargoResolveRequest {
     /// `cargo metadata --no-deps --format-version 1` output for the
     /// workspace being resolved.
     pub metadata: String,
+    #[serde(default)]
+    pub preferred_versions: BTreeMap<String, Vec<String>>,
     /// The sparse index to resolve against. Falls back to the crates.io
     /// sparse index when absent; either way the server fetches it only if
     /// its route policy allows that origin.

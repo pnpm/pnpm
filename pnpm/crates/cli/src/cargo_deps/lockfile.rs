@@ -189,19 +189,27 @@ pub(super) async fn read_or_resolve_lockfile(
             "Cargo.lock is absent, but --frozen-lockfile forbids generating it"
         ));
     }
+    let preferred_versions = read_cargo_lock_preferences(cargo_lock_path)?;
     let metadata = read_cargo_metadata(root_dir, checkout).await?;
     let source_overrides = super::resolution::has_source_overrides(root_dir)?;
     let git_dependencies = super::resolution::has_git_dependencies(&metadata)?;
     if source_overrides || git_dependencies {
         return super::resolution::resolve_with_cargo(config, root_dir, checkout).await;
     }
-    if let Some(lockfile) = resolve_via_pnpr(config, &metadata).await? {
+    if let Some(lockfile) =
+        resolve_via_pnpr_with_preferences(config, &metadata, &preferred_versions).await?
+    {
         return Ok(lockfile);
     }
     let index_files = fetch_sparse_index(config, &metadata, http_client).await?;
     let source = pnpm_cargo_resolver::registry_source(config.cargo_index_url());
-    let lockfile = pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files, &source)
-        .wrap_err("resolve Cargo dependencies")?;
+    let lockfile = pnpm_cargo_resolver::resolve_lockfile_with_preferences(
+        &metadata,
+        &index_files,
+        &source,
+        &preferred_versions,
+    )
+    .wrap_err("resolve Cargo dependencies")?;
     Ok(lockfile)
 }
 
@@ -213,7 +221,16 @@ pub(super) async fn read_or_resolve_lockfile(
 /// resolves npm alone, or when it refuses the request as one it cannot
 /// handle: a server that does not serve this Cargo resolution means a
 /// local resolve, not a failed install.
+#[cfg(test)]
 pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<String>> {
+    resolve_via_pnpr_with_preferences(config, metadata, &BTreeMap::new()).await
+}
+
+async fn resolve_via_pnpr_with_preferences(
+    config: &Config,
+    metadata: &str,
+    preferred_versions: &BTreeMap<String, Vec<String>>,
+) -> Result<Option<String>> {
     let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !config.offline) else {
         return Ok(None);
     };
@@ -230,6 +247,7 @@ pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<
         .wrap_err("reduce cargo metadata for the pnpr server")?;
     let resolved = client.resolve_cargo(CargoResolveOptions {
         metadata,
+        preferred_versions: preferred_versions.clone(),
         registry: config.cargo_index_url().to_string(),
         authorization: config.auth_headers.for_url(pnpr_server),
     })
@@ -241,6 +259,31 @@ pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<
             .wrap_err("resolve Cargo dependencies through the pnpr server")
             .map(Some),
     }
+}
+
+fn read_cargo_lock_preferences(path: &Path) -> Result<BTreeMap<String, Vec<String>>> {
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(BTreeMap::new()),
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("read {}", path.display()));
+        }
+    };
+    let lockfile = cargo_lock::Lockfile::from_str(&contents)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse {}", path.display()))?;
+    let mut preferences = BTreeMap::<String, Vec<String>>::new();
+    for package in lockfile.packages {
+        if package.source.as_ref().is_some_and(cargo_lock::SourceId::is_registry) {
+            preferences
+                .entry(package.name.as_str().to_string())
+                .or_default()
+                .push(package.version.to_string());
+        }
+    }
+    Ok(preferences)
 }
 
 async fn read_cargo_metadata(root_dir: &Path, checkout: Option<&Path>) -> Result<String> {

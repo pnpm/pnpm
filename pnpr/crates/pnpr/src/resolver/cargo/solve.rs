@@ -80,6 +80,7 @@ pub(in crate::resolver) async fn solve_cargo(
     index: IndexFetcher,
     metadata: String,
     source: String,
+    preferred_versions: BTreeMap<String, Vec<String>>,
     permit: ResolvePermit,
     deadline: tokio::time::Instant,
 ) -> Response {
@@ -99,9 +100,13 @@ pub(in crate::resolver) async fn solve_cargo(
     let solve_cancel = cancel.clone();
     let solved = tokio::task::spawn_blocking(move || {
         let _permit = solve_permit;
-        pnpm_cargo_resolver::resolve_lockfile_until(&metadata, &index_files, &source, &|| {
-            solve_cancel.is_cancelled()
-        })
+        pnpm_cargo_resolver::resolve_lockfile_until_with_preferences(
+            &metadata,
+            &index_files,
+            &source,
+            &preferred_versions,
+            &|| solve_cancel.is_cancelled(),
+        )
         .map(|lockfile| cargo_done_frame_until(&lockfile, &|| solve_cancel.is_cancelled()))
     })
     .await;

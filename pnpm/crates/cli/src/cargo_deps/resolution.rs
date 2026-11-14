@@ -70,12 +70,12 @@ fn resolve_workspace(root: &Path, checkout: Option<&Path>, offline: bool) -> Res
     let output = resolution_command(root, checkout, offline)?
         .output()
         .into_diagnostic()
-        .wrap_err("run cargo generate-lockfile")?;
+        .wrap_err("run cargo update")?;
     if !output.status.success() {
         let stderr = redact_and_sanitize_multiline(&String::from_utf8_lossy(&output.stderr));
         let stderr = stderr.trim();
         let root = root.display();
-        return Err(miette::miette!("cargo generate-lockfile failed for {root}: {stderr}"));
+        return Err(miette::miette!("cargo update failed for {root}: {stderr}"));
     }
     let directory = ensure_workspace_directory(root, &[])?;
     read_workspace_file(&directory, "Cargo.lock")
@@ -102,7 +102,7 @@ fn resolution_command(root: &Path, checkout: Option<&Path>, offline: bool) -> Re
                 .join("bin")
                 .join(format!("rustc{}", env::consts::EXE_SUFFIX)),
         )
-        .args(["generate-lockfile", "--manifest-path"])
+        .args(["update", "--workspace", "--manifest-path"])
         .arg(root.join("Cargo.toml"));
     let protocols = pnpm_git_fetcher::read_allowed_git_protocols(root)
         .into_diagnostic()

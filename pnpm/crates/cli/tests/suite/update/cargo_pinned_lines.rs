@@ -89,6 +89,68 @@ fn update_latest_keeps_a_renamed_alias_and_a_prerelease_on_their_lines() {
 }
 
 #[test]
+fn targeted_update_keeps_an_unrelated_transitive_crate_locked() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    let cache_dir = root.path().join("cache");
+    fs::create_dir_all(workspace.join("src")).unwrap();
+    fs::write(workspace.join("src/lib.rs"), "").unwrap();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "cargo:\n  enabled: true\nstoreDir: '{}'\ncacheDir: '{}'\n",
+            root.path().join("store").display(),
+            cache_dir.display()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nfoo = \"1\"\n",
+    )
+    .unwrap();
+    let foo_index_dir = cache_dir.join("v11/cargo-index/crates-io/3/f");
+    let bar_index_dir = cache_dir.join("v11/cargo-index/crates-io/3/b");
+    fs::create_dir_all(&foo_index_dir).unwrap();
+    fs::create_dir_all(&bar_index_dir).unwrap();
+    fs::write(
+        foo_index_dir.join("foo"),
+        concat!(
+            r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#,
+            "\n",
+            r#"{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#,
+        ),
+    )
+    .unwrap();
+    fs::write(
+        bar_index_dir.join("bar"),
+        concat!(
+            r#"{"name":"bar","vers":"1.0.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":false}"#,
+            "\n",
+            r#"{"name":"bar","vers":"1.1.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}"#,
+        ),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.lock"),
+        format!(
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"foo\"]\n\n{}\n{}",
+            locked_package("foo", "1.0.0"),
+            locked_package("bar", "1.0.0"),
+        ),
+    )
+    .unwrap();
+
+    pacquet(&workspace, ["update", "--latest", "crate:foo", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
+    assert!(lockfile.contains("name = \"foo\"\nversion = \"1.1.0\""), "{lockfile}");
+    assert!(lockfile.contains("name = \"bar\"\nversion = \"1.0.0\""), "{lockfile}");
+}
+
+#[test]
 fn update_latest_keeps_the_requirement_operator_over_save_prefix() {
     let root = tempfile::tempdir().unwrap();
     let workspace = root.path().join("workspace");
