@@ -65,18 +65,8 @@ pub(crate) fn newest_line_package(
         return Ok(None);
     };
     let selection = dependency.feature_selection();
-    if let Some(preferred_line) = preferred_versions
-        .get(&dependency.name)
-        .into_iter()
-        .flatten()
-        .filter(|version| dependency.requirement.matches(version))
-        .find_map(|preferred| {
-            versions
-                .iter()
-                .find(|version| version.version == *preferred)
-                .filter(|version| supports_features(version, &selection))
-                .map(|version| compatibility_line(&version.version))
-        })
+    if let Some(preferred_line) =
+        preferred_line_package(versions, dependency, &selection, preferred_versions)
     {
         return Ok(Some(PackageKey::Registry {
             name: dependency.name.clone(),
@@ -104,6 +94,26 @@ pub(crate) fn newest_line_package(
         name: dependency.name.clone(),
         compatibility,
     }))
+}
+
+fn preferred_line_package(
+    versions: &[crate::model::RegistryVersion],
+    dependency: &RegistryDependency,
+    selection: &FeatureSelection,
+    preferred_versions: &PreferredVersions,
+) -> Option<String> {
+    preferred_versions
+        .get(&dependency.name)
+        .into_iter()
+        .flatten()
+        .filter(|version| dependency.requirement.matches(version))
+        .find_map(|preferred| {
+            versions
+                .iter()
+                .find(|version| version.version == *preferred)
+                .filter(|version| supports_features(version, selection))
+                .map(|version| compatibility_line(&version.version))
+        })
 }
 
 /// Whether `compatibility` carries a version meeting `requirement` that
