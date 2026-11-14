@@ -305,3 +305,23 @@ test('pnpm ci honors --filter and cleans root node_modules without root package.
   expect(fs.existsSync(keepB)).toBe(false)
   expect(fs.existsSync(path.join('packages', 'pkg-b', 'node_modules', 'is-negative'))).toBe(true)
 })
+
+test('pnpm ci preserves node_modules when pnprServer conflicts with frozenStore', () => {
+  prepare({
+    name: 'test-ci-pnpr-frozen-store',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  const markerPath = path.join('node_modules', 'keep-marker.txt')
+  fs.writeFileSync(markerPath, 'keep')
+
+  const res = execPnpmSync(['ci', '--pnpr-server', 'https://pnpr.example.com', '--frozen-store'])
+  expect(res.status).not.toBe(0)
+  expect(res.stdout.toString() + res.stderr.toString()).toContain('ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR')
+  expect(fs.existsSync(markerPath)).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
+})

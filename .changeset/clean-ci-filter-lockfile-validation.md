@@ -1,4 +1,5 @@
 ---
+"@pnpm/config.reader": patch
 "@pnpm/installing.commands": patch
 "@pnpm/installing.deps-installer": patch
 "pnpm": patch

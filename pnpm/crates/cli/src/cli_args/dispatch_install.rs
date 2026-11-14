@@ -330,7 +330,8 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
     let mut install_args = args.install_args;
     install_args.lockfile.frozen = true;
     install_args.lockfile.no_frozen = false;
-    install_args.materialization.clean_install = true;
+    install_args.materialization.entry_mode =
+        crate::cli_args::install::InstallEntryMode::CleanInstall;
 
     install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)
 }

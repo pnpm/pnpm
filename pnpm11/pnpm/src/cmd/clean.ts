@@ -2,11 +2,10 @@ import { promises as fs, type Stats } from 'node:fs'
 import path, { type ParsedPath } from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import { types as allTypes } from '@pnpm/config.reader'
+import { anchorRawLockfileDir, types as allTypes } from '@pnpm/config.reader'
 import { isError } from '@pnpm/error'
 import type { ProjectsGraph } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir, strict as isStrictSubdir } from 'is-subdir'
 import { pick } from 'ramda'
@@ -72,6 +71,7 @@ export interface CleanOptions {
   lockfileDir?: string
   modulesDir?: string
   modulesDirsByProjectName?: Record<string, string>
+  rawLockfileDir?: string
   selectedProjectsGraph?: ProjectsGraph
   virtualStoreDir?: string
   workspaceDir?: string
@@ -162,7 +162,7 @@ async function resolveConfiguredLockfileDir (
   rootDir: string,
   realRootDir: string
 ): Promise<string | undefined> {
-  const rawSpec = await readRawLockfileDirSpec(opts, rootDir)
+  const rawSpec = readRawLockfileDirSpec(opts)
   if (rawSpec == null) return undefined
   const candidate = await resolveInside(rootDir, rawSpec)
   if (candidate == null) return undefined
@@ -172,40 +172,15 @@ async function resolveConfiguredLockfileDir (
     : undefined
 }
 
-async function readRawLockfileDirSpec (opts: CleanOptions, rootDir: string): Promise<string | undefined> {
+function readRawLockfileDirSpec (opts: CleanOptions): string | undefined {
+  if (typeof opts.rawLockfileDir === 'string') {
+    return opts.rawLockfileDir
+  }
   const cliLockfileDir = opts.cliOptions?.['lockfile-dir']
   if (typeof cliLockfileDir === 'string') {
-    return anchorSpecToCliDir(opts.dir, cliLockfileDir)
-  }
-  const envLockfileDir = readEnvLockfileDir()
-  if (typeof envLockfileDir === 'string') {
-    return anchorSpecToCliDir(opts.dir, envLockfileDir)
-  }
-  const workspaceManifest = await readWorkspaceManifest(rootDir) as { lockfileDir?: unknown } | undefined
-  if (typeof workspaceManifest?.lockfileDir === 'string') {
-    return workspaceManifest.lockfileDir
+    return anchorRawLockfileDir(opts.dir, cliLockfileDir)
   }
   return opts.lockfileDir
-}
-
-function readEnvLockfileDir (): string | undefined {
-  let npmFallback: string | undefined
-  for (const [key, value] of Object.entries(process.env)) {
-    if (typeof value !== 'string') continue
-    const lowerKey = key.toLowerCase()
-    if (lowerKey === 'pnpm_config_lockfile_dir') return value
-    if (lowerKey === 'npm_config_lockfile_dir') npmFallback = value
-  }
-  return npmFallback
-}
-
-async function anchorSpecToCliDir (cliDir: string, rawSpec: string): Promise<string | undefined> {
-  const nativeSpec = path.sep === '\\' ? rawSpec.replaceAll('/', '\\') : rawSpec
-  if (path.parse(nativeSpec).root !== '') {
-    return path.isAbsolute(nativeSpec) ? nativeSpec : undefined
-  }
-  const realCliDir = await tryRealpath(cliDir)
-  return realCliDir != null ? `${appendPathSep(realCliDir)}${nativeSpec}` : undefined
 }
 
 async function cleanProjectDir (opts: CleanProjectContext, dir: string): Promise<void> {
@@ -400,9 +375,7 @@ async function getProjectDirs (
     if (opts.selectedProjectsGraph != null) {
       return Object.keys(opts.selectedProjectsGraph)
     }
-    if (opts.workspaceRoot) {
-      return [rootDir]
-    }
+    return opts.workspaceRoot ? [rootDir] : []
   }
   if (!opts.workspaceDir) {
     return [opts.dir]

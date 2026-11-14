@@ -71,6 +71,21 @@ pub(crate) async fn pnpr_target<'a, Reporter: self::Reporter>(
     Ok(Some(PnprTarget { server, pnpmfile_hook }))
 }
 
+/// Side-effect-free counterpart to [`pnpr_target`] for pre-clean validation,
+/// avoiding a duplicate fallback warning when the install later runs locally.
+pub(crate) async fn uses_pnpr_server(state: &State, link: &PnprLink<'_>) -> miette::Result<bool> {
+    if state.config.pnpr_server.is_none() {
+        return Ok(false);
+    }
+    let pnpmfile_hook = load_pnpmfile(state, pnpr_lockfile_dir(state, link))?;
+    if let Some(hook) = pnpmfile_hook.as_ref()
+        && resolution_hook(hook.as_ref()).await?.is_some()
+    {
+        return Ok(false);
+    }
+    Ok(true)
+}
+
 /// The pnpmfile hooks this install runs, unless the run disabled them.
 fn load_pnpmfile(
     state: &State,

@@ -144,8 +144,22 @@ pub struct InstallMaterializationArgs {
     /// its scripts instead. May be repeated.
     #[clap(long = "allow-build")]
     pub allow_build: Vec<String>,
-    /// Set by `pnpm ci` so the install validates frozen lockfiles before
-    /// cleaning `node_modules` and never takes the repeat-install shortcut.
+    /// Distinguishes `pnpm ci` from a standard `pnpm install` so the
+    /// pipeline validates frozen lockfiles before cleaning `node_modules`
+    /// and skips the repeat-install shortcut.
     #[clap(skip)]
-    pub(crate) clean_install: bool,
+    pub(crate) entry_mode: InstallEntryMode,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InstallEntryMode {
+    #[default]
+    Standard,
+    CleanInstall,
+}
+
+impl InstallEntryMode {
+    pub(crate) fn is_clean_install(self) -> bool {
+        matches!(self, Self::CleanInstall)
+    }
 }

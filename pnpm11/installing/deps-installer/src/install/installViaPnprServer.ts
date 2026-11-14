@@ -59,13 +59,7 @@ interface PnprRequestContext extends InstallViaPnprServerArgs {
   resolveViaPnprServer: (opts: ResolveViaPnprServerOptions) => Promise<ResolveViaPnprServerResult>
 }
 
-/**
- * When a pnpr server is configured, resolve dependencies server-side,
- * then run a headless install that fetches tarballs from the registries
- * and links packages into node_modules — like a normal install.
- */
-export async function installViaPnprServer (args: InstallViaPnprServerArgs): Promise<PnprInstallResult> {
-  const { opts, rootDir } = args
+export function assertPnprCompatibleWithStore (opts: Pick<SingleProjectInstallOptions, 'frozenStore'>): void {
   // The pnpr server path re-resolves and persists new `index.db` entries plus a
   // freshly written lockfile, so it inherently writes the store. `frozenStore`
   // promises the store is complete and read-only, so the two are mutually
@@ -79,6 +73,28 @@ export async function installViaPnprServer (args: InstallViaPnprServerArgs): Pro
       { hint: 'Disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so the install reads from the existing store, or unset `frozenStore` to allow store writes.' }
     )
   }
+}
+
+export function assertFrozenPnprPnpmfileChecksum (
+  opts: Pick<SingleProjectInstallOptions, 'ignorePnpmfile'>,
+  existingPnpmfileChecksum: string | undefined,
+  currentPnpmfileChecksum: string | undefined
+): void {
+  // The server skips the pnpmfile comparison a local frozen install makes,
+  // and a frozen install must not rewrite the recorded checksum.
+  if (!opts.ignorePnpmfile && existingPnpmfileChecksum !== currentPnpmfileChecksum) {
+    throw new LockfileConfigMismatchError('pnpmfileChecksum')
+  }
+}
+
+/**
+ * When a pnpr server is configured, resolve dependencies server-side,
+ * then run a headless install that fetches tarballs from the registries
+ * and links packages into node_modules — like a normal install.
+ */
+export async function installViaPnprServer (args: InstallViaPnprServerArgs): Promise<PnprInstallResult> {
+  const { opts, rootDir } = args
+  assertPnprCompatibleWithStore(opts)
   const { resolveViaPnprServer } = await import('@pnpm/pnpr.client')
   const { createGetAuthHeaderByURI } = await import('@pnpm/network.auth-header')
 
@@ -191,10 +207,8 @@ async function resolveLockfileViaPnpr (
     recordsDependencies(existingLockfile)
   )
   const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
-  // The server skips the pnpmfile comparison a local frozen install makes,
-  // and a frozen install must not rewrite the recorded checksum.
-  if (frozenLockfile && !opts.ignorePnpmfile && existingLockfile != null && existingLockfile.pnpmfileChecksum !== pnpmfileChecksum) {
-    throw new LockfileConfigMismatchError('pnpmfileChecksum')
+  if (frozenLockfile && existingLockfile != null) {
+    assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
   }
 
   logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })

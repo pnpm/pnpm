@@ -5,6 +5,7 @@ import type { LockfileObject } from '@pnpm/lockfile.fs'
 
 import { extendOptions } from './extendInstallOptions.js'
 import { allMutationsAreInstalls, isCheckOnlyInstall, pkgHasDependencies } from './installPredicates.js'
+import { assertFrozenPnprPnpmfileChecksum, assertPnprCompatibleWithStore } from './installViaPnprServer.js'
 import { detectOutdatedLockfileSettings, readInstallChecksums } from './lockfileState.js'
 import {
   createScriptsOptions,
@@ -13,6 +14,7 @@ import {
   startLockfileVerification,
 } from './mutateModules.js'
 import type { MutatedProject, MutateModulesOptions, MutationRun } from './mutationTypes.js'
+import { canUsePnprForMutations, pnpmfileHookPnprCannotRun } from './pnpr.js'
 import { requiresFullResolution, throwOnInconsistentFrozenPatchHashes } from './runMutations.js'
 import { createOutdatedLockfileMajorVersionError } from './tryFrozenInstall.js'
 import {
@@ -35,6 +37,13 @@ export async function validateFrozenInstall (
     frozenLockfileIfExists: false,
   })
   if (opts.fixLockfile || isCheckOnlyInstall(opts)) return undefined
+  const usesPnpr = Boolean(maybeOpts.allProjects?.length) &&
+    Boolean(opts.pnprServer) &&
+    canUsePnprForMutations(projects, opts) &&
+    pnpmfileHookPnprCannotRun(opts.hooks) == null
+  if (usesPnpr) {
+    assertPnprCompatibleWithStore(opts)
+  }
   if (!maybeOpts.allProjects?.length) {
     opts.allProjects = await readMutationProjectOptions(projects, opts.ignorePackageManifest)
   }
@@ -45,6 +54,13 @@ export async function validateFrozenInstall (
       throw createNoLockfileError()
     }
     return undefined
+  }
+  if (usesPnpr) {
+    assertFrozenPnprPnpmfileChecksum(
+      opts,
+      ctx.wantedLockfile.pnpmfileChecksum,
+      await opts.hooks.calculatePnpmfileChecksum?.()
+    )
   }
   if (ctx.lockfileHadConflicts) return ctx.wantedLockfile
   return verifyFrozenMutationRun(ctx, { maybeOpts, opts, projects })

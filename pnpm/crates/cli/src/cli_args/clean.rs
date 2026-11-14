@@ -77,6 +77,7 @@ pub(crate) fn run_for_ci(
     config: &Config,
     prefix: &Path,
     plan: &InstallFamilyPlan,
+    cli_lockfile_dir: Option<&Path>,
 ) -> miette::Result<()> {
     let root_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
     let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
@@ -88,7 +89,7 @@ pub(crate) fn run_for_ci(
         CleanScope::WholeWorkspace
     };
     let dirs = ci_clean_dirs(config, prefix, root_dir, &real_root_dir, plan, scope)?;
-    let raw_lockfile_dir = raw_configured_lockfile_dir(config, prefix, root_dir, None);
+    let raw_lockfile_dir = raw_configured_lockfile_dir(config, prefix, root_dir, cli_lockfile_dir);
     CleanRun {
         config,
         root_dir,
@@ -253,14 +254,39 @@ fn raw_configured_lockfile_dir(
     root_dir: &Path,
     cli_lockfile_dir: Option<&Path>,
 ) -> Option<PathBuf> {
+    let candidate = raw_lockfile_dir_candidate(config, cli_dir, root_dir, cli_lockfile_dir);
+    match (&candidate, &config.lockfile_dir) {
+        (Some(raw), Some(resolved)) if &pnpm_fs::lexical_normalize(raw) == resolved => candidate,
+        _ => config.lockfile_dir.clone(),
+    }
+}
+
+fn raw_lockfile_dir_candidate(
+    config: &Config,
+    cli_dir: &Path,
+    root_dir: &Path,
+    cli_lockfile_dir: Option<&Path>,
+) -> Option<PathBuf> {
     if let Some(cli_lockfile_dir) = cli_lockfile_dir {
         return Some(anchor_raw_path(cli_lockfile_dir, cli_dir));
     }
-    if let Some(raw) = config.explicit_settings.get("lockfileDir").and_then(Value::as_str) {
-        let anchor = if config.cli_settings.contains("lockfileDir") { cli_dir } else { root_dir };
-        return Some(anchor_raw_path(Path::new(raw), anchor));
+    let explicit = config.explicit_settings.get("lockfileDir").and_then(Value::as_str);
+    if config.cli_settings.contains("lockfileDir")
+        && let Some(raw) = explicit
+    {
+        return Some(anchor_raw_path(Path::new(raw), cli_dir));
     }
-    config.lockfile_dir.clone()
+    if let Some(env_raw) = env_lockfile_dir() {
+        return Some(anchor_raw_path(Path::new(&env_raw), cli_dir));
+    }
+    explicit.map(|raw| anchor_raw_path(Path::new(raw), root_dir))
+}
+
+fn env_lockfile_dir() -> Option<String> {
+    std::env::var("PNPM_CONFIG_LOCKFILE_DIR")
+        .or_else(|_| std::env::var("pnpm_config_lockfile_dir"))
+        .ok()
+        .filter(|value| !value.is_empty())
 }
 
 fn anchor_raw_path(raw: &Path, anchor: &Path) -> PathBuf {

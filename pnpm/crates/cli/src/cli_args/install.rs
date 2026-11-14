@@ -1,8 +1,9 @@
+pub(crate) use arguments::InstallEntryMode;
 pub use arguments::{
     InstallFetchArgs, InstallLockfileArgs, InstallMaterializationArgs, LockfileUpdateArgs,
 };
 
-pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target};
+pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target, uses_pnpr_server};
 pub(crate) use pnpr_resolution::{
     install_selected_via_pnpr, install_via_pnpr, resolves_locally_after,
 };
@@ -335,7 +336,7 @@ impl InstallArgs {
         // an install whose flag overrides the setting. `pnpm ci` cleans
         // before installing, so it never takes the repeat check either.
         base_install.lockfile_policy.disable_optimistic_repeat =
-            self.materialization.clean_install
+            self.materialization.entry_mode.is_clean_install()
                 || self.materialization.verify_deps_before_run_install
                 || link.lockfile.trust != state.config.trust_lockfile;
         base_install.execution.skip_runtimes = link.skip_runtimes;
@@ -351,24 +352,6 @@ impl InstallArgs {
         base_install.context.lockfile = install_lockfile;
         base_install.projects.supported_architectures = link.supported_architectures;
         base_install
-    }
-
-    pub(crate) async fn validate_frozen<Reporter: self::Reporter + 'static>(
-        &self,
-        state: &State,
-        selection: Option<&InstallFamilySelection>,
-    ) -> miette::Result<()> {
-        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-        if state.config.pnpr_server.is_some() && self.materialization.dry_run {
-            return Err(DryRunIncompatibleWithPnpr.into());
-        }
-        let lockfile_path = state.lockfile_path();
-        let link = self.resolve_link_options(state.config, &lockfile_path, true);
-        let install = self.build_local_install(state, link);
-        install
-            .validate_frozen(selection.map(workspace_install_selection))
-            .await
-            .wrap_err("validating frozen lockfile")
     }
 
     async fn run_local<Reporter: self::Reporter + 'static>(
@@ -504,6 +487,8 @@ fn prefer_frozen_lockfile_override(
 mod tests;
 
 mod fast_path;
+
+mod frozen_validation;
 
 mod pnpr_config_validation;
 

@@ -456,6 +456,13 @@ test('pnpm clean honors --filter, --filter-prod, and -w', () => {
   expect(execPnpmSync(['-w', 'clean']).status).toBe(0)
   expect(fs.existsSync(path.join('node_modules', 'seeded'))).toBe(false)
   expect(fs.existsSync(path.join('packages/pkg-a', 'node_modules', 'seeded'))).toBe(true)
+
+  // Non-CLI filter via environment variable must also narrow `pnpm clean`
+  seedAll()
+  expect(execPnpmSync(['clean'], { env: { pnpm_config_filter: 'pkg-a' } }).status).toBe(0)
+  expect(fs.existsSync(path.join('packages/pkg-a', 'node_modules', 'seeded'))).toBe(false)
+  expect(fs.existsSync(path.join('packages/pkg-b', 'node_modules', 'seeded'))).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', 'seeded'))).toBe(true)
 })
 
 test('pnpm clean cleans root node_modules in workspace without root package.json', () => {
@@ -525,6 +532,37 @@ test('pnpm clean --lockfile respects lockfileDir containment and per-project loc
     expect(fs.existsSync(path.join(outsideLock, 'sub', 'pnpm-lock.yaml'))).toBe(true)
     expect(fs.existsSync(path.join('keep-dir', 'pnpm-lock.yaml'))).toBe(true)
   }
+
+  // `--config.lockfile-dir` and `${ENV}` interpolation in pnpm-workspace.yaml also preserve containment
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    lockfileDir: '${ESCAPE_LOCKFILE_DIR}',
+  })
+  expect(execPnpmSync(['clean', '--lockfile'], { env: { ESCAPE_LOCKFILE_DIR: 'escape/../keep-dir' } }).status).toBe(0)
+  expect(fs.existsSync(path.join('keep-dir', 'pnpm-lock.yaml'))).toBe(true)
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  expect(execPnpmSync(['--config.lockfile-dir=escape/../keep-dir', 'clean', '--lockfile']).status).toBe(0)
+  expect(fs.existsSync(path.join('keep-dir', 'pnpm-lock.yaml'))).toBe(true)
+
+  // `PNPM_CONFIG_LOCKFILE_DIR` preserves symlink-parent containment and resolves relative to cwd
+  expect(execPnpmSync(['clean', '--lockfile'], { env: { PNPM_CONFIG_LOCKFILE_DIR: 'escape/../keep-dir' } }).status).toBe(0)
+  expect(fs.existsSync(path.join('keep-dir', 'pnpm-lock.yaml'))).toBe(true)
+
+  fs.mkdirSync('yaml-lock', { recursive: true })
+  fs.writeFileSync(path.join('yaml-lock', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+  fs.mkdirSync(path.join('packages', 'sub-lock'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'sub-lock', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    lockfileDir: 'yaml-lock',
+  })
+  expect(execPnpmSync(['clean', '--lockfile'], {
+    cwd: path.resolve('packages/pkg-a'),
+    env: { PNPM_CONFIG_LOCKFILE_DIR: '../sub-lock' },
+  }).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'sub-lock', 'pnpm-lock.yaml'))).toBe(false)
+  expect(fs.existsSync(path.join('yaml-lock', 'pnpm-lock.yaml'))).toBe(true)
 
   // 3. Per-project lockfiles with sharedWorkspaceLockfile: false (filtered and unfiltered)
   writeYamlFileSync('pnpm-workspace.yaml', {

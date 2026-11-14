@@ -7,7 +7,7 @@ use super::{
 
 impl NodeInstallJob {
     fn cleans_before_install(&self) -> bool {
-        self.args.materialization.clean_install
+        self.args.materialization.entry_mode.is_clean_install()
             && !self.args.materialization.dry_run
             && !self.args.lockfile.only
     }
@@ -22,7 +22,12 @@ impl NodeInstallJob {
             return Ok(());
         }
         self.validate_plan::<Reporter>(plan, lockfile, http_client).await?;
-        crate::cli_args::clean::run_for_ci(self.cfg, &self.prefix, plan)
+        crate::cli_args::clean::run_for_ci(
+            self.cfg,
+            &self.prefix,
+            plan,
+            self.args.lockfile.directory.lockfile_dir.as_deref(),
+        )
     }
 
     async fn validate_plan<Reporter: self::Reporter + 'static>(

@@ -1,0 +1,25 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+/**
+ * Anchors a relative `lockfileDir` setting to `anchorDir` by string
+ * concatenation without collapsing `..` segments, so symlink-parent
+ * containment checks can inspect every segment before traversal.
+ */
+export function anchorRawLockfileDir (anchorDir: string, rawSpec: string): string {
+  const nativeSpec = path.sep === '\\' ? rawSpec.replaceAll('/', '\\') : rawSpec
+  if (path.parse(nativeSpec).root !== '') {
+    return nativeSpec
+  }
+  const resolvedAnchor = tryRealpathSync(anchorDir) ?? anchorDir
+  const prefix = resolvedAnchor.endsWith(path.sep) ? resolvedAnchor : `${resolvedAnchor}${path.sep}`
+  return `${prefix}${nativeSpec}`
+}
+
+function tryRealpathSync (targetPath: string): string | undefined {
+  try {
+    return fs.realpathSync(targetPath)
+  } catch {
+    return undefined
+  }
+}
