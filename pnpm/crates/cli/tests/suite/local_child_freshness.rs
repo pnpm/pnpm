@@ -1,4 +1,4 @@
-use crate::_utils::pacquet_in;
+use crate::_utils::{pacquet_in, resolve_node_modules_package};
 
 use assert_cmd::prelude::*;
 use std::{fs, path::Path, process::Command};
@@ -100,13 +100,11 @@ fn a_local_tarball_child_link_is_resolved_from_the_lockfile_directory() {
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(lockfile.contains("child: link:child"), "lockfile:\n{lockfile}");
     assert!(lockfile.contains("child-bare: link:child"), "lockfile:\n{lockfile}");
-    let installed_child_manifest = [
-        app.join("node_modules/tpkg/node_modules/child/package.json"),
-        app.join("node_modules/child/package.json"),
-    ]
-    .into_iter()
-    .find(|path| path.exists())
-    .expect("find installed child manifest");
+    let installed_package =
+        resolve_node_modules_package(&app, "tpkg").expect("find installed tarball package");
+    let installed_child_manifest = resolve_node_modules_package(&installed_package, "child")
+        .expect("find installed child package")
+        .join("package.json");
     let installed_child: serde_json::Value = serde_json::from_slice(
         &fs::read(installed_child_manifest).expect("read installed child manifest"),
     )
