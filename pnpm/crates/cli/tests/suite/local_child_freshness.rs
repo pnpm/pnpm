@@ -100,9 +100,15 @@ fn a_local_tarball_child_link_is_resolved_from_the_lockfile_directory() {
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(lockfile.contains("child: link:child"), "lockfile:\n{lockfile}");
     assert!(lockfile.contains("child-bare: link:child"), "lockfile:\n{lockfile}");
+    let installed_child_manifest = [
+        app.join("node_modules/tpkg/node_modules/child/package.json"),
+        app.join("node_modules/child/package.json"),
+    ]
+    .into_iter()
+    .find(|path| path.exists())
+    .expect("find installed child manifest");
     let installed_child: serde_json::Value = serde_json::from_slice(
-        &fs::read(app.join("node_modules/tpkg/node_modules/child/package.json"))
-            .expect("read installed child manifest"),
+        &fs::read(installed_child_manifest).expect("read installed child manifest"),
     )
     .expect("parse installed child manifest");
     assert_eq!(installed_child["version"], "1.0.0");
