@@ -17,7 +17,7 @@ import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
-import { barePathIsUnambiguous, isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
+import { barePathIsUnambiguous, isLocalFilesystemSpecifier, isTarballFilename, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -441,7 +441,8 @@ async function localSpecIsUpToDate (
   const lockfilePath = getLocalPath(cleanLockfileDep)
   if (barePathIsUnambiguous(currentSpec)) {
     if (lockfileDep.startsWith('link:')) {
-      return linkPathMatches(localDep, currentSpec, lockfileDep)
+      // The resolver reads a bare tarball path as a file, never as a link.
+      return !isTarballFilename(currentSpec) && linkPathMatches(localDep, currentSpec, lockfileDep)
     }
     return localPathMatches(localDep, currentSpec, lockfilePath)
   }
