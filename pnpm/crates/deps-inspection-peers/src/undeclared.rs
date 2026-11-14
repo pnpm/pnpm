@@ -7,7 +7,7 @@ use pnpm_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, Snapshot
 use serde::Serialize;
 
 use crate::{
-    linked::canonical_path_within,
+    linked::LinkRoots,
     snapshot::{child_keys, resolved_snapshot_version, satisfies, snapshot_dependency},
 };
 
@@ -69,7 +69,7 @@ impl From<bool> for WorkspaceRootScope {
 /// Declaration advisories with shared package analysis and project-scope caching.
 pub struct UndeclaredPeerInspector<'a> {
     lockfile: &'a Lockfile,
-    lockfile_dir: &'a Path,
+    roots: LinkRoots<'a>,
     root_scope: Option<Providers>,
     nodes: HashMap<PkgNameVerPeer, PackageNode>,
     reports: HashMap<Query, Vec<UndeclaredPeer>>,
@@ -80,9 +80,18 @@ pub struct UndeclaredPeerInspector<'a> {
 impl<'a> UndeclaredPeerInspector<'a> {
     #[must_use]
     pub fn new(lockfile: &'a Lockfile, lockfile_dir: &'a Path) -> Self {
+        Self::with_workspace_dir(lockfile, lockfile_dir, None)
+    }
+
+    #[must_use]
+    pub fn with_workspace_dir(
+        lockfile: &'a Lockfile,
+        lockfile_dir: &'a Path,
+        workspace_dir: Option<&'a Path>,
+    ) -> Self {
         Self {
             lockfile,
-            lockfile_dir,
+            roots: LinkRoots { lockfile_dir, boundary_dir: workspace_dir.unwrap_or(lockfile_dir) },
             root_scope: None,
             nodes: HashMap::new(),
             reports: HashMap::new(),
@@ -98,7 +107,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
         root_scope: WorkspaceRootScope,
     ) -> Vec<UndeclaredPeer> {
         let Some(importer) = self.lockfile.importers.get(importer_id) else { return Vec::new() };
-        let direct = self.importer_providers(importer, &self.lockfile_dir.join(importer_id));
+        let direct = self.importer_providers(importer, &self.roots.lockfile_dir.join(importer_id));
         let roots = package_keys(&direct).collect();
         let mut providers = Providers::new();
         match root_scope {
@@ -121,7 +130,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
             return providers.clone();
         }
         let Some(root) = self.lockfile.importers.get(".") else { return Providers::new() };
-        let providers = self.importer_providers(root, self.lockfile_dir);
+        let providers = self.importer_providers(root, self.roots.lockfile_dir);
         self.root_scope = Some(providers.clone());
         providers
     }
@@ -137,7 +146,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
                         return Some((alias.to_string(), vec![Provider::Package(key)]));
                     }
                     let target = spec.version.as_link_target()?;
-                    let path = canonical_path_within(&base.join(target), self.lockfile_dir)?;
+                    let path = self.roots.canonical_target(&base.join(target))?;
                     Some((alias.to_string(), vec![Provider::Link(path)]))
                 })
                 .collect();
@@ -153,7 +162,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
             }
             let node = self.nodes
                 .entry(key.clone())
-                .or_insert_with(|| package_node(self.lockfile, self.lockfile_dir, &key));
+                .or_insert_with(|| package_node(self.lockfile, self.roots, &key));
             pending.extend(node.dependencies.iter().cloned());
         }
         reachable
@@ -260,16 +269,18 @@ fn package_keys(providers: &Providers) -> impl Iterator<Item = PkgNameVerPeer> {
 fn provider_for_reference(
     reference: &SnapshotDepRef,
     alias: &PkgName,
-    lockfile_dir: &Path,
+    roots: LinkRoots<'_>,
 ) -> Option<Provider> {
     if let Some(key) = reference.resolve(alias) {
         return Some(Provider::Package(key));
     }
     let target = reference.as_link_target()?;
-    canonical_path_within(&lockfile_dir.join(target), lockfile_dir).map(Provider::Link)
+    roots
+        .canonical_target(&roots.lockfile_dir.join(target))
+        .map(Provider::Link)
 }
 
-fn package_node(lockfile: &Lockfile, lockfile_dir: &Path, key: &PkgNameVerPeer) -> PackageNode {
+fn package_node(lockfile: &Lockfile, roots: LinkRoots<'_>, key: &PkgNameVerPeer) -> PackageNode {
     let mut node =
         PackageNode { dependencies: Vec::new(), children: Providers::new(), peers: Vec::new() };
     let Some(packages) = &lockfile.packages else { return node };
@@ -281,7 +292,7 @@ fn package_node(lockfile: &Lockfile, lockfile_dir: &Path, key: &PkgNameVerPeer) 
         return node;
     };
     node.dependencies = child_keys(Some(snapshot)).collect();
-    let context = PeerContext { key, packages, meta, snapshot, lockfile_dir };
+    let context = PeerContext { key, packages, meta, snapshot, roots };
     node.children = declared_children(&context);
     node.peers = meta.peer_dependencies
         .iter()
@@ -302,7 +313,7 @@ fn declared_children(context: &PeerContext<'_>) -> Providers {
         if !context.meta.peer_dependencies
             .as_ref()
             .is_some_and(|peers| peers.contains_key(&alias.to_string()))
-            && let Some(provider) = provider_for_reference(reference, alias, context.lockfile_dir)
+            && let Some(provider) = provider_for_reference(reference, alias, context.roots)
         {
             children.insert(alias.to_string(), vec![provider]);
         }
@@ -315,7 +326,7 @@ struct PeerContext<'a> {
     packages: &'a HashMap<PkgNameVerPeer, pnpm_lockfile::PackageMetadata>,
     meta: &'a pnpm_lockfile::PackageMetadata,
     snapshot: &'a pnpm_lockfile::SnapshotEntry,
-    lockfile_dir: &'a Path,
+    roots: LinkRoots<'a>,
 }
 
 fn inspect_peer(
@@ -332,9 +343,8 @@ fn inspect_peer(
     }
     let alias = peer.parse::<PkgName>().ok()?;
     let reference = snapshot_dependency(context.snapshot, &alias)?;
-    let provider = provider_for_reference(reference, &alias, context.lockfile_dir)?;
-    let version =
-        resolved_snapshot_version(reference, &alias, context.packages, context.lockfile_dir)?;
+    let provider = provider_for_reference(reference, &alias, context.roots)?;
+    let version = resolved_snapshot_version(reference, &alias, context.packages, context.roots)?;
     satisfies(&version, &pnpm_resolving_resolver_base::get_peer_version_range(range))
         .then(|| {
             (

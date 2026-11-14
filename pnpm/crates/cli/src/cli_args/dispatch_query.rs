@@ -179,12 +179,13 @@ pub(super) fn sbom<'a>(ctx: &RunCtx<'a>, args: SbomArgs) -> miette::Result<Comma
 pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg = if args.global { (ctx.loaders.global_config)()? } else { (ctx.loaders.config)()? };
     let recursive = ctx.workspace.recursive;
+    let recursive_from_command_line = ctx.workspace.recursive_from_command_line;
     let dir = ctx.locations.dir;
     Ok(Box::pin(async move {
         if !args.global {
             apply_update_config(cfg, dir).await?;
         }
-        if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
+        if args.run(cfg, dir, recursive, recursive_from_command_line)? != PeersOutcome::NoIssues {
             // `peers` exits non-zero when peer issues are found or the subcommand is unknown, mirroring pnpm.
             pnpm_executor::exit(1);
         }

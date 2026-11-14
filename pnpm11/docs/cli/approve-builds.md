@@ -19,6 +19,8 @@ You can run `pnpm approve-builds` without arguments to get an interactive prompt
 pnpm approve-builds esbuild fsevents !core-js
 ```
 
+Running `pnpm approve-builds` without package arguments or `--all` when packages are awaiting approval requires an interactive terminal outside CI (`ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE`).
+
 Prefix a package name with `!` to deny it. Only mentioned packages are affected; the rest are left untouched.
 
 Since v11.26.0, a decision is saved even when nothing is awaiting approval, so a policy can be written before the package is installed. A named package that is not awaiting approval is reported with a warning rather than an error, and is not rebuilt: it may not be installed yet, and rebuilding it would need a lockfile the project may not have. An argument that names no package at all is rejected before anything is written.

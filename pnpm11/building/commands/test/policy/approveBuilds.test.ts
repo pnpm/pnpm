@@ -1,12 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { beforeEach, expect, jest, test } from '@jest/globals'
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import type { ApproveBuildsCommandOpts, RebuildCommandOpts } from '@pnpm/building.commands'
 import { getConfig } from '@pnpm/config.reader'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare } from '@pnpm/prepare'
 import { tempDir } from '@pnpm/prepare-temp-dir'
+import { overrideTty } from '@pnpm/testing.command-defaults'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { safeExeca as execa } from 'execa'
 import { omit } from 'ramda'
@@ -45,8 +46,18 @@ const mockCheckbox = jest.mocked(checkbox)
 const mockConfirm = jest.mocked(confirm)
 const mockGlobalWarn = jest.mocked(globalWarn)
 
+let restoreTty: (() => void) | undefined
+
 beforeEach(() => {
   mockGlobalWarn.mockClear()
+  mockCheckbox.mockClear()
+  mockConfirm.mockClear()
+  restoreTty = overrideTty(true)
+})
+
+afterEach(() => {
+  restoreTty?.()
+  restoreTty = undefined
 })
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
@@ -77,6 +88,7 @@ async function getApproveBuildsConfig () {
   return {
     ...omit(['reporter'], config),
     ...context,
+    ci: false,
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
@@ -638,4 +650,52 @@ test('GVS approve-builds writes settings to globalPkgDir without scanning siblin
   const globalManifest = readYamlFileSync<any>(path.join(temp, 'pnpm-workspace.yaml')) // eslint-disable-line
   expect(globalManifest.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe(true)
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+})
+
+test('approve-builds without args or --all rejects CI and non-TTY stdin while allowing non-interactive modes', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+  await execPnpmInstall()
+
+  const config = await getApproveBuildsConfig()
+
+  // CI=true rejects interactive prompt even when stdin is a TTY.
+  await expect(approveBuilds.handler({
+    ...config,
+    ci: true,
+  }, [], {})).rejects.toMatchObject({
+    code: 'ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE',
+  })
+  expect(mockCheckbox).not.toHaveBeenCalled()
+
+  // Non-TTY stdin rejects interactive prompt even outside CI.
+  const restoreNonTty = overrideTty(false)
+  try {
+    await expect(approveBuilds.handler({
+      ...config,
+      ci: false,
+    }, [], {})).rejects.toMatchObject({
+      code: 'ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE',
+    })
+    expect(mockCheckbox).not.toHaveBeenCalled()
+
+    // Non-interactive `--all` succeeds in CI without a TTY.
+    await approveBuilds.handler({
+      ...config,
+      ci: true,
+      all: true,
+    }, [], {})
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+
+    // When no packages are awaiting approval, bare `approve-builds` succeeds in CI without a TTY.
+    await approveBuilds.handler({
+      ...config,
+      ci: true,
+    }, [], {})
+  } finally {
+    restoreNonTty()
+  }
 })

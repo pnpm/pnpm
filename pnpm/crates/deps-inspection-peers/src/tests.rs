@@ -772,7 +772,10 @@ fn linked_packages_share_targets_reached_through_a_symlinked_root() {
     std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
 
     let no_manifests = super::ProjectManifests::new();
-    let mut linked_packages = super::LinkedPackages::new(&linked_root, &no_manifests);
+    let mut linked_packages = super::LinkedPackages::new(
+        super::LinkRoots { lockfile_dir: &linked_root, boundary_dir: &linked_root },
+        &no_manifests,
+    );
     for importer in ["packages/app", "packages/web"] {
         assert!(
             linked_packages
@@ -799,7 +802,10 @@ fn linked_packages_resolve_targets_through_symlinks_like_the_filesystem() {
 
     for lockfile_dir in [linked_root, dunce::canonicalize(&real_root).unwrap()] {
         let no_manifests = super::ProjectManifests::new();
-        let mut linked_packages = super::LinkedPackages::new(&lockfile_dir, &no_manifests);
+        let mut linked_packages = super::LinkedPackages::new(
+            super::LinkRoots { lockfile_dir: &lockfile_dir, boundary_dir: &lockfile_dir },
+            &no_manifests,
+        );
         let mut importer_id = |importer: &str, link_target: &str| {
             linked_packages
                 .resolve(&lockfile_dir.join(importer), link_target)
@@ -835,7 +841,10 @@ fn snapshot_peer_versions_use_named_registry_semver() {
                 &dep_ref,
                 &"peer".parse().unwrap(),
                 &std::collections::HashMap::new(),
-                std::path::Path::new("."),
+                super::LinkRoots {
+                    lockfile_dir: std::path::Path::new("."),
+                    boundary_dir: std::path::Path::new("."),
+                },
             ),
             Some(expected.to_string()),
             "{reference}",

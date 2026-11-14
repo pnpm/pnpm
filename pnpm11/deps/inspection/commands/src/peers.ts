@@ -3,7 +3,8 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import { renderPeerIssues } from '@pnpm/deps.inspection.peers-issues-renderer'
-import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { getLockfileImporterId } from '@pnpm/lockfile.fs'
+import type { PeerDependencyIssuesByProjects, ProjectRootDir } from '@pnpm/types'
 import { isEmpty, pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -66,6 +67,8 @@ export type PeersCommandOptions = Pick<Config,
 | 'dir'
 | 'modulesDir'
 | 'peerDependencyRules'
+| 'sharedWorkspaceLockfile'
+| 'workspaceDir'
 > & Pick<ConfigContext, 'selectedProjectsGraph'>
 & Partial<Pick<ConfigContext, 'cliOptions'>> & {
   json?: boolean
@@ -90,17 +93,11 @@ export async function handler (
 async function checkCmd (
   opts: PeersCommandOptions
 ): Promise<{ output: string, exitCode: number }> {
-  const lockfileDir = opts.lockfileDir ?? opts.dir
   const projectPaths = opts.recursive && opts.selectedProjectsGraph
-    ? Object.keys(opts.selectedProjectsGraph)
-    : [opts.dir]
+    ? Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]
+    : [opts.dir as ProjectRootDir]
 
-  const issues = await checkPeerDependencies(projectPaths, {
-    lockfileDir,
-    checkWantedLockfileOnly: opts.lockfileOnly,
-    modulesDir: opts.modulesDir,
-    peerDependencyRules: opts.peerDependencyRules,
-  })
+  const issues = await collectPeerIssues(opts, projectPaths)
 
   const noIssues = hasNoIssues(issues)
   const json = opts.json ?? opts.cliOptions?.['json'] as boolean | undefined
@@ -120,6 +117,45 @@ async function checkCmd (
     output: `Issues with peer dependencies found\n\n${renderPeerIssues(issues)}`,
     exitCode: 1,
   }
+}
+
+async function collectPeerIssues (
+  opts: PeersCommandOptions,
+  projectPaths: ProjectRootDir[]
+): Promise<PeerDependencyIssuesByProjects> {
+  if (opts.lockfileDir || opts.sharedWorkspaceLockfile !== false || !opts.workspaceDir) {
+    return checkPeerDependencies(projectPaths, {
+      lockfileDir: opts.lockfileDir ?? opts.dir,
+      checkWantedLockfileOnly: opts.lockfileOnly,
+      modulesDir: opts.modulesDir,
+      peerDependencyRules: opts.peerDependencyRules,
+    })
+  }
+
+  const singleActiveProject = !opts.recursive
+  const workspaceDir = opts.workspaceDir
+  const entries = await Promise.all(
+    projectPaths.map(async (projectPath) => {
+      const projectIssues = await checkPeerDependencies([projectPath], {
+        lockfileDir: projectPath,
+        checkWantedLockfileOnly: opts.lockfileOnly,
+        modulesDir: opts.selectedProjectsGraph?.[projectPath]?.package.modulesDir ?? opts.modulesDir,
+        peerDependencyRules: opts.peerDependencyRules,
+      })
+      const key = singleActiveProject
+        ? '.'
+        : getLockfileImporterId(workspaceDir, projectPath)
+      return [key, projectIssues['.']] as const
+    })
+  )
+  entries.sort(([keyA], [keyB]) => (keyA < keyB ? -1 : keyA > keyB ? 1 : 0))
+  const issues: PeerDependencyIssuesByProjects = {}
+  for (const [key, projectIssues] of entries) {
+    if (projectIssues != null) {
+      issues[key] = projectIssues
+    }
+  }
+  return issues
 }
 
 function hasNoIssues (issues: PeerDependencyIssuesByProjects): boolean {

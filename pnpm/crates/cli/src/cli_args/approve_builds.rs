@@ -15,14 +15,12 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, WorkspaceSettings};
+use pnpm_config::{Config, WorkspaceSettings, is_ci};
 use pnpm_modules_yaml::{Host, write_modules_manifest};
 use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
 use pnpm_reporter::{Reporter, emit_global_warning};
 use pnpm_workspace_manifest_writer::{PermissionValue, set_permissions};
 use prompt::{confirm_builds_prompt, prompt_for_builds};
-#[cfg(not(target_family = "wasm"))]
-use std::io::IsTerminal;
 use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
@@ -61,6 +59,17 @@ enum ApproveBuildsError {
     #[display("The following packages are both approved and denied: {}", _0.join(", "))]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_CONTRADICTING_ARGS))]
     ContradictingArgs(#[error(not(source))] Vec<String>),
+
+    #[display(
+        r#""pnpm approve-builds" without package arguments or --all requires an interactive terminal"#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE),
+        help(
+            r#"Run "pnpm approve-builds" in an interactive terminal outside CI, pass --all, or pass the package names to approve (<pkg>) or deny (!<pkg>)."#
+        )
+    )]
+    NonInteractive,
 }
 
 pub(crate) struct ApprovalDecision {
@@ -106,7 +115,7 @@ impl ApproveBuildsArgs {
             pnpm_diagnostics::println!("There are no packages awaiting approval");
             return Ok(None);
         }
-        let Some(decision) = self.decide::<Reporter>(&pending)? else {
+        let Some(decision) = self.decide::<Reporter>(&pending, config.ci)? else {
             return Ok(None);
         };
 
@@ -137,11 +146,18 @@ impl ApproveBuildsArgs {
     pub(crate) fn decide<Reporter: self::Reporter>(
         self,
         pending: &[String],
+        ci: bool,
+    ) -> miette::Result<Option<ApprovalDecision>> {
+        self.decide_with_prompt::<Reporter>(pending, !ci && can_prompt())
+    }
+
+    pub(crate) fn decide_with_prompt<Reporter: self::Reporter>(
+        self,
+        pending: &[String],
+        can_prompt: bool,
     ) -> miette::Result<Option<ApprovalDecision>> {
         self.validate()?;
-        let ApproveBuildsArgs { packages, all, global: _ } = self;
-
-        let partition = partition_params(&packages, pending);
+        let partition = partition_params(&self.packages, pending);
         if !partition.unknown.is_empty() {
             emit_global_warning::<Reporter>(&format!(
                 "The following packages are not awaiting approval: {}",
@@ -149,34 +165,55 @@ impl ApproveBuildsArgs {
             ));
         }
         partition.reject_contradictions()?;
-        let Partition { approved, denied, .. } = partition;
-        let build_packages: Vec<String> = if !packages.is_empty() {
-            sort_unique(approved.clone())
-        } else if all {
-            sort_unique(pending.to_owned())
-        } else {
-            let Some(selected) = prompt_for_builds(pending)? else {
-                return Ok(None);
-            };
-            selected
+        let Some(build_packages) = self.select_builds(&partition.approved, pending, can_prompt)?
+        else {
+            return Ok(None);
         };
 
-        let decisions = if packages.is_empty() {
+        let decisions = if self.packages.is_empty() {
             pending
                 .iter()
                 .map(|pkg| (pkg.clone(), build_packages.contains(pkg)))
                 .collect()
         } else {
-            named_decisions(&approved, &denied)
+            named_decisions(&partition.approved, &partition.denied)
         };
 
         // Only the interactive path asks for confirmation: named
         // packages and `--all` are the answer already.
-        if !all && packages.is_empty() && !confirm_selected_builds(&build_packages, pending)? {
+        if !self.all
+            && self.packages.is_empty()
+            && !confirm_selected_builds(&build_packages, pending)?
+        {
             return Ok(None);
         }
 
-        Ok(Some(ApprovalDecision { build_packages, decisions, clear_all: packages.is_empty() }))
+        Ok(Some(ApprovalDecision {
+            build_packages,
+            decisions,
+            clear_all: self.packages.is_empty(),
+        }))
+    }
+
+    fn select_builds(
+        &self,
+        approved: &[String],
+        pending: &[String],
+        can_prompt: bool,
+    ) -> miette::Result<Option<Vec<String>>> {
+        if !self.packages.is_empty() {
+            return Ok(Some(sort_unique(approved.to_owned())));
+        }
+        if self.all {
+            return Ok(Some(sort_unique(pending.to_owned())));
+        }
+        if pending.is_empty() {
+            return Ok(None);
+        }
+        if !can_prompt {
+            return Err(ApproveBuildsError::NonInteractive.into());
+        }
+        prompt_for_builds(pending)
     }
 
     pub(crate) fn validate(&self) -> miette::Result<()> {
@@ -337,7 +374,7 @@ pub(crate) fn exclude_disallowed_builds(scan: &mut IgnoredBuildsScan, config: &C
 
 /// Run the interactive build-approval flow against the just-installed
 /// packages. No-op when nothing is awaiting approval, or when stdin is not a
-/// TTY (unless the test auto-approve env var is set).
+/// TTY / CI is active (unless the test auto-approve env var is set).
 pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     install_dir: &Path,
@@ -349,12 +386,7 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         return Ok(());
     }
     let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
-    #[cfg(target_family = "wasm")]
-    if !auto_approve && !wasm::stdin_is_terminal()? {
-        return Ok(());
-    }
-    #[cfg(not(target_family = "wasm"))]
-    if !auto_approve && !std::io::stdin().is_terminal() {
+    if !auto_approve && (config.ci || !can_prompt()) {
         return Ok(());
     }
 
@@ -377,6 +409,10 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         crate::cli_args::rebuild::run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
     }
     Ok(())
+}
+
+fn can_prompt() -> bool {
+    !is_ci() && crate::confirm_prompt::stdin_is_terminal().unwrap_or(false)
 }
 
 /// `config` with the approvals `settings_dir`'s `pnpm-workspace.yaml`

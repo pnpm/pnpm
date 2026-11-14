@@ -158,6 +158,7 @@ pub fn peer_issues_for_lockfile(
 pub fn check_peer_dependencies_from_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
+    workspace_dir: Option<&Path>,
     project_dirs: &[PathBuf],
     catalogs: Option<&Catalogs>,
     resolve_peers_from_workspace_root: bool,
@@ -169,9 +170,9 @@ pub fn check_peer_dependencies_from_lockfile(
         .collect();
     importer_ids.sort();
     importer_ids.dedup();
-    check_peer_dependencies_of_importers(
+    check_peer_dependencies_of_importers_with_roots(
         lockfile,
-        lockfile_dir,
+        LinkRoots { lockfile_dir, boundary_dir: workspace_dir.unwrap_or(lockfile_dir) },
         &importer_ids,
         catalogs,
         resolve_peers_from_workspace_root,
@@ -190,13 +191,31 @@ pub fn check_peer_dependencies_of_importers(
     resolve_peers_from_workspace_root: bool,
     project_manifests: &ProjectManifests<'_>,
 ) -> Result<IssuesByProjects, CatalogResolutionError> {
+    check_peer_dependencies_of_importers_with_roots(
+        lockfile,
+        LinkRoots { lockfile_dir, boundary_dir: lockfile_dir },
+        importer_ids,
+        catalogs,
+        resolve_peers_from_workspace_root,
+        project_manifests,
+    )
+}
+
+fn check_peer_dependencies_of_importers_with_roots(
+    lockfile: &Lockfile,
+    roots: LinkRoots<'_>,
+    importer_ids: &[String],
+    catalogs: Option<&Catalogs>,
+    resolve_peers_from_workspace_root: bool,
+    project_manifests: &ProjectManifests<'_>,
+) -> Result<IssuesByProjects, CatalogResolutionError> {
     let empty_packages = HashMap::new();
     let empty_snapshots = HashMap::new();
     let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
     let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
     let context = PeerWalkContext {
         lockfile,
-        lockfile_dir,
+        roots,
         catalogs,
         resolve_peers_from_workspace_root,
         project_manifests,
@@ -207,7 +226,7 @@ pub fn check_peer_dependencies_of_importers(
     // pnpm's lockfile walker, which threads one `walked` set through every
     // importer's step.
     let mut visited_packages = HashSet::new();
-    let mut linked_packages = LinkedPackages::new(lockfile_dir, project_manifests);
+    let mut linked_packages = LinkedPackages::new(roots, project_manifests);
 
     for importer_id in importer_ids {
         let mut issues = PeerIssues {
@@ -220,14 +239,7 @@ pub fn check_peer_dependencies_of_importers(
         let initial_keys =
             collect_initial_keys(&context, &mut linked_packages, importer_id, &mut issues)?;
 
-        walk_snapshot(
-            initial_keys,
-            snapshots,
-            packages,
-            lockfile_dir,
-            &mut visited_packages,
-            &mut issues,
-        );
+        walk_snapshot(initial_keys, snapshots, packages, roots, &mut visited_packages, &mut issues);
 
         let merged = merge_missing_peers(&issues.missing);
         issues.conflicts = merged.conflicts;
@@ -241,7 +253,7 @@ pub fn check_peer_dependencies_of_importers(
 
 struct PeerWalkContext<'a> {
     lockfile: &'a Lockfile,
-    lockfile_dir: &'a Path,
+    roots: LinkRoots<'a>,
     catalogs: Option<&'a Catalogs>,
     resolve_peers_from_workspace_root: bool,
     project_manifests: &'a ProjectManifests<'a>,
@@ -261,7 +273,7 @@ fn collect_initial_keys(
     let Some(importer) = context.lockfile.importers.get(importer_id) else {
         return Ok(keys);
     };
-    let importer_dir = context.lockfile_dir.join(importer_id);
+    let importer_dir = context.roots.lockfile_dir.join(importer_id);
 
     let groups =
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
@@ -315,7 +327,7 @@ fn check_link(inputs: CheckLink<'_, '_>) -> Result<(), CatalogResolutionError> {
             linked_importer: context.lockfile.importers.get(&linked.importer_id),
             importer_dir,
             linked_importer_dir: &linked.dir,
-            lockfile_dir: context.lockfile_dir,
+            roots: context.roots,
             resolve_peers_from_workspace_root: context.resolve_peers_from_workspace_root,
             project_manifests: context.project_manifests,
         },
@@ -357,4 +369,4 @@ mod filter;
 use filter::merge_missing_peers;
 
 mod linked;
-use linked::{LinkedPackagePeers, LinkedPackages, check_linked_package_peers};
+use linked::{LinkRoots, LinkedPackagePeers, LinkedPackages, check_linked_package_peers};

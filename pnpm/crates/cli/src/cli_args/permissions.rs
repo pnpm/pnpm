@@ -155,6 +155,21 @@ impl ApproveArgs {
         config: &'static Config,
         manifest_dir: &Path,
     ) -> miette::Result<Option<Approval>> {
+        self.decide_with_prompt::<Reporter>(
+            pending,
+            config,
+            manifest_dir,
+            !config.ci && can_prompt(),
+        )
+    }
+
+    fn decide_with_prompt<Reporter: self::Reporter>(
+        &self,
+        pending: &BTreeMap<String, Capabilities>,
+        config: &'static Config,
+        manifest_dir: &Path,
+        can_prompt: bool,
+    ) -> miette::Result<Option<Approval>> {
         if !self.packages.is_empty() {
             return Ok(Some(Approval {
                 decisions: named_decisions::<Reporter>(&self.packages, pending)?,
@@ -166,6 +181,12 @@ impl ApproveArgs {
                 decisions: decisions_for_all(pending),
                 skills_dirs: Vec::new(),
             }));
+        }
+        if pending.is_empty() {
+            return Ok(None);
+        }
+        if !can_prompt {
+            return Err(ApproveNonInteractive.into());
         }
         let Some(selected) = prompt_for_packages(pending)? else {
             return Ok(None);
@@ -333,6 +354,16 @@ fn prompt_for_skills_dirs(detected_dirs: &[String]) -> miette::Result<Option<Vec
         .collect();
     prompt_for_choices("Choose where the approved agent skills are linked", &choices)
 }
+
+#[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
+#[display(r#""pnpm approve" without package arguments or --all requires an interactive terminal"#)]
+#[diagnostic(
+    code(ERR_PNPM_APPROVE_NON_INTERACTIVE),
+    help(
+        r#"Run "pnpm approve" in an interactive terminal outside CI, pass --all, or pass the package names to approve (<pkg>) or deny (!<pkg>)."#
+    )
+)]
+struct ApproveNonInteractive;
 
 /// Whether the current run can prompt. Under CI, or when the input is not a
 /// terminal, a prompt is skipped and answered another time.

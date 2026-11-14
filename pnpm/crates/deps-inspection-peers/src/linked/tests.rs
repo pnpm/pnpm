@@ -62,7 +62,11 @@ fn linked_projects_are_checked_from_all_manifest_formats() {
         assert_eq!(issue.parents[0].name, "lib");
         assert_eq!(issue.parents[0].version, "1.0.0");
         assert_eq!(
-            super::resolve_link_version(temp.path(), temp.path(), "provider"),
+            super::resolve_link_version(
+                temp.path(),
+                super::LinkRoots { lockfile_dir: temp.path(), boundary_dir: temp.path() },
+                "provider",
+            ),
             Some("2.0.0".to_string()),
         );
     }

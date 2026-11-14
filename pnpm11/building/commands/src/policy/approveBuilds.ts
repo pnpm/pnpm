@@ -20,7 +20,7 @@ import { renderHelp } from 'render-help'
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'globalPkgDir'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & {
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'ci' | 'enableGlobalVirtualStore' | 'globalPkgDir'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & {
   all?: boolean
   global?: boolean
   /**
@@ -171,6 +171,18 @@ async function chooseBuildPackages ({ opts, params, approved, undecidedBuilds }:
   }
   if (opts.all) {
     return sortUniqueStrings([...undecidedBuilds])
+  }
+  if (!undecidedBuilds.length) {
+    return []
+  }
+  if (opts.ci || !process.stdin.isTTY) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_NON_INTERACTIVE',
+      '"pnpm approve-builds" without package arguments or --all requires an interactive terminal',
+      {
+        hint: 'Run "pnpm approve-builds" in an interactive terminal outside CI, pass --all, or pass the package names to approve (<pkg>) or deny (!<pkg>).',
+      }
+    )
   }
   return exitOnPromptCancel(() => checkbox({
     choices: sortUniqueStrings([...undecidedBuilds]).map((name) => ({

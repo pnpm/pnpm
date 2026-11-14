@@ -7,6 +7,23 @@ use super::{
 };
 use std::{borrow::Cow, collections::HashMap, path::Component};
 
+#[derive(Clone, Copy)]
+pub(super) struct LinkRoots<'a> {
+    pub(super) lockfile_dir: &'a Path,
+    pub(super) boundary_dir: &'a Path,
+}
+
+impl LinkRoots<'_> {
+    pub(super) fn canonical_target(self, path: &Path) -> Option<PathBuf> {
+        canonical_path_within(path, self.boundary_dir)
+            .or_else(|| {
+                (self.boundary_dir != self.lockfile_dir)
+                    .then(|| canonical_path_within(path, self.lockfile_dir))
+                    .flatten()
+            })
+    }
+}
+
 pub(super) fn canonical_path_within(path: &Path, base: &Path) -> Option<PathBuf> {
     let (Ok(canonical_path), Ok(canonical_base)) =
         (dunce::canonicalize(path), dunce::canonicalize(base))
@@ -18,20 +35,20 @@ pub(super) fn canonical_path_within(path: &Path, base: &Path) -> Option<PathBuf>
 
 /// `base_dir` is the directory the `link:` target is relative to — the
 /// importer's directory for importer dependencies, the lockfile directory for
-/// snapshot dependencies. Targets escaping `lockfile_dir` are rejected.
+/// snapshot dependencies. Targets escaping `roots` are rejected.
 pub(super) fn resolve_link_version(
     base_dir: &Path,
-    lockfile_dir: &Path,
+    roots: LinkRoots<'_>,
     link_target: &str,
 ) -> Option<String> {
-    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?;
+    let target_dir = roots.canonical_target(&base_dir.join(link_target))?;
     let manifest = pnpm_workspace::read_project_manifest_only(&target_dir).ok()?;
     package_manifest_version(&manifest)
 }
 
 fn resolve_locked_version(
     lockfile: &Lockfile,
-    lockfile_dir: &Path,
+    roots: LinkRoots<'_>,
     alias: &PkgName,
     spec: &ResolvedDependencySpec,
 ) -> Option<String> {
@@ -41,7 +58,7 @@ fn resolve_locked_version(
         return Some(version.clone());
     }
     let LockfileResolution::Directory(directory) = &metadata.resolution else { return None };
-    resolve_link_version(lockfile_dir, lockfile_dir, &directory.directory)
+    resolve_link_version(roots.lockfile_dir, roots, &directory.directory)
 }
 
 pub(super) fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
@@ -70,7 +87,7 @@ pub(super) struct PeerProviders<'a> {
     pub(super) linked_importer: Option<&'a ProjectSnapshot>,
     pub(super) importer_dir: &'a Path,
     pub(super) linked_importer_dir: &'a Path,
-    pub(super) lockfile_dir: &'a Path,
+    pub(super) roots: LinkRoots<'a>,
     pub(super) resolve_peers_from_workspace_root: bool,
     pub(super) project_manifests: &'a ProjectManifests<'a>,
 }
@@ -218,7 +235,7 @@ impl PeerProviders<'_> {
                     .unwrap_or_else(|| format!("link:{link_target}")),
             );
         }
-        resolve_locked_version(self.lockfile, self.lockfile_dir, peer_pkg_name, spec)
+        resolve_locked_version(self.lockfile, self.roots, peer_pkg_name, spec)
             .or_else(|| spec.version.ver_peer().map(extract_peer_version))
             .or_else(|| {
                 spec.version
@@ -230,10 +247,8 @@ impl PeerProviders<'_> {
     /// [`resolve_link_version`], with the manifest taken from
     /// [`ProjectManifests`] when the target is one of them.
     fn link_version(&self, base_dir: &Path, link_target: &str) -> Option<String> {
-        let canonical_lockfile_dir = dunce::canonicalize(self.lockfile_dir).ok()?;
-        let target_dir = dunce::canonicalize(base_dir.join(link_target))
-            .ok()
-            .filter(|target_dir| target_dir.starts_with(&canonical_lockfile_dir))?;
+        let canonical_lockfile_dir = dunce::canonicalize(self.roots.lockfile_dir).ok()?;
+        let target_dir = self.roots.canonical_target(&base_dir.join(link_target))?;
         let importer_id =
             pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &target_dir);
         let manifest = linked_manifest(self.project_manifests, &importer_id, &target_dir)?;
@@ -296,7 +311,7 @@ impl PeerProviders<'_> {
         self.lockfile.importers
             .get(".")
             .and_then(|root_importer| project_dependency(root_importer, name))
-            .map(|spec| (spec, self.lockfile_dir))
+            .map(|spec| (spec, self.roots.lockfile_dir))
     }
 }
 
@@ -306,23 +321,25 @@ impl PeerProviders<'_> {
 pub(super) struct LinkedPackages<'m> {
     project_manifests: &'m ProjectManifests<'m>,
     canonical_lockfile_dir: Option<PathBuf>,
+    canonical_boundary_dir: Option<PathBuf>,
     key_base_by_importer_dir: HashMap<PathBuf, Option<PathBuf>>,
     pub(super) by_target: HashMap<PathBuf, Option<LinkedDependency<'m>>>,
 }
 
 impl<'m> LinkedPackages<'m> {
-    pub(super) fn new(lockfile_dir: &Path, project_manifests: &'m ProjectManifests<'m>) -> Self {
+    pub(super) fn new(roots: LinkRoots<'_>, project_manifests: &'m ProjectManifests<'m>) -> Self {
         LinkedPackages {
             project_manifests,
-            canonical_lockfile_dir: dunce::canonicalize(lockfile_dir).ok(),
+            canonical_lockfile_dir: dunce::canonicalize(roots.lockfile_dir).ok(),
+            canonical_boundary_dir: dunce::canonicalize(roots.boundary_dir).ok(),
             key_base_by_importer_dir: HashMap::new(),
             by_target: HashMap::new(),
         }
     }
 
     /// The version, the peer check, and the linked importer's own snapshot
-    /// all need the same answers. Targets escaping the lockfile directory
-    /// are rejected.
+    /// all need the same answers. Targets escaping both the workspace boundary
+    /// and the lockfile directory are rejected.
     pub(super) fn resolve(
         &mut self,
         importer_dir: &Path,
@@ -330,12 +347,15 @@ impl<'m> LinkedPackages<'m> {
     ) -> Option<&LinkedDependency<'m>> {
         let target = self.target_key(importer_dir, Path::new(link_target));
         let canonical_lockfile_dir = self.canonical_lockfile_dir.as_deref()?;
+        let canonical_boundary_dir = self.canonical_boundary_dir.as_deref();
         let project_manifests = self.project_manifests;
         self.by_target
             .entry(target)
             .or_insert_with_key(|target| {
                 let dir = dunce::canonicalize(target).ok()?;
-                if !dir.starts_with(canonical_lockfile_dir) {
+                let within_boundary =
+                    canonical_boundary_dir.is_some_and(|boundary| dir.starts_with(boundary));
+                if !within_boundary && !dir.starts_with(canonical_lockfile_dir) {
                     return None;
                 }
                 let importer_id =

@@ -50,7 +50,7 @@ fn reports_an_unknown_denied_package_as_pre_emptive() {
 #[test]
 fn rejects_contradictory_arguments() {
     let err = args(&["foo", "!foo"])
-        .decide::<SilentReporter>(&pending(&["foo"]))
+        .decide::<SilentReporter>(&pending(&["foo"]), false)
         .err()
         .expect("contradicting arguments are rejected");
     let ApproveBuildsError::ContradictingArgs(names) = approve_builds_error(err) else {
@@ -76,6 +76,33 @@ fn rejects_positional_arguments_with_all() {
         .validate()
         .unwrap_err();
     assert!(matches!(approve_builds_error(err), ApproveBuildsError::AllWithArgs));
+}
+
+#[test]
+fn rejects_interactive_approval_when_prompting_is_unavailable() {
+    let err = args(&[])
+        .decide_with_prompt::<SilentReporter>(&pending(&["esbuild"]), false)
+        .err()
+        .expect("interactive approval without a prompt is rejected");
+    assert!(matches!(approve_builds_error(err), ApproveBuildsError::NonInteractive));
+
+    assert!(
+        args(&[])
+            .decide_with_prompt::<SilentReporter>(&[], false)
+            .expect("no pending builds needs no prompt")
+            .is_none(),
+    );
+    let all = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
+        .decide_with_prompt::<SilentReporter>(&pending(&["esbuild"]), false)
+        .expect("--all needs no prompt")
+        .expect("decision for --all");
+    assert_eq!(all.build_packages, vec!["esbuild".to_string()]);
+
+    let named = args(&["esbuild"])
+        .decide_with_prompt::<SilentReporter>(&pending(&["esbuild"]), false)
+        .expect("named package needs no prompt")
+        .expect("decision for named package");
+    assert_eq!(named.build_packages, vec!["esbuild".to_string()]);
 }
 
 #[test]

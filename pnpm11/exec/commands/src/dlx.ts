@@ -446,7 +446,8 @@ async function promptApproveDlxBuilds (
 ): Promise<void> {
   if (!commands?.['approve-builds']) return
   const autoApproveForTests = process.env[AUTO_APPROVE_FOR_TESTS_ENV] === '1'
-  if (!autoApproveForTests && !process.stdin.isTTY) return
+  const inCi = (opts.inheritedOpts as { ci?: boolean }).ci
+  if (!autoApproveForTests && (inCi || !process.stdin.isTTY)) return
   const { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds({
     dir: opts.cachedDir,
     lockfileDir: opts.cachedDir,
