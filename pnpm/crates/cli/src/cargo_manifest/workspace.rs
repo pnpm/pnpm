@@ -36,7 +36,8 @@ where
 
 pub(crate) fn resolve_local_path(path: &Path) -> PathBuf {
     std::path::absolute(path)
-        .map_or_else(|_| pnpm_fs::lexical_normalize(path), |abs| pnpm_fs::lexical_normalize(&abs))
+        .map(|abs| pnpm_fs::lexical_normalize(&abs))
+        .unwrap_or_else(|_| pnpm_fs::lexical_normalize(path))
 }
 
 pub(crate) fn rebase_workspace_path(

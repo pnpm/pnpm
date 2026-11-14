@@ -79,7 +79,8 @@ pub(super) fn section_end(
     header_spans
         .iter()
         .find(|span| span.start > header_span.start)
-        .map_or(contents.len(), |next| line_start(contents, next.start))
+        .map(|next| line_start(contents, next.start))
+        .unwrap_or(contents.len())
 }
 
 pub(super) fn dotted_prefix<'a>(contents: &'a str, span: &Range<usize>) -> &'a str {
@@ -90,13 +91,15 @@ pub(super) fn dotted_prefix<'a>(contents: &'a str, span: &Range<usize>) -> &'a s
 pub(super) fn line_start(contents: &str, pos: usize) -> usize {
     contents[..pos]
         .rfind('\n')
-        .map_or(0, |nl| nl + 1)
+        .map(|nl| nl + 1)
+        .unwrap_or(0)
 }
 
 pub(super) fn end_of_line(contents: &str, pos: usize) -> usize {
     contents[pos..]
         .find('\n')
-        .map_or(contents.len(), |nl| pos + nl + 1)
+        .map(|nl| pos + nl + 1)
+        .unwrap_or(contents.len())
 }
 
 pub(super) fn full_line_range(contents: &str, span: Range<usize>) -> Range<usize> {
@@ -112,7 +115,8 @@ pub(super) fn dotted_table_end(
     let limit = header_spans
         .iter()
         .find(|header| header.start > table_span.start)
-        .map_or(contents.len(), |header| header.start);
+        .map(|header| header.start)
+        .unwrap_or(contents.len());
     max_dotted_end(contents, table, limit).unwrap_or(table_span.end)
 }
 
