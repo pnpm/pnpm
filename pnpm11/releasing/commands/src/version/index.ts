@@ -1,9 +1,8 @@
 import path from 'node:path'
 
 import { readProjectManifest } from '@pnpm/cli.utils'
-import { binDirOf, type Config, createProjectModulesDirResolver, types as allTypes } from '@pnpm/config.reader'
+import { type Config, createProjectModulesDirResolver, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { makeProjectNodePathOption, runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import {
   type AppliedRelease,
@@ -11,6 +10,7 @@ import {
   type ApplyReleasePlanOptions,
   assembleReleasePlan,
   changelogStorage,
+  type PlannedRelease,
   privateProjectDirs,
   readChangeIntents,
   readLedger,
@@ -27,6 +27,7 @@ import { changelogHasSection, fetchPublishedChangelog } from '../publish/previou
 import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
 import { help } from './help.js'
+import { runVersionLifecycleHook, type VersionChange, type VersionLifecycleOptions } from './lifecycle.js'
 
 export { help }
 
@@ -36,6 +37,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'commit-hooks',
     'git-checks',
     'git-tag-version',
+    'ignore-scripts',
     'message',
     'sign-git-tag',
     'tag-version-prefix',
@@ -59,14 +61,6 @@ type BumpType = typeof BUMP_TYPES[number]
 
 function isBumpType (value: string): value is BumpType {
   return (BUMP_TYPES as readonly string[]).includes(value)
-}
-
-interface VersionChange {
-  name: string
-  currentVersion: string
-  newVersion: string
-  path: string
-  manifestPath: string
 }
 
 interface VersionHandlerOptions extends Config {
@@ -190,10 +184,41 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
   }
 
   if (opts.dryRun) {
+    if (opts.json) {
+      const planned: AppliedRelease[] = plan.releases.map((release) => ({
+        name: release.name,
+        currentVersion: release.currentVersion,
+        newVersion: release.newVersion,
+      }))
+      return JSON.stringify(planned, null, 2)
+    }
     return renderReleasePlan(plan)
   }
 
-  return renderAppliedReleases(await applyReleasePlan(plan, applyOpts), opts.json)
+  const lifecycleOpts: VersionLifecycleOptions = { ...opts, modulesDirFor: createProjectModulesDirResolver(opts) }
+  await runReleaseLifecycleHooks('preversion', plan.releases, lifecycleOpts)
+  const applied = await applyReleasePlan(plan, applyOpts)
+  await runReleaseLifecycleHooks('version', plan.releases, lifecycleOpts)
+  await runReleaseLifecycleHooks('postversion', plan.releases, lifecycleOpts)
+  return renderAppliedReleases(applied, opts.json)
+}
+
+async function runReleaseLifecycleHooks (
+  stage: 'preversion' | 'version' | 'postversion',
+  releases: PlannedRelease[],
+  opts: VersionLifecycleOptions
+): Promise<void> {
+  for (const release of releases) {
+    const newVersion = stage === 'preversion' ? release.currentVersion : release.newVersion
+    // eslint-disable-next-line no-await-in-loop -- lifecycle scripts run one project at a time, in release plan order
+    await runVersionLifecycleHook(stage, {
+      name: release.name,
+      currentVersion: release.currentVersion,
+      newVersion,
+      path: release.rootDir,
+      manifestPath: path.join(release.rootDir, 'package.json'),
+    }, opts)
+  }
 }
 
 interface IntentReleasePlan {
@@ -289,13 +314,11 @@ async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<str
   return version
 }
 
-type VersionLifecycleOptions = VersionHandlerOptions & { modulesDirFor: ReturnType<typeof createProjectModulesDirResolver> }
-
 interface BumpPackageVersionOptions {
   pkgDir: string
   rawBump: string
   explicitVersion: string | null
-  opts: VersionLifecycleOptions
+  opts: VersionHandlerOptions & VersionLifecycleOptions
 }
 
 async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: BumpPackageVersionOptions): Promise<VersionChange | null> {
@@ -345,29 +368,6 @@ async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: B
   await runVersionLifecycleHook('version', change, opts)
 
   return change
-}
-
-async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postversion', change: VersionChange, opts: VersionLifecycleOptions): Promise<void> {
-  if (opts.ignoreScripts === true || opts.dryRun) return
-
-  const { manifest } = await readProjectManifest(change.path)
-  const wdBinDir = binDirOf(change.path, opts.modulesDirFor(manifest.name))
-  const lifecycleOpts: RunLifecycleHookOptions = {
-    depPath: change.name,
-    wdBinDir,
-    extraBinPaths: opts.extraBinPaths,
-    extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir: path.dirname(wdBinDir), rootDir: change.path }, opts) },
-    initCwd: opts.dir,
-    pkgRoot: change.path,
-    rootModulesDir: path.dirname(wdBinDir),
-    scriptShell: opts.scriptShell,
-    scriptsPrependNodePath: opts.scriptsPrependNodePath,
-    shellEmulator: opts.shellEmulator,
-    stdio: 'inherit',
-    unsafePerm: opts.unsafePerm ?? false,
-    userAgent: opts.userAgent,
-  }
-  await runLifecycleHook(stage, manifest, lifecycleOpts)
 }
 
 async function commitAndTag (changes: VersionChange[], opts: VersionHandlerOptions & { cwd: string }): Promise<void> {

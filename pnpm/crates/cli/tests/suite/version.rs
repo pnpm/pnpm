@@ -1843,3 +1843,4 @@ fn pacquet_version_assuming_published(workspace: &Path, args: &[&str]) -> std::p
 }
 
 mod git;
+mod release;

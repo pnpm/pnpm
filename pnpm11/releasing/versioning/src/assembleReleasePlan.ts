@@ -31,6 +31,10 @@ export {
   type VersioningInvariantViolation,
 } from './versioningInvariants.js'
 export { materializeWorkspaceRange } from './versionMath.js'
+export {
+  type ResolveWorkspaceVersioningOptions,
+  validateVersioningLanes,
+} from './workspaceVersioning.js'
 
 
 export type ReleaseCause = 'intent' | 'dependencies' | 'fixed' | 'epic'

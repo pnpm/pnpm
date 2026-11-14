@@ -32,7 +32,7 @@ export interface RunLifecycleHookOptions {
   silent?: boolean
   scriptsPrependNodePath?: boolean | 'warn-only'
   shellEmulator?: boolean
-  stdio?: 'inherit' | 'pipe'
+  stdio?: 'inherit' | 'pipe' | ['inherit', 'pipe', 'pipe']
   unsafePerm: boolean
   userAgent?: string
 }
@@ -125,7 +125,7 @@ interface LogStartParams {
   script: string
   silent?: boolean
   stage: string
-  stdio?: 'inherit' | 'pipe'
+  stdio?: RunLifecycleHookOptions['stdio']
 }
 
 function logLifecycleStart (params: LogStartParams): void {
@@ -194,7 +194,7 @@ interface LogContext {
   depPath: string
   optional: boolean
   stage: string
-  stdio?: 'inherit' | 'pipe'
+  stdio?: RunLifecycleHookOptions['stdio']
   wd: string
 }
 

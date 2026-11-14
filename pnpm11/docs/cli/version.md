@@ -51,6 +51,8 @@ Narrow it to part of the workspace with `--filter`. The selection is expanded un
 
 The working tree must be clean unless `--dry-run` or `--no-git-checks` is passed. See [Release management](../versioning.md) for the full workflow.
 
+A bump runs the `preversion`, `version`, and `postversion` scripts of each bumped package. `--dry-run` and [`ignoreScripts`](../settings/build.md#ignorescripts) skip them.
+
 ## Options
 
 ### --preid &lt;prerelease-id\>
