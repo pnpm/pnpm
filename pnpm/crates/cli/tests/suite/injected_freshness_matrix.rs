@@ -348,8 +348,6 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     );
     // pnpm v11 rejects a local path in a catalog.
     if filter.is_empty()
-        && layout.shared_lockfile
-        && matches!(layout.child_spec, ChildSpec::None)
         && !matches!(edit, Edit::CatalogFileChild)
         && let Some(bundle) = read_v11_bundle_path()
     {

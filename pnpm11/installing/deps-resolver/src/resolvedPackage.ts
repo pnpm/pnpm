@@ -102,10 +102,9 @@ export function getResolvedPackage (
     hasBin: options.hasBin,
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,
-    localLinkedDependencies: new Map(
-      Object.entries({ ...options.pkg.dependencies, ...options.pkg.optionalDependencies })
-        .filter(([, specifier]) => specifier.startsWith('link:') || barePathIsUnambiguous(specifier))
-    ),
+    localLinkedDependencies: options.pkgResponse.body.resolution.type === 'directory'
+      ? getLocalLinkedDependencies(options.pkg)
+      : undefined,
     name: options.pkg.name,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
@@ -117,6 +116,13 @@ export function getResolvedPackage (
     resolvedVia: options.pkgResponse.body.resolvedVia,
     version: options.pkg.version,
   }
+}
+
+function getLocalLinkedDependencies (pkg: PackageManifest): Map<string, string> {
+  return new Map(
+    Object.entries({ ...pkg.dependencies, ...pkg.optionalDependencies })
+      .filter(([, specifier]) => specifier.startsWith('link:') || barePathIsUnambiguous(specifier))
+  )
 }
 
 /**
