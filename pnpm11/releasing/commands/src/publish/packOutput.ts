@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
@@ -79,6 +80,50 @@ function resolveTarballAndDestination (
   return {
     destination: parsedOut.dir || undefined,
     tarballName: parsedOut.base,
+  }
+}
+
+export function canonicalizePackDestination (destDir: string): string {
+  try {
+    return fs.realpathSync.native(destDir)
+  } catch {
+    return resolveMissingDestination(resolveRelativeTarget(process.cwd(), destDir))
+  }
+}
+
+function resolveMissingDestination (anchoredDir: string): string {
+  const { root } = path.parse(anchoredDir)
+  let state = { current: root || '.', missingTail: false }
+  for (const segment of splitPathSegments(anchoredDir.slice(root.length))) {
+    if (segment && segment !== '.') {
+      state = stepDestinationSegment(state.current, segment, state.missingTail)
+    }
+  }
+  return state.current
+}
+
+function splitPathSegments (relativePath: string): string[] {
+  return relativePath.split(process.platform === 'win32' ? /[/\\]+/ : /\/+/)
+}
+
+function stepDestinationSegment (
+  current: string,
+  segment: string,
+  missingTail: boolean
+): { current: string, missingTail: boolean } {
+  if (segment === '..') {
+    const parent = path.dirname(current)
+    return missingTail ? tryRealpath(parent) : { current: parent, missingTail: false }
+  }
+  const next = path.join(current, segment)
+  return missingTail ? { current: next, missingTail: true } : tryRealpath(next)
+}
+
+function tryRealpath (candidate: string): { current: string, missingTail: boolean } {
+  try {
+    return { current: fs.realpathSync.native(candidate), missingTail: false }
+  } catch {
+    return { current: candidate, missingTail: true }
   }
 }
 

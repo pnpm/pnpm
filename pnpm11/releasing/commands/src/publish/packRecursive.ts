@@ -11,7 +11,7 @@ import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-schedul
 import { publishedName } from '../publishedNames.js'
 import type { PackOptions, PackResultJson } from './pack.js'
 import { api, toPackResultJson } from './packApi.js'
-import { resolvePackOutput, resolveRelativeTarget } from './packOutput.js'
+import { canonicalizePackDestination, resolvePackOutput, resolveRelativeTarget } from './packOutput.js'
 
 export type PackDestinationLocker = (destination: string, write: () => Promise<void>) => Promise<void>
 
@@ -171,14 +171,15 @@ function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
   const publishedVersion = pkg.manifest.version
   if (!targetName || !publishedVersion) return undefined
   try {
-    return path.normalize(resolvePackOutput({
+    const { destDir, tarballName } = resolvePackOutput({
       dir: pkg.rootDir,
       outputBaseDir: opts.outputBaseDir,
       out: opts.out,
       packDestination: opts.packDestination,
       publishedName: targetName,
       publishedVersion,
-    }).outputPath)
+    })
+    return path.join(canonicalizePackDestination(destDir), tarballName)
   } catch {
     return undefined
   }

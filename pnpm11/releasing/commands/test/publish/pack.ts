@@ -2101,6 +2101,88 @@ testOnPosix('pack: packDestinationLocker serializes concurrent packs sharing a s
   expect(entries).toEqual(expect.arrayContaining(['package/package.json', 'package/index.js']))
 })
 
+testOnPosix('pack: recursive --out with symlinked %s/../ destinations packs distinct targets concurrently', async () => {
+  const outer = tempDir()
+  const wsDir = path.join(outer, 'workspace')
+  const dest1 = path.join(outer, 'dest-1')
+  const dest2 = path.join(outer, 'dest-2')
+  fs.mkdirSync(path.join(dest1, 'inner'), { recursive: true })
+  fs.mkdirSync(path.join(dest2, 'inner'), { recursive: true })
+  const eventsFile = path.join(outer, 'pack-events.txt')
+  const pkgs = ['project-1', 'project-2'].map((name) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      postpack: `node -e "const fs=require('fs');const [filePath,pkgName]=process.argv.slice(1);fs.appendFileSync(filePath,pkgName+':start\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,250);fs.appendFileSync(filePath,pkgName+':end\\n')" ${JSON.stringify(eventsFile)} ${name}`,
+    },
+  }))
+  prepare({ private: true }, { tempDir: wsDir })
+  preparePackages(pkgs, { tempDir: path.join(wsDir, 'packages') })
+  fs.symlinkSync(path.join(dest1, 'inner'), path.join(wsDir, 'link-project-1'))
+  fs.symlinkSync(path.join(dest2, 'inner'), path.join(wsDir, 'link-project-2'))
+  writeYamlFileSync(path.join(wsDir, 'pnpm-workspace.yaml'), { packages: ['project-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(wsDir, [])
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: wsDir,
+    extraBinPaths: [],
+    ignoreScripts: false,
+    out: 'link-%s/../sub/bundle.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 2,
+  })
+
+  const events = fs.readFileSync(eventsFile, 'utf8').trim().split('\n')
+  expect(events.slice(0, 2).sort()).toStrictEqual(['project-1:start', 'project-2:start'])
+  expect(fs.existsSync(path.join(dest1, 'sub', 'bundle.tgz'))).toBe(true)
+  expect(fs.existsSync(path.join(dest2, 'sub', 'bundle.tgz'))).toBe(true)
+})
+
+testOnPosix('pack: recursive --out with symlinked %s/../ destinations serializes shared targets', async () => {
+  const outer = tempDir()
+  const wsDir = path.join(outer, 'workspace')
+  const sharedParent = path.join(outer, 'shared')
+  fs.mkdirSync(path.join(sharedParent, 'inner-1'), { recursive: true })
+  fs.mkdirSync(path.join(sharedParent, 'inner-2'), { recursive: true })
+  const eventsFile = path.join(outer, 'pack-events.txt')
+  const pkgs = ['project-1', 'project-2'].map((name) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      postpack: `node -e "const fs=require('fs');const [filePath,pkgName]=process.argv.slice(1);fs.appendFileSync(filePath,pkgName+':start\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,200);fs.appendFileSync(filePath,pkgName+':end\\n')" ${JSON.stringify(eventsFile)} ${name}`,
+    },
+  }))
+  prepare({ private: true }, { tempDir: wsDir })
+  preparePackages(pkgs, { tempDir: path.join(wsDir, 'packages') })
+  fs.symlinkSync(path.join(sharedParent, 'inner-1'), path.join(wsDir, 'link-project-1'))
+  fs.symlinkSync(path.join(sharedParent, 'inner-2'), path.join(wsDir, 'link-project-2'))
+  writeYamlFileSync(path.join(wsDir, 'pnpm-workspace.yaml'), { packages: ['project-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(wsDir, [])
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: wsDir,
+    extraBinPaths: [],
+    ignoreScripts: false,
+    out: 'link-%s/../sub/bundle.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 2,
+  })
+
+  const events = fs.readFileSync(eventsFile, 'utf8').trim().split('\n')
+  expect(events).toHaveLength(4)
+  for (let index = 0; index < events.length; index += 2) {
+    const project = events[index].replace(/:start$/, '')
+    expect(events[index + 1]).toBe(`${project}:end`)
+  }
+  expect(fs.existsSync(path.join(sharedParent, 'sub', 'bundle.tgz'))).toBe(true)
+})
+
 describe('resolveRelativeTarget and resolvePackOutput cross-platform behavior', () => {
   test.each([
     ['/ws', undefined, '/ws'],
