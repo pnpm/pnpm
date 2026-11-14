@@ -1,5 +1,5 @@
 use super::{Host, PackError, api, fixture, json};
-use crate::pack_output_path;
+use crate::{PackOutputLocks, pack_output_path};
 use pnpm_reporter::SilentReporter;
 use tempfile::tempdir;
 
@@ -106,4 +106,48 @@ fn pack_output_path_resolves_symlink_before_parent_dir() {
     let direct = pack_output_path(&real_parent, None, Some("tarballs"), "pkg-a", "1.0.0")
         .expect("resolve direct output path");
     assert_eq!(via_symlink, direct);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn pack_output_locks_serialize_symlink_and_direct_paths() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    let outer = tempdir().unwrap();
+    let real_parent = outer.path().join("real-parent");
+    let ws_dir = outer.path().join("ws");
+    std::fs::create_dir_all(real_parent.join("sub")).unwrap();
+    std::fs::create_dir_all(&ws_dir).unwrap();
+    std::os::unix::fs::symlink(real_parent.join("sub"), ws_dir.join("link")).unwrap();
+
+    let locks = Arc::new(PackOutputLocks::default());
+    let first_guard = locks.lock(&real_parent.join("tarballs").join("pkg-a-1.0.0.tgz")).await;
+    let second_acquired = Arc::new(AtomicBool::new(false));
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let waiter = {
+        let locks = Arc::clone(&locks);
+        let second_acquired = Arc::clone(&second_acquired);
+        let symlink_path = ws_dir.join("link/../tarballs/pkg-a-1.0.0.tgz");
+        tokio::spawn(async move {
+            let _ = started_tx.send(());
+            let _guard = locks.lock(&symlink_path).await;
+            second_acquired.store(true, Ordering::SeqCst);
+        })
+    };
+
+    started_rx.await.unwrap();
+    for _ in 0..8 {
+        tokio::task::yield_now().await;
+    }
+    assert!(
+        !second_acquired.load(Ordering::SeqCst),
+        "second lock on equivalent symlink/../ path must wait while first guard is held",
+    );
+
+    drop(first_guard);
+    waiter.await.unwrap();
+    assert!(second_acquired.load(Ordering::SeqCst));
 }

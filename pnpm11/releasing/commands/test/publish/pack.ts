@@ -11,7 +11,7 @@ import * as tar from 'tar'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import type { PackResultJson } from '../../src/publish/pack.js'
-import { resolvePackOutput, resolveRelativeTarget } from '../../src/publish/packOutput.js'
+import { canonicalizePackDestination, resolvePackOutput, resolveRelativeTarget } from '../../src/publish/packOutput.js'
 import { createPackDestinationLocker } from '../../src/publish/packRecursive.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -2181,6 +2181,28 @@ testOnPosix('pack: recursive --out with symlinked %s/../ destinations serializes
     expect(events[index + 1]).toBe(`${project}:end`)
   }
   expect(fs.existsSync(path.join(sharedParent, 'sub', 'bundle.tgz'))).toBe(true)
+})
+
+test('canonicalizePackDestination caches shared lookups and rethrows non-missing filesystem errors', async () => {
+  const dir = tempDir()
+  const cache = new Map<string, Promise<string>>()
+  const realpathSpy = jest.spyOn(fs.promises, 'realpath')
+  try {
+    const [first, second] = await Promise.all([
+      canonicalizePackDestination(dir, cache),
+      canonicalizePackDestination(dir, cache),
+    ])
+    expect(first).toBe(second)
+    expect(realpathSpy).toHaveBeenCalledTimes(1)
+
+    const eacces = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+    realpathSpy.mockRejectedValueOnce(eacces)
+    const restrictedDir = path.join(dir, 'restricted')
+    await expect(canonicalizePackDestination(restrictedDir, cache)).rejects.toThrow('EACCES: permission denied')
+    expect(cache.has(restrictedDir)).toBe(false)
+  } finally {
+    realpathSpy.mockRestore()
+  }
 })
 
 describe('resolveRelativeTarget and resolvePackOutput cross-platform behavior', () => {

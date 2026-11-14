@@ -41,7 +41,7 @@ export async function packRecursively (opts: PackOptions): Promise<PackResultJso
   })
 
   const resolvedOpts = resolvePackDestinationOptions(opts)
-  const packOrder = serializeSharedPackDestinations({
+  const packOrder = await serializeSharedPackDestinations({
     opts: resolvedOpts,
     packedPkgDirs,
     projectDependencies,
@@ -117,22 +117,35 @@ async function packInGraphOrder ({ opts, packedPkgDirs, projectDependencies, pro
  * Makes each project that writes to the same tarball path as an earlier project in pack order
  * depend on that project, so the two never write the same file at once. Returns the pack order.
  */
-function serializeSharedPackDestinations (params: PackGraphParams): ProjectRootDir[] {
+async function serializeSharedPackDestinations (params: PackGraphParams): Promise<ProjectRootDir[]> {
   const { opts, packedPkgDirs, projectDependencies, projectsGraph } = params
   const order = graphSequencer(projectDependencies).order
   if (canPackOutputChangeWhilePacking(opts, order, projectsGraph) && !isLiteralPackOutput(opts.out)) return order
+  const activeDirs = order.filter((pkgDir) => packedPkgDirs.has(pkgDir))
+  const destinationCache = new Map<string, Promise<string>>()
+  const outputs = await Promise.all(
+    activeDirs.map((pkgDir) => packOutputPath(opts, projectsGraph[pkgDir].package, destinationCache))
+  )
+  linkSharedDestinationPredecessors(activeDirs, outputs, projectDependencies)
+  return order
+}
+
+function linkSharedDestinationPredecessors (
+  activeDirs: ProjectRootDir[],
+  outputs: Array<string | undefined>,
+  projectDependencies: Map<ProjectRootDir, ProjectRootDir[]>
+): void {
   const previousByOutput = new Map<string, ProjectRootDir>()
-  for (const pkgDir of order) {
-    if (!packedPkgDirs.has(pkgDir)) continue
-    const output = packOutputPath(opts, projectsGraph[pkgDir].package)
+  for (let index = 0; index < activeDirs.length; index += 1) {
+    const output = outputs[index]
     if (output == null) continue
+    const pkgDir = activeDirs[index]
     const predecessor = previousByOutput.get(output)
     previousByOutput.set(output, pkgDir)
     if (predecessor != null && !projectDependencies.get(pkgDir)!.includes(predecessor)) {
       projectDependencies.get(pkgDir)!.push(predecessor)
     }
   }
-  return order
 }
 
 function canPackOutputChangeWhilePacking (opts: PackOptions, order: ProjectRootDir[], projectsGraph: ProjectsGraph): boolean {
@@ -166,12 +179,17 @@ export function createPackDestinationLocker (): PackDestinationLocker {
   }
 }
 
-function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
+async function packOutputPath (
+  opts: PackOptions,
+  pkg: Project,
+  destinationCache: Map<string, Promise<string>>
+): Promise<string | undefined> {
   const targetName = publishedName(pkg.manifest)
   const publishedVersion = pkg.manifest.version
   if (!targetName || !publishedVersion) return undefined
+  let resolved: ReturnType<typeof resolvePackOutput>
   try {
-    const { destDir, tarballName } = resolvePackOutput({
+    resolved = resolvePackOutput({
       dir: pkg.rootDir,
       outputBaseDir: opts.outputBaseDir,
       out: opts.out,
@@ -179,8 +197,10 @@ function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
       publishedName: targetName,
       publishedVersion,
     })
-    return path.join(canonicalizePackDestination(destDir), tarballName)
-  } catch {
-    return undefined
+  } catch (err: unknown) {
+    if (err instanceof PnpmError) return undefined
+    throw err
   }
+  const canonicalDir = await canonicalizePackDestination(resolved.destDir, destinationCache)
+  return path.join(canonicalDir, resolved.tarballName)
 }

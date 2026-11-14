@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 
@@ -83,34 +84,58 @@ function resolveTarballAndDestination (
   }
 }
 
-export function canonicalizePackDestination (destDir: string): string {
+export async function canonicalizePackDestination (
+  destDir: string,
+  cache?: Map<string, Promise<string>>
+): Promise<string> {
+  let pending = cache?.get(destDir)
+  if (pending == null) {
+    pending = resolveCanonicalDestination(destDir)
+    cache?.set(destDir, pending)
+  }
   try {
-    return fs.realpathSync.native(destDir)
-  } catch {
+    return await pending
+  } catch (err: unknown) {
+    cache?.delete(destDir)
+    throw err
+  }
+}
+
+async function resolveCanonicalDestination (destDir: string): Promise<string> {
+  try {
+    return await fs.promises.realpath(destDir)
+  } catch (err: unknown) {
+    if (!isMissingPathError(err)) throw err
     return resolveMissingDestination(resolveRelativeTarget(process.cwd(), destDir))
   }
 }
 
-function resolveMissingDestination (anchoredDir: string): string {
+async function resolveMissingDestination (anchoredDir: string): Promise<string> {
   const { root } = path.parse(anchoredDir)
-  let state = { current: root || '.', missingTail: false }
-  for (const segment of splitPathSegments(anchoredDir.slice(root.length))) {
-    if (segment && segment !== '.') {
-      state = stepDestinationSegment(state.current, segment, state.missingTail)
-    }
-  }
-  return state.current
+  const segments = splitPathSegments(anchoredDir.slice(root.length))
+    .filter((segment) => segment !== '' && segment !== '.')
+  return walkDestinationSegments(segments, 0, { current: root || '.', missingTail: false })
 }
 
 function splitPathSegments (relativePath: string): string[] {
   return relativePath.split(process.platform === 'win32' ? /[/\\]+/ : /\/+/)
 }
 
-function stepDestinationSegment (
+async function walkDestinationSegments (
+  segments: string[],
+  index: number,
+  state: { current: string, missingTail: boolean }
+): Promise<string> {
+  if (index >= segments.length) return state.current
+  const nextState = await stepDestinationSegment(state.current, segments[index], state.missingTail)
+  return walkDestinationSegments(segments, index + 1, nextState)
+}
+
+async function stepDestinationSegment (
   current: string,
   segment: string,
   missingTail: boolean
-): { current: string, missingTail: boolean } {
+): Promise<{ current: string, missingTail: boolean }> {
   if (segment === '..') {
     const parent = path.dirname(current)
     return missingTail ? tryRealpath(parent) : { current: parent, missingTail: false }
@@ -119,12 +144,17 @@ function stepDestinationSegment (
   return missingTail ? { current: next, missingTail: true } : tryRealpath(next)
 }
 
-function tryRealpath (candidate: string): { current: string, missingTail: boolean } {
+async function tryRealpath (candidate: string): Promise<{ current: string, missingTail: boolean }> {
   try {
-    return { current: fs.realpathSync.native(candidate), missingTail: false }
-  } catch {
+    return { current: await fs.promises.realpath(candidate), missingTail: false }
+  } catch (err: unknown) {
+    if (!isMissingPathError(err)) throw err
     return { current: candidate, missingTail: true }
   }
+}
+
+function isMissingPathError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
 }
 
 /**
