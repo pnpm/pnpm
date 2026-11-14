@@ -896,9 +896,10 @@ fn additive_walk_skips_excluded_unreadable_directories() {
         RestorePermissions(private_dir.clone())
     };
 
-    if fs::read_dir(&private_dir).is_ok() {
-        return;
-    }
+    assert!(
+        fs::read_dir(&private_dir).is_err(),
+        "mode-000 directory must be unreadable to exercise traversal pruning",
+    );
 
     let unexcluded =
         key_for_inputs(&project, &project, Some(vec!["+generated/**".to_string()]), &project);
@@ -914,4 +915,43 @@ fn additive_walk_skips_excluded_unreadable_directories() {
         .unwrap();
         assert!(!excluded.is_empty());
     }
+}
+
+#[test]
+fn broad_output_glob_does_not_prune_parent_additive_walk() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = GitRepoFixture::init(root.path(), "ws");
+    let workspace = root.path().join("ws-src");
+    let project = workspace.join("app");
+    repo.write_file("app/index.js", "v1");
+    repo.write_file("shared.txt", "v1");
+    let _ = repo.commit("initial");
+
+    let compute = || {
+        let storage = tempfile::tempdir().unwrap();
+        let cache = TaskCache::open(storage.path(), &workspace).unwrap();
+        let node = task_node_at(&project);
+        let mut settings = TaskSettings::default();
+        settings.inputs = Some(vec!["+../**".to_string(), "!**/.*".to_string()]);
+        settings.outputs = Some(vec!["**".to_string()]);
+        let environment = HashMap::new();
+        let script_bodies = vec![("build".to_string(), "echo build".to_string())];
+        cache
+            .compute_task_key(&TaskKeyInputs {
+                node: &node,
+                settings: Some(&settings),
+                lockfile_dir: &workspace,
+                lockfile_selection: &WantedLockfileSelection::default(),
+                dependency_keys: &[],
+                environment: &environment,
+                script_bodies: &script_bodies,
+            })
+            .unwrap()
+            .unwrap()
+    };
+
+    let before = compute();
+    fs::write(workspace.join("shared.txt"), "v2").unwrap();
+    let after = compute();
+    assert_ne!(before, after, "sibling file change must invalidate key under outputs: ['**']");
 }

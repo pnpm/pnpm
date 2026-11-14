@@ -1,6 +1,7 @@
 use super::{
     FileIterator, Glob, HashedFile, IntoDiagnostic, Path, PathBuf, Program, TaskCache,
-    check_ancestors, check_input_directories, io, is_excluded_input, validate_relative_path,
+    check_ancestors, check_input_directories, io, is_excluded_input, output_residue,
+    validate_relative_path,
 };
 use std::path::Component;
 use wax::walk::{Entry, EntryResidue, GlobEntry, WalkError};
@@ -107,7 +108,7 @@ fn rebase_to_ancestor(
         return None;
     }
     if excl_up == file_up {
-        return Some(file_tail.to_string());
+        return (!file_tail.is_empty()).then(|| file_tail.to_string());
     }
     let file_root = project.ancestors().nth(file_up)?;
     let excl_root = file_root
@@ -120,7 +121,11 @@ fn rebase_to_ancestor(
         out.push_str(segment.to_str()?);
         out.push('/');
     }
-    out.push_str(file_tail);
+    if file_tail.is_empty() {
+        out.pop();
+    } else {
+        out.push_str(file_tail);
+    }
     Some(out)
 }
 
@@ -137,6 +142,10 @@ fn split_parent_segments(pattern: &str) -> (usize, &str) {
     while let Some(tail) = trimmed.strip_prefix("../") {
         parent_depth += 1;
         trimmed = strip_cur_dir_prefixes(tail);
+    }
+    if trimmed == ".." {
+        parent_depth += 1;
+        trimmed = "";
     }
     (parent_depth, trimmed)
 }
@@ -246,22 +255,6 @@ fn walk_entry_residue(
         }
     }
     residue
-}
-
-fn output_residue(rel_path: &str, output_globs: &[Glob<'_>]) -> Option<EntryResidue> {
-    if rel_path.starts_with("../") {
-        return None;
-    }
-    let mut matched_file = false;
-    for glob in output_globs {
-        if glob.is_match(rel_path) {
-            if matches!(glob.is_exhaustive(), wax::query::When::Always) {
-                return Some(EntryResidue::Tree);
-            }
-            matched_file = true;
-        }
-    }
-    matched_file.then_some(EntryResidue::File)
 }
 
 fn resolve_walk_root(

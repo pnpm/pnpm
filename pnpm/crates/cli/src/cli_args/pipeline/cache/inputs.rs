@@ -8,7 +8,7 @@ use super::{
     create_hex_hash_bytes, create_hex_hash_from_file, env, fs, io, validate_relative_path,
 };
 use globs::{ConfiguredInputs, InputSelection, ParentGlob, parse_inputs, walk_additive_inputs};
-use wax::Program;
+use wax::{Program, walk::EntryResidue};
 
 #[derive(Debug, Clone)]
 pub(super) struct HashedFile {
@@ -271,11 +271,14 @@ impl TaskCache {
                 files.push(HashedFile { rel_path: rel_path.clone(), hash });
             }
         }
-        if let TrackedPathSet::Fresh(paths) = path_set {
-            self.project_files
-                .lock()
-                .expect("project-files lock is not poisoned")
-                .insert(project.to_path_buf(), ProjectFiles::Tracked(paths));
+        match path_set {
+            TrackedPathSet::Fresh(paths) => {
+                self.project_files
+                    .lock()
+                    .expect("project-files lock is not poisoned")
+                    .insert(project.to_path_buf(), ProjectFiles::Tracked(paths));
+            }
+            TrackedPathSet::Cached(_) => {}
         }
         Ok(Some(Arc::new(files)))
     }
@@ -356,11 +359,31 @@ fn is_excluded_input(
             .any(|glob| glob.matches_rel_path(project, rel_path))
 }
 
+fn is_outside_project(rel_path: &str) -> bool {
+    rel_path == ".." || rel_path.starts_with("../")
+}
+
 fn matches_project_output(rel_path: &str, output_globs: &[Glob<'_>]) -> bool {
-    !rel_path.starts_with("../")
+    !is_outside_project(rel_path)
         && output_globs
             .iter()
             .any(|glob| glob.is_match(rel_path))
+}
+
+fn output_residue(rel_path: &str, output_globs: &[Glob<'_>]) -> Option<EntryResidue> {
+    if is_outside_project(rel_path) {
+        return None;
+    }
+    let mut matched_file = false;
+    for glob in output_globs {
+        if glob.is_match(rel_path) {
+            if matches!(glob.is_exhaustive(), wax::query::When::Always) {
+                return Some(EntryResidue::Tree);
+            }
+            matched_file = true;
+        }
+    }
+    matched_file.then_some(EntryResidue::File)
 }
 
 /// A project's tracked-file path list, or why it has none.
