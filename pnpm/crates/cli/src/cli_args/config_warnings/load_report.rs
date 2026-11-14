@@ -78,14 +78,16 @@ impl ConfigWarnings {
         command: Option<&str>,
         positionals: &[String],
         global: bool,
-        skip_pm_handling: bool,
+        pin_handling: crate::cli_args::pre_command::PinHandling,
     ) -> Self {
         use crate::cli_args::pre_command::EntryPoint;
         let key_issues = match entry_point {
             EntryPoint::Version => KeyIssueReporting::WarnOnly,
             EntryPoint::UnknownFlag | EntryPoint::SelfUpdate => KeyIssueReporting::Skip,
             EntryPoint::Command => match command {
-                _ if skip_pm_handling => KeyIssueReporting::Skip,
+                _ if pin_handling != crate::cli_args::pre_command::PinHandling::Enforce => {
+                    KeyIssueReporting::Skip
+                }
                 Some("get") if !positionals.is_empty() => KeyIssueReporting::Skip,
                 Some("config")
                     if positionals.first().map(String::as_str) == Some("get")

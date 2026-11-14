@@ -1,8 +1,9 @@
 use super::{
-    CliNetworkArgs, ConfigLoad, EntryPoint, Invocation, PackageManagerToSync, PinInput, PinRoots,
-    PreCommandPlan, SwitchProcessState, SwitchSource, SwitchTarget, apply_cli_layers,
-    load_pre_command_config, locked_package_manager_to_fetch, pin::switch_target_from_pin,
-    pre_command_plan_with_state, read_env_lockfile, read_root_manifest, wanted_package_manager,
+    CliNetworkArgs, ConfigLoad, EntryPoint, Invocation, PackageManagerToSync, PinHandling,
+    PinInput, PinRoots, PreCommandPlan, SwitchProcessState, SwitchSource, SwitchTarget,
+    apply_cli_layers, load_pre_command_config, locked_package_manager_to_fetch,
+    pin::switch_target_from_pin, pre_command_plan_with_state, read_env_lockfile,
+    read_root_manifest, wanted_package_manager,
 };
 use crate::{
     cli_args::{
@@ -860,7 +861,7 @@ fn pre_command_input(dir: &Path) -> Invocation {
         network: CliNetworkArgs::default(),
         global: false,
         project_location: false,
-        skip_pm_handling: false,
+        pin_handling: PinHandling::Enforce,
         check_runtimes: true,
         reporter: ReporterFlags { reporter: Some(ReporterType::Silent), loglevel: None },
         warnings: ConfigWarnings::for_version_flag(),
@@ -954,6 +955,7 @@ snapshots:
 }
 
 mod argv_readers;
+mod dlx_pin;
 mod pin_decision_matrix;
 mod switch_target;
 

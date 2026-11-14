@@ -8,7 +8,7 @@
 //! Mirrors the block at the top of pnpm's `pnpm/src/main.ts`.
 
 pub(crate) use execute::{PlanExecution, execute_plan, execute_plan_reusing_config};
-pub(crate) use input::{EntryPoint, Invocation, is_global, should_skip_command};
+pub(crate) use input::{EntryPoint, Invocation, PinHandling, is_global, should_skip_command};
 pub(in crate::cli_args) use load_config::{apply_cli_layers, seed_config};
 pub(crate) use pin::{PinDecision, PinInput, decide};
 
@@ -127,7 +127,7 @@ fn pre_command_plan_with_state(
     config_overrides: &ConfigOverrides,
     process_state: SwitchProcessState,
 ) -> miette::Result<PreCommandOutcome> {
-    if invocation.skip_pm_handling
+    if invocation.pin_handling == PinHandling::Skip
         || (invocation.entry_point != EntryPoint::SelfUpdate
             && invocation.command.as_deref().is_some_and(should_skip_command_name))
     {
@@ -211,7 +211,7 @@ fn execute_pin_decision(
 /// Whether no manifest the pin could be read from pins pnpm or a runtime
 /// these checks act on, so no setting can change what they do.
 fn pins_nothing_to_check(invocation: &Invocation, dir: &Path) -> bool {
-    if invocation.skip_pm_handling {
+    if invocation.pin_handling == PinHandling::Skip {
         return true;
     }
     let mut candidates = vec![dir.to_path_buf()];
@@ -221,7 +221,9 @@ fn pins_nothing_to_check(invocation: &Invocation, dir: &Path) -> bool {
     }
     candidates.sort();
     candidates.dedup();
-    let checks_runtimes = invocation.check_runtimes && !invocation.global;
+    let checks_runtimes = invocation.check_runtimes
+        && !invocation.global
+        && invocation.pin_handling == PinHandling::Enforce;
     candidates
         .iter()
         .filter_map(|candidate| read_root_manifest(candidate))
@@ -243,7 +245,7 @@ fn check_manifest_runtimes(
     manifest: Option<Value>,
 ) -> miette::Result<()> {
     if invocation.check_runtimes
-        && !invocation.skip_pm_handling
+        && invocation.pin_handling == PinHandling::Enforce
         && !invocation.global
         && let Some(manifest) = manifest
     {

@@ -1,7 +1,7 @@
 use super::{
     Config, EntryPoint, EnvLockfile, Invocation, LogEvent, PACKAGE_MANAGER_SWITCH_ENV_VARS,
-    PackageManager, PackageManagerToSync, PathBuf, PinRoots, PmOnFail, PreCommandError,
-    SwitchProcessState, SwitchSource, SwitchTarget, Value, WantedPackageManager,
+    PackageManager, PackageManagerToSync, PathBuf, PinHandling, PinRoots, PmOnFail,
+    PreCommandError, SwitchProcessState, SwitchSource, SwitchTarget, Value, WantedPackageManager,
     env_lockfile_sync_from_loaded, global_warn, locked_package_manager_version,
     locked_switch_source, sanitize_inline, should_persist_package_manager_lockfile,
     switch_env_root, version_satisfies,
@@ -46,22 +46,48 @@ pub(crate) fn should_read_pin_lockfile(
         return false;
     };
     let on_fail = effective_on_fail(config, pm);
-    if on_fail == PmOnFail::Ignore
-        || !should_persist_package_manager_lockfile(&WantedPackageManager {
-            name: pm.name.clone(),
-            version: pm.version.clone(),
-            from_dev_engines: pm.from_dev_engines,
-            on_fail: Some(on_fail.as_str().to_string()),
-        })
-    {
+    if on_fail == PmOnFail::Ignore || !persists_the_pin(pm, on_fail) {
         return false;
     }
     let switch_wanted =
         on_fail == PmOnFail::Download && !process_state.package_manager_switch_disabled;
-    if can_switch_for_entry_point(invocation.entry_point, switch_wanted, process_state) {
-        return true;
+    let can_switch =
+        can_switch_for_entry_point(invocation.entry_point, switch_wanted, process_state);
+    lockfile_steers_the_decision(invocation, spec, can_switch, running_version)
+}
+
+/// Whether the env lockfile can change what `decide` does with a pin it
+/// persists.
+fn lockfile_steers_the_decision(
+    invocation: &Invocation,
+    spec: &str,
+    can_switch: bool,
+    running_version: &str,
+) -> bool {
+    match invocation.pin_handling {
+        PinHandling::Enforce => {
+            can_switch
+                || (invocation.entry_point != EntryPoint::UnknownFlag
+                    && version_satisfies(running_version, spec))
+        }
+        // `SwitchOnly` never records, so only a lockfile that may name another
+        // pnpm than the running one matters.
+        PinHandling::SwitchOnly => {
+            can_switch
+                && crate::cli_args::package_manager::exact_version(spec).as_deref()
+                    != Some(running_version)
+        }
+        PinHandling::Skip => false,
     }
-    invocation.entry_point != EntryPoint::UnknownFlag && version_satisfies(running_version, spec)
+}
+
+fn persists_the_pin(pm: &WantedPackageManager, on_fail: PmOnFail) -> bool {
+    should_persist_package_manager_lockfile(&WantedPackageManager {
+        name: pm.name.clone(),
+        version: pm.version.clone(),
+        from_dev_engines: pm.from_dev_engines,
+        on_fail: Some(on_fail.as_str().to_string()),
+    })
 }
 
 /// Pure decision over a pre-read [`PinInput`], [`Config`], and [`Invocation`].
@@ -71,9 +97,6 @@ pub(crate) fn decide(
     settings: &Config,
     invocation: &Invocation,
 ) -> miette::Result<PinDecision> {
-    if invocation.skip_pm_handling {
-        return Ok(PinDecision::Nothing);
-    }
     let (Some(root_manifest), Some(pm)) = (pin.manifest, pin.wanted) else {
         return Ok(PinDecision::Nothing);
     };
@@ -81,7 +104,30 @@ pub(crate) fn decide(
     if on_fail == PmOnFail::Ignore {
         return Ok(PinDecision::Nothing);
     }
-    decide_enforced_pin(pin, settings, invocation, root_manifest, pm, on_fail)
+    match invocation.pin_handling {
+        PinHandling::Enforce => {
+            decide_enforced_pin(pin, settings, invocation, root_manifest, pm, on_fail)
+        }
+        PinHandling::SwitchOnly => decide_switch_only(pin, settings, invocation, pm, on_fail),
+        PinHandling::Skip => Ok(PinDecision::Nothing),
+    }
+}
+
+fn decide_switch_only(
+    pin: &PinInput<'_>,
+    settings: &Config,
+    invocation: &Invocation,
+    pm: &WantedPackageManager,
+    on_fail: PmOnFail,
+) -> miette::Result<PinDecision> {
+    let switch_wanted = pm.name == "pnpm" && on_fail == PmOnFail::Download;
+    if invocation.global
+        || pin.process_state.package_manager_switch_disabled
+        || !can_switch_for_entry_point(invocation.entry_point, switch_wanted, pin.process_state)
+    {
+        return Ok(PinDecision::Nothing);
+    }
+    Ok(switch_away(pin, settings, invocation)?.map_or(PinDecision::Nothing, PinDecision::Switch))
 }
 
 fn decide_enforced_pin(
@@ -155,17 +201,25 @@ fn decide_switch_or_record(
     root_manifest: &Value,
     on_fail: PmOnFail,
 ) -> miette::Result<PinDecision> {
-    let frozen_lockfile = invocation.frozen_lockfile.or(settings.frozen_lockfile).unwrap_or(false);
-    let Some(target) = switch_target_from_pin(pin, settings, frozen_lockfile)? else {
-        return Ok(PinDecision::Nothing);
-    };
-    if target.switches_away_from(pin.running_version) {
+    if let Some(target) = switch_away(pin, settings, invocation)? {
         return Ok(PinDecision::Switch(target));
     }
     if invocation.entry_point == EntryPoint::UnknownFlag {
         return Ok(PinDecision::Nothing);
     }
     decide_record(pin, settings, invocation, root_manifest, on_fail)
+}
+
+/// The pinned pnpm to hand the command over to, when it is not the one
+/// running.
+fn switch_away(
+    pin: &PinInput<'_>,
+    settings: &Config,
+    invocation: &Invocation,
+) -> miette::Result<Option<SwitchTarget>> {
+    let frozen_lockfile = invocation.frozen_lockfile.or(settings.frozen_lockfile).unwrap_or(false);
+    Ok(switch_target_from_pin(pin, settings, frozen_lockfile)?
+        .filter(|target| target.switches_away_from(pin.running_version)))
 }
 
 fn decide_record(

@@ -31,6 +31,20 @@ pub(crate) enum EntryPoint {
     SelfUpdate,
 }
 
+/// What the pre-command pass does with the project's pins.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PinHandling {
+    /// Check the package manager and runtime pins, switch to the pinned
+    /// pnpm, and record the pin in the env lockfile.
+    Enforce,
+    /// Switch to the pinned pnpm when the pin downloads it, and do nothing
+    /// else. A command that runs something other than the project still
+    /// reads the project's settings, which the pinned pnpm may have added.
+    SwitchOnly,
+    /// Leave the pins alone.
+    Skip,
+}
+
 /// One parsed CLI invocation shared by every entry point: pre-command pin
 /// handling, `--version`, unknown-flag handoff, `self-update`, and full command
 /// config loading.
@@ -68,7 +82,7 @@ pub(crate) struct Invocation {
     pub(crate) network: CliNetworkArgs,
     pub(crate) global: bool,
     pub(crate) project_location: bool,
-    pub(crate) skip_pm_handling: bool,
+    pub(crate) pin_handling: PinHandling,
     pub(crate) check_runtimes: bool,
     pub(crate) reporter: ReporterFlags,
     /// How the command reports the warnings of its configuration, which
@@ -185,7 +199,7 @@ impl InvocationScan {
         let reads_global =
             matches!(command.as_deref(), Some("config" | "get" | "set")) && !self.project_location;
         finalize_scanned_paths(&mut flags.paths, self.workspace_root, global, reads_global);
-        let skip_pm = should_skip_invocation(
+        let pin_handling = pin_handling_of_invocation(
             entry_point,
             command.as_deref(),
             &self.positionals,
@@ -197,7 +211,7 @@ impl InvocationScan {
             command.as_deref(),
             &self.positionals,
             global,
-            skip_pm,
+            pin_handling,
         );
         build_invocation_from_flags(
             flags,
@@ -205,7 +219,7 @@ impl InvocationScan {
             command,
             global,
             self.project_location,
-            skip_pm,
+            pin_handling,
             warnings,
             self.ambiguous,
         )
@@ -311,7 +325,7 @@ fn build_invocation_from_flags(
     command: Option<String>,
     global: bool,
     project_location: bool,
-    skip_pm_handling: bool,
+    pin_handling: PinHandling,
     warnings: ConfigWarnings,
     ambiguous: bool,
 ) -> Invocation {
@@ -339,7 +353,7 @@ fn build_invocation_from_flags(
         network: flags.network,
         global,
         project_location,
-        skip_pm_handling,
+        pin_handling,
         check_runtimes: entry_point == EntryPoint::Command,
         reporter,
         warnings,
@@ -347,13 +361,13 @@ fn build_invocation_from_flags(
     }
 }
 
-fn should_skip_invocation(
+fn pin_handling_of_invocation(
     entry_point: EntryPoint,
     command: Option<&str>,
     positionals: &[String],
     ambiguous: bool,
     reads_global_config: bool,
-) -> bool {
+) -> PinHandling {
     let is_pm_only_add = command == Some("add")
         && !positionals.is_empty()
         && positionals
@@ -362,11 +376,18 @@ fn should_skip_invocation(
     let is_engine_update_or_outdated =
         matches!(command, Some("update" | "up" | "upgrade" | "outdated"))
             && crate::cli_args::engine_deps::has_only_engine_selectors(positionals);
-    ambiguous
+    if ambiguous
         || (entry_point != EntryPoint::SelfUpdate && command.is_some_and(should_skip_command_name))
         || is_pm_only_add
         || is_engine_update_or_outdated
         || reads_global_config
+    {
+        PinHandling::Skip
+    } else if command == Some("dlx") {
+        PinHandling::SwitchOnly
+    } else {
+        PinHandling::Enforce
+    }
 }
 
 /// pnpm treats `--global` as an opt-out of the project's package manager
@@ -381,7 +402,7 @@ pub(crate) fn is_global(command: &CliCommand) -> bool {
 /// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup` —
 /// they either predate the project's pins (`setup`), inspect pnpm itself
 /// (`store`, `doctor`, and so on), or run something that is not the project
-/// (`dlx`).
+/// (`dlx`, which still switches: see [`PinHandling::SwitchOnly`]).
 pub(crate) fn should_skip_command(command: &CliCommand) -> bool {
     match command {
         CliCommand::Add(args) => {
@@ -428,7 +449,6 @@ pub(super) fn should_skip_command_name(command: &str) -> bool {
             | "cat-index"
             | "completion"
             | "completion-server"
-            | "dlx"
             | "doctor"
             | "edit"
             | "env"
