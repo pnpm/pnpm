@@ -13,8 +13,9 @@ use locked_version::{admits_locked_version, runtime_child_admits};
 use pnpm_lockfile::{
     BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
     PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
-    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions, npm_tarball_url,
-    pick_registry_for_package, registry_server_type, revision_registry_tarball_url,
+    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions, VersionPart,
+    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    revision_registry_tarball_url,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
@@ -236,7 +237,16 @@ fn synthesize_manifest(
 fn snapshot_dep_to_manifest_specifier(dep_ref: &SnapshotDepRef) -> String {
     match dep_ref {
         SnapshotDepRef::Plain(ver_peer) => ver_peer.without_peer().to_string(),
-        SnapshotDepRef::Alias(key) => format!("npm:{}@{}", key.name, key.suffix.without_peer()),
+        SnapshotDepRef::Alias(key) => match key.suffix.version() {
+            // A git, tarball, or `file:` child is named by its URL or path,
+            // which the alias keeps without `npm:`.
+            VersionPart::NonSemver(_) | VersionPart::File(_) => {
+                key.suffix.without_peer().to_string()
+            }
+            VersionPart::Semver(_) | VersionPart::RegistryQualified { .. } => {
+                format!("npm:{}@{}", key.name, key.suffix.without_peer())
+            }
+        },
         SnapshotDepRef::Link(target) => format!("link:{target}"),
     }
 }

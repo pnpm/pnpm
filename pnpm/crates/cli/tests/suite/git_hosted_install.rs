@@ -1227,4 +1227,66 @@ fn lockfile_update_reuses_the_locked_commit_of_a_git_dependency_with_peers() {
     drop((root, npmrc_info));
 }
 
+/// A locked git package with peers keeps an aliased git child when an
+/// unrelated dependency changes.
+#[cfg(unix)]
+#[test]
+fn lockfile_update_keeps_the_aliased_git_child_of_a_git_dependency_with_peers() {
+    use pnpm_testing_utils::git_repo::GitCommandLog;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let (hi_repo, _) = say_hi_repo(root.path());
+    let repo = GitRepoFixture::init(root.path(), "with-peer");
+    repo.write_file(
+        "package.json",
+        &json!({
+            "name": "with-peer",
+            "version": "1.0.0",
+            "dependencies": { "say-hi": hi_repo.git_url_at("main") },
+            "peerDependencies": { "@pnpm.e2e/peer-a": "^1.0.0" },
+        })
+        .to_string(),
+    );
+    let _commit = repo.commit("init");
+    let spec = repo.git_url_at("main");
+    append_workspace_yaml_key(&workspace, "blockExoticSubdeps", false);
+    write_dependencies(
+        &workspace,
+        &[("with-peer", &spec), ("@pnpm.e2e/peer-a", "1.0.0"), ("@pnpm.e2e/bar", "100.0.0")],
+    );
+    pnpm_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let before = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    write_dependencies(
+        &workspace,
+        &[("with-peer", &spec), ("@pnpm.e2e/peer-a", "1.0.0"), ("@pnpm.e2e/bar", "100.1.0")],
+    );
+    let log = GitCommandLog::new(root.path());
+
+    pnpm_at(&workspace)
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .env("PATH", prepend_to_path(log.bin.parent().unwrap()))
+        .assert()
+        .success();
+
+    assert_eq!(log.ls_remote_calls(), Vec::<String>::new());
+    let after = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let git_snapshots = |lockfile: &Lockfile| {
+        lockfile.snapshots
+            .as_ref()
+            .expect("lockfile has snapshots")
+            .iter()
+            .filter(|(key, _)| !key.to_string().starts_with("@pnpm.e2e/"))
+            .map(|(key, snapshot)| (key.to_string(), snapshot.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>()
+    };
+    let locked = git_snapshots(&before);
+    assert_eq!(locked.len(), 2, "{locked:?}");
+    assert_eq!(git_snapshots(&after), locked);
+
+    drop((root, npmrc_info));
+}
+
 mod builds;
