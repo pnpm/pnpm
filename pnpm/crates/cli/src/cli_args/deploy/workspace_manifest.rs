@@ -52,7 +52,9 @@ impl DeployPeerSettings {
 pub(super) struct DeployLockfileSettings {
     pub(super) auto_dedupe: bool,
     pub(super) exclude_links_from_lockfile: bool,
+    pub(super) format: pnpm_lockfile::LockfileFormat,
     pub(super) include_resolution_settings: bool,
+    pub(super) include_tarball_url: bool,
     pub(super) integrity_target: pnpm_lockfile::IntegrityTarget,
     pub(super) link_workspace_packages: bool,
 }
@@ -62,7 +64,9 @@ impl DeployLockfileSettings {
         Self {
             auto_dedupe: false,
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+            format: config.lockfile_format,
             include_resolution_settings: config.lockfile_include_resolution_settings,
+            include_tarball_url: config.lockfile_include_tarball_url,
             integrity_target: config.lockfile_integrity_target,
             link_workspace_packages: false,
         }
@@ -76,17 +80,25 @@ impl DeployLockfileSettings {
         } else {
             pnpm_config::LinkWorkspacePackages::Off
         };
+        config.lockfile_format = self.format;
         config.lockfile_include_resolution_settings = self.include_resolution_settings;
+        config.lockfile_include_tarball_url = self.include_tarball_url;
         config.lockfile_integrity_target = self.integrity_target;
     }
 
-    /// The deploy lockfile keeps the hashes and resolution settings the source lockfile pins.
+    /// The deploy lockfile keeps the format, hashes, and resolution settings the source lockfile pins.
     fn insert_into_manifest(&self, manifest: &mut Map<String, Value>) {
         manifest.insert(
             "excludeLinksFromLockfile".to_string(),
             Value::Bool(self.exclude_links_from_lockfile),
         );
+        if self.include_tarball_url {
+            manifest.insert("lockfileIncludeTarballUrl".to_string(), Value::Bool(true));
+        }
         let mut lockfile_settings = Map::new();
+        if self.format != pnpm_lockfile::LockfileFormat::V9 {
+            lockfile_settings.insert("format".to_string(), serde_json::json!(self.format));
+        }
         if self.integrity_target != pnpm_lockfile::IntegrityTarget::Resource {
             lockfile_settings.insert(
                 "integrityTarget".to_string(),
@@ -191,6 +203,7 @@ impl DeployWorkspaceSettings {
     }
 
     pub(super) fn apply_to_lockfile(&self, deploy_lockfile: &mut Lockfile) {
+        deploy_lockfile.lockfile_version = self.lockfile.format.version();
         let Some(settings) = deploy_lockfile.settings.as_mut() else {
             return;
         };

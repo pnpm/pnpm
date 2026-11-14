@@ -283,3 +283,129 @@ fn deploy_prunes_unused_patched_dependencies_and_remains_self_contained() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn deployed_project_preserves_v13_lockfile_format_for_dedupe_check() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        concat!(
+            "packages:\n  - packages/*\n",
+            "lockfile:\n  format: v13\n",
+            "lockfileIncludeTarballUrl: true\n",
+        ),
+    )
+    .unwrap();
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "scripts": { "start": "node index.js" },
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        }),
+    );
+    fs::write(workspace.join("packages/app/index.js"), "require('@pnpm.e2e/pkg-with-1-dep');\n")
+        .unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let deploy_dir = dunce::canonicalize(root.path()).unwrap().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", deploy_dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let deploy_workspace_manifest: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(deploy_workspace_manifest["lockfile"]["format"], "v13");
+    assert_eq!(deploy_workspace_manifest["lockfileIncludeTarballUrl"], true);
+
+    let deploy_lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        deploy_lockfile.starts_with("{\n\t\"lockfileVersion\": \"13.0\",\n"),
+        "{deploy_lockfile}",
+    );
+    assert!(deploy_lockfile.contains(r#""tarball""#), "{deploy_lockfile}");
+
+    assert_deployed_project_is_self_contained(&deploy_dir, &npmrc_path);
+
+    pacquet_cmd(&deploy_dir)
+        .with_args(["dedupe", "--check"])
+        .assert()
+        .success();
+
+    pacquet_cmd(&deploy_dir)
+        .with_args(["install", "--no-prefer-frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap(), deploy_lockfile);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn deployed_workspace_dependencies_preserve_v13_lockfile_format() {
+    for inject_workspace_packages in [false, true] {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+        write_workspace(&workspace, inject_workspace_packages);
+        enable_start_script(&workspace.join("packages/app"));
+        let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
+        let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
+        workspace_manifest.push_str("lockfile:\n  format: v13\n");
+        fs::write(workspace_manifest_path, workspace_manifest).unwrap();
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+        let deploy_dir = dunce::canonicalize(root.path()).unwrap().join("deploy");
+        pacquet_cmd(&workspace)
+            .with_args(["--filter", "app", "deploy", deploy_dir.to_str().unwrap()])
+            .assert()
+            .success();
+
+        let deploy_workspace_manifest: serde_json::Value = serde_saphyr::from_str(
+            &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(deploy_workspace_manifest["lockfile"]["format"], "v13");
+
+        let deploy_lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+        assert!(
+            deploy_lockfile.starts_with("{\n\t\"lockfileVersion\": \"13.0\",\n"),
+            "{deploy_lockfile}",
+        );
+
+        assert_deployed_project_is_self_contained(&deploy_dir, &npmrc_path);
+
+        pacquet_cmd(&deploy_dir)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_eq!(fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap(), deploy_lockfile);
+
+        drop((root, mock_instance));
+    }
+}
