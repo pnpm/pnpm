@@ -447,8 +447,8 @@ fn inspection_commands_read_the_merged_keys() {
         .filter(|package| package["name"] == CHILD)
         .collect();
     assert_eq!(foo_records.len(), 1, "{report}");
-    // A license record names the version the way its lockfile key does.
-    assert_eq!(foo_records[0]["versions"], serde_json::json!(["work:100.1.0"]));
+    assert_eq!(foo_records[0]["versions"], serde_json::json!(["100.1.0"]));
+    assert_eq!(foo_records[0]["registryName"], "work");
 
     let sbom = pacquet_in(&workspace)
         .with_args(["sbom", "--sbom-format", "cyclonedx"])
@@ -456,13 +456,14 @@ fn inspection_commands_read_the_merged_keys() {
         .expect("run sbom");
     assert!(sbom.status.success(), "{}", String::from_utf8_lossy(&sbom.stderr));
     let sbom: serde_json::Value = serde_json::from_slice(&sbom.stdout).expect("parse SBOM");
-    let foo_components = sbom["components"]
+    let foo_components: Vec<&serde_json::Value> = sbom["components"]
         .as_array()
         .expect("components")
         .iter()
         .filter(|component| component["name"] == "foo" && component["group"] == "@pnpm.e2e")
-        .count();
-    assert_eq!(foo_components, 1, "{sbom}");
+        .collect();
+    assert_eq!(foo_components.len(), 1, "{sbom}");
+    assert_eq!(foo_components[0]["version"], "100.1.0");
 
     drop((root, anchor));
 }
