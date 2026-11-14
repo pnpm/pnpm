@@ -416,6 +416,55 @@ fn set_side_effects_cache_rejects_project_trust_material_and_allows_global_and_b
     assert!(TrustedSettings::load_global(&config_dir).unwrap().is_some());
 }
 
+#[test]
+fn list_and_get_censor_global_cache_signing_keys() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    for (key, payload) in [
+        ("remote-cache", json!({ "url": "https://cache.example.com", "privateKey": "sec-rc" })),
+        (
+            "remote-side-effects-cache",
+            json!({ "org": "acme", "packages": ["pkg"], "privateKey": "sec-rsec" }),
+        ),
+        (
+            "side-effects-cache",
+            json!({
+                "read": true,
+                "remote": { "org": "acme", "packages": ["pkg"], "privateKey": "sec-sec" }
+            }),
+        ),
+    ] {
+        config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.to_string()))
+            .unwrap();
+    }
+
+    let loaded = load_global_only_config(&config_dir);
+    let listed = config_list(&loaded);
+    assert!(
+        !listed.contains("sec-rc") && !listed.contains("sec-rsec") && !listed.contains("sec-sec"),
+    );
+
+    let listed_json: Value = serde_json::from_str(&listed).unwrap();
+    assert_eq!(listed_json["remoteCache"]["privateKey"], json!("(protected)"));
+    assert_eq!(listed_json["remoteSideEffectsCache"]["privateKey"], json!("(protected)"));
+    assert_eq!(listed_json["sideEffectsCache"]["remote"]["privateKey"], json!("(protected)"));
+
+    for key in ["remote-cache", "remote-side-effects-cache", "side-effects-cache"] {
+        let output = config_get(&loaded, flags(true, None, false), key).unwrap();
+        assert!(output.contains("(protected)"), "{key} output: {output}");
+        assert!(!output.contains("sec-"), "{key} leaked key: {output}");
+    }
+    for path in [
+        "remoteCache.privateKey",
+        "remoteSideEffectsCache.privateKey",
+        "sideEffectsCache.remote.privateKey",
+    ] {
+        assert_eq!(config_get(&loaded, flags(true, None, false), path).unwrap(), "(protected)");
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn set_global_remote_cache_sections_writes_owner_only_permissions() {
