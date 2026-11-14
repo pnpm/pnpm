@@ -146,6 +146,21 @@ fn local_directory_paths_containing_at_match_bare_name_and_key_helpers() {
 }
 
 #[test]
+fn link_directory_with_trailing_parentheses_does_not_approve_other_directory() {
+    use super::skill_approval_key;
+
+    let policy = policy(&[
+        ("foo@link:packages/foo(alt)", SkillsPermission::All(true)),
+        ("bar@link:(group)", SkillsPermission::All(true)),
+    ]);
+    assert_eq!(policy.check("foo@link:packages/foo(alt)"), Some(SkillsPermission::All(true)));
+    assert_eq!(policy.check("foo@link:packages/foo"), None);
+    assert_eq!(policy.check("bar@link:(group)"), Some(SkillsPermission::All(true)));
+    assert_eq!(skill_approval_key("foo@link:packages/foo(alt)"), "foo");
+    assert_eq!(skill_approval_key("bar@link:(group)"), "bar");
+}
+
+#[test]
 fn dep_path_rule_matches_directly() {
     let policy = policy(&[("foo@https://example.com/foo.tgz", chosen(&["guide"]))]);
     assert_eq!(policy.check("foo@https://example.com/foo.tgz"), Some(chosen(&["guide"])));

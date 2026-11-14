@@ -834,3 +834,61 @@ fn long_sibling_skill_names_do_not_erase_colliding_local_package_labels() {
         assert!(!name.starts_with("pnpm--"), "erased package label: {name}");
     }
 }
+
+#[test]
+fn parenthesized_link_dir_approval_does_not_approve_sibling_link_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let dir_plain = root.path().join("packages/foo");
+    let dir_paren = root.path().join("packages/foo(alt)");
+    for dir in [&dir_plain, &dir_paren] {
+        std::fs::create_dir_all(dir.join("skills/guide")).unwrap();
+        std::fs::write(dir.join("package.json"), r#"{"name": "foo", "version": "1.0.0"}"#).unwrap();
+        std::fs::write(dir.join("skills/guide/SKILL.md"), "# guide\n").unwrap();
+    }
+    for (imp, target) in [("packages/a", &dir_plain), ("packages/b", &dir_paren)] {
+        let slot = root
+            .path()
+            .join(imp)
+            .join("node_modules/foo");
+        std::fs::create_dir_all(slot.parent().unwrap()).unwrap();
+        pnpm_fs::force_symlink_dir(target, &slot).unwrap();
+    }
+    std::fs::create_dir_all(root.path().join(".agents/skills")).unwrap();
+
+    let yaml = concat!(
+        "lockfileVersion: '9.0'\nimporters:\n",
+        "  packages/a:\n    dependencies:\n      foo:\n        specifier: link:../foo\n        version: link:../foo\n",
+        "  packages/b:\n    dependencies:\n      foo:\n        specifier: link:../foo(alt)\n        version: link:../foo(alt)\n",
+    );
+    let mut config = Config {
+        modules_dir: root.path().join("node_modules"),
+        install_state_dir: root.path().join("node_modules/.pnpm"),
+        ..Config::default()
+    };
+    config.allow_skills.insert(
+        "foo@link:packages/foo(alt)".to_string(),
+        SkillsPermission::All(true),
+    );
+
+    let state = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &serde_saphyr::from_str::<Lockfile>(yaml).unwrap(),
+        included: IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        },
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: None,
+    })
+    .unwrap();
+
+    assert_eq!(state.linked, [".agents/skills/guide"]);
+    assert_eq!(state.pending, ["foo@link:packages/foo"]);
+    assert_eq!(
+        std::fs::canonicalize(root.path().join(".agents/skills/guide")).unwrap(),
+        std::fs::canonicalize(dir_paren.join("skills/guide")).unwrap(),
+    );
+}

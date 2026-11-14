@@ -41,6 +41,11 @@ pub fn is_local_directory_version(version: &str) -> bool {
 /// packages, and the peer-suffix-free depPath for git or tarball packages.
 #[must_use]
 pub fn skill_approval_key(dep_path: &str) -> String {
+    if let Some((name, version)) = parse_dep_path_name_version(dep_path)
+        && version.starts_with("link:")
+    {
+        return name.to_string();
+    }
     let pkg_id_with_patch_hash = get_pkg_id_with_patch_hash(dep_path);
     match parse_dep_path_name_version(pkg_id_with_patch_hash) {
         Some((name, version))

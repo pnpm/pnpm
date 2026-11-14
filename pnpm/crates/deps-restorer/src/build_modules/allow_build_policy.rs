@@ -226,6 +226,9 @@ impl AllowBuildPolicy {
 /// [`PkgVerPeer::without_peer`]: pnpm_lockfile::PkgVerPeer::without_peer
 #[must_use]
 pub fn normalize_build_dep_path(dep_path: &str) -> String {
+    if is_link_dep_path(dep_path) {
+        return dep_path.to_string();
+    }
     remove_suffix(dep_path).to_string()
 }
 
@@ -234,6 +237,9 @@ pub fn normalize_build_dep_path(dep_path: &str) -> String {
 /// git/tarball artifacts (whose name alone must not approve builds).
 #[must_use]
 pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
+    if is_link_dep_path(dep_path) {
+        return dep_path.to_string();
+    }
     let pkg_id_with_patch_hash = get_pkg_id_with_patch_hash(dep_path);
     match parse_dep_path_name_version(pkg_id_with_patch_hash) {
         Some((name, version)) if node_semver::Version::parse(version).is_ok() => name.to_string(),
@@ -252,7 +258,7 @@ pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
 /// ever display text and cannot be fed back as a key.
 #[must_use]
 pub fn short_package_label(key: &str) -> String {
-    let pkg_id = get_pkg_id_with_patch_hash(key);
+    let pkg_id = if is_link_dep_path(key) { key } else { get_pkg_id_with_patch_hash(key) };
     // A key with no name@version separator is a bare package name; with
     // one, a version that parses as semver is a registry package and
     // anything else a source. Git-host packages are tagged `(git)`
@@ -312,6 +318,9 @@ pub fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
     if version.is_empty() {
         return None;
     }
+    if version.starts_with("link:") {
+        return Some((name, version));
+    }
     let suffix = index_of_dep_path_suffix(version);
     if let Some(idx) = suffix.patch_hash_index {
         version = &version[..idx];
@@ -319,6 +328,10 @@ pub fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
         version = &version[..idx];
     }
     Some((name, version))
+}
+
+fn is_link_dep_path(dep_path: &str) -> bool {
+    parse_dep_path_name_version(dep_path).is_some_and(|(_, version)| version.starts_with("link:"))
 }
 
 /// One side of `allowBuilds`, split by the shape of its keys.
