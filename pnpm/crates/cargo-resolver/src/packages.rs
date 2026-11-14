@@ -1,7 +1,8 @@
 use crate::{
     features::supports_features,
     model::{FeatureSelection, PackageKey, RegistryDependency},
-    registry::{Registry, compatibility_line, matching_lines, matching_versions},
+    preferences::PreferredVersions,
+    registry::{Registry, compatibility_line, matching_lines_with_preferences},
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -17,9 +18,10 @@ use semver::{Version, VersionReq};
 ///
 /// The caller is responsible for [`Registry::validate_dependency_source`];
 /// this only maps a name and a requirement onto a package.
-pub(crate) fn package_key(
+pub(crate) fn package_key_with_preferences(
     registry: &Registry,
     dependency: &RegistryDependency,
+    preferred_versions: &PreferredVersions,
 ) -> Result<PackageKey> {
     let name = dependency.name.as_str();
     let requirement = &dependency.requirement;
@@ -30,7 +32,8 @@ pub(crate) fn package_key(
     let Some(versions) = registry.versions(name) else {
         return Ok(unsatisfiable());
     };
-    let mut lines = matching_lines(versions, requirement);
+    let mut lines =
+        matching_lines_with_preferences(versions, requirement, name, preferred_versions);
     if lines.len() > 1 {
         return Ok(PackageKey::Requirement {
             name: name.to_string(),
@@ -56,20 +59,33 @@ pub(crate) fn package_key(
 pub(crate) fn newest_line_package(
     registry: &Registry,
     dependency: &RegistryDependency,
+    preferred_versions: &PreferredVersions,
 ) -> Result<Option<PackageKey>> {
     let Some(versions) = registry.versions(&dependency.name) else {
         return Ok(None);
     };
     let selection = dependency.feature_selection();
-    Ok(matching_lines(versions, &dependency.requirement)
-        .into_iter()
-        .rfind(|(compatibility, _)| {
-            admits_features(versions, &dependency.requirement, compatibility, &selection)
-        })
-        .map(|(compatibility, _)| PackageKey::Registry {
-            name: dependency.name.clone(),
+    Ok(matching_lines_with_preferences(
+        versions,
+        &dependency.requirement,
+        &dependency.name,
+        preferred_versions,
+    )
+    .into_iter()
+    .rfind(|(compatibility, _)| {
+        admits_features(
+            versions,
+            &dependency.requirement,
             compatibility,
-        }))
+            &selection,
+            &dependency.name,
+            preferred_versions,
+        )
+    })
+    .map(|(compatibility, _)| PackageKey::Registry {
+        name: dependency.name.clone(),
+        compatibility,
+    }))
 }
 
 /// Whether `compatibility` carries a version meeting `requirement` that
@@ -80,8 +96,16 @@ pub(crate) fn admits_features(
     requirement: &VersionReq,
     compatibility: &str,
     selection: &FeatureSelection,
+    name: &str,
+    preferred_versions: &PreferredVersions,
 ) -> bool {
-    matching_versions(versions, requirement)
+    versions
+        .iter()
+        .filter(|version| {
+            (!version.yanked
+                || crate::preferences::contains(preferred_versions, name, &version.version))
+                && requirement.matches(&version.version)
+        })
         .filter(|version| compatibility_line(&version.version) == compatibility)
         .any(|version| supports_features(version, selection))
 }
@@ -98,12 +122,13 @@ pub(crate) fn chosen_line(name: &str, representative: &Version) -> PackageKey {
 /// The registry package a requirement resolved to, reading the chosen
 /// compatibility line out of `solution` when the requirement spans several.
 /// `None` when the solution does not reach it.
-pub(crate) fn selected_package(
+pub(crate) fn selected_package_with_preferences(
     registry: &Registry,
     dependency: &RegistryDependency,
     solution: &SelectedDependencies<PackageKey, Version>,
+    preferred_versions: &PreferredVersions,
 ) -> Result<Option<PackageKey>> {
-    Ok(match package_key(registry, dependency)? {
+    Ok(match package_key_with_preferences(registry, dependency, preferred_versions)? {
         line @ PackageKey::Registry { .. } => Some(line),
         choice @ PackageKey::Requirement { .. } => solution
             .get(&choice)

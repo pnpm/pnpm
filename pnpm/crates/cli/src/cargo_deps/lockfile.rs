@@ -201,7 +201,8 @@ pub(super) async fn read_or_resolve_lockfile(
     {
         return Ok(lockfile);
     }
-    let index_files = fetch_sparse_index(config, &metadata, http_client).await?;
+    let index_files =
+        fetch_sparse_index(config, &metadata, &preferred_versions, http_client).await?;
     let source = pnpm_cargo_resolver::registry_source(config.cargo_index_url());
     let lockfile = pnpm_cargo_resolver::resolve_lockfile_with_preferences(
         &metadata,

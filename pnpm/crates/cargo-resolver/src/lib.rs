@@ -3,7 +3,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
-pub use discovery::{IndexDiscovery, missing_index_names};
+pub use discovery::{IndexDiscovery, missing_index_names, missing_index_names_with_preferences};
 pub use freshness::verify_lockfile;
 pub use metadata::{git_dependency_sources, resolve_inputs};
 pub use model::CancelError;
@@ -24,6 +24,7 @@ mod lockfile;
 mod metadata;
 mod model;
 mod packages;
+mod preferences;
 mod registry;
 mod resolution;
 

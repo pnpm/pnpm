@@ -5,6 +5,7 @@ use crate::{
         CancelError, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion,
         ensure_not_cancelled,
     },
+    preferences::{PreferredVersions, contains as is_preferred, parse as parse_preferred_versions},
     registry::{Registry, compatibility_line},
 };
 use miette::Result;
@@ -32,6 +33,17 @@ pub fn missing_index_names(
     discovery.missing_names()
 }
 
+pub fn missing_index_names_with_preferences(
+    metadata: &str,
+    index_files: &BTreeMap<String, String>,
+    source: &str,
+    preferred_versions: &BTreeMap<String, Vec<String>>,
+) -> Result<Vec<String>> {
+    let mut discovery = IndexDiscovery::new_with_preferences(metadata, source, preferred_versions)?;
+    discovery.add_entries(index_files)?;
+    discovery.missing_names()
+}
+
 /// Which sparse-index files a resolve still needs, kept across fetch waves.
 ///
 /// Edges reaching the same package are unified the way resolution unifies
@@ -49,12 +61,33 @@ pub struct IndexDiscovery {
     discovered: BTreeMap<PackageKey, Discovered>,
     visited: BTreeSet<VisitKey>,
     blocked: BTreeMap<VisitKey, RegistryDependency>,
+    preferred_versions: PreferredVersions,
 }
 
 type VisitKey = (String, String, bool, BTreeSet<String>);
 
 impl IndexDiscovery {
     pub fn new(metadata: &str, source: &str) -> Result<Self> {
+        Self::new_with_parsed_preferences(metadata, source, PreferredVersions::new())
+    }
+
+    pub fn new_with_preferences(
+        metadata: &str,
+        source: &str,
+        preferred_versions: &BTreeMap<String, Vec<String>>,
+    ) -> Result<Self> {
+        Self::new_with_parsed_preferences(
+            metadata,
+            source,
+            parse_preferred_versions(preferred_versions)?,
+        )
+    }
+
+    fn new_with_parsed_preferences(
+        metadata: &str,
+        source: &str,
+        preferred_versions: PreferredVersions,
+    ) -> Result<Self> {
         let metadata = parse_metadata(metadata)?;
         Ok(Self {
             registry: Registry::empty(source),
@@ -62,6 +95,7 @@ impl IndexDiscovery {
             discovered: BTreeMap::new(),
             visited: BTreeSet::new(),
             blocked: BTreeMap::new(),
+            preferred_versions,
         })
     }
 
@@ -128,7 +162,13 @@ impl IndexDiscovery {
             self.blocked.insert(visit_key, dependency);
             return Ok(());
         };
-        match unified_dependencies(&mut self.discovered, &dependency, versions, should_cancel) {
+        match unified_dependencies(
+            &mut self.discovered,
+            &dependency,
+            versions,
+            &self.preferred_versions,
+            should_cancel,
+        ) {
             Ok(deps) => {
                 self.visited.insert(visit_key);
                 self.pending.extend(deps);
@@ -148,28 +188,35 @@ struct CompatibleLineGroup<'a> {
     compatibility: String,
     newest_matching: Version,
     matching: Vec<&'a RegistryVersion>,
-    all_non_yanked: Vec<&'a RegistryVersion>,
+    all_selectable: Vec<&'a RegistryVersion>,
 }
 
 #[derive(Default)]
 struct PendingLineGroup<'a> {
     newest_matching: Option<Version>,
     matching: Vec<&'a RegistryVersion>,
-    all_non_yanked: Vec<&'a RegistryVersion>,
+    all_selectable: Vec<&'a RegistryVersion>,
 }
 
 fn matching_line_groups<'a>(
     versions: &'a [RegistryVersion],
     requirement: &semver::VersionReq,
+    name: &str,
+    preferred_versions: &PreferredVersions,
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<Vec<CompatibleLineGroup<'a>>> {
     let mut by_line: BTreeMap<String, PendingLineGroup<'a>> = BTreeMap::new();
-    for version in versions.iter().filter(|version| !version.yanked) {
+    for version in versions
+        .iter()
+        .filter(|version| {
+            !version.yanked || is_preferred(preferred_versions, name, &version.version)
+        })
+    {
         ensure_not_cancelled(should_cancel)?;
         let entry = by_line
             .entry(compatibility_line(&version.version))
             .or_default();
-        entry.all_non_yanked.push(version);
+        entry.all_selectable.push(version);
         if requirement.matches(&version.version) {
             entry.newest_matching = Some(version.version.clone());
             entry.matching.push(version);
@@ -182,7 +229,7 @@ fn matching_line_groups<'a>(
                 compatibility,
                 newest_matching,
                 matching: group.matching,
-                all_non_yanked: group.all_non_yanked,
+                all_selectable: group.all_selectable,
             })
         })
         .collect();
@@ -198,12 +245,19 @@ fn unified_dependencies(
     discovered: &mut BTreeMap<PackageKey, Discovered>,
     dependency: &RegistryDependency,
     versions: &[RegistryVersion],
+    preferred_versions: &PreferredVersions,
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<Vec<RegistryDependency>> {
     let mut reached = Vec::new();
     let mut staged = Vec::new();
     let selection = dependency.feature_selection();
-    for group in matching_line_groups(versions, &dependency.requirement, should_cancel)? {
+    for group in matching_line_groups(
+        versions,
+        &dependency.requirement,
+        &dependency.name,
+        preferred_versions,
+        should_cancel,
+    )? {
         ensure_not_cancelled(should_cancel)?;
         let selectable = selectable_versions(&group.matching, &selection, should_cancel)?;
         let package = PackageKey::Registry {
@@ -213,7 +267,7 @@ fn unified_dependencies(
         let (entry, deps) = stage_compatibility_line(
             discovered.get(&package),
             dependency,
-            &group.all_non_yanked,
+            &group.all_selectable,
             selectable,
             should_cancel,
         )?;

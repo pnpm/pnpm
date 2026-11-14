@@ -9,26 +9,61 @@ use crate::{
         CancelError, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion,
         ensure_not_cancelled,
     },
-    packages::{chosen_line, package_key},
-    registry::Registry,
+    packages::{chosen_line, package_key_with_preferences},
+    preferences::{PreferredVersions, contains as is_preferred, parse as parse_preferred_versions},
+    registry::{Registry, compatibility_line},
 };
 use miette::Result;
 use pubgrub::{
     DefaultStringReporter, Dependencies, DependencyProvider, OfflineDependencyProvider,
     PackageResolutionStatistics, PubGrubError, Ranges, Reporter, resolve,
 };
-use semver::Version;
+use semver::{Version, VersionReq};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 mod registration;
-use registration::{Registration, constraints_for, is_preferred};
+use registration::{Registration, constraints_for};
 
 type InnerProvider = OfflineDependencyProvider<PackageKey, Ranges<Version>>;
 
 struct CancellableProvider<'a> {
     inner: InnerProvider,
-    preferred_versions: &'a BTreeMap<String, Vec<Version>>,
+    preferred_versions: &'a PreferredVersions,
     should_cancel: &'a (dyn Fn() -> bool + Send + Sync),
+}
+
+impl CancellableProvider<'_> {
+    fn preferred_version(&self, package: &PackageKey, range: &Ranges<Version>) -> Option<Version> {
+        let name = package_name(package)?;
+        let preferred_versions = self.preferred_versions.get(name)?;
+        let mut versions = self.inner.versions(package)?;
+        match package {
+            PackageKey::Registry { .. } => preferred_versions
+                .iter()
+                .find(|version| {
+                    range.contains(version) && versions.any(|candidate| candidate == *version)
+                })
+                .cloned(),
+            PackageKey::Requirement { requirement, .. } => {
+                let requirement = VersionReq::parse(requirement).ok()?;
+                preferred_versions
+                    .iter()
+                    .find_map(|preferred| {
+                        if !requirement.matches(preferred) {
+                            return None;
+                        }
+                        versions
+                            .find(|representative| {
+                                range.contains(representative)
+                                    && compatibility_line(representative)
+                                        == compatibility_line(preferred)
+                            })
+                            .cloned()
+                    })
+            }
+            PackageKey::Root | PackageKey::Unsatisfiable { .. } => None,
+        }
+    }
 }
 
 impl DependencyProvider for CancellableProvider<'_> {
@@ -53,20 +88,8 @@ impl DependencyProvider for CancellableProvider<'_> {
         package: &Self::P,
         range: &Self::VS,
     ) -> std::result::Result<Option<Self::V>, Self::Err> {
-        if let Some(preferred) = package_name(package)
-            .and_then(|name| self.preferred_versions.get(name))
-            .into_iter()
-            .flatten()
-            .find(|version| range.contains(version))
-            && self.inner
-                .versions(package)
-                .is_some_and(|versions| {
-                    versions
-                        .into_iter()
-                        .any(|version| version == preferred)
-                })
-        {
-            return Ok(Some(preferred.clone()));
+        if let Some(preferred) = self.preferred_version(package, range) {
+            return Ok(Some(preferred));
         }
         match self.inner.choose_version(package, range) {
             Ok(version) => Ok(version),
@@ -145,7 +168,8 @@ pub fn resolve_lockfile_until_with_preferences(
     let registry = Registry::new_until(index_files, source, should_cancel)?;
     let preferred_versions = parse_preferred_versions(preferred_versions)?;
     let root_dependencies = root_dependencies(&metadata)?;
-    let mut feature_selections = root_feature_selections(&registry, &root_dependencies)?;
+    let mut feature_selections =
+        root_feature_selections(&registry, &root_dependencies, &preferred_versions)?;
     let mut previous_selections = Vec::new();
 
     loop {
@@ -161,8 +185,12 @@ pub fn resolve_lockfile_until_with_preferences(
             &preferred_versions,
             should_cancel,
         )?;
-        let selected_features =
-            feature_selections_for_solution(&registry, &root_dependencies, &solution)?;
+        let selected_features = feature_selections_for_solution(
+            &registry,
+            &root_dependencies,
+            &solution,
+            &preferred_versions,
+        )?;
         if let Some(validated_solution) = validate_selected_graph(
             &registry,
             &root_dependencies,
@@ -177,6 +205,7 @@ pub fn resolve_lockfile_until_with_preferences(
                 &validated_solution,
                 &selected_features,
                 source,
+                &preferred_versions,
             );
         }
         feature_selections = selected_features;
@@ -192,33 +221,12 @@ fn package_name(package: &PackageKey) -> Option<&str> {
     }
 }
 
-fn parse_preferred_versions(
-    preferred_versions: &BTreeMap<String, Vec<String>>,
-) -> Result<BTreeMap<String, Vec<Version>>> {
-    preferred_versions
-        .iter()
-        .map(|(name, versions)| {
-            let mut versions = versions
-                .iter()
-                .map(|version| {
-                    Version::parse(version)
-                        .map_err(|error| {
-                            miette::miette!("invalid preferred Cargo version {version}: {error}")
-                        })
-                })
-                .collect::<Result<Vec<_>>>()?;
-            versions.sort_unstable_by(|left, right| right.cmp(left));
-            Ok((name.clone(), versions))
-        })
-        .collect()
-}
-
 fn validate_selected_graph(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
     solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
-    preferred_versions: &BTreeMap<String, Vec<Version>>,
+    preferred_versions: &PreferredVersions,
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<Option<pubgrub::SelectedDependencies<PackageKey, Version>>> {
     let Some(root_version) = solution.get(&PackageKey::Root) else { return Ok(None) };
@@ -227,7 +235,8 @@ fn validate_selected_graph(
 
     while let Some(dependency) = pending.pop_front() {
         ensure_not_cancelled(should_cancel)?;
-        let package = validated_package(registry, &dependency, solution, &mut validated)?;
+        let package =
+            validated_package(registry, &dependency, solution, preferred_versions, &mut validated)?;
         let Some(package) = package else { return Ok(None) };
         let Some(selected_version) = solution.get(&package) else { return Ok(None) };
         if !dependency.requirement.matches(selected_version) {
@@ -272,10 +281,11 @@ fn validated_package(
     registry: &Registry,
     dependency: &RegistryDependency,
     solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
+    preferred_versions: &PreferredVersions,
     validated: &mut BTreeMap<PackageKey, Version>,
 ) -> Result<Option<PackageKey>> {
     registry.validate_dependency_source(dependency.registry.as_deref())?;
-    Ok(match package_key(registry, dependency)? {
+    Ok(match package_key_with_preferences(registry, dependency, preferred_versions)? {
         line @ PackageKey::Registry { .. } => Some(line),
         choice @ PackageKey::Requirement { .. } => solution
             .get(&choice)
@@ -292,7 +302,7 @@ fn resolve_with_features(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
-    preferred_versions: &BTreeMap<String, Vec<Version>>,
+    preferred_versions: &PreferredVersions,
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<pubgrub::SelectedDependencies<PackageKey, Version>> {
     let mut provider = InnerProvider::new();

@@ -210,13 +210,15 @@ impl IndexFetcher {
     async fn fetch_for(
         &self,
         metadata: &str,
+        preferred_versions: &BTreeMap<String, Vec<String>>,
         permit: &Arc<ResolvePermit>,
         cancel: &CancelToken,
     ) -> Result<BTreeMap<String, String>, String> {
         let mut index_files = BTreeMap::new();
         let source = pnpm_cargo_resolver::registry_source(&self.registry);
         let (mut discovery, mut missing) =
-            spawn_init_discovery(metadata.to_string(), source, permit, cancel).await?;
+            spawn_init_discovery(metadata.to_string(), source, preferred_versions, permit, cancel)
+                .await?;
         for _ in 0..MAX_INDEX_WAVES {
             if missing.is_empty() {
                 return Ok(index_files);

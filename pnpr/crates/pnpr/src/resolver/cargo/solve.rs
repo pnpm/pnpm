@@ -20,10 +20,15 @@ pub(super) struct DiscoveryStep {
 pub(super) fn init_discovery(
     metadata: &str,
     source: &str,
+    preferred_versions: &BTreeMap<String, Vec<String>>,
     cancel: &CancelToken,
 ) -> Result<(pnpm_cargo_resolver::IndexDiscovery, Vec<String>), String> {
-    let mut discovery = pnpm_cargo_resolver::IndexDiscovery::new(metadata, source)
-        .map_err(|err| report_message(&err))?;
+    let mut discovery = pnpm_cargo_resolver::IndexDiscovery::new_with_preferences(
+        metadata,
+        source,
+        preferred_versions,
+    )
+    .map_err(|err| report_message(&err))?;
     let names = discovery
         .missing_names_until(&|| cancel.is_cancelled())
         .map_err(|err| report_message(&err))?;
@@ -47,14 +52,16 @@ pub(super) fn step_discovery(
 pub(super) async fn spawn_init_discovery(
     metadata: String,
     source: String,
+    preferred_versions: &BTreeMap<String, Vec<String>>,
     permit: &Arc<ResolvePermit>,
     cancel: &CancelToken,
 ) -> Result<(pnpm_cargo_resolver::IndexDiscovery, Vec<String>), String> {
     let permit = Arc::clone(permit);
     let cancel = cancel.clone();
+    let preferred_versions = preferred_versions.clone();
     tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        init_discovery(&metadata, &source, &cancel)
+        init_discovery(&metadata, &source, &preferred_versions, &cancel)
     })
     .await
     .map_err(|err| err.to_string())?
@@ -86,7 +93,8 @@ pub(in crate::resolver) async fn solve_cargo(
 ) -> Response {
     let permit = Arc::new(permit);
     let (cancel, _cancel_on_drop) = CancelToken::new(deadline);
-    let index_files = match index.fetch_for(&metadata, &permit, &cancel).await {
+    let index_files = match index.fetch_for(&metadata, &preferred_versions, &permit, &cancel).await
+    {
         Ok(index_files) => index_files,
         Err(err) => {
             return if cancel.deadline_expired() {

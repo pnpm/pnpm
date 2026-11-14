@@ -1,7 +1,8 @@
 use crate::{
     features::{locked_dependencies, supports_features},
     model::{FeatureSelection, PackageKey, RegistryDependency},
-    packages::package_key,
+    packages::package_key_with_preferences,
+    preferences::{PreferredVersions, contains as is_preferred},
     registry::{Registry, compatibility_line},
 };
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -22,7 +23,7 @@ struct Requirement<'a> {
 pub(super) struct Registration<'a> {
     registry: &'a Registry,
     feature_selections: &'a BTreeMap<PackageKey, FeatureSelection>,
-    preferred_versions: &'a BTreeMap<String, Vec<Version>>,
+    preferred_versions: &'a PreferredVersions,
     should_cancel: &'a (dyn Fn() -> bool + Send + Sync),
 }
 
@@ -30,7 +31,7 @@ impl Registration<'_> {
     pub(super) fn new<'a>(
         registry: &'a Registry,
         feature_selections: &'a BTreeMap<PackageKey, FeatureSelection>,
-        preferred_versions: &'a BTreeMap<String, Vec<Version>>,
+        preferred_versions: &'a PreferredVersions,
         should_cancel: &'a (dyn Fn() -> bool + Send + Sync),
     ) -> Registration<'a> {
         Registration { registry, feature_selections, preferred_versions, should_cancel }
@@ -167,7 +168,7 @@ pub(super) fn constraints_for(
     let mut constraints = BTreeMap::<PackageKey, Ranges<Version>>::new();
     for dependency in dependencies {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
-        let package = package_key(registry, dependency)?;
+        let package = package_key_with_preferences(registry, dependency, preferred_versions)?;
         let selection = dependency.feature_selection();
         let allowed = if let PackageKey::Registry { compatibility, .. } = &package {
             registry
@@ -235,14 +236,4 @@ fn admitted_versions(
         .fold(Ranges::empty(), |range, version| {
             range.union(&Ranges::singleton(version.version.clone()))
         })
-}
-
-pub(super) fn is_preferred(
-    preferred_versions: &BTreeMap<String, Vec<Version>>,
-    name: &str,
-    version: &Version,
-) -> bool {
-    preferred_versions
-        .get(name)
-        .is_some_and(|versions| versions.contains(version))
 }

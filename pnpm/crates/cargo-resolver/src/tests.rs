@@ -220,6 +220,59 @@ fn keeps_a_yanked_compatible_locked_version() {
     );
 }
 
+#[test]
+fn prefers_a_locked_version_below_its_compatibility_line_representative() {
+    let metadata = METADATA.replace("^1.0", "*");
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}
+{"name":"foo","vers":"2.0.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+    let preferences = BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]);
+
+    let lockfile =
+        resolve_lockfile_with_preferences(&metadata, &files, CRATES_IO_SOURCE, &preferences)
+            .unwrap();
+    let lockfile = Lockfile::from_str(&lockfile).unwrap();
+
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            })
+    );
+}
+
+#[test]
+fn discovers_and_resolves_a_preferred_yanked_version_without_other_line_candidates() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":true}"#;
+    let preferences = BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]);
+    let foo_file = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+    let mut discovery =
+        IndexDiscovery::new_with_preferences(METADATA, CRATES_IO_SOURCE, &preferences).unwrap();
+
+    discovery.add_entries(&foo_file).unwrap();
+
+    assert_eq!(discovery.missing_names().unwrap(), ["bar"]);
+
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+    let lockfile =
+        resolve_lockfile_with_preferences(METADATA, &files, CRATES_IO_SOURCE, &preferences)
+            .unwrap();
+    let lockfile = Lockfile::from_str(&lockfile).unwrap();
+
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            })
+    );
+}
+
 /// The workspace names no registry, so its crates belong to crates.io even
 /// though a configured registry served the index. `cargo` records the source
 /// a dependency named, not the replacement that served it.
