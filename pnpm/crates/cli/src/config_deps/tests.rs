@@ -4,7 +4,7 @@ use super::{
 };
 use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
-use std::{fs, path::Path, sync::Mutex};
+use std::{collections::BTreeMap, fs, path::Path, sync::Mutex};
 
 #[test]
 fn legacy_registries_warning_names_routes_left_unchanged() {
@@ -17,7 +17,15 @@ fn legacy_registries_warning_names_routes_left_unchanged() {
         "registriesByScope": { "@zz": "https://registry-a/", "@other": "https://registry-a/" }
     });
 
-    let warning = legacy_registries_warning(&before, &after).expect("legacy routes warning");
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([
+            ("@zz".to_string(), "https://registry-b/".to_string()),
+            ("@other".to_string(), "https://registry-a/".to_string()),
+        ]),
+    )
+    .expect("legacy routes warning");
 
     assert!(warning.contains("@other"));
     assert!(!warning.contains("@zz"));
@@ -48,7 +56,11 @@ fn legacy_registries_warning_uses_the_global_log_channel() {
         "registriesByScope": { "@acme": "https://registry-a/" }
     });
 
-    warn_legacy_registries::<RecordingReporter>(&before, &after);
+    warn_legacy_registries::<RecordingReporter>(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://registry-a/".to_string())]),
+    );
 
     assert!(matches!(
         EVENTS.lock().unwrap().as_slice(),
@@ -68,14 +80,21 @@ fn legacy_registries_warning_is_absent_when_scope_routes_are_updated() {
         "registriesByScope": { "@zz": "https://registry-b/" }
     });
 
-    assert_eq!(legacy_registries_warning(&before, &after), None);
+    assert_eq!(
+        legacy_registries_warning(
+            &before,
+            &after,
+            &BTreeMap::from([("@zz".to_string(), "https://registry-b/".to_string())]),
+        ),
+        None
+    );
 }
 
 #[test]
 fn legacy_registries_warning_is_absent_when_registry_setting_is_unchanged() {
     let config = serde_json::json!({ "registries": { "default": "https://registry-a/" } });
 
-    assert_eq!(legacy_registries_warning(&config, &config), None);
+    assert_eq!(legacy_registries_warning(&config, &config, &BTreeMap::new()), None);
 }
 
 #[test]
@@ -89,7 +108,7 @@ fn legacy_registries_warning_ignores_registry_url_settings() {
         "registriesByScope": { "@acme": "https://registry-a/" }
     });
 
-    assert_eq!(legacy_registries_warning(&before, &after), None);
+    assert_eq!(legacy_registries_warning(&before, &after, &BTreeMap::new()), None);
 }
 
 #[tokio::test]

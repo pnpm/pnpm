@@ -181,7 +181,7 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
   const routingBeforeHooks = {
     registry: config.registry,
     registriesByScope: { ...config.registriesByScope },
-    registries: hookRegistries(config),
+    registries: cloneCliSetting(hookRegistries(config)),
   }
   const filtersBeforeHooks = {
     filter: cloneCliSetting(config.filter),

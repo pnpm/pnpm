@@ -383,7 +383,7 @@ describe('installConfigDepsAndLoadHooks', () => {
 
   test('warns when an updateConfig hook changes legacy registry routes but leaves scope routes unchanged', async () => {
     prepare()
-    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://other-mirror.example/' } })")
+    writeUpdateConfigHook("(config) => { config.registries.default = 'https://other-mirror.example/'; return config }")
 
     const { config, context } = buildPnpmfileConfig()
     Object.assign(config, { registries: { default: 'https://mirror.example/' } })

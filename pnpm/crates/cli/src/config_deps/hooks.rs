@@ -126,11 +126,12 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 
     let current =
         execute_update_config_hooks::<Reporter>(&pnpmfiles, &hooks, input.clone(), root_dir).await?;
-    let prefix = root_dir.to_string_lossy().into_owned();
-    warn_legacy_registries::<Reporter>(&input, &current);
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
+    let mut final_routes = config.resolved_registry_lookups().registries_by_scope;
+    final_routes.insert("default".to_string(), config.registry.clone());
+    warn_legacy_registries::<Reporter>(&input, &current, &final_routes);
     Ok(hooks)
 }
 
@@ -169,7 +170,11 @@ fn update_config_hook_error(pnpmfile: &Path, err: pnpm_hooks::HookError) -> miet
     }
 }
 
-pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Option<String> {
+pub(super) fn legacy_registries_warning(
+    input: &Value,
+    current: &Value,
+    final_routes: &BTreeMap<String, String>,
+) -> Option<String> {
     if input.get("registries") == current.get("registries")
         || input.get("registriesByScope") != current.get("registriesByScope")
     {
@@ -183,9 +188,18 @@ pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Optio
     {
         return None;
     }
+    let default_route = legacy_routes.get("default").and_then(Value::as_str);
     let unchanged_scopes = routes
         .iter()
-        .filter(|(scope, _)| scope.as_str() != "default" && !legacy_routes.contains_key(*scope))
+        .filter(|(scope, _)| {
+            if scope.as_str() == "default" {
+                return false;
+            }
+            let expected_route = legacy_routes.get(*scope).and_then(Value::as_str).or(default_route);
+            expected_route.is_some_and(|expected| {
+                final_routes.get(*scope).is_some_and(|route| route != expected)
+            })
+        })
         .map(|(scope, _)| scope.as_str())
         .collect::<Vec<_>>();
     if unchanged_scopes.is_empty() {
@@ -197,8 +211,12 @@ pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Optio
     ))
 }
 
-pub(super) fn warn_legacy_registries<Reporter: self::Reporter>(input: &Value, current: &Value) {
-    let Some(message) = legacy_registries_warning(input, current) else {
+pub(super) fn warn_legacy_registries<Reporter: self::Reporter>(
+    input: &Value,
+    current: &Value,
+    final_routes: &BTreeMap<String, String>,
+) {
+    let Some(message) = legacy_registries_warning(input, current, final_routes) else {
         return;
     };
     Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
