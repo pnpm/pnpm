@@ -37,8 +37,9 @@ pub(crate) fn prune_merged_branch_lockfile(
             let pre_merge = pre_merge_importers.get(importer_id);
             deps_dropped |=
                 prune_undeclared_importer_deps(importer, pre_merge, manifest, auto_install_peers);
-            metadata_reconciled |=
-                reconcile_merged_importer_metadata(importer, pre_merge, manifest);
+            let reconciliation = reconcile_merged_importer_metadata(importer, pre_merge, manifest);
+            deps_dropped |= reconciliation.edges_changed;
+            metadata_reconciled |= reconciliation.changed;
         }
     }
     if !deps_dropped && !metadata_reconciled {

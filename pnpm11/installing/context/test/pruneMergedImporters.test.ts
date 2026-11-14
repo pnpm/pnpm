@@ -22,7 +22,12 @@ test('maybePruneMergedImporters returns lockfile unchanged when preMergeImporter
     dependencies: { foo: '1.0.0' },
     publishDirectory: 'dist',
   })
-  const result = maybePruneMergedImporters(lockfile, undefined, [{ id: '.' as ProjectId, manifest: {} }], true)
+  const result = maybePruneMergedImporters({
+    wantedLockfile: lockfile,
+    preMergeImporters: undefined,
+    projects: [{ id: '.' as ProjectId, manifest: {} }],
+    autoInstallPeers: true,
+  })
   expect(result).toBe(lockfile)
   expect(result.importers['.' as ProjectId].publishDirectory).toBe('dist')
 })
@@ -57,12 +62,12 @@ test('maybePruneMergedImporters reconciles fold-introduced importer metadata aga
     },
   }
 
-  const pruned = maybePruneMergedImporters(
-    mergedLockfile,
+  const pruned = maybePruneMergedImporters({
+    wantedLockfile: mergedLockfile,
     preMergeImporters,
-    [{ id: '.' as ProjectId, manifest }],
-    true
-  )
+    projects: [{ id: '.' as ProjectId, manifest }],
+    autoInstallPeers: true,
+  })
 
   expect(pruned.importers['.' as ProjectId]).toStrictEqual({
     specifiers: { foo: '^1.0.0' },
@@ -96,12 +101,12 @@ test('maybePruneMergedImporters restores manifest publishConfig overwritten by a
     },
   }
 
-  const pruned = maybePruneMergedImporters(
-    mergedLockfile,
+  const pruned = maybePruneMergedImporters({
+    wantedLockfile: mergedLockfile,
     preMergeImporters,
-    [{ id: '.' as ProjectId, manifest }],
-    false
-  )
+    projects: [{ id: '.' as ProjectId, manifest }],
+    autoInstallPeers: false,
+  })
 
   expect(pruned.importers['.' as ProjectId]).toStrictEqual({
     specifiers: {},
@@ -135,12 +140,12 @@ test('maybePruneMergedImporters keeps pre-existing metadata drift and auto-insta
     peerDependencies: { peer: '^1.0.0' },
   }
 
-  const pruned = maybePruneMergedImporters(
-    mergedLockfile,
+  const pruned = maybePruneMergedImporters({
+    wantedLockfile: mergedLockfile,
     preMergeImporters,
-    [{ id: '.' as ProjectId, manifest }],
-    true
-  )
+    projects: [{ id: '.' as ProjectId, manifest }],
+    autoInstallPeers: true,
+  })
 
   expect(pruned.importers['.' as ProjectId]).toStrictEqual({
     specifiers: { peer: '^1.0.0' },
@@ -151,4 +156,85 @@ test('maybePruneMergedImporters keeps pre-existing metadata drift and auto-insta
       stale: { injected: true },
     },
   })
+})
+
+test('maybePruneMergedImporters restores injected file resolution overwritten with link by a stale branch lockfile', () => {
+  const preMergeImporters: LockfileObject['importers'] = {
+    ['.' as ProjectId]: {
+      specifiers: { '@scope/dep': 'workspace:*' },
+      dependencies: { '@scope/dep': 'file:packages/dep' as PkgResolutionId },
+      dependenciesMeta: {
+        '@scope/dep': { injected: true },
+      },
+    },
+  }
+  const mergedLockfile = makeLockfile({
+    specifiers: { '@scope/dep': 'workspace:*' },
+    dependencies: { '@scope/dep': 'link:packages/dep' as PkgResolutionId },
+    dependenciesMeta: {
+      '@scope/dep': { injected: false },
+    },
+  }, {
+    ['@scope/dep@file:packages/dep' as DepPath]: {
+      resolution: { directory: 'packages/dep', type: 'directory' },
+    },
+  })
+  const manifest: ProjectManifest = {
+    dependencies: { '@scope/dep': 'workspace:*' },
+    dependenciesMeta: {
+      '@scope/dep': { injected: true },
+    },
+  }
+
+  const pruned = maybePruneMergedImporters({
+    wantedLockfile: mergedLockfile,
+    preMergeImporters,
+    projects: [{ id: '.' as ProjectId, manifest }],
+    autoInstallPeers: true,
+  })
+
+  expect(pruned.importers['.' as ProjectId]).toStrictEqual({
+    specifiers: { '@scope/dep': 'workspace:*' },
+    dependencies: { '@scope/dep': 'file:packages/dep' },
+    dependenciesMeta: {
+      '@scope/dep': { injected: true },
+    },
+  })
+  expect(Object.keys(pruned.packages ?? {})).toStrictEqual(['@scope/dep@file:packages/dep'])
+})
+
+test('maybePruneMergedImporters restores link resolution and prunes unreachable file snapshot when injected: true was removed', () => {
+  const preMergeImporters: LockfileObject['importers'] = {
+    ['.' as ProjectId]: {
+      specifiers: { dep: 'workspace:*' },
+      dependencies: { dep: 'link:packages/dep' as PkgResolutionId },
+    },
+  }
+  const mergedLockfile = makeLockfile({
+    specifiers: { dep: 'workspace:*' },
+    dependencies: { dep: 'file:packages/dep' as PkgResolutionId },
+    dependenciesMeta: {
+      dep: { injected: true },
+    },
+  }, {
+    ['dep@file:packages/dep' as DepPath]: {
+      resolution: { directory: 'packages/dep', type: 'directory' },
+    },
+  })
+  const manifest: ProjectManifest = {
+    dependencies: { dep: 'workspace:*' },
+  }
+
+  const pruned = maybePruneMergedImporters({
+    wantedLockfile: mergedLockfile,
+    preMergeImporters,
+    projects: [{ id: '.' as ProjectId, manifest }],
+    autoInstallPeers: true,
+  })
+
+  expect(pruned.importers['.' as ProjectId]).toStrictEqual({
+    specifiers: { dep: 'workspace:*' },
+    dependencies: { dep: 'link:packages/dep' },
+  })
+  expect(pruned.packages).toBeUndefined()
 })

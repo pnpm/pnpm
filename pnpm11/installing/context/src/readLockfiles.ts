@@ -291,7 +291,12 @@ function initWantedLockfile (opts: {
     }
   }
 
-  const prunedLockfile = maybePruneMergedImporters(wantedLockfile, opts.preMergeImporters, opts.projects, opts.autoInstallPeers)
+  const prunedLockfile = maybePruneMergedImporters({
+    wantedLockfile,
+    preMergeImporters: opts.preMergeImporters,
+    projects: opts.projects,
+    autoInstallPeers: opts.autoInstallPeers,
+  })
   return { wantedLockfile: prunedLockfile, wantedLockfileIsModified }
 }
 

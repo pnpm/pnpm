@@ -257,3 +257,59 @@ snapshots:
     assert_eq!(root.link_directory, None);
     assert_eq!(root.dependencies_meta, None);
 }
+
+#[test]
+fn prunes_unreachable_injected_package_when_reconciling_back_to_link() {
+    let pre_merge = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      dep:
+        specifier: workspace:*
+        version: link:packages/dep
+  packages/dep: {}
+",
+    );
+    let merged = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      dep:
+        specifier: workspace:*
+        version: file:packages/dep
+    dependenciesMeta:
+      dep:
+        injected: true
+  packages/dep: {}
+packages:
+  dep@file:packages/dep:
+    resolution:
+      type: directory
+      directory: packages/dep
+snapshots:
+  dep@file:packages/dep: {}
+",
+    );
+    let manifest = manifest(json!({ "dependencies": { "dep": "workspace:*" } }));
+    let pruned = prune_merged_branch_lockfile(
+        &merged,
+        &pre_merge.importers,
+        &[(".".to_string(), &manifest)],
+        true,
+    )
+    .expect("injected file edge is reconciled and pruned");
+    let root = &pruned.importers["."];
+    assert_eq!(root.dependencies_meta, None);
+    assert_eq!(
+        root.dependencies.as_ref().expect("dependencies")[&"dep".parse().expect("pkg name")]
+            .version
+            .to_string(),
+        "link:packages/dep",
+    );
+    assert!(pruned.packages.as_ref().is_none_or(HashMap::is_empty));
+    assert!(pruned.snapshots.as_ref().is_none_or(HashMap::is_empty));
+}

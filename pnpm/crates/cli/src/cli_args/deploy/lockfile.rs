@@ -10,7 +10,7 @@ use super::{
     ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec, SelectedProject, State, Value,
     bind_singleton_peers, convert_package_key, convert_package_metadata,
     convert_resolved_dependency_spec, create_file_url_key, deploy_peer_edges,
-    deploy_workspace_settings, is_ancestor_path, lexical_normalize,
+    deploy_workspace_settings, is_ancestor_path, is_contained_publish_dir, lexical_normalize,
     omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph, relative_path, same_path,
 };
 use pnpm_tool_protocol::is_tool_specifier;
@@ -212,7 +212,9 @@ pub(super) fn convert_deploy_packages(
             continue;
         }
         let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
-        for package_dir in importer_package_dirs(&project_root, project_snapshot) {
+        for package_dir in
+            importer_package_dirs(&project_root, project_snapshot, &selected.projects_by_path)
+        {
             packages
                 .entry(create_file_url_key(&package_dir, "", &selected.projects_by_path, None)?)
                 .or_insert_with(|| {
@@ -265,24 +267,33 @@ fn workspace_project_package_metadata(
 
 /// The directories the deploy installs the project at `project_root` from:
 /// its root, and the publish directory the other importers link it from,
-/// when the lockfile records one that workspace links use.
+/// when both the project manifest and the lockfile record one inside
+/// `project_root` that workspace links use.
 pub(super) fn importer_package_dirs(
     project_root: &Path,
     project_snapshot: &ProjectSnapshot,
+    projects_by_path: &HashMap<ProjectPathKey, ProjectInfo>,
 ) -> impl Iterator<Item = PathBuf> {
     std::iter::once(project_root.to_path_buf())
-        .chain(importer_linked_publish_dir(project_root, project_snapshot))
+        .chain(importer_linked_publish_dir(project_root, project_snapshot, projects_by_path))
 }
 
 fn importer_linked_publish_dir(
     project_root: &Path,
     project_snapshot: &ProjectSnapshot,
+    projects_by_path: &HashMap<ProjectPathKey, ProjectInfo>,
 ) -> Option<PathBuf> {
     let publish_directory = project_snapshot.publish_directory.as_deref()?;
     if project_snapshot.link_directory == Some(false) {
         return None;
     }
-    Some(lexical_normalize(&project_root.join(publish_directory)))
+    let publish_dir = lexical_normalize(&project_root.join(publish_directory));
+    let project = projects_by_path
+        .get(&ProjectPathKey::new(project_root))
+        .filter(|project| project.root_dir == project_root)?;
+    (project.linked_publish_dir.as_deref() == Some(&*publish_dir)
+        && is_contained_publish_dir(project_root, &publish_dir))
+    .then_some(publish_dir)
 }
 
 /// A lockfile importer records a dependency group only when it has entries.

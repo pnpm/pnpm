@@ -1,6 +1,9 @@
-use crate::{PkgName, ProjectSnapshot, freshness::auto_installed_peer_deps};
+use crate::{
+    ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
+    VersionPart, freshness::auto_installed_peer_deps,
+};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Drop the entries of `importer` that `manifest` does not declare and
 /// `pre_merge` did not already carry, per dependency group. Reports
@@ -52,9 +55,20 @@ pub fn prune_undeclared_importer_deps(
     pruned
 }
 
+/// Outcome of [`reconcile_merged_importer_metadata`].
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct MetadataReconciliation {
+    /// Whether any importer field or dependency reference was reconciled.
+    pub changed: bool,
+    /// Whether any dependency reference was restored from `pre_merge`, which
+    /// can leave previously referenced package snapshots unreachable.
+    pub edges_changed: bool,
+}
+
 /// Reconcile importer metadata (`publishDirectory`, `linkDirectory`, and
-/// `dependenciesMeta`) back to `manifest` wherever the branch-lockfile fold
-/// changed what `pre_merge` carried. Reports whether any field changed.
+/// `dependenciesMeta`) and `injected`-paired dependency references back to
+/// `manifest` wherever the branch-lockfile fold changed what `pre_merge`
+/// carried.
 ///
 /// Same rule as [`prune_undeclared_importer_deps`]: only differences the fold
 /// introduced relative to `pre_merge` may be reconciled, so drift the read
@@ -63,10 +77,16 @@ pub fn reconcile_merged_importer_metadata(
     importer: &mut ProjectSnapshot,
     pre_merge: Option<&ProjectSnapshot>,
     manifest: &PackageManifest,
-) -> bool {
+) -> MetadataReconciliation {
+    let merged_injected_before = injected_dep_names(importer.dependencies_meta.as_ref());
     let publish_changed = reconcile_publish_config(importer, pre_merge, manifest);
     let meta_changed = reconcile_dependencies_meta(importer, pre_merge, manifest);
-    publish_changed || meta_changed
+    let edges_changed =
+        reconcile_injected_resolutions(importer, pre_merge, manifest, &merged_injected_before);
+    MetadataReconciliation {
+        changed: publish_changed || meta_changed || edges_changed,
+        edges_changed,
+    }
 }
 
 fn reconcile_publish_config(
@@ -167,6 +187,120 @@ fn reconcile_meta_entry(
         true
     });
     changed
+}
+
+fn injected_dep_names(meta: Option<&serde_json::Value>) -> HashSet<String> {
+    let Some(serde_json::Value::Object(entries)) = meta else {
+        return HashSet::new();
+    };
+    entries
+        .iter()
+        .filter(|(_, entry)| {
+            entry.get("injected").and_then(serde_json::Value::as_bool) == Some(true)
+        })
+        .map(|(name, _)| name.clone())
+        .collect()
+}
+
+struct InjectedResolutionContext<'ctx> {
+    manifest: &'ctx PackageManifest,
+    reconciled_injected: HashSet<String>,
+    pre_injected: HashSet<String>,
+    merged_injected_before: &'ctx HashSet<String>,
+}
+
+fn reconcile_injected_resolutions(
+    importer: &mut ProjectSnapshot,
+    pre_merge: Option<&ProjectSnapshot>,
+    manifest: &PackageManifest,
+    merged_injected_before: &HashSet<String>,
+) -> bool {
+    let Some(pre) = pre_merge else {
+        return false;
+    };
+    let ctx = InjectedResolutionContext {
+        manifest,
+        reconciled_injected: injected_dep_names(importer.dependencies_meta.as_ref()),
+        pre_injected: injected_dep_names(pre.dependencies_meta.as_ref()),
+        merged_injected_before,
+    };
+    let mut restored_specifiers = Vec::new();
+    for (group, field) in [
+        (DependencyGroup::Prod, &mut importer.dependencies),
+        (DependencyGroup::Dev, &mut importer.dev_dependencies),
+        (DependencyGroup::Optional, &mut importer.optional_dependencies),
+    ] {
+        let Some(dependencies) = field.as_mut() else { continue };
+        let Some(pre_deps) = pre.get_map_by_group(group) else { continue };
+        reconcile_group_injected_resolutions(
+            group,
+            dependencies,
+            pre_deps,
+            &ctx,
+            &mut restored_specifiers,
+        );
+    }
+    if restored_specifiers.is_empty() {
+        return false;
+    }
+    if let Some(specifiers) = importer.specifiers.as_mut() {
+        for (name, specifier) in restored_specifiers {
+            specifiers.insert(name, specifier);
+        }
+    }
+    true
+}
+
+fn reconcile_group_injected_resolutions(
+    group: DependencyGroup,
+    dependencies: &mut ResolvedDependencyMap,
+    pre_deps: &ResolvedDependencyMap,
+    ctx: &InjectedResolutionContext<'_>,
+    restored_specifiers: &mut Vec<(String, String)>,
+) {
+    let declared_specs: HashMap<&str, &str> = ctx.manifest
+        .dependencies([group])
+        .collect();
+    for (dep_name, merged_spec) in dependencies.iter_mut() {
+        let Some(pre_spec) = pre_deps.get(dep_name) else { continue };
+        let dep_key = dep_name.to_string();
+        let expected_spec = declared_specs
+            .get(dep_key.as_str())
+            .copied()
+            .unwrap_or(merged_spec.specifier.as_str());
+        if should_restore_pre_resolution(&dep_key, merged_spec, pre_spec, expected_spec, ctx) {
+            *merged_spec = pre_spec.clone();
+            restored_specifiers.push((dep_key, pre_spec.specifier.clone()));
+        }
+    }
+}
+
+fn should_restore_pre_resolution(
+    dep_key: &str,
+    merged_spec: &ResolvedDependencySpec,
+    pre_spec: &ResolvedDependencySpec,
+    expected_spec: &str,
+    ctx: &InjectedResolutionContext<'_>,
+) -> bool {
+    let is_injected = ctx.reconciled_injected.contains(dep_key);
+    if pre_spec.specifier != expected_spec || is_injected != ctx.pre_injected.contains(dep_key) {
+        return false;
+    }
+    if is_injected {
+        return matches!(merged_spec.version, ImporterDepVersion::Link(_))
+            && !matches!(pre_spec.version, ImporterDepVersion::Link(_));
+    }
+    ctx.merged_injected_before.contains(dep_key)
+        && is_file_dep_version(&merged_spec.version)
+        && matches!(pre_spec.version, ImporterDepVersion::Link(_))
+}
+
+fn is_file_dep_version(version: &ImporterDepVersion) -> bool {
+    match version {
+        ImporterDepVersion::File(_) => true,
+        ImporterDepVersion::Alias(key) => matches!(key.suffix.version(), VersionPart::File(_)),
+        ImporterDepVersion::Regular(_) | ImporterDepVersion::Link(_) => false,
+    }
 }
 
 /// The manifest's dependency names split into the importer groups they

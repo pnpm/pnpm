@@ -56,6 +56,7 @@ use target::{
 use workspace_manifest::{DeployWorkspaceSettings, deploy_workspace_settings};
 use workspace_project_builds::{
     NamedProjectRoot, approve_legacy_workspace_project_builds, approve_workspace_project_builds,
+    is_contained_publish_dir,
 };
 
 #[derive(Debug, Args)]

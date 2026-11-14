@@ -871,3 +871,90 @@ test('install with --merge-git-branch-lockfiles and --frozen-lockfile drops remo
   })
   expect(lockfile.importers['.'].dependencies).not.toHaveProperty(['local-dep'])
 })
+
+test('install with --merge-git-branch-lockfiles and --frozen-lockfile reconciles injected vs link resolutions across stale branch lockfiles', async () => {
+  const depManifest: ProjectManifest = {
+    name: 'local-dep',
+    version: '1.0.0',
+  }
+  const linkedManifest: ProjectManifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    dependencies: {
+      'local-dep': 'workspace:*',
+    },
+  }
+  const injectedManifest: ProjectManifest = {
+    ...linkedManifest,
+    dependenciesMeta: {
+      'local-dep': {
+        injected: true,
+      },
+    },
+  }
+
+  const projects = preparePackages([
+    { location: 'my-app', package: linkedManifest },
+    { location: 'local-dep', package: depManifest },
+  ])
+  fs.writeFileSync('local-dep/index.js', 'module.exports = 1\n')
+
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main-branch'))
+
+  const runWorkspaceInstall = async (appManifest: ProjectManifest, extraOpts: {
+    useGitBranchLockfile: boolean
+    mergeGitBranchLockfiles?: boolean
+    frozenLockfile?: boolean
+  }) => {
+    const appDir = path.resolve('my-app') as ProjectRootDir
+    const depDir = path.resolve('local-dep') as ProjectRootDir
+    await mutateModules([
+      { mutation: 'install', rootDir: appDir },
+      { mutation: 'install', rootDir: depDir },
+    ], {
+      ...testDefaults({
+        ...extraOpts,
+        dedupeInjectedDeps: false,
+        allProjects: [
+          { buildIndex: 0, manifest: appManifest, rootDir: appDir },
+          { buildIndex: 0, manifest: depManifest, rootDir: depDir },
+        ],
+      }),
+      lockfileDir: process.cwd(),
+    })
+  }
+
+  // Case 1: feature branch resolved link:../local-dep before main enabled injected: true.
+  await runWorkspaceInstall(linkedManifest, { useGitBranchLockfile: false })
+  const otherLockfilePath = path.resolve('pnpm-lock.feature.yaml')
+  fs.copyFileSync(WANTED_LOCKFILE, otherLockfilePath)
+
+  fs.writeFileSync('my-app/package.json', JSON.stringify(injectedManifest))
+  await runWorkspaceInstall(injectedManifest, { useGitBranchLockfile: false })
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  fs.rmSync('my-app/node_modules', { recursive: true, force: true })
+
+  await runWorkspaceInstall(injectedManifest, {
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  })
+
+  expect(fs.realpathSync('my-app/node_modules/local-dep')).not.toBe(fs.realpathSync('local-dep'))
+  expect(projects['my-app'].requireModule('local-dep')).toBe(1)
+
+  // Case 2: feature branch had injected: true (file:local-dep) before main reverted to link:../local-dep.
+  fs.copyFileSync(WANTED_LOCKFILE, otherLockfilePath)
+  fs.writeFileSync('my-app/package.json', JSON.stringify(linkedManifest))
+  await runWorkspaceInstall(linkedManifest, { useGitBranchLockfile: false })
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  fs.rmSync('my-app/node_modules', { recursive: true, force: true })
+
+  await runWorkspaceInstall(linkedManifest, {
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  })
+
+  expect(fs.realpathSync('my-app/node_modules/local-dep')).toBe(fs.realpathSync('local-dep'))
+})

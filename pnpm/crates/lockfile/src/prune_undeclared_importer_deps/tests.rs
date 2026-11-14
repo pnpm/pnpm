@@ -1,4 +1,6 @@
-use crate::{ProjectSnapshot, prune_undeclared_importer_deps, reconcile_merged_importer_metadata};
+use crate::{
+    PkgName, ProjectSnapshot, prune_undeclared_importer_deps, reconcile_merged_importer_metadata,
+};
 use pnpm_package_manifest::PackageManifest;
 use serde_json::json;
 use std::path::PathBuf;
@@ -260,7 +262,7 @@ dependenciesMeta:
     injected: true
 ",
     );
-    let changed = reconcile_merged_importer_metadata(
+    let outcome = reconcile_merged_importer_metadata(
         &mut merged,
         Some(&pre_merge),
         &manifest(json!({
@@ -268,7 +270,8 @@ dependenciesMeta:
             "dependenciesMeta": { "foo": { "injected": true } },
         })),
     );
-    assert!(changed);
+    assert!(outcome.changed);
+    assert!(!outcome.edges_changed);
     assert_eq!(merged.publish_directory, None);
     assert_eq!(merged.link_directory, None);
     assert_eq!(merged.dependencies_meta, Some(json!({ "foo": { "injected": true } })));
@@ -293,7 +296,7 @@ dependenciesMeta:
     patch: patches/stale.patch
 ",
     );
-    let changed = reconcile_merged_importer_metadata(
+    let outcome = reconcile_merged_importer_metadata(
         &mut merged,
         Some(&pre_merge),
         &manifest(json!({
@@ -301,7 +304,8 @@ dependenciesMeta:
             "dependenciesMeta": { "foo": { "patch": "patches/current.patch" } },
         })),
     );
-    assert!(changed);
+    assert!(outcome.changed);
+    assert!(!outcome.edges_changed);
     assert_eq!(merged.publish_directory.as_deref(), Some("build"));
     assert_eq!(merged.link_directory, Some(false));
     assert_eq!(
@@ -322,10 +326,95 @@ dependenciesMeta:
 ",
     );
     let mut merged = pre_merge.clone();
-    let changed =
+    let outcome =
         reconcile_merged_importer_metadata(&mut merged, Some(&pre_merge), &manifest(json!({})));
-    assert!(!changed);
+    assert!(!outcome.changed);
+    assert!(!outcome.edges_changed);
     assert_eq!(merged.publish_directory.as_deref(), Some("dist"));
     assert_eq!(merged.link_directory, Some(false));
     assert_eq!(merged.dependencies_meta, Some(json!({ "foo": { "injected": true } })));
+}
+
+#[test]
+fn restores_injected_resolution_overwritten_with_link_by_a_stale_branch_lockfile() {
+    let pre_merge = importer(
+        r"
+dependencies:
+  dep:
+    specifier: workspace:*
+    version: file:packages/dep
+dependenciesMeta:
+  dep:
+    injected: true
+",
+    );
+    let mut merged = importer(
+        r"
+dependencies:
+  dep:
+    specifier: workspace:*
+    version: link:../dep
+dependenciesMeta:
+  dep:
+    injected: false
+",
+    );
+    let outcome = reconcile_merged_importer_metadata(
+        &mut merged,
+        Some(&pre_merge),
+        &manifest(json!({
+            "dependencies": { "dep": "workspace:*" },
+            "dependenciesMeta": { "dep": { "injected": true } },
+        })),
+    );
+    assert!(outcome.changed);
+    assert!(outcome.edges_changed);
+    assert_eq!(merged.dependencies_meta, Some(json!({ "dep": { "injected": true } })));
+    assert_eq!(
+        merged.dependencies.as_ref().expect("dependencies")
+            [&PkgName::parse("dep").expect("pkg name")]
+            .version
+            .to_string(),
+        "file:packages/dep",
+    );
+}
+
+#[test]
+fn restores_link_resolution_when_stale_branch_folded_injected_file_resolution() {
+    let pre_merge = importer(
+        r"
+dependencies:
+  dep:
+    specifier: workspace:*
+    version: link:../dep
+",
+    );
+    let mut merged = importer(
+        r"
+dependencies:
+  dep:
+    specifier: workspace:*
+    version: file:packages/dep
+dependenciesMeta:
+  dep:
+    injected: true
+",
+    );
+    let outcome = reconcile_merged_importer_metadata(
+        &mut merged,
+        Some(&pre_merge),
+        &manifest(json!({
+            "dependencies": { "dep": "workspace:*" },
+        })),
+    );
+    assert!(outcome.changed);
+    assert!(outcome.edges_changed);
+    assert_eq!(merged.dependencies_meta, None);
+    assert_eq!(
+        merged.dependencies.as_ref().expect("dependencies")
+            [&PkgName::parse("dep").expect("pkg name")]
+            .version
+            .to_string(),
+        "link:../dep",
+    );
 }
