@@ -1,7 +1,7 @@
 //! Forward scans that locate the closing delimiter of `${...}`, `` `...` ``,
 //! and `#` comments within the shared [`WASTED_SCAN_ALLOWANCE`].
 
-use std::cell::Cell;
+use std::{cell::Cell, ops::ControlFlow};
 
 /// How much fruitless scanning a script is allowed, as a multiple of its own
 /// length. A delimiter that never closes is scanned to the end of the script,
@@ -33,7 +33,7 @@ pub(super) fn backtick_end(script: &str, start: usize, allowance: &Cell<usize>) 
     let bytes = script.as_bytes();
     let body_start = start + 1;
     let mut index = body_start;
-    if skip_to_closing_backtick(bytes, &mut index) {
+    if skip_to_closing_backtick(bytes, &mut index).is_break() {
         return Some(index - 1);
     }
     deduct_allowance(allowance, bytes.len() - body_start);
@@ -42,7 +42,7 @@ pub(super) fn backtick_end(script: &str, start: usize, allowance: &Cell<usize>) 
 
 /// Whether a `${...}` sits inside enclosing double quotes, which decides
 /// whether `'` inside its body is literal text or opens single quotes.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(super) enum ParameterQuoting {
     Unquoted,
     DoubleQuoted,
@@ -70,7 +70,7 @@ pub(super) fn braced_parameter_end(
     while index < bytes.len() {
         let byte = bytes[index];
         index += 1;
-        if scanner.step(bytes, byte, &mut index) {
+        if scanner.step(bytes, byte, &mut index).is_break() {
             return Some(index - 1);
         }
     }
@@ -84,22 +84,21 @@ fn deduct_allowance(allowance: &Cell<usize>, scanned: usize) {
 }
 
 /// Advance `index` past the closing `` ` ``, skipping backslash-escaped pairs.
-/// Returns `true` when the closing `` ` `` was found.
-fn skip_to_closing_backtick(bytes: &[u8], index: &mut usize) -> bool {
+fn skip_to_closing_backtick(bytes: &[u8], index: &mut usize) -> ControlFlow<()> {
     while *index < bytes.len() {
         let byte = bytes[*index];
         *index += 1;
         match byte {
             b'\\' => *index = (*index + 1).min(bytes.len()),
-            b'`' => return true,
+            b'`' => return ControlFlow::Break(()),
             _ => {}
         }
     }
-    false
+    ControlFlow::Continue(())
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum TokenPosition {
+#[derive(Clone, Copy)]
+pub(super) enum TokenPosition {
     WordStart,
     MidWord,
 }
@@ -155,16 +154,16 @@ impl BraceScanner {
         Self { current: Scope::parameter(quoting), enclosing: Vec::new() }
     }
 
-    fn step(&mut self, bytes: &[u8], byte: u8, index: &mut usize) -> bool {
+    fn step(&mut self, bytes: &[u8], byte: u8, index: &mut usize) -> ControlFlow<()> {
         if let Some(open) = self.current.quote() {
             self.step_quoted(bytes, open, byte, index);
-            return false;
+            return ControlFlow::Continue(());
         }
         match self.current {
             Scope::Parameter { quoting, .. } => self.step_parameter(bytes, byte, quoting, index),
             Scope::CommandSubstitution { position, .. } => {
                 self.step_command_substitution(bytes, byte, position, index);
-                false
+                ControlFlow::Continue(())
             }
         }
     }
@@ -183,7 +182,7 @@ impl BraceScanner {
             b'\\' => *index = (*index + 1).min(bytes.len()),
             b'$' => self.step_dollar(bytes, ParameterQuoting::DoubleQuoted, index),
             b'`' => {
-                skip_to_closing_backtick(bytes, index);
+                let _ = skip_to_closing_backtick(bytes, index);
             }
             _ => {}
         }
@@ -195,20 +194,23 @@ impl BraceScanner {
         byte: u8,
         quoting: ParameterQuoting,
         index: &mut usize,
-    ) -> bool {
+    ) -> ControlFlow<()> {
         match byte {
             b'\\' => skip_escaped_bytes(bytes, index),
             b'`' => {
-                skip_to_closing_backtick(bytes, index);
+                let _ = skip_to_closing_backtick(bytes, index);
             }
             b'$' => self.step_dollar(bytes, quoting, index),
             b'"' => self.current.set_quote(Some(b'"')),
-            b'\'' if quoting == ParameterQuoting::Unquoted => self.current.set_quote(Some(b'\'')),
+            b'\'' => match quoting {
+                ParameterQuoting::Unquoted => self.current.set_quote(Some(b'\'')),
+                ParameterQuoting::DoubleQuoted => {}
+            },
             b'{' => self.push_nested_brace(),
             b'}' => return self.pop_brace_or_parameter(),
             _ => {}
         }
-        false
+        ControlFlow::Continue(())
     }
 
     fn step_command_substitution(
@@ -221,10 +223,13 @@ impl BraceScanner {
         match byte {
             b'\\' => self.skip_command_escape(bytes, index),
             b'`' => {
-                skip_to_closing_backtick(bytes, index);
+                let _ = skip_to_closing_backtick(bytes, index);
                 self.current.mark_mid_word();
             }
-            b'#' if position == TokenPosition::WordStart => skip_comment_bytes(bytes, index),
+            b'#' => match position {
+                TokenPosition::WordStart => skip_comment_bytes(bytes, index),
+                TokenPosition::MidWord => self.current.mark_mid_word(),
+            },
             b'$' => {
                 self.current.mark_mid_word();
                 self.step_dollar(bytes, ParameterQuoting::Unquoted, index);
@@ -253,18 +258,18 @@ impl BraceScanner {
         }
     }
 
-    fn pop_brace_or_parameter(&mut self) -> bool {
+    fn pop_brace_or_parameter(&mut self) -> ControlFlow<()> {
         if let Scope::Parameter { nested_braces, .. } = &mut self.current
             && *nested_braces > 0
         {
             *nested_braces -= 1;
-            return false;
+            return ControlFlow::Continue(());
         }
         let Some(enclosing) = self.enclosing.pop() else {
-            return true;
+            return ControlFlow::Break(());
         };
         self.current = enclosing;
-        false
+        ControlFlow::Continue(())
     }
 
     fn push_nested_paren(&mut self) {
@@ -288,7 +293,8 @@ impl BraceScanner {
     }
 
     fn skip_command_escape(&mut self, bytes: &[u8], index: &mut usize) {
-        if skip_line_continuation(bytes, index) {
+        if line_continuation_len(&bytes[*index..]) > 0 {
+            *index += line_continuation_len(&bytes[*index..]);
             return;
         }
         *index = (*index + 1).min(bytes.len());
@@ -305,21 +311,22 @@ impl BraceScanner {
 }
 
 fn skip_escaped_bytes(bytes: &[u8], index: &mut usize) {
-    if !skip_line_continuation(bytes, index) {
+    let continuation = line_continuation_len(&bytes[*index..]);
+    if continuation > 0 {
+        *index += continuation;
+    } else {
         *index = (*index + 1).min(bytes.len());
     }
 }
 
-fn skip_line_continuation(bytes: &[u8], index: &mut usize) -> bool {
-    if bytes.get(*index) == Some(&b'\n') {
-        *index += 1;
-        return true;
+fn line_continuation_len(rest: &[u8]) -> usize {
+    if rest.starts_with(b"\n") {
+        return 1;
     }
-    if bytes[*index..].starts_with(b"\r\n") {
-        *index += 2;
-        return true;
+    if rest.starts_with(b"\r\n") {
+        return 2;
     }
-    false
+    0
 }
 
 fn skip_comment_bytes(bytes: &[u8], index: &mut usize) {

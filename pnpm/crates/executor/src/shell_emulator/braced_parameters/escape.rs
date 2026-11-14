@@ -1,8 +1,10 @@
 //! Emitting backslash-escaped pairs and bare-word operators in forms
 //! `deno_task_shell`'s parser accepts without losing quoting boundaries.
 
+use super::scan::TokenPosition;
+
 /// Which double-quoted construct owns the backslash at the cursor.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(super) enum DoubleQuoteScope {
     /// A `"..."` literal in script text or inside an unquoted expansion word.
     Literal,
@@ -26,29 +28,32 @@ pub(super) fn push_double_quoted_backslash(
         expanded.push_str("\\\r\n");
         return 2;
     }
-    match rest.chars().next() {
-        Some('\\') => {
+    match (rest.chars().next(), scope) {
+        (Some('\\'), DoubleQuoteScope::Literal | DoubleQuoteScope::ParameterWord) => {
             expanded.push_str(r#""'\'""#);
             1
         }
-        Some(escaped @ ('$' | '"' | '`' | '\n')) => {
+        (
+            Some(escaped @ ('$' | '"' | '`' | '\n')),
+            DoubleQuoteScope::Literal | DoubleQuoteScope::ParameterWord,
+        ) => {
             expanded.push('\\');
             expanded.push(escaped);
             1
         }
-        Some('}') if scope == DoubleQuoteScope::ParameterWord => {
+        (Some('}'), DoubleQuoteScope::ParameterWord) => {
             expanded.push('}');
             1
         }
-        Some(_) => {
+        (Some(_), DoubleQuoteScope::Literal | DoubleQuoteScope::ParameterWord) => {
             expanded.push('\\');
             0
         }
-        None if scope == DoubleQuoteScope::ParameterWord => {
+        (None, DoubleQuoteScope::ParameterWord) => {
             expanded.push_str(r#""'\'""#);
             0
         }
-        None => {
+        (None, DoubleQuoteScope::Literal) => {
             expanded.push('\\');
             0
         }
@@ -74,12 +79,12 @@ pub(super) fn push_unquoted_word_backslash(expanded: &mut String, rest: &str) ->
 }
 
 /// Emit the sequence for an unquoted `\` in script text, given `rest` starting
-/// immediately after the `\`, updating `at_word_boundary` and returning how
-/// many bytes of `rest` were consumed.
+/// immediately after the `\`, updating `position` and returning how many bytes
+/// of `rest` were consumed.
 pub(super) fn push_unquoted_script_backslash(
     expanded: &mut String,
     rest: &str,
-    at_word_boundary: &mut bool,
+    position: &mut TokenPosition,
 ) -> usize {
     // `deno_task_shell` neither collapses unquoted `\\` before `$`/ordinary
     // text nor accepts unquoted `\'`, so `\\` and `\'` are rewritten into
@@ -96,23 +101,23 @@ pub(super) fn push_unquoted_script_backslash(
         }
         Some('\\') => {
             expanded.push_str(r"'\'");
-            *at_word_boundary = false;
+            *position = TokenPosition::MidWord;
             1
         }
         Some('\'') => {
             expanded.push_str(r#""'""#);
-            *at_word_boundary = false;
+            *position = TokenPosition::MidWord;
             1
         }
         Some(escaped) => {
             expanded.push('\\');
             expanded.push(escaped);
-            *at_word_boundary = false;
+            *position = TokenPosition::MidWord;
             escaped.len_utf8()
         }
         None => {
             expanded.push('\\');
-            *at_word_boundary = false;
+            *position = TokenPosition::MidWord;
             0
         }
     }

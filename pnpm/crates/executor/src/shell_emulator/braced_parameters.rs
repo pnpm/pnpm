@@ -5,6 +5,7 @@ mod escape;
 mod scan;
 
 use escape::DoubleQuoteScope;
+use scan::TokenPosition;
 use std::{cell::Cell, collections::HashMap, ops::ControlFlow};
 
 /// Rewrite the POSIX `${...}` parameter expansions and backslash escapes (`\\`
@@ -55,7 +56,7 @@ fn rewrite_into(
         expanded,
         index: 0,
         mode: rewrite.landing.initial_mode(),
-        at_word_boundary: true,
+        position: TokenPosition::WordStart,
     };
     cursor.run();
     cursor.index
@@ -81,9 +82,7 @@ impl<'a> Rewrite<'a> {
 
     /// The rewrite of the `word` of an expansion sitting at `mode` in this text.
     fn of_a_word_at(self, mode: Mode) -> Self {
-        let landing =
-            if mode.is_double_quoted() { Landing::QuotedWord } else { Landing::UnquotedWord };
-        Rewrite { landing, depth: self.depth.saturating_add(1), ..self }
+        Rewrite { landing: mode.word_landing(), depth: self.depth.saturating_add(1), ..self }
     }
 
     /// The rewrite of a command substitution (`$(...)` or `` `...` ``), which
@@ -95,7 +94,7 @@ impl<'a> Rewrite<'a> {
 
 /// Where the text being rewritten ends up in the finished script, which is
 /// what decides whether an operator in it is syntax or word text.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Landing {
     Script,
     /// POSIX makes an operator here part of the word, so it is escaped rather
@@ -123,7 +122,7 @@ impl Landing {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Quote {
     Unquoted,
     Single,
@@ -133,7 +132,7 @@ enum Quote {
 /// Active lexical context inside [`Cursor`]. [`Mode::QuotedWord`] stays inside
 /// its enclosing double quotes for the entire `word`, so only [`Mode::Script`]
 /// and [`Mode::UnquotedWord`] transition between quotes.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Mode {
     Script(Quote),
     UnquotedWord(Quote),
@@ -141,20 +140,22 @@ enum Mode {
 }
 
 impl Mode {
-    fn is_double_quoted(self) -> bool {
+    fn word_landing(self) -> Landing {
         match self {
             Mode::Script(Quote::Double) | Mode::UnquotedWord(Quote::Double) | Mode::QuotedWord => {
-                true
+                Landing::QuotedWord
             }
             Mode::Script(Quote::Unquoted | Quote::Single)
-            | Mode::UnquotedWord(Quote::Unquoted | Quote::Single) => false,
+            | Mode::UnquotedWord(Quote::Unquoted | Quote::Single) => Landing::UnquotedWord,
         }
     }
 
     fn with_quote(self, quote: Quote) -> Self {
         match self {
-            Mode::Script(_) => Mode::Script(quote),
-            Mode::UnquotedWord(_) => Mode::UnquotedWord(quote),
+            Mode::Script(Quote::Unquoted | Quote::Single | Quote::Double) => Mode::Script(quote),
+            Mode::UnquotedWord(Quote::Unquoted | Quote::Single | Quote::Double) => {
+                Mode::UnquotedWord(quote)
+            }
             Mode::QuotedWord => Mode::QuotedWord,
         }
     }
@@ -162,7 +163,10 @@ impl Mode {
     fn double_quote_scope(self) -> DoubleQuoteScope {
         match self {
             Mode::QuotedWord => DoubleQuoteScope::ParameterWord,
-            Mode::Script(_) | Mode::UnquotedWord(_) => DoubleQuoteScope::Literal,
+            Mode::Script(Quote::Unquoted | Quote::Single | Quote::Double)
+            | Mode::UnquotedWord(Quote::Unquoted | Quote::Single | Quote::Double) => {
+                DoubleQuoteScope::Literal
+            }
         }
     }
 }
@@ -179,7 +183,7 @@ struct Cursor<'a, 'out> {
     expanded: &'out mut String,
     index: usize,
     mode: Mode,
-    at_word_boundary: bool,
+    position: TokenPosition,
 }
 
 impl Cursor<'_, '_> {
@@ -213,7 +217,7 @@ impl Cursor<'_, '_> {
     fn step_single_quoted(&mut self, character: char) {
         if character == '\'' {
             self.mode = self.mode.with_quote(Quote::Unquoted);
-            self.at_word_boundary = false;
+            self.position = TokenPosition::MidWord;
         }
         self.expanded.push(character);
     }
@@ -231,12 +235,15 @@ impl Cursor<'_, '_> {
             // the outer double quotes stay open across the whole expansion.
             // Splicing `""` closes and reopens the quoted run so `$FOO` in
             // `"${MISSING:-"$FOO"suffix}"` does not merge with `suffix`.
-            '"' if self.mode == Mode::QuotedWord => self.expanded.push_str(r#""""#),
-            '"' => {
-                self.mode = self.mode.with_quote(Quote::Unquoted);
-                self.at_word_boundary = false;
-                self.expanded.push('"');
-            }
+            '"' => match self.mode {
+                Mode::QuotedWord => self.expanded.push_str(r#""""#),
+                Mode::Script(Quote::Unquoted | Quote::Single | Quote::Double)
+                | Mode::UnquotedWord(Quote::Unquoted | Quote::Single | Quote::Double) => {
+                    self.mode = self.mode.with_quote(Quote::Unquoted);
+                    self.position = TokenPosition::MidWord;
+                    self.expanded.push('"');
+                }
+            },
             '$' => self.push_dollar(),
             '`' => self.push_backticks(),
             _ => self.expanded.push(character),
@@ -269,31 +276,34 @@ impl Cursor<'_, '_> {
                 self.index += escape::push_unquoted_script_backslash(
                     self.expanded,
                     &self.script[self.index..],
-                    &mut self.at_word_boundary,
+                    &mut self.position,
                 );
             }
-            '#' if self.at_word_boundary => self.push_comment(),
+            '#' => match self.position {
+                TokenPosition::WordStart => self.push_comment(),
+                TokenPosition::MidWord => self.expanded.push('#'),
+            },
             '\'' => {
                 self.mode = Mode::Script(Quote::Single);
-                self.at_word_boundary = false;
+                self.position = TokenPosition::MidWord;
                 self.expanded.push('\'');
             }
             '"' => {
                 self.mode = Mode::Script(Quote::Double);
-                self.at_word_boundary = false;
+                self.position = TokenPosition::MidWord;
                 self.expanded.push('"');
             }
             '$' => {
                 self.push_dollar();
-                self.at_word_boundary = false;
+                self.position = TokenPosition::MidWord;
             }
             '`' => {
                 self.push_backticks();
-                self.at_word_boundary = false;
+                self.position = TokenPosition::MidWord;
             }
             '(' | ')' => return self.step_parenthesis(character),
             _ => {
-                self.at_word_boundary = is_word_boundary(character);
+                self.position = token_position_after(character);
                 self.expanded.push(character);
             }
         }
@@ -308,10 +318,11 @@ impl Cursor<'_, '_> {
     }
 
     fn step_parenthesis(&mut self, character: char) -> ControlFlow<()> {
-        self.at_word_boundary = true;
+        self.position = TokenPosition::WordStart;
         self.expanded.push(character);
-        let StopAt::ClosingParen { nested_parens } = &mut self.stop_at else {
-            return ControlFlow::Continue(());
+        let nested_parens = match &mut self.stop_at {
+            StopAt::EndOfInput => return ControlFlow::Continue(()),
+            StopAt::ClosingParen { nested_parens } => nested_parens,
         };
         if character == '(' {
             *nested_parens += 1;
@@ -376,8 +387,10 @@ impl Cursor<'_, '_> {
     }
 }
 
-fn is_word_boundary(character: char) -> bool {
-    character.is_ascii_whitespace() || matches!(character, ';' | '&' | '|' | '<' | '>' | '(' | ')')
+fn token_position_after(character: char) -> TokenPosition {
+    let is_boundary = character.is_ascii_whitespace()
+        || matches!(character, ';' | '&' | '|' | '<' | '>' | '(' | ')');
+    if is_boundary { TokenPosition::WordStart } else { TokenPosition::MidWord }
 }
 
 /// Append the replacement for the `${...}` that starts at `start` to
