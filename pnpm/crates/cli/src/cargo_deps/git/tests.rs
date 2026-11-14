@@ -114,6 +114,45 @@ workspace = true
 }
 
 #[test]
+fn workspace_inheritance_honors_renamed_package_declarations() {
+    let workspace = manifest(
+        r#"
+[workspace]
+members = ["member"]
+
+[workspace.dependencies]
+itoa = "1.0"
+ws_ryu = { package = "ryu", version = "1.0.19" }
+"#,
+    );
+    let member = manifest(
+        r#"
+[package]
+name = "member"
+version = "0.1.0"
+
+[dependencies]
+my_itoa = { package = "itoa", workspace = true, features = ["extra"] }
+ws_ryu = { workspace = true }
+local_ryu = { package = "ws_ryu", workspace = true }
+"#,
+    );
+
+    let vendored = vendored_package(&member, Some(&workspace.document)).unwrap();
+    let document: toml::Table = toml::from_str(&vendored.manifest).expect("valid TOML");
+    assert_eq!(document["dependencies"]["my_itoa"]["package"].as_str(), Some("itoa"));
+    assert_eq!(document["dependencies"]["my_itoa"]["version"].as_str(), Some("1.0"));
+    assert_eq!(
+        document["dependencies"]["my_itoa"]["features"].as_array().map(Vec::as_slice),
+        Some(["extra".into()].as_slice()),
+    );
+    assert_eq!(document["dependencies"]["ws_ryu"]["package"].as_str(), Some("ryu"));
+    assert_eq!(document["dependencies"]["ws_ryu"]["version"].as_str(), Some("1.0.19"));
+    assert_eq!(document["dependencies"]["local_ryu"]["package"].as_str(), Some("ryu"));
+    assert_eq!(document["dependencies"]["local_ryu"]["version"].as_str(), Some("1.0.19"));
+}
+
+#[test]
 fn the_workspace_table_is_left_out_of_a_vendored_root_package() {
     let root = manifest(
         r#"

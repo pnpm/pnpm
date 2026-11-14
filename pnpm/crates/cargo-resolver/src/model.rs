@@ -163,6 +163,23 @@ impl std::error::Error for CancelError {}
 
 impl miette::Diagnostic for CancelError {}
 
+/// Whether a dependency declared with `requirement` and `source` accepts
+/// `version`.
+///
+/// A path (`None`) or git (`git+…`) dependency declared without a version
+/// appears in `cargo metadata` as `*`. Cargo accepts any version for it,
+/// prereleases included, while semver's `*` rejects prereleases. A registry
+/// `*` is a requirement the manifest spells out, so it keeps semver's rule.
+pub(crate) fn accepts_declared_version(
+    requirement: &VersionReq,
+    source: Option<&str>,
+    version: &Version,
+) -> bool {
+    let unversioned =
+        *requirement == VersionReq::STAR && source.is_none_or(|source| source.starts_with("git+"));
+    unversioned || requirement.matches(version)
+}
+
 pub(crate) fn ensure_not_cancelled(
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> miette::Result<()> {
