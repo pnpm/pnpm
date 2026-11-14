@@ -400,8 +400,6 @@ async fn update_at_a_virtual_shared_workspace_root_updates_member_manifests_and_
     )
     .await;
 
-    // Targeted `pnpm update pypi:alpha` from the virtual root updates `alpha` in `packages/lib`
-    // while keeping `beta` pinned at `1.0` and `lib` linked from the workspace.
     pacquet_in(root.path())
         .args(["update", "pypi:alpha"])
         .assert()
@@ -417,8 +415,6 @@ async fn update_at_a_virtual_shared_workspace_root_updates_member_manifests_and_
         .assert()
         .success();
 
-    // Bare `pnpm update` from the virtual root updates `beta` across member dependency groups
-    // without touching `lib` inherited from root `[tool.uv.sources]`.
     pacquet_in(root.path())
         .arg("update")
         .assert()
@@ -432,8 +428,6 @@ async fn update_at_a_virtual_shared_workspace_root_updates_member_manifests_and_
         .assert()
         .success();
 
-    // `--latest` bumps across the upper bound, `install --frozen-lockfile` replays cleanly,
-    // and undeclared packages still report an error.
     pacquet_in(root.path())
         .args(["update", "--latest", "pypi:alpha"])
         .assert()

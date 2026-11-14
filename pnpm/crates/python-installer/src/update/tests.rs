@@ -9,7 +9,7 @@ use pnpm_config::Config;
 use pnpm_python_resolver::{Inputs, LockedPackage, LockedWheel, Lockfile, ToolMetadata};
 
 use super::{
-    StageContext, UpdateOptions, collect_updated_markers, finalize_requirement,
+    StageContext, StagingScope, UpdateOptions, collect_updated_markers, finalize_requirement,
     specifiers::updated_existing_specifiers, stage_manifests_for_resolution, stage_requirement,
 };
 use crate::{PythonDependencyGroup, declared_dependencies, discover};
@@ -132,7 +132,7 @@ fn unselected_sibling_staging_preserves_platform_specific_locked_versions() {
     let staged_beta = stage_requirement(
         PythonDependencyGroup::Prod,
         "beta>=1.0".parse().unwrap(),
-        false,
+        StagingScope::SiblingProject,
         &options,
         None,
         Some(&lock_index),
@@ -169,7 +169,7 @@ fn unselected_sibling_staging_preserves_platform_specific_locked_versions() {
     let staged_gamma = stage_requirement(
         PythonDependencyGroup::Prod,
         "gamma>=1.0".parse().unwrap(),
-        false,
+        StagingScope::SiblingProject,
         &options,
         None,
         Some(&lock_index),
@@ -229,7 +229,7 @@ fn sibling_pins_preserve_disjoint_markers_and_skip_stale_constraints() {
     let win_sibling = stage_requirement(
         PythonDependencyGroup::Prod,
         "alpha>=1.0 ; sys_platform == 'win32'".parse().unwrap(),
-        false,
+        StagingScope::SiblingProject,
         &options,
         Some(&updated_in_env),
         Some(&lock_index),
@@ -253,7 +253,7 @@ fn sibling_pins_preserve_disjoint_markers_and_skip_stale_constraints() {
     let stale = stage_requirement(
         PythonDependencyGroup::Prod,
         "beta>=2.0".parse().unwrap(),
-        false,
+        StagingScope::SiblingProject,
         &options,
         Some(&updated_in_env),
         Some(&lock_index),

@@ -227,21 +227,31 @@ pub(super) fn stage_manifests_for_resolution(
         .map(|(root, lock)| Ok((root.as_path(), lock.index()?)))
         .collect::<Result<_>>()?;
     for member in members {
-        let is_selected = stage.selected.contains(member);
+        let scope = if stage.selected.contains(member) {
+            StagingScope::SelectedProject
+        } else {
+            StagingScope::SiblingProject
+        };
         let lock_root = stage.discovery.workspace.lock_root(member);
         let lock_index = lock_indices.get(lock_root);
         let updated_in_env = stage.updated_markers.get(lock_root);
         rewrite_pyproject_many(member, &stage.discovery.workspace, |group, req| {
-            stage_requirement(group, req, is_selected, stage.options, updated_in_env, lock_index)
+            stage_requirement(group, req, scope, stage.options, updated_in_env, lock_index)
         })?;
     }
     Ok(())
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum StagingScope {
+    SelectedProject,
+    SiblingProject,
+}
+
 pub(super) fn stage_requirement(
     group: PythonDependencyGroup,
     mut req: Requirement,
-    is_selected: bool,
+    scope: StagingScope,
     options: &UpdateOptions,
     updated_in_env: Option<&BTreeMap<PackageName, MarkerTree>>,
     lock_index: Option<&LockIndex<'_>>,
@@ -249,7 +259,7 @@ pub(super) fn stage_requirement(
     if matches!(req.version_or_url, Some(VersionOrUrl::Url(_))) {
         return Ok(None);
     }
-    if is_selected && options.selects(group, &req.name) {
+    if scope == StagingScope::SelectedProject && options.selects(group, &req.name) {
         return stage_selected_requirement(&mut req, options);
     }
     let Some(lock_index) = lock_index else {
