@@ -242,7 +242,7 @@ pub(super) fn stage_manifests_for_resolution(
     Ok(())
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(super) enum StagingScope {
     SelectedProject,
     SiblingProject,
@@ -259,14 +259,18 @@ pub(super) fn stage_requirement(
     if matches!(req.version_or_url, Some(VersionOrUrl::Url(_))) {
         return Ok(None);
     }
-    if scope == StagingScope::SelectedProject && options.selects(group, &req.name) {
-        return stage_selected_requirement(&mut req, options);
+    match scope {
+        StagingScope::SelectedProject if options.selects(group, &req.name) => {
+            stage_selected_requirement(&mut req, options)
+        }
+        StagingScope::SelectedProject | StagingScope::SiblingProject => {
+            let Some(lock_index) = lock_index else {
+                return Ok(None);
+            };
+            let excluded = updated_in_env.and_then(|markers| markers.get(&req.name));
+            lock_index.pinned_index_requirements(&req, excluded)
+        }
     }
-    let Some(lock_index) = lock_index else {
-        return Ok(None);
-    };
-    let excluded = updated_in_env.and_then(|markers| markers.get(&req.name));
-    lock_index.pinned_index_requirements(&req, excluded)
 }
 
 fn stage_selected_requirement(
