@@ -180,7 +180,10 @@ pub(super) fn legacy_registries_warning(input: &Value, current: &Value) -> Optio
     }
     let routes = input.get("registriesByScope")?.as_object()?;
     let legacy_routes = current.get("registries")?.as_object()?;
-    if !legacy_routes.values().all(Value::is_string) {
+    if !legacy_routes
+        .iter()
+        .all(|(key, value)| (key == "default" || key.starts_with('@')) && value.is_string())
+    {
         return None;
     }
     let unchanged_scopes = routes

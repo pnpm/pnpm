@@ -216,12 +216,18 @@ function legacyRegistriesWarning (
   const registries = hookRegistries(config)
   if (equals(before.registries, registries) || !equals(before.registriesByScope, config.registriesByScope)) return undefined
   const legacyRoutes = registries
-  if (!isPlainObject(legacyRoutes) || !Object.values(legacyRoutes).every((route) => typeof route === 'string')) return undefined
+  if (!isPlainObject(legacyRoutes) || !isLegacyRegistryRoutes(legacyRoutes)) return undefined
   const unchangedScopes = Object.entries(before.registriesByScope)
     .filter(([scope, route]) => scope !== 'default' && legacyRoutes[scope] !== route)
     .map(([scope]) => scope)
   if (unchangedScopes.length === 0) return undefined
   return `The updateConfig hook changed the \`registries\` setting, but ${unchangedScopes.join(', ')} still use their configured registry. Return \`registriesByScope\` to replace scope routing.`
+}
+
+function isLegacyRegistryRoutes (routes: Record<string, unknown>): boolean {
+  return Object.entries(routes).every(([key, route]) =>
+    (key === 'default' || key.startsWith('@')) && typeof route === 'string'
+  )
 }
 
 function hookRegistries (config: Config): unknown {

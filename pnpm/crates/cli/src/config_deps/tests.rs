@@ -42,6 +42,20 @@ fn legacy_registries_warning_is_absent_when_registry_setting_is_unchanged() {
     assert_eq!(legacy_registries_warning(&config, &config), None);
 }
 
+#[test]
+fn legacy_registries_warning_ignores_registry_url_settings() {
+    let before = serde_json::json!({
+        "registries": { "https://registry.example/": "artifactory" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "https://registry.example/": "npm" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+
+    assert_eq!(legacy_registries_warning(&before, &after), None);
+}
+
 #[tokio::test]
 async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
     for prefer_value in [true, false] {

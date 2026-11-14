@@ -394,6 +394,18 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
   })
 
+  test('does not warn when an updateConfig hook changes registry URL settings', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { 'https://registry.example/': 'npm' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { 'https://registry.example/': 'artifactory' } })
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+  })
+
   test.each(['.pnpmfile.cjs', '.pnpmfile.mjs'])('the updateConfig hook of %s runs after the ones of config dependency plugins', async (defaultPnpmfile) => {
     prepare()
 
