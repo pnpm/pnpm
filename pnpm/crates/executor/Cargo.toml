@@ -15,7 +15,6 @@ default = ["shell-emulator"]
 shell-emulator = ["dep:deno_task_shell"]
 
 [dependencies]
-pnpm-ffi-fs = { workspace = true }
 pnpm-signal-registry = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
@@ -37,6 +36,7 @@ pnpm-ffi-process = { workspace = true }
 pnpm-ffi-signal = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
+pnpm-ffi-fs = { workspace = true }
 windows-sys = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_Storage_FileSystem",

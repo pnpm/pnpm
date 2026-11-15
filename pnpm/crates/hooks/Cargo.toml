@@ -11,7 +11,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-pnpm-ffi-process = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-process = { path = "../process" }
 serde = { workspace = true }
@@ -30,6 +29,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio = { workspace = true, features = ["net", "process", "signal"] }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
+pnpm-ffi-process = { workspace = true }
 libc = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]

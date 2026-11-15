@@ -11,7 +11,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-pnpm-ffi-fs = { workspace = true }
 pnpm-package-name = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
@@ -48,6 +47,7 @@ url = { workspace = true }
 sha2 = { workspace = true, features = ["asm"] }
 
 [target.'cfg(windows)'.dependencies]
+pnpm-ffi-fs = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
