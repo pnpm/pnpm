@@ -193,7 +193,10 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
     const updateConfigResult = updateConfig(config)
     config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop -- each hook receives the config the previous one returned
   }
-  const scopeRoutesChanged = !equals(routingBeforeHooks.registriesByScope, config.registriesByScope)
+  const scopeRoutes = config.registriesByScope === undefined
+    ? routingBeforeHooks.registriesByScope
+    : config.registriesByScope
+  const scopeRoutesChanged = !equals(routingBeforeHooks.registriesByScope, scopeRoutes)
   applyRegistryRoutingChanges(config, routingBeforeHooks)
   const warning = legacyRegistriesWarning(routingBeforeHooks, config, scopeRoutesChanged)
   if (warning) globalWarn(warning)
