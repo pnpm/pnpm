@@ -62,9 +62,9 @@ pub struct DependentNode {
     #[serde(skip)]
     pub(crate) importer_id: Option<String>,
     /// Package identity for non-semver nodes whose display `version` is empty
-    /// (such as `file:` directory or `runtime:` snapshots), kept across
-    /// [`merge_trees`] so distinct targets with the same package name do not
-    /// collapse into one node.
+    /// (such as `file:` directory snapshots), kept across [`merge_trees`] so
+    /// distinct targets with the same package name do not collapse into one
+    /// node.
     #[serde(skip)]
     pub(crate) merge_id: Option<String>,
     /// Originating matched-package paths from merged per-project trees,

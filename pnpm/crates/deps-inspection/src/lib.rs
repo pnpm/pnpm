@@ -29,7 +29,7 @@ pub mod pkg_info;
 pub mod render;
 pub mod search;
 
-use pnpm_lockfile::{PackageMetadata, PkgNameVerPeer, Prefix};
+use pnpm_lockfile::{PackageMetadata, PkgNameVerPeer};
 
 /// Cap on every recursive walk over the dependency graph. The cycle
 /// guards bound the *output*, not the recursion depth, so a hostile
@@ -132,16 +132,14 @@ pub fn peers_suffix_hash(dep_path: &PkgNameVerPeer) -> Option<String> {
 
 /// Semver version recorded for `dep_path`: `metadata.version` when the
 /// lockfile `packages:` entry carries one (tarball/git deps), or the semver
-/// of a plain or registry-qualified `dep_path` (excluding `runtime:`,
-/// `file:`, and non-semver references).
+/// encoded in `dep_path` (including `runtime:` semver pins and
+/// registry-qualified versions, while excluding `file:` directory and other
+/// non-semver references).
 pub(crate) fn resolved_pkg_version(
     metadata: Option<&PackageMetadata>,
     dep_path: &PkgNameVerPeer,
 ) -> Option<String> {
     metadata
         .and_then(|metadata| metadata.version.clone())
-        .or_else(|| match dep_path.suffix.prefix() {
-            Prefix::None => dep_path.suffix.registry_version().map(ToString::to_string),
-            Prefix::Runtime => None,
-        })
+        .or_else(|| dep_path.suffix.registry_version().map(ToString::to_string))
 }

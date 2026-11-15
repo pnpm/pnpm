@@ -229,7 +229,8 @@ fn print_label(
 }
 
 /// `name@version`, or `alias@npm:name@version` for an aliased package
-/// unless `version` is already prefixed with `<pkg>@` (`file:`, `runtime:`, ...).
+/// unless `version` is already prefixed with `<pkg>@` (such as aliased `file:`
+/// directory references).
 fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
     if node.alias == node.package.name {
         return name_at_version(&node.package.name, &node.package.version, color);

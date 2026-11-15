@@ -442,7 +442,8 @@ snapshots:
 
     let runtime_dep = resolve_edge("node", "runtime:26.13.0", "node@runtime:26.13.0");
     assert_eq!(runtime_dep.package.name, "node");
-    assert_eq!(runtime_dep.package.version, "runtime:26.13.0");
+    assert_eq!(runtime_dep.package.version, "26.13.0");
+    assert_eq!(runtime_dep.package.resolved, None);
 
     let registry_qualified = resolve_edge("foo", "work:1.0.0", "foo@work:1.0.0");
     assert_eq!(registry_qualified.package.name, "foo");
@@ -461,9 +462,14 @@ snapshots:
         name_ver_from_dep_path(&lockfile, &"tgz-pkg@file:pkg.tgz".parse().unwrap()),
         ("tgz-pkg".to_string(), "1.2.3".to_string()),
     );
-    assert_eq!(
-        name_ver_from_dep_path(&lockfile, &"node@runtime:26.13.0".parse().unwrap()),
-        ("node".to_string(), String::new()),
+    let (runtime_name, runtime_ver) =
+        name_ver_from_dep_path(&lockfile, &"node@runtime:26.13.0".parse().unwrap());
+    assert_eq!((runtime_name.as_str(), runtime_ver.as_str()), ("node", "26.13.0"));
+    assert!(
+        crate::search::Searcher::from_queries(&["node@26".to_string()])
+            .unwrap()
+            .matches(&runtime_name, &runtime_name, &runtime_ver, None)
+            .is_match(),
     );
     assert_eq!(
         name_ver_from_dep_path(&lockfile, &"foo@work:1.0.0".parse().unwrap()),

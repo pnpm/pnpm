@@ -107,7 +107,7 @@ pub(super) fn has_snapshot(ctx: &WalkCtx<'_>, dep_path: &PkgNameVerPeer) -> bool
 
 /// Name and semver version of a depPath, preferring the `version:`
 /// recorded in the `packages:` entry (git/tarball deps) over the semver
-/// encoded in the depPath. Empty for `file:`, `runtime:`, and other
+/// encoded in the depPath. Empty for `file:` directory and other
 /// non-semver references without a `packages:` version.
 #[must_use]
 pub fn name_ver_from_dep_path(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) -> (String, String) {
