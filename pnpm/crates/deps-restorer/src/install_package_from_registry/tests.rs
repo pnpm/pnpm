@@ -276,6 +276,7 @@ fn create_config(
         minimum_release_age_exclude: None,
         minimum_release_age_ignore_missing_time: true,
         minimum_release_age_strict: None,
+        reference_time: None,
         trust_lockfile: false,
         trust_policy: Default::default(),
         init_package_manager: true,

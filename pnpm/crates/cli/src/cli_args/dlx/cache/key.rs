@@ -1,5 +1,6 @@
 use crate::cli_args::add::AllowBuildSelector;
 use indexmap::IndexMap;
+use jiff::Timestamp;
 use pnpm_config::{
     Config,
     PackageExtension,
@@ -36,6 +37,8 @@ pub(in crate::cli_args::dlx) struct CachePolicyInputs<'a> {
     pub trust_lockfile: bool,
     pub block_exotic_subdeps: bool,
     pub ignore_scripts: bool,
+    /// `referenceTime`, when an age or trust window counts back from it.
+    pub reference_time: Option<Timestamp>,
 }
 
 impl Default for CachePolicyInputs<'_> {
@@ -48,6 +51,7 @@ impl Default for CachePolicyInputs<'_> {
             trust_lockfile: false,
             block_exotic_subdeps: true,
             ignore_scripts: false,
+            reference_time: None,
         }
     }
 }
@@ -87,6 +91,7 @@ impl<'a> CachePolicyInputs<'a> {
             trust_lockfile: config.trust_lockfile,
             block_exotic_subdeps: config.block_exotic_subdeps,
             ignore_scripts: config.ignore_scripts,
+            reference_time: config.reference_time.filter(|_| config.reference_time_applies()),
         }
     }
 }
@@ -189,6 +194,9 @@ fn policy_key_inputs(policy: &CachePolicyInputs<'_>) -> Vec<Value> {
     }
     if policy.ignore_scripts {
         items.push(json!({ "ignoreScripts": true }));
+    }
+    if let Some(now) = policy.reference_time {
+        items.push(json!({ "referenceTime": now.to_string() }));
     }
     items
 }

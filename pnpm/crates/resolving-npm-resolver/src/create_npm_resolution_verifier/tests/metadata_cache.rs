@@ -304,8 +304,12 @@ async fn pnpr_registry_frozen_lockfile_fetches_abbreviated_metadata_for_age_and_
     let mut server = mockito::Server::new_async().await;
     let mut packument = stable_trust_packument("acme");
     // `modified` is newer than the cutoff so the age check must read per-version `time`
-    // from the abbreviated response rather than passing on `modified` alone.
-    packument["modified"] = serde_json::json!("2025-11-30T23:00:00.000Z");
+    // from the abbreviated response rather than passing on `modified` alone. The check
+    // runs at the current time: a fixed time that lags it widens the window the pnpr
+    // document has to cover.
+    packument["modified"] = serde_json::json!(
+        (jiff::Timestamp::now() - jiff::SignedDuration::from_hours(1)).to_string()
+    );
     let abbrev_mock = server
         .mock("GET", "/acme")
         .match_header("accept", crate::fetch_full_metadata::ACCEPT_PNPR_DOC)
@@ -326,7 +330,6 @@ async fn pnpr_registry_frozen_lockfile_fetches_abbreviated_metadata_for_age_and_
     let mut opts = default_opts(&registry);
     opts.release_age.minimum_minutes = Some(60 * 24);
     opts.trust.policy = Some(TrustPolicy::NoDowngrade);
-    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
         registry,
         pnpm_lockfile::RegistryOptions {

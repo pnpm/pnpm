@@ -162,6 +162,7 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   globalPackagesConfig: 'pnpm v12',
   globalShims: 'pnpm v12',
   macosBackup: 'pnpm v12',
+  referenceTime: 'pnpm v12',
   nodePackageMap: 'pnpm v12',
   permissions: 'pnpm v12',
   pipelineBase: 'pnpm v12',

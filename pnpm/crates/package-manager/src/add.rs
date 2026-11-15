@@ -377,9 +377,9 @@ struct AddResolution<'a> {
 }
 
 impl AddResolution<'_> {
-    fn new() -> Self {
+    fn new(config: &Config) -> Self {
         Self {
-            started_at: jiff::Timestamp::now(),
+            started_at: config.resolved_reference_time(),
             latest_picker: tokio::sync::OnceCell::new(),
             meta_cache: std::sync::Arc::new(InMemoryPackageMetaCache::default()),
             fetch_locker: shared_packument_fetch_locker(),

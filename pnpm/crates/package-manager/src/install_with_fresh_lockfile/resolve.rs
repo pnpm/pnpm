@@ -88,7 +88,12 @@ impl SharedResolveOptions<'_> {
                 published_by_exclude: self.policy.published_by_exclude.clone(),
                 trust_policy: self.policy.trust_policy,
                 trust_policy_exclude: self.policy.trust_policy_exclude.clone(),
-                trust_policy_ignore_after: self.config.trust_policy_ignore_after,
+                trust_policy_ignore_after: self.config.trust_policy_ignore_after.map(|minutes| {
+                    pnpm_resolving_resolver_base::TrustIgnoreAfter {
+                        minutes,
+                        now: self.config.reference_time,
+                    }
+                }),
                 package_version_guard: self.policy.package_version_guard.clone(),
                 block_exotic_subdeps: self.config.block_exotic_subdeps,
             },

@@ -45,7 +45,18 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
-        let key = package_key(registry, &name.to_string());
+        // Whether the pnpr document's clamped dates may answer depends on this
+        // verifier's window, so verifiers sharing the lookups do not share a
+        // projection built under the other answer.
+        let time_projection = if self.release_age_window_fits_pnpr_doc(registry) {
+            TimeProjection::Include
+        } else {
+            TimeProjection::Omit
+        };
+        let mut key = package_key(registry, &name.to_string());
+        if matches!(time_projection, TimeProjection::Omit) {
+            key.push_str("\0without-time");
+        }
         let cell = {
             let mut cache = self.lookup_context.abbreviated_meta.lock().await;
             Arc::clone(
@@ -54,7 +65,8 @@ impl NpmResolutionVerifier {
                     .or_insert_with(|| Arc::new(OnceCell::new())),
             )
         };
-        cell.get_or_init(|| self.load_abbreviated_meta(registry, name)).await
+        cell.get_or_init(|| self.load_abbreviated_meta(registry, name, time_projection))
+            .await
             .clone()
     }
 
@@ -62,16 +74,26 @@ impl NpmResolutionVerifier {
         &self,
         registry: &str,
         name: &PkgName,
+        time_projection: TimeProjection,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
-        let include_time = self.release_age_window_fits_pnpr_doc(registry);
         // A shared packument that turns out to hold a damaged mirror
-        // fragment falls through to the fetch below, which repairs it.
+        // fragment falls through to the fetch below, which repairs it. A full
+        // packument's dates are exact, so they answer any window.
         if let Some(shared) = self.read_shared_meta(registry, name)
-            && !shared.versions.corrupt_mirror_fragment_found()
+            && !shared.meta.versions.corrupt_mirror_fragment_found()
         {
-            return Ok(project_abbreviated_meta(&shared, include_time));
+            return Ok(project_abbreviated_meta(
+                &shared.meta,
+                matches!(time_projection, TimeProjection::Include)
+                    || matches!(shared.kind, SharedMetaKind::Full),
+            ));
         }
-        self.fetch_abbreviated_meta_uncached(registry, &name.to_string(), include_time).await
+        self.fetch_abbreviated_meta_uncached(
+            registry,
+            &name.to_string(),
+            matches!(time_projection, TimeProjection::Include),
+        )
+        .await
     }
 
     async fn fetch_abbreviated_meta_uncached(
@@ -126,16 +148,18 @@ impl NpmResolutionVerifier {
     /// keeps every field the projection reads. Private-scoped entries
     /// carry a descriptor prefix the verifier can't reproduce; those
     /// miss and fall through to the verifier's own fetch chain.
-    pub(super) fn read_shared_meta(&self, registry: &str, name: &PkgName) -> Option<Arc<Package>> {
+    pub(super) fn read_shared_meta(&self, registry: &str, name: &PkgName) -> Option<SharedMeta> {
         let cache = self.metadata.meta_cache.as_ref()?;
         let name_str = name.to_string();
         let key = package_key(registry, &name_str);
-        cache
+        let full = cache
             .get(&format!("{key}:full"))
-            .or_else(|| cache.get(&format!("{key}:full:filtered")))
-            .or_else(|| cache.get(&key))
-            .map(|cached| cached.meta)
-            .filter(|meta| meta.name == name_str)
+            .or_else(|| cache.get(&format!("{key}:full:filtered")));
+        let shared = match full {
+            Some(cached) => SharedMeta { meta: cached.meta, kind: SharedMetaKind::Full },
+            None => SharedMeta { meta: cache.get(&key)?.meta, kind: SharedMetaKind::Abbreviated },
+        };
+        (shared.meta.name == name_str).then_some(shared)
     }
 
     /// Per-`(registry, name)` on-disk mirror read of the full
@@ -265,15 +289,29 @@ impl NpmResolutionVerifier {
     fn release_age_window_fits_pnpr_doc(&self, registry: &str) -> bool {
         !self.routing.is_pnpr_registry(registry)
             || self.release_age.minimum_minutes.is_none_or(|minutes| {
-                minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
+                minutes.saturating_add(self.check_time_lag_minutes())
+                    <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
             })
     }
 
+    /// How far a fixed check time lags the clock. The pnpr document dates
+    /// versions only within a window measured from the package's last
+    /// publish, so a lag widens the window it has to cover.
+    fn check_time_lag_minutes(&self) -> u64 {
+        match self.now {
+            Some(now) => pnpm_resolving_resolver_base::lag_minutes(now, jiff::Timestamp::now()),
+            None => 0,
+        }
+    }
+
     /// The `trustPolicyIgnoreAfter` counterpart of
-    /// [`Self::release_age_window_fits_pnpr_doc`].
+    /// [`Self::release_age_window_fits_pnpr_doc`]. Strict, since only a
+    /// version older than the window skips the check, and a clamped date can
+    /// sit exactly on the window's edge.
     fn trust_window_fits_pnpr_doc(&self) -> bool {
         self.trust.ignore_after.is_none_or(|minutes| {
-            minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
+            minutes.saturating_add(self.check_time_lag_minutes())
+                < crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
         })
     }
 
@@ -358,4 +396,21 @@ impl super::VerificationMetadataClient {
             },
         }
     }
+}
+
+/// A packument read from the resolver's shared cache.
+pub(super) struct SharedMeta {
+    pub(super) meta: Arc<Package>,
+    kind: SharedMetaKind,
+}
+
+#[derive(Clone, Copy)]
+enum TimeProjection {
+    Include,
+    Omit,
+}
+
+enum SharedMetaKind {
+    Full,
+    Abbreviated,
 }

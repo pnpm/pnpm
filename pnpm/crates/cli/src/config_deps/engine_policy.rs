@@ -120,7 +120,12 @@ pub(super) fn engine_resolve_options(
             published_by_exclude,
             trust_policy,
             trust_policy_exclude,
-            trust_policy_ignore_after: config.trust_policy_ignore_after,
+            trust_policy_ignore_after: config.trust_policy_ignore_after.map(|minutes| {
+                pnpm_resolving_resolver_base::TrustIgnoreAfter {
+                    minutes,
+                    now: config.reference_time,
+                }
+            }),
             ..Default::default()
         },
         ..ResolveOptions::default()
@@ -137,7 +142,8 @@ fn engine_release_cutoff(config: &Config) -> Result<Option<jiff::Timestamp>> {
             let duration = pnpm_time::duration_minutes(minutes)
                 .ok_or_else(|| miette::miette!("minimumReleaseAge is too large"))?;
             Some(
-                jiff::Timestamp::now()
+                config
+                    .resolved_reference_time()
                     .checked_sub(duration)
                     .ok()
                     .ok_or_else(|| miette::miette!("minimumReleaseAge cutoff is out of range"))?,

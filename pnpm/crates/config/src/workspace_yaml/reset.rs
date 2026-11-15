@@ -209,6 +209,7 @@ impl WorkspaceSettings {
             node_options, unsafe_perm, supported_architectures, ignored_optional_dependencies,
             overrides, package_extensions, package_configs, minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time, minimum_release_age_strict,
+            reference_time,
             trust_lockfile, trust_policy, trust_policy_exclude, trust_policy_exclude_prune,
             trust_policy_ignore_after, init_author_name, init_author_email, init_author_url,
             init_license, init_version, pm_on_fail, versioning, save_catalog_name, tag,

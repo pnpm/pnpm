@@ -49,7 +49,7 @@ pub enum MinimumReleaseAgeError {
     #[diagnostic(
         code(ERR_PNPM_NO_MATURE_MATCHING_VERSION),
         help(
-            "Run the install interactively to approve these picks, add them to minimumReleaseAgeExclude in pnpm-workspace.yaml, or wait for the packages to mature."
+            "Run the install interactively to approve these picks, add them to minimumReleaseAgeExclude in pnpm-workspace.yaml, or wait for the packages to mature (move referenceTime forward if it is set)."
         )
     )]
     NoMatureMatchingVersion { message: String },
@@ -58,7 +58,7 @@ pub enum MinimumReleaseAgeError {
     #[diagnostic(
         code(ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED),
         help(
-            "Re-run without minimumReleaseAgeStrict: true, or wait for the packages to mature past the configured cutoff."
+            "Re-run without minimumReleaseAgeStrict: true, or wait for the packages to mature past the configured cutoff (move referenceTime forward if it is set)."
         )
     )]
     Denied,

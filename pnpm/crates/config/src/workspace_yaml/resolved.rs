@@ -219,6 +219,7 @@ impl WorkspaceSettings {
             minimum_release_age_ignore_missing_time: Some(
                 config.minimum_release_age_ignore_missing_time,
             ),
+            reference_time: config.reference_time.map(|time| time.to_string()),
             minimum_release_age_strict: config.minimum_release_age_strict,
             trust_lockfile: Some(config.trust_lockfile),
             trust_policy: Some(config.trust_policy),

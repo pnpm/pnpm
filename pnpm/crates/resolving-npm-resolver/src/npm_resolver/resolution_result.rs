@@ -276,8 +276,10 @@ pub(super) fn trust_check_for_pick(
 ) -> Option<TrustCheckOptions<'_>> {
     (opts.policy.trust_policy == Some(TrustPolicy::NoDowngrade)).then_some(TrustCheckOptions {
         trust_policy_exclude: opts.policy.trust_policy_exclude.as_ref(),
-        trust_policy_ignore_after_minutes: opts.policy.trust_policy_ignore_after,
-        now: None,
+        trust_policy_ignore_after_minutes: opts.policy.trust_policy_ignore_after.map(|window| {
+            window.minutes
+        }),
+        now: opts.policy.trust_policy_ignore_after.and_then(|window| window.now),
         ignore_missing_time_field,
     })
 }

@@ -83,7 +83,9 @@ fn trust_gate(
             .map(pnpm_config::version_policy::create_package_version_policy)
             .transpose()
             .map_err(miette::Report::new)?,
-        trust_policy_ignore_after: config.trust_policy_ignore_after,
+        trust_policy_ignore_after: config.trust_policy_ignore_after.map(|minutes| {
+            pnpm_resolving_resolver_base::TrustIgnoreAfter { minutes, now: config.reference_time }
+        }),
         ..Default::default()
     })
 }

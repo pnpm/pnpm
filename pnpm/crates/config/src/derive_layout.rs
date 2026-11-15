@@ -12,11 +12,30 @@ use super::{
     NodeLinker,
     NpmrcAuth,
     Path,
+    PathBuf,
     default_pnpm_home_dir,
     esm_node_path_loader,
 };
 
 impl Config {
+    /// pnpm-managed directories that workspace project discovery must
+    /// never report projects from: the store, cache, and state roots
+    /// plus the install-target directories. Entries may be absolute or
+    /// relative to the workspace root; discovery resolves them the way
+    /// [`pnpm_workspace::find_workspace_inventory`] resolves its
+    /// `ignored_directories`.
+    #[must_use]
+    pub fn managed_directories(&self) -> Vec<PathBuf> {
+        vec![
+            self.store_dir.root().to_path_buf(),
+            self.cache_dir.clone(),
+            self.state_dir.clone(),
+            self.modules_dir.clone(),
+            self.install_state_dir.clone(),
+            self.global_virtual_store_dir.clone(),
+        ]
+    }
+
     pub(crate) fn default_lockfile_dir_for<'a>(&'a self, project_dir: &'a Path) -> &'a Path {
         if self.shared_workspace_lockfile {
             self.workspace_dir.as_deref().unwrap_or(project_dir)
