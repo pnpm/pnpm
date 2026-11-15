@@ -1,5 +1,13 @@
 # get-pnpm
 
+## 0.0.12
+
+### Patch Changes
+
+- pnpm now provides a prebuilt binary for NetBSD 10 on x64 [#17803](https://github.com/pnpm/pnpm/issues/17803).
+
+- `get-pnpm` now installs the version that a project in a hidden directory pins when the workspace's `packages` patterns exclude that project. It used to install the workspace root's pin for that project.
+
 ## 0.0.11
 
 ### Patch Changes
