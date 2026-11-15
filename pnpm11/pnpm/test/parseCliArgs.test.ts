@@ -241,6 +241,25 @@ test('command-specific shorthands before pm and with current strip prefixes and 
   expect(packAppForced.builtInCommandForced).toBe(true)
   expect(packAppForced.options.target).toStrictEqual(['linux-x64'])
 
+  const listPatchDirect = await parseCliArgs(['--depth', '2', '-d', 'list', 'patch'])
+  expect(listPatchDirect.cmd).toBe('list')
+  expect(listPatchDirect.options.depth).toBe(2)
+  expect(listPatchDirect.options.loglevel).toBe('info')
+  expect(listPatchDirect.params).toStrictEqual(['patch'])
+
+  const listPatchPm = await parseCliArgs(['--depth', '2', '-d', 'pm', 'list', 'patch'])
+  expect(listPatchPm.cmd).toBe('list')
+  expect(listPatchPm.builtInCommandForced).toBe(true)
+  expect(listPatchPm.options.depth).toBe(2)
+  expect(listPatchPm.options.loglevel).toBe('info')
+  expect(listPatchPm.params).toStrictEqual(['patch'])
+
+  const listPatchWithCurrent = await parseCliArgs(['--depth', '2', '-d', 'with', 'current', 'list', 'patch'])
+  expect(listPatchWithCurrent.cmd).toBe('list')
+  expect(listPatchWithCurrent.options.depth).toBe(2)
+  expect(listPatchWithCurrent.options.loglevel).toBe('info')
+  expect(listPatchWithCurrent.params).toStrictEqual(['patch'])
+
   const prevDlxShorthands = shorthandsByCommandName.dlx
   shorthandsByCommandName.dlx = { ...prevDlxShorthands, p: '--package' }
   try {

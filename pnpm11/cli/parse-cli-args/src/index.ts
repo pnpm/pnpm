@@ -5,29 +5,27 @@ import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 import { parseResolvedCommandArgs } from './commandParse.js'
 import {
-  BASE_EXPLORATORY_TYPES,
-  buildBaseExploratoryTypes,
-  collectCandidateCommands,
-  collectCandidateShorthands,
   type CommandTokenRecovery,
-  configDotTypes,
   type ExploratoryResult,
-  extendExploratoryTypes,
   parseExploratory,
+  RECURSIVE_CMDS,
+  SPECIALLY_ESCAPED_CMDS,
   VERSION_BOOTSTRAP_KEYS,
 } from './exploratory.js'
 
 export {
   BASE_EXPLORATORY_TYPES,
   buildBaseExploratoryTypes,
+  buildExploratoryShorthands,
+  type CandidateCommand,
+  chooseMarkerPrefix,
   collectCandidateCommands,
-  collectCandidateShorthands,
   configDotTypes,
   extendExploratoryTypes,
-}
+  OPTION_SEPARATOR_RE,
+  RECURSIVE_CMDS,
+} from './exploratory.js'
 
-const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
-const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx', 'with'])
 const CUSTOM_OPTION_PREFIX = 'config.'
 
 export interface ParsedCliArgs {

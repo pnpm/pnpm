@@ -149,8 +149,8 @@ function restoreRepeatedOccurrence (
     canBeConsumedByPrecedingOption(session.separated.filteredArgv, session.separated.mapInputIndex(idx))
   )
   if (!context.hasNextRank && (!anyFollowsOption || areAllOccurrencesInRemain(session, token))) return
-  const inputIndex = session.recovery.locateInputIndex(context.rank, session.minInputIndex)
-  if (session.inputArgv[inputIndex] !== token) return
+  const inputIndex = session.recovery.locateInputIndex(context.rank)
+  if (inputIndex < session.minInputIndex || session.inputArgv[inputIndex] !== token) return
   session.minInputIndex = inputIndex + 1
   const filteredIndex = session.separated.mapInputIndex(inputIndex)
   if (!canBeConsumedByPrecedingOption(session.separated.filteredArgv, filteredIndex)) return

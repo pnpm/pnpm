@@ -804,3 +804,26 @@ test('dlx space-separated --package and -p forward --help to the target command'
   expect(preCommandShortFlag.options.package).toStrictEqual(['typescript'])
   expect(preCommandShortFlag.params).toStrictEqual(['tsc', '--help'])
 })
+
+test('candidate command shorthands do not let later positional args hijack earlier flags', async () => {
+  const known = new Set(['list', 'patch', 'run'])
+  const typesByCommand: Record<string, object> = {
+    list: { depth: Number },
+    patch: { 'edit-dir': String },
+  }
+  const result = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: (name: string) => known.has(name) ? name : null,
+    getTypesByCommandName: (name: string) => typesByCommand[name] ?? {},
+    shorthandsByCommandName: {
+      patch: { d: '--edit-dir' },
+    },
+    universalOptionsTypes: { loglevel: String },
+    universalShorthands: { d: '--loglevel=info' },
+  }, ['--depth', '2', '-d', 'list', 'patch'])
+  expect(result.cmd).toBe('list')
+  expect(result.options.depth).toBe(2)
+  expect(result.options.loglevel).toBe('info')
+  expect(result.params).toStrictEqual(['patch'])
+})
