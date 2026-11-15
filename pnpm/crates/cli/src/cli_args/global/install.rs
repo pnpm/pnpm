@@ -350,7 +350,9 @@ pub(super) fn global_group_config(
     cfg.dangerously_allow_all_builds = false;
     cfg.allow_builds.clear();
     cfg.disable_agent_skills();
-    if let Some((_, settings)) = WorkspaceSettings::find_and_load(global_pkg_dir)
+    // Read only the global packages dir's own file, like pnpm: walking up
+    // could pick up the settings of a workspace that happens to contain it.
+    if let Some(settings) = WorkspaceSettings::load_at(global_pkg_dir)
         .map_err(miette::Report::new)
         .wrap_err("load the global settings")?
     {

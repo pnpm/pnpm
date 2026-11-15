@@ -668,6 +668,23 @@ fn a_group_config_keeps_the_trust_policy_excludes_of_the_command_line() {
 }
 
 #[test]
+fn a_group_config_ignores_the_trust_policy_excludes_of_an_enclosing_workspace() {
+    let workspace = TempDir::new().expect("temp dir");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "trustPolicyExclude:\n  - foo\n")
+        .expect("write the enclosing manifest");
+    let global_pkg_dir = workspace.path().join("global");
+    let install_dir = global_pkg_dir.join("1234");
+    fs::create_dir_all(&install_dir).expect("create the group install dir");
+    let mut base = Config::new();
+    base.trust_policy_exclude = Some(vec!["bar".to_string()]);
+
+    let config = global_group_config(&base, &install_dir, &global_pkg_dir, None)
+        .expect("build the group config");
+
+    assert_eq!(config.trust_policy_exclude, Some(vec!["bar".to_string()]));
+}
+
+#[test]
 fn a_group_config_resolves_hoisted_dependencies_from_its_own_install_dir() {
     let dir = TempDir::new().expect("temp dir");
     let mut base = Config::new();
