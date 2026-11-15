@@ -120,5 +120,8 @@ pub(super) fn check_recorded_peer_specs_match(
 }
 
 fn recorded_catalog_peer_is_unchanged(dep: &LocalDepContext<'_>, spec: &str) -> bool {
-    !dep.declared_by_path || !spec.starts_with("catalog:") || dep.catalogs.is_empty()
+    !dep.declared_by_path
+        || dep.declaration_assumed
+        || !spec.starts_with("catalog:")
+        || dep.catalogs.is_empty()
 }

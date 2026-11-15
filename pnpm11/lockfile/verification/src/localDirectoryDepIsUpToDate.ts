@@ -166,7 +166,7 @@ async function localDirectoryDepIsUpToDateRec (
   // A revisit in the same peer scope is a cycle or a shared dependency that
   // is already being checked.
   if (!markVisited(walk, pkgSnapshot, manifest)) return true
-  if (!recordedPeersMatch(ctx, manifest, pkgSnapshot, walk.declaredByPath)) return false
+  if (!recordedPeersMatch(ctx, manifest, pkgSnapshot, walk.declaredByPath && !walk.declarationAssumed)) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
     autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
     parentPkgAliases: walk.parentPkgAliases,
