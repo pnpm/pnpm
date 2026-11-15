@@ -6046,6 +6046,11 @@ get-pnpm@0.0.11:
   dir: pnpm/npm/get-pnpm
   intents:
     - get-pnpm-no-modify-path
+get-pnpm@0.0.12:
+  dir: pnpm/npm/get-pnpm
+  intents:
+    - bright-dogs-netbsd
+    - hidden-project-pins
 pacquet@12.0.0:
   dir: pnpm/npm/pnpm
   intents:
