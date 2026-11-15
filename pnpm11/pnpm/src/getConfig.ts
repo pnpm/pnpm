@@ -193,8 +193,9 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
     const updateConfigResult = updateConfig(config)
     config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop -- each hook receives the config the previous one returned
   }
+  const scopeRoutesChanged = !equals(routingBeforeHooks.registriesByScope, config.registriesByScope)
   applyRegistryRoutingChanges(config, routingBeforeHooks)
-  const warning = legacyRegistriesWarning(routingBeforeHooks, config)
+  const warning = legacyRegistriesWarning(routingBeforeHooks, config, scopeRoutesChanged)
   if (warning) globalWarn(warning)
   rebaseHookFilters(config, context, filtersBeforeHooks)
   restoreCliSettings(config, cliSettings)
@@ -211,10 +212,11 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
 
 function legacyRegistriesWarning (
   before: RegistryRouting & { registries: unknown },
-  config: Config
+  config: Config,
+  scopeRoutesChanged: boolean
 ): string | undefined {
   const registries = hookRegistries(config)
-  if (equals(before.registries, registries) || !equals(before.registriesByScope, config.registriesByScope)) return undefined
+  if (equals(before.registries, registries) || scopeRoutesChanged) return undefined
   const legacyRoutes = registries
   if (!isPlainObject(legacyRoutes) || !isLegacyRegistryRoutes(legacyRoutes)) return undefined
   const unchangedScopes = Object.entries(before.registriesByScope)
