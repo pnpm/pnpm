@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/pnpm-workspace.json
 catalog:
   # @babel/core 8.x (and its plugins) require Node.js ^22.18.0 || >=24.11.0,
   # above pnpm's supported floor of Node.js >=22.13.
