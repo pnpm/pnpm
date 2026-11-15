@@ -5,7 +5,7 @@ import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { DEFAULT_REGISTRIES_BY_SCOPE } from '@pnpm/config.normalize-registries'
-import { getPeerBindingProviders, parse, parsePeerBindings, refToRelative, removeSuffix, type DepPath } from '@pnpm/deps.path'
+import { getPeerBindingProviders, parse, parsePeerBindings, refToRelative, removeSuffix } from '@pnpm/deps.path'
 import {
   getNonDevWantedDependencies,
   getPeerSet,
@@ -19,7 +19,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
 import { barePathIsUnambiguous, isLocalFilesystemSpecifier, isTarballFilename, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
-import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
+import type { DepPath, DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import pEvery from 'p-every'
 import { pathExists } from 'path-exists'
