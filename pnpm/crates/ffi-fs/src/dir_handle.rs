@@ -339,16 +339,6 @@ fn entry_kind(mode: libc::mode_t) -> EntryKind {
 /// A timestamp as the entry reports it, clamped to what [`SystemTime`] can
 /// name: a time before the epoch, which only a corrupt or hand-written
 /// inode carries, reads as the epoch rather than failing the whole call.
-fn entry_time(seconds: libc::time_t, nanoseconds: libc::c_long) -> SystemTime {
-    let Ok(seconds) = u64::try_from(seconds) else {
-        return SystemTime::UNIX_EPOCH;
-    };
-    let nanoseconds = u32::try_from(nanoseconds).unwrap_or(0);
-    SystemTime::UNIX_EPOCH
-        .checked_add(Duration::new(seconds, nanoseconds))
-        .unwrap_or(SystemTime::UNIX_EPOCH)
-}
-
 /// Whether the calling user may write to and search `path`.
 ///
 /// Asked of the effective user, which is who a write would be permitted
@@ -367,6 +357,16 @@ pub fn can_write_and_search(path: &Path) -> bool {
         libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::W_OK | libc::X_OK, libc::AT_EACCESS)
     };
     permitted == 0
+}
+
+fn entry_time(seconds: libc::time_t, nanoseconds: libc::c_long) -> SystemTime {
+    let Ok(seconds) = u64::try_from(seconds) else {
+        return SystemTime::UNIX_EPOCH;
+    };
+    let nanoseconds = u32::try_from(nanoseconds).unwrap_or(0);
+    SystemTime::UNIX_EPOCH
+        .checked_add(Duration::new(seconds, nanoseconds))
+        .unwrap_or(SystemTime::UNIX_EPOCH)
 }
 
 fn open_at(
