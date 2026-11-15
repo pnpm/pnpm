@@ -100,16 +100,16 @@ pub(super) fn has_snapshot(ctx: &WalkCtx<'_>, dep_path: &PkgNameVerPeer) -> bool
         .is_some_and(|snapshots| snapshots.contains_key(dep_path))
 }
 
-/// Name and display version of a depPath, preferring the `version:`
-/// recorded in the `packages:` entry (git/tarball deps) over the
-/// version encoded in the depPath.
+/// Name and semver version of a depPath, preferring the `version:`
+/// recorded in the `packages:` entry (git/tarball deps) over the semver
+/// encoded in the depPath. Empty for `file:`, `runtime:`, and other
+/// non-semver references without a `packages:` version.
 #[must_use]
 pub fn name_ver_from_dep_path(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) -> (String, String) {
-    let version = lockfile.packages
+    let metadata = lockfile.packages
         .as_ref()
-        .and_then(|packages| packages.get(&dep_path.without_peer()))
-        .and_then(|metadata| metadata.version.clone())
-        .unwrap_or_else(|| dep_path.suffix.version().to_string());
+        .and_then(|packages| packages.get(&dep_path.without_peer()));
+    let version = crate::resolved_pkg_version(metadata, dep_path).unwrap_or_default();
     (dep_path.name.to_string(), version)
 }
 

@@ -397,3 +397,90 @@ fn render_parseable_search_long_shared_dep_across_packages_is_not_duplicated() {
         1,
     );
 }
+
+#[test]
+fn render_tree_displays_scoped_file_protocol_with_at_in_path_for_aliased_packages() {
+    let projects = vec![project(
+        "test-project",
+        "1.0.0",
+        "/test/path",
+        DependenciesHierarchy {
+            dependencies: vec![dep(
+                "scoped-alias",
+                "@example/local",
+                "@example/local@file:@scoped-dir/local",
+                "/test/path/@scoped-dir/local",
+            )],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_tree(&projects, &tree_opts(false, false));
+    assert!(output.contains("scoped-alias@@example/local@file:@scoped-dir/local"), "{output}");
+    assert!(!output.contains("npm:"), "{output}");
+}
+
+#[test]
+fn render_parseable_long_keeps_package_name_when_version_contains_at_in_path_or_peers() {
+    let projects = vec![project(
+        "my-app",
+        "1.0.0",
+        "/workspace/packages/app",
+        DependenciesHierarchy {
+            dependencies: vec![
+                dep(
+                    "@example/lib",
+                    "@example/lib",
+                    "link:../@example/lib",
+                    "/workspace/packages/@example/lib",
+                ),
+                dep(
+                    "@example/local",
+                    "@example/local",
+                    "file:@scoped-dir/local",
+                    "/workspace/@scoped-dir/local",
+                ),
+                dep(
+                    "my-local-pkg",
+                    "my-local-pkg",
+                    "file:local-pkg(peer-pkg@1.0.0)",
+                    "/workspace/local-pkg",
+                ),
+                dep(
+                    "ws-alias",
+                    "ws-alias",
+                    "link:../@example/other",
+                    "/workspace/packages/@example/other",
+                ),
+                dep(
+                    "scoped-alias",
+                    "@example/local-aliased",
+                    "@example/local-aliased@file:@scoped-dir/local-aliased",
+                    "/workspace/@scoped-dir/local-aliased",
+                ),
+                dep(
+                    "missing-pkg",
+                    "missing-pkg",
+                    "missing-pkg@1.0.0",
+                    "/workspace/node_modules/missing-pkg",
+                ),
+            ],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_parseable(&projects, &parseable_opts(true));
+    let lines: Vec<&str> = output.lines().collect();
+    assert_eq!(
+        lines,
+        vec![
+            "/workspace/packages/app:my-app@1.0.0",
+            "/workspace/packages/@example/lib:@example/lib@link:../@example/lib",
+            "/workspace/@scoped-dir/local:@example/local@file:@scoped-dir/local",
+            "/workspace/@scoped-dir/local-aliased:scoped-alias @example/local-aliased@file:@scoped-dir/local-aliased",
+            "/workspace/node_modules/missing-pkg:missing-pkg@1.0.0",
+            "/workspace/local-pkg:my-local-pkg@file:local-pkg(peer-pkg@1.0.0)",
+            "/workspace/packages/@example/other:ws-alias@link:../@example/other",
+        ],
+    );
+}

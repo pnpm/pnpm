@@ -394,4 +394,72 @@ test('why from workspace root without -r inspects projects with separate lockfil
   expect(output).toContain('Found 1 version of @pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
+test('list formats aliased file and scoped link dependencies consistently', async () => {
+  preparePackages([
+    {
+      location: 'local-pkg',
+      package: { name: 'my-local-pkg', version: '1.0.0' },
+    },
+    {
+      location: '@scoped-dir/local-scoped',
+      package: { name: '@example/local-scoped', version: '1.0.0' },
+    },
+    {
+      location: 'packages/@example/lib',
+      package: { name: '@example/lib', version: '1.0.0' },
+    },
+    {
+      location: 'packages/@example/other',
+      package: { name: '@example/other', version: '1.0.0' },
+    },
+    {
+      location: 'packages/unscoped-lib',
+      package: { name: 'unscoped-lib', version: '1.0.0' },
+    },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'my-app',
+        version: '1.0.0',
+        dependencies: {
+          '@example/lib': 'workspace:*',
+          'unscoped-lib': 'workspace:*',
+          'ws-alias': 'workspace:@example/other@*',
+          'my-alias': 'file:../../local-pkg',
+          'scoped-alias': 'file:../../@scoped-dir/local-scoped',
+        },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*', 'packages/@example/*'],
+  })
+  await execPnpm(['install'])
+
+  const treeOut = execPnpmSync(['--dir', 'packages/app', 'list'], { expectSuccess: true }).stdout.toString()
+  expect(treeOut).toContain('@example/lib@link:../@example/lib')
+  expect(treeOut).toContain('scoped-alias@@example/local-scoped@file:@scoped-dir/local-scoped')
+  expect(treeOut).toContain('my-alias@my-local-pkg@file:local-pkg')
+  expect(treeOut).not.toContain('npm:my-local-pkg')
+  expect(treeOut).toContain('unscoped-lib@link:../unscoped-lib')
+  expect(treeOut).toContain('ws-alias@link:../@example/other')
+
+  const parseableLongOut = execPnpmSync(['--dir', 'packages/app', 'list', '--parseable', '--long'], { expectSuccess: true }).stdout.toString()
+  const lines = parseableLongOut.trim().split(/\r?\n/)
+  const appPath = fs.realpathSync('packages/app')
+  const exampleLibPath = fs.realpathSync('packages/@example/lib')
+  const exampleOtherPath = fs.realpathSync('packages/@example/other')
+  const unscopedLibPath = fs.realpathSync('packages/unscoped-lib')
+  const myAliasPath = fs.realpathSync('packages/app/node_modules/my-alias')
+  const scopedAliasPath = fs.realpathSync('packages/app/node_modules/scoped-alias')
+  expect(lines).toEqual([
+    `${appPath}:my-app@1.0.0`,
+    `${exampleLibPath}:@example/lib@link:../@example/lib`,
+    `${scopedAliasPath}:scoped-alias @example/local-scoped@file:@scoped-dir/local-scoped`,
+    `${myAliasPath}:my-alias my-local-pkg@file:local-pkg`,
+    `${unscopedLibPath}:unscoped-lib@link:../unscoped-lib`,
+    `${exampleOtherPath}:ws-alias@link:../@example/other`,
+  ])
+})
+
 

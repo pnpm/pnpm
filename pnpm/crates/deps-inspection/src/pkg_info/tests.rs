@@ -339,3 +339,134 @@ fn resolve_package_path_picks_the_hoisted_copy_under_the_edge_alias() {
     std::fs::remove_dir(&foo_copy).unwrap();
     assert_ne!(resolve("foo"), foo_copy, "a copy on disk wins over a missing one under the alias");
 }
+
+#[test]
+fn get_pkg_info_preserves_non_registry_refs_and_extracts_registry_versions() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("pnpm-lock.yaml"),
+        "\
+lockfileVersion: '9.0'
+
+importers:
+  .: {}
+
+packages:
+  my-local-pkg@file:local-pkg:
+    resolution: {type: directory, directory: local-pkg}
+
+  '@example/local@file:@scoped-dir/local':
+    resolution: {type: directory, directory: '@scoped-dir/local'}
+
+  tgz-pkg@file:pkg.tgz:
+    resolution: {integrity: sha512-tarball, tarball: file:pkg.tgz}
+    version: 1.2.3
+
+  node@runtime:26.13.0:
+    resolution: {type: variations, variants: []}
+
+  foo@work:1.0.0:
+    resolution: {integrity: sha512-foo}
+
+snapshots:
+  my-local-pkg@file:local-pkg: {}
+  '@example/local@file:@scoped-dir/local': {}
+  tgz-pkg@file:pkg.tgz: {}
+  node@runtime:26.13.0: {}
+  foo@work:1.0.0: {}
+",
+    )
+    .unwrap();
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
+    let env = PkgInfoEnv {
+        registry_options_by_url: std::collections::BTreeMap::new(),
+        registries: HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
+        skipped: HashSet::new(),
+        current_lockfile: &lockfile,
+        wanted_lockfile: Some(&lockfile),
+        dep_types: HashMap::new(),
+        layout: crate::pkg_info::InspectionLayout {
+            lockfile_dir: dir.path().to_path_buf(),
+            modules_dir: dir.path().join("node_modules"),
+            relative_modules_dir: PathBuf::from("node_modules"),
+            virtual_store_dir: dir.path().join("node_modules/.pnpm"),
+            virtual_store_dir_max_length: 120,
+            store_dir: None,
+            is_hoisted: false,
+            hoisted_dirs: std::collections::BTreeMap::new(),
+        },
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: dir.path().to_path_buf(),
+        rewrite_link_version_dir: None,
+        parent_dir: None,
+    };
+    let resolve_edge = |alias: &str, ref_display: &str, dep_path: &str| {
+        let edge = GraphEdge {
+            alias: alias.to_string(),
+            ref_display: ref_display.to_string(),
+            dep_path: Some(dep_path.parse().unwrap()),
+            link_target: None,
+            target: None,
+        };
+        get_pkg_info(&env, &edge, &ctx).0
+    };
+
+    let aliased_file =
+        resolve_edge("my-alias", "my-local-pkg@file:local-pkg", "my-local-pkg@file:local-pkg");
+    assert_eq!(aliased_file.alias, "my-alias");
+    assert_eq!(aliased_file.package.name, "my-local-pkg");
+    assert_eq!(aliased_file.package.version, "my-local-pkg@file:local-pkg");
+
+    let unaliased_file =
+        resolve_edge("my-local-pkg", "file:local-pkg", "my-local-pkg@file:local-pkg");
+    assert_eq!(unaliased_file.alias, "my-local-pkg");
+    assert_eq!(unaliased_file.package.name, "my-local-pkg");
+    assert_eq!(unaliased_file.package.version, "file:local-pkg");
+
+    let scoped_aliased_file = resolve_edge(
+        "scoped-alias",
+        "@example/local@file:@scoped-dir/local",
+        "@example/local@file:@scoped-dir/local",
+    );
+    assert_eq!(scoped_aliased_file.package.name, "@example/local");
+    assert_eq!(scoped_aliased_file.package.version, "@example/local@file:@scoped-dir/local");
+
+    let tarball_alias = resolve_edge("tgz-alias", "tgz-pkg@file:pkg.tgz", "tgz-pkg@file:pkg.tgz");
+    assert_eq!(tarball_alias.package.name, "tgz-pkg");
+    assert_eq!(tarball_alias.package.version, "1.2.3");
+
+    let runtime_dep = resolve_edge("node", "runtime:26.13.0", "node@runtime:26.13.0");
+    assert_eq!(runtime_dep.package.name, "node");
+    assert_eq!(runtime_dep.package.version, "runtime:26.13.0");
+
+    let registry_qualified = resolve_edge("foo", "work:1.0.0", "foo@work:1.0.0");
+    assert_eq!(registry_qualified.package.name, "foo");
+    assert_eq!(registry_qualified.package.version, "1.0.0");
+    assert_eq!(
+        registry_qualified.package.resolved.as_deref(),
+        Some("https://registry.npmjs.org/foo/-/foo-1.0.0.tgz"),
+    );
+
+    use crate::dependents::name_ver_from_dep_path;
+    assert_eq!(
+        name_ver_from_dep_path(&lockfile, &"my-local-pkg@file:local-pkg".parse().unwrap()),
+        ("my-local-pkg".to_string(), String::new()),
+    );
+    assert_eq!(
+        name_ver_from_dep_path(&lockfile, &"tgz-pkg@file:pkg.tgz".parse().unwrap()),
+        ("tgz-pkg".to_string(), "1.2.3".to_string()),
+    );
+    assert_eq!(
+        name_ver_from_dep_path(&lockfile, &"node@runtime:26.13.0".parse().unwrap()),
+        ("node".to_string(), String::new()),
+    );
+    assert_eq!(
+        name_ver_from_dep_path(&lockfile, &"foo@work:1.0.0".parse().unwrap()),
+        ("foo".to_string(), "1.0.0".to_string()),
+    );
+}

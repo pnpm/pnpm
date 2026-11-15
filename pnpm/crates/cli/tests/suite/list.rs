@@ -737,4 +737,5 @@ fn list_accepts_the_global_loglevel_flag() {
     drop(root);
 }
 
+mod local_refs;
 mod workspace;

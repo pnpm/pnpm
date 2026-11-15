@@ -6,6 +6,10 @@ export function nameAtVersion (name: string, version: string, colorName?: (s: st
   return `${styledName}${chalk.gray(`@${version}`)}`
 }
 
+export function hasNamePrefix (version: string, name: string): boolean {
+  return version.startsWith(`${name}@`)
+}
+
 export function peerHashSuffix (pkg: {
   name: string
   version: string

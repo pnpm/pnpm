@@ -228,14 +228,13 @@ fn print_label(
     if node.search.matched { bold_styled(&label) } else { label }
 }
 
-/// `name@version`, or — for an npm: protocol alias —
-/// `alias@npm:name@version`, unless the version already carries an `@`
-/// (`file:`, `link:`, ...).
+/// `name@version`, or `alias@npm:name@version` for an aliased package
+/// unless `version` is already prefixed with `name@` (`file:`, `runtime:`, ...).
 fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
     if node.alias == node.package.name {
         return name_at_version(&node.package.name, &node.package.version, color);
     }
-    if node.package.version.contains('@') {
+    if has_name_prefix(&node.package.version, &node.package.name) {
         return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.package.version)));
     }
     format!(
@@ -243,6 +242,12 @@ fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
         color(&node.alias),
         gray(&format!("@npm:{}@{}", node.package.name, node.package.version)),
     )
+}
+
+pub(super) fn has_name_prefix(version: &str, name: &str) -> bool {
+    version
+        .strip_prefix(name)
+        .is_some_and(|rest| rest.starts_with('@'))
 }
 
 fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, usize> {
