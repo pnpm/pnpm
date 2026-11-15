@@ -219,7 +219,9 @@ fn unchanged_legacy_scopes<'a>(
                 .is_some_and(|expected| {
                     final_routes
                         .get(*scope)
-                        .is_some_and(|route| route != expected)
+                        .is_some_and(|route| {
+                            route != pnpm_network::normalize_registry_url(expected).as_ref()
+                        })
                 })
         })
         .map(|(scope, _)| scope.as_str())

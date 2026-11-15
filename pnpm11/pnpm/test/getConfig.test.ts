@@ -430,6 +430,18 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(globalWarn).not.toHaveBeenCalled()
   })
 
+  test('does not warn when a scope route matches a legacy registry without a trailing slash', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://mirror.example' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+  })
+
   test('does not warn when an updateConfig hook changes registry URL settings', async () => {
     prepare()
     writeUpdateConfigHook("(config) => ({ ...config, registries: { 'https://registry.example/': 'npm' } })")

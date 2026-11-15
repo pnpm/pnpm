@@ -226,7 +226,9 @@ function legacyRegistriesWarning (
     .filter(([scope]) => {
       if (scope === 'default') return false
       const expectedRoute = legacyRoutes[scope] ?? (scope === '@jsr' ? undefined : legacyRoutes.default)
-      return typeof expectedRoute === 'string' && config.registriesByScope[scope] !== expectedRoute
+      if (typeof expectedRoute !== 'string') return false
+      const normalizedExpectedRoute = normalizeRegistriesByScope({ default: expectedRoute }).default
+      return config.registriesByScope[scope] !== normalizedExpectedRoute
     })
     .map(([scope]) => scope)
   if (unchangedScopes.length === 0) return undefined
