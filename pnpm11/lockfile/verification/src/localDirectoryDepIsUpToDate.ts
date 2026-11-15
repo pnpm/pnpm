@@ -5,7 +5,7 @@ import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { DEFAULT_REGISTRIES_BY_SCOPE } from '@pnpm/config.normalize-registries'
-import { getPeerBindingProviders, parse, parsePeerBindings, refToRelative, removeSuffix } from '@pnpm/deps.path'
+import { getPeerBindingProviders, parse, parsePeerBindings, refToRelative, removeSuffix, type DepPath } from '@pnpm/deps.path'
 import {
   getNonDevWantedDependencies,
   getPeerSet,
