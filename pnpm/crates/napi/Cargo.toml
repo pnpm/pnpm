@@ -14,7 +14,6 @@ repository.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-pnpm-ffi-terminal = { workspace = true }
 pnpm-matcher = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-default-reporter = { workspace = true }
@@ -49,7 +48,6 @@ pnpm-workspace = { workspace = true }
 async-trait = { workspace = true }
 dashmap = { workspace = true }
 indexmap = { workspace = true }
-libc = { workspace = true }
 miette = { workspace = true }
 napi = { workspace = true }
 napi-derive = { workspace = true }
@@ -69,6 +67,9 @@ tempfile = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(unix)'.dependencies]
+pnpm-ffi-terminal = { workspace = true }
 
 [lints]
 workspace = true
