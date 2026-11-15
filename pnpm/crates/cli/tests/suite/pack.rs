@@ -546,7 +546,20 @@ fn ignore_flags_pack_without_running_project_code() {
     );
     assert!(!workspace.join("prepack-ran.txt").exists(), "--ignore-scripts must suppress prepack");
 
-    drop(root);
+    let CommandTempCwd {
+        pacquet: unflagged,
+        root: unflagged_root,
+        ..
+    } = CommandTempCwd::init();
+    unflagged
+        .with_current_dir(&workspace)
+        .with_arg("pack")
+        .assert()
+        .success();
+    assert!(workspace.join("pnpmfile-ran.txt").exists(), "pack must load the pnpmfile by default");
+    assert!(workspace.join("prepack-ran.txt").exists(), "pack must run prepack by default");
+
+    drop((root, unflagged_root));
 }
 
 /// Extract `package/package.json` from a packed tarball.
