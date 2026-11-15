@@ -1,7 +1,7 @@
 import { getPeerBindingProviders, parse, parsePeerBindings } from '@pnpm/deps.path'
 import { getPeerSet } from '@pnpm/installing.deps-resolver'
 import type { PackageSnapshot } from '@pnpm/lockfile.types'
-import type { DepPath, DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest, DepPath } from '@pnpm/types'
 import semver from 'semver'
 
 import { versionSatisfies } from './dependencySpec.js'
