@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 
-import { getCliOptionsTypes, getCommandFullName, pnpmCmds } from '../src/cmd/index.js'
+import { getCliOptionsTypes, getCommandFullName, pnpmCmds, shorthandsByCommandName } from '../src/cmd/index.js'
 import { parseCliArgs } from '../src/parseCliArgs.js'
 
 test('the "issues" alias resolves to the "bugs" command', async () => {
@@ -222,4 +222,39 @@ test('command-specific value options before with current and pm resolve the targ
   expect(dlxHelpForwarding.cmd).toBe('dlx')
   expect(dlxHelpForwarding.options.package).toStrictEqual(['typescript'])
   expect(dlxHelpForwarding.params).toStrictEqual(['tsc', '--help'])
+})
+
+test('command-specific shorthands before pm and with current strip prefixes and resolve the target command', async () => {
+  const patchForced = await parseCliArgs(['-d', '/tmp/edit', 'pm', 'patch', 'foo@1.0.0'])
+  expect(patchForced.cmd).toBe('patch')
+  expect(patchForced.builtInCommandForced).toBe(true)
+  expect(patchForced.options['edit-dir']).toMatch(/(?:^|[\\/])edit$/)
+  expect(patchForced.params).toStrictEqual(['foo@1.0.0'])
+
+  const patchWithCurrent = await parseCliArgs(['-d', '/tmp/edit', 'with', 'current', 'patch', 'foo@1.0.0'])
+  expect(patchWithCurrent.cmd).toBe('patch')
+  expect(patchWithCurrent.options['edit-dir']).toMatch(/(?:^|[\\/])edit$/)
+  expect(patchWithCurrent.params).toStrictEqual(['foo@1.0.0'])
+
+  const packAppForced = await parseCliArgs(['-t', 'linux-x64', 'pm', 'pack-app'])
+  expect(packAppForced.cmd).toBe('pack-app')
+  expect(packAppForced.builtInCommandForced).toBe(true)
+  expect(packAppForced.options.target).toStrictEqual(['linux-x64'])
+
+  const prevDlxShorthands = shorthandsByCommandName.dlx
+  shorthandsByCommandName.dlx = { ...prevDlxShorthands, p: '--package' }
+  try {
+    const dlxPm = await parseCliArgs(['-p', 'typescript', 'pm', 'dlx', 'tsc', '--help'])
+    expect(dlxPm.cmd).toBe('dlx')
+    expect(dlxPm.builtInCommandForced).toBe(true)
+    expect(dlxPm.options.package).toStrictEqual(['typescript'])
+    expect(dlxPm.params).toStrictEqual(['tsc', '--help'])
+
+    const dlxWithCurrent = await parseCliArgs(['-p', 'typescript', 'with', 'current', 'dlx', 'tsc', '--help'])
+    expect(dlxWithCurrent.cmd).toBe('dlx')
+    expect(dlxWithCurrent.options.package).toStrictEqual(['typescript'])
+    expect(dlxWithCurrent.params).toStrictEqual(['tsc', '--help'])
+  } finally {
+    shorthandsByCommandName.dlx = prevDlxShorthands
+  }
 })

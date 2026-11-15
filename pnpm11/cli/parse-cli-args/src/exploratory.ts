@@ -2,8 +2,8 @@ import nopt from '@pnpm/nopt'
 
 import type { ParseCliArgsOptions } from './index.js'
 
+export const OPTION_SEPARATOR_RE = /^-{2,}$/
 const CUSTOM_OPTION_PREFIX = 'config.'
-const OPTION_SEPARATOR_RE = /^-{2,}$/
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx', 'with'])
 
@@ -35,20 +35,14 @@ export type ExploratoryOptions = Pick<
   'fallbackCommand' | 'getCommandLongName' | 'getTypesByCommandName' | 'universalOptionsTypes'
 >
 
-export interface PreservedCommandToken {
-  token: string
-  inputIndex: number
+export interface CommandTokenRecovery {
+  candidateTokens: string[]
+  locateInputIndex: (rank: number, minIndex: number) => number
 }
 
 export interface ExploratoryResult {
   parsed: ReturnType<typeof nopt>
-  preservedTokens: PreservedCommandToken[]
-}
-
-export interface RestoreCommandTokensTarget {
-  filteredArgv: string[]
-  mapInputIndex: (inputIndex: number) => number
-  preservedTokens: PreservedCommandToken[]
+  recovery: CommandTokenRecovery
 }
 
 interface ExploratoryContext {
@@ -82,6 +76,10 @@ interface PrefixSearchBounds {
   targetCount: number
 }
 
+export function isOptionToken (arg: string | undefined): boolean {
+  return arg != null && arg.startsWith('-') && arg.length > 1
+}
+
 export function parseExploratory (
   opts: ParseCliArgsOptions,
   inputArgv: string[]
@@ -94,24 +92,7 @@ export function parseExploratory (
   const win = selectExploratoryParse(ctx)
   return {
     parsed: win.parsed,
-    preservedTokens: collectPreservedCommandTokens(ctx, win),
-  }
-}
-
-export function restoreConsumedCommandTokens (
-  remain: string[],
-  countRemainInPrefix: (end: number) => number,
-  target: RestoreCommandTokensTarget
-): void {
-  let restoredCount = 0
-  for (const item of target.preservedTokens) {
-    const filteredIndex = target.mapInputIndex(item.inputIndex)
-    if (!canBeConsumedByPrecedingOption(target.filteredArgv, filteredIndex)) continue
-    const beforeCount = countRemainInPrefix(filteredIndex)
-    if (countRemainInPrefix(filteredIndex + 1) === beforeCount) {
-      remain.splice(beforeCount + restoredCount, 0, item.token)
-      restoredCount += 1
-    }
+    recovery: createCommandTokenRecovery(ctx, win),
   }
 }
 
@@ -138,16 +119,33 @@ export function extendExploratoryTypes (
   return merged as Parameters<typeof nopt>[0]
 }
 
+export function collectCandidateShorthands (
+  shorthandsByCommandName: Record<string, Record<string, string | string[]>>,
+  commandNames: Iterable<string>
+): Record<string, string | string[]> {
+  const merged: Record<string, string | string[]> = {}
+  for (const commandName of commandNames) {
+    mergeCommandShorthands(merged, shorthandsByCommandName[commandName])
+  }
+  return merged
+}
+
 export function collectCandidateCommands (
   opts: Pick<ExploratoryOptions, 'fallbackCommand' | 'getCommandLongName'>,
   tokens: Iterable<string>
 ): Set<string> {
   const names = new Set<string>()
+  let sawUnknown = false
   for (const token of tokens) {
-    const canonical = opts.getCommandLongName(token) ?? opts.fallbackCommand
-    if (canonical && canonical !== 'add' && canonical !== 'install') {
-      names.add(canonical)
+    const canonical = opts.getCommandLongName(token)
+    if (canonical == null) {
+      sawUnknown = true
+    } else {
+      addNonBaseCandidate(names, canonical)
     }
+  }
+  if (sawUnknown) {
+    addNonBaseCandidate(names, opts.fallbackCommand)
   }
   return names
 }
@@ -232,34 +230,39 @@ function retryCandidateCommands (
   if (candidates.size === 0) return fallback
   const retry = runExploratoryWin(ctx, {
     types: extendExploratoryTypes(ctx.baseTypes, ctx.opts, candidates),
+    shorthands: collectCandidateShorthands(ctx.opts.shorthandsByCommandName, candidates),
   })
-  if (getResolvedCommand(ctx.opts, retry.parsed.argv.remain) != null) {
-    return retry
+  const resolved = getResolvedCommand(ctx.opts, retry.parsed.argv.remain)
+  if (resolved != null) {
+    return SPECIALLY_ESCAPED_CMDS.has(resolved.cmd)
+      ? parseEscapedCommand(ctx, resolved, retry)
+      : retry
   }
   return Boolean(ctx.opts.fallbackCommand) && stripRecursivePrefix(retry.parsed.argv.remain).length > 0
     ? retry
     : fallback
 }
 
-function collectPreservedCommandTokens (
+function createCommandTokenRecovery (
   ctx: ExploratoryContext,
   win: ExploratoryWin
-): PreservedCommandToken[] {
+): CommandTokenRecovery {
   const remain = win.parsed.argv.remain
-  if (remain.length === 0) return []
-  const count = RECURSIVE_CMDS.has(remain[0]) && remain.length > 1 && Boolean(ctx.opts.getCommandLongName(remain[1]))
+  const count = countRecoverableHeadTokens(ctx.opts, remain)
+  return {
+    candidateTokens: remain.slice(0, count),
+    locateInputIndex: (rank, minIndex) => locateRemainTokenIndex(ctx, win, { rank, minIndex }),
+  }
+}
+
+function countRecoverableHeadTokens (
+  opts: Pick<ParseCliArgsOptions, 'getCommandLongName'>,
+  remain: string[]
+): number {
+  if (remain.length === 0) return 0
+  return RECURSIVE_CMDS.has(remain[0]) && remain.length > 1 && Boolean(opts.getCommandLongName(remain[1]))
     ? 2
     : 1
-  const preserved: PreservedCommandToken[] = []
-  let minIndex = 0
-  for (let rank = 0; rank < count; rank += 1) {
-    const inputIndex = locateRemainTokenIndex(ctx, win, { rank, minIndex })
-    if (ctx.inputArgv[inputIndex] === remain[rank]) {
-      preserved.push({ token: remain[rank], inputIndex })
-    }
-    minIndex = inputIndex + 1
-  }
-  return preserved
 }
 
 function locateRemainTokenIndex (
@@ -310,7 +313,7 @@ function collectCandidatesBeforeSeparator (
   inputArgv: string[]
 ): Set<string> {
   const preSep = sliceBeforeSeparator(inputArgv)
-  if (!preSep.some((arg) => arg.startsWith('-') && arg.length > 1)) {
+  if (!preSep.some((arg) => isOptionToken(arg))) {
     return new Set()
   }
   const nonFlagTokens = preSep.filter((arg) => !arg.startsWith('-') && !RECURSIVE_CMDS.has(arg))
@@ -337,12 +340,21 @@ function isBooleanType (type: unknown): boolean {
   return type === Boolean || (Array.isArray(type) && type.includes(Boolean))
 }
 
-function isOptionToken (arg: string | undefined): boolean {
-  return arg != null && arg.startsWith('-') && arg.length > 1
+function mergeCommandShorthands (
+  merged: Record<string, string | string[]>,
+  shorthands: Record<string, unknown> | undefined
+): void {
+  if (shorthands == null) return
+  for (const [key, value] of Object.entries(shorthands)) {
+    if (key === '___singles' || Object.hasOwn(merged, key)) continue
+    if (typeof value === 'string' || Array.isArray(value)) {
+      merged[key] = value
+    }
+  }
 }
 
-function canBeConsumedByPrecedingOption (args: string[], index: number): boolean {
-  if (index <= 0) return false
-  const prev = args[index - 1]
-  return isOptionToken(prev) && !OPTION_SEPARATOR_RE.test(prev)
+function addNonBaseCandidate (names: Set<string>, name: string | undefined): void {
+  if (name && name !== 'add' && name !== 'install') {
+    names.add(name)
+  }
 }

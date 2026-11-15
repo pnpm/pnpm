@@ -8,11 +8,12 @@ import {
   BASE_EXPLORATORY_TYPES,
   buildBaseExploratoryTypes,
   collectCandidateCommands,
+  collectCandidateShorthands,
+  type CommandTokenRecovery,
   configDotTypes,
   type ExploratoryResult,
   extendExploratoryTypes,
   parseExploratory,
-  type PreservedCommandToken,
   VERSION_BOOTSTRAP_KEYS,
 } from './exploratory.js'
 
@@ -20,6 +21,7 @@ export {
   BASE_EXPLORATORY_TYPES,
   buildBaseExploratoryTypes,
   collectCandidateCommands,
+  collectCandidateShorthands,
   configDotTypes,
   extendExploratoryTypes,
 }
@@ -60,7 +62,7 @@ interface EarlyResolution {
   commandName: string
   cmd: string | null
   fallbackCommandUsed: boolean
-  preservedTokens: PreservedCommandToken[]
+  recovery: CommandTokenRecovery | undefined
   recursiveCommandUsed: boolean
 }
 
@@ -81,7 +83,7 @@ export async function parseCliArgs (
     commandName: resolution.commandName,
     types,
     escapeArgs: getEscapeArgs(opts, resolution, exploratoryResult.parsed),
-    preservedTokens: resolution.preservedTokens,
+    recovery: resolution.recovery,
   })
 
   applyRenamedOptions(rawOptions, opts.renamedOptions)
@@ -121,7 +123,7 @@ function resolveCommand (
     commandName,
     cmd,
     fallbackCommandUsed,
-    preservedTokens: fallbackCommandUsed ? [] : exploratoryResult.preservedTokens,
+    recovery: fallbackCommandUsed ? undefined : exploratoryResult.recovery,
     recursiveCommandUsed,
   }
 }

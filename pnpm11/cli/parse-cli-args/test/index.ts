@@ -732,11 +732,52 @@ test('preserves command token when --config.<key> options precede a command decl
   expect(parsed.cmd).toBe('config')
   expect(parsed.options.foo).toBe('bar')
   expect(parsed.params).toStrictEqual(['config', 'get'])
+
+  const unflaggedRepeated = await parseCliArgs(opts, ['config', 'config', 'get'])
+  expect(unflaggedRepeated.cmd).toBe('config')
+  expect(unflaggedRepeated.params).toStrictEqual(['config', 'get'])
+
+  const consumedByUniversalOption = await parseCliArgs(opts, ['--filter', 'config', 'config', 'get'])
+  expect(consumedByUniversalOption.cmd).toBe('config')
+  expect(consumedByUniversalOption.options.filter).toStrictEqual(['config'])
+  expect(consumedByUniversalOption.params).toStrictEqual(['get'])
+})
+
+test('normal flagged commands with array and string shorthands skip prefix recovery probes', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { filter: [String, Array], recursive: Boolean },
+    universalShorthands: { r: '--recursive' },
+    shorthandsByCommandName: {
+      list: { seq: ['--recursive', '--filter=pkg-a'] },
+    },
+    getTypesByCommandName: (name: string) => name === 'list' ? { depth: Number } : {},
+  }
+
+  const flaggedInstall = await parseCliArgs(opts, ['--filter', 'pkg-a', 'install'])
+  expect(flaggedInstall.cmd).toBe('install')
+  expect(flaggedInstall.params).toStrictEqual([])
+
+  const shorthandList = await parseCliArgs(opts, ['--seq', 'list', 'react'])
+  expect(shorthandList.cmd).toBe('list')
+  expect(shorthandList.options.recursive).toBe(true)
+  expect(shorthandList.params).toStrictEqual(['react'])
+
+  const repeatedList = await parseCliArgs(opts, ['-r', 'list', 'list'])
+  expect(repeatedList.cmd).toBe('list')
+  expect(repeatedList.params).toStrictEqual(['list'])
+
+  const attachedBoolEq = await parseCliArgs(opts, ['--recursive=list', '--depth', 'list'])
+  expect(attachedBoolEq.cmd).toBe('list')
+  expect(attachedBoolEq.options.recursive).toBe(true)
+  expect(attachedBoolEq.params).toStrictEqual(['list'])
 })
 
 test('dlx space-separated --package and -p forward --help to the target command', async () => {
   const opts = {
     ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: (name: string) => name === 'dlx' || name === 'run' ? name : null,
     getTypesByCommandName: (name: string) => name === 'dlx' ? { package: [String, Array] } : {},
     shorthandsByCommandName: {
       ...DEFAULT_OPTS.shorthandsByCommandName,
@@ -757,4 +798,9 @@ test('dlx space-separated --package and -p forward --help to the target command'
   expect(shortFlag.cmd).toBe('dlx')
   expect(shortFlag.options.package).toStrictEqual(['typescript'])
   expect(shortFlag.params).toStrictEqual(['tsc', '--help'])
+
+  const preCommandShortFlag = await parseCliArgs(opts, ['-p', 'typescript', 'dlx', 'tsc', '--help'])
+  expect(preCommandShortFlag.cmd).toBe('dlx')
+  expect(preCommandShortFlag.options.package).toStrictEqual(['typescript'])
+  expect(preCommandShortFlag.params).toStrictEqual(['tsc', '--help'])
 })

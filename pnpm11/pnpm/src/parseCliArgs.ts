@@ -1,6 +1,7 @@
 import {
   buildBaseExploratoryTypes,
   collectCandidateCommands,
+  collectCandidateShorthands,
   configDotTypes,
   extendExploratoryTypes,
   parseCliArgs as parseCliArgsLib,
@@ -210,9 +211,13 @@ function retryScanIfPrefixBlocked (baseRemain: string[], tagged: TaggedCandidate
   const candidates = findBlockedPrefixCommands(baseRemain, tagged.tagToIndex)
   if (candidates == null || candidates.size === 0) return baseRemain
   const extended = extendExploratoryTypes(getBaseScanTypes().rawBase, getLibOpts(), candidates)
+  const shorthands = {
+    ...EXPLORATORY_SHORTHANDS,
+    ...collectCandidateShorthands(shorthandsByCommandName, candidates),
+  }
   const retryRemain = nopt(
     { ...extended, ...configDotTypes(extended) },
-    EXPLORATORY_SHORTHANDS,
+    shorthands,
     tagged.taggedArgs,
     0
   ).argv.remain
