@@ -5,7 +5,11 @@ import path from 'node:path'
 import { isError } from '@pnpm/error'
 
 import type { CheckResult } from './doctor.js'
-import { canAccessWindowsWritableDir, isSafeWindowsAncestorChain } from './doctorWindowsAcl.js'
+import {
+  canAccessWindowsWritableDir,
+  isSafeWindowsAncestorChain,
+  prefetchWindowsDirSecurity,
+} from './doctorWindowsAcl.js'
 
 const EXCLUSIVE_PROBE_WRITE_FLAGS =
   fs.constants.O_WRONLY |
@@ -20,6 +24,8 @@ export interface ProbeDir {
   dev: number
   ino: number
   dirFd?: number
+  pinFd?: number
+  pinEntry?: string
   entries: string[]
 }
 
@@ -118,6 +124,7 @@ function canCreateSubdir (ancestor: string): boolean {
   let probeDir: string | undefined
   try {
     probeDir = fs.mkdtempSync(path.join(ancestor, '.pnpm-doctor-write-'))
+    if (!fs.lstatSync(probeDir).isDirectory() || tryRealpathSync(probeDir) !== probeDir) return false
     return canCreateFile(probeDir)
   } catch {
     return false
@@ -128,28 +135,24 @@ function canCreateSubdir (ancestor: string): boolean {
   }
 }
 
-function tryUnlinkSync (filePath: string): void {
+function ignoreSyncError (operation: () => void): void {
   try {
-    fs.unlinkSync(filePath)
+    operation()
   } catch {
-    // Ignore transient cleanup errors so they never abort the doctor report.
+    // Cleanup failures should never abort the doctor report.
   }
+}
+
+function tryUnlinkSync (filePath: string): void {
+  ignoreSyncError(() => fs.unlinkSync(filePath))
 }
 
 function tryRmdirSync (dirPath: string): void {
-  try {
-    fs.rmdirSync(dirPath)
-  } catch {
-    // Ignore transient cleanup errors so they never abort the doctor report.
-  }
+  ignoreSyncError(() => fs.rmdirSync(dirPath))
 }
 
 function tryCloseSync (fd: number): void {
-  try {
-    fs.closeSync(fd)
-  } catch {
-    // Ignore descriptor close errors during cleanup.
-  }
+  ignoreSyncError(() => fs.closeSync(fd))
 }
 
 type AncestorEntryState = 'dir' | 'missing' | 'blocked'
@@ -251,16 +254,60 @@ export function isUnsafeWritableDirMode (mode: number): boolean {
   return (mode & 0o1000) === 0 && (mode & 0o022) !== 0
 }
 
+export function prefetchDoctorCandidatePaths (candidates: Array<string | undefined>): void {
+  if (process.platform !== 'win32') return
+  const resolvedAncestors: string[] = []
+  for (const candidate of candidates) {
+    if (candidate == null || candidate === '') continue
+    const existing = existingAncestorDir(candidate)
+    const canonical = existing != null ? tryRealpathSync(existing) : undefined
+    if (canonical != null) {
+      resolvedAncestors.push(...ancestorsFromRoot(canonical))
+    }
+  }
+  prefetchWindowsDirSecurity(resolvedAncestors)
+}
+
 export async function makeProbeDir (safeAncestor: string, created: ProbeDir[]): Promise<ProbeDir> {
   const dir = await fs.promises.mkdtemp(path.join(safeAncestor, '.pnpm-doctor-'))
-  const stat = await fs.promises.lstat(dir)
-  if (!stat.isDirectory()) {
-    throw new Error(`Probe path is not a directory: ${dir}`)
+  try {
+    const stat = await verifyCreatedUnderAncestor(safeAncestor, dir)
+    const dirFd = openProbeDirectoryFd(dir, stat)
+    const pin = openWindowsPinHandle(dir)
+    const probe: ProbeDir = { path: dir, dev: stat.dev, ino: stat.ino, dirFd, pinFd: pin?.fd, pinEntry: pin?.entryName, entries: [] }
+    created.push(probe)
+    return probe
+  } catch (err) {
+    tryRmdirSync(dir)
+    throw err
   }
-  const dirFd = openProbeDirectoryFd(dir, stat)
-  const probe: ProbeDir = { path: dir, dev: stat.dev, ino: stat.ino, dirFd, entries: [] }
-  created.push(probe)
-  return probe
+}
+
+async function verifyCreatedUnderAncestor (safeAncestor: string, dir: string): Promise<fs.Stats> {
+  const [ancestorStat, stat, canonicalDir] = await Promise.all([
+    fs.promises.lstat(safeAncestor),
+    fs.promises.lstat(dir),
+    fs.promises.realpath(dir),
+  ])
+  const sameParent = path.dirname(canonicalDir) === safeAncestor &&
+    path.basename(canonicalDir) === path.basename(dir)
+  if (!ancestorStat.isDirectory() || !stat.isDirectory() || !sameParent) {
+    throw new Error(`Probe path changed during creation: ${dir}`)
+  }
+  return stat
+}
+
+function openWindowsPinHandle (dir: string): { fd: number, entryName: string } | undefined {
+  if (process.platform !== 'win32') return undefined
+  const entryName = `.pnpm-pin-${crypto.randomUUID()}`
+  const pinPath = path.join(dir, entryName)
+  const fd = fs.openSync(pinPath, EXCLUSIVE_PROBE_WRITE_FLAGS, 0o600)
+  if (tryRealpathSync(dir) !== dir) {
+    tryCloseSync(fd)
+    tryUnlinkSync(pinPath)
+    throw new Error(`Probe directory redirected during pin: ${dir}`)
+  }
+  return { fd, entryName }
 }
 
 function openProbeDirectoryFd (dir: string, expected: fs.Stats): number | undefined {
@@ -324,14 +371,26 @@ async function removeSingleProbeDir (probe: ProbeDir): Promise<void> {
     await Promise.all(
       probe.entries.map(async (entryName) => fs.promises.unlink(descriptorOrJoinedPath(probe, entryName)).catch(() => {}))
     )
+    releaseWindowsPinHandle(probe)
     await verifyProbeDir(probe)
     await fs.promises.rmdir(probe.path)
   } catch {
-    // Ignore cleanup failures so they never abort the doctor report.
+    releaseWindowsPinHandle(probe)
   } finally {
     if (probe.dirFd != null) {
       tryCloseSync(probe.dirFd)
       probe.dirFd = undefined
     }
+  }
+}
+
+function releaseWindowsPinHandle (probe: ProbeDir): void {
+  if (probe.pinFd != null) {
+    tryCloseSync(probe.pinFd)
+    probe.pinFd = undefined
+  }
+  if (probe.pinEntry != null) {
+    tryUnlinkSync(path.join(probe.path, probe.pinEntry))
+    probe.pinEntry = undefined
   }
 }

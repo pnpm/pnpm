@@ -3,7 +3,7 @@ use crate::cli_args::doctor::{
     filesystem::check_filesystem_capabilities,
     probe_path::windows_acl::{
         WindowsAccessRule, WindowsDirSecurity, can_write_windows_dir_security,
-        is_safe_windows_dir_security,
+        is_safe_windows_dir_security, is_trusted_windows_principal, is_unc_windows_path,
     },
 };
 use pnpm_config::Config;
@@ -13,6 +13,7 @@ use pretty_assertions::assert_eq;
 use rustc_hash::FxHashSet;
 #[cfg(any(unix, windows))]
 use std::fs;
+use std::path::Path;
 
 #[cfg(unix)]
 #[test]
@@ -98,7 +99,6 @@ fn windows_dir_security_accepts_standard_system_roots() {
     let current_user = "S-1-5-21-10-20-30-1001";
     let admins: FxHashSet<String> = std::iter::once("S-1-5-21-10-20-30-1000".to_owned()).collect();
     let root_security = WindowsDirSecurity {
-        path: None,
         ok: true,
         null_acl: false,
         owner: Some("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464".to_owned()),
@@ -156,7 +156,6 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
     let admins: FxHashSet<String> = FxHashSet::default();
 
     let shared_modify = WindowsDirSecurity {
-        path: None,
         ok: true,
         null_acl: false,
         owner: Some(current_user.to_owned()),
@@ -170,7 +169,6 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
     assert!(!is_safe_windows_dir_security(&shared_modify, current_user, &admins));
 
     let untrusted_owner = WindowsDirSecurity {
-        path: None,
         ok: true,
         null_acl: false,
         owner: Some("S-1-5-21-10-20-30-1002".to_owned()),
@@ -184,7 +182,6 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
     assert!(!is_safe_windows_dir_security(&untrusted_owner, current_user, &admins));
 
     let null_acl = WindowsDirSecurity {
-        path: None,
         ok: true,
         null_acl: true,
         owner: Some(current_user.to_owned()),
@@ -198,7 +195,6 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
     assert!(!is_safe_windows_dir_security(&null_acl, current_user, &admins));
 
     let denied_write = WindowsDirSecurity {
-        path: None,
         ok: true,
         null_acl: false,
         owner: Some(current_user.to_owned()),
@@ -210,4 +206,43 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
     let members: FxHashSet<String> =
         [current_user.to_owned(), "S-1-1-0".to_owned()].into_iter().collect();
     assert!(!can_write_windows_dir_security(&denied_write, &members));
+}
+
+#[test]
+fn windows_dir_security_rejects_untrusted_service_sids_and_reparse_rights() {
+    let current_user = "S-1-5-21-10-20-30-1001";
+    let admins: FxHashSet<String> = FxHashSet::default();
+    let other_service_sid = "S-1-5-80-111-222-333-444-555";
+    assert!(!is_trusted_windows_principal(other_service_sid, current_user, &admins));
+
+    let service_owned = WindowsDirSecurity {
+        ok: true,
+        null_acl: false,
+        owner: Some(other_service_sid.to_owned()),
+        rules: vec![WindowsAccessRule {
+            sid: "S-1-5-18".to_owned(),
+            allow: true,
+            mask: 0x001f_01ff,
+            prop: 0,
+        }],
+    };
+    assert!(!is_safe_windows_dir_security(&service_owned, current_user, &admins));
+
+    for mask in [0x0000_0100, 0x4000_0000] {
+        let reparse_ace = WindowsDirSecurity {
+            ok: true,
+            null_acl: false,
+            owner: Some(current_user.to_owned()),
+            rules: vec![WindowsAccessRule {
+                sid: "S-1-5-32-545".to_owned(),
+                allow: true,
+                mask,
+                prop: 0,
+            }],
+        };
+        assert!(!is_safe_windows_dir_security(&reparse_ace, current_user, &admins));
+    }
+
+    assert!(is_unc_windows_path(Path::new(r"\\server\share\cache")));
+    assert!(!is_unc_windows_path(Path::new(r"C:\Users\demo\cache")));
 }

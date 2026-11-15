@@ -18,6 +18,7 @@ import {
   checkFilesystemCapabilities,
   checkWritableDir,
   type LinkOperations,
+  prefetchDoctorCandidatePaths,
   resolveConfiguredStoreDir,
 } from './doctorFilesystem.js'
 
@@ -118,13 +119,23 @@ export interface DoctorCommandOptions extends Omit<ping.PingOptions, 'registry'>
 export async function handler (opts: DoctorCommandOptions): Promise<{ output: string, exitCode: number }> {
   const pnpmCommand = opts.pnpmCommand ?? resolvePnpmSelfCommand()
   const pkgRoot = opts.workspaceDir ?? opts.dir
+  const configuredStoreDir = opts.storeDir ? resolveConfiguredStoreDir(opts.storeDir, pkgRoot) : undefined
+  prefetchDoctorCandidatePaths([
+    opts.globalBinDir,
+    opts.pnpmHomeDir,
+    opts.cacheDir,
+    configuredStoreDir,
+    pkgRoot,
+    opts.dir,
+    opts.lockfileDir,
+  ])
 
   const checks: CheckResult[] = [
     checkVersions(),
     checkInstallMethod(),
     await checkGlobalBinDir(opts),
     await checkWritableDir('Cache directory', opts.cacheDir),
-    ...(opts.storeDir ? [await checkWritableDir('Store directory', resolveConfiguredStoreDir(opts.storeDir, pkgRoot))] : []),
+    ...(configuredStoreDir ? [await checkWritableDir('Store directory', configuredStoreDir)] : []),
     await checkFilesystemCapabilities(opts),
     await checkConnectivity(opts),
     await checkInstallSmokeTest(pnpmCommand, opts),

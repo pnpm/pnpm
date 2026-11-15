@@ -1,12 +1,21 @@
 #[cfg(any(windows, test))]
 pub(super) mod windows_acl;
 
+pub(super) use probe_dir::ProbeDir;
+
 use super::CheckResult;
+use pnpm_config::Config;
+#[cfg(not(unix))]
+use probe_dir::create_exclusive_file_pinned;
+use probe_dir::random_probe_entry_name;
+#[cfg(unix)]
+use probe_dir::{create_exclusive_file_unix, unlink_probe_entry_unix};
 use std::{
-    ffi::{OsStr, OsString},
     fs, io,
     path::{Path, PathBuf},
 };
+
+mod probe_dir;
 
 pub(super) fn check_writable_dir(title: &str, dir: &Path) -> CheckResult {
     if !can_write_to_dir(dir) {
@@ -30,6 +39,39 @@ pub(super) fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
                     _ => false,
                 }
         })
+}
+
+pub(super) fn prefetch_config_paths(config: &Config) {
+    #[cfg(not(windows))]
+    let _ = config;
+    #[cfg(windows)]
+    {
+        let candidates: Vec<&Path> = [
+            config.global_bin_dir.as_deref(),
+            config.global_dir.as_deref(),
+            Some(config.cache_dir.as_path()),
+            Some(config.store_dir.root()),
+            Some(config.virtual_store_dir()),
+            Some(config.modules_dir.as_path()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let mut dirs = Vec::new();
+        for candidate in candidates {
+            if let Some(existing) = existing_ancestor_dir(candidate)
+                && let Ok(canonical) = dunce::canonicalize(existing)
+            {
+                dirs.extend(
+                    canonical
+                        .ancestors()
+                        .filter(|ancestor| !ancestor.as_os_str().is_empty())
+                        .map(Path::to_path_buf),
+                );
+            }
+        }
+        windows_acl::prefetch_windows_dir_security(&dirs);
+    }
 }
 
 /// Probe write access for `dir`: existing directories are checked for file
@@ -57,12 +99,32 @@ pub(super) fn can_write_to_dir(dir: &Path) -> bool {
     }
 }
 
+#[cfg(unix)]
+fn can_create_file(dir: &Path) -> bool {
+    use std::os::unix::fs::OpenOptionsExt as _;
+
+    let Ok(raw_dir) = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(dir)
+    else {
+        return false;
+    };
+    let entry = random_probe_entry_name("write");
+    if create_exclusive_file_unix(&raw_dir, &entry, b"").is_err() {
+        return false;
+    }
+    unlink_probe_entry_unix(&raw_dir, &entry);
+    true
+}
+
+#[cfg(not(unix))]
 fn can_create_file(dir: &Path) -> bool {
     let Ok(open_dir) = pnpm_fs::OpenDir::open(dir) else {
         return false;
     };
     let entry = random_probe_entry_name("write");
-    if open_dir.create_child_file_new(&entry, b"").is_err() {
+    if create_exclusive_file_pinned(&open_dir, &entry, b"").is_err() {
         return false;
     }
     let _ = open_dir.remove_child_file(&entry);
@@ -215,153 +277,4 @@ fn is_safe_directory_entry(dir: &Path, euid: libc::uid_t) -> bool {
 #[cfg(unix)]
 pub(super) fn is_unsafe_writable_dir_mode(mode: u32) -> bool {
     (mode & 0o1000) == 0 && (mode & 0o022) != 0
-}
-
-fn random_probe_entry_name(prefix: &str) -> OsString {
-    let mut bytes = [0u8; 16];
-    let suffix = match getrandom::fill(&mut bytes) {
-        Ok(()) => u128::from_ne_bytes(bytes),
-        Err(_) => 0,
-    };
-    OsString::from(format!(".pnpm-{prefix}-{}-{suffix:032x}", pnpm_fs::process_id()))
-}
-
-pub(super) struct ProbeDir {
-    parent: pnpm_fs::OpenDir,
-    dir: Option<pnpm_fs::OpenDir>,
-    #[cfg(unix)]
-    raw_dir: Option<fs::File>,
-    name: OsString,
-    entries: Vec<OsString>,
-}
-
-impl ProbeDir {
-    pub(super) fn new(safe_ancestor: &Path) -> io::Result<Self> {
-        let parent = pnpm_fs::OpenDir::open(safe_ancestor)?;
-        if parent.canonical_path()?.as_deref() != Some(safe_ancestor) {
-            return Err(io::Error::other("probe ancestor path changed during open"));
-        }
-        let temp = tempfile::Builder::new().prefix(".pnpm-doctor-").tempdir_in(parent.path())?;
-        let created_path = temp.keep();
-        let Some(name) = created_path.file_name().map(OsStr::to_os_string) else {
-            return Err(io::Error::other("probe directory missing file name"));
-        };
-        let Some(dir) = parent.open_child_dir(&name)? else {
-            return Err(io::Error::other("probe path is not a real directory"));
-        };
-        #[cfg(unix)]
-        let raw_dir = Some(open_verified_unix_child_dir(safe_ancestor, &name)?);
-        Ok(Self {
-            parent,
-            dir: Some(dir),
-            #[cfg(unix)]
-            raw_dir,
-            name,
-            entries: Vec::with_capacity(4),
-        })
-    }
-
-    pub(super) fn write_new_file(&mut self, prefix: &str, content: &[u8]) -> io::Result<PathBuf> {
-        let dir =
-            self.dir.as_ref().ok_or_else(|| io::Error::other("probe directory unavailable"))?;
-        let entry = random_probe_entry_name(prefix);
-        dir.create_child_file_new(&entry, content)?;
-        let entry_path = dir.path().join(&entry);
-        self.entries.push(entry);
-        Ok(entry_path)
-    }
-
-    pub(super) fn register_entry(&mut self, prefix: &str) -> io::Result<PathBuf> {
-        let dir =
-            self.dir.as_ref().ok_or_else(|| io::Error::other("probe directory unavailable"))?;
-        let entry = random_probe_entry_name(prefix);
-        let entry_path = dir.path().join(&entry);
-        self.entries.push(entry);
-        Ok(entry_path)
-    }
-
-    #[cfg(test)]
-    pub(super) fn invalidate_for_test(&mut self) {
-        self.dir = None;
-    }
-}
-
-impl Drop for ProbeDir {
-    fn drop(&mut self) {
-        #[cfg(unix)]
-        {
-            if let Some(raw_dir) = self.raw_dir.take() {
-                for entry in &self.entries {
-                    unlink_probe_entry_unix(&raw_dir, entry);
-                }
-            }
-            self.dir = None;
-        }
-        #[cfg(not(unix))]
-        if let Some(dir) = self.dir.take() {
-            for entry in &self.entries {
-                remove_pinned_probe_entry(&dir, entry);
-            }
-        }
-        let _ = self.parent.remove_empty_child_dir(&self.name);
-    }
-}
-
-#[cfg(unix)]
-fn open_verified_unix_child_dir(safe_ancestor: &Path, child_name: &OsStr) -> io::Result<fs::File> {
-    use std::os::{
-        fd::{AsRawFd as _, FromRawFd as _, OwnedFd},
-        unix::{
-            ffi::OsStrExt as _,
-            fs::{MetadataExt as _, OpenOptionsExt as _},
-        },
-    };
-
-    let parent = fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_DIRECTORY | libc::O_CLOEXEC)
-        .open(safe_ancestor)?;
-    let c_name = std::ffi::CString::new(child_name.as_bytes())?;
-    // SAFETY: `c_name` is NUL-terminated and `parent` stays open for the call.
-    let descriptor = unsafe {
-        libc::openat(
-            parent.as_raw_fd(),
-            c_name.as_ptr(),
-            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
-        )
-    };
-    if descriptor < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: `openat` returned a fresh owned file descriptor.
-    let child = fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
-    let meta = child.metadata()?;
-    // SAFETY: `geteuid` has no preconditions.
-    if !meta.file_type().is_dir() || meta.uid() != unsafe { libc::geteuid() } {
-        return Err(io::Error::other("probe directory ownership mismatch"));
-    }
-    Ok(child)
-}
-
-#[cfg(unix)]
-fn unlink_probe_entry_unix(raw_dir: &fs::File, entry: &OsStr) {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
-
-    let Ok(c_name) = std::ffi::CString::new(entry.as_bytes()) else {
-        return;
-    };
-    // SAFETY: `c_name` is NUL-terminated and `raw_dir` stays open for the call.
-    unsafe {
-        libc::unlinkat(raw_dir.as_raw_fd(), c_name.as_ptr(), 0);
-    }
-}
-
-#[cfg(not(unix))]
-fn remove_pinned_probe_entry(dir: &pnpm_fs::OpenDir, entry: &OsStr) {
-    if matches!(dir.remove_child_file(entry), Ok(true)) {
-        return;
-    }
-    if matches!(dir.has_symlink_child(entry), Ok(true)) {
-        let _ = pnpm_fs::remove_dirent(&dir.path().join(entry));
-    }
 }

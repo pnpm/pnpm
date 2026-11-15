@@ -7,7 +7,7 @@ export interface WindowsAccessRule {
   sid: string
   allow: boolean
   mask: number
-  inherit: number
+  inherit?: number
   prop: number
 }
 
@@ -25,74 +25,93 @@ interface WindowsSecurityBatch {
   items?: unknown
 }
 
+interface CachedIdentity {
+  me: string
+  adminSids: Set<string>
+  memberSids: Set<string>
+}
+
 interface CachedDirSecurity {
   ctimeNs: bigint
   expiresAt: number
+  known: boolean
   safe: boolean
   writable: boolean
 }
 
+interface TrustedRuleContext {
+  currentUserSid: string
+  adminSids: ReadonlySet<string>
+  ownerSid: string
+}
+
 const INHERIT_ONLY_PROPAGATION = 0x2
-const UNSAFE_REPLACE_MASK = 0x100d0040
+// Rejects untrusted FILE_DELETE_CHILD (0x40), FILE_WRITE_ATTRIBUTES (0x100), DELETE (0x10000),
+// WRITE_DAC (0x40000), WRITE_OWNER (0x80000), GENERIC_ALL (0x10000000), and GENERIC_WRITE (0x40000000).
+const UNSAFE_REPLACE_MASK = 0x500d0140
 const DIRECTORY_WRITE_MASK = 0x00000006
-const CACHE_TTL_MS = 2_000
+const CACHE_TTL_MS = 60_000
+const MAX_BATCH_DIRS = 64
+
+const TRUSTED_INSTALLER_SID = 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
 
 const SYSTEM_TRUSTED_SIDS = new Set([
   'S-1-5-18',
-  'S-1-5-19',
-  'S-1-5-20',
   'S-1-5-32-544',
+  TRUSTED_INSTALLER_SID,
 ])
 
 const BUILTIN_ADMIN_USER_PATTERN = /^S-1-5-21-[\d-]+-500$/
 
 const POWERSHELL_SECURITY_SCRIPT = [
-  '[Console]::InputEncoding = [System.Text.Encoding]::UTF8',
-  '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
   "$ErrorActionPreference = 'Stop'",
-  '$id = [System.Security.Principal.WindowsIdentity]::GetCurrent()',
-  '$me = $id.User.Value',
-  '$groups = [object[]]@(@($me) + @($id.Groups | ForEach-Object { $_.Value }))',
+  '$me = $null',
+  '$groups = @()',
   '$admins = @()',
-  'try {',
-  "  $adminGroup = [System.DirectoryServices.DirectoryEntry]::new('WinNT://./Administrators,group')",
-  "  foreach ($member in $adminGroup.Invoke('Members')) {",
-  "    $bytes = $member.GetType().InvokeMember('objectSid', 'GetProperty', $null, $member, $null)",
-  '    $admins += [System.Security.Principal.SecurityIdentifier]::new($bytes, 0).Value',
-  '  }',
-  '} catch {}',
+  "if ($env:PNPM_DOCTOR_SKIP_ID -ne '1') {",
+  '  $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()',
+  '  $me = $id.User.Value',
+  '  $groups = [object[]]@(@($me) + @($id.Groups | ForEach-Object { $_.Value }))',
+  '  try {',
+  "    $adminGroup = [System.DirectoryServices.DirectoryEntry]::new('WinNT://./Administrators,group')",
+  "    foreach ($member in $adminGroup.Invoke('Members')) {",
+  "      $bytes = $member.GetType().InvokeMember('objectSid', 'GetProperty', $null, $member, $null)",
+  '      $admins += [System.Security.Principal.SecurityIdentifier]::new($bytes, 0).Value',
+  '    }',
+  '  } catch {}',
+  '}',
   '$sections = [System.Security.AccessControl.AccessControlSections]::Access -bor [System.Security.AccessControl.AccessControlSections]::Owner',
   '$sidType = [System.Security.Principal.SecurityIdentifier]',
+  '$allowType = [System.Security.AccessControl.AccessControlType]::Allow',
   '$items = @()',
-  'foreach ($raw in [Console]::In.ReadToEnd() -split "\\r?\\n") {',
-  '  if ([string]::IsNullOrWhiteSpace($raw)) { continue }',
+  '$rawPaths = if ($null -ne $env:PNPM_DOCTOR_PATHS -and $env:PNPM_DOCTOR_PATHS.Length -gt 0) { $env:PNPM_DOCTOR_PATHS -split "`n" } else { @() }',
+  'foreach ($raw in $rawPaths) {',
   '  try {',
   '    $dir = [System.IO.DirectoryInfo]::new($raw)',
   '    $isReparse = ($dir.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0',
-  '    if (-not $dir.Exists -or $isReparse) { $items += @{ path = $raw; ok = $false }; continue }',
+  '    if (-not $dir.Exists -or $isReparse) { $items += @{ ok = $false }; continue }',
   '    $sec = $dir.GetAccessControl($sections)',
   '    $rawDesc = [System.Security.AccessControl.RawSecurityDescriptor]::new($sec.GetSecurityDescriptorBinaryForm(), 0)',
-  '    $nullAcl = ($null -eq $rawDesc.DiscretionaryAcl)',
-  '    $owner = $sec.GetOwner($sidType).Value',
-  '    $rules = @()',
-  '    foreach ($rule in $sec.GetAccessRules($true, $true, $sidType)) {',
-  '      $rules += @{',
-  '        sid = $rule.IdentityReference.Value',
-  '        allow = ($rule.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow)',
-  '        mask = [int]$rule.FileSystemRights',
-  '        inherit = [int]$rule.InheritanceFlags',
-  '        prop = [int]$rule.PropagationFlags',
-  '      }',
-  '    }',
-  '    $items += @{ path = $raw; ok = $true; nullAcl = $nullAcl; owner = $owner; rules = [object[]]@($rules) }',
+  '    $rules = @(foreach ($rule in $sec.GetAccessRules($true, $true, $sidType)) {',
+  '      @{ sid = $rule.IdentityReference.Value; allow = ($rule.AccessControlType -eq $allowType); mask = [int]$rule.FileSystemRights; prop = [int]$rule.PropagationFlags }',
+  '    })',
+  '    $items += @{ ok = $true; nullAcl = ($null -eq $rawDesc.DiscretionaryAcl); owner = $sec.GetOwner($sidType).Value; rules = [object[]]@($rules) }',
   '  } catch {',
-  '    $items += @{ path = $raw; ok = $false }',
+  '    $items += @{ ok = $false }',
   '  }',
   '}',
-  '@{ me = $me; admins = [object[]]@($admins); groups = $groups; items = [object[]]@($items) } | ConvertTo-Json -Depth 6 -Compress',
+  '@{ me = $me; admins = [object[]]@($admins); groups = [object[]]@($groups); items = [object[]]@($items) } | ConvertTo-Json -Depth 6 -Compress',
+  'exit 0',
 ].join('\n')
 
+const ENCODED_POWERSHELL_SCRIPT = Buffer.from(POWERSHELL_SECURITY_SCRIPT, 'utf16le').toString('base64')
+
 const securityCache = new Map<string, CachedDirSecurity>()
+let cachedIdentity: CachedIdentity | undefined
+
+export function isUncWindowsPath (dirPath: string): boolean {
+  return dirPath.startsWith('\\\\')
+}
 
 export function isTrustedWindowsPrincipal (
   sid: string,
@@ -102,28 +121,19 @@ export function isTrustedWindowsPrincipal (
   const normalized = sid.toUpperCase()
   if (normalized === currentUserSid.toUpperCase()) return true
   if (SYSTEM_TRUSTED_SIDS.has(normalized) || adminSids.has(normalized)) return true
-  if (BUILTIN_ADMIN_USER_PATTERN.test(normalized)) return true
-  return (
-    normalized.startsWith('S-1-5-80-') ||
-    normalized.startsWith('S-1-5-83-') ||
-    normalized.startsWith('S-1-5-90-')
-  )
+  return BUILTIN_ADMIN_USER_PATTERN.test(normalized)
 }
 
-function isTrustedRuleSid (
-  rule: WindowsAccessRule,
-  currentUserSid: string,
-  adminSids: ReadonlySet<string>,
-  ownerSid: string
-): boolean {
+function isTrustedRuleSid (rule: WindowsAccessRule, ctx: TrustedRuleContext): boolean {
   const sid = rule.sid.toUpperCase()
   if (sid === 'S-1-3-0') {
     return (rule.prop & INHERIT_ONLY_PROPAGATION) !== 0
   }
   if (sid === 'S-1-3-4') {
-    return ownerSid.toUpperCase() !== 'S-1-3-4' && isTrustedWindowsPrincipal(ownerSid, currentUserSid, adminSids)
+    return ctx.ownerSid.toUpperCase() !== 'S-1-3-4' &&
+      isTrustedWindowsPrincipal(ctx.ownerSid, ctx.currentUserSid, ctx.adminSids)
   }
-  return isTrustedWindowsPrincipal(sid, currentUserSid, adminSids)
+  return isTrustedWindowsPrincipal(sid, ctx.currentUserSid, ctx.adminSids)
 }
 
 export function isSafeWindowsDirSecurity (
@@ -137,9 +147,9 @@ export function isSafeWindowsDirSecurity (
   if (!isTrustedWindowsPrincipal(security.owner, currentUserSid, adminSids)) {
     return false
   }
-  const owner = security.owner
+  const ctx: TrustedRuleContext = { currentUserSid, adminSids, ownerSid: security.owner }
   return security.rules.every(
-    (rule) => !rule.allow || (rule.mask & UNSAFE_REPLACE_MASK) === 0 || isTrustedRuleSid(rule, currentUserSid, adminSids, owner)
+    (rule) => !rule.allow || (rule.mask & UNSAFE_REPLACE_MASK) === 0 || isTrustedRuleSid(rule, ctx)
   )
 }
 
@@ -169,89 +179,138 @@ function aggregateMemberMasks (
   return { allowed, denied }
 }
 
+export function prefetchWindowsDirSecurity (dirs: string[]): void {
+  if (process.platform !== 'win32' || dirs.length === 0) return
+  const unique = deduplicateDirs(dirs.filter((dir) => dir !== '' && !isUncWindowsPath(dir)))
+  const stats = statAvailableRealDirectories(unique)
+  if (stats.dirs.length === 0) return
+  inspectDirectories(stats.dirs, stats.changeTimes)
+}
+
 export function isSafeWindowsAncestorChain (canonicalDir: string, ancestors: string[]): boolean {
-  if (canonicalDir.startsWith('\\\\')) return false
-  const stats = statRealDirectories(ancestors)
+  if (isUncWindowsPath(canonicalDir)) return false
+  const stats = statAllRealDirectories(ancestors)
   if (stats == null) return false
   return inspectDirectories(ancestors, stats).every((entry) => entry.safe)
 }
 
 export function canAccessWindowsWritableDir (canonicalDir: string): boolean {
-  if (canonicalDir.startsWith('\\\\')) return false
-  const stats = statRealDirectories([canonicalDir])
+  const stats = statAllRealDirectories([canonicalDir])
   if (stats == null) return false
-  return inspectDirectories([canonicalDir], stats)[0]?.writable ?? false
+  const inspected = inspectDirectories([canonicalDir], stats)[0]
+  if (inspected?.known) {
+    return inspected.writable
+  }
+  return isUncWindowsPath(canonicalDir) && isWritableByReadOnlyStat(canonicalDir)
 }
 
-function statRealDirectories (dirs: string[]): Map<string, bigint> | undefined {
+function isWritableByReadOnlyStat (dir: string): boolean {
+  try {
+    const stat = fs.statSync(dir)
+    return stat.isDirectory() && (stat.mode & 0o200) !== 0
+  } catch {
+    return false
+  }
+}
+
+function statAllRealDirectories (dirs: string[]): Map<string, bigint> | undefined {
   const changeTimes = new Map<string, bigint>()
   for (const dir of dirs) {
-    try {
-      const stat = fs.lstatSync(dir, { bigint: true })
-      if (!stat.isDirectory()) return undefined
-      changeTimes.set(normalizeCacheKey(dir), stat.ctimeNs)
-    } catch {
-      return undefined
-    }
+    const ctimeNs = readRealDirectoryChangeTime(dir)
+    if (ctimeNs == null) return undefined
+    changeTimes.set(normalizeCacheKey(dir), ctimeNs)
   }
   return changeTimes
 }
 
+function statAvailableRealDirectories (dirs: string[]): { dirs: string[], changeTimes: Map<string, bigint> } {
+  const available: string[] = []
+  const changeTimes = new Map<string, bigint>()
+  for (const dir of dirs) {
+    const ctimeNs = readRealDirectoryChangeTime(dir)
+    if (ctimeNs != null) {
+      available.push(dir)
+      changeTimes.set(normalizeCacheKey(dir), ctimeNs)
+    }
+  }
+  return { dirs: available, changeTimes }
+}
+
+function readRealDirectoryChangeTime (dir: string): bigint | undefined {
+  try {
+    const stat = fs.lstatSync(dir, { bigint: true })
+    return stat.isDirectory() ? stat.ctimeNs : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function inspectDirectories (dirs: string[], changeTimes: Map<string, bigint>): CachedDirSecurity[] {
   const now = Date.now()
-  const missing = dirs.filter((dir) => !hasValidCacheEntry(dir, changeTimes, now))
-  if (missing.length > 0) {
-    populateSecurityCache(missing, changeTimes, now)
+  const missing = deduplicateDirs(dirs.filter((dir) => !hasValidCacheEntry(dir, changeTimes, now)))
+  for (let offset = 0; offset < missing.length; offset += MAX_BATCH_DIRS) {
+    populateSecurityCache(missing.slice(offset, offset + MAX_BATCH_DIRS), changeTimes, now)
   }
   return dirs.map((dir) => securityCache.get(normalizeCacheKey(dir)) ?? {
     ctimeNs: 0n,
     expiresAt: 0,
+    known: false,
     safe: false,
     writable: false,
   })
 }
 
 function hasValidCacheEntry (dir: string, changeTimes: Map<string, bigint>, now: number): boolean {
-  const cached = securityCache.get(normalizeCacheKey(dir))
-  const ctimeNs = changeTimes.get(normalizeCacheKey(dir))
+  const key = normalizeCacheKey(dir)
+  const cached = securityCache.get(key)
+  const ctimeNs = changeTimes.get(key)
   return cached != null && ctimeNs != null && cached.ctimeNs === ctimeNs && cached.expiresAt > now
 }
 
 function populateSecurityCache (dirs: string[], changeTimes: Map<string, bigint>, now: number): void {
   const batch = runPowerShellSecurityQuery(dirs)
-  if (batch?.me == null) return
-  const adminSids = toUppercaseSet(batch.admins)
-  const memberSids = toUppercaseSet(batch.groups)
-  memberSids.add(batch.me.toUpperCase())
-  for (const rawItem of toObjectArray<WindowsDirSecurity & { path?: string }>(batch.items)) {
-    if (typeof rawItem.path !== 'string') continue
-    const key = normalizeCacheKey(rawItem.path)
+  if (batch == null) return
+  const identity = resolveIdentity(batch)
+  if (identity == null) return
+  const items = toObjectArray<WindowsDirSecurity>(batch.items)
+  for (let index = 0; index < dirs.length; index++) {
+    const dir = dirs[index]
+    const rawItem = items[index]
+    const key = normalizeCacheKey(dir)
     const ctimeNs = changeTimes.get(key)
-    if (ctimeNs == null) continue
+    if (rawItem == null || ctimeNs == null) continue
     securityCache.set(key, {
       ctimeNs,
       expiresAt: now + CACHE_TTL_MS,
-      safe: isSafeWindowsDirSecurity(rawItem, batch.me, adminSids),
-      writable: canWriteWindowsDirSecurity(rawItem, memberSids),
+      known: Boolean(rawItem.ok),
+      safe: isSafeWindowsDirSecurity(rawItem, identity.me, identity.adminSids),
+      writable: canWriteWindowsDirSecurity(rawItem, identity.memberSids),
     })
   }
 }
 
-function runPowerShellSecurityQuery (dirs: string[]): WindowsSecurityBatch | undefined {
-  const tempDir = os.tmpdir()
-  const env = {
-    ...process.env,
-    LOCALAPPDATA: tempDir,
-    APPDATA: tempDir,
-    PSModuleAnalysisCachePath: 'NUL',
+function resolveIdentity (batch: WindowsSecurityBatch): CachedIdentity | undefined {
+  if (typeof batch.me === 'string' && batch.me !== '') {
+    const adminSids = toUppercaseSet(batch.admins)
+    const memberSids = toUppercaseSet(batch.groups)
+    memberSids.add(batch.me.toUpperCase())
+    cachedIdentity = { me: batch.me, adminSids, memberSids }
   }
+  return cachedIdentity
+}
+
+function runPowerShellSecurityQuery (dirs: string[]): WindowsSecurityBatch | undefined {
+  const env = buildPowerShellEnv(dirs)
+  const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-InputFormat', 'None', '-EncodedCommand', ENCODED_POWERSHELL_SCRIPT]
   for (const executable of resolvePowerShellExecutables()) {
     try {
-      const stdout = execFileSync(
-        executable,
-        ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', POWERSHELL_SECURITY_SCRIPT],
-        { input: dirs.join('\n'), encoding: 'utf8', env, windowsHide: true, timeout: 10_000 }
-      )
+      const stdout = execFileSync(executable, args, {
+        encoding: 'utf8',
+        env,
+        stdio: ['ignore', 'pipe', 'ignore'],
+        windowsHide: true,
+        timeout: 10_000,
+      })
       return JSON.parse(stdout.trim()) as WindowsSecurityBatch
     } catch {
       // Try the next PowerShell executable, or fail closed if none succeeds.
@@ -260,15 +319,43 @@ function runPowerShellSecurityQuery (dirs: string[]): WindowsSecurityBatch | und
   return undefined
 }
 
+function buildPowerShellEnv (dirs: string[]): NodeJS.ProcessEnv {
+  const tempDir = os.tmpdir()
+  const env: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    const upper = key.toUpperCase()
+    if (upper !== 'LOCALAPPDATA' && upper !== 'APPDATA' && upper !== 'PSModuleAnalysisCachePath'.toUpperCase()) {
+      env[key] = value
+    }
+  }
+  env.LOCALAPPDATA = tempDir
+  env.APPDATA = tempDir
+  env.PSModuleAnalysisCachePath = 'NUL'
+  env.PNPM_DOCTOR_PATHS = dirs.join('\n')
+  env.PNPM_DOCTOR_SKIP_ID = cachedIdentity != null ? '1' : '0'
+  return env
+}
+
 function resolvePowerShellExecutables (): string[] {
-  const candidates = [
-    'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-  ]
+  const candidates = ['C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe']
   const systemRoot = process.env.SystemRoot
   if (systemRoot && path.isAbsolute(systemRoot)) {
     candidates.push(path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'))
   }
-  return Array.from(new Set(candidates))
+  return deduplicateDirs(candidates)
+}
+
+function deduplicateDirs (dirs: string[]): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+  for (const dir of dirs) {
+    const key = normalizeCacheKey(dir)
+    if (!seen.has(key)) {
+      seen.add(key)
+      unique.push(dir)
+    }
+  }
+  return unique
 }
 
 function toObjectArray<Item> (value: unknown): Item[] {
@@ -289,5 +376,5 @@ function toUppercaseSet (value: unknown): Set<string> {
 }
 
 function normalizeCacheKey (dir: string): string {
-  return path.resolve(dir).toUpperCase()
+  return (isUncWindowsPath(dir) ? dir : path.resolve(dir)).toUpperCase()
 }

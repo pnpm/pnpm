@@ -18,6 +18,7 @@ import {
   checkWritableDir,
   existingAncestorDir,
   makeProbeDir,
+  prefetchDoctorCandidatePaths,
   prepareProbeEntryPath,
   type ProbeDir,
   removeProbeDirs,
@@ -25,7 +26,7 @@ import {
   writeExclusiveProbeFile,
 } from './doctorProbePath.js'
 
-export { canWriteToDir, checkWritableDir, existingAncestorDir }
+export { canWriteToDir, checkWritableDir, existingAncestorDir, prefetchDoctorCandidatePaths }
 
 export interface LinkOperations {
   reflink: (source: string, dest: string) => boolean
@@ -85,12 +86,12 @@ type ProbeStoreResolution =
 export async function checkFilesystemCapabilities (opts: FilesystemProbeOptions): Promise<CheckResult> {
   const started = Date.now()
   const linkOps = opts.linkOperations ?? defaultLinkOperations
-  const storeResolution = await resolveProbeStoreDir(opts, linkOps)
-  if (storeResolution.kind === 'unsafe') {
-    return unsafeProbeAncestorWarning()
-  }
   const createdProbeDirs: ProbeDir[] = []
   try {
+    const storeResolution = await resolveProbeStoreDir(opts, linkOps)
+    if (storeResolution.kind === 'unsafe') {
+      return unsafeProbeAncestorWarning()
+    }
     const workspaceResult = await createProbeWorkspaces(opts, storeResolution.storeDir, createdProbeDirs)
     if (workspaceResult.kind === 'unsafe') {
       return unsafeProbeAncestorWarning()
@@ -103,6 +104,8 @@ export async function checkFilesystemCapabilities (opts: FilesystemProbeOptions)
       return probeFileWarning()
     }
     return formatCapabilitiesResult(capabilities, opts.benchmark ? Date.now() - started : undefined)
+  } catch {
+    return probeDirectoryWarning()
   } finally {
     await removeProbeDirs(createdProbeDirs)
   }
@@ -196,10 +199,26 @@ async function resolveProjectModulesDir (opts: FilesystemProbeOptions): Promise<
   if (opts.lockfileDir != null) {
     return modulesDirOf(opts.dir, opts.modulesDir)
   }
-  const manifest = opts.dir === opts.rootProjectManifestDir && opts.rootProjectManifest != null
-    ? opts.rootProjectManifest
-    : await safeReadProjectManifestOnly(opts.dir) ?? undefined
-  return modulesDirOf(opts.dir, createProjectModulesDirResolver(opts)(manifest?.name))
+  const manifestName = await readProjectManifestName(opts)
+  return modulesDirOf(opts.dir, createProjectModulesDirResolver(opts)(manifestName))
+}
+
+async function readProjectManifestName (opts: FilesystemProbeOptions): Promise<string | undefined> {
+  if (opts.dir === opts.rootProjectManifestDir && opts.rootProjectManifest != null) {
+    return opts.rootProjectManifest.name
+  }
+  try {
+    return (await safeReadProjectManifestOnly(opts.dir))?.name
+  } catch {
+    return undefined
+  }
+}
+
+interface HomeStoreContext {
+  pnpmHomeDir: string
+  homeStoreDir: string
+  pkgAncestor: string
+  linkOps: LinkOperations
 }
 
 async function resolveProbeStoreDir (
@@ -219,7 +238,12 @@ async function resolveProbeStoreDir (
   if (pkgAncestor.kind === 'unavailable') {
     return { kind: 'ok', storeDir: fallbackDefault }
   }
-  const homeDecision = await decideHomeStoreDir(opts.pnpmHomeDir, homeStoreDir, pkgAncestor.path, linkOps)
+  const homeDecision = await decideHomeStoreDir({
+    pnpmHomeDir: opts.pnpmHomeDir,
+    homeStoreDir,
+    pkgAncestor: pkgAncestor.path,
+    linkOps,
+  })
   if (homeDecision != null) {
     return homeDecision
   }
@@ -228,12 +252,12 @@ async function resolveProbeStoreDir (
   return { kind: 'ok', storeDir }
 }
 
-async function decideHomeStoreDir (
-  pnpmHomeDir: string,
-  homeStoreDir: string,
-  pkgAncestor: string,
-  linkOps: LinkOperations
-): Promise<ProbeStoreResolution | undefined> {
+async function decideHomeStoreDir ({
+  pnpmHomeDir,
+  homeStoreDir,
+  pkgAncestor,
+  linkOps,
+}: HomeStoreContext): Promise<ProbeStoreResolution | undefined> {
   if (pnpmHomeDir === '') return undefined
   const homeAncestor = resolveProbeAncestor(pnpmHomeDir)
   if (homeAncestor.kind === 'unsafe') {

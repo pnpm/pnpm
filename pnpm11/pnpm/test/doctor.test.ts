@@ -11,7 +11,11 @@ import { prepare } from '@pnpm/prepare'
 
 import { type CheckResult, handler, type LinkOperations } from '../src/cmd/doctor.js'
 import { canWriteToDir, checkFilesystemCapabilities } from '../src/cmd/doctorFilesystem.js'
-import { canWriteWindowsDirSecurity, isSafeWindowsDirSecurity } from '../src/cmd/doctorWindowsAcl.js'
+import {
+  canWriteWindowsDirSecurity,
+  isSafeWindowsDirSecurity,
+  isUncWindowsPath,
+} from '../src/cmd/doctorWindowsAcl.js'
 import { execPnpmSync } from './utils/execPnpm.js'
 import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
@@ -525,6 +529,38 @@ test('Windows directory security evaluator distinguishes standard roots from sha
     rules: [{ sid: 'S-1-1-0', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 }],
   }, me, admins)).toBe(false)
 
+  const unrelatedServiceSid = 'S-1-5-80-111-222-333-444-555'
+  expect(isSafeWindowsDirSecurity({
+    ok: true,
+    nullAcl: false,
+    owner: unrelatedServiceSid,
+    rules: [{ sid: 'S-1-5-18', allow: true, mask: 0x001f01ff, prop: 0 }],
+  }, me, admins)).toBe(false)
+
+  expect(isSafeWindowsDirSecurity({
+    ok: true,
+    nullAcl: false,
+    owner: me,
+    rules: [{ sid: unrelatedServiceSid, allow: true, mask: 0x00010000, prop: 0 }],
+  }, me, admins)).toBe(false)
+
+  expect(isSafeWindowsDirSecurity({
+    ok: true,
+    nullAcl: false,
+    owner: me,
+    rules: [{ sid: 'S-1-5-32-545', allow: true, mask: 0x00000100, prop: 0 }],
+  }, me, admins)).toBe(false)
+
+  expect(isSafeWindowsDirSecurity({
+    ok: true,
+    nullAcl: false,
+    owner: me,
+    rules: [{ sid: 'S-1-5-32-545', allow: true, mask: 0x40000000, prop: 0 }],
+  }, me, admins)).toBe(false)
+
+  expect(isUncWindowsPath('\\\\server\\share\\cache')).toBe(true)
+  expect(isUncWindowsPath('C:\\Users\\demo\\cache')).toBe(false)
+
   expect(canWriteWindowsDirSecurity({
     ok: true,
     nullAcl: false,
@@ -533,6 +569,22 @@ test('Windows directory security evaluator distinguishes standard roots from sha
       { sid: me, allow: false, mask: 0x00000002, inherit: 3, prop: 0 },
     ],
   }, new Set([me, 'S-1-1-0']))).toBe(false)
+})
+
+test('pnpm doctor handles a malformed package.json without aborting the filesystem check', async () => {
+  prepare()
+  const root = process.cwd()
+  const projectDir = path.join(root, 'broken-proj')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(projectDir, 'package.json'), '{ invalid json')
+
+  const fsCheck = await checkFilesystemCapabilities({
+    dir: projectDir,
+    pnpmHomeDir: path.join(root, 'pnpm-home'),
+    storeDir: path.join(root, 'store'),
+  })
+
+  expect(fsCheck.status).toBe('pass')
 })
 
 test('canWriteToDir verifies file creation in an existing directory even if subdirectory creation works', () => {
