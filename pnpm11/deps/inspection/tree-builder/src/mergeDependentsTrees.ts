@@ -1,13 +1,19 @@
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import semver from 'semver'
 
+import type {
+  DependentNode,
+  DependentsTree,
+} from './buildDependentsTree.js'
 import {
   compareDependentsTrees,
-  type DependentNode,
-  type DependentsTree,
   getDependentNodeImporterId,
+  getDependentNodeMergeId,
+  getDependentsTreeMergeId,
   setDependentNodeImporterId,
-} from './buildDependentsTree.js'
+  setDependentNodeMergeId,
+  setDependentsTreeMergeId,
+} from './dependentsTreeIdentity.js'
 
 const dependentNodeRootPaths = new WeakMap<DependentNode, string[]>()
 
@@ -19,13 +25,18 @@ export function mergeDependentsTrees (trees: DependentsTree[]): DependentsTree[]
   const byKey = new Map<string, DependentsTree>()
   for (const [treeIndex, tree] of trees.entries()) {
     const clonedDependents = cloneAndTagDependents(tree.dependents, tree.path, treeIndex)
-    const key = `${tree.name}\0${tree.version}\0${tree.peersSuffixHash ?? ''}`
+    const treeMergeId = getDependentsTreeMergeId(tree)
+    const key = `${tree.name}\0${tree.version ?? ''}\0${tree.peersSuffixHash ?? ''}\0${treeMergeId ?? ''}`
     const existing = byKey.get(key)
     if (existing == null) {
-      byKey.set(key, {
+      const clonedTree: DependentsTree = {
         ...tree,
         dependents: clonedDependents,
-      })
+      }
+      if (treeMergeId != null) {
+        setDependentsTreeMergeId(clonedTree, treeMergeId)
+      }
+      byKey.set(key, clonedTree)
       continue
     }
     mergeIntoTree(existing, tree, clonedDependents)
@@ -45,20 +56,33 @@ function cloneAndTagDependents (
       ...node,
       ...(node.dependents ? { dependents: cloneAndTagDependents(node.dependents, rootPath, treeIndex) } : {}),
     }
-    const existingImporterId = getDependentNodeImporterId(node)
-    if (existingImporterId != null) {
-      setDependentNodeImporterId(cloned, existingImporterId)
-    } else if (node.depField != null) {
-      setDependentNodeImporterId(cloned, `tree:${treeIndex}`)
-    }
-    const existingRootPaths = dependentNodeRootPaths.get(node)
-    if (existingRootPaths != null) {
-      dependentNodeRootPaths.set(cloned, [...existingRootPaths])
-    } else if (rootPath != null) {
-      dependentNodeRootPaths.set(cloned, [rootPath])
-    }
+    copyClonedDependentMetadata({ cloned, source: node, rootPath, treeIndex })
     return cloned
   })
+}
+
+interface CopyClonedDependentMetadataOpts {
+  cloned: DependentNode
+  source: DependentNode
+  rootPath: string | undefined
+  treeIndex: number
+}
+
+function copyClonedDependentMetadata (opts: CopyClonedDependentMetadataOpts): void {
+  const existingImporterId = getDependentNodeImporterId(opts.source) ?? (opts.source.depField != null ? `tree:${opts.treeIndex}` : undefined)
+  if (existingImporterId != null) {
+    setDependentNodeImporterId(opts.cloned, existingImporterId)
+  }
+  const existingMergeId = getDependentNodeMergeId(opts.source)
+  if (existingMergeId != null) {
+    setDependentNodeMergeId(opts.cloned, existingMergeId)
+  }
+  const existingRootPaths = dependentNodeRootPaths.get(opts.source)
+  if (existingRootPaths != null) {
+    dependentNodeRootPaths.set(opts.cloned, [...existingRootPaths])
+  } else if (opts.rootPath != null) {
+    dependentNodeRootPaths.set(opts.cloned, [opts.rootPath])
+  }
 }
 
 function mergeIntoTree (target: DependentsTree, source: DependentsTree, sourceDependents: DependentNode[]): void {
@@ -85,7 +109,7 @@ function mergeDependentNodes (target: DependentNode[], source: DependentNode[]):
 }
 
 function dependentNodeKey (node: DependentNode): string {
-  return `${node.name}\0${node.version}\0${node.peersSuffixHash ?? ''}\0${node.depField ?? ''}\0${node.circular ? '1' : '0'}\0${getDependentNodeImporterId(node) ?? ''}`
+  return `${node.name}\0${node.version ?? ''}\0${node.peersSuffixHash ?? ''}\0${getDependentNodeMergeId(node) ?? ''}\0${node.depField ?? ''}\0${node.circular ? '1' : '0'}\0${getDependentNodeImporterId(node) ?? ''}`
 }
 
 function cloneDependentNode (node: DependentNode): DependentNode {
@@ -96,6 +120,10 @@ function cloneDependentNode (node: DependentNode): DependentNode {
   const importerId = getDependentNodeImporterId(node)
   if (importerId != null) {
     setDependentNodeImporterId(cloned, importerId)
+  }
+  const mergeId = getDependentNodeMergeId(node)
+  if (mergeId != null) {
+    setDependentNodeMergeId(cloned, mergeId)
   }
   const rootPaths = dependentNodeRootPaths.get(node)
   if (rootPaths != null) {
@@ -125,12 +153,16 @@ function mergeIntoDependentNode (target: DependentNode, source: DependentNode): 
 function compareDependentNodes (left: DependentNode, right: DependentNode): number {
   const nameCmp = lexCompare(left.name, right.name)
   if (nameCmp !== 0) return nameCmp
-  const versionCmp = semver.valid(left.version) && semver.valid(right.version)
-    ? semver.compare(left.version, right.version)
-    : lexCompare(left.version, right.version)
+  const leftVersion = left.version ?? ''
+  const rightVersion = right.version ?? ''
+  const versionCmp = semver.valid(leftVersion) && semver.valid(rightVersion)
+    ? semver.compare(leftVersion, rightVersion)
+    : lexCompare(leftVersion, rightVersion)
   if (versionCmp !== 0) return versionCmp
   const peerCmp = lexCompare(left.peersSuffixHash ?? '', right.peersSuffixHash ?? '')
   if (peerCmp !== 0) return peerCmp
+  const mergeCmp = lexCompare(getDependentNodeMergeId(left) ?? '', getDependentNodeMergeId(right) ?? '')
+  if (mergeCmp !== 0) return mergeCmp
   const depFieldCmp = lexCompare(left.depField ?? '', right.depField ?? '')
   if (depFieldCmp !== 0) return depFieldCmp
   return lexCompare(getDependentNodeImporterId(left) ?? '', getDependentNodeImporterId(right) ?? '')

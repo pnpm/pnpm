@@ -8,6 +8,7 @@ import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 import { buildDependentsTree } from '../lib/buildDependentsTree.js'
+import { getPackageMergeId } from '../lib/dependentsTreeIdentity.js'
 
 function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
   const relative = refToRelative(reference, pkgName)
@@ -292,5 +293,67 @@ describe('buildDependentsTree', () => {
         cleanup()
       }
     })
+  })
+
+  test('getPackageMergeId resolves directory paths lexically and normalizes UNC and trailing slashes without I/O', () => {
+    const project1MergeId = getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+      depPath: 'foo@file:../../vendor/foo-v1' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '../../vendor/foo-v1' } },
+      version: undefined,
+    })
+    const project1TrailingSlashMergeId = getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+      depPath: 'foo@file:../../vendor/foo-v1/' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '../../vendor/foo-v1/' } },
+      version: undefined,
+    })
+    const project2MergeId = getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'nested', 'project-2'),
+      depPath: 'foo@file:../../../vendor/foo-v1' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '../../../vendor/foo-v1' } },
+      version: undefined,
+    })
+    const distinctMergeId = getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'project-3'),
+      depPath: 'foo@file:../../vendor/foo-v2' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '../../vendor/foo-v2' } },
+      version: undefined,
+    })
+    expect(project1MergeId).toBe(project1TrailingSlashMergeId)
+    expect(project1MergeId).toBe(project2MergeId)
+    expect(project1MergeId).not.toBe(distinctMergeId)
+
+    if (path.sep === '/') {
+      const literalBackslashMergeId = getPackageMergeId({
+        lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+        depPath: 'foo@file:../../vendor/foo-v1\\' as DepPath,
+        snapshot: { resolution: { type: 'directory', directory: '../../vendor/foo-v1\\' } },
+        version: undefined,
+      })
+      expect(literalBackslashMergeId).not.toBe(project1MergeId)
+    }
+
+    expect(getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+      depPath: 'root@file:/' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '/' } },
+      version: undefined,
+    })).toBe(`dir:${path.normalize('/')}`)
+
+    const uncBackslash = getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+      depPath: 'foo@file://server/share/foo' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '\\\\server\\share\\foo' } },
+      version: undefined,
+    })
+    const uncForwardSlash = getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+      depPath: 'foo@file://server/share/foo' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '//server/share/foo/' } },
+      version: undefined,
+    })
+    expect(uncBackslash).toBe('dir://server/share/foo')
+    expect(uncBackslash).toBe(uncForwardSlash)
   })
 })
