@@ -645,6 +645,48 @@ test('global update --latest holds npm: aliases and runtimes when latest would d
   )
 })
 
+test('global update --latest runs no extra lockfile-only pass when nothing is pinned or bumped', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-fast')
+  getHashLink.mockReturnValueOnce('/global/v11/hash-fast')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: {
+        foo: '^1.0.0',
+        aliased: 'npm:other-pkg@^2.0.0',
+      },
+      hash: 'hash-fast',
+      installDir: '/global/v11/old-fast',
+    },
+  ])
+  getGlobalPackageDetails.mockResolvedValue([
+    { alias: 'foo', version: '1.0.0' },
+    { alias: 'aliased', version: '2.0.0' },
+  ])
+  installGlobalPackages.mockResolvedValue({
+    ignoredBuilds: undefined,
+    resolutionPolicyViolations: [],
+    resolvedVersions: { foo: '2.0.0', aliased: '3.0.0' },
+  })
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(2)
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({ lockfileOnly: true }),
+    ['foo', 'aliased@npm:other-pkg@latest']
+  )
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    2,
+    expect.not.objectContaining({ lockfileOnly: true }),
+    ['foo', 'aliased@npm:other-pkg@latest']
+  )
+})
+
 test('global update skips a group whose file: source no longer exists and updates the rest', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'global-update-missing-source-'))
   const missingSource = path.join(root, 'since-deleted')

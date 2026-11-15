@@ -54,7 +54,20 @@ export function isPnpmCliDependency (alias: string, spec?: string): boolean {
 /** The package an `npm:` alias points at, or `undefined` for any other spec. */
 function npmAliasTarget (spec?: string): string | undefined {
   if (spec?.startsWith('npm:') !== true) return undefined
-  const body = spec.slice('npm:'.length)
-  if (body === '' || semver.validRange(body) != null) return undefined
-  return parseWantedDependency(body).alias
+  return parseNpmSpecBody(spec.slice('npm:'.length))?.alias
+}
+
+export function parseNpmSpecBody (npmBody: string): { alias?: string, versionSpec?: string } | undefined {
+  if (npmBody === '') return undefined
+  if (semver.validRange(npmBody) != null) {
+    return { versionSpec: npmBody }
+  }
+  const parsed = parseWantedDependency(npmBody)
+  if (parsed.alias != null) {
+    return { alias: parsed.alias, versionSpec: parsed.bareSpecifier }
+  }
+  if (parsed.bareSpecifier != null && parsed.bareSpecifier !== '') {
+    return { versionSpec: parsed.bareSpecifier }
+  }
+  return undefined
 }

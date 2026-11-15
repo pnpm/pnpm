@@ -1,10 +1,9 @@
 use super::{
-    GlobalPackageInfo, GlobalUpdateMode, HashMap, RangeSpecStyle, Version, is_npm_semver_spec,
-    local_file_path, parse_wanted_dependency,
+    GlobalPackageInfo, GlobalUpdateMode, HashMap, RangeSpecStyle, Version, local_file_path,
+    parse_npm_spec_body,
 };
-use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_resolving_npm_resolver::calc_version_range;
-use pnpm_resolving_resolver_base::VersionSelectorType;
+use pnpm_semver_include_prerelease::is_valid_semver_range;
 
 /// Whether `--latest` rewrites `(alias, spec)` to a latest selector.
 pub(super) fn can_update_to_latest(alias: &str, spec: &str) -> bool {
@@ -24,13 +23,13 @@ pub(super) fn update_selectors(
         .iter()
         .map(|(alias, spec)| {
             if let Some(pin) = pins.get(alias) {
-                pinned_selector(alias, spec, pin)
-            } else if mode == GlobalUpdateMode::Latest
-                && let Some(selector) = latest_selector(alias, spec)
-            {
-                selector
-            } else {
-                format!("{alias}@{spec}")
+                return pinned_selector(alias, spec, pin);
+            }
+            match mode {
+                GlobalUpdateMode::DeclaredRange => format!("{alias}@{spec}"),
+                GlobalUpdateMode::Latest => {
+                    latest_selector(alias, spec).unwrap_or_else(|| format!("{alias}@{spec}"))
+                }
             }
         })
         .collect()
@@ -107,18 +106,8 @@ fn latest_npm_alias_selector(alias: &str, rest: &str) -> Option<String> {
 }
 
 fn parse_npm_target(alias: &str, rest: &str) -> Option<(String, Option<String>)> {
-    if rest.is_empty() {
-        return None;
-    }
-    if is_npm_semver_spec(rest) {
-        return Some((alias.to_string(), Some(rest.to_string())));
-    }
-    let parsed = parse_wanted_dependency(rest);
-    if let Some(target_pkg) = parsed.alias {
-        return Some((target_pkg, parsed.bare_specifier));
-    }
-    let inner = parsed.bare_specifier?;
-    (!inner.is_empty()).then(|| (alias.to_string(), Some(inner)))
+    let parsed = parse_npm_spec_body(rest)?;
+    Some((parsed.alias.unwrap_or_else(|| alias.to_string()), parsed.version_spec))
 }
 
 fn latest_runtime_selector(alias: &str, runtime_spec: &str) -> Option<String> {
@@ -179,7 +168,5 @@ fn declared_runtime_range<'a>(alias: &str, spec: &'a str) -> Option<&'a str> {
         return None;
     }
     let declared_range = pnpm_tool_protocol::strip_tool_protocol(spec)?.trim();
-    (!declared_range.is_empty()
-        && get_version_selector_type(declared_range) != Some(VersionSelectorType::Tag))
-    .then_some(declared_range)
+    (!declared_range.is_empty() && is_valid_semver_range(declared_range)).then_some(declared_range)
 }

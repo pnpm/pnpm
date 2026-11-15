@@ -718,11 +718,21 @@ fn update_selectors_preserve_deno_bun_ranges_and_ignore_non_runtime_tools() {
             "custom@tool:1.0.0",
         ],
     );
+}
 
+#[test]
+fn has_pnpm_cli_dependency_detects_exact_npm_spec_and_malformed_union() {
     let pnpm_exact_npm = GlobalPackageInfo {
         install_dir: PathBuf::from("/global/v11/pnpm-group"),
         hash: "hash-pnpm".to_string(),
         dependencies: vec![("pnpm".to_string(), "npm:12.0.0".to_string())],
     };
     assert!(has_pnpm_cli_dependency(&pnpm_exact_npm));
+
+    let aliased_malformed_union = GlobalPackageInfo {
+        install_dir: PathBuf::from("/global/v11/pnpm-union"),
+        hash: "hash-pnpm-union".to_string(),
+        dependencies: vec![("foo".to_string(), "npm:pnpm@9||".to_string())],
+    };
+    assert!(has_pnpm_cli_dependency(&aliased_malformed_union));
 }

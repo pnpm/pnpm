@@ -3,8 +3,7 @@ use super::{
     is_valid_old_npm_package_name, lexical_normalize, parse_wanted_dependency,
     rust_toolchain_request, safe_read_package_json_from_dir, tool_install_selector,
 };
-use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_resolving_resolver_base::VersionSelectorType;
+use pnpm_semver_include_prerelease::is_valid_semver_range;
 
 /// The packages one global install request asks for: the tokens a
 /// comma-separated request splits into, and whether they may name a tool
@@ -181,20 +180,29 @@ fn is_pnpm_cli_package_name(name: &str) -> bool {
     matches!(name, "pnpm" | "@pnpm/exe")
 }
 
-pub(super) fn is_npm_semver_spec(rest: &str) -> bool {
-    matches!(
-        get_version_selector_type(rest),
-        Some(VersionSelectorType::Version | VersionSelectorType::Range),
-    )
+pub(super) struct NpmSpecBody {
+    pub(super) alias: Option<String>,
+    pub(super) version_spec: Option<String>,
+}
+
+pub(super) fn parse_npm_spec_body(rest: &str) -> Option<NpmSpecBody> {
+    if rest.is_empty() {
+        return None;
+    }
+    if is_valid_semver_range(rest) {
+        return Some(NpmSpecBody { alias: None, version_spec: Some(rest.to_string()) });
+    }
+    let parsed = parse_wanted_dependency(rest);
+    if parsed.alias.is_some() {
+        return Some(NpmSpecBody { alias: parsed.alias, version_spec: parsed.bare_specifier });
+    }
+    let inner = parsed.bare_specifier?;
+    (!inner.is_empty()).then_some(NpmSpecBody { alias: None, version_spec: Some(inner) })
 }
 
 /// The package an `npm:` alias points at, or `None` for any other spec.
 fn npm_alias_target(spec: Option<&str>) -> Option<String> {
-    let rest = spec?.strip_prefix("npm:")?;
-    if rest.is_empty() || is_npm_semver_spec(rest) {
-        return None;
-    }
-    parse_wanted_dependency(rest).alias
+    parse_npm_spec_body(spec?.strip_prefix("npm:")?)?.alias
 }
 
 // --- param grouping (split/resolve helpers) -------------------------------

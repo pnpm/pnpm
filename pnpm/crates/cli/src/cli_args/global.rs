@@ -73,7 +73,7 @@ use remove::{
     collect_existing_global_installs, snapshot_global_package,
 };
 use selectors::{
-    SelectorGroup, groups_matching_params, infer_local_package_alias, is_npm_semver_spec,
+    SelectorGroup, groups_matching_params, infer_local_package_alias, parse_npm_spec_body,
     replacement_aliases, should_replace_existing_package, split_into_groups, take_rust_toolchains,
     tool_install_selectors,
 };
@@ -255,7 +255,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub(super) enum GlobalUpdateMode {
     DeclaredRange,
     Latest,

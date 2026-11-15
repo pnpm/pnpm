@@ -1,8 +1,9 @@
 import { parseNodeSpecifier } from '@pnpm/engine.runtime.node-resolver'
 import { calcVersionRange } from '@pnpm/pkg-manifest.utils'
-import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { RangeSpecStyle } from '@pnpm/types'
 import semver from 'semver'
+
+import { parseNpmSpecBody } from './pnpmCliPackages.js'
 
 const RUNTIME_ALIASES = new Set(['node', 'deno', 'bun'])
 
@@ -101,18 +102,9 @@ function parseNpmTarget (
   alias: string,
   npmBody: string
 ): { targetPkg: string, versionSpec?: string } | undefined {
-  if (npmBody === '') return undefined
-  if (semver.validRange(npmBody) != null) {
-    return { targetPkg: alias, versionSpec: npmBody }
-  }
-  const parsed = parseWantedDependency(npmBody)
-  if (parsed.alias != null) {
-    return { targetPkg: parsed.alias, versionSpec: parsed.bareSpecifier }
-  }
-  if (parsed.bareSpecifier != null && parsed.bareSpecifier !== '') {
-    return { targetPkg: alias, versionSpec: parsed.bareSpecifier }
-  }
-  return undefined
+  const parsed = parseNpmSpecBody(npmBody)
+  if (parsed == null) return undefined
+  return { targetPkg: parsed.alias ?? alias, versionSpec: parsed.versionSpec }
 }
 
 function latestRuntimeSpec (alias: string, runtimeSpec: string): string | undefined {
@@ -123,6 +115,11 @@ function latestRuntimeSpec (alias: string, runtimeSpec: string): string | undefi
   return channel === 'release' ? 'node@runtime:latest' : `node@runtime:${channel}/latest`
 }
 
+/**
+ * Returns `undefined` for unrecognized channel prefixes so `depSpecsForUpdate`
+ * leaves `node@runtime:<spec>` intact for the Node runtime resolver to reject
+ * with `ERR_PNPM_INVALID_NODE_VERSION`.
+ */
 function parseNodeRuntimeChannel (runtimeSpec: string): string | undefined {
   try {
     return parseNodeSpecifier(runtimeSpec).releaseChannel

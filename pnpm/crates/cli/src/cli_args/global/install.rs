@@ -49,16 +49,19 @@ impl GlobalInstallTarget<'_> {
             )
             .await?;
         }
-        if mode == GlobalUpdateMode::Latest {
-            selectors = self.finalize_latest_runtime_selectors::<Reporter>(
-                pkg,
-                install_dir,
-                selectors,
-                &downgrade_check.pins,
-                range_spec_style,
-                supported_architectures,
-            )
-            .await?;
+        match mode {
+            GlobalUpdateMode::DeclaredRange => {}
+            GlobalUpdateMode::Latest => {
+                selectors = self.finalize_latest_runtime_selectors::<Reporter>(
+                    pkg,
+                    install_dir,
+                    selectors,
+                    &downgrade_check.pins,
+                    range_spec_style,
+                    supported_architectures,
+                )
+                .await?;
+            }
         }
         Ok(selectors)
     }
@@ -153,8 +156,11 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<DowngradeCheck> {
-    if mode != GlobalUpdateMode::Latest {
-        return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
+    match mode {
+        GlobalUpdateMode::DeclaredRange => {
+            return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
+        }
+        GlobalUpdateMode::Latest => {}
     }
     let versions_before = installed_versions(&pkg.install_dir);
     // Nothing to compare a resolution against, so nothing to resolve.
