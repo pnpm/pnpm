@@ -226,13 +226,16 @@ function legacyRegistriesWarning (
     .filter(([scope]) => {
       if (scope === 'default') return false
       const expectedRoute = legacyRoutes[scope] ?? (scope === '@jsr' ? undefined : legacyRoutes.default)
-      if (typeof expectedRoute !== 'string') return false
-      const normalizedExpectedRoute = normalizeRegistriesByScope({ default: expectedRoute }).default
-      return config.registriesByScope[scope] !== normalizedExpectedRoute
+      return typeof expectedRoute === 'string' &&
+        config.registriesByScope[scope] !== normalizeLegacyRegistryRoute(expectedRoute)
     })
     .map(([scope]) => scope)
   if (unchangedScopes.length === 0) return undefined
   return `The updateConfig hook changed the \`registries\` setting, but ${unchangedScopes.join(', ')} still use their configured registry. Return \`registriesByScope\` to replace scope routing.`
+}
+
+function normalizeLegacyRegistryRoute (route: string): string {
+  return normalizeRegistriesByScope({ default: route }).default
 }
 
 function isLegacyRegistryRoutes (routes: Record<string, unknown>): boolean {
