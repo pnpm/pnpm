@@ -640,6 +640,22 @@ fn a_group_config_carries_the_persisted_minimum_release_age_excludes() {
 }
 
 #[test]
+fn a_group_config_carries_the_global_trust_policy_excludes() {
+    let global_pkg_dir = TempDir::new().expect("temp dir");
+    let install_dir = global_pkg_dir.path().join("1234");
+    fs::create_dir(&install_dir).expect("create the group install dir");
+    fs::write(global_pkg_dir.path().join("pnpm-workspace.yaml"), "trustPolicyExclude:\n  - foo\n")
+        .expect("write the global manifest");
+    let mut base = Config::new();
+    base.trust_policy_exclude = Some(vec!["bar".to_string()]);
+
+    let config = global_group_config(&base, &install_dir, global_pkg_dir.path(), None)
+        .expect("build the group config");
+
+    assert_eq!(config.trust_policy_exclude, Some(vec!["bar".to_string(), "foo".to_string()]));
+}
+
+#[test]
 fn a_group_config_resolves_hoisted_dependencies_from_its_own_install_dir() {
     let dir = TempDir::new().expect("temp dir");
     let mut base = Config::new();

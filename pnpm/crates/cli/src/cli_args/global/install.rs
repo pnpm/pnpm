@@ -352,13 +352,16 @@ pub(super) fn global_group_config(
     cfg.disable_agent_skills();
     if let Some((_, settings)) = WorkspaceSettings::find_and_load(global_pkg_dir)
         .map_err(miette::Report::new)
-        .wrap_err("load global allowBuilds")?
+        .wrap_err("load the global settings")?
     {
         if let Some(allow_builds) = settings.decided_build_approvals() {
             cfg.allow_builds = allow_builds;
         }
         if let Some(allow_all) = settings.dangerously_allow_all_builds {
             cfg.dangerously_allow_all_builds = allow_all;
+        }
+        if let Some(exclude) = settings.trust_policy_exclude {
+            cfg.trust_policy_exclude.get_or_insert_with(Vec::new).extend(exclude);
         }
     }
     // Don't fail the install when a dependency's build is ignored; the
