@@ -7214,6 +7214,7 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-diagnostics",
  "pnpm-env-replace",
+ "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",

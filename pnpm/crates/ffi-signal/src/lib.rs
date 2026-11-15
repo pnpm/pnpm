@@ -21,7 +21,7 @@ pub use disposition::{Handler, Replaced, carries_handler, install};
 #[cfg(unix)]
 pub use pending::pending_count;
 #[cfg(target_os = "linux")]
-pub use pinned_target::{Pin, PinnedTarget};
+pub use pinned_target::{Pin, PinnedTarget, Reaping, Waiting};
 #[cfg(unix)]
 pub use relay::{
     Target, group_has_members, has_controlling_terminal, holds_the_terminal, process_group_of,

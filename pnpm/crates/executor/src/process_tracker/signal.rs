@@ -113,9 +113,9 @@ impl Descendant {
         {
             let pinned = match pnpm_ffi_signal::PinnedTarget::pin(pid) {
                 pnpm_ffi_signal::Pin::Target(pinned) => Some(pinned),
-                // Nothing to pin on this kernel, so the id is signalled as
-                // it is and there is no reuse the check below could catch.
-                pnpm_ffi_signal::Pin::Unsupported => None,
+                // Nothing pinned, so the id is signalled as it is and
+                // there is no reuse the check below could catch.
+                pnpm_ffi_signal::Pin::Unpinnable => None,
                 pnpm_ffi_signal::Pin::Gone => return None,
             };
             // With the process pinned its id cannot be reused, so the parent

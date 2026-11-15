@@ -54,8 +54,9 @@ pub(super) fn registered(command: &mut Command, watchdog: &GroupWatchdog) -> io:
 }
 
 fn register(lifeline: RawFd, receipt: RawFd) -> io::Result<()> {
-    // SAFETY: getpid has no preconditions and is async-signal-safe.
-    let leader = unsafe { libc::getpid() } as u32;
+    // `std::process::id` is a bare `getpid`, which is what keeps this
+    // async-signal-safe: it allocates nothing and takes no lock.
+    let leader = std::process::id();
     write(receipt, &leader.to_ne_bytes())?;
     let mut line = [0; 12];
     line[11] = b'\n';

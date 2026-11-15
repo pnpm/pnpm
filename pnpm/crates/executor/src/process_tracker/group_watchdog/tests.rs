@@ -24,7 +24,6 @@ fn a_pid_that_is_not_a_child_is_not_addressed() {
 
     let _ = parent.kill();
     let _ = parent.wait();
-    // SAFETY: `kill` only signals the grandchild started above.
-    unsafe { libc::kill(i32::try_from(grandchild).expect("a pid fits i32"), libc::SIGKILL) };
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(grandchild), libc::SIGKILL);
     assert!(matches!(address, WatchdogAddress::Gone), "a grandchild should not be addressed");
 }

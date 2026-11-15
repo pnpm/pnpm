@@ -154,3 +154,6 @@ tokio = { workspace = true, features = ["net", "signal"] }
 
 [lints]
 workspace = true
+
+[target.'cfg(unix)'.dev-dependencies]
+pnpm-ffi-process = { workspace = true }

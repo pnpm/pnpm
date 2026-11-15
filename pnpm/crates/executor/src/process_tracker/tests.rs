@@ -104,19 +104,18 @@ fn starting_replaces_a_watchdog_that_died() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_pidfd_reports_a_child_exited_once_reaped_anywhere() {
-    use super::signal::linux;
+    use pnpm_ffi_signal::{Pin, PinnedTarget, Reaping, Waiting};
 
     let mut running = spawn_group_leader();
-    let pidfd =
-        linux::open(i32::try_from(running.id()).expect("a pid fits i32")).expect("open a pidfd");
-    assert_eq!(linux::exited(&pidfd, libc::WNOHANG | libc::WNOWAIT), Some(false));
-    assert_eq!(linux::exited(&pidfd, libc::WNOHANG), Some(false));
+    let Pin::Target(pinned) = PinnedTarget::pin(running.id()) else { panic!("pin the child") };
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Leave), Some(false));
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Take), Some(false));
 
-    assert!(linux::signal(&pidfd, libc::SIGKILL), "a running child takes a signal");
-    assert_eq!(linux::exited(&pidfd, libc::WNOWAIT), Some(true));
+    assert!(pinned.signal(libc::SIGKILL).is_ok(), "a running child takes a signal");
+    assert_eq!(pinned.exited(Waiting::UntilExit, Reaping::Leave), Some(true));
     let _ = running.wait();
-    assert_eq!(linux::exited(&pidfd, libc::WNOHANG), Some(true), "reaped elsewhere");
-    assert!(!linux::signal(&pidfd, libc::SIGKILL), "a reaped child takes no signal");
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Take), Some(true), "reaped elsewhere");
+    assert!(pinned.signal(libc::SIGKILL).is_err(), "a reaped child takes no signal");
 }
 
 /// Dropping the watch closes the watchdog's pipe the way pnpm's death does.

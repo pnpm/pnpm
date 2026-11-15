@@ -142,8 +142,7 @@ async fn symlinked_resolver_sqlite_paths_do_not_mutate_external_dbs_and_retain_c
 async fn readonly_store_index_retains_cas_files_instead_of_orphaning_rows() {
     use std::os::unix::fs::PermissionsExt as _;
 
-    // SAFETY: `geteuid` takes no arguments and is always safe to call.
-    let euid = unsafe { libc::geteuid() };
+    let euid = pnpm_ffi_process::effective_user_id();
     assert_ne!(
         euid, 0,
         "chmod 0o444 does not restrict root; run this test as an unprivileged user",

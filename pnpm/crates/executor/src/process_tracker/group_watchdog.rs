@@ -24,9 +24,9 @@ use std::{
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
-#[cfg(target_os = "linux")]
-use super::signal::linux;
 use crate::process::Command;
+#[cfg(target_os = "linux")]
+use pnpm_ffi_signal::{Reaping, Waiting};
 
 /// What the watchdog runs. A line `+<pgid>` on standard input starts a
 /// watch over a group and `-<pgid>` ends one; end of input kills every
@@ -275,7 +275,7 @@ enum WatchdogAddress {
     /// A pidfd, on Linux kernels that can both signal and wait on one. It
     /// addresses only the `sh`, whatever later gets its pid.
     #[cfg(target_os = "linux")]
-    Pidfd(std::os::fd::OwnedFd),
+    Pidfd(pnpm_ffi_signal::PinnedTarget),
     /// The pid. A `sh` reaped elsewhere is never signalled, but one that
     /// exits right after the check is.
     Pid,
@@ -294,7 +294,9 @@ impl WatchdogProcess {
     fn is_running(&mut self) -> bool {
         match &self.address {
             #[cfg(target_os = "linux")]
-            WatchdogAddress::Pidfd(pidfd) => linux::exited(pidfd, libc::WNOHANG) == Some(false),
+            WatchdogAddress::Pidfd(pinned) => {
+                pinned.exited(Waiting::Poll, Reaping::Take) == Some(false)
+            }
             WatchdogAddress::Pid => matches!(self.child.try_wait(), Ok(None)),
             #[cfg(target_os = "linux")]
             WatchdogAddress::Gone => false,
@@ -305,9 +307,9 @@ impl WatchdogProcess {
     fn stop(&mut self) {
         match &self.address {
             #[cfg(target_os = "linux")]
-            WatchdogAddress::Pidfd(pidfd) => {
-                linux::signal(pidfd, libc::SIGKILL);
-                linux::exited(pidfd, 0);
+            WatchdogAddress::Pidfd(pinned) => {
+                drop(pinned.signal(libc::SIGKILL));
+                let _ = pinned.exited(Waiting::UntilExit, Reaping::Take);
             }
             WatchdogAddress::Pid => {
                 if self.is_running() {
@@ -330,17 +332,16 @@ impl WatchdogAddress {
     /// process that is gone, leaves the pid to address it.
     #[cfg(target_os = "linux")]
     fn of(pid: u32) -> Self {
-        let Ok(pid) = i32::try_from(pid) else { return Self::Gone };
-        let pidfd = match linux::open(pid) {
-            Ok(pidfd) => pidfd,
-            Err(error) if error.raw_os_error() == Some(libc::ESRCH) => return Self::Gone,
-            Err(_) => return Self::Pid,
+        let pinned = match pnpm_ffi_signal::PinnedTarget::pin(pid) {
+            pnpm_ffi_signal::Pin::Target(pinned) => pinned,
+            pnpm_ffi_signal::Pin::Gone => return Self::Gone,
+            pnpm_ffi_signal::Pin::Unpinnable => return Self::Pid,
         };
-        match linux::exited(&pidfd, libc::WNOHANG | libc::WNOWAIT) {
-            Some(false) => Self::Pidfd(pidfd),
+        match pinned.exited(Waiting::Poll, Reaping::Leave) {
+            Some(false) => Self::Pidfd(pinned),
             None => Self::Pid,
             Some(true) => {
-                linux::exited(&pidfd, libc::WNOHANG);
+                let _ = pinned.exited(Waiting::Poll, Reaping::Take);
                 Self::Gone
             }
         }
