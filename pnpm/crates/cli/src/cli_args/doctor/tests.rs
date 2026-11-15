@@ -1,11 +1,13 @@
+mod security;
+
 use super::{
     CheckResult, CheckStatus, DoctorArgs, DoctorReport, check_versions,
     filesystem::{
-        ProbeDirs, check_filesystem_capabilities, check_filesystem_capabilities_in_dirs,
-        probe_link_capabilities,
+        ProbeWorkspaces, check_filesystem_capabilities,
+        check_filesystem_capabilities_in_workspaces, probe_link_capabilities,
     },
     last_line,
-    probe_path::can_write_to_dir,
+    probe_path::{ProbeDir, can_write_to_dir},
     render_report, status_mark,
 };
 use pnpm_config::{Config, PNPM_VERSION};
@@ -137,15 +139,22 @@ fn json_report_uses_camel_case_and_omits_empty_fields() {
 fn probe_reports_the_links_a_normal_filesystem_supports() {
     let store = tempfile::tempdir().expect("create store temp dir");
     let target = tempfile::tempdir().expect("create target temp dir");
-    let capabilities = probe_link_capabilities::<Host>(ProbeDirs {
-        store: store.path(),
-        link_target: target.path(),
-        symlink_target: target.path(),
-    })
-    .expect("probe links");
+    let store_canonical = dunce::canonicalize(store.path()).expect("canonicalize store");
+    let target_canonical = dunce::canonicalize(target.path()).expect("canonicalize target");
+    let capabilities = {
+        let mut workspaces = ProbeWorkspaces {
+            store: ProbeDir::new(&store_canonical).expect("create store probe"),
+            link_target: ProbeDir::new(&target_canonical).expect("create target probe"),
+            symlink_target: None,
+        };
+        probe_link_capabilities::<Host>(&mut workspaces).expect("probe links")
+    };
     dbg!(&capabilities);
     assert!(capabilities.hardlink, "a temp dir must support hardlinks");
-    assert!(capabilities.symlink, "a temp dir must support symlinks");
+    #[cfg(unix)]
+    assert!(capabilities.symlink, "a Unix temp dir must support symlinks");
+    assert_eq!(fs::read_dir(&store_canonical).expect("read store").count(), 0);
+    assert_eq!(fs::read_dir(&target_canonical).expect("read target").count(), 0);
 }
 
 #[test]
@@ -314,50 +323,22 @@ fn filesystem_check_passes_across_mounts_when_global_virtual_store_links_on_stor
 
 #[test]
 fn filesystem_check_warns_when_store_probe_cannot_write_file() {
-    let target = tempfile::tempdir().expect("create target temp dir");
-    let missing_store = target.path().join("missing-store-probe");
-    let result = check_filesystem_capabilities_in_dirs::<Host>(ProbeDirs {
-        store: &missing_store,
-        link_target: target.path(),
-        symlink_target: target.path(),
-    });
+    let sandbox = tempfile::tempdir().expect("create temp dir");
+    let canonical = dunce::canonicalize(sandbox.path()).expect("canonicalize sandbox");
+    let result = {
+        let mut workspaces = ProbeWorkspaces {
+            store: ProbeDir::new(&canonical).expect("create store probe"),
+            link_target: ProbeDir::new(&canonical).expect("create target probe"),
+            symlink_target: None,
+        };
+        workspaces.store.invalidate_for_test();
+        check_filesystem_capabilities_in_workspaces::<Host>(&mut workspaces)
+    };
     dbg!(&result);
     assert_eq!(result.status, CheckStatus::Warn);
     assert_eq!(result.detail.as_deref(), Some("could not write a probe file"));
     assert_eq!(result.fix.as_deref(), Some("Check that the store directory is writable."));
-}
-
-#[cfg(unix)]
-#[test]
-fn filesystem_check_warns_without_probing_beneath_world_writable_ancestor() {
-    use std::os::unix::fs::PermissionsExt as _;
-
-    let sandbox = tempfile::tempdir().expect("create sandbox");
-    let unsafe_parent = sandbox.path().join("world-writable");
-    let project_dir = unsafe_parent.join("proj");
-    fs::create_dir_all(&project_dir).expect("create project dir");
-    fs::set_permissions(&unsafe_parent, fs::Permissions::from_mode(0o777)).expect("chmod 0777");
-
-    let modules_dir = project_dir.join("node_modules");
-    let mut config = Config {
-        store_dir: StoreDir::new(sandbox.path().join("store")),
-        modules_dir: modules_dir.clone(),
-        install_state_dir: modules_dir.join(".pnpm"),
-        ..Config::default()
-    };
-    config.apply_global_virtual_store_derivation(false, false);
-
-    let result = check_filesystem_capabilities::<Host>(&config);
-    fs::set_permissions(&unsafe_parent, fs::Permissions::from_mode(0o755))
-        .expect("restore permissions");
-
-    dbg!(&result);
-    assert_eq!(result.status, CheckStatus::Warn);
-    assert_eq!(
-        result.detail.as_deref(),
-        Some("cannot safely probe link support in a directory writable by other users"),
-    );
-    assert_eq!(fs::read_dir(&project_dir).expect("read project dir").count(), 0);
+    assert_eq!(fs::read_dir(&canonical).expect("read sandbox").count(), 0);
 }
 
 /// The install smoke test surfaces the last meaningful stderr line, so a

@@ -5,6 +5,7 @@ import path from 'node:path'
 import { isError } from '@pnpm/error'
 
 import type { CheckResult } from './doctor.js'
+import { canAccessWindowsWritableDir, isSafeWindowsAncestorChain } from './doctorWindowsAcl.js'
 
 const EXCLUSIVE_PROBE_WRITE_FLAGS =
   fs.constants.O_WRONLY |
@@ -12,12 +13,14 @@ const EXCLUSIVE_PROBE_WRITE_FLAGS =
   fs.constants.O_EXCL |
   (process.platform === 'win32' ? 0 : fs.constants.O_NOFOLLOW)
 
-const PROBE_ENTRY_NAMES = ['source', 'reflink', 'hardlink', 'symlink'] as const
+const HAS_PROC_SELF_FD = process.platform === 'linux' && fs.existsSync('/proc/self/fd')
 
 export interface ProbeDir {
   path: string
   dev: number
   ino: number
+  dirFd?: number
+  entries: string[]
 }
 
 export type ProbeAncestorResolution =
@@ -41,7 +44,7 @@ export async function checkWritableDir (title: string, dir: string): Promise<Che
  * Probe write access for `dir`: existing directories are checked for file creation directly,
  * while missing cache, store, or global bin directories probe subdirectory and file creation
  * at their deepest existing ancestor without leaving empty directories on disk.
- * When another user can modify an ancestor directory, fall back to a read-only `access` check
+ * When another user can modify an ancestor directory, fall back to a read-only check
  * rather than creating or unlinking probe paths beneath that directory.
  */
 export function canWriteToDir (dir: string): boolean {
@@ -56,6 +59,9 @@ export function canWriteToDir (dir: string): boolean {
 }
 
 function canAccessWritableDir (dir: string): boolean {
+  if (process.platform === 'win32') {
+    return canAccessWindowsWritableDir(dir)
+  }
   try {
     fs.accessSync(dir, fs.constants.W_OK | fs.constants.X_OK)
     return true
@@ -65,6 +71,9 @@ function canAccessWritableDir (dir: string): boolean {
 }
 
 function canCreateFile (dir: string): boolean {
+  if (HAS_PROC_SELF_FD) {
+    return canCreateFileViaProcFd(dir)
+  }
   const probeFile = path.join(dir, `.pnpm-doctor-write-${process.pid}-${crypto.randomUUID()}`)
   let created = false
   try {
@@ -77,6 +86,30 @@ function canCreateFile (dir: string): boolean {
   } finally {
     if (created) {
       tryUnlinkSync(probeFile)
+    }
+  }
+}
+
+function canCreateFileViaProcFd (dir: string): boolean {
+  let dirFd: number | undefined
+  let entryPath: string | undefined
+  let created = false
+  try {
+    dirFd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
+    if (!fs.fstatSync(dirFd).isDirectory()) return false
+    entryPath = `/proc/self/fd/${dirFd}/.pnpm-doctor-write-${process.pid}-${crypto.randomUUID()}`
+    const fileFd = fs.openSync(entryPath, EXCLUSIVE_PROBE_WRITE_FLAGS, 0o600)
+    created = true
+    fs.closeSync(fileFd)
+    return true
+  } catch {
+    return false
+  } finally {
+    if (created && entryPath != null) {
+      tryUnlinkSync(entryPath)
+    }
+    if (dirFd != null) {
+      tryCloseSync(dirFd)
     }
   }
 }
@@ -108,6 +141,14 @@ function tryRmdirSync (dirPath: string): void {
     fs.rmdirSync(dirPath)
   } catch {
     // Ignore transient cleanup errors so they never abort the doctor report.
+  }
+}
+
+function tryCloseSync (fd: number): void {
+  try {
+    fs.closeSync(fd)
+  } catch {
+    // Ignore descriptor close errors during cleanup.
   }
 }
 
@@ -169,11 +210,6 @@ export function resolveProbeAncestor (dir: string): ProbeAncestorResolution {
   return isSafeProbeAncestorChain(canonical) ? { kind: 'ok', path: canonical } : { kind: 'unsafe' }
 }
 
-export function safeProbeAncestorDir (dir: string): string | undefined {
-  const resolved = resolveProbeAncestor(dir)
-  return resolved.kind === 'ok' ? resolved.path : undefined
-}
-
 export function ancestorsFromRoot (dir: string): string[] {
   const ancestors: string[] = []
   let current = path.resolve(dir)
@@ -187,8 +223,14 @@ export function ancestorsFromRoot (dir: string): string[] {
 }
 
 function isSafeProbeAncestorChain (canonicalDir: string): boolean {
-  if (process.platform === 'win32' || typeof process.geteuid !== 'function' || 'webcontainer' in process.versions) {
+  if ('webcontainer' in process.versions) {
     return true
+  }
+  if (process.platform === 'win32') {
+    return isSafeWindowsAncestorChain(canonicalDir, ancestorsFromRoot(canonicalDir))
+  }
+  if (typeof process.geteuid !== 'function') {
+    return false
   }
   const effectiveUid = process.geteuid()
   return ancestorsFromRoot(canonicalDir).every((ancestor) => isSafeDirectoryEntry(ancestor, effectiveUid))
@@ -199,18 +241,14 @@ function isSafeDirectoryEntry (dir: string, effectiveUid: number): boolean {
     const stat = fs.lstatSync(dir)
     if (!stat.isDirectory()) return false
     if (stat.uid !== effectiveUid && stat.uid !== 0) return false
-    return !isUnsafeWritableDirMode(stat, effectiveUid)
+    return !isUnsafeWritableDirMode(stat.mode)
   } catch {
     return false
   }
 }
 
-function isUnsafeWritableDirMode (stat: fs.Stats, effectiveUid: number): boolean {
-  const mode = stat.mode
-  if ((mode & 0o1000) !== 0) return false
-  if ((mode & 0o002) !== 0) return true
-  if ((mode & 0o020) === 0 || stat.gid === 0) return false
-  return !(effectiveUid !== 0 && stat.uid === effectiveUid && stat.gid === effectiveUid)
+export function isUnsafeWritableDirMode (mode: number): boolean {
+  return (mode & 0o1000) === 0 && (mode & 0o022) !== 0
 }
 
 export async function makeProbeDir (safeAncestor: string, created: ProbeDir[]): Promise<ProbeDir> {
@@ -219,9 +257,22 @@ export async function makeProbeDir (safeAncestor: string, created: ProbeDir[]): 
   if (!stat.isDirectory()) {
     throw new Error(`Probe path is not a directory: ${dir}`)
   }
-  const probe = { path: dir, dev: stat.dev, ino: stat.ino }
+  const dirFd = openProbeDirectoryFd(dir, stat)
+  const probe: ProbeDir = { path: dir, dev: stat.dev, ino: stat.ino, dirFd, entries: [] }
   created.push(probe)
   return probe
+}
+
+function openProbeDirectoryFd (dir: string, expected: fs.Stats): number | undefined {
+  if (process.platform === 'win32') return undefined
+  const fd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
+  const opened = fs.fstatSync(fd)
+  const validOwner = typeof process.geteuid !== 'function' || opened.uid === process.geteuid()
+  if (!opened.isDirectory() || opened.dev !== expected.dev || opened.ino !== expected.ino || !validOwner) {
+    tryCloseSync(fd)
+    throw new Error(`Probe directory changed during open: ${dir}`)
+  }
+  return fd
 }
 
 export async function verifyProbeDir (probe: ProbeDir): Promise<void> {
@@ -229,12 +280,30 @@ export async function verifyProbeDir (probe: ProbeDir): Promise<void> {
   if (!stat.isDirectory() || stat.dev !== probe.dev || stat.ino !== probe.ino) {
     throw new Error(`Probe directory changed unexpectedly: ${probe.path}`)
   }
+  if (process.platform === 'win32' && await fs.promises.realpath(probe.path) !== probe.path) {
+    throw new Error(`Probe directory canonical path changed: ${probe.path}`)
+  }
 }
 
-export async function writeExclusiveProbeFile (probe: ProbeDir, name: string, content: string): Promise<string> {
+export async function prepareProbeEntryPath (probe: ProbeDir, prefix: string): Promise<string> {
   await verifyProbeDir(probe)
-  const filePath = path.join(probe.path, name)
-  const handle = await fs.promises.open(filePath, EXCLUSIVE_PROBE_WRITE_FLAGS, 0o600)
+  const entryName = `.pnpm-${prefix}-${crypto.randomUUID()}`
+  probe.entries.push(entryName)
+  return path.join(probe.path, entryName)
+}
+
+function descriptorOrJoinedPath (probe: ProbeDir, entryName: string): string {
+  if (HAS_PROC_SELF_FD && probe.dirFd != null) {
+    return `/proc/self/fd/${probe.dirFd}/${entryName}`
+  }
+  return path.join(probe.path, entryName)
+}
+
+export async function writeExclusiveProbeFile (probe: ProbeDir, prefix: string, content: string): Promise<string> {
+  await verifyProbeDir(probe)
+  const entryName = `.pnpm-${prefix}-${crypto.randomUUID()}`
+  probe.entries.push(entryName)
+  const handle = await fs.promises.open(descriptorOrJoinedPath(probe, entryName), EXCLUSIVE_PROBE_WRITE_FLAGS, 0o600)
   try {
     if (content !== '') {
       await handle.writeFile(content)
@@ -242,7 +311,7 @@ export async function writeExclusiveProbeFile (probe: ProbeDir, name: string, co
   } finally {
     await handle.close()
   }
-  return filePath
+  return path.join(probe.path, entryName)
 }
 
 export async function removeProbeDirs (probes: ProbeDir[]): Promise<void> {
@@ -253,11 +322,16 @@ async function removeSingleProbeDir (probe: ProbeDir): Promise<void> {
   try {
     await verifyProbeDir(probe)
     await Promise.all(
-      PROBE_ENTRY_NAMES.map(async (name) => fs.promises.unlink(path.join(probe.path, name)).catch(() => {}))
+      probe.entries.map(async (entryName) => fs.promises.unlink(descriptorOrJoinedPath(probe, entryName)).catch(() => {}))
     )
     await verifyProbeDir(probe)
     await fs.promises.rmdir(probe.path)
   } catch {
     // Ignore cleanup failures so they never abort the doctor report.
+  } finally {
+    if (probe.dirFd != null) {
+      tryCloseSync(probe.dirFd)
+      probe.dirFd = undefined
+    }
   }
 }

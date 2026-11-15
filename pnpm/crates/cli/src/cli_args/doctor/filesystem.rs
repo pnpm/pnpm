@@ -1,6 +1,6 @@
 use super::{
     CheckResult,
-    probe_path::{ProbeAncestor, ProbeDir, resolve_probe_ancestor, write_exclusive_probe_file},
+    probe_path::{ProbeAncestor, ProbeDir, resolve_probe_ancestor},
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::{FsHardLink, FsReflink};
@@ -17,7 +17,7 @@ where
     Sys: FsReflink + FsHardLink,
 {
     match create_probe_workspaces(config) {
-        Ok(probes) => check_filesystem_capabilities_in_dirs::<Sys>(probes.as_dirs()),
+        Ok(mut probes) => check_filesystem_capabilities_in_workspaces::<Sys>(&mut probes),
         Err(ProbeWorkspaceError::UnsafeAncestor) => CheckResult::warn(
             "Filesystem",
             "cannot safely probe link support in a directory writable by other users",
@@ -31,12 +31,14 @@ where
     }
 }
 
-pub(super) fn check_filesystem_capabilities_in_dirs<Sys>(dirs: ProbeDirs<'_>) -> CheckResult
+pub(super) fn check_filesystem_capabilities_in_workspaces<Sys>(
+    workspaces: &mut ProbeWorkspaces,
+) -> CheckResult
 where
     Sys: FsReflink + FsHardLink,
 {
     let title = "Filesystem";
-    let Ok(capabilities) = probe_link_capabilities::<Sys>(dirs) else {
+    let Ok(capabilities) = probe_link_capabilities::<Sys>(workspaces) else {
         return CheckResult::warn(
             title,
             "could not write a probe file",
@@ -66,23 +68,10 @@ enum ProbeWorkspaceError {
     Unavailable,
 }
 
-struct ProbeWorkspaces {
-    store: ProbeDir,
-    link_target: ProbeDir,
-    symlink_target: Option<ProbeDir>,
-}
-
-impl ProbeWorkspaces {
-    fn as_dirs(&self) -> ProbeDirs<'_> {
-        ProbeDirs {
-            store: self.store.path(),
-            link_target: self.link_target.path(),
-            symlink_target: self.symlink_target
-                .as_ref()
-                .map(ProbeDir::path)
-                .unwrap_or_else(|| self.link_target.path()),
-        }
-    }
+pub(super) struct ProbeWorkspaces {
+    pub(super) store: ProbeDir,
+    pub(super) link_target: ProbeDir,
+    pub(super) symlink_target: Option<ProbeDir>,
 }
 
 fn create_probe_workspaces(config: &Config) -> Result<ProbeWorkspaces, ProbeWorkspaceError> {
@@ -103,12 +92,12 @@ fn resolve_workspace_ancestors(
     let link = resolve_probe_ancestor(link_target_dir(config));
     let symlink = resolve_probe_ancestor(&config.modules_dir);
     match (store, link, symlink) {
-        (ProbeAncestor::Unavailable, _, _)
-        | (_, ProbeAncestor::Unavailable, _)
-        | (_, _, ProbeAncestor::Unavailable) => Err(ProbeWorkspaceError::Unavailable),
         (ProbeAncestor::Unsafe, _, _)
         | (_, ProbeAncestor::Unsafe, _)
         | (_, _, ProbeAncestor::Unsafe) => Err(ProbeWorkspaceError::UnsafeAncestor),
+        (ProbeAncestor::Unavailable, _, _)
+        | (_, ProbeAncestor::Unavailable, _)
+        | (_, _, ProbeAncestor::Unavailable) => Err(ProbeWorkspaceError::Unavailable),
         (ProbeAncestor::Safe(store), ProbeAncestor::Safe(link), ProbeAncestor::Safe(symlink)) => {
             Ok((store, link, symlink))
         }
@@ -120,13 +109,6 @@ fn link_target_dir(config: &Config) -> &Path {
         NodeLinker::Hoisted => &config.modules_dir,
         NodeLinker::Isolated | NodeLinker::Pnp | NodeLinker::Loaded => config.virtual_store_dir(),
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(super) struct ProbeDirs<'a> {
-    pub(super) store: &'a Path,
-    pub(super) link_target: &'a Path,
-    pub(super) symlink_target: &'a Path,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,16 +138,23 @@ impl LinkCapabilities {
     }
 }
 
-pub(super) fn probe_link_capabilities<Sys>(dirs: ProbeDirs<'_>) -> io::Result<LinkCapabilities>
+pub(super) fn probe_link_capabilities<Sys>(
+    workspaces: &mut ProbeWorkspaces,
+) -> io::Result<LinkCapabilities>
 where
     Sys: FsReflink + FsHardLink,
 {
-    let source = dirs.store.join("source");
-    write_exclusive_probe_file(&source, b"pnpm-doctor")?;
+    let source = workspaces.store.write_new_file("source", b"pnpm-doctor")?;
+    let reflink_dest = workspaces.link_target.register_entry("reflink")?;
+    let hardlink_dest = workspaces.link_target.register_entry("hardlink")?;
+    let symlink_dest = match &mut workspaces.symlink_target {
+        Some(dir) => dir.register_entry("symlink")?,
+        None => workspaces.link_target.register_entry("symlink")?,
+    };
     Ok(LinkCapabilities {
-        reflink: Sys::reflink(&source, &dirs.link_target.join("reflink")).is_ok(),
-        hardlink: Sys::hard_link(&source, &dirs.link_target.join("hardlink")).is_ok(),
-        symlink: symlink_file(&source, &dirs.symlink_target.join("symlink")).is_ok(),
+        reflink: Sys::reflink(&source, &reflink_dest).is_ok(),
+        hardlink: Sys::hard_link(&source, &hardlink_dest).is_ok(),
+        symlink: symlink_file(&source, &symlink_dest).is_ok(),
     })
 }
 

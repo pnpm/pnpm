@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -10,6 +11,7 @@ import { prepare } from '@pnpm/prepare'
 
 import { type CheckResult, handler, type LinkOperations } from '../src/cmd/doctor.js'
 import { canWriteToDir, checkFilesystemCapabilities } from '../src/cmd/doctorFilesystem.js'
+import { canWriteWindowsDirSecurity, isSafeWindowsDirSecurity } from '../src/cmd/doctorWindowsAcl.js'
 import { execPnpmSync } from './utils/execPnpm.js'
 import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
@@ -362,7 +364,7 @@ test('pnpm doctor returns a filesystem warning when writing the store probe file
 
   const realOpen = fs.promises.open.bind(fs.promises)
   const openSpy = jest.spyOn(fs.promises, 'open').mockImplementation(async (target, flags, mode) => {
-    if (typeof target === 'string' && target.includes('.pnpm-doctor-') && target.endsWith(`${path.sep}source`)) {
+    if (typeof target === 'string' && target.includes('.pnpm-source-')) {
       throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
     }
     return realOpen(target, flags, mode)
@@ -396,14 +398,71 @@ test('pnpm doctor returns a filesystem warning when writing the store probe file
   }
 })
 
-test('pnpm doctor refuses to write probe files beneath a world-writable non-sticky ancestor', async () => {
+test('pnpm doctor refuses to write probe files beneath a world-writable or group-writable non-sticky ancestor', async () => {
   if (process.platform === 'win32') return
   prepare()
   const root = process.cwd()
-  const unsafeParent = path.join(root, 'world-writable')
-  const projectDir = path.join(unsafeParent, 'proj')
+  for (const mode of [0o777, 0o775]) {
+    const unsafeParent = path.join(root, `unsafe-${mode.toString(8)}`)
+    const projectDir = path.join(unsafeParent, 'proj')
+    fs.mkdirSync(projectDir, { recursive: true })
+    fs.chmodSync(unsafeParent, mode)
+    try {
+      const fsCheck = await checkFilesystemCapabilities({ // eslint-disable-line no-await-in-loop -- sequential chmod test cases
+        dir: projectDir,
+        pnpmHomeDir: path.join(root, 'pnpm-home'),
+      })
+
+      expect(fsCheck).toStrictEqual({
+        title: 'Filesystem',
+        status: 'warn',
+        detail: 'cannot safely probe link support in a directory writable by other users',
+        fix: 'Check ownership and permissions on the store and project ancestor directories.',
+      })
+      expect(fs.readdirSync(projectDir)).toStrictEqual([])
+    } finally {
+      fs.chmodSync(unsafeParent, 0o755)
+    }
+  }
+})
+
+test('pnpm doctor returns unsafe warning rather than falling back to .pnpm-store when storeDir is unset and pnpmHomeDir is unsafe', async () => {
+  if (process.platform === 'win32') return
+  prepare()
+  const root = process.cwd()
+  const unsafeParent = path.join(root, 'shared-home-parent')
+  const pnpmHomeDir = path.join(unsafeParent, 'pnpm-home')
+  const projectDir = path.join(root, 'proj')
+  fs.mkdirSync(pnpmHomeDir, { recursive: true })
   fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(pnpmHomeDir, 'store'), 'blocked')
   fs.chmodSync(unsafeParent, 0o777)
+  try {
+    const fsCheck = await checkFilesystemCapabilities({
+      dir: projectDir,
+      pnpmHomeDir,
+    })
+
+    expect(fsCheck).toStrictEqual({
+      title: 'Filesystem',
+      status: 'warn',
+      detail: 'cannot safely probe link support in a directory writable by other users',
+      fix: 'Check ownership and permissions on the store and project ancestor directories.',
+    })
+    expect(fs.readdirSync(projectDir)).toStrictEqual([])
+  } finally {
+    fs.chmodSync(unsafeParent, 0o755)
+  }
+})
+
+test('pnpm doctor refuses to write probe files beneath a shared Windows ancestor', async () => {
+  if (process.platform !== 'win32') return
+  prepare()
+  const root = process.cwd()
+  const sharedParent = path.join(root, 'shared-everyone')
+  const projectDir = path.join(sharedParent, 'proj')
+  fs.mkdirSync(projectDir, { recursive: true })
+  execFileSync('icacls', [sharedParent, '/grant', '*S-1-1-0:(OI)(CI)(F)'])
   try {
     const fsCheck = await checkFilesystemCapabilities({
       dir: projectDir,
@@ -418,8 +477,62 @@ test('pnpm doctor refuses to write probe files beneath a world-writable non-stic
     })
     expect(fs.readdirSync(projectDir)).toStrictEqual([])
   } finally {
-    fs.chmodSync(unsafeParent, 0o755)
+    execFileSync('icacls', [sharedParent, '/reset', '/T'])
   }
+})
+
+test('Windows directory security evaluator distinguishes standard roots from shared directories', () => {
+  const me = 'S-1-5-21-10-20-30-1001'
+  const admins = new Set(['S-1-5-21-10-20-30-1000'])
+
+  expect(isSafeWindowsDirSecurity({
+    ok: true,
+    nullAcl: false,
+    owner: 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464',
+    rules: [
+      { sid: 'S-1-5-18', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 },
+      { sid: 'S-1-5-32-544', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 },
+      { sid: 'S-1-3-0', allow: true, mask: 0x10000000, inherit: 3, prop: 2 },
+      { sid: 'S-1-5-32-545', allow: true, mask: 0x001200a9, inherit: 3, prop: 0 },
+      { sid: 'S-1-5-32-545', allow: true, mask: -1610612736, inherit: 3, prop: 2 },
+      { sid: 'S-1-5-32-545', allow: true, mask: 0x00000004, inherit: 1, prop: 0 },
+      { sid: 'S-1-5-32-545', allow: true, mask: 0x00000002, inherit: 1, prop: 2 },
+    ],
+  }, me, admins)).toBe(true)
+
+  expect(isSafeWindowsDirSecurity({
+    ok: true,
+    nullAcl: false,
+    owner: me,
+    rules: [
+      { sid: 'S-1-5-32-545', allow: true, mask: 0x001301bf, inherit: 3, prop: 0 },
+    ],
+  }, me, admins)).toBe(false)
+
+  expect(isSafeWindowsDirSecurity({
+    ok: true,
+    nullAcl: false,
+    owner: 'S-1-5-21-10-20-30-1002',
+    rules: [
+      { sid: 'S-1-5-18', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 },
+    ],
+  }, me, admins)).toBe(false)
+
+  expect(isSafeWindowsDirSecurity({
+    ok: true,
+    nullAcl: true,
+    owner: me,
+    rules: [{ sid: 'S-1-1-0', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 }],
+  }, me, admins)).toBe(false)
+
+  expect(canWriteWindowsDirSecurity({
+    ok: true,
+    nullAcl: false,
+    rules: [
+      { sid: 'S-1-1-0', allow: true, mask: 0x00000006, inherit: 3, prop: 0 },
+      { sid: me, allow: false, mask: 0x00000002, inherit: 3, prop: 0 },
+    ],
+  }, new Set([me, 'S-1-1-0']))).toBe(false)
 })
 
 test('canWriteToDir verifies file creation in an existing directory even if subdirectory creation works', () => {
