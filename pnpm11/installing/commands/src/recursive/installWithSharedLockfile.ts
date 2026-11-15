@@ -33,14 +33,8 @@ interface ImporterToMutate {
  * single `mutateModules` call.
  */
 export async function installWithSharedLockfile (ctx: RecursiveContext): Promise<RecursiveResult> {
-  const importers = getImportersInsideRepository(ctx.opts)
-  if (importers.length === 0) return { passed: true, installedProjectDirs: [] }
-  const mutatedImporters = await createMutatedImporters(ctx, importers)
-  if ((mutatedImporters.length === 0) && ctx.cmdFullName === 'update' && ctx.opts.depth === 0) {
-    if (ctx.selectsOnlyIgnoredDependencies) return { passed: true, installedProjectDirs: [] }
-    throw createNoPackageInDependenciesError()
-  }
-  includeUnselectedWorkspaceRoot(ctx, mutatedImporters)
+  const mutatedImporters = await prepareSharedLockfileImporters(ctx)
+  if (mutatedImporters == null) return { passed: true, installedProjectDirs: [] }
   const saveManifests = createManifestsSaver(ctx)
   const {
     updatedCatalogs,
@@ -52,6 +46,9 @@ export async function installWithSharedLockfile (ctx: RecursiveContext): Promise
     dryRunResult,
   } = await mutateModules(mutatedImporters, {
     ...ctx.installOpts,
+    _preparedFrozen: ctx.opts.lockfileDir == null
+      ? undefined
+      : ctx.opts._preparedCi?.preparedByLockfileDir.get(ctx.opts.lockfileDir),
     storeController: ctx.store.ctrl,
     resolutionVerifiers: ctx.store.resolutionVerifiers,
     beforeLifecycleScripts: saveManifests,
@@ -70,6 +67,18 @@ export async function installWithSharedLockfile (ctx: RecursiveContext): Promise
     updatedCatalogs,
     dryRunResult,
   }
+}
+
+export async function prepareSharedLockfileImporters (ctx: RecursiveContext): Promise<MutatedProject[] | undefined> {
+  const importers = getImportersInsideRepository(ctx.opts)
+  if (importers.length === 0) return undefined
+  const mutatedImporters = await createMutatedImporters(ctx, importers)
+  if ((mutatedImporters.length === 0) && ctx.cmdFullName === 'update' && ctx.opts.depth === 0) {
+    if (ctx.selectsOnlyIgnoredDependencies) return undefined
+    throw createNoPackageInDependenciesError()
+  }
+  includeUnselectedWorkspaceRoot(ctx, mutatedImporters)
+  return mutatedImporters
 }
 
 function getImportersInsideRepository (

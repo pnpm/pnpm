@@ -2,12 +2,34 @@
 //! waves repeated across every importer until none hoists.
 
 use crate::{
-    resolve_dependency_tree::WorkspaceTreeCtx,
-    resolve_importer::{ImporterHoistState, ResolveImporterError},
+    ResolutionCancel,
+    resolve_dependency_tree::{ResolveDependencyTreeError, WorkspaceTreeCtx},
+    resolve_importer::{ImporterHoistState, OptionalPeerCandidates, ResolveImporterError},
     resolve_peers::PeerHoistDiscovery,
 };
 use pnpm_resolving_resolver_base::Resolver;
-use std::sync::Arc;
+use std::{sync::Arc, task::Poll};
+
+async fn yield_once() {
+    let mut yielded = false;
+    std::future::poll_fn(move |cx| {
+        if yielded {
+            Poll::Ready(())
+        } else {
+            yielded = true;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        }
+    })
+    .await;
+}
+
+fn check_cancelled(cancel: &ResolutionCancel) -> Result<(), ResolveImporterError> {
+    if cancel.is_cancelled() {
+        return Err(ResolveImporterError::Resolve(ResolveDependencyTreeError::ResolutionCancelled));
+    }
+    Ok(())
+}
 
 /// One discovery engine serves every hoist round of the workspace: its
 /// persistent tree view + walker caches are what keep the barrier
@@ -19,13 +41,15 @@ pub(super) async fn run_hoist_rounds<Chain>(
     resolver: &Chain,
     states: &mut [ImporterHoistState],
     workspace: &WorkspaceTreeCtx,
+    max_snapshots: Option<usize>,
+    cancel: &ResolutionCancel,
 ) -> Result<(), ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
 {
-    let mut peer_discovery = PeerHoistDiscovery::new();
-    run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery).await?;
-    run_hoist_barrier(resolver, states, workspace, &mut peer_discovery).await
+    let mut peer_discovery = PeerHoistDiscovery::with_limits(max_snapshots, cancel.clone());
+    run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery, cancel).await?;
+    run_hoist_barrier(resolver, states, workspace, &mut peer_discovery, cancel).await
 }
 
 /// The first required round of every importer, prepared against one quiescent
@@ -37,14 +61,20 @@ async fn run_initial_required_rounds<Chain>(
     states: &mut [ImporterHoistState],
     workspace: &WorkspaceTreeCtx,
     peer_discovery: &mut PeerHoistDiscovery,
+    cancel: &ResolutionCancel,
 ) -> Result<(), ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
 {
-    let mut rounds: Vec<_> = states
-        .iter_mut()
-        .map(|state| state.prepare_initial_required_round(peer_discovery))
-        .collect();
+    let mut rounds = Vec::with_capacity(states.len());
+    for (idx, state) in states.iter_mut().enumerate() {
+        if idx > 0 && idx % 32 == 0 {
+            yield_once().await;
+        }
+        check_cancelled(cancel)?;
+        rounds.push(state.prepare_initial_required_round(peer_discovery));
+        peer_discovery.check_snapshot_limit()?;
+    }
     let first_importer_by_pkg = workspace.first_importer_by_pkg();
     let first_walk_missing_by_pkg = workspace.children.first_walk_missing_by_pkg();
     for (state, round) in states
@@ -54,15 +84,21 @@ where
         state.apply_owner_missing_scope(round, &first_importer_by_pkg, &first_walk_missing_by_pkg);
     }
     let rewrites_before = workspace.tree.children_rewrites();
-    for (state, round) in states
+    for (idx, (state, round)) in states
         .iter_mut()
         .zip(rounds)
         .filter_map(|(state, round)| round.map(|round| (state, round)))
+        .enumerate()
     {
+        if idx > 0 && idx % 32 == 0 {
+            yield_once().await;
+        }
+        check_cancelled(cancel)?;
         state.complete_initial_required_round(resolver, round, peer_discovery).await?;
+        peer_discovery.check_snapshot_limit()?;
     }
     if workspace.tree.children_rewrites() != rewrites_before {
-        settle_required_rounds(resolver, states, workspace, peer_discovery).await?;
+        settle_required_rounds(resolver, states, workspace, peer_discovery, cancel).await?;
     }
     Ok(())
 }
@@ -75,15 +111,20 @@ async fn run_hoist_barrier<Chain>(
     states: &mut [ImporterHoistState],
     workspace: &WorkspaceTreeCtx,
     peer_discovery: &mut PeerHoistDiscovery,
+    cancel: &ResolutionCancel,
 ) -> Result<(), ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
 {
     loop {
-        if !hoist_optional_wave(resolver, states).await? {
+        check_cancelled(cancel)?;
+        if !hoist_optional_wave(resolver, states, OptionalPeerCandidates::Resolved, cancel).await?
+            && !hoist_optional_wave(resolver, states, OptionalPeerCandidates::Preferred, cancel)
+                .await?
+        {
             return Ok(());
         }
-        settle_required_rounds(resolver, states, workspace, peer_discovery).await?;
+        settle_required_rounds(resolver, states, workspace, peer_discovery, cancel).await?;
     }
 }
 
@@ -92,14 +133,20 @@ async fn settle_required_rounds<Chain>(
     states: &mut [ImporterHoistState],
     workspace: &WorkspaceTreeCtx,
     peer_discovery: &mut PeerHoistDiscovery,
+    cancel: &ResolutionCancel,
 ) -> Result<(), ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
 {
     loop {
         let rewrites_before = workspace.tree.children_rewrites();
-        for state in &mut *states {
+        for (idx, state) in states.iter_mut().enumerate() {
+            if idx > 0 && idx % 32 == 0 {
+                yield_once().await;
+            }
+            check_cancelled(cancel)?;
             state.run_required_round(resolver, peer_discovery).await?;
+            peer_discovery.check_snapshot_limit()?;
         }
         if workspace.tree.children_rewrites() == rewrites_before {
             return Ok(());
@@ -110,18 +157,24 @@ where
 async fn hoist_optional_wave<Chain>(
     resolver: &Chain,
     states: &mut [ImporterHoistState],
+    candidates: OptionalPeerCandidates,
+    cancel: &ResolutionCancel,
 ) -> Result<bool, ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
 {
     refresh_root_dep_versions(states);
-    let mut any_hoisted = hoist_root_optional(resolver, states).await?;
+    let mut any_hoisted = hoist_root_optional(resolver, states, candidates).await?;
     if any_hoisted {
         refresh_root_dep_versions(states);
     }
-    for state in states.iter_mut() {
+    for (idx, state) in states.iter_mut().enumerate() {
+        if idx > 0 && idx % 32 == 0 {
+            yield_once().await;
+        }
+        check_cancelled(cancel)?;
         if state.importer_id() != pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY {
-            any_hoisted |= state.hoist_optional_round(resolver).await?;
+            any_hoisted |= state.hoist_optional_round(resolver, candidates).await?;
         }
     }
     Ok(any_hoisted)
@@ -130,6 +183,7 @@ where
 async fn hoist_root_optional<Chain>(
     resolver: &Chain,
     states: &mut [ImporterHoistState],
+    candidates: OptionalPeerCandidates,
 ) -> Result<bool, ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
@@ -138,7 +192,7 @@ where
         .iter_mut()
         .find(|state| state.importer_id() == pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY)
     {
-        Some(root) => root.hoist_optional_round(resolver).await,
+        Some(root) => root.hoist_optional_round(resolver, candidates).await,
         None => Ok(false),
     }
 }

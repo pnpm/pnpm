@@ -20,9 +20,9 @@
 pub(crate) use pnpm_process as process;
 
 pub use filter::{
-    FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, FilteredProjects,
-    WorkspaceFilter, filter_projects, filter_projects_by_selector_objects,
-    filter_workspace_projects,
+    FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, FilteredGraphProjects,
+    FilteredProjects, WorkspaceFilter, filter_projects, filter_projects_by_selector_objects,
+    filter_workspace_projects, filter_workspace_projects_with_prod_graph,
 };
 pub use get_changed_projects::{ChangedProjects, GetChangedProjectsOptions, get_changed_projects};
 pub use parse_project_selector::{

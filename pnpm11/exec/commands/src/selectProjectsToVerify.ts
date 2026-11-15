@@ -2,7 +2,11 @@ import path from 'node:path'
 
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
-import { filterWorkspaceProjects, parseProjectSelector } from '@pnpm/workspace.projects-filter'
+import {
+  filterWorkspaceProjectsWithProdGraph,
+  orderWorkspaceFilters,
+  parseProjectSelector,
+} from '@pnpm/workspace.projects-filter'
 
 export type ProjectsToVerifyOptions = Partial<Pick<Config,
 | 'changedFilesIgnorePattern'
@@ -19,7 +23,12 @@ export type ProjectsToVerifyOptions = Partial<Pick<Config,
 | 'prodAllProjectsGraph'
 | 'prodOnlySelectedProjectDirs'
 | 'selectedProjectsGraph'
->
+> & {
+  argv?: {
+    cooked?: string[]
+  }
+  cliOptions?: Record<string, unknown>
+}
 
 /**
  * The projects the dependency status check holds to the modules-directory
@@ -101,33 +110,29 @@ function hasNegatedSelector (opts: ProjectsToVerifyOptions): boolean {
 async function selectInstalledProjectDirs (
   opts: ProjectsToVerifyOptions & Required<Pick<ProjectsToVerifyOptions, 'allProjectsGraph'>>
 ): Promise<Set<string>> {
+  const ordered = orderWorkspaceFilters({
+    filter: opts.filter,
+    filterProd: opts.filterProd,
+    cliOptions: opts.cliOptions,
+    cookedArgv: opts.argv?.cooked,
+  })
+  if (ordered.length === 0) return new Set()
   const prefix = opts.dir ?? process.cwd()
-  const walkOpts = {
-    prefix,
-    workspaceDir: opts.workspaceDir ?? prefix,
-    testPattern: opts.testPattern,
-    changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
-    useGlobDirFiltering: !opts.legacyDirFiltering,
-  }
-  const [regular, prod] = await Promise.all([
-    filterWithDependencies(opts.allProjectsGraph, opts.filter, { ...walkOpts, followProdDepsOnly: false }),
-    filterWithDependencies(opts.prodAllProjectsGraph, opts.filterProd, { ...walkOpts, followProdDepsOnly: true }),
-  ])
-  return new Set([...regular, ...prod])
-}
-
-async function filterWithDependencies (
-  projectsGraph: ProjectsGraph | undefined,
-  filter: string[] | undefined,
-  opts: Parameters<typeof filterWorkspaceProjects>[2] & { followProdDepsOnly: boolean, prefix: string }
-): Promise<string[]> {
-  if (projectsGraph == null || filter == null || filter.length === 0) return []
-  const selectors = filter.map((selector) => ({
-    ...parseProjectSelector(withDependencies(selector), opts.prefix),
-    followProdDepsOnly: opts.followProdDepsOnly,
+  const selectors = ordered.map(({ filter, followProdDepsOnly }) => ({
+    ...parseProjectSelector(withDependencies(filter), prefix),
+    followProdDepsOnly,
   }))
-  const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, selectors, opts)
-  return Object.keys(selectedProjectsGraph)
+  const { selectedProjectsGraph } = await filterWorkspaceProjectsWithProdGraph(
+    { allProjectsGraph: opts.allProjectsGraph, prodProjectsGraph: opts.prodAllProjectsGraph },
+    selectors,
+    {
+      workspaceDir: opts.workspaceDir ?? prefix,
+      testPattern: opts.testPattern,
+      changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+      useGlobDirFiltering: !opts.legacyDirFiltering,
+    }
+  )
+  return new Set(Object.keys(selectedProjectsGraph))
 }
 
 /**

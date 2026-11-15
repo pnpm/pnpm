@@ -145,7 +145,7 @@ impl VersionRequest<'_> {
                 crate::server::upstream_integrity::wait_for_pin(
                     self.state,
                     &cached.namespace,
-                    upstream,
+                    &upstream,
                     name,
                     &tgz.filename,
                 )
@@ -178,7 +178,7 @@ impl VersionRequest<'_> {
             )
         });
         let fetched = Instant::now();
-        let err = match self.fetch_version_manifest(upstream, name).await {
+        let err = match self.fetch_version_manifest(&upstream, name).await {
             ManifestRead::Dist(mut tgz) => {
                 tgz.manifest_generation = generation;
                 return Some((tgz, Some(DistOrigin::VersionManifest(fetched))));
@@ -188,7 +188,7 @@ impl VersionRequest<'_> {
         };
         // A packument fetch would wait on the same upstream again.
         let stale =
-            recover_stale_upstream_packument(self.state, &cached?.namespace, upstream, name, err)
+            recover_stale_upstream_packument(self.state, &cached?.namespace, &upstream, name, err)
                 .await
                 .ok()??;
         version_tgz(&stale, name, self.version).map(|tgz| (tgz, None))
@@ -245,7 +245,7 @@ impl VersionRequest<'_> {
         }
         Ok(Some(CachedPackument {
             namespace: upstream_cache_namespace(self.state, id),
-            ttl: upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl),
+            ttl: upstream.packument_ttl().unwrap_or(self.state.inner.config.http.packument_ttl),
         }))
     }
 

@@ -314,10 +314,15 @@ pub fn entry_metadata_at(parent: &File, name: &OsStr) -> io::Result<Option<Entry
     // SAFETY: the call reported success, which it only does after writing
     // the whole structure.
     let stat = unsafe { stat.assume_init() };
+    // NetBSD is the only Unix whose `stat` spells these `st_*timensec`.
+    #[cfg(target_os = "netbsd")]
+    let (modified_nanoseconds, accessed_nanoseconds) = (stat.st_mtimensec, stat.st_atimensec);
+    #[cfg(not(target_os = "netbsd"))]
+    let (modified_nanoseconds, accessed_nanoseconds) = (stat.st_mtime_nsec, stat.st_atime_nsec);
     Ok(Some(EntryMetadata {
         len: u64::try_from(stat.st_size).unwrap_or(0),
-        modified: entry_time(stat.st_mtime, stat.st_mtime_nsec),
-        accessed: entry_time(stat.st_atime, stat.st_atime_nsec),
+        modified: entry_time(stat.st_mtime, modified_nanoseconds),
+        accessed: entry_time(stat.st_atime, accessed_nanoseconds),
         kind: entry_kind(stat.st_mode),
     }))
 }

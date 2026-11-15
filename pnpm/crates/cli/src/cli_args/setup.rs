@@ -14,7 +14,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
-    PathExtenderReport, sh_quote,
+    PathExtenderReport, pwsh_quote, sh_quote,
 };
 use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_home_dir_env};
 use pnpm_fs::write_atomic;
@@ -209,15 +209,10 @@ fn posix_env_lines(pnpm_home_dir: &Path) -> String {
 }
 
 fn powershell_env_lines(pnpm_home_dir: &Path) -> String {
-    let mut quoted_home = String::new();
-    for character in pnpm_home_dir.to_string_lossy().chars() {
-        quoted_home.push(character);
-        // PowerShell also treats typographic apostrophes as string delimiters.
-        if matches!(character, '\'' | '\u{2018}'..='\u{201b}') {
-            quoted_home.push(character);
-        }
-    }
-    format!("$env:PNPM_HOME = '{quoted_home}'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"")
+    format!(
+        "$env:PNPM_HOME = {}\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"",
+        pwsh_quote(&pnpm_home_dir.to_string_lossy()),
+    )
 }
 
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,
@@ -503,8 +498,9 @@ fn render_setup_output(report: &PathExtenderReport) -> String {
     output.push(format!("The following configuration changes were made:\n{}", report.new_settings));
     match &report.config_file {
         None => output.push("Setup complete. Open a new terminal to start using pnpm.".to_string()),
-        Some(config_file) if config_file.change_type != ConfigFileChangeType::Skipped => output
-            .push(format!("To start using pnpm, run:\nsource {}\n", config_file.path.display())),
+        Some(config_file) if config_file.change_type != ConfigFileChangeType::Skipped => {
+            output.push(format!("To start using pnpm, run:\n{}\n", config_file.reload_command()));
+        }
         Some(_) => {}
     }
     output.join("\n\n")

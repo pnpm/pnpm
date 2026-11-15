@@ -50,7 +50,6 @@ pub(crate) fn dedupe_injected_deps(
     graph: &mut DependenciesGraph,
     direct_by_importer: &mut DirectByImporter,
     importer_root_dirs: &BTreeMap<String, PathBuf>,
-    lockfile_dir: &Path,
     unbound_optional_peers: &UnboundOptionalPeers,
 ) {
     let workspace_project_ids: HashSet<String> = importer_root_dirs
@@ -65,7 +64,7 @@ pub(crate) fn dedupe_injected_deps(
     if dedupe_map.is_empty() {
         return;
     }
-    apply_dedupe_map(&dedupe_map, direct_by_importer, importer_root_dirs, lockfile_dir);
+    apply_dedupe_map(&dedupe_map, direct_by_importer, importer_root_dirs);
     prune_unreachable(graph, direct_by_importer);
 }
 
@@ -166,14 +165,13 @@ fn apply_dedupe_map(
     dedupe_map: &DedupeMap,
     direct_by_importer: &mut DirectByImporter,
     importer_root_dirs: &BTreeMap<String, PathBuf>,
-    lockfile_dir: &Path,
 ) {
     for (importer_id, aliases) in dedupe_map {
         let Some(source_root) = importer_root_dirs.get(importer_id) else { continue };
         let Some(direct) = direct_by_importer.get_mut(importer_id) else { continue };
         for (alias, target_project_id) in aliases {
             let Some(target_root) = importer_root_dirs.get(target_project_id) else { continue };
-            let link_dep_path = make_link_dep_path(source_root, target_root, lockfile_dir);
+            let link_dep_path = make_link_dep_path(source_root, target_root);
             direct.insert(alias.clone(), link_dep_path);
         }
     }
@@ -186,23 +184,11 @@ fn apply_dedupe_map(
 /// pacquet stores as absolute project dirs; resolving the relative
 /// path through the filesystem layer keeps Windows path separators
 /// correct.
-fn make_link_dep_path(source_root: &Path, target_root: &Path, lockfile_dir: &Path) -> DepPath {
+fn make_link_dep_path(source_root: &Path, target_root: &Path) -> DepPath {
     let rel =
         pathdiff::diff_paths(target_root, source_root).unwrap_or_else(|| target_root.to_path_buf());
     let rendered = rel.to_string_lossy().replace('\\', "/");
-    let rel_posix = if rendered.is_empty() || rendered == "." {
-        // Source and target match: emit a path relative to the lockfile
-        // dir so the resulting symlink still resolves to a real
-        // directory. In practice this branch is unreachable —
-        // `injected_workspace_target` only matches when the importer's
-        // direct dep points at a different workspace project — but the
-        // fallback keeps the helper total.
-        let fallback = pathdiff::diff_paths(target_root, lockfile_dir)
-            .unwrap_or_else(|| target_root.to_path_buf());
-        fallback.to_string_lossy().replace('\\', "/")
-    } else {
-        rendered
-    };
+    let rel_posix = if rendered.is_empty() { "." } else { &rendered };
     DepPath::from(format!("link:{rel_posix}"))
 }
 

@@ -15,7 +15,7 @@ async fn collection_logs_only_removed_archives_with_sizes_and_image_repositories
             .unwrap();
         if pre_unmapped {
             storage
-                .sql_metadata()
+                .sql_database()
                 .unmap_artifacts(
                     "",
                     Ecosystem::Oci,
@@ -64,7 +64,7 @@ async fn collection_logs_successful_removals_when_another_archive_cannot_be_dele
         std::fs::write(blocked.join("keep"), b"blocked").unwrap();
         if pre_unmapped {
             storage
-                .sql_metadata()
+                .sql_database()
                 .unmap_artifacts(
                     "",
                     Ecosystem::Oci,
@@ -107,7 +107,7 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
         let view = storage.for_hosted(namespace, Ecosystem::Oci);
         let digest = blob(&view, &repository, b"orphan").await;
         if pre_unmapped {
-            view.sql_metadata()
+            view.sql_database()
                 .unmap_artifacts(
                     namespace,
                     Ecosystem::Oci,
@@ -119,16 +119,15 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
                 .unwrap();
         }
     }
-    let yaml = "storage: ./store\ncache: ./cache\ndatabase: { url: 'sqlite:./metadata.sqlite' }\nregistries:\n  first: { type: hosted, ecosystem: oci, namespace: team-one, access: '$all' }\n  second: { type: hosted, ecosystem: oci, namespace: team-two, access: '$all' }\n";
+    let yaml = "storage:\n  path: ./store\n  database: { url: 'sqlite:./metadata.sqlite' }\ncache: ./cache\nregistries:\n  first: { type: hosted, ecosystem: oci, namespace: team-one, access: '$all' }\n  second: { type: hosted, ecosystem: oci, namespace: team-two, access: '$all' }\n";
     let config_path = temp.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
     let config =
-        crate::Config::from_yaml(&config_path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
+        pnpr_fixtures::load_seeded_config(&config_path, "127.0.0.1:4873".parse().unwrap(), None);
     let path = temp.path().join("gc.log");
     let logs = pnpr_config::LogConfig {
         format: pnpr_config::LogFormat::Json,
         level: pnpr_config::LogLevel::Warn,
-        ..pnpr_config::LogConfig::default()
     };
     let subscriber = crate::logging::log_subscriber(
         &logs,

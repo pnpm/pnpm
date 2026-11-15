@@ -324,12 +324,10 @@ fn a_backedge_cut_subtree_is_pure() {
     );
     let cached_mentions_w = walker.caches.peers_cache
         .get("ring02@1.0.0")
-        .is_some_and(|items| {
-            items
-                .iter()
-                .any(|item| {
-                    item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
-                })
+        .is_some_and(|mut items| {
+            items.any(|item| {
+                item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
+            })
         });
     assert!(!cached_mentions_w, "no cached ring02 verdict mentions the consumer behind the cut");
 }

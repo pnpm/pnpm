@@ -92,33 +92,35 @@ pub(super) async fn pnpr_protocols_disabled() -> Response {
 pub(super) async fn serve_resolve(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    body: axum::body::Bytes,
+    request: axum::extract::Request,
 ) -> Response {
     // The caller's identity drives both resolution and gateway access:
     // it selects which pnpr-managed upstream credentials and hosted
     // packages the resolve may use, and gates which cached resolutions
     // it may receive.
+    let routing = state.routing();
     let runtime = crate::resolver::Resolver::get_or_init(
-        &state.inner.resolver,
-        &state.inner.config,
+        &routing,
+        &state.inner.resolver_shared,
         state.inner.osv_index.clone(),
         &state,
     );
-    crate::resolver::handle_resolve(runtime, identity, body).await
+    crate::resolver::serve_resolve_request(runtime, identity, request).await
 }
 
 pub(super) async fn serve_verify_lockfile(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    body: axum::body::Bytes,
+    request: axum::extract::Request,
 ) -> Response {
+    let routing = state.routing();
     let runtime = crate::resolver::Resolver::get_or_init(
-        &state.inner.resolver,
-        &state.inner.config,
+        &routing,
+        &state.inner.resolver_shared,
         state.inner.osv_index.clone(),
         &state,
     );
-    crate::resolver::handle_verify_lockfile(runtime, identity, body).await
+    crate::resolver::serve_verify_lockfile_request(runtime, identity, request).await
 }
 
 pub(super) async fn serve_publish_artifact(

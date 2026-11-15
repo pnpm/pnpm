@@ -20,7 +20,7 @@ use axum::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::{Ecosystem, Resolved};
-use pnpr_storage::metadata::{ArtifactMember, Note, NoteChange, Publication, SqlMetadata};
+use pnpr_storage::database::{ArtifactMember, Note, NoteChange, Publication, SqlDatabase};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -34,7 +34,7 @@ pub(super) async fn serve_publication(
     Path((namespace, id_or_name)): Path<(String, String)>,
 ) -> Response {
     let namespace = namespace_of(&namespace);
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     let found = database.publication(namespace, &id_or_name).await;
     private_no_cache(respond(&state, &identity, found))
 }
@@ -51,7 +51,7 @@ pub(super) async fn serve_member_publication(
     Query(query): Query<MemberQuery>,
 ) -> Response {
     let namespace = namespace_of(&namespace);
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     let Some((name, version)) = parse_member(&query.member) else {
         return RegistryError::BadRequest {
             reason: "`member` must be <ecosystem>:<name>@<version>".to_string(),
@@ -129,7 +129,7 @@ fn may_read(
     namespace: &str,
     member: &ArtifactMember,
 ) -> bool {
-    let routing = &state.inner.config.routing;
+    let routing = state.routing();
     routing.hosted
         .iter()
         .any(|(source, hosted)| {
@@ -198,7 +198,7 @@ pub(super) fn anonymously_readable(
 pub(super) async fn readable_publication_note(
     state: &AppState,
     identity: &Identity,
-    database: &Arc<SqlMetadata>,
+    database: &Arc<SqlDatabase>,
     publication: Publication,
 ) -> Result<PublicationNoteLink, RegistryError> {
     let note = database.publication_note(&publication.namespace, publication.id).await?;
@@ -258,7 +258,7 @@ pub(super) async fn serve_publication_note(
         Ok(request) => request,
         Err(response) => return response,
     };
-    let database = Arc::clone(state.inner.storage.sql_metadata());
+    let database = Arc::clone(state.inner.storage.sql_database());
     let publication = match database.publication(namespace_of(&namespace), &id_or_name).await {
         Ok(Some(publication)) if reads_every_member(&state, &identity, &publication) => publication,
         Ok(_) => return not_found(),
@@ -278,7 +278,7 @@ pub(super) async fn serve_publication_note(
 
 async fn read_publication_note(
     state: &AppState,
-    database: &Arc<SqlMetadata>,
+    database: &Arc<SqlDatabase>,
     publication: &Publication,
 ) -> Result<Response, RegistryError> {
     let note = database.publication_note(&publication.namespace, publication.id).await?;
@@ -298,7 +298,7 @@ async fn read_publication_note(
 async fn change_publication_note(
     state: &AppState,
     identity: &Identity,
-    database: &Arc<SqlMetadata>,
+    database: &Arc<SqlDatabase>,
     publication: &Publication,
     text: Option<String>,
 ) -> Result<Response, RegistryError> {
@@ -309,14 +309,14 @@ async fn change_publication_note(
         .user_id()
         .unwrap_or("-")
         .to_string();
-    let change = NoteChange { text, principal: principal.clone() };
+    let change = NoteChange { text, principal };
     if !database.set_publication_note(&publication.namespace, publication.id, change).await? {
         return Err(RegistryError::NotFound);
     }
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "publication.note_change",
-        actor = %principal,
+    let actor = crate::audit::Actor::of(identity);
+    crate::audit!(
+        actor,
+        "publication.note_change",
         namespace = %publication.namespace,
         publication = publication.id,
         "publication note changed",
@@ -332,7 +332,7 @@ async fn authorize_member_publish(
     namespace: &str,
     member: &ArtifactMember,
 ) -> Result<(), RegistryError> {
-    let routing = &state.inner.config.routing;
+    let routing = state.routing();
     let source = routing.hosted
         .iter()
         .find_map(|(source, hosted)| {

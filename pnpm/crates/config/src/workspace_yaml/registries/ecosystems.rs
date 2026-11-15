@@ -1,51 +1,13 @@
 //! Ecosystem index declarations and exclusive Python package routing.
 
 use super::{
-    EcosystemIndex, LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups, quote_and_join,
-    redact_registry_url,
+    Ecosystem, EcosystemIndex, LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups,
+    quote_and_join, redact_registry_url,
 };
 use indexmap::IndexMap;
 use pnpm_lockfile::RegistryOptions;
 use pnpm_network::normalize_registry_url;
-use serde::Deserialize;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
-};
-
-/// The package ecosystem whose packages a registry serves.
-///
-/// Closed, and narrower than the set of surfaces a pnpr server can host:
-/// pnpm installs from these, so an ecosystem it cannot install from
-/// has no meaning in a `registries` entry and is refused where the entry is
-/// parsed rather than somewhere further in.
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, Deserialize,
-)]
-#[serde(rename_all = "lowercase")]
-pub enum Ecosystem {
-    #[default]
-    Npm,
-    Cargo,
-    Pypi,
-}
-
-impl Ecosystem {
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Ecosystem::Npm => "npm",
-            Ecosystem::Cargo => "cargo",
-            Ecosystem::Pypi => "pypi",
-        }
-    }
-}
-
-impl fmt::Display for Ecosystem {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
+use std::collections::{BTreeMap, BTreeSet};
 
 /// What the map has declared for each ecosystem other than npm, so the rules
 /// that span entries are checked once the whole map has been read: one index

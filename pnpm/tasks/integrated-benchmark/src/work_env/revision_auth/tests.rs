@@ -6,10 +6,10 @@ use std::fs;
 fn revision_accounts_use_the_revisions_format_and_separate_files() {
     let directory = tempfile::tempdir().unwrap();
     let old_home = directory.path().join("old");
-    let legacy_home = directory.path().join("legacy");
+    let json_home = directory.path().join("json");
     let new_home = directory.path().join("new");
     let old = seed_auth("auth:\n  htpasswd:\n    maxUsers: -1\n", &old_home);
-    let legacy = seed_auth("auth:\n  users:\n    maxUsers: -1\n", &legacy_home);
+    let json = seed_auth("auth:\n  users:\n    maxUsers: -1\n  tokens: {}\n", &json_home);
     let new = seed_auth(pnpr_fixtures::MOCK_CONFIG_YAML, &new_home);
     assert_eq!(
         old["htpasswd"]["file"],
@@ -20,33 +20,20 @@ fn revision_accounts_use_the_revisions_format_and_separate_files() {
             .unwrap(),
     );
     assert_eq!(
-        legacy["users"]["file"],
-        legacy_home
+        json["users"]["file"],
+        json_home
             .join("auth")
             .join("users.json")
             .to_str()
             .unwrap(),
     );
-    assert_eq!(
-        new["users"]["file"],
-        new_home
-            .join("auth")
-            .join("users.json")
-            .to_str()
-            .unwrap(),
-    );
+    assert_eq!(new, serde_json::json!({"users": {"maxUsers": 1}}));
     assert_eq!(
         fs::read_to_string(old_home.join("auth").join("htpasswd")).unwrap(),
         PNPR_BENCHMARK_HTPASSWD,
     );
-    let legacy_accounts: Value =
-        serde_json::from_slice(&fs::read(legacy_home.join("auth").join("users.json")).unwrap())
-            .unwrap();
-    assert_eq!(legacy_accounts[PNPR_BENCHMARK_USERNAME]["id"], "benchmark-account");
-    assert!(legacy_accounts[PNPR_BENCHMARK_USERNAME].get("status").is_none());
-
     let accounts: Value =
-        serde_json::from_slice(&fs::read(new_home.join("auth").join("users.json")).unwrap())
+        serde_json::from_slice(&fs::read(json_home.join("auth").join("users.json")).unwrap())
             .unwrap();
     assert_eq!(accounts[PNPR_BENCHMARK_USERNAME]["id"], "benchmark-account");
     assert_eq!(accounts[PNPR_BENCHMARK_USERNAME]["status"], "active");
@@ -61,10 +48,10 @@ fn revision_accounts_use_the_revisions_format_and_separate_files() {
             .exists(),
     );
     assert!(
-        !new_home
-            .join("auth")
-            .join("htpasswd")
-            .exists(),
+        fs::read_dir(new_home.join("auth"))
+            .unwrap()
+            .next()
+            .is_none(),
     );
 }
 
@@ -109,7 +96,12 @@ fn seeding_a_moving_revision_discards_old_auth_state() {
 #[test]
 fn revision_database_uses_the_revisions_config_key() {
     let directory = tempfile::tempdir().unwrap();
-    for (name, setting) in [("old", ""), ("new", "database: {}\n")] {
+    let cases = [
+        ("metadata", "", "/metadata/url"),
+        ("database", "database: {}\n", "/database/url"),
+        ("storage", "storage:\n  database: {}\n", "/storage/database/url"),
+    ];
+    for (name, setting, pointer) in cases {
         let source = directory.path().join(name);
         fs::create_dir_all(source.join("pnpr/.fixtures")).unwrap();
         fs::write(
@@ -122,12 +114,10 @@ fn revision_database_uses_the_revisions_config_key() {
             .join(format!("{name}-home"));
         let yaml = mock_config(&source.join("target/release/pnpr"), &home);
         let config: Value = serde_saphyr::from_str(&yaml).unwrap();
-        let (key, absent) =
-            if name == "old" { ("metadata", "database") } else { ("database", "metadata") };
-        assert_eq!(
-            config[key]["url"],
-            format!("sqlite:{}", home.join("metadata.sqlite").display()),
-        );
-        assert!(config.get(absent).is_none());
+        let url = format!("sqlite:{}", home.join("metadata.sqlite").display());
+        for (_, _, candidate) in cases {
+            let expected = (candidate == pointer).then_some(url.as_str());
+            assert_eq!(config.pointer(candidate).and_then(Value::as_str), expected, "{candidate}");
+        }
     }
 }

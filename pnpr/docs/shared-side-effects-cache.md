@@ -68,7 +68,7 @@ at all, and the handshake at `GET /-/pnpr` does not advertise them. An artifact-
 declare no registries, and enable only `artifacts`.
 
 By default artifacts live at `<cache>/shared-artifacts`. When the pnpr config
-has an [`s3:` block](storage.md), they live under the reserved
+has a [`storage.s3` block](storage.md), they live under the reserved
 `.artifacts/` namespace in that bucket instead. The S3 layout and
 conditional quota updates let several stateless pnpr replicas share one
 artifact tier.

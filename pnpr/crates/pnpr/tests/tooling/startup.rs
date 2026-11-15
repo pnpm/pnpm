@@ -6,13 +6,13 @@ async fn config_check_rejects_insecure_database_tokens() {
     let config_file = dir.path().join("pnpr.yaml");
     std::fs::write(
         &config_file,
-        "database:\n  url: http://database.example.test:8080\n  authToken: example-secret-token\n",
+        "storage:\n  database:\n    url: http://database.example.test:8080\n    authToken: example-secret-token\n",
     )
     .unwrap();
     let check = check_config(Some(&config_file)).unwrap_err().to_string();
     assert!(!check.contains("example-secret-token"), "{check}");
     #[cfg(feature = "backend-libsql")]
-    assert!(check.contains("database.authToken"), "{check}");
+    assert!(check.contains("storage.database.authToken"), "{check}");
     #[cfg(not(feature = "backend-libsql"))]
     assert!(check.contains("database driver"), "{check}");
     let config = Config::from_yaml(&config_file, "127.0.0.1:0".parse().unwrap(), None).unwrap();
@@ -36,7 +36,7 @@ async fn config_check_rejects_invalid_database_urls_without_echoing_credentials(
     ] {
         let dir = TempDir::new().unwrap();
         let config_file = dir.path().join("pnpr.yaml");
-        std::fs::write(&config_file, format!("database:\n  url: {url}\n")).unwrap();
+        std::fs::write(&config_file, format!("storage:\n  database:\n    url: {url}\n")).unwrap();
         let error = check_config(Some(&config_file)).unwrap_err().to_string();
         assert!(!error.contains("secret"), "{url}: {error}");
     }
@@ -50,7 +50,7 @@ async fn config_check_rejects_postgres_schemes_when_driver_is_missing() {
         let config_file = dir.path().join("pnpr.yaml");
         std::fs::write(
             &config_file,
-            format!("database:\n  url: {scheme}://example:secret@database.example.test/registry\n"),
+            format!("storage:\n  database:\n    url: {scheme}://example:secret@database.example.test/registry\n"),
         )
         .unwrap();
         let error = check_config(Some(&config_file)).unwrap_err().to_string();
@@ -68,7 +68,7 @@ async fn config_check_rejects_mysql_scheme_when_driver_is_missing() {
     let config_file = dir.path().join("pnpr.yaml");
     std::fs::write(
         &config_file,
-        "database:\n  url: mysql://example:secret@database.example.test/registry\n",
+        "storage:\n  database:\n    url: mysql://example:secret@database.example.test/registry\n",
     )
     .unwrap();
     let error = check_config(Some(&config_file)).unwrap_err().to_string();
@@ -80,21 +80,24 @@ async fn config_check_rejects_mysql_scheme_when_driver_is_missing() {
 
 #[tokio::test]
 async fn config_check_and_serve_reject_s3_or_populated_cache_without_secret() {
-    let s3_dir = TempDir::new().unwrap();
-    let s3_cfg = s3_dir.path().join("pnpr.yaml");
-    std::fs::write(
-        &s3_cfg,
-        format!(
-            "storage: '{}'\ncache: '{}'\ns3:\n  bucket: packages\n  region: auto\n  endpoint: https://storage.example.test\nregistries:\n  npm:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\ndefaultRegistry: npm\n",
-            s3_dir.path().join("hosted").display(),
-            s3_dir.path().join("cache").display(),
-        ),
-    )
-    .unwrap();
-    let s3_err = check_config(Some(&s3_cfg)).unwrap_err().to_string();
-    assert!(s3_err.contains("`secret` or `secrets.cache` must be configured"), "{s3_err}");
-    let config = Config::from_yaml(&s3_cfg, "127.0.0.1:0".parse().unwrap(), None).unwrap();
-    assert_eq!(pnpr::serve(config).await.unwrap_err().to_string(), s3_err);
+    #[cfg(feature = "backend-libsql")]
+    {
+        let s3_dir = TempDir::new().unwrap();
+        let s3_cfg = s3_dir.path().join("pnpr.yaml");
+        std::fs::write(
+            &s3_cfg,
+            format!(
+                "storage:\n  path: '{}'\n  s3:\n    bucket: packages\n    region: auto\n    endpoint: https://storage.example.test\n  database:\n    url: libsql://db.example.test\ncache: '{}'\n",
+                s3_dir.path().join("hosted").display(),
+                s3_dir.path().join("cache").display(),
+            ),
+        )
+        .unwrap();
+        let s3_err = check_config(Some(&s3_cfg)).unwrap_err().to_string();
+        assert!(s3_err.contains("`secret` or `secret.cache` must be configured"), "{s3_err}");
+        let config = Config::from_yaml(&s3_cfg, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+        assert_eq!(pnpr::serve(config).await.unwrap_err().to_string(), s3_err);
+    }
 
     let persisted_dir = TempDir::new().unwrap();
     let cache_dir = persisted_dir.path().join("cache");

@@ -1,4 +1,7 @@
-use super::{PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_USERNAME};
+use super::{
+    PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_USERNAME,
+    registries_home::{fixture_registries, revision_source},
+};
 use serde_json::{Value, json};
 use std::{fs, path::Path};
 
@@ -7,21 +10,22 @@ mod tests;
 
 /// Historical binaries read their own fixture schema and isolated credentials.
 pub(super) fn mock_config(binary: &Path, home: &Path) -> String {
-    let source = binary
-        .parent()
-        .and_then(Path::parent)
-        .and_then(Path::parent)
-        .expect("revision binary is under target/release");
-    let yaml = fs::read_to_string(source.join("pnpr/.fixtures/config.yaml"))
+    let yaml = fs::read_to_string(revision_source(binary).join("pnpr/.fixtures/config.yaml"))
         .expect("read the revision mock configuration");
     let mut config: Value =
         serde_saphyr::from_str(&yaml).expect("parse revision mock configuration");
     config["auth"] = seed_auth(&yaml, home);
-    let database_key = if config.get("database").is_some() { "database" } else { "metadata" };
     let database = std::path::absolute(home)
         .expect("absolute revision database directory")
         .join("metadata.sqlite");
-    config[database_key] = json!({"url": format!("sqlite:{}", database.display())});
+    let database = json!({"url": format!("sqlite:{}", database.display())});
+    if config["storage"].get("database").is_some() {
+        config["storage"]["database"] = database;
+    } else if config.get("database").is_some() {
+        config["database"] = database;
+    } else {
+        config["metadata"] = database;
+    }
     serde_saphyr::to_string(&config).expect("serialize revision mock configuration")
 }
 
@@ -34,31 +38,33 @@ pub(super) fn seed_auth(source: &str, home: &Path) -> Value {
         Err(err) => panic!("remove stale revision auth state: {err}"),
     }
     fs::create_dir_all(&home).expect("create revision auth directory");
-    if config["auth"].get("users").is_some() {
-        let path = home.join("users.json");
-        let (_, hash) = PNPR_BENCHMARK_HTPASSWD
-            .trim()
-            .split_once(':')
-            .expect("benchmark credential");
-        let account = if config["auth"].get("tokens").is_some() {
-            json!({
-                "id": "benchmark-account",
-                "status": "active",
-                "credential_kind": "bcrypt",
-                "password_hash": hash,
-                "created_at": 0,
-            })
-        } else {
-            json!({"id": "benchmark-account", "password_hash": hash})
-        };
-        let accounts = json!({PNPR_BENCHMARK_USERNAME: account});
-        fs::write(&path, accounts.to_string()).expect("seed revision JSON account");
-        json!({"users": {"file": path, "maxUsers": -1}})
-    } else {
+    let Some(users) = config["auth"].get("users") else {
         let path = home.join("htpasswd");
         fs::write(&path, PNPR_BENCHMARK_HTPASSWD).expect("seed revision htpasswd account");
-        json!({"htpasswd": {"file": path, "maxUsers": -1}})
+        return json!({"htpasswd": {"file": path, "maxUsers": -1}});
+    };
+    if config["auth"].get("tokens").is_none() {
+        // Accounts live in the database, so the benchmark login
+        // registers the account the first time it runs.
+        let mut users = users.clone();
+        users["maxUsers"] = json!(1);
+        return json!({"users": users});
     }
+    let path = home.join("users.json");
+    let (_, hash) = PNPR_BENCHMARK_HTPASSWD
+        .trim()
+        .split_once(':')
+        .expect("benchmark credential");
+    let account = json!({
+        "id": "benchmark-account",
+        "status": "active",
+        "credential_kind": "bcrypt",
+        "password_hash": hash,
+        "created_at": 0,
+    });
+    let accounts = json!({PNPR_BENCHMARK_USERNAME: account});
+    fs::write(&path, accounts.to_string()).expect("seed revision JSON account");
+    json!({"users": {"file": path, "maxUsers": -1}})
 }
 
 pub(super) fn mock_command(
@@ -68,10 +74,15 @@ pub(super) fn mock_command(
     home: &Path,
 ) -> std::process::Command {
     let yaml = mock_config(binary, home);
+    let registries = fixture_registries(revision_source(binary));
     pnpm_registry_mock::pnpr_command_with_home(
         binary,
         port,
         public_url,
-        Some(pnpm_registry_mock::PnprMockConfig { home, yaml: &yaml }),
+        Some(pnpm_registry_mock::PnprMockConfig {
+            home,
+            yaml: &yaml,
+            registries: registries.as_deref(),
+        }),
     )
 }

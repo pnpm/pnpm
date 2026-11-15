@@ -512,3 +512,129 @@ fn install_rejects_a_traversal_version_under_global_virtual_store() {
 
     drop((root, mock_instance));
 }
+
+fn acme_packument(registry_url: &str, name: &str, integrity: &str, published_at: &str) -> String {
+    let bare = name.rsplit('/').next().unwrap_or(name);
+    serde_json::json!({
+        "name": name,
+        "modified": published_at,
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": published_at },
+        "versions": {
+            "1.0.0": {
+                "name": name,
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": integrity,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{registry_url}/{name}/-/{bare}-1.0.0.tgz"),
+                }
+            }
+        }
+    })
+    .to_string()
+}
+
+/// Switching `--registry` or `@scope:registry` must miss
+/// `<cacheDir>/lockfile-verified.jsonl` and re-verify against the new
+/// registry rather than reusing a verdict recorded for the previous one.
+#[test]
+fn changing_default_or_scoped_registry_invalidates_lockfile_verified_cache() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let mut registry_a = mockito::Server::new();
+    let mut registry_b = mockito::Server::new();
+    let tarball =
+        gzipped_tarball(&[("package/package.json", r#"{"name":"@corp/acme","version":"1.0.0"}"#)]);
+    let integrity = ssri::Integrity::from(&tarball).to_string();
+    let mature = "2020-01-01T00:00:00.000Z";
+    let immature = chrono::Utc::now().to_rfc3339();
+
+    let meta_a = registry_a
+        .mock("GET", "/@corp%2Facme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(acme_packument(&registry_a.url(), "@corp/acme", &integrity, mature))
+        .expect(1)
+        .create();
+    let _tarball_a = registry_a
+        .mock("GET", "/@corp/acme/-/acme-1.0.0.tgz")
+        .with_status(200)
+        .with_body(tarball)
+        .expect(1)
+        .create();
+    let meta_b = registry_b
+        .mock("GET", "/@corp%2Facme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(acme_packument(&registry_b.url(), "@corp/acme", &integrity, &immature))
+        .expect_at_least(2)
+        .create();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@corp/acme": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    set_minimum_release_age(&workspace, 1440);
+    let lockfile = format!(
+        "lockfileVersion: '9.0'\n\
+         importers:\n  \
+           .:\n    \
+             dependencies:\n      \
+               '@corp/acme':\n        \
+                 specifier: 1.0.0\n        \
+                 version: 1.0.0\n\
+         packages:\n  \
+           '@corp/acme@1.0.0':\n    \
+             resolution: {{integrity: {integrity}}}\n\
+         snapshots:\n  \
+           '@corp/acme@1.0.0': {{}}\n",
+    );
+    fs::write(workspace.join("pnpm-lock.yaml"), lockfile).expect("write lockfile");
+
+    let reg_a_arg = format!("--registry={}/", registry_a.url());
+    let first = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", &reg_a_arg])
+        .output()
+        .expect("first install");
+    assert_success(&first);
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    let cached = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", &reg_a_arg])
+        .output()
+        .expect("cached install");
+    assert_success(&cached);
+    meta_a.assert();
+
+    let reg_b_arg = format!("--registry={}/", registry_b.url());
+    let changed_default = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", &reg_b_arg])
+        .output()
+        .expect("install with changed default registry");
+    let default_stderr = String::from_utf8_lossy(&changed_default.stderr);
+    assert!(
+        !changed_default.status.success()
+            && default_stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"),
+        "changing default registry must invalidate lockfile-verified.jsonl; got:\n{default_stderr}",
+    );
+
+    fs::write(workspace.join(".npmrc"), format!("@corp:registry={}/\n", registry_b.url()))
+        .expect("write .npmrc");
+    let changed_scope = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", &reg_a_arg])
+        .output()
+        .expect("install with changed @corp scope registry");
+    let scope_stderr = String::from_utf8_lossy(&changed_scope.stderr);
+    assert!(
+        !changed_scope.status.success()
+            && scope_stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"),
+        "changing @scope:registry must invalidate lockfile-verified.jsonl; got:\n{scope_stderr}",
+    );
+    meta_b.assert();
+
+    drop((root, mock_instance));
+}

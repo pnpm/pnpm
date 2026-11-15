@@ -18,6 +18,8 @@ pub type DependenciesGraph = HashMap<DepPath, DependenciesGraphNode>;
 #[derive(Debug, Clone)]
 pub struct DependenciesGraphNode {
     pub dep_path: DepPath,
+    /// Exact bindings retained before hashing the peer suffix.
+    pub recorded_peer_bindings: Option<Arc<pnpm_lockfile::RecordedPeerBindings>>,
     /// The shared envelope, looked up via `ResolvedTree::packages`. Held
     /// by reference value (cloned) so consumers don't need a separate
     /// map lookup.

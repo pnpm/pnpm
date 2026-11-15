@@ -155,10 +155,11 @@ async fn grant_action(
     if authorize(state, identity, source, grant.name, Action::Access).is_err() {
         return Ok(false);
     }
+    let routing = state.routing();
     let namespace = match source {
-        RegistrySource::Hosted(registry) => state.inner.config.routing.hosted
-            .get(registry)
-            .map(|hosted| hosted.namespace.as_str()),
+        RegistrySource::Hosted(registry) => {
+            routing.hosted.get(registry).map(|hosted| hosted.namespace.as_str())
+        }
         _ => None,
     };
     match authorize_package(state, identity, source, grant.name, operation, namespace).await {

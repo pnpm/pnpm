@@ -203,6 +203,41 @@ fn using_a_global_virtual_store() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/hello-world-js-bin-parent", "1.0.0");
+    let package = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/hello-world-js-bin-parent");
+    let shim_path = package.join("node_modules/.bin/hello-world-js-bin");
+    let shim = fs::read_to_string(&shim_path).expect("read dependency bin shim").replace('\\', "/");
+    _utils::assert_shim_omits_path(&shim, &workspace.join("node_modules/.pnpm/node_modules"));
+    // Windows shims assign the value to `new_node_path` and export that.
+    let node_path = shim
+        .lines()
+        .map(str::trim_start)
+        .find(|line| line.starts_with("export NODE_PATH='") || line.starts_with("new_node_path='/"))
+        .expect("the shim extends NODE_PATH");
+    assert!(
+        node_path.contains("/v11/links/@pnpm.e2e/"),
+        "the shim keeps the target's own directories on NODE_PATH: {node_path:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `reinstall from warm global virtual store after deleting
 /// node_modules` (`globalVirtualStore.ts:63`) and the CLI-level `warm GVS
 /// reinstall skips internal linking` (`pnpm/test/install/globalVirtualStore.ts:80`).

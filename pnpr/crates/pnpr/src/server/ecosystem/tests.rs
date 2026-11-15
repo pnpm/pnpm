@@ -1,8 +1,13 @@
 use super::upstream_fetch_guard;
 use pnpr_config::{Config, PublicRoute, UpstreamConfig};
 use pnpr_fixtures::MockConfigPresets;
+use pnpr_route::RouteContext;
 use reqwest::header::HeaderMap;
-use std::{net::SocketAddr, path::PathBuf};
+use std::{
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
 use url::Url;
 
 #[test]
@@ -13,6 +18,7 @@ fn official_upstreams_allow_only_their_own_download_host() {
         registry: Some("https://approved.test/files/".to_string()),
         package: None,
     });
+    let guard_context = Arc::new(RwLock::new(Arc::new(RouteContext::from_config(&config))));
     for (base, allowed, denied) in [
         (
             "https://index.crates.io/",
@@ -26,7 +32,7 @@ fn official_upstreams_allow_only_their_own_download_host() {
         ),
     ] {
         let upstream = UpstreamConfig::with_defaults(base.to_string(), HeaderMap::new());
-        let guard = upstream_fetch_guard(&config, &upstream);
+        let guard = upstream_fetch_guard(&guard_context, &upstream);
         assert!(guard(&Url::parse(allowed).unwrap()));
         assert!(guard(&Url::parse("https://approved.test/files/archive").unwrap()));
         for rejected in [

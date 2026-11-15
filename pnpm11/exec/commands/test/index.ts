@@ -495,6 +495,65 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
   }, ['build'])
 })
 
+test('pnpm run start and pnpm restart do not fail with --if-present when neither start script nor server.js is present', async () => {
+  prepare({
+    scripts: {
+      prestart: 'node -e "require(\'node:fs\').writeFileSync(\'prestart.txt\', \'ran\')"',
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    enablePrePostScripts: true,
+    extraBinPaths: [],
+    extraEnv: {},
+    ifPresent: true,
+    pnpmHomeDir: '',
+  }, ['start'])
+
+  await restart.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    enablePrePostScripts: true,
+    extraBinPaths: [],
+    extraEnv: {},
+    ifPresent: true,
+    pnpmHomeDir: '',
+  }, [])
+
+  expect(fs.existsSync('prestart.txt')).toBe(false)
+})
+
+test('pnpm run start and pnpm restart still run server.js with --if-present when server.js exists', async () => {
+  prepare({})
+  fs.writeFileSync('server.js', 'require(\'node:fs\').appendFileSync(\'server-log.txt\', \'ran\\n\')\n', 'utf8')
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    ifPresent: true,
+    pnpmHomeDir: '',
+  }, ['start'])
+
+  await restart.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    ifPresent: true,
+    pnpmHomeDir: '',
+  }, [])
+
+  expect(fs.readFileSync('server-log.txt', 'utf8')).toBe('ran\nran\n')
+})
+
 test('if a script is not found but is present in the root, print an info message about it in the error message', async () => {
   preparePackages([
     {

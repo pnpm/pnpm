@@ -72,11 +72,11 @@ tasks:
 | Key | Meaning |
 | --- | --- |
 | `outputs` | Globs, relative to the project directory, naming the files the task produces. Their presence makes the task cacheable. |
-| `inputs` | Globs narrowing what goes into the cache key. Without it, every tracked file of the project counts. An entry prefixed with `+` adds to that default instead of replacing it. |
+| `inputs` | Globs narrowing what goes into the cache key. Without it, every tracked file of the project counts; `[]` includes no files. An entry prefixed with `+` includes matching files on disk, such as gitignored files or workspace paths outside the project, in addition to the base set. An entry prefixed with `!` excludes matching files. |
 | `env` | Environment variable names whose values take part in the key. The values are hashed, never stored. |
 | `cache` | `false` opts a task with declared `outputs` back out of the cache. |
 
-Besides the declared inputs, a task's key covers the script text, the keys of the tasks it depends on, the lockfile, and the runtime. A cache hit restores the output files and replays the recorded log, so the run reads the same either way.
+Besides the declared inputs, a task's key covers the script text, the keys of the tasks it depends on, the lockfile, and the runtime. When a task depends on an uncacheable task, it also runs without restoring from the cache. A cache hit restores the output files and replays the recorded log, so the run reads the same either way.
 
 `--no-cache` runs everything and neither reads nor writes cache entries.
 

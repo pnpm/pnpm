@@ -83,6 +83,31 @@ describe('pkg command', () => {
 
       expect(await handler({ dir: tmpDir }, ['get', 'dependencies.some-package-name'])).toBe('0.23.4')
     })
+
+    test('does not leak synthetic runtime dependencies from devEngines or engines', async () => {
+      const manifest = {
+        name: 'test-package',
+        devEngines: {
+          runtime: {
+            name: 'node',
+            version: '22.14.0',
+            onFail: 'download',
+          },
+        },
+        engines: {
+          runtime: {
+            name: 'node',
+            version: '22.14.0',
+            onFail: 'download',
+          },
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      expect(JSON.parse(await handler({ dir: tmpDir }, ['get']) as string)).toStrictEqual(manifest)
+      expect(await handler({ dir: tmpDir }, ['get', 'devDependencies'])).toBe('')
+      expect(await handler({ dir: tmpDir }, ['get', 'dependencies'])).toBe('')
+    })
   })
 
   describe('set subcommand', () => {
@@ -165,6 +190,37 @@ describe('pkg command', () => {
       await expect(handler({ dir: tmpDir }, ['set', 'constructor.prototype.polluted=true'])).rejects.toThrow()
       expect(({} as Record<string, unknown>).polluted).toBeUndefined()
     })
+
+    test('updates devEngines.runtime.version without reverting from synthetic devDependencies', async () => {
+      const manifest = {
+        name: 'test-package',
+        devEngines: {
+          runtime: {
+            name: 'node',
+            version: '22.14.0',
+            onFail: 'download',
+          },
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['set', 'devEngines.runtime.version=24.0.0'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.devEngines.runtime.version).toBe('24.0.0')
+      expect(updated.devDependencies).toBeUndefined()
+    })
+
+    test('preserves empty dependency objects and existing dependency key order when setting JSON', async () => {
+      fs.writeFileSync(
+        path.join(tmpDir, 'package.json'),
+        '{\n  "name": "test-package",\n  "devDependencies": {\n    "zebra": "1.0.0",\n    "alpha": "1.0.0"\n  }\n}\n'
+      )
+
+      await handler({ dir: tmpDir, json: true }, ['set', 'dependencies={}'])
+      expect(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8')).toBe(
+        '{\n  "name": "test-package",\n  "devDependencies": {\n    "zebra": "1.0.0",\n    "alpha": "1.0.0"\n  },\n  "dependencies": {}\n}\n'
+      )
+    })
   })
 
   describe('delete subcommand', () => {
@@ -213,6 +269,29 @@ describe('pkg command', () => {
       const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
       expect(updated.contributors).toEqual([{ name: 'Bob' }])
     })
+
+    test('preserves devEngines.runtime when deleting devDependencies and deletes devEngines.runtime cleanly', async () => {
+      const runtime = {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      }
+      const manifest = {
+        name: 'test-package',
+        devDependencies: { vitest: '^3.0.0' },
+        devEngines: { runtime },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['delete', 'devDependencies'])
+      const afterDeletingDevDeps = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(afterDeletingDevDeps.devDependencies).toBeUndefined()
+      expect(afterDeletingDevDeps.devEngines.runtime).toStrictEqual(runtime)
+
+      await handler({ dir: tmpDir }, ['delete', 'devEngines.runtime'])
+      const afterDeletingRuntime = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(afterDeletingRuntime.devEngines).toStrictEqual({})
+    })
   })
 
   describe('fix subcommand', () => {
@@ -239,6 +318,24 @@ describe('pkg command', () => {
       await handler({ dir: tmpDir }, ['fix'])
       const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
       expect(updated.dependencies).toBeUndefined()
+    })
+
+    test('fixes invalid devDependencies without crashing or dropping devEngines.runtime', async () => {
+      const runtime = {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({
+        name: 'test-package',
+        devDependencies: 'invalid',
+        devEngines: { runtime },
+      }, null, 2))
+
+      await handler({ dir: tmpDir }, ['fix'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.devDependencies).toBeUndefined()
+      expect(updated.devEngines.runtime).toStrictEqual(runtime)
     })
 
     test('removes array-valued object fields', async () => {
@@ -385,6 +482,28 @@ describe('pkg command', () => {
       })
     })
 
+    test('does not leak synthetic runtime dependencies in recursive `get`', async () => {
+      const runtime = {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      }
+      const { selectedProjectsGraph } = setupWorkspace({
+        'pkg-a': { name: 'pkg-a', devEngines: { runtime } },
+      })
+
+      const result = await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        recursive: true,
+        selectedProjectsGraph,
+      }, ['get'])
+
+      expect(JSON.parse(result as string)).toEqual({
+        'pkg-a': { name: 'pkg-a', devEngines: { runtime } },
+      })
+    })
+
     test('keys projects that share a name by their directory', async () => {
       const { selectedProjectsGraph } = setupWorkspace({
         a: { name: 'pkg-a', version: '1.0.0' },
@@ -481,5 +600,14 @@ describe('pkg command', () => {
         selectedProjectsGraph: {},
       }, ['get'])).rejects.toMatchObject({ code: 'ERR_PNPM_PKG_RECURSIVE_NO_PACKAGES' })
     })
+  })
+
+  test('replaces a YAML timestamp in package.yaml with an empty JSON object', async () => {
+    fs.writeFileSync(path.join(tmpDir, 'package.yaml'), 'name: yaml-pkg\nmetadata:\n  date: 2020-01-01\n')
+
+    await handler({ dir: tmpDir, json: true }, ['set', 'metadata.date={}'])
+
+    const output = await handler({ dir: tmpDir, json: true }, ['get', 'metadata.date'])
+    expect(JSON.parse(output!)).toStrictEqual({})
   })
 })

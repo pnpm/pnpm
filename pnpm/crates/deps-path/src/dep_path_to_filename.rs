@@ -44,10 +44,7 @@ fn has_ambiguous_escape(dep_path: &str) -> bool {
     let version = if pkg_id.starts_with("file:") {
         pkg_id
     } else {
-        let Some((separator, _)) = pkg_id
-            .match_indices('@')
-            .find(|(index, _)| *index > 0)
-        else {
+        let Some(separator) = crate::version_separator_index(pkg_id) else {
             return false;
         };
         &pkg_id[separator + 1..]
@@ -67,26 +64,10 @@ fn dep_path_to_filename_unescaped(dep_path: &str) -> String {
         return dep_path.replacen(':', "+", 1);
     }
     let trimmed = dep_path.strip_prefix('/').unwrap_or(dep_path);
-    // Scan for the `@` from position 1 so a leading `@` on a scoped name
-    // (`@scope/foo`) doesn't get treated as the version separator. The
-    // `len() < 2` guard handles the case where there's nothing to
-    // rebuild: return the string as-is. Without it the `[1..]` slice
-    // panics on empty / single-byte input.
-    if trimmed.len() < 2 {
-        return trimmed.to_string();
-    }
-    let after_first = &trimmed.as_bytes()[1..];
-    let Some(rel) = after_first
-        .iter()
-        .position(|&b| b == b'@')
-    else {
+    let Some(split) = crate::version_separator_index(trimmed) else {
         return trimmed.to_string();
     };
-    let split = rel + 1;
     let (name, rest) = trimmed.split_at(split);
-    // Rebuild as `${name}@${rest[1..]}` — i.e. consume the `@` and
-    // re-emit one. The transformation is a no-op for any input whose
-    // `name` slot does not already end in `@`.
     let rest = rest.strip_prefix('@').unwrap_or(rest);
     format!("{name}@{rest}")
 }

@@ -339,6 +339,11 @@ fn moving_a_dependency_between_groups_skips_resolution() {
         .to_string(),
     )
     .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -448,6 +453,11 @@ fn a_remove_with_an_unchanged_pnpmfile_skips_resolution() {
         .to_string(),
     )
     .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -519,6 +529,11 @@ fn a_remove_keeps_the_specifiers_a_project_rewriting_pnpmfile_recorded() {
         .to_string(),
     )
     .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -594,6 +609,11 @@ fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
     write_two_member_workspace(&workspace);
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()

@@ -44,11 +44,11 @@ impl DirectoryManifests {
 pub(crate) async fn hooked_importer_directory_manifests(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    overrider: Option<&Arc<crate::VersionsOverrider>>,
 ) -> Result<DirectoryManifests, FreshnessCheckError> {
     let nested_packages = nested_directory_packages(lockfile, inputs);
     let nested = checked_nested(&nested_packages, inputs);
-    hooked_directory_manifests(lockfile, inputs, (parsed_overrides, &nested)).await
+    hooked_directory_manifests(lockfile, inputs, (overrider, &nested)).await
 }
 
 pub(super) fn nested_directory_packages(
@@ -82,10 +82,7 @@ pub(super) fn checked_nested<'n>(
 pub(super) async fn hooked_directory_manifests(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    (parsed_overrides, nested): (
-        Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-        &NestedByImporter<'_>,
-    ),
+    (overrider, nested): (Option<&Arc<crate::VersionsOverrider>>, &NestedByImporter<'_>),
 ) -> Result<DirectoryManifests, FreshnessCheckError> {
     let mut level = direct_directory_deps(lockfile, inputs);
     level.extend(nested_directory_deps(nested));
@@ -95,7 +92,7 @@ pub(super) async fn hooked_directory_manifests(
     let walk = DirectoryWalk {
         lockfile,
         inputs,
-        parsed_overrides,
+        overrider: overrider.map(Arc::as_ref),
         manifests_by_dir: dependency_manifest_sources(inputs),
         declared_manifests_by_dir: lockfile.packages
             .as_ref()
@@ -108,24 +105,15 @@ pub(super) async fn hooked_directory_manifests(
                     inputs.dependency_manifests.injected,
                 )
             }),
-        hooks: resolver_hooks(inputs, parsed_overrides)?,
+        hooks: resolver_hooks(inputs, overrider.cloned())?,
     };
     walk.read_all(level).await
 }
 
 fn resolver_hooks(
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    versions_overrider: Option<Arc<crate::VersionsOverrider>>,
 ) -> Result<ManifestTransformHooks, FreshnessCheckError> {
-    let versions_overrider = parsed_overrides.map(|parsed| {
-        Arc::new(
-            crate::VersionsOverrider::new(
-                parsed,
-                inputs.config.root_project_manifest_dir(inputs.lockfile_dir),
-            )
-            .with_catalogs(inputs.catalogs),
-        )
-    });
     Ok(crate::install_with_fresh_lockfile::resolver_manifest_hooks(
         inputs.config,
         versions_overrider,
@@ -215,7 +203,7 @@ fn nested_directory_deps<'n>(nested: &'n NestedByImporter<'_>) -> impl Iterator<
 struct DirectoryWalk<'a, 'i> {
     lockfile: &'a Lockfile,
     inputs: &'a LockfileFreshnessInputs<'i, 'i>,
-    parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
+    overrider: Option<&'a crate::VersionsOverrider>,
     manifests_by_dir: super::ProjectManifestsByDir<'a>,
     declared_manifests_by_dir: Option<super::ProjectManifestsByDir<'a>>,
     hooks: ManifestTransformHooks,

@@ -193,13 +193,13 @@ function alignColumns (rows: string[][]): string[] {
         wrapWord: true,
       },
       columns:
-          {
-            0: { width: 50, truncate: 100 },
-            1: { width: getColumnWidth(rows, 1, 15), alignment: 'right' },
-            3: { width: getColumnWidth(rows, 3, 15) },
-            4: { paddingLeft: 2 },
-            5: { paddingLeft: 2 },
-          },
+        {
+          0: { width: 50, truncate: 100 },
+          1: { width: getColumnWidth(rows, 1, 15), alignment: 'right' },
+          3: { width: getColumnWidth(rows, 3, 15) },
+          4: { paddingLeft: 2 },
+          5: { paddingLeft: 2 },
+        },
       drawHorizontalLine: () => false,
     }
   ).split('\n')

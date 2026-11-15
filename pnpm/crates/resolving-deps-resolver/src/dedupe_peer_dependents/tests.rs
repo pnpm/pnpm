@@ -44,6 +44,7 @@ fn make_node(
     resolved_peers: &[&str],
 ) -> DependenciesGraphNode {
     DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: dp(dep_path),
         resolved_package_id: pkg_id.to_string(),
         resolve_result: Arc::new(ResolveResult {
@@ -561,6 +562,27 @@ fn a_hashed_suffix_is_hashed_again_from_the_renamed_peers() {
         UnboundOptionalPeers::default(),
     );
 
+    let key: pnpm_lockfile::PackageKey = renamed_consumer.parse().unwrap();
+    let snapshots = [(
+        key.clone(),
+        pnpm_lockfile::SnapshotEntry {
+            recorded_peer_bindings: graph[&dp(&renamed_consumer)]
+                .recorded_peer_bindings
+                .clone(),
+            ..Default::default()
+        },
+    )]
+    .into();
+    let providers = pnpm_lockfile::BoundProviders::of_snapshot(
+        pnpm_lockfile::LockfileEntries { snapshots: Some(&snapshots), packages: None },
+        &key,
+    );
+    assert_eq!(
+        providers
+            .provider_keys(&larger.parse().unwrap())
+            .unwrap(),
+        &[larger.parse().unwrap()].into(),
+    );
     assert_ne!(consumer, renamed_consumer);
     assert_eq!(direct["project-consumer"]["consumer"], dp(&renamed_consumer));
     assert_eq!(graph[&dp(&renamed_consumer)].edges.children["foo"], dp(larger));

@@ -1,4 +1,4 @@
-//! The homes of the revision mocks: the hosted store and metadata database
+//! The homes of the revision mocks: the hosted store and database
 //! each one serves from.
 
 use std::path::{Path, PathBuf};

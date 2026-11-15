@@ -37,7 +37,7 @@ export interface AddDirToPosixEnvPathOpts {
   configSectionName: string
 }
 
-export type ShellType = 'zsh' | 'bash' | 'fish' | 'ksh' | 'dash' | 'sh' | 'nu'
+export type ShellType = 'zsh' | 'bash' | 'fish' | 'ksh' | 'dash' | 'sh' | 'nu' | 'pwsh'
 
 export type ConfigFileChangeType = 'skipped' | 'appended' | 'modified' | 'created'
 
@@ -73,7 +73,7 @@ async function updateShell (
   pnpmHomeDir: string,
   opts: AddDirToPosixEnvPathOpts
 ): Promise<PathExtenderPosixReport> {
-  const supportedShellsMsg = 'Supported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell.'
+  const supportedShellsMsg = 'Supported shell languages are bash, zsh, fish, ksh, dash, sh, nushell, and PowerShell.'
   switch (currentShell) {
     case 'bash':
     case 'zsh':
@@ -87,6 +87,9 @@ async function updateShell (
     }
     case 'nu': {
       return setupNuShell(pnpmHomeDir, opts)
+    }
+    case 'pwsh': {
+      return setupPwshShell(pnpmHomeDir, opts)
     }
     case null:
     case '': {
@@ -219,6 +222,46 @@ $env.PATH = ($env.PATH | split row (char esep) | ${addingCommand} ${pathRef} )`
     oldSettings,
     newSettings,
   }
+}
+
+async function setupPwshShell (dir: string, opts: AddDirToPosixEnvPathOpts): Promise<PathExtenderPosixReport> {
+  const configFile = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'powershell/profile.ps1')
+  const newSettings = renderPwshSettings(dir, opts)
+  const content = wrapSettings(opts.configSectionName, newSettings)
+  const { changeType, oldSettings } = await updateShellConfig(configFile, content, opts)
+  return {
+    configFile: {
+      path: configFile,
+      changeType,
+    },
+    oldSettings,
+    newSettings,
+  }
+}
+
+/**
+ * The block for PowerShell on a non-Windows platform, where `PATH` is
+ * `:`-separated. `-cne` compares case-sensitively, as the file system does.
+ */
+function renderPwshSettings (dir: string, opts: AddDirToPosixEnvPathOpts): string {
+  const entry = opts.proxyVarName
+    ? (opts.proxyVarSubDir ? `"$env:${opts.proxyVarName}/${opts.proxyVarSubDir}"` : `$env:${opts.proxyVarName}`)
+    : quotePowerShell(dir)
+  const start = (opts.position ?? 'start') === 'start'
+  const pathValue = start ? `${entry} + ':' + $env:PATH` : `$env:PATH + ':' + ${entry}`
+  const guardedUpdate = `if (($env:PATH -split ':')[${start ? '0' : '-1'}] -cne ${entry}) {
+  $env:PATH = ${pathValue}
+}`
+  return opts.proxyVarName ? `$env:${opts.proxyVarName} = ${quotePowerShell(dir)}\n${guardedUpdate}` : guardedUpdate
+}
+
+/**
+ * Wrap `value` in PowerShell single quotes, doubling every quote character, so
+ * PowerShell treats it as a literal with no expansion. PowerShell also treats
+ * typographic apostrophes as string delimiters.
+ */
+export function quotePowerShell (value: string): string {
+  return `'${value.replace(/['\u2018-\u201b]/g, (quote) => quote + quote)}'`
 }
 
 export function wrapSettings (sectionName: string, settings: string): string {

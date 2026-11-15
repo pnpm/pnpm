@@ -5,17 +5,16 @@ use std::{borrow::Cow, sync::Arc};
 
 /// The transforms the resolver applies to a project manifest:
 /// `packageExtensions`, the pnpmfile's `readPackage`, then the overrides.
-pub(super) struct ManifestTransforms<'a> {
+pub(super) struct ManifestTransforms {
     extender: Option<crate::PackageExtender>,
     hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub(super) parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
-    overrider: Option<crate::VersionsOverrider>,
+    pub(super) overrider: Option<Arc<crate::VersionsOverrider>>,
 }
 
-impl<'a> ManifestTransforms<'a> {
+impl ManifestTransforms {
     pub(super) fn new(
         check: &OptimisticRepeatInstallCheck<'_>,
-        parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
+        parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
     ) -> Result<Self, &'static str> {
         let extender = check.config.package_extensions
             .as_ref()
@@ -23,13 +22,15 @@ impl<'a> ManifestTransforms<'a> {
             .transpose()
             .map_err(|_| "packageExtensions cannot be parsed")?;
         let overrider = parsed_overrides.map(|parsed| {
-            crate::VersionsOverrider::new(
-                parsed,
-                check.config.root_project_manifest_dir(check.workspace_root),
+            Arc::new(
+                crate::VersionsOverrider::new(
+                    parsed,
+                    check.config.root_project_manifest_dir(check.workspace_root),
+                )
+                .with_catalogs(check.catalogs),
             )
-            .with_catalogs(check.catalogs)
         });
-        Ok(Self { extender, hook: read_package_hook(check)?, parsed_overrides, overrider })
+        Ok(Self { extender, hook: read_package_hook(check)?, overrider })
     }
 
     /// Each of `projects`' manifests as the resolver reads it before the
@@ -123,7 +124,7 @@ impl<'a> ManifestTransforms<'a> {
         block_on_hooks(crate::install::hooked_importer_directory_manifests(
             wanted,
             &inputs,
-            self.parsed_overrides,
+            self.overrider.as_ref(),
         ))
         .ok_or("the readPackage hook cannot run on this thread")?
         .map_err(|_| "a directory dependency's manifest cannot be read")

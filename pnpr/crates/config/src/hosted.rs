@@ -1,4 +1,4 @@
-use super::{Deserialize, PackageRules, TeamDirectory};
+use super::{PackageRules, TeamDirectory};
 
 /// A resolved hosted registry: the storage `namespace` it serves and its
 /// `packages:` rules — the package patterns it claims plus the per-package
@@ -18,33 +18,25 @@ pub struct HostedConfig {
     /// [`Self::rules`] and served by the npm team API
     /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`).
     pub teams: TeamDirectory,
-    pub teams_managed_by: Management,
-    pub rules_managed_by: Management,
 }
 
 impl HostedConfig {
     /// A registry without teams.
     #[must_use]
     pub fn new(namespace: impl Into<String>, rules: PackageRules) -> Self {
-        Self {
-            namespace: namespace.into(),
-            rules,
-            teams: TeamDirectory::default(),
-            teams_managed_by: Management::Config,
-            rules_managed_by: Management::Config,
-        }
+        Self { namespace: namespace.into(), rules, teams: TeamDirectory::default() }
     }
 }
 
-/// Who owns a part of a hosted registry's configuration: its team roster
-/// (`teamsManagedBy`) or its package rules (`rulesManagedBy`).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Management {
-    /// The YAML is the only source, and the admin API rejects writes.
+/// Where a server takes its registry graph from.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum GraphSource {
+    /// The database: the server seeds it on first start and follows
+    /// every stored revision. Every config file selects this.
     #[default]
-    Config,
-    /// The hosted store holds what admins change through the admin API. The
-    /// YAML is the starting point until the first change is stored.
-    Api,
+    Database,
+    /// [`crate::Config::routing`] as an embedder, such as a test, built it in
+    /// code. The server serves it without reading a graph from the database,
+    /// under the same policies. No config file selects this.
+    Supplied,
 }

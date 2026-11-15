@@ -42,7 +42,7 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
             "registry": CRATES_IO_SPARSE_INDEX,
         })))
         .with_header("content-type", "application/x-ndjson")
-        .with_body("{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n")
+        .with_body("{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n")
         .expect(1)
         .create_async()
         .await;
@@ -53,6 +53,34 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
 
     assert_eq!(lockfile.as_deref(), Some("version = 4\n"));
     handshake.assert_async().await;
+    resolve.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_request_the_pnpr_server_refuses_resolves_locally() {
+    let mut server = mockito::Server::new_async().await;
+    let _handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_body(handshake_body(&["cargo"]))
+        .create_async()
+        .await;
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_status(400)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"error":"refused","code":"ERR_PNPR_UNSUPPORTED_REQUEST_FIELD"}"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let lockfile = resolve_via_pnpr(
+        &config_for_pnpr(&server.url()),
+        r#"{"packages":[],"workspace_members":[]}"#,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(lockfile, None);
     resolve.assert_async().await;
 }
 
@@ -71,7 +99,7 @@ async fn configured_cargo_registry_is_sent_to_the_pnpr_server() {
             "registry": "https://registry.example.test/index/",
         })))
         .with_header("content-type", "application/x-ndjson")
-        .with_body("{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n")
+        .with_body("{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n")
         .create_async()
         .await;
     let mut config = config_for_pnpr(&server.url());
@@ -152,7 +180,7 @@ async fn a_second_terminal_frame_fails_the_resolve() {
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
         .with_body(concat!(
-            "{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n",
+            "{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n",
             "{\"type\":\"error\",\"message\":\"resolution failed\"}\n",
         ))
         .create_async()
@@ -186,7 +214,7 @@ async fn concurrent_roots_share_one_handshake() {
     let resolve = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
-        .with_body("{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n")
+        .with_body("{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n")
         .expect(4)
         .create_async()
         .await;
@@ -238,7 +266,7 @@ async fn the_handshake_is_asked_once_per_server() {
     let resolve = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
-        .with_body("{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n")
+        .with_body("{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n")
         .expect(2)
         .create_async()
         .await;

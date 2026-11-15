@@ -1,9 +1,9 @@
 use super::{
     AssembleReleasePlanOptions, AutoExcludeRoot, Config, HashMap, HashSet, Host, Path, VersionArgs,
-    VersionError, apply_release_plan, assemble_release_plan, changelog,
+    VersionChange, VersionError, apply_release_plan, assemble_release_plan, changelog,
     confirmed_published_versions, discover_workspace_projects, is_git_repo, is_working_tree_clean,
-    read_change_intents, read_ledger, render_release_plan, select_recursive_projects,
-    to_engine_projects, unpublished_release_dirs,
+    read_change_intents, read_ledger, render_release_plan, run_version_lifecycle_hook,
+    select_recursive_projects, to_engine_projects, unpublished_release_dirs,
 };
 use miette::Context as _;
 
@@ -186,36 +186,44 @@ impl PlannedWorkspaceRelease {
         Ok(pnpm_versioning::ReleaseNotesOptions { registries, summary })
     }
 
-    pub(super) async fn apply(
+    /// A full (unfiltered) run garbage-collects the intent files an empty plan
+    /// leaves behind: declined ("none"-only) intents and files a merge
+    /// resurrected after every named package had already consumed them. A
+    /// filtered run must not — "nothing pending in this scope" is no reason to
+    /// delete prose belonging to packages outside the filter.
+    async fn apply_empty_release(
+        &self,
+        args: &VersionArgs,
+        config: &Config,
+        workspace_dir: &Path,
+    ) -> miette::Result<()> {
+        if !args.dry_run && self.unfiltered {
+            let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
+            apply_release_plan(
+                &self.plan,
+                workspace_dir,
+                &self.projects,
+                &self.intents,
+                Some(&config.versioning),
+                &confirmed,
+                &pnpm_versioning::ReleaseNotesOptions::default(),
+            )?;
+        }
+        args.report_no_pending_changes();
+        Ok(())
+    }
+
+    pub(super) async fn apply<Reporter: pnpm_reporter::Reporter>(
         self,
         args: &VersionArgs,
         config: &Config,
         (workspace_dir, dir): (&Path, &Path),
     ) -> miette::Result<()> {
         if self.plan.releases.is_empty() {
-            // A full (unfiltered) run garbage-collects the intent files an
-            // empty plan leaves behind: declined ("none"-only) intents and
-            // files a merge resurrected after every named package had already
-            // consumed them. A filtered run must not — "nothing pending in
-            // this scope" is no reason to delete prose belonging to packages
-            // outside the filter.
-            if !args.dry_run && self.unfiltered {
-                let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
-                apply_release_plan(
-                    &self.plan,
-                    workspace_dir,
-                    &self.projects,
-                    &self.intents,
-                    Some(&config.versioning),
-                    &confirmed,
-                    &pnpm_versioning::ReleaseNotesOptions::default(),
-                )?;
-            }
-            args.report_no_pending_changes();
-            return Ok(());
+            return self.apply_empty_release(args, config, workspace_dir).await;
         }
         if args.dry_run {
-            pnpm_diagnostics::println!("{}", render_release_plan(&self.plan));
+            args.report_dry_run_release_plan(&self.plan);
             return Ok(());
         }
 
@@ -227,6 +235,7 @@ impl PlannedWorkspaceRelease {
             intents,
             ..
         } = self;
+        run_release_lifecycle_hooks::<Reporter>("preversion", &plan.releases, config, dir)?;
         let applied = apply_release_plan(
             &plan,
             workspace_dir,
@@ -236,14 +245,37 @@ impl PlannedWorkspaceRelease {
             &confirmed,
             &notes,
         )?;
+        run_release_lifecycle_hooks::<Reporter>("version", &plan.releases, config, dir)?;
+        run_release_lifecycle_hooks::<Reporter>("postversion", &plan.releases, config, dir)?;
 
         args.report_applied_releases(&applied);
         Ok(())
     }
 }
 
+fn run_release_lifecycle_hooks<Reporter: pnpm_reporter::Reporter>(
+    stage: &str,
+    releases: &[pnpm_versioning::PlannedRelease],
+    config: &Config,
+    init_cwd: &Path,
+) -> miette::Result<()> {
+    for release in releases {
+        let new_version =
+            if stage == "preversion" { &release.version.current } else { &release.version.next };
+        let change = VersionChange {
+            name: release.name.clone(),
+            current_version: release.version.current.clone(),
+            new_version: new_version.clone(),
+            path: release.root_dir.clone(),
+            manifest_path: pnpm_workspace::project_manifest_path(&release.root_dir),
+        };
+        run_version_lifecycle_hook::<Reporter>(stage, &change, config, init_cwd, false)?;
+    }
+    Ok(())
+}
+
 impl VersionArgs {
-    pub(super) async fn release_from_intents(
+    pub(super) async fn release_from_intents<Reporter: pnpm_reporter::Reporter>(
         &self,
         config: &Config,
         dir: &Path,
@@ -262,7 +294,7 @@ impl VersionArgs {
         }
 
         plan_workspace_release(config, &workspace_dir).await?
-            .apply(self, config, (&workspace_dir, dir))
+            .apply::<Reporter>(self, config, (&workspace_dir, dir))
             .await
     }
 
@@ -285,6 +317,22 @@ impl VersionArgs {
         } else {
             pnpm_diagnostics::println!(r#"No pending changes. Record one with "pnpm change"."#);
         }
+    }
+
+    fn report_dry_run_release_plan(&self, plan: &pnpm_versioning::ReleasePlan) {
+        if self.json {
+            let planned: Vec<pnpm_versioning::AppliedRelease> = plan.releases
+                .iter()
+                .map(|release| pnpm_versioning::AppliedRelease {
+                    name: release.name.clone(),
+                    current_version: release.version.current.clone(),
+                    new_version: release.version.next.clone(),
+                })
+                .collect();
+            self.report_applied_releases(&planned);
+            return;
+        }
+        pnpm_diagnostics::println!("{}", render_release_plan(plan));
     }
 
     fn report_applied_releases(&self, applied: &[pnpm_versioning::AppliedRelease]) {

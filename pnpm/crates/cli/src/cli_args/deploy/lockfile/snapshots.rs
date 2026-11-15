@@ -43,7 +43,9 @@ impl DeploySnapshots {
     ) -> miette::Result<()> {
         let bases = ResolveBases { file_base: ctx.lockfile_dir, link_base: project_root };
         let snapshot = project_snapshot_to_snapshot_entry(project_snapshot, ctx, &bases)?;
-        for package_dir in importer_package_dirs(project_root, project_snapshot) {
+        for package_dir in
+            importer_package_dirs(project_root, project_snapshot, &selected.projects_by_path)
+        {
             let package_key =
                 create_file_url_key(&package_dir, "", &selected.projects_by_path, None)?;
             // An injected snapshot records its own peer context, which can differ from the importer.
@@ -53,8 +55,9 @@ impl DeploySnapshots {
             else {
                 continue;
             };
+            // Own dependencies declared as peers still need manifest-based edge classification.
             if let Some(project) = selected.project_info(project_root)
-                && !project.peer_dependencies.is_empty()
+                && !project.peer_set.declared().is_empty()
             {
                 self.linked_workspace_projects.insert(
                     package_key,

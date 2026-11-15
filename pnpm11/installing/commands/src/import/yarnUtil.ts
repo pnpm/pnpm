@@ -11,6 +11,24 @@ export type ParseRange = typeof structUtils.parseRange
 
 type YarnRange = ReturnType<ParseRange>
 
+export type YarnLockFileKeyNormalizer = (fullDescriptor: string) => Set<string>
+
+export const yarnLockFileKeyNormalizer = (
+  parseDescriptor: ParseDescriptor,
+  parseRange: ParseRange
+): YarnLockFileKeyNormalizer => (fullDescriptor: string) => {
+  const allKeys = fullDescriptor
+    .split(MULTIPLE_KEYS_REGEXP)
+    .map(keyNormalizer(parseDescriptor, parseRange))
+  return new Set<string>(allKeys.flat(5))
+}
+
+export function splitDescriptor (descriptor: string): [string, string] | undefined {
+  const at = descriptor.indexOf('@', 1)
+  if (at === -1) return undefined
+  return [descriptor.slice(0, at), descriptor.slice(at + 1)]
+}
+
 const keyNormalizer = (
   parseDescriptor: ParseDescriptor,
   parseRange: ParseRange
@@ -20,7 +38,22 @@ const keyNormalizer = (
   const name = `${descriptor.scope ? '@' + descriptor.scope + '/' : ''}${
     descriptor.name
   }`
-  return [rawDescriptor, ...normalizeRange(name, parseRange(descriptor.range))]
+  const range = parseRange(descriptor.range)
+  if (range.protocol === 'npm:') {
+    return normalizeNpmRange(name, range.selector)
+  }
+  return [rawDescriptor, ...normalizeRange(name, range)]
+}
+
+function normalizeNpmRange (name: string, selector: string): string[] {
+  const [target, targetRange] = splitDescriptor(selector) ?? []
+  if (target != null && targetRange != null) {
+    return [`${target}@${targetRange}`]
+  }
+  if (selector.startsWith('@') && selector.includes('/')) {
+    return [`${selector}@*`]
+  }
+  return [`${name}@${selector}`]
 }
 
 function normalizeRange (name: string, range: YarnRange): string[] {
@@ -29,7 +62,6 @@ function normalizeRange (name: string, range: YarnRange): string[] {
     return [range.source ? `${name}@${range.source}#${range.selector}` : `${name}@${range.selector}`]
   }
   switch (protocol) {
-    case 'npm:':
     case 'file:':
       return [`${name}@${range.selector}`, `${name}@${protocol}${range.selector}`]
     case 'git:':
@@ -57,16 +89,4 @@ function formatSourceDescriptor (name: string, range: YarnRange): string {
   return `${name}@${range.protocol}${range.source}${
     range.selector ? '#' + range.selector : ''
   }`
-}
-
-export type YarnLockFileKeyNormalizer = (fullDescriptor: string) => Set<string>
-
-export const yarnLockFileKeyNormalizer = (
-  parseDescriptor: ParseDescriptor,
-  parseRange: ParseRange
-): YarnLockFileKeyNormalizer => (fullDescriptor: string) => {
-  const allKeys = fullDescriptor
-    .split(MULTIPLE_KEYS_REGEXP)
-    .map(keyNormalizer(parseDescriptor, parseRange))
-  return new Set<string>(allKeys.flat(5))
 }

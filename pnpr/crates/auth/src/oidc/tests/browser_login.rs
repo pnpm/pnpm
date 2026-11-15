@@ -9,7 +9,7 @@ async fn browser_login_binds_verified_subjects_through_scim() {
     let subject = config.workloads.remove(0).identity.subject;
     config.login = Some(OidcLogin {
         scim: true,
-        client_secret: Some("secret".to_string()),
+        client_secret: Some("secret".to_string().into()),
         users: vec![],
         groups: Some(groups(&[("platform-eng", "platform")])),
     });
@@ -83,7 +83,7 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
     let mut config = config(&provider.issuer);
     config.login = Some(OidcLogin {
         scim: false,
-        client_secret: Some("secret".to_string()),
+        client_secret: Some("secret".to_string().into()),
         users: vec![config.workloads.remove(0).identity],
         groups: Some(groups(&[("platform-eng", "platform"), ("finance", "finance")])),
     });
@@ -184,7 +184,7 @@ async fn binding_revocation_waits_until_the_finishing_login_has_a_session() {
     config.workloads.clear();
     config.login = Some(OidcLogin {
         scim: true,
-        client_secret: Some("secret".to_string()),
+        client_secret: Some("secret".to_string().into()),
         users: vec![],
         groups: None,
     });
@@ -223,7 +223,7 @@ async fn scim_login_rejects_workload_subjects_before_directory_lookup() {
     let mut config = config(&provider.issuer);
     config.login = Some(OidcLogin {
         scim: true,
-        client_secret: Some("secret".to_string()),
+        client_secret: Some("secret".to_string().into()),
         users: vec![],
         groups: None,
     });

@@ -14,7 +14,7 @@ repository.workspace = true
 pnpm-matcher = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
-pnpm-deps-restorer = { workspace = true }
+pnpm-deps-restorer = { workspace = true, features = ["shell-emulator"] }
 pnpm-fs = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-modules-yaml = { workspace = true }

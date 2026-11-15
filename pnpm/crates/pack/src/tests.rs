@@ -47,6 +47,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
         output: crate::PackOutputOptions {
             gzip_level: None,
             dry_run: false,
+            base_dir: None,
             destination: None,
             out: None,
             injected_files: Vec::new(),
@@ -813,6 +814,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
         output: crate::PackOutputOptions {
             gzip_level: None,
             dry_run: false,
+            base_dir: None,
             destination: None,
             out: None,
             injected_files: Vec::new(),
@@ -875,6 +877,7 @@ fn symlinked_workspace_license_is_not_injected() {
         output: crate::PackOutputOptions {
             gzip_level: None,
             dry_run: false,
+            base_dir: None,
             destination: None,
             out: None,
             injected_files: Vec::new(),
@@ -927,6 +930,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
         output: crate::PackOutputOptions {
             gzip_level: None,
             dry_run: false,
+            base_dir: None,
             destination: None,
             out: None,
             injected_files: Vec::new(),
@@ -1348,6 +1352,7 @@ fn pack_preserves_internal_symlinks() {
 
 mod bundled_dependencies;
 mod dotenv;
+mod output;
 mod variants;
 
 mod variant_warnings;

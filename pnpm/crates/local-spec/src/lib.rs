@@ -283,7 +283,9 @@ fn without_protocol(path: String) -> String {
 /// much as a drive path. Nothing is lost by that — a drive path names
 /// the same place from every directory, and a drive-relative one is
 /// measured from process state no caller here can see.
-fn bare_path_is_unambiguous(specifier: &str) -> bool {
+/// Whether a bare specifier can only be claimed as a local path.
+#[must_use]
+pub fn bare_path_is_unambiguous(specifier: &str) -> bool {
     !is_drive_letter_prefix(specifier) && is_filespec(specifier)
 }
 

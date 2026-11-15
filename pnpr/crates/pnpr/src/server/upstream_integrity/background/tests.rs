@@ -7,8 +7,12 @@ use std::time::Duration;
 
 fn state(dir: &std::path::Path, upstream: &str) -> AppState {
     let path = dir.join("pnpr.yaml");
-    std::fs::write(&path, format!("storage: ./store\nregistries:\n  mirror:\n    type: upstream\n    url: {upstream}\n    public: true\ndefaultRegistry: mirror\n")).unwrap();
-    let config = crate::Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    std::fs::write(&path, format!("storage: ./store\nroutes:\n  allowedPrivateNetworks: [127.0.0.0/8]\nregistries:\n  mirror:\n    type: upstream\n    url: {upstream}\n    public: true\ndefaultRegistry: mirror\n")).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(
+        &path,
+        "127.0.0.1:0".parse().unwrap(),
+        Some("http://example.test".to_string()),
+    );
     state_and_router(config, AuthState::in_memory(), None).unwrap().0
 }
 
@@ -17,7 +21,8 @@ async fn queued_packages_complete_after_capacity_returns() {
     let mut server = mockito::Server::new_async().await;
     let tmp = tempfile::tempdir().unwrap();
     let state = state(tmp.path(), &server.url());
-    let upstream = &state.inner.proxy.upstreams["mirror"];
+    let routing = state.routing();
+    let upstream = &routing.upstream_clients["mirror"];
     let held = state.inner.proxy.integrity_backfill.slots
         .acquire_many(MAX_ACTIVE_PACKUMENTS as u32)
         .await
@@ -89,7 +94,8 @@ async fn a_refresh_during_backfill_retries_the_new_document() {
     let mut server = mockito::Server::new_async().await;
     let tmp = tempfile::tempdir().unwrap();
     let state = state(tmp.path(), &server.url());
-    let upstream = &state.inner.proxy.upstreams["mirror"];
+    let routing = state.routing();
+    let upstream = &routing.upstream_clients["mirror"];
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
     let url = server.url();
     let document = |file: &str| {
@@ -174,7 +180,8 @@ async fn failed_pins_are_not_retried_by_download_requests() {
     let mut server = mockito::Server::new_async().await;
     let tmp = tempfile::tempdir().unwrap();
     let state = state(tmp.path(), &server.url());
-    let upstream = &state.inner.proxy.upstreams["mirror"];
+    let routing = state.routing();
+    let upstream = &routing.upstream_clients["mirror"];
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
     let filename = "example-1.0.0.tgz";
     let archive = server
@@ -207,7 +214,7 @@ async fn pin_waits_are_bounded_and_skip_unusable_metadata() {
     let server = mockito::Server::new_async().await;
     let tmp = tempfile::tempdir().unwrap();
     let state = state(tmp.path(), &server.url());
-    let mut config = state.inner.config.routing.upstreams["mirror"].clone();
+    let mut config = state.routing().upstreams["mirror"].clone();
     config.requests.timeout = Duration::from_millis(20);
     let upstream = super::Upstream::new("mirror", &config);
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
@@ -268,7 +275,8 @@ async fn a_download_resumes_cached_work_after_restart() {
         .unwrap();
     drop(app);
     let app = state(tmp.path(), &server.url());
-    let upstream = &app.inner.proxy.upstreams["mirror"];
+    let routing = app.routing();
+    let upstream = &routing.upstream_clients["mirror"];
     super::wait_for_pin(&app, "test", upstream, &name, filename).await.unwrap();
     let bytes = app.inner.storage
         .read_upstream_document_any("test", &name)
@@ -321,12 +329,14 @@ async fn waiting_applies_the_cap_after_vulnerability_screening() {
         .acquire_many(MAX_ACTIVE_PACKUMENTS as u32)
         .await
         .unwrap();
-    let upstream = &app.inner.proxy.upstreams["mirror"];
+    let routing = app.routing();
+    let upstream = &routing.upstream_clients["mirror"];
     schedule(&app, "test", upstream, &name);
     let waiter_state = app.clone();
     let waiter_name = name.clone();
     let mut waiter = tokio::spawn(async move {
-        let upstream = &waiter_state.inner.proxy.upstreams["mirror"];
+        let routing = waiter_state.routing();
+        let upstream = &routing.upstream_clients["mirror"];
         super::wait_for_pin(&waiter_state, "test", upstream, &waiter_name, &filename)
             .await
             .unwrap();
@@ -349,7 +359,8 @@ async fn a_full_queue_rejects_pin_waits_and_allows_a_later_retry() {
     let mut server = mockito::Server::new_async().await;
     let tmp = tempfile::tempdir().unwrap();
     let app = state(tmp.path(), &server.url());
-    let upstream = &app.inner.proxy.upstreams["mirror"];
+    let routing = app.routing();
+    let upstream = &routing.upstream_clients["mirror"];
     let held = app.inner.proxy.integrity_backfill.slots
         .acquire_many(MAX_ACTIVE_PACKUMENTS as u32)
         .await

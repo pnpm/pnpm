@@ -56,10 +56,108 @@ fn version_rule_outranks_bare_name() {
 }
 
 #[test]
-fn bare_name_rule_needs_a_registry_dep_path() {
-    let policy = policy(&[("foo", SkillsPermission::All(true))]);
-    assert_eq!(policy.check("foo@https://example.com/foo.tgz"), None);
-    assert_eq!(policy.check("foo@2.0.0"), Some(SkillsPermission::All(true)));
+fn bare_name_rule_matches_registry_and_local_directories_only() {
+    let policy = policy(&[("@example/my-skills", SkillsPermission::All(true))]);
+    assert_eq!(policy.check("@example/my-skills@2.0.0"), Some(SkillsPermission::All(true)));
+    assert_eq!(
+        policy.check("@example/my-skills@link:packages/my-skills"),
+        Some(SkillsPermission::All(true)),
+    );
+    assert_eq!(
+        policy.check("@example/my-skills@file:../my-skills"),
+        Some(SkillsPermission::All(true)),
+    );
+    assert_eq!(
+        policy.check("@example/my-skills@file:packages/my-skills(peer@1.0.0)"),
+        Some(SkillsPermission::All(true)),
+    );
+    assert_eq!(policy.check("@example/my-skills@https://example.com/foo.tgz"), None);
+    assert_eq!(policy.check("@example/my-skills@file:./foo.tgz"), None);
+    assert_eq!(policy.check("@example/my-skills@file:./foo.tar.gz"), None);
+    assert_eq!(policy.check("@example/my-skills@file:./foo.tar"), None);
+    assert_eq!(policy.check("@example/my-skills@file:./foo.TGZ"), None);
+    assert_eq!(policy.check("@example/my-skills@git+https://github.com/org/foo.git#abc"), None);
+}
+
+#[test]
+fn skill_approval_key_uses_bare_name_for_local_directories_and_dep_path_for_tarballs() {
+    use super::skill_approval_key;
+
+    assert_eq!(skill_approval_key("@example/my-skills@1.2.3"), "@example/my-skills");
+    assert_eq!(
+        skill_approval_key("@example/my-skills@link:packages/my-skills"),
+        "@example/my-skills",
+    );
+    assert_eq!(
+        skill_approval_key("@example/my-skills@file:../my-skills(peer@1.0.0)"),
+        "@example/my-skills",
+    );
+    assert_eq!(
+        skill_approval_key("@example/my-skills@file:./my-skills.tgz"),
+        "@example/my-skills@file:./my-skills.tgz",
+    );
+    assert_eq!(
+        skill_approval_key("@example/my-skills@file:./my-skills.tar.gz"),
+        "@example/my-skills@file:./my-skills.tar.gz",
+    );
+    assert_eq!(
+        skill_approval_key("@example/my-skills@file:./my-skills.tar"),
+        "@example/my-skills@file:./my-skills.tar",
+    );
+    assert_eq!(
+        skill_approval_key("foo@git+https://github.com/org/foo.git#abc123"),
+        "foo@git+https://github.com/org/foo.git#abc123",
+    );
+}
+
+#[test]
+fn explicit_local_dep_path_rule_outranks_bare_name_rule() {
+    let policy = policy(&[
+        ("foo", SkillsPermission::All(true)),
+        ("foo@link:packages/foo", chosen(&["guide"])),
+        ("foo@file:../vendor/foo@1.0.0", chosen(&["migrate"])),
+    ]);
+    assert_eq!(policy.check("foo@link:packages/foo"), Some(chosen(&["guide"])));
+    assert_eq!(policy.check("foo@file:../vendor/foo@1.0.0"), Some(chosen(&["migrate"])));
+    assert_eq!(policy.check("foo@link:packages/other"), Some(SkillsPermission::All(true)));
+}
+
+#[test]
+fn local_directory_paths_containing_at_match_bare_name_and_key_helpers() {
+    use super::skill_approval_key;
+
+    let policy = policy(&[
+        ("foo", SkillsPermission::All(true)),
+        ("@scope/foo", SkillsPermission::All(true)),
+    ]);
+    for dep_path in [
+        "foo@link:packages/@scope/foo",
+        "foo@file:../vendor/foo@1.0.0",
+        "@scope/foo@link:packages/@scope/foo",
+        "@scope/foo@file:packages/@scope/foo@2.0.0(peer@1.0.0)",
+    ] {
+        assert_eq!(policy.check(dep_path), Some(SkillsPermission::All(true)), "{dep_path}");
+    }
+    assert_eq!(skill_approval_key("foo@link:packages/@scope/foo"), "foo");
+    assert_eq!(skill_approval_key("foo@file:../vendor/foo@1.0.0"), "foo");
+    assert_eq!(skill_approval_key("@scope/foo@link:packages/@scope/foo"), "@scope/foo");
+    assert_eq!(policy.check("foo@https://example.com/foo@1.0.0"), None);
+    assert_eq!(policy.check("foo@file:../vendor/foo@1.0.0/pkg.tgz"), None);
+}
+
+#[test]
+fn link_directory_with_trailing_parentheses_does_not_approve_other_directory() {
+    use super::skill_approval_key;
+
+    let policy = policy(&[
+        ("foo@link:packages/foo(alt)", SkillsPermission::All(true)),
+        ("bar@link:(group)", SkillsPermission::All(true)),
+    ]);
+    assert_eq!(policy.check("foo@link:packages/foo(alt)"), Some(SkillsPermission::All(true)));
+    assert_eq!(policy.check("foo@link:packages/foo"), None);
+    assert_eq!(policy.check("bar@link:(group)"), Some(SkillsPermission::All(true)));
+    assert_eq!(skill_approval_key("foo@link:packages/foo(alt)"), "foo");
+    assert_eq!(skill_approval_key("bar@link:(group)"), "bar");
 }
 
 #[test]

@@ -128,3 +128,56 @@ fn update_latest_keeps_the_requirement_operator_over_save_prefix() {
     assert!(cargo_toml.contains(r#"range = ">=1.1.0, <2""#));
     assert!(cargo_toml.contains(r#"tilde = "~1.1.0""#));
 }
+
+#[test]
+fn update_latest_resolves_member_package_rename_inherited_from_workspace() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    let cache_dir = root.path().join("cache");
+    let member = workspace.join("crates/app");
+    fs::create_dir_all(member.join("src")).unwrap();
+    fs::write(member.join("src/lib.rs"), "").unwrap();
+    write_index(&cache_dir, "it/oa", "itoa", &["1.0.0", "1.0.18"]);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "cargo:\n  enabled: true\nstoreDir: '{}'\ncacheDir: '{}'\n",
+            root.path().join("store").display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/app\"]\nresolver = \"3\"\n\n[workspace.dependencies]\nmy_itoa = { package = \"itoa\", version = \"1.0.0\" }\n",
+    )
+    .unwrap();
+    fs::write(
+        member.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nmy_itoa = { package = \"itoa\", workspace = true }\n",
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.lock"),
+        format!(
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"itoa\"]\n\n{}",
+            locked_package("itoa", "1.0.0"),
+        ),
+    )
+    .unwrap();
+
+    pacquet(&workspace, ["update", "--latest", "--offline", "--lockfile-only"]).assert().success();
+
+    let root_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(
+        root_toml.contains(r#"my_itoa = { package = "itoa", version = "1.0.18" }"#),
+        "ROOT CARGO.TOML:\n{root_toml}",
+    );
+    let member_toml = fs::read_to_string(member.join("Cargo.toml")).unwrap();
+    assert!(
+        member_toml.contains(r#"my_itoa = { package = "itoa", workspace = true }"#),
+        "MEMBER CARGO.TOML:\n{member_toml}",
+    );
+    let cargo_lock = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
+    assert!(cargo_lock.contains("name = \"itoa\"\nversion = \"1.0.18\""), "{cargo_lock}");
+}

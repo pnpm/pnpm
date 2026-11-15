@@ -499,8 +499,8 @@ async fn an_unsynced_libsql_replica_serves_oci_manifests_and_blobs_from_the_prim
         let mut config = oci_config(tmp.path().join(name), "$all");
         config.storage.hosted_backend =
             HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
-        config.storage.metadata =
-            pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+        config.storage.database =
+            pnpr_config::DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
                 url: format!("http://{address}"),
                 auth_token: None,
                 replica_path: Some(tmp.path().join(name).join("replica.db")),

@@ -110,9 +110,6 @@ pub fn where_refused_key_belongs(camel_key: &str) -> String {
         global_equivalent_key(camel_key).map_or_else(|| to_kebab_case(camel_key), str::to_string);
     if is_config_file_key(&kebab_key) {
         format!("Set it for the machine instead: pnpm config set --global {kebab_key}")
-    } else if MachineSettings::keys().contains(camel_key) {
-        let env_name = kebab_key.replace('-', "_").to_uppercase();
-        format!("Set it in the global config.yaml or with PNPM_CONFIG_{env_name} instead")
     } else {
         "This is not a pnpm setting".to_string()
     }

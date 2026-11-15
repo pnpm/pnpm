@@ -1,6 +1,9 @@
 //! Signalling a Unix task, and finding the descendants a signal to its
 //! process group does not reach.
 
+#[cfg(target_os = "linux")]
+pub(super) mod linux;
+
 use super::{RunningExecution, Stop};
 use crate::process::Command;
 use std::{collections::HashMap, io::Read, process::Stdio, time::Duration};
@@ -24,6 +27,7 @@ impl RunningExecution {
                 Some(if *separate_process_group { -pid } else { pid })
             }
             Self::Group { leader } => i32::try_from(*leader).ok().map(|leader| -leader),
+            #[cfg(feature = "shell-emulator")]
             Self::Emulated(_) => None,
         }
     }
@@ -171,21 +175,6 @@ pub(super) fn descendant_processes(roots: &[u32]) -> Vec<Descendant> {
         }
     }
     descendants
-}
-
-/// Reading a process's parent from `/proc`.
-#[cfg(target_os = "linux")]
-mod linux {
-    /// The parent pid `/proc` gives `pid`.
-    pub(super) fn parent_of(pid: i32) -> Option<u32> {
-        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-        let (_, fields) = stat.rsplit_once(") ")?;
-        fields
-            .split_whitespace()
-            .nth(1)?
-            .parse()
-            .ok()
-    }
 }
 
 /// Run `ps` and read its whole listing, giving up on anything that does not

@@ -422,7 +422,7 @@ fn s3_storage_in(tmp: &tempfile::TempDir) -> crate::Storage {
         },
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap()
 }

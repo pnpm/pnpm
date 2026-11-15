@@ -18,7 +18,6 @@ use crate::server::{
 use axum::{
     body::Bytes,
     http::{HeaderMap, Method, StatusCode},
-    response::IntoResponse,
 };
 use serde::Deserialize;
 
@@ -166,12 +165,9 @@ pub(super) async fn scoped_package_notes(
 }
 
 pub(super) async fn unsupported_npm_route() -> Response {
-    (
+    pnpr_error::json_error(
         StatusCode::NOT_FOUND,
-        axum::Json(serde_json::json!({
-            "error": "unsupported_route",
-            "reason": "This npm package endpoint is not supported"
-        })),
+        "This npm package endpoint is not supported",
+        Some("ERR_PNPR_UNSUPPORTED_ROUTE"),
     )
-        .into_response()
 }

@@ -188,13 +188,13 @@ fn audit_bytes_response(bytes: Vec<u8>) -> Response {
 }
 
 fn bad_request_json() -> Response {
-    (
-        StatusCode::BAD_REQUEST,
-        [
-            (header::CONTENT_TYPE, "application/json"),
-            (header::CACHE_CONTROL, "private, no-cache, no-store, must-revalidate"),
-        ],
-        r#"{"error":"invalid json payload"}"#,
-    )
-        .into_response()
+    let mut response =
+        pnpr_error::json_error(StatusCode::BAD_REQUEST, "invalid json payload", None);
+    response
+        .headers_mut()
+        .insert(
+            header::CACHE_CONTROL,
+            "private, no-cache, no-store, must-revalidate".parse().unwrap(),
+        );
+    response
 }

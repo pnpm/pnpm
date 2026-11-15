@@ -13,7 +13,7 @@ use pnpr_auth::AuthState;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_policy::Identity;
-use pnpr_storage::metadata::{BatchDocument, PublishNotes, ReleaseRecords};
+use pnpr_storage::database::{BatchDocument, PublishNotes, ReleaseRecords};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -37,7 +37,7 @@ async fn legacy_name_retries_return_the_recorded_outcome() {
         };
         let request = publication_request(&identity, &body, None, None, target);
         let committed = state.inner.storage
-            .sql_metadata()
+            .sql_database()
             .commit_publication(
                 "",
                 vec![BatchDocument {

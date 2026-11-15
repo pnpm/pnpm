@@ -54,14 +54,34 @@ pub(in super::super) fn namespace_collision_error(
     }
 }
 
-/// A registry's name is addressed as the single URL path segment `/~<name>/` and
-/// is embedded verbatim into rewritten `dist.tarball` URLs, so it must be one
-/// URL-safe segment. A name that can't survive that round trip is rejected at
-/// load rather than becoming an unreachable registry (`/` splits it across
-/// segments), a URL-parsing ambiguity (`?`, `#`, `%`, whitespace, control
-/// characters), or a path-meaningful component intermediaries may normalize
-/// away (`.`, `..`, a Windows drive prefix).
+/// A registry's name is the URL path segment `/~<name>/` and the prefix of a
+/// registry-qualified lockfile key (`<pkg>@<name>:<version>`), so it follows
+/// the grammar of that prefix.
 pub(in super::super) fn validate_registry_name(name: &str) -> Result<(), RegistryError> {
+    if !pnpm_deps_path::is_well_formed_registry_name(name) {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry name {name:?} is invalid: a registry name must start with a letter and \
+                 contain only letters, digits, `.`, `_`, and `-`",
+            ),
+        });
+    }
+    if pnpm_deps_path::shadows_reserved_version_prefix(name) {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry name {name:?} is invalid: it is a reserved dependency specifier prefix",
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// An artifact owner's name is one URL path segment and one storage path
+/// segment. A name that can't survive that round trip is rejected at load:
+/// `/` splits it across segments, `?`, `#`, `%`, whitespace, and control
+/// characters make the URL ambiguous, and `.`, `..`, or a Windows drive prefix
+/// are path components intermediaries may normalize away.
+pub(in super::super) fn validate_artifact_owner_name(name: &str) -> Result<(), RegistryError> {
     let safe = pnpr_package_name::is_safe_path_segment(name)
         && !name.contains(['%', '?', '#'])
         && !name.contains(|ch: char| ch.is_whitespace() || ch.is_control());
@@ -70,9 +90,9 @@ pub(in super::super) fn validate_registry_name(name: &str) -> Result<(), Registr
     }
     Err(RegistryError::InvalidConfig {
         reason: format!(
-            "registry name {name:?} is not a single URL-safe path segment: it is served at \
-             `/~<name>/`, so it cannot be empty, `.` or `..`, start with `.`, or contain `/`, \
-             `\\`, `:`, `%`, `?`, `#`, whitespace, or control characters",
+            "artifact owner {name:?} is not a single URL-safe path segment: it cannot be empty, \
+             `.` or `..`, start with `.`, or contain `/`, `\\`, `:`, `%`, `?`, `#`, whitespace, \
+             or control characters",
         ),
     })
 }

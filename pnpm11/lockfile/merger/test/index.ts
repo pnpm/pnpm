@@ -609,3 +609,157 @@ test.each(['ours', 'theirs', 'both'])('preserves a __proto__ importer from %s', 
   expect(Object.getPrototypeOf(ourImporter.importers)).toBe(Object.prototype)
   expect(Object.getPrototypeOf(theirImporter.importers)).toBe(Object.prototype)
 })
+
+test('preserves and merges importer publishDirectory, linkDirectory, and dependenciesMeta', () => {
+  const ours: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { foo: '1.0.0' },
+        dependencies: { foo: '1.0.0' },
+        publishDirectory: 'dist',
+        linkDirectory: false,
+        dependenciesMeta: {
+          'only-ours': { injected: true },
+          shared: { injected: true, patch: 'patches/old.patch' },
+        },
+      },
+      ['packages/ours-only' as ProjectId]: {
+        specifiers: {},
+        publishDirectory: 'build',
+        linkDirectory: false,
+        dependenciesMeta: {
+          'ours-dep': { injected: true },
+        },
+      },
+    },
+  }
+  const theirs: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { foo: '1.0.0' },
+        dependencies: { foo: '1.0.0' },
+        publishDirectory: 'out',
+        dependenciesMeta: {
+          'only-theirs': { injected: true },
+          shared: { patch: 'patches/new.patch' },
+        },
+      },
+      ['packages/theirs-only' as ProjectId]: {
+        specifiers: {},
+        publishDirectory: 'lib',
+        linkDirectory: false,
+        dependenciesMeta: {
+          'theirs-dep': { injected: true },
+        },
+      },
+      ['packages/empty-meta' as ProjectId]: {
+        specifiers: {},
+        dependenciesMeta: {},
+      },
+    },
+  }
+
+  const merged = mergeLockfileChanges(ours, theirs)
+
+  expect(merged.importers['.' as ProjectId]).toStrictEqual({
+    specifiers: { foo: '1.0.0' },
+    dependencies: { foo: '1.0.0' },
+    publishDirectory: 'out',
+    linkDirectory: false,
+    dependenciesMeta: {
+      'only-ours': { injected: true },
+      'only-theirs': { injected: true },
+      shared: { injected: true, patch: 'patches/new.patch' },
+    },
+  })
+  expect(merged.importers['packages/ours-only' as ProjectId]).toStrictEqual({
+    specifiers: {},
+    publishDirectory: 'build',
+    linkDirectory: false,
+    dependenciesMeta: {
+      'ours-dep': { injected: true },
+    },
+  })
+  expect(merged.importers['packages/theirs-only' as ProjectId]).toStrictEqual({
+    specifiers: {},
+    publishDirectory: 'lib',
+    linkDirectory: false,
+    dependenciesMeta: {
+      'theirs-dep': { injected: true },
+    },
+  })
+  expect(merged.importers['packages/empty-meta' as ProjectId]).toStrictEqual({
+    specifiers: {},
+  })
+})
+
+test('normalizes linkDirectory true and omits orphan linkDirectory', () => {
+  const ours: LockfileObject = JSON.parse(JSON.stringify({
+    lockfileVersion: '9.0',
+    importers: {
+      'packages/true-wins': {
+        specifiers: {},
+        publishDirectory: 'dist',
+        linkDirectory: false,
+      },
+      'packages/true-ours': {
+        specifiers: {},
+        publishDirectory: 'dist',
+        linkDirectory: true,
+      },
+      'packages/orphan-link': {
+        specifiers: {},
+        linkDirectory: false,
+      },
+    },
+  }))
+  const theirs: LockfileObject = JSON.parse(JSON.stringify({
+    lockfileVersion: '9.0',
+    importers: {
+      'packages/true-wins': {
+        specifiers: {},
+        publishDirectory: 'dist',
+        linkDirectory: true,
+      },
+      'packages/true-ours': {
+        specifiers: {},
+        publishDirectory: 'dist',
+      },
+      'packages/orphan-link': {
+        specifiers: {},
+      },
+    },
+  }))
+
+  const merged = mergeLockfileChanges(ours, theirs)
+  expect(merged.importers['packages/true-wins' as ProjectId].linkDirectory).toBeUndefined()
+  expect(merged.importers['packages/true-ours' as ProjectId].linkDirectory).toBeUndefined()
+  expect(merged.importers['packages/orphan-link' as ProjectId].linkDirectory).toBeUndefined()
+})
+
+test('handles constructor and __proto__ keys in importer dependenciesMeta', () => {
+  const ours: LockfileObject = JSON.parse('{"lockfileVersion":"9.0","importers":{".":{"specifiers":{},"dependenciesMeta":{"constructor":{"injected":true},"__proto__":{"injected":true}}}}}')
+  const theirs: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: {},
+        dependenciesMeta: {
+          regular: { injected: true },
+        },
+      },
+    },
+  }
+
+  const merged = mergeLockfileChanges(ours, theirs)
+  const mergedMeta = merged.importers['.' as ProjectId].dependenciesMeta!
+
+  expect(Object.getPrototypeOf(mergedMeta)).toBe(Object.prototype)
+  expect(Object.hasOwn(mergedMeta, '__proto__')).toBe(true)
+  expect(mergedMeta.constructor).toStrictEqual({ injected: true })
+  expect(mergedMeta.__proto__).toStrictEqual({ injected: true })
+  expect(mergedMeta.regular).toStrictEqual({ injected: true })
+  expect((({} as Record<string, unknown>)).injected).toBeUndefined()
+})

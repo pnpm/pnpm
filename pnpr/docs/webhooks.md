@@ -23,7 +23,7 @@ Instead, pnpr provides durable, structured integration points designed to feed e
 
 ### 1. Structured audit logs
 
-Administrative and destructive operations in pnpr emit a structured event under the `pnpr::audit` tracing target at `info` level. They cover account, team, rule, and SCIM changes, token revocation, unpublishes, packument and maintainer updates, dist-tag changes, and image deletions. Publishes and token creation are not audited. The full list of actions and their fields is in [Admin audit logs](configuration.md#admin-audit-logs).
+pnpr emits a structured event under the `pnpr::audit` tracing target at `info` level for sign-ins, failed logins, token changes, publishes, and administrative and destructive operations. They cover account, team, rule, and SCIM changes, unpublishes, packument and maintainer updates, dist-tag changes, and image deletions. The full list of actions and their fields is in [Admin audit logs](configuration.md#admin-audit-logs).
 
 When configured with `log.format: json`, pnpr outputs each audit event as a single-line JSON record on `stdout`:
 
@@ -35,6 +35,7 @@ When configured with `log.format: json`, pnpr outputs each audit event as a sing
   "fields": {
     "action": "package.dist_tag_set",
     "actor": "alice",
+    "actor_id": "8f3c1d2e9a7b4c5d6e0f1a2b3c4d5e6f",
     "package": "@mycompany/utils",
     "tag": "latest",
     "version": "1.2.0",
@@ -86,7 +87,7 @@ Content-Type = "application/json"
 
 When pnpr is configured with an S3-compatible backend (AWS S3, Cloudflare R2, MinIO), you can configure bucket notifications directly on your object storage bucket.
 
-Package tarballs are stored as immutable blobs under the bucket prefix, so storage notifications on new tarballs are durable, real-time blob events. They are not publish events. pnpr uploads a tarball before it commits the metadata that references it, so a notification can arrive before the package is visible, and an interrupted publish can leave a tarball that no package references. A consumer verifies the version in the package metadata, retrying for a while, before acting. A consumer that needs publish events uses the publish response or a CI post-publish step instead. Package metadata lives in the metadata database, so a dist-tag move or a deprecation creates no object:
+Package tarballs are stored as immutable blobs under the bucket prefix, so storage notifications on new tarballs are durable, real-time blob events. They are not publish events. pnpr uploads a tarball before it commits the metadata that references it, so a notification can arrive before the package is visible, and an interrupted publish can leave a tarball that no package references. A consumer verifies the version in the package metadata, retrying for a while, before acting. A consumer that needs publish events uses the publish response or a CI post-publish step instead. Package metadata lives in the database, so a dist-tag move or a deprecation creates no object:
 
 - **AWS S3**: Configure an EventBridge or SNS/SQS notification for `s3:ObjectCreated:*` events matching the prefix of hosted packages. An AWS Lambda function or worker consumes the event and dispatches your webhook.
 - **MinIO**: Use MinIO bucket event notifications to dispatch events directly to an HTTP webhook endpoint.

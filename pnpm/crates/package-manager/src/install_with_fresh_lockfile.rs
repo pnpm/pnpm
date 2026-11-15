@@ -135,7 +135,7 @@ pub(crate) struct FreshInputs<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct FreshInstallDrivers<'a> {
     pub(crate) http_client: &'a ThrottledClient,
-    pub(crate) config: &'static Config,
+    pub(crate) config: &'a Config,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub(crate) logged_methods: &'a AtomicU8,

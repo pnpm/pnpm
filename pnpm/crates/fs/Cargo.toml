@@ -39,6 +39,9 @@ libc = { workspace = true }
 [target.'cfg(any(unix, windows))'.dependencies]
 pnpm-ffi-signal = { workspace = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+pipe-trait = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
 same-file = { workspace = true }

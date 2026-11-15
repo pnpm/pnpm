@@ -37,9 +37,23 @@ pub struct CliArgs {
     #[clap(long)]
     pub target_dir: Option<PathBuf>,
 
+    #[clap(flatten)]
+    pub report: ReportOptions,
+}
+
+#[derive(Debug, clap::Args)]
+pub struct ReportOptions {
     /// Also write the report as JSON to this path.
     #[clap(long)]
     pub json: Option<PathBuf>,
+
+    /// Compare stripped sizes with a report saved by `--json`.
+    #[clap(long)]
+    pub compare: Option<PathBuf>,
+
+    /// Build the probe without its default Cargo features.
+    #[clap(long)]
+    pub no_default_features: bool,
 }
 
 impl CliArgs {
@@ -66,7 +80,7 @@ pub fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum Lto {
     Thin,

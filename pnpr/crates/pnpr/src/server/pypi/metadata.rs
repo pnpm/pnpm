@@ -41,7 +41,7 @@ async fn load(
     url: &url::Url,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let storage = &state.inner.storage;
-    let ttl = upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl);
+    let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
     if upstream.caches()
         && let Some(bytes) = storage.read_upstream_document(namespace, key, ttl).await?
     {

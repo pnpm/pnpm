@@ -422,7 +422,7 @@ fn config_merged_boolean_negations_parse() {
     ]);
     assert!(args.network_cache.no_offline);
     assert!(args.network_cache.no_prefer_offline);
-    assert!(args.materialization.no_frozen_store);
+    assert!(args.materialization.store.no_frozen_store);
     assert!(args.scripts.no_ignore);
 }
 

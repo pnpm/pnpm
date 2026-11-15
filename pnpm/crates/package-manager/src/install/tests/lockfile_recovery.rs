@@ -426,9 +426,9 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
 /// out to the registry.
 #[tokio::test]
 async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
-    let mock_instance = TestRegistry::start();
-
     let dir = tempdir().unwrap();
+    let mock_instance = TestRegistry::start_recording_with_own_storage(dir.path(), &[]);
+
     let cache_dir = dir.path().join("cache");
     let store_dir = dir.path().join("pacquet-store");
     let project_root = dir.path().join("project");
@@ -508,7 +508,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     let wanted_lockfile =
         Lockfile::load_wanted_from_dir(&project_root).expect("load wanted lockfile").unwrap();
 
-    drop(mock_instance);
+    let _ = mock_instance.take_requests();
 
     let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
     std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
@@ -533,7 +533,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     second_config.store_dir = store_dir.into();
     second_config.modules_dir = modules_dir;
     second_config.install_state_dir = virtual_store_dir;
-    second_config.registry = "http://127.0.0.1:9/".to_string();
+    second_config.registry = mock_instance.url().to_string();
     second_config.optimistic_repeat_install = false;
     let second_config = second_config.leak();
 
@@ -588,7 +588,13 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     }
     .run::<RecordingReporter>()
     .await
-    .expect("second install must no-op without contacting the stopped registry");
+    .expect("second install must no-op without contacting the registry");
+
+    assert_eq!(
+        mock_instance.take_requests(),
+        Vec::new(),
+        "verification cache hit must not contact the registry",
+    );
 
     let captured = EVENTS.lock().unwrap();
     assert!(

@@ -11,7 +11,7 @@ use pnpm_executor::DEV_PREINSTALL_STAGE;
 /// `readPackage` rewrote them. An empty layer means the layer below it
 /// stands.
 #[derive(Default)]
-pub(super) struct HookedManifests {
+pub(crate) struct HookedManifests {
     extended: Vec<(PathBuf, PackageManifest)>,
     hooked: Vec<(PathBuf, PackageManifest)>,
 }

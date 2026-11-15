@@ -11,7 +11,7 @@
 //! falls back to `copy` if hard-linking isn't supported on the
 //! target filesystem (cross-device, ACL, etc.).
 //!
-//! The metadata database is the exception. pnpr, and a benchmark scenario
+//! The database is the exception. pnpr, and a benchmark scenario
 //! that seeds packages of its own, write to the database the mock serves, so
 //! it is copied rather than linked, once, and never replaced under a mock that
 //! has it open.
@@ -41,8 +41,8 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
         return Ok(0);
     }
     fs::create_dir_all(dest)?;
-    let database = pnpr_fixtures::metadata_path(Path::new(""));
-    let mut seeded = usize::from(copy_database(&pnpr_fixtures::metadata_path(src))?);
+    let database = pnpr_fixtures::database_path(Path::new(""));
+    let mut seeded = usize::from(copy_database(&pnpr_fixtures::database_path(src))?);
     for entry in WalkDir::new(src) {
         // Propagate traversal errors instead of silently dropping
         // them: a partial-mirror under a "success" return is much
@@ -94,10 +94,10 @@ pub fn runtime_config_dir() -> PathBuf {
         .to_path_buf()
 }
 
-/// The metadata database of [`runtime_hosted_storage`].
+/// The database of [`runtime_hosted_storage`].
 #[must_use]
 pub fn runtime_metadata_path() -> PathBuf {
-    pnpr_fixtures::metadata_path(&runtime_hosted_storage())
+    pnpr_fixtures::database_path(&runtime_hosted_storage())
 }
 
 /// Seed the fixture file at `src`, at `rel` in the fixture storage, to

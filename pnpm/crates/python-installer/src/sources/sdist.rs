@@ -131,7 +131,7 @@ impl Registry<'_> {
             auth_headers: &self.index.auth,
             retry_opts: self.config.retry_opts(),
             offline: self.config.offline,
-            tar_limits: self.config.tar_limits(),
+            tar_limits: pnpm_tarball::TarLimits::new(self.config.max_tarball_unpacked_size),
         };
         if sdist.is_zip() {
             return self.fetch_source_zip::<Reporter>(sdist, fetching, &integrity, &package_id)

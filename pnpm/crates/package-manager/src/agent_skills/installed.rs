@@ -8,7 +8,10 @@ use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_lockfile::{LoadLockfileError, Lockfile};
 use pnpm_modules_yaml::{Host, ReadModulesError, WriteModulesError};
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 /// Errors from [`resync_installed_agent_skills`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -155,17 +158,16 @@ pub fn skill_approval_options(
 }
 
 fn pending_skills_by_key(pending: Vec<SkillSource>) -> BTreeMap<String, Vec<String>> {
-    pending
+    let mut by_key: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for source in pending {
+        let names = by_key.entry(source.approval_key).or_default();
+        for skill in source.skills {
+            names.insert(skill.name);
+        }
+    }
+    by_key
         .into_iter()
-        .map(|source| {
-            (
-                source.approval_key,
-                source.skills
-                    .into_iter()
-                    .map(|skill| skill.name)
-                    .collect(),
-            )
-        })
+        .map(|(key, names)| (key, names.into_iter().collect()))
         .collect()
 }
 

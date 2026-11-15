@@ -120,7 +120,7 @@ pub(super) struct ChildSeedScope<'s> {
 
 impl<'s> ChildSeedScope<'s> {
     pub(super) fn of(ctx: &'s TreeCtx, pending: &PendingNode) -> Self {
-        let landed_prior = pending.prior_key
+        let landed_prior = pending.lockfile.prior_key
             .as_ref()
             .filter(|key| {
                 landed_on_prior_entry(

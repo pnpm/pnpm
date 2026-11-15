@@ -33,7 +33,7 @@ export default async () => {
 }
 
 /**
- * Remove the storage `globalSetup` created for this run.
+ * Remove the storages `globalSetup` created for this run.
  *
  * Errors propagate: `force` already ignores a directory that isn't
  * there, so anything reaching the caller is unexpected, and a warning
@@ -43,8 +43,12 @@ export default async () => {
  * which Windows is prone to.
  */
 async function removeStorage () {
-  const storage = global.registryMockStorage
-  if (storage == null) return
+  for (const storage of [global.registryMockStorage, global.registryMockCurrentVersionStorage]) {
+    if (storage != null) await removeDirectory(storage)
+  }
+}
+
+async function removeDirectory (storage) {
   // This is a recursive force-delete, so it only ever runs against a
   // path shaped like the one `globalSetup` mkdtemp'd. Anything else
   // means the global was set by something other than that setup, and

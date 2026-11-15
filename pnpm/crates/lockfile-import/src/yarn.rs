@@ -1,11 +1,19 @@
 //! Version extraction from yarn's two lockfile formats.
 
 use derive_more::{Display, Error};
+use pnpm_resolving_resolver_base::is_valid_semver_range;
 
-use crate::{VersionsByPackageName, add_version};
+use crate::{VersionsByPackageName, add_version, split_descriptor};
 
 const METADATA_KEY: &str = "__metadata";
+const BERRY_METADATA_PREFIXES: [&str; 3] = ["__metadata:", r#""__metadata":"#, "'__metadata':"];
 const QUOTES: [char; 2] = ['"', '\''];
+
+#[derive(Clone, Copy)]
+enum YarnDialect {
+    Classic,
+    Berry,
+}
 
 /// A `yarn.lock` whose syntax belongs to neither yarn dialect.
 ///
@@ -50,6 +58,7 @@ pub fn collect_yarn_lockfile_versions(
     contents: &str,
     versions: &mut VersionsByPackageName,
 ) -> Result<(), YarnSyntaxError> {
+    let contents = contents.strip_prefix('\u{feff}').unwrap_or(contents);
     if is_berry(contents) {
         collect_berry_versions(contents, versions)
     } else {
@@ -57,12 +66,20 @@ pub fn collect_yarn_lockfile_versions(
     }
 }
 
-/// Yarn berry stamps every lockfile it writes with a `__metadata` block.
-/// The TypeScript CLI looks for the same marker anywhere in the file.
+/// Yarn berry stamps every lockfile it writes with a top-level `__metadata:`
+/// YAML mapping.
 fn is_berry(contents: &str) -> bool {
-    contents
-        .lines()
-        .any(|line| line.trim_start().starts_with(METADATA_KEY))
+    contents.lines().any(is_berry_metadata_line)
+}
+
+fn is_berry_metadata_line(line: &str) -> bool {
+    BERRY_METADATA_PREFIXES
+        .into_iter()
+        .find_map(|prefix| line.strip_prefix(prefix))
+        .is_some_and(|rest| {
+            let rest = rest.trim_start();
+            rest.is_empty() || rest.starts_with('#') || rest.starts_with('{')
+        })
 }
 
 fn collect_berry_versions(
@@ -86,12 +103,34 @@ fn collect_berry_versions(
         let Some(version) = entry.get("version").and_then(scalar_as_str) else {
             continue;
         };
-        for name in descriptor_package_names(key) {
-            add_version(versions, name, &version);
-        }
+        record_berry_entry_versions(key, entry, &version, versions);
     }
 
     Ok(())
+}
+
+fn record_berry_entry_versions(
+    key: &str,
+    entry: &yaml_serde::Mapping,
+    version: &str,
+    versions: &mut VersionsByPackageName,
+) {
+    if let Some(name) = entry
+        .get("resolution")
+        .and_then(yaml_serde::Value::as_str)
+        .and_then(berry_resolution_package_name)
+    {
+        add_version(versions, name, version);
+        return;
+    }
+    for name in descriptor_package_names(key, YarnDialect::Berry) {
+        add_version(versions, name, version);
+    }
+}
+
+fn berry_resolution_package_name(resolution: &str) -> Option<&str> {
+    let (name, spec) = split_descriptor(resolution.trim().trim_matches(QUOTES))?;
+    spec.starts_with("npm:").then_some(name)
 }
 
 /// A berry `version:` is usually an unquoted scalar, which YAML types as
@@ -166,19 +205,17 @@ fn entry_version<'a>(
     }
 }
 
-/// Read the descriptors one top-level entry key declares. The metadata block
-/// is not an entry and names no package.
+/// Read the descriptors one top-level entry key declares.
 fn start_classic_entry<'a>(
     content: &'a str,
     line: usize,
     entry_names: &mut Vec<&'a str>,
 ) -> Result<(), YarnSyntaxError> {
     let key = content
+        .trim_end()
         .strip_suffix(':')
         .ok_or(YarnSyntaxError::EntryKeyExpected { line })?;
-    if key != METADATA_KEY {
-        entry_names.extend(descriptor_package_names(key));
-    }
+    entry_names.extend(descriptor_package_names(key, YarnDialect::Classic));
     Ok(())
 }
 
@@ -213,17 +250,29 @@ fn split_key_and_value(content: &str) -> Option<(&str, &str)> {
     (!value.is_empty()).then(|| (key.trim().trim_matches(QUOTES), value.trim_matches(QUOTES)))
 }
 
-/// An entry's key lists every descriptor that resolved to it, comma
-/// separated. A descriptor's package name is what precedes its last
-/// `@`, which keeps a scope's leading `@` and drops yarn berry's
-/// protocol along with the range (`minimatch@npm:^3.0.4`).
-fn descriptor_package_names(key: &str) -> impl Iterator<Item = &str> {
-    key.split(',')
-        .filter_map(|descriptor| {
-            let descriptor = descriptor.trim().trim_matches(QUOTES);
-            let name = &descriptor[..descriptor.rfind('@')?];
-            (!name.is_empty()).then_some(name)
-        })
+/// An entry's key lists every descriptor that resolved to it, comma separated,
+/// yielding each descriptor's target package name.
+fn descriptor_package_names(key: &str, dialect: YarnDialect) -> impl Iterator<Item = &str> {
+    key.split(',').filter_map(move |descriptor| descriptor_package_name(descriptor, dialect))
+}
+
+fn descriptor_package_name(descriptor: &str, dialect: YarnDialect) -> Option<&str> {
+    let (name, spec) = split_descriptor(descriptor.trim().trim_matches(QUOTES))?;
+    let Some(npm_spec) = spec.strip_prefix("npm:") else {
+        return Some(name);
+    };
+    if let Some((target, _)) = split_descriptor(npm_spec) {
+        return Some(target);
+    }
+    if npm_spec.starts_with('@') && npm_spec.contains('/') {
+        return Some(npm_spec);
+    }
+    match dialect {
+        YarnDialect::Classic if !npm_spec.is_empty() && !is_valid_semver_range(npm_spec) => {
+            Some(npm_spec)
+        }
+        YarnDialect::Classic | YarnDialect::Berry => Some(name),
+    }
 }
 
 #[cfg(test)]

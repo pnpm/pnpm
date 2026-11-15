@@ -1,7 +1,7 @@
 import { checkbox, Separator } from '@inquirer/prompts'
 import type { CommandHandler } from '@pnpm/cli.command'
 import { interactivePromptPageSize, readProjectManifestOnly } from '@pnpm/cli.utils'
-import { findOutdatedGitHubActions, isGitHubActionSelector } from '@pnpm/deps.github-actions'
+import { findOutdatedGitHubActions, hasPositiveGitHubActionSelector, isGitHubActionSelector } from '@pnpm/deps.github-actions'
 import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
 import type { IncludedDependencies, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
@@ -70,8 +70,11 @@ async function findOutdatedPackagesOfProjects (
   input: string[],
   { include, opts }: FindOutdatedOptions
 ): Promise<OutdatedPackage[][]> {
-  const packageInput = input.filter((selector) => !isGitHubActionSelector(selector))
-  if (input.length === 0 || packageInput.length > 0) {
+  const updateActions = shouldUpdateGitHubActions(opts, include)
+  const packageInput = updateActions
+    ? input.filter((selector) => !isGitHubActionSelector(selector))
+    : input
+  if (packageInput.length > 0 || !updateActions || !hasPositiveGitHubActionSelector(input)) {
     return findOutdatedDependencies(projects, packageInput, { include, opts })
   }
   return projects.map(() => [])

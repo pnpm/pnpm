@@ -19,6 +19,17 @@ CREATE TABLE IF NOT EXISTS packages (
     PRIMARY KEY (namespace, ecosystem, name)
 );
 
+-- The account IDs of a package's owners (`maintainers[*].userId` on npm,
+-- `owners` on Cargo, PyPI, and OCI), kept in sync with `packages.state` so
+-- owner checks never read or parse the package document.
+CREATE TABLE IF NOT EXISTS package_owners (
+    namespace TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    PRIMARY KEY (namespace, ecosystem, name, user_id)
+);
+
 -- Published versions of a Cargo crate, ordered by `position` as the sparse
 -- index serves them. `entry` holds the immutable sparse-index fields; `yanked`
 -- flips in place.

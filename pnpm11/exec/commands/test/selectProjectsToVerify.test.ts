@@ -80,6 +80,19 @@ describe('selectProjectsToVerify', () => {
       selectedProjectsGraph: pickGraph(allProjectsGraph, ['a']),
     })).toStrictEqual(['a', 'c'])
   })
+
+  test('combines --filter-prod inclusion with regular exclusion without verifying excluded dependency', async () => {
+    const allProjectsGraph = createGraph({ app: ['lib-a', 'lib-dev'], 'lib-a': [], 'lib-dev': [], unrelated: [] })
+    const prodAllProjectsGraph = createGraph({ app: ['lib-a'], 'lib-a': [], 'lib-dev': [], unrelated: [] })
+    expect(await selectNames({
+      filter: ['!lib-a'],
+      filterProd: ['app...'],
+      allProjectsGraph,
+      prodAllProjectsGraph,
+      prodOnlySelectedProjectDirs: [dirOf('app')],
+      selectedProjectsGraph: pickGraph(prodAllProjectsGraph, ['app']),
+    })).toStrictEqual(['app'])
+  })
 })
 
 function dirOf (name: string): ProjectRootDir {

@@ -320,7 +320,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.20.0";
+pub const PNPM_VERSION: &str = "12.21.0";
 
 /// The command that installs pnpm with the standalone script, as documented
 /// at <https://pnpm.io/installation>: the PowerShell form on Windows, the
@@ -362,9 +362,9 @@ pub fn default_fetch_min_speed_ki_bps() -> u64 {
 
 /// Returns the shared `maxTarballUnpackedSize` default in bytes.
 ///
-/// See [`pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE`].
+/// See [`pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE`].
 pub fn default_max_tarball_unpacked_size() -> u64 {
-    pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE
+    pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE
 }
 
 /// Default `User-Agent`, in the format

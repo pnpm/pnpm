@@ -592,8 +592,8 @@ async fn a_tar_registry_describes_an_accepted_record_by_its_tar() {
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
     let mut config = acme_config(tmp.path().to_path_buf());
-    config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    config.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     let osv = osv_database("@acme/widget", &["2.0.0"]);
     enable_osv(&mut config, osv.path());
     let app = router_with_auth(config, auth);

@@ -3,6 +3,7 @@ use crate::{
     modules::CrateModules,
     surface::{self, Surface},
     use_tree::UsePath,
+    visibility::{self, Exported},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -69,23 +70,28 @@ pub fn counts(leaks: &[Leak]) -> BTreeMap<String, usize> {
     counts
 }
 
-/// The exposed and re-exported paths of every module, with an `extern crate`
-/// alias replaced by the crate's name. A module sees its own aliases first,
-/// then the crate root's.
+/// The exposed and re-exported paths that are reachable from outside the
+/// crate, with an `extern crate` alias replaced by the crate's name. A
+/// module sees its own aliases first, then the crate root's.
 fn dealiased(modules: &CrateModules) -> (Vec<Vec<String>>, Vec<Vec<String>>) {
     let root_aliases = modules
         .root_surface()
         .map(|root| root.crate_aliases.as_slice())
         .unwrap_or_default();
+    let scopes = visibility::scopes(modules);
+    let exported = Exported::find(&scopes);
     let mut exposed = Vec::new();
     let mut reexported = Vec::new();
-    for module in modules.surfaces() {
-        let aliases = module_aliases(module, root_aliases);
-        exposed.extend(module.exposed.iter().map(|path| surface::dealias(path, &aliases)));
-        exposed.extend(module.resolved.exposed.iter().cloned());
-        let reexports = module.reexported.iter();
-        reexported.extend(reexports.map(|reexport| surface::dealias(&reexport.segments, &aliases)));
-        reexported.extend(module.resolved.reexported.iter().cloned());
+    for (path, scope) in &scopes {
+        let aliases = module_aliases(scope.surface, root_aliases);
+        let reachable = scope.surface.exposed
+            .iter()
+            .filter(|exposure| exported.exposes(&scopes, path, exposure));
+        exposed.extend(reachable.map(|exposure| surface::dealias(&exposure.path, &aliases)));
+        let reachable = scope.surface.reexported
+            .iter()
+            .filter(|reexport| exported.reexports(path, reexport));
+        reexported.extend(reachable.map(|reexport| surface::dealias(&reexport.segments, &aliases)));
     }
     (exposed, reexported)
 }

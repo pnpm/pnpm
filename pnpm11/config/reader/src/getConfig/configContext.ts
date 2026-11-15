@@ -21,6 +21,7 @@ export const CONFIG_CONTEXT_KEYS = [
   'nodeVersionFromEnginesRuntime',
   'cliOptions',
   'rawCliConfig',
+  'rawLockfileDir',
   'explicitlySetKeys',
   'packageManager',
   'wantedPackageManager',

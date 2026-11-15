@@ -11,19 +11,36 @@ fn selectors(selectors: &[&str]) -> Vec<String> {
 
 #[test]
 fn filter_selector_args_forward_the_selection_with_dependencies() {
-    assert!(filter_selector_args(&[], &[]).is_empty());
+    assert!(filter_selector_args(&[], &[], &[]).is_empty());
     assert_eq!(
-        filter_selector_args(&selectors(&["foo", "bar"]), &[]),
+        filter_selector_args(&selectors(&["foo", "bar"]), &[], &[]),
         ["--filter=foo...", "--filter=bar..."],
     );
-    assert_eq!(filter_selector_args(&[], &selectors(&["foo"])), ["--filter-prod=foo..."]);
+    assert_eq!(filter_selector_args(&[], &selectors(&["foo"]), &[]), ["--filter-prod=foo..."]);
 }
 
 #[test]
 fn filter_selector_args_keep_exclusions_and_dependency_selectors() {
     assert_eq!(
-        filter_selector_args(&selectors(&["foo...", "...bar", "baz^...", "!qux"]), &[]),
+        filter_selector_args(&selectors(&["foo...", "...bar", "baz^...", "!qux"]), &[], &[]),
         ["--filter=foo...", "--filter=...bar...", "--filter=baz^...", "--filter=!qux"],
+    );
+}
+
+#[test]
+fn filter_selector_args_preserve_interleaved_and_positive_first_order() {
+    use pnpm_config::FilterSource::{Filter, FilterProd};
+    assert_eq!(
+        filter_selector_args(&selectors(&["!lib-a"]), &selectors(&["app..."]), &[]),
+        ["--filter-prod=app...", "--filter=!lib-a"],
+    );
+    assert_eq!(
+        filter_selector_args(
+            &selectors(&["!./packages/**"]),
+            &selectors(&["app"]),
+            &[Filter, FilterProd],
+        ),
+        ["--filter=!./packages/**", "--filter-prod=app..."],
     );
 }
 

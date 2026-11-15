@@ -76,7 +76,7 @@ fn ingest<'a>(
             id,
         },
         store: ArchiveStoreContext {
-            dir: &config.store_dir,
+            dir: std::borrow::Cow::Borrowed(&config.store_dir),
             index: None,
             index_writer: None,
             verify_integrity: config.verify_store_integrity,

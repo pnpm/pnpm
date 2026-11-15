@@ -1484,3 +1484,54 @@ $env.PATH = ($env.PATH | split row (char esep) | prepend $env.PNPM_HOME )
 # pnpm end`)
   })
 })
+
+describe('PowerShell', () => {
+  beforeAll(() => {
+    delete process.env.NU_VERSION
+    process.env.SHELL = '/usr/bin/pwsh'
+  })
+  beforeEach(() => {
+    delete process.env.XDG_CONFIG_HOME
+  })
+  it('should create the profile with proxyVarSubDir', async () => {
+    const report = await addDirToPosixEnvPath(pnpmHomeDir, {
+      proxyVarName: 'PNPM_HOME',
+      proxyVarSubDir: 'bin',
+      configSectionName: 'pnpm',
+    })
+    const configFile = path.join(homeDir, '.config/powershell/profile.ps1')
+    const newSettings = `$env:PNPM_HOME = '${pnpmHomeDir}'
+if (($env:PATH -split ':')[0] -cne "$env:PNPM_HOME/bin") {
+  $env:PATH = "$env:PNPM_HOME/bin" + ':' + $env:PATH
+}`
+    expect(report).toStrictEqual({
+      configFile: {
+        path: configFile,
+        changeType: 'created',
+      },
+      oldSettings: '',
+      newSettings,
+    })
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(`# pnpm
+${newSettings}
+# pnpm end
+`)
+  })
+  it('should write the profile under XDG_CONFIG_HOME', async () => {
+    process.env.XDG_CONFIG_HOME = path.join(homeDir, 'xdg')
+    const report = await addDirToPosixEnvPath(pnpmHomeDir, {
+      proxyVarName: 'PNPM_HOME',
+      configSectionName: 'pnpm',
+    })
+    expect(report.configFile.path).toBe(path.join(homeDir, 'xdg/powershell/profile.ps1'))
+  })
+  it('should add a quoted dir to the end of PATH without a proxy variable', async () => {
+    const report = await addDirToPosixEnvPath("/home/o'neil/$(Write-Error injected)", {
+      configSectionName: 'pnpm',
+      position: 'end',
+    })
+    expect(report.newSettings).toBe(`if (($env:PATH -split ':')[-1] -cne '/home/o''neil/$(Write-Error injected)') {
+  $env:PATH = $env:PATH + ':' + '/home/o''neil/$(Write-Error injected)'
+}`)
+  })
+})

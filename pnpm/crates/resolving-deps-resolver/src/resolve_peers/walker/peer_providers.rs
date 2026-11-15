@@ -1,7 +1,7 @@
 use super::{
     Arc, CurrentProviderSource, DepPath, HashMap, MissingPeerInfo, NodeId, NodePeers,
     NodePeersContext, ParentRef, ParentRefs, PeerId, ResolvedPackage, SharedChain, TreeChildren,
-    Walker, index_of_dep_path_suffix,
+    Walker,
 };
 
 use crate::peer_provider::{LockedProvider, PeerScope, ProviderPick, provider_for};
@@ -11,7 +11,11 @@ impl Walker<'_> {
     /// [`ParentRefs`] visible at it, fold the result with what its
     /// children reported, and render the depPath. Empty resolved-peers
     /// ⇒ pure node: depPath = `pkgIdWithPatchHash`.
-    pub(super) fn resolve_node_peers(&mut self, context: NodePeersContext<'_>) -> NodePeers {
+    pub(super) fn resolve_node_peers(
+        &mut self,
+        node_id: &NodeId,
+        context: NodePeersContext<'_>,
+    ) -> NodePeers {
         let mut own_resolved: HashMap<String, NodeId> = HashMap::default();
         let mut own_missing: HashMap<String, MissingPeerInfo> = HashMap::default();
         for (peer_name, peer_dep) in context.pkg.peer_set.taken() {
@@ -24,26 +28,31 @@ impl Walker<'_> {
             );
         }
 
-        // A package doesn't peer-depend on itself, so its own name never
-        // enters its suffix.
         let mut all_resolved = context.external_from_children;
         for (peer_alias, peer_node_id) in &own_resolved {
             all_resolved.insert(peer_alias.clone(), peer_node_id.clone());
         }
-        all_resolved.remove(context.pkg_name);
+        if all_resolved
+            .get(context.pkg_name)
+            .and_then(|id| self.tree.dependencies_tree.get(id))
+            .is_some_and(|node| node.resolved_package_id == context.pkg.id)
+        {
+            all_resolved.remove(context.pkg_name);
+        }
 
         let mut all_missing = context.missing_from_children.clone();
         for (peer_alias, info) in &own_missing {
             super::walk_context::merge_missing_peer_info(&mut all_missing, peer_alias, info);
         }
 
-        let dep_path = self.peer_dep_path(&context.pkg.id, &all_resolved);
+        let dep_path = self.peer_dep_path(node_id, &context.pkg.id, &all_resolved);
         NodePeers { own_resolved, all_resolved, all_missing, dep_path }
     }
 
     /// Empty resolved peers ⇒ pure node: depPath = `pkgIdWithPatchHash`.
     pub(super) fn peer_dep_path(
         &self,
+        node_id: &NodeId,
         pkg_id: &Arc<str>,
         all_resolved: &HashMap<String, NodeId>,
     ) -> DepPath {
@@ -52,7 +61,7 @@ impl Walker<'_> {
         }
         let peer_ids: Vec<PeerId> = all_resolved
             .iter()
-            .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
+            .map(|(peer_alias, peer_node_id)| self.build_peer_id(node_id, peer_alias, peer_node_id))
             .collect();
         let suffix =
             pnpm_lockfile::PeerBindings::suffix_of(&peer_ids, self.opts.peers_suffix_max_length);
@@ -83,6 +92,11 @@ impl Walker<'_> {
         ) else {
             return pins;
         };
+        if !self.needs_locked_peer_context(node_id)
+            || self.ancestor_path_was_reresolved(node_id, parent_node_ids)
+        {
+            return pins;
+        }
         let site = PinSite { pkg, provider_paths, parent_refs, parent_node_ids };
         pins.extend(
             locked_peer_context
@@ -92,6 +106,12 @@ impl Walker<'_> {
                 }),
         );
         pins
+    }
+
+    pub(super) fn needs_locked_peer_context(&self, node_id: &NodeId) -> bool {
+        let Some(paths) = &self.opts.scope.resolved_peer_provider_paths else { return false };
+        let Some(node) = self.tree.dependencies_tree.get(node_id) else { return false };
+        node.locked_peer_context().is_some() && node.previous_dep_path() != paths.get(node_id)
     }
 
     /// The pin one entry of the wanted lockfile's peer context puts into the
@@ -138,11 +158,12 @@ impl Walker<'_> {
         provider_paths: &HashMap<NodeId, DepPath>,
     ) -> Option<LockedProvider<'_, (&NodeId, &Arc<str>)>> {
         let peer_node_id = self.providers.node_ids_by_previous_dep_path.get(previous_dep_path)?;
-        let unchanged = provider_paths.get(peer_node_id) == Some(previous_dep_path)
-            && index_of_dep_path_suffix(previous_dep_path.as_str()).peers_index.is_none()
-            && self.caches.node_dep_paths
-                .get(peer_node_id)
-                .is_none_or(|current| current == previous_dep_path);
+        let unchanged =
+            super::super::locked::stable_provider_path(self.tree, peer_node_id, provider_paths)
+                == Some(previous_dep_path)
+                && self.caches.node_dep_paths
+                    .get(peer_node_id)
+                    .is_none_or(|current| current == previous_dep_path);
         if !unchanged {
             return None;
         }
@@ -207,8 +228,25 @@ impl Walker<'_> {
                     .is_none_or(|node| node.previous_dep_path().is_none()))
     }
 
-    /// Whether an ancestor on the walk path re-resolved this provider away
-    /// from the lockfile, which its own children must see.
+    fn ancestor_path_was_reresolved(
+        &self,
+        node_id: &NodeId,
+        parent_node_ids: &SharedChain<NodeId>,
+    ) -> bool {
+        let mut child_id = node_id;
+        for parent_id in parent_node_ids.iter() {
+            let changed = self.tree.dependencies_tree
+                .get(parent_id)
+                .is_some_and(|parent| child_was_reresolved(parent, child_id));
+            if changed {
+                return true;
+            }
+            child_id = parent_id;
+        }
+        false
+    }
+
+    /// A new ancestor provider or an ancestor's re-resolved child keeps its current binding.
     pub(super) fn ancestor_reresolved_provider(
         &self,
         peer_node_id: &NodeId,
@@ -218,20 +256,26 @@ impl Walker<'_> {
             let Some(parent_node) = self.tree.dependencies_tree.get(parent_node_id) else {
                 continue;
             };
-            let Some(must_win) = parent_node.must_win_dependency_names() else {
-                continue;
-            };
-            // Ancestors on the walk path always have realized children.
-            let TreeChildren::Realized(children) = &parent_node.children else { continue };
-            if must_win
-                .iter()
-                .any(|alias| children.get(alias) == Some(peer_node_id))
-            {
+            if parent_node_id == peer_node_id && parent_node.previous_dep_path().is_none() {
+                return true;
+            }
+            if child_was_reresolved(parent_node, peer_node_id) {
                 return true;
             }
         }
         false
     }
+}
+
+fn child_was_reresolved(
+    parent: &crate::resolved_tree::DependenciesTreeNode,
+    child_id: &NodeId,
+) -> bool {
+    let Some(names) = parent.must_win_dependency_names() else { return false };
+    let TreeChildren::Realized(children) = &parent.children else { return false };
+    names
+        .iter()
+        .any(|name| children.get(name) == Some(child_id))
 }
 
 /// What one node's locked peer pins are checked against.

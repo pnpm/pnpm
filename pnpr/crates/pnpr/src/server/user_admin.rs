@@ -88,10 +88,10 @@ async fn create_user(
                 reason: format!("username {name:?} is taken"),
             });
         };
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "user.create",
-            actor = %identity.username().unwrap_or("-"),
+        let actor = crate::audit::Actor::of(&identity);
+        crate::audit!(
+            actor,
+            "user.create",
             user = %name,
             user_id = %id,
             "admin user created",
@@ -125,10 +125,10 @@ async fn set_user_password(
             return Err(RegistryError::NotFound);
         }
         state.inner.identity.oidc.revoke_user_sessions(&path.id);
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "user.password_update",
-            actor = %identity.username().unwrap_or("-"),
+        let actor = crate::audit::Actor::of(&identity);
+        crate::audit!(
+            actor,
+            "user.password_update",
             user = %name,
             user_id = %path.id,
             "admin user password updated",
@@ -156,11 +156,10 @@ async fn delete_user(
         if removed == UserRemoval::NoSuchUser && revoked_total == 0 {
             return Err(RegistryError::NotFound);
         }
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "user.delete",
-            actor = %actor,
+        let actor = crate::audit::Actor::of(&identity);
+        crate::audit!(
+            actor,
+            "user.delete",
             user = %name,
             user_id = %path.id,
             tokens_revoked = revoked_total,
@@ -203,15 +202,14 @@ async fn revoke_user_token(
         match tokens.find_by_key(&path.key).await? {
             Some(record) if record.user_id == path.id => {
                 tokens.revoke_by_key(&path.key).await?;
-                let actor = identity.username().unwrap_or("-");
                 let name = state.inner.identity.auth.users
                     .account_name(&path.id)
                     .await?
                     .unwrap_or_else(|| format!("deleted:{}", path.id));
-                tracing::info!(
-                    target: "pnpr::audit",
-                    action = "user.token_revoke",
-                    actor = %actor,
+                let actor = crate::audit::Actor::of(&identity);
+                crate::audit!(
+                    actor,
+                    "user.token_revoke",
                     user = %name,
                     user_id = %path.id,
                     token_key = %path.key,
@@ -253,10 +251,10 @@ async fn rename_user(
         require_admin(&state, &identity, "rename", format!("account {:?}", path.id))?;
         let RenameUser { name } = parse_json_body(&body)?;
         state.inner.identity.auth.users.rename_user(&path.id, &name).await?;
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "user.rename",
-            actor = %identity.username().unwrap_or("-"),
+        let actor = crate::audit::Actor::of(&identity);
+        crate::audit!(
+            actor,
+            "user.rename",
             user = %name,
             user_id = %path.id,
             "admin user renamed",

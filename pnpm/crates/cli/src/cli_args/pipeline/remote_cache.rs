@@ -10,6 +10,7 @@
 use super::cache::{StoredTask, TaskCache};
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use pnpm_config::Config;
+use pnpm_deps_restorer::{artifact_signer_settings, artifact_store_options};
 use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactBlobSource, ArtifactBuildPolicy, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, ArtifactPublication, ArtifactSigner, ArtifactStore,
@@ -59,8 +60,8 @@ impl RemoteTaskCache {
     /// artifacts. `Err` with the reason when the configuration cannot work.
     pub(super) fn open(config: &Config) -> Result<Option<RemoteTaskCache>, String> {
         let settings = config.remote_cache_settings();
-        let Some(store) =
-            ArtifactStore::from_config(config, &settings).map_err(|error| error.to_string())?
+        let Some(store) = ArtifactStore::from_options(artifact_store_options(config, &settings))
+            .map_err(|error| error.to_string())?
         else {
             return Ok(None);
         };
@@ -85,7 +86,7 @@ impl RemoteTaskCache {
             .is_some_and(|remote_cache| remote_cache.publish == Some(true));
         let publisher = publishes_tasks
             .then(|| {
-                ArtifactSigner::from_settings(&settings)
+                ArtifactSigner::from_settings(artifact_signer_settings(&settings))
                     .map(|signer| Arc::new(TaskPublisher(signer)))
             })
             .transpose()?;

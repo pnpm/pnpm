@@ -28,7 +28,7 @@ pub(crate) type ExtractedFiles =
 pub(crate) async fn extract_tarball_buffer(
     archive: BufferedArchive,
     package_url: &str,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<ExtractedFiles, TarballError> {
     let post_download_permit = post_download_semaphore()
@@ -49,7 +49,7 @@ pub(crate) async fn extract_tarball_buffer_with_permit(
     post_download_permit: SemaphorePermit<'static>,
     archive: BufferedArchive,
     package_url: &str,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<ExtractedFiles, TarballError> {
     tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
@@ -68,7 +68,7 @@ pub(crate) async fn extract_local_tarball_buffer_with_sha1(
     post_download_permit: SemaphorePermit<'static>,
     archive: BufferedArchive,
     package_url: &str,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<(ExtractedFiles, Integrity), TarballError> {
     tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
@@ -98,7 +98,7 @@ struct BufferedExtraction {
     unpacked_size: Option<usize>,
     limits: TarLimits,
     package_url: String,
-    store_dir: &'static StoreDir,
+    store_dir: StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 }
 
@@ -106,7 +106,7 @@ impl BufferedExtraction {
     fn new(
         archive: BufferedArchive,
         package_url: &str,
-        store_dir: &'static StoreDir,
+        store_dir: &StoreDir,
         ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     ) -> Self {
         Self {
@@ -116,7 +116,7 @@ impl BufferedExtraction {
             unpacked_size: archive.unpacked_size,
             limits: archive.tar_limits.with_unpacked_size(archive.unpacked_size),
             package_url: package_url.to_string(),
-            store_dir,
+            store_dir: store_dir.clone(),
             ignore_file_pattern,
         }
     }
@@ -143,7 +143,7 @@ impl BufferedExtraction {
             &resource,
             self.unpacked_size,
             self.limits,
-            self.store_dir,
+            &self.store_dir,
             self.ignore_file_pattern.as_deref(),
         )?;
         let tar = tar.map(|tar| {
@@ -169,7 +169,7 @@ impl BufferedExtraction {
             verification: self.verification.clone(),
             package_url: &self.package_url,
             limits: self.limits,
-            store_dir: self.store_dir,
+            store_dir: &self.store_dir,
             ignore_file_pattern: self.ignore_file_pattern.as_deref(),
         };
         let ExtractedResource { integrity, extracted } = extract_resource_stream(reader, &resource);

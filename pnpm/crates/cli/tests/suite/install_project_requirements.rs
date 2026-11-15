@@ -275,7 +275,7 @@ fn a_platform_mismatch_does_not_hide_an_engine_failure() {
         if in_workspace {
             write_workspace(&workspace, &requirements);
         } else {
-            let mut manifest = requirements.clone();
+            let mut manifest = requirements;
             manifest["name"] = "root".into();
             fs::write(workspace.join("package.json"), manifest.to_string())
                 .expect("write package.json");

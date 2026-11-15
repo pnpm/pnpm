@@ -1,5 +1,12 @@
 # @pnpm-private/updater
 
+## 1100.0.39
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/workspace.projects-reader@1101.1.7
+
 ## 1100.0.38
 
 ### Patch Changes

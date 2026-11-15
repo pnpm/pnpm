@@ -28,7 +28,7 @@ where
         tarball_mem_cache: Arc<MemCache>,
         resolved_packages: &'a ResolvedPackages,
         http_client: (&'a ThrottledClient, Arc<ThrottledClient>),
-        config: &'static Config,
+        config: &'a Config,
         manifest: &'a PackageManifest,
         lockfile: MaybeLazyLockfile<'a>,
         dependency_groups: DependencyGroupList,
@@ -72,6 +72,16 @@ where
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await
+    }
+
+    /// Validate that the wanted lockfile exists, matches every project's
+    /// manifest and settings, and passes local tarball and resolution-policy
+    /// checks without writing or removing anything on disk.
+    pub async fn validate_frozen(
+        self,
+        selection: Option<WorkspaceInstallSelection<'_>>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.validate_frozen_silent(selection)).await
     }
 
     /// Execute `pacquet prune`, enabling extraneous direct-dependency
@@ -342,6 +352,7 @@ impl Default for InstallRunOptions<'_, '_> {
                 hooked_paths: HashSet::new(),
                 spec_bumps: None,
                 known_requires_build: None,
+                prepared_frozen: None,
             },
         }
     }

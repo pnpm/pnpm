@@ -160,7 +160,7 @@ pub fn namespace_files(
 }
 
 /// The bytes the hosted store `config` describes serves for the file `file`
-/// of `name` in `(namespace, ecosystem)`, through the metadata database it
+/// of `name` in `(namespace, ecosystem)`, through the database it
 /// names, `None` when the package maps no such file.
 pub async fn served_file(
     config: &pnpr::Config,

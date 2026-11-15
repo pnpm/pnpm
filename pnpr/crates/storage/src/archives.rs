@@ -1,6 +1,6 @@
 //! A namespace's archives: stored once by the identity of their bytes, and
 //! reached through the files of packages the metadata maps to them (see
-//! [`crate::metadata::BlobRow`]).
+//! [`crate::database::BlobRow`]).
 
 #[cfg(test)]
 pub(crate) mod testing;
@@ -10,13 +10,21 @@ mod reclaim;
 mod tests;
 
 use crate::{
-    BlobId, BlobSlot, GetRange, RangedBlob, Storage,
-    metadata::{ArtifactBlob, BlobLookup, BlobRef, BlobRow, PublishBase, PublishIncarnation},
+    BlobId, BlobSlot, GetRange, HostedDocumentVersion, RangedBlob, Storage,
+    database::{ArtifactBlob, BlobLookup, BlobRef, BlobRow, PublishBase, PublishIncarnation},
 };
 use axum::body::Body;
 use pnpr_error::Result;
 use pnpr_package_name::CanonicalPackageName;
 use std::collections::BTreeMap;
+
+/// Outcome of [`Storage::remove_package_if_current`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageRemoval {
+    Removed,
+    NotFound,
+    Conflict,
+}
 
 /// A staged archive, stored or found stored under an incarnation.
 #[derive(Debug, Clone)]
@@ -123,7 +131,7 @@ impl Storage {
     /// live incarnation is reused and nothing is stored; otherwise the next
     /// incarnation is stored. Either way the staged file is consumed, and
     /// the commit that maps the file decides whether the incarnation holds
-    /// (see [`crate::metadata::BlobFence`]).
+    /// (see [`crate::database::BlobFence`]).
     pub async fn promote_blob_slot(
         &self,
         mut slot: BlobSlot,
@@ -165,8 +173,25 @@ impl Storage {
         name: &CanonicalPackageName,
         principal: Option<&str>,
     ) -> Result<bool> {
-        let Some(ids) = self.metadata.remove_package(name, principal).await? else {
-            return Ok(false);
+        let version = HostedDocumentVersion::Unversioned;
+        match self.remove_package_if_current(name, &version, principal).await? {
+            PackageRemoval::Removed => Ok(true),
+            PackageRemoval::NotFound | PackageRemoval::Conflict => Ok(false),
+        }
+    }
+
+    /// [`Self::remove_package`] while the package's stored document is still
+    /// at `version`.
+    pub async fn remove_package_if_current(
+        &self,
+        name: &CanonicalPackageName,
+        version: &HostedDocumentVersion,
+        principal: Option<&str>,
+    ) -> Result<PackageRemoval> {
+        let ids = match self.metadata.remove_package(name, Some(version), principal).await? {
+            crate::database::sql::RemovedPackage::Removed(ids) => ids,
+            crate::database::sql::RemovedPackage::NotFound => return Ok(PackageRemoval::NotFound),
+            crate::database::sql::RemovedPackage::Conflict => return Ok(PackageRemoval::Conflict),
         };
         if let Err(error) = self.reclaim_blobs(ids).await {
             tracing::warn!(
@@ -175,7 +200,7 @@ impl Storage {
                 "the archives of a removed package were not reclaimed; `pnpr gc` reclaims them",
             );
         }
-        Ok(true)
+        Ok(PackageRemoval::Removed)
     }
 
     /// The blobs the files of `versions` of `name` are mapped to: what a

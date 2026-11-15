@@ -42,9 +42,10 @@ sends it as written.
 Give a hosted or upstream registry an `ecosystem:`; npm is the default. A router
 may list sources of every ecosystem, because a request only ever sees the
 sources that speak its own protocol, so one router can be the default target for
-all of them.
+all of them. Store the registries with
+[`pnpr registries import`](cli.md#registries):
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   local:
     type: hosted
@@ -88,14 +89,14 @@ root.
 
 ### Defaults for each ecosystem
 
-Registry names are unique across the configuration. Declare every registry
+Registry names are unique across the stored registries. Declare every registry
 directly under `registries:` and select its protocol with `ecosystem:`.
 Nesting registries under ecosystem keys is rejected.
 
 `defaultRegistry` can name a shared router, as above, or select a target for
 each ecosystem:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 defaultRegistry:
   npm: local
   cargo: crates
@@ -143,9 +144,8 @@ publishing new versions.
 crates it hosts. Each result reports the crate's newest release that is not
 yanked; a crate whose releases are all yanked reports its newest release.
 
-The account that first publishes a crate becomes its
-[owner](configuration.md#the-packages-map). `cargo owner` is not supported. Listing, adding, or removing
-owners returns HTTP `501 Not Implemented` with a Cargo error message.
+The account that first publishes a crate becomes its [owner](#package-owners).
+`cargo owner` lists, adds, and removes owners.
 
 ## Python
 
@@ -157,7 +157,7 @@ A Python registry serves the Simple Repository API at `/pypi/simple/` (PEP 503
 HTML and PEP 691 JSON, chosen by `Accept`), files at
 `/pypi/files/<project>/<filename>`, and accepts uploads on the legacy API at
 `/pypi/legacy/`. A named registry answers under `/pypi/~<name>/...`. The
-account that first uploads to a project becomes its [owner](configuration.md#the-packages-map).
+account that first uploads to a project becomes its [owner](#package-owners).
 
 ```sh
 pip install --index-url https://pnpr.example.com/pypi/simple/ my-package
@@ -199,6 +199,39 @@ Administrators listed in `auth.admins` can remove a file with
 and makes downloads return 404. Stored archive bytes are retained. These routes
 also work under a named registry's base URL. Deleted filenames cannot be uploaded again.
 
+## Package owners
+
+A hosted crate, Python project, or image repository records the accounts that
+own it, starting with the account that first publishes it. Under the default
+[`publish` rule](configuration.md#the-packages-map), only its owners and the
+`auth.admins` can publish to it.
+
+Owners and `auth.admins` can add and remove owners. Anyone who can read the
+package can list them. A package keeps at least one owner.
+
+| Ecosystem | Owners URL |
+| --- | --- |
+| Cargo | `/cargo/api/v1/crates/<crate>/owners` |
+| Python | `/pypi/owners/<project>` |
+| OCI | `/oci/owners/<repository>` |
+
+A named registry answers under its base, such as
+`/pypi/~<name>/owners/<project>`. Each URL takes the requests `cargo owner`
+sends to crates.io:
+
+- `GET` lists the owners: `{"users": [{"id": 1, "login": "alice", "name": "alice"}]}`.
+- `PUT` with `{"users": ["bob"]}` adds owners by account name.
+- `DELETE` with `{"users": ["alice"]}` removes them.
+
+An owner whose account was deleted is listed by its account ID, and is removed
+by that ID.
+
+```sh
+cargo owner --registry pnpr --add bob demo
+curl -X PUT -H "Authorization: Bearer $PNPR_TOKEN" \
+  -d '{"users":["bob"]}' https://pnpr.example.com/pypi/owners/my-package
+```
+
 ## Proxying crates.io and PyPI
 
 Cargo and Python proxies restrict downloads and redirects to their configured
@@ -207,7 +240,7 @@ allowlist. The official crates.io and PyPI upstreams also permit their download
 hosts, `static.crates.io` and `files.pythonhosted.org`. A custom registry that
 serves downloads from a separate host needs that host declared:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 routes:
   public:
     - registry: https://downloads.example.com/
@@ -285,7 +318,7 @@ ride along in the same batch. `GET /-/pnpr` advertises support as
 `publish: [0]`.
 
 Individual publishes to one package serialize their metadata updates. With a
-remote metadata database, each commit also waits for database round trips.
+remote database, each commit also waits for database round trips.
 A publisher using the HTTP API can include several versions in one npm
 publish document to commit them together. A batch accepts one document per
 package.
@@ -327,7 +360,7 @@ parallel count against those limits together, and an upload that stopped
 gives its reservation back after an hour.
 
 The bytes stay in the hosted store and their records in the
-[metadata database](storage.md#sqlite-metadata). A sweep records an expired
+[database](storage.md#database). A sweep records an expired
 archive as taken, in a transaction that holds only while no upload renewed it
 since, before it removes the bytes. An upload of the same bytes afterwards
 stores them anew under another key, so a renewal that races the sweep keeps

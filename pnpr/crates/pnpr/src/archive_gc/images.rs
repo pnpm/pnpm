@@ -12,7 +12,7 @@ use crate::{Ecosystem, Result};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     BlobId,
-    metadata::{BlobLookup, BlobRow, BlobState, Mapping},
+    database::{BlobLookup, BlobRow, BlobState, Mapping},
 };
 use std::{collections::HashSet, time::Duration};
 
@@ -61,7 +61,7 @@ impl Collection<'_> {
             scan.unreachable,
             |blob| {
                 let size = rows.get(&blob.id).map_or(0, |row| row.size);
-                tracing::info!(target: "pnpr::audit", action = "gc.remove_archive", actor = "-", key = %blob.key(), size, repository = %name, "removed archive");
+                crate::audit!(crate::audit::Actor::NONE, "gc.remove_archive", key = %blob.key(), size, repository = %name, "removed archive");
             },
         );
         // A repository that moved on since it was read is left for a later

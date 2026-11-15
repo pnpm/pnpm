@@ -52,13 +52,7 @@ export async function toProjectToLink (
     directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
     hoistedPeerProviderNodeIds: resolvedImporter.hoistedPeerProviderNodeIds,
     rejectedOptionalPeers: resolvedImporter.rejectedOptionalPeers,
-    explicitlyRequestedDirectDependencies: new Set(
-      project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, updateSpec }) =>
-        alias != null && (isNew === true || updateSpec === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
-          ? [alias]
-          : []
-      )
-    ),
+    explicitlyRequestedDirectDependencies: getExplicitlyRequestedDependencies(project.wantedDependencies),
     id: project.id,
     linkedDependencies: resolvedImporter.linkedDependencies,
     manifest: project.manifest,
@@ -66,6 +60,17 @@ export async function toProjectToLink (
     rootDir: project.rootDir,
     topParents,
   }
+}
+
+function getExplicitlyRequestedDependencies (wantedDependencies: ResolveImporter['wantedDependencies']): Set<string> {
+  return new Set(
+    wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, saveSpec, updateDepth, updateSpec }) => {
+      if (alias == null) return []
+      const updated = updateSpec === true && updateDepth >= 0
+      const changedSpecifier = prevSpecifier != null && bareSpecifier !== prevSpecifier
+      return isNew === true || saveSpec === true || updated || changedSpecifier ? [alias] : []
+    })
+  )
 }
 
 async function getTopParentsOfProject (

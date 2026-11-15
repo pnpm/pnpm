@@ -1,5 +1,5 @@
 use pnpr_config::{
-    BackendConfig, CACHE_SECRET_MARKER, Config, HostedStoreConfig, LibsqlSettings, MetadataBackend,
+    BackendConfig, CACHE_SECRET_MARKER, Config, DatabaseBackend, HostedStoreConfig, LibsqlSettings,
     SqlBackendSettings, cache_secret_fingerprint, default_osv_path,
 };
 use pnpr_error::{RegistryError, Result};
@@ -11,19 +11,17 @@ use std::{
 use url::Url;
 
 const SHARED_BACKEND_SECRET_REQUIRED: &str =
-    "`secret` or `secrets.cache` must be configured when using shared storage or database backends";
-pub(crate) const PERSISTENT_CACHE_SECRET_REQUIRED: &str = "`secret` or `secrets.cache` must be \
+    "`secret` or `secret.cache` must be configured when using shared storage or database backends";
+pub(crate) const PERSISTENT_CACHE_SECRET_REQUIRED: &str = "`secret` or `secret.cache` must be \
      configured when the cache directory persists across restarts or is shared";
 pub(crate) const MAX_CACHE_SECRET_MARKER_BYTES: usize = 256;
 pub(crate) const PENDING_CACHE_CLAIM: &str = "pending";
 const CACHE_OVERLAPS_HOSTED_STORAGE: &str =
     "cache path must not equal or contain the storage directory";
 const CACHE_CONTAINS_METADATA_DB: &str =
-    "database.url SQLite path must not live inside the disposable cache directory";
+    "storage.database.url SQLite path must not live inside the disposable cache directory";
 const CACHE_CONTAINS_REPLICA_DB: &str =
     "libSQL replicaPath must not live inside the disposable cache directory";
-const CACHE_CONTAINS_AUTH_FILE: &str =
-    "auth file path must not live inside the disposable cache directory";
 const CACHE_CONTAINS_OSV_DB: &str =
     "osv.path must not live inside or contain the disposable cache directory";
 
@@ -59,7 +57,12 @@ fn validate_startup_config_inner(
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
     config.http.ensure_valid_metrics()?;
-    validate_metadata_backend(&config.storage.metadata)?;
+    pnpr_route::validate_public_routes(&config.routing.route_policy)
+        .map_err(|reason| RegistryError::InvalidConfig { reason })?;
+    if config.http.shutdown_timeout.is_zero() {
+        return Err(invalid("shutdownTimeout must be greater than zero"));
+    }
+    validate_database_backend(&config.storage.database)?;
     validate_identity_backend(&config.identity.backend)?;
     validate_cache_paths(config)?;
     validate_cache_secret_inner(config, pending_policy)?;
@@ -72,16 +75,13 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
     if norm_hosted.starts_with(&norm_cache) {
         return Err(invalid(CACHE_OVERLAPS_HOSTED_STORAGE));
     }
-    validate_metadata_cache_overlap(&config.storage.metadata, &norm_cache)?;
+    validate_database_cache_overlap(&config.storage.database, &norm_cache)?;
     if let BackendConfig::Libsql(settings) = &config.identity.backend {
         reject_path_inside_cache(
             settings.replica_path.as_deref(),
             &norm_cache,
             CACHE_CONTAINS_REPLICA_DB,
         )?;
-    }
-    for auth_file in [&config.identity.auth.users.file, &config.identity.auth.tokens.file] {
-        reject_path_inside_cache(auth_file.as_deref(), &norm_cache, CACHE_CONTAINS_AUTH_FILE)?;
     }
     let default_osv;
     let effective_osv = match config.osv.path.as_deref() {
@@ -95,19 +95,19 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
     Ok(())
 }
 
-fn validate_metadata_cache_overlap(metadata: &MetadataBackend, norm_cache: &Path) -> Result<()> {
+fn validate_database_cache_overlap(metadata: &DatabaseBackend, norm_cache: &Path) -> Result<()> {
     match metadata {
-        MetadataBackend::Sqlite(db_path) => reject_path_inside_cache(
+        DatabaseBackend::Sqlite(db_path) => reject_path_inside_cache(
             Some(db_path.as_path()),
             norm_cache,
             CACHE_CONTAINS_METADATA_DB,
         ),
-        MetadataBackend::Libsql(settings) => reject_path_inside_cache(
+        DatabaseBackend::Libsql(settings) => reject_path_inside_cache(
             settings.replica_path.as_deref(),
             norm_cache,
             CACHE_CONTAINS_REPLICA_DB,
         ),
-        MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_) => Ok(()),
+        DatabaseBackend::Postgres(_) | DatabaseBackend::Mysql(_) => Ok(()),
     }
 }
 
@@ -181,14 +181,14 @@ fn uses_shared_backend(config: &Config) -> bool {
         HostedStoreConfig::Fs => false,
         HostedStoreConfig::S3(_) | HostedStoreConfig::ObjectStore { .. } => true,
     };
-    let shared_metadata = match &config.storage.metadata {
-        MetadataBackend::Sqlite(_) => false,
-        MetadataBackend::Libsql(_) | MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_) => {
+    let shared_metadata = match &config.storage.database {
+        DatabaseBackend::Sqlite(_) => false,
+        DatabaseBackend::Libsql(_) | DatabaseBackend::Postgres(_) | DatabaseBackend::Mysql(_) => {
             true
         }
     };
     let shared_identity = match &config.identity.backend {
-        BackendConfig::Local => false,
+        BackendConfig::Sqlite(_) => false,
         BackendConfig::Libsql(_) | BackendConfig::Postgres(_) | BackendConfig::Mysql(_) => true,
     };
     shared_hosted || shared_metadata || shared_identity
@@ -258,21 +258,21 @@ pub(crate) fn ensure_only_ignorable_entries(
     Ok(())
 }
 
-fn validate_metadata_backend(metadata: &MetadataBackend) -> Result<()> {
+fn validate_database_backend(metadata: &DatabaseBackend) -> Result<()> {
     match metadata {
-        MetadataBackend::Sqlite(path) if path.as_os_str().is_empty() => {
-            Err(invalid("database.url `sqlite:` needs a path after the colon"))
+        DatabaseBackend::Sqlite(path) if path.as_os_str().is_empty() => {
+            Err(invalid("storage.database.url `sqlite:` needs a path after the colon"))
         }
-        MetadataBackend::Sqlite(_) => Ok(()),
-        MetadataBackend::Postgres(settings) => validate_postgres(settings),
-        MetadataBackend::Mysql(settings) => validate_mysql(settings),
-        MetadataBackend::Libsql(settings) => validate_libsql(settings),
+        DatabaseBackend::Sqlite(_) => Ok(()),
+        DatabaseBackend::Postgres(settings) => validate_postgres(settings),
+        DatabaseBackend::Mysql(settings) => validate_mysql(settings),
+        DatabaseBackend::Libsql(settings) => validate_libsql(settings),
     }
 }
 
 fn validate_identity_backend(backend: &BackendConfig) -> Result<()> {
     match backend {
-        BackendConfig::Local => Ok(()),
+        BackendConfig::Sqlite(_) => Ok(()),
         BackendConfig::Postgres(settings) => validate_postgres(settings),
         BackendConfig::Mysql(settings) => validate_mysql(settings),
         BackendConfig::Libsql(settings) => validate_libsql(settings),
@@ -315,11 +315,11 @@ fn validate_mysql(settings: &SqlBackendSettings) -> Result<()> {
 
 fn validate_libsql(settings: &LibsqlSettings) -> Result<()> {
     if settings.max_connections == Some(0) {
-        return Err(invalid("database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0"));
     }
     if settings.replica_path.is_some() && settings.sync_interval_secs == Some(0) {
         return Err(invalid(
-            "database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
+            "storage.database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
              replica read may be",
         ));
     }
@@ -334,19 +334,19 @@ fn validate_libsql(settings: &LibsqlSettings) -> Result<()> {
         return Err(missing_driver());
     }
     #[cfg(feature = "backend-libsql")]
-    pnpr_libsql::validate_settings(settings, "database")?;
+    pnpr_libsql::validate_settings(settings, "storage.database")?;
     Ok(())
 }
 
 fn validate_sql_pool(settings: &SqlBackendSettings) -> Result<()> {
     if settings.max_connections == Some(0) {
-        return Err(invalid("database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0"));
     }
     if settings.timeout.is_zero() {
-        return Err(invalid("database.timeout must be greater than 0"));
+        return Err(invalid("storage.database.timeout must be greater than 0"));
     }
     if settings.startup_timeout.is_zero() {
-        return Err(invalid("database.startupTimeout must be greater than 0"));
+        return Err(invalid("storage.database.startupTimeout must be greater than 0"));
     }
     Ok(())
 }
@@ -363,7 +363,7 @@ fn parse_hierarchical_url(raw: &str) -> Result<Url> {
 }
 
 fn invalid_url() -> RegistryError {
-    invalid("database.url is not a valid URL")
+    invalid("storage.database.url is not a valid URL")
 }
 
 fn missing_driver() -> RegistryError {

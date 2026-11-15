@@ -350,7 +350,7 @@ fn zip_ingestion<'a>(input: &'a IngestTarballToStore<'a>) -> IngestZipArchiveToS
             id: input.package.id,
         },
         store: crate::ArchiveStoreContext {
-            dir: input.store.dir,
+            dir: input.store.dir.clone(),
             index: input.store.index.clone(),
             index_writer: input.store.index_writer.clone(),
             verify_integrity: input.store.verify_integrity,
@@ -425,7 +425,7 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
                     id: "fixture@1.0.0",
                 },
                 store: crate::ArchiveStoreContext {
-                    dir: store,
+                    dir: std::borrow::Cow::Borrowed(store),
                     index: None,
                     index_writer: Some(Arc::clone(&writer)),
                     verify_integrity: true,
@@ -505,7 +505,7 @@ async fn formats_share_retry_classification_and_never_publish_failed_integrity()
                     id: "fixture@1.0.0",
                 },
                 store: crate::ArchiveStoreContext {
-                    dir: store,
+                    dir: std::borrow::Cow::Borrowed(store),
                     index: None,
                     index_writer: Some(Arc::clone(&writer)),
                     verify_integrity: true,

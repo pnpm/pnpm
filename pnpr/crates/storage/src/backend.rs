@@ -151,7 +151,7 @@ pub struct HostedDocumentForUpdate {
 
 /// What a backend needs to recognize the document it handed out, so a
 /// read-modify-write can refuse to clobber a concurrent publisher.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostedDocumentVersion {
     /// The backend offers no compare-and-set. It is single-writer by
     /// construction, so there is nothing to compare against.
@@ -160,4 +160,7 @@ pub enum HostedDocumentVersion {
     /// The namespace generation that last changed the package, from a
     /// metadata backend that tracks generations.
     Generation(u64),
+    /// The package had no stored document, and its removal tombstone listed
+    /// these owners.
+    Tombstone(Vec<String>),
 }

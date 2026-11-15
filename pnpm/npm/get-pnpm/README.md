@@ -46,7 +46,8 @@ and the command that removes it.
   `%LOCALAPPDATA%\pnpm` on Windows.
 - **Your shell configuration** — on Linux and macOS, `pnpm setup` adds a block like
   this to the rc file of your shell (`~/.bashrc`, `~/.zshrc`,
-  `~/.config/fish/config.fish`, or `~/.config/nushell/env.nu`), and says which file
+  `~/.config/fish/config.fish`, `~/.config/nushell/env.nu`, or
+  `~/.config/powershell/profile.ps1`), and says which file
   it changed:
 
   ```sh

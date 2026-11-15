@@ -2,10 +2,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OUTDATED_OPTS } from './utils/index.js'
+
+const testFixtures = fixtures(import.meta.dirname)
+const hasOutdatedDepsFixture = testFixtures.find('has-outdated-deps')
 
 const originalModule = await import('@pnpm/deps.github-actions')
 jest.unstable_mockModule('@pnpm/deps.github-actions', () => {
@@ -74,6 +78,27 @@ test('recursive outdated does not look at GitHub Actions by default', async () =
   await handler({ ...opts, includeGithubActions: true })
 
   expect(findOutdatedGitHubActions).toHaveBeenCalledWith(expect.objectContaining({ dir: process.cwd() }))
+})
+
+test('outdated with negated action selector still checks npm dependencies and filters actions', async () => {
+  tempDir()
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  writeWorkflow()
+
+  const result = await handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    dir: process.cwd(),
+    includeGithubActions: true,
+  }, ['!actions/cache/save'])
+
+  expect(result.exitCode).toBe(1)
+  expect(result.output).toContain('is-positive')
+  const match = jest.mocked(findOutdatedGitHubActions).mock.calls[0]?.[0]?.match
+  expect(match?.('actions/cache/save')).toBe(false)
+  expect(match?.('actions/cache/restore')).toBe(true)
+  expect(match?.('actions/checkout')).toBe(true)
 })
 
 function writeWorkflow (): void {

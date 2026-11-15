@@ -181,6 +181,7 @@ pub(super) fn merged_dedicated_lockfile_state(
     virtual_store_dirs.sort_unstable();
     virtual_store_dirs.dedup();
     let mut config = state.config.clone();
+    config.configured_lockfile_dir = None;
     config.lockfile_dir = Some(workspace_root.to_path_buf());
     state.config = Config::leak(config);
     state.lockfile = LazyLockfile::preloaded(merged);

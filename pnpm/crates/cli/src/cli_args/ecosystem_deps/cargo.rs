@@ -73,9 +73,7 @@ pub(crate) async fn collect_cargo_outdated(
     let auth_headers = cargo_auth_headers(config)?;
     let mut outdated = Vec::new();
     for dep in declared {
-        if !query.include_direct.contains(&dep.group)
-            || !(query.matches_name(&dep.alias) || query.matches_name(&dep.package_name))
-        {
+        if !query.include_direct.contains(&dep.group) || !dep.matches_query(query) {
             continue;
         }
         if let Some(pkg) = resolve_outdated_cargo_dep(
@@ -148,7 +146,7 @@ fn build_cargo_outdated_package(
     let homepage = pnpm_cargo_resolver::is_crates_io(index_url)
         .then(|| format!("https://crates.io/crates/{}", dep.package_name));
     OutdatedPackage {
-        alias: dep.alias.clone(),
+        alias: dep.primary_alias().to_string(),
         package_name: dep.package_name.clone(),
         belongs_to: dep.group,
         current: semver_to_node_version(current),
@@ -202,7 +200,7 @@ pub(crate) fn validate_explicit_cargo_requests(
     for req in explicit {
         if !all_declared
             .iter()
-            .any(|dep| dep.alias == req.name || dep.package_name == req.name)
+            .any(|dep| dep.matches_name(&req.name))
         {
             bail!("crate {} is not a declared dependency in Cargo.toml", req.name);
         }
@@ -311,7 +309,7 @@ fn pin_unchanged_deps(
             Some((
                 dep.manifest_path.clone(),
                 dep.table,
-                dep.alias.clone(),
+                dep.manifest_key.clone(),
                 format!("={}", without_build_metadata(locked_ver)),
             ))
         })
@@ -356,10 +354,10 @@ async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     let staged = (
         dep.manifest_path.clone(),
         dep.table,
-        dep.alias.clone(),
+        dep.manifest_key.clone(),
         format!("={}", without_build_metadata(&resolved)),
     );
-    let finalized = (dep.manifest_path.clone(), dep.table, dep.alias.clone(), saved_spec);
+    let finalized = (dep.manifest_path.clone(), dep.table, dep.manifest_key.clone(), saved_spec);
     Ok(Some((staged, finalized)))
 }
 

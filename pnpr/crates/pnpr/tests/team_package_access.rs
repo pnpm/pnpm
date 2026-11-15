@@ -1,7 +1,6 @@
 //! npm's team package access endpoints (`npm access grant`, `revoke`, and
-//! `list packages`) on a registry with `rulesManagedBy: api`: what a grant
-//! writes into the package rules, who may make one, and which packages it
-//! applies to.
+//! `list packages`): what a grant writes into the stored package rules, who
+//! may make one, and which packages it applies to.
 
 use axum::{
     body::{Body, to_bytes},
@@ -25,13 +24,13 @@ registries:
   local:
     type: hosted
     namespace: \"\"
-    rulesManagedBy: api
     teams:
       devs: { name: devs, members: [carol] }
     packages:
       '@acme/app':
         access: [root]
         publish: [root]
+      '@acme/lib': {}
       '@acme/*': {}
   fixed:
     type: hosted
@@ -49,13 +48,29 @@ defaultRegistry: main
 const PACKAGES: &str = "/npm/-/team/acme/devs/package";
 const RULES: &str = "/-/pnpr/v0/admin/rules/npm/local";
 
-fn load_config(dir: &Path) -> Config {
+async fn load_config(dir: &Path) -> Config {
+    let yaml = format!("storage: {}\n{CONFIG}", storage_dir(dir).display());
+    crate::managed_registries::managed_config(
+        &dir.join("config.yaml"),
+        &yaml,
+        listen(),
+        public_url(),
+    )
+    .await
+}
+
+fn storage_dir(dir: &Path) -> std::path::PathBuf {
     let storage = dir.join("storage");
     std::fs::create_dir_all(&storage).unwrap();
-    let path = dir.join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage.display())).unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+    storage
+}
+
+fn listen() -> SocketAddr {
+    SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
+}
+
+fn public_url() -> Option<String> {
+    Some("http://example.test".to_string())
 }
 
 async fn app_router(config: Config) -> axum::Router {
@@ -115,7 +130,7 @@ async fn app_rule(app: &axum::Router, root: &str) -> Value {
 #[tokio::test]
 async fn a_grant_edits_the_package_rule_and_a_revoke_undoes_it() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let carol = add_user(&app, "carol").await;
     assert_eq!(read_app(&app, &carol).await, StatusCode::FORBIDDEN);
@@ -149,36 +164,24 @@ async fn a_grant_edits_the_package_rule_and_a_revoke_undoes_it() {
 #[tokio::test]
 async fn a_grant_stores_only_the_lists_it_changes() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let grant = json!({ "package": "@acme/app", "permissions": "read-only" });
     assert_eq!(send(&app, "PUT", PACKAGES, Some(&root), Some(grant)).await.0, StatusCode::CREATED);
 
-    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
-    let record = storage
-        .read_rule_overrides("npm/local")
-        .await
-        .unwrap()
-        .unwrap();
-    let mut expected_packages = std::collections::BTreeMap::new();
-    expected_packages.insert(
-        "@acme/app".to_string(),
-        pnpr_storage::metadata::StoredPackageOverride {
-            access: Some(vec!["root".to_string(), "team:devs".to_string()]),
-            publish: None,
-            unpublish: None,
-        },
-    );
+    let (status, document) =
+        send(&app, "GET", "/-/pnpr/v0/admin/registries", Some(&root), None).await;
+    assert_eq!(status, StatusCode::OK);
     assert_eq!(
-        record.overrides,
-        pnpr_storage::metadata::StoredRuleOverrides { access: None, packages: expected_packages },
+        document["registries"]["local"]["packages"]["@acme/app"],
+        json!({ "access": ["root", "team:devs"], "publish": ["root"] }),
     );
 }
 
 #[tokio::test]
 async fn grants_need_an_admin_a_declared_package_and_a_known_team() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let carol = add_user(&app, "carol").await;
     let grant = |package: &str| json!({ "package": package, "permissions": "read-write" });
@@ -193,11 +196,31 @@ async fn grants_need_an_admin_a_declared_package_and_a_known_team() {
             StatusCode::BAD_REQUEST,
         ),
         ("/npm/-/team/acme/nobody/package", &root, grant("@acme/app"), StatusCode::NOT_FOUND),
-        ("/npm/-/team/fixed/devs/package", &root, grant("@fixed/app"), StatusCode::FORBIDDEN),
+        ("/npm/-/team/fixed/devs/package", &root, grant("@fixed/app"), StatusCode::BAD_REQUEST),
     ];
     for (path, token, body, expected) in cases {
         let (status, _) = send(&app, "PUT", path, Some(token), Some(body.clone())).await;
         assert_eq!(status, expected, "{path} {body}");
     }
     assert_eq!(app_rule(&app, &root).await["access"], json!(["root"]));
+}
+
+#[tokio::test]
+async fn a_grant_falls_back_to_the_stored_default_not_the_served_one() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let app = app_router(config.clone()).await;
+    let root = add_user(&app, "root").await;
+    let documents = "/-/pnpr/v0/admin/registries";
+    let (_, mut document) = send(&app, "GET", documents, Some(&root), None).await;
+    document["registries"]["local"]["access"] = json!(["$authenticated"]);
+    crate::managed_registries::store_graph(&config, &document).await;
+
+    let grant = json!({ "package": "@acme/lib", "permissions": "read-only" });
+    assert_eq!(send(&app, "PUT", PACKAGES, Some(&root), Some(grant)).await.0, StatusCode::CREATED);
+    let (_, document) = send(&app, "GET", documents, Some(&root), None).await;
+    assert_eq!(
+        document["registries"]["local"]["packages"]["@acme/lib"]["access"],
+        json!(["$authenticated", "team:devs"]),
+    );
 }

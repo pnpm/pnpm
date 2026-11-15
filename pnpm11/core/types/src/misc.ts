@@ -232,3 +232,15 @@ export type VulnerabilitySeverity =
   | 'moderate'
   | 'high'
   | 'critical'
+
+/**
+ * True for objects created by `{}` or `Object.create(null)`, including across
+ * VM realms where `Object.prototype` differs from the caller's realm.
+ */
+export function isPlainObject (value: unknown): value is Record<string, unknown> {
+  if (Object.prototype.toString.call(value) !== '[object Object]') {
+    return false
+  }
+  const proto = Object.getPrototypeOf(value)
+  return proto === null || Object.getPrototypeOf(proto) === null
+}

@@ -1,5 +1,8 @@
 use super::{
-    super::{clean::run as clean_builtin, dispatch_script, script_override},
+    super::{
+        clean::{LockfileRemoval, run as clean_builtin},
+        dispatch_script, script_override,
+    },
     BinArgs, BugsArgs, CacheCommand, CatFileArgs, CatIndexArgs, CleanArgs, CommandFuture, Config,
     ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DocsArgs, DoctorArgs,
     DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NotImplementedError, PrefixArgs, RepoArgs,
@@ -38,14 +41,16 @@ pub(in super::super) fn bin<'a>(
 
 pub(in super::super) fn clean<'a>(
     ctx: &RunCtx<'a>,
-    CleanArgs { lockfile }: CleanArgs,
+    CleanArgs { lockfile, lockfile_dir }: CleanArgs,
     command_name: &'a str,
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
     if let Some(run_args) = script_override::resolve(ctx, config, command_name, Vec::new())? {
         return dispatch_script::run(ctx, run_args);
     }
-    clean_builtin(ctx, config, lockfile)?;
+    lockfile_dir.apply_to(config, ctx.locations.dir);
+    let removal = if lockfile { LockfileRemoval::Remove } else { LockfileRemoval::Keep };
+    clean_builtin(ctx, config, removal)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

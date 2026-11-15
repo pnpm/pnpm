@@ -1,9 +1,9 @@
 use super::{
     AlwaysFail, Arc, AtomicUsize, FailFor, FetchFails, LockfileResolution, LogEvent, Mutex,
-    Ordering, PkgName, ReplacedEntries, Reporter, ResolutionVerification, ResolutionVerifier,
-    SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE, TempDir, VerifyCtx, VerifyError,
-    VerifyFuture, VerifyLockfileResolutionsOptions, collect_resolution_policy_violations, parse,
-    verify_lockfile_resolutions,
+    Ordering, PkgName, ReplacedCandidate, ReplacedEntries, Reporter, ResolutionVerification,
+    ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE, TempDir, VerifyCtx,
+    VerifyError, VerifyFuture, VerifyLockfileResolutionsOptions,
+    collect_resolution_policy_violations, parse, verify_lockfile_resolutions,
 };
 
 #[tokio::test]
@@ -447,8 +447,12 @@ snapshots:
     .expect("valid scoped and unscoped aliases pass");
 }
 
-fn is_acme_1_0_0(name: &PkgName, version: &str) -> bool {
-    name.to_string() == "acme" && version == "1.0.0"
+fn is_acme_1_0_0(candidate: ReplacedCandidate<'_>) -> bool {
+    candidate.name.to_string() == "acme" && candidate.version == "1.0.0"
+}
+
+fn is_plain_scoped_acme(candidate: ReplacedCandidate<'_>) -> bool {
+    candidate.registry_name.is_none() && candidate.name.to_string() == "@corp/acme"
 }
 
 #[tokio::test]
@@ -475,6 +479,78 @@ async fn replaced_entries_skip_the_policy_verifiers() {
     assert_eq!(count, 1);
     assert!(breakdown.contains("bravo@2.0.0"), "got: {breakdown}");
     assert!(!breakdown.contains("acme"), "got: {breakdown}");
+}
+
+#[tokio::test]
+async fn replaced_entries_distinguish_plain_and_registry_qualified_keys() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      '@corp/acme':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@corp/acme-legacy':
+        specifier: npm:@corp/acme@legacy:1.0.0
+        version: '@corp/acme@legacy:1.0.0'
+
+packages:
+
+  '@corp/acme@1.0.0':
+    resolution: {integrity: sha512-deadbeef}
+
+  '@corp/acme@legacy:1.0.0':
+    resolution: {integrity: sha512-beefdead}
+
+snapshots:
+
+  '@corp/acme@1.0.0': {}
+  '@corp/acme@legacy:1.0.0': {}
+",
+    );
+    static QUALIFIED_CALLS: AtomicUsize = AtomicUsize::new(0);
+    QUALIFIED_CALLS.store(0, Ordering::SeqCst);
+
+    struct RecordQualified {
+        policy: serde_json::Map<String, serde_json::Value>,
+    }
+    impl ResolutionVerifier for RecordQualified {
+        fn verify<'a>(
+            &'a self,
+            _resolution: &'a LockfileResolution,
+            ctx: VerifyCtx<'a>,
+        ) -> VerifyFuture<'a> {
+            assert_eq!(ctx.registry_name, Some("legacy"));
+            QUALIFIED_CALLS.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { ResolutionVerification::Ok })
+        }
+        fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+            &self.policy
+        }
+        fn can_trust_past_check(
+            &self,
+            _cached: &serde_json::Map<String, serde_json::Value>,
+        ) -> bool {
+            false
+        }
+    }
+
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(RecordQualified { policy: serde_json::Map::new() });
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier],
+        &VerifyLockfileResolutionsOptions {
+            replaced: Some(ReplacedEntries(&is_plain_scoped_acme)),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("registry-qualified entry verified while plain moved entry skipped");
+    assert_eq!(QUALIFIED_CALLS.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

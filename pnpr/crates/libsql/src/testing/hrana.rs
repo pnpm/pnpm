@@ -7,7 +7,7 @@ use libsql::{Connection, Value};
 use serde_json::{Value as JsonValue, json};
 use std::sync::{
     Mutex,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 /// The Hrana pipeline and cursor requests a primary has answered: the round
@@ -18,6 +18,12 @@ pub struct RoundTrips {
     /// The statements of each request, in order, for a test to report what a
     /// round trip carried.
     statements: Mutex<Vec<Vec<String>>>,
+    pause_next_write: AtomicBool,
+    /// Signalled when a `BEGIN IMMEDIATE` round trip pauses after
+    /// [`Self::pause_next_write`].
+    pub write_paused: tokio::sync::Notify,
+    /// Releases a paused `BEGIN IMMEDIATE` round trip.
+    pub write_resume: tokio::sync::Notify,
 }
 
 impl RoundTrips {
@@ -32,8 +38,15 @@ impl RoundTrips {
         std::mem::take(&mut *self.statements.lock().unwrap())
     }
 
-    pub(super) fn record(&self, steps: impl IntoIterator<Item = JsonValue>) {
-        let statements = steps
+    /// Pause the next `BEGIN IMMEDIATE` round trip before it runs on the
+    /// primary, signalling [`Self::write_paused`] until [`Self::write_resume`]
+    /// is notified.
+    pub fn pause_next_write(&self) {
+        self.pause_next_write.store(true, Ordering::SeqCst);
+    }
+
+    pub(super) async fn record(&self, steps: impl IntoIterator<Item = JsonValue>) {
+        let statements: Vec<String> = steps
             .into_iter()
             .map(|step| {
                 let sql = step["stmt"]["sql"].as_str().unwrap_or_default();
@@ -44,11 +57,18 @@ impl RoundTrips {
                 sql.chars().take(120).collect()
             })
             .collect();
+        let is_write = statements
+            .iter()
+            .any(|sql| sql == "BEGIN IMMEDIATE");
         self.statements
             .lock()
             .unwrap()
             .push(statements);
         self.count.fetch_add(1, Ordering::SeqCst);
+        if is_write && self.pause_next_write.swap(false, Ordering::SeqCst) {
+            self.write_paused.notify_one();
+            self.write_resume.notified().await;
+        }
     }
 }
 

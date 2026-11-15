@@ -14,6 +14,7 @@ pub use rebase::{rebase_path, rebase_setting, rebase_specifier};
 pub use selector::{SettingSlot, canonical_setting_name};
 
 use indexmap::IndexMap;
+use pnpm_env_replace::SentinelPlaceholders;
 use same_file::Handle;
 use std::{
     fmt, fs,
@@ -216,19 +217,70 @@ fn root_mapping_with_include(path: &Path, text: &str) -> Result<Option<Mapping>,
 }
 
 fn settings_readers_see_include(text: &str) -> bool {
-    serde_saphyr::from_str::<Option<IndexMap<String, serde::de::IgnoredAny>>>(text)
-        .is_ok_and(|root| root.is_some_and(|root| root.contains_key(INCLUDE_KEY)))
+    let has_include = |candidate: &str| {
+        serde_saphyr::from_str::<Option<IndexMap<String, serde::de::IgnoredAny>>>(candidate)
+            .is_ok_and(|root| root.is_some_and(|root| root.contains_key(INCLUDE_KEY)))
+    };
+    has_include(text)
+        || SentinelPlaceholders::new(text)
+            .is_some_and(|sentinels| has_include(&sentinels.replace_all(text)))
 }
 
 /// `text` as a mapping, or `None` for a document that is not one.
 fn parse_mapping(text: &str) -> Result<Option<Mapping>, yaml_serde::Error> {
-    let mapping = match normalize::normalize(yaml_serde::from_str::<Value>(text)?)? {
+    let value = match yaml_serde::from_str::<Value>(text) {
+        Ok(value) => value,
+        Err(raw_error) => parse_value_preserving_placeholders(text).ok_or(raw_error)?,
+    };
+    let mapping = match normalize::normalize(value)? {
         Value::Mapping(mapping) => mapping,
         Value::Null => Mapping::new(),
         _ => return Ok(None),
     };
     normalize::check_catalogs(&mapping)?;
     Ok(Some(mapping))
+}
+
+fn parse_value_preserving_placeholders(text: &str) -> Option<Value> {
+    let sentinels = SentinelPlaceholders::new(text)?;
+    let mut value = yaml_serde::from_str::<Value>(&sentinels.replace_all(text)).ok()?;
+    restore_value_placeholders(&sentinels, text, &mut value).then_some(value)
+}
+
+fn restore_value_placeholders(
+    sentinels: &SentinelPlaceholders,
+    original_text: &str,
+    value: &mut Value,
+) -> bool {
+    match value {
+        Value::String(scalar) => sentinels.try_restore_in_place(original_text, scalar),
+        Value::Sequence(items) => {
+            items.iter_mut().all(|item| restore_value_placeholders(sentinels, original_text, item))
+        }
+        Value::Mapping(mapping) => restore_mapping_placeholders(sentinels, original_text, mapping),
+        Value::Tagged(tagged) => {
+            restore_value_placeholders(sentinels, original_text, &mut tagged.value)
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) => true,
+    }
+}
+
+fn restore_mapping_placeholders(
+    sentinels: &SentinelPlaceholders,
+    original_text: &str,
+    mapping: &mut Mapping,
+) -> bool {
+    let entries: Vec<(Value, Value)> = std::mem::take(mapping).into_iter().collect();
+    for (mut key, mut entry) in entries {
+        if !restore_value_placeholders(sentinels, original_text, &mut key)
+            || !restore_value_placeholders(sentinels, original_text, &mut entry)
+            || mapping.contains_key(&key)
+        {
+            return false;
+        }
+        mapping.insert(key, entry);
+    }
+    true
 }
 
 fn load_includes(

@@ -61,6 +61,7 @@ export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string
+  virtualStoreOnly?: boolean
   supportedArchitectures?: SupportedArchitectures
 }
 

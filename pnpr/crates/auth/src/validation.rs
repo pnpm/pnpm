@@ -126,7 +126,6 @@ pub(crate) fn confusable_username() -> RegistryError {
     }
 }
 
-#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 pub(crate) fn username_conflict(username: &str, exact_match: bool) -> RegistryError {
     if exact_match {
         RegistryError::AdminConflict { reason: format!("username {username:?} is taken") }
@@ -135,7 +134,6 @@ pub(crate) fn username_conflict(username: &str, exact_match: bool) -> RegistryEr
     }
 }
 
-#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 pub(crate) fn name_revision_bounds(expected_revision: u64) -> Result<Option<(i64, i64, u64)>> {
     let Ok(expected) = i64::try_from(expected_revision) else {
         return Ok(None);

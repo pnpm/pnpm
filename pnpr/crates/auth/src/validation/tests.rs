@@ -143,15 +143,24 @@ async fn assert_deleted_accounts_release_skeletons(users: &dyn crate::UserBacken
     users.add_or_login("\u{0430}\u{0441}\u{0435}", "password").await.unwrap();
 }
 
+fn sqlite_auth(path: Option<&std::path::Path>, bcrypt_cost: u32) -> crate::SqliteAuth {
+    let max_users = pnpr_config::MaxUsers::Unlimited;
+    match path {
+        Some(path) => crate::SqliteAuth::open(path, max_users),
+        None => crate::SqliteAuth::in_memory(max_users),
+    }
+    .unwrap()
+    .with_bcrypt_cost(bcrypt_cost)
+}
+
 #[tokio::test]
-async fn user_store_rejects_confusable_names() {
-    let users = crate::UserStore::in_memory_with_cost(pnpr_config::MaxUsers::Unlimited, 4);
-    assert_username_skeletons(&users).await;
+async fn sqlite_auth_rejects_confusable_names() {
+    assert_username_skeletons(&sqlite_auth(None, 4)).await;
 }
 
 #[tokio::test]
 async fn concurrent_confusable_registrations_create_only_one_account() {
-    let users = crate::UserStore::in_memory_with_cost(pnpr_config::MaxUsers::Unlimited, 4);
+    let users = sqlite_auth(None, 4);
     let modern = users.add_or_login("modern", "password");
     let rnodern = users.add_or_login("rnodern", "password");
     let (first, second) = tokio::join!(modern, rnodern);
@@ -174,49 +183,30 @@ async fn imports_reject_confusable_names_in_the_same_batch() {
 }
 
 async fn assert_import_rejects_confusable_names(existing_name: &str, imported_names: &[&str]) {
-    let directory = tempfile::TempDir::new().unwrap();
-    let path = directory.path().join("accounts.json");
-    let users = crate::UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, 4)
-        .unwrap();
+    let users = sqlite_auth(None, 4);
     users.add_or_login(existing_name, "password").await.unwrap();
-    let saved = std::fs::read(&path).unwrap();
     let hash = bcrypt::hash("imported-password", 4).unwrap();
     let hashes: std::collections::HashMap<_, _> = imported_names
         .iter()
         .map(|name| ((*name).to_string(), hash.clone()))
         .collect();
-    for mode in [crate::ImportMode::DryRun, crate::ImportMode::Persist] {
+    for mode in [crate::ImportMode::Preview, crate::ImportMode::Apply] {
         for collisions in [crate::PasswordCollisions::Keep, crate::PasswordCollisions::Overwrite] {
             let options = crate::PasswordImport { collisions, mode };
-            let error = crate::UserStore::import_password_hashes(&path, hashes.clone(), options)
-                .unwrap_err();
+            let error = users.import_password_hashes(hashes.clone(), options).await.unwrap_err();
             assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);
-            assert_eq!(std::fs::read(&path).unwrap(), saved);
+            assert_eq!(users.list_users().await.unwrap(), [existing_name]);
         }
     }
-    let reopened =
-        crate::UserStore::open_with_cost(path, pnpr_config::MaxUsers::Unlimited, 4).unwrap();
-    assert_eq!(reopened.list_users().await.unwrap(), [existing_name]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn separate_file_stores_reject_concurrent_confusable_registrations() {
+async fn separate_connections_reject_concurrent_confusable_registrations() {
     let directory = tempfile::TempDir::new().unwrap();
-    let path = directory.path().join("accounts.json");
+    let path = directory.path().join("metadata.sqlite");
     // A slower hash lets both stores observe the missing name before either writes.
-    let bcrypt_cost = 8;
-    let first_store = crate::UserStore::open_with_cost(
-        path.clone(),
-        pnpr_config::MaxUsers::Unlimited,
-        bcrypt_cost,
-    )
-    .unwrap();
-    let second_store = crate::UserStore::open_with_cost(
-        path.clone(),
-        pnpr_config::MaxUsers::Unlimited,
-        bcrypt_cost,
-    )
-    .unwrap();
+    let first_store = sqlite_auth(Some(&path), 8);
+    let second_store = sqlite_auth(Some(&path), 8);
     let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
     let first_barrier = std::sync::Arc::clone(&barrier);
     let first = tokio::spawn(async move {
@@ -236,8 +226,7 @@ async fn separate_file_stores_reject_concurrent_confusable_registrations() {
         results => panic!("expected one registration and one rejection, got {results:?}"),
     };
     assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);
-    let reopened =
-        crate::UserStore::open_with_cost(path, pnpr_config::MaxUsers::Unlimited, 4).unwrap();
+    let reopened = sqlite_auth(Some(&path), 4);
     assert_eq!(reopened.list_users().await.unwrap(), [winner]);
     assert_eq!(
         reopened.add_or_login(winner, "password").await.unwrap().0,
@@ -246,10 +235,18 @@ async fn separate_file_stores_reject_concurrent_confusable_registrations() {
 }
 
 #[tokio::test]
-async fn file_password_policy_applies_to_registration_and_login() {
-    let users = crate::UserStore::in_memory_with_cost(pnpr_config::MaxUsers::Unlimited, 4);
+async fn sqlite_password_policy_applies_to_registration_and_login() {
+    let users = sqlite_auth(None, 4);
     assert_password_policy(&users).await;
-    users.insert_user_for_test("imported".to_string(), bcrypt::hash("short", 4).unwrap());
+    let hashes = std::collections::HashMap::from([(
+        "imported".to_string(),
+        bcrypt::hash("short", 4).unwrap(),
+    )]);
+    let options = crate::PasswordImport {
+        collisions: crate::PasswordCollisions::Keep,
+        mode: crate::ImportMode::Apply,
+    };
+    users.import_password_hashes(hashes, options).await.unwrap();
     let error = users.add_or_login("imported", "short").await.unwrap_err();
     assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);
 }
@@ -288,70 +285,4 @@ fn skeleton_hash_equates_case_diacritics_and_homoglyphs() {
         username_skeleton_hash("\u{d55c}\u{ae00}"),
         username_skeleton_hash("\u{d63c}\u{ae00}"),
     );
-}
-
-#[test]
-fn opening_accounts_file_rejects_confusable_active_accounts() {
-    let directory = tempfile::TempDir::new().unwrap();
-    let path = directory.path().join("accounts.json");
-    let hash = bcrypt::hash("password", 4).unwrap();
-    let conflicting = serde_json::json!({
-        "cltest": {
-            "id": "u_01",
-            "status": "active",
-            "credential_kind": "bcrypt",
-            "password_hash": hash,
-            "created_at": 1000,
-        },
-        "CLTEST": {
-            "id": "u_02",
-            "status": "active",
-            "credential_kind": "bcrypt",
-            "password_hash": hash,
-            "created_at": 1000,
-        },
-    });
-    std::fs::write(&path, conflicting.to_string()).unwrap();
-    let error = crate::UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, 4)
-        .unwrap_err();
-    assert!(matches!(error, crate::RegistryError::InvalidUsersFile { .. }), "{error:?}");
-    let message = error.to_string();
-    assert!(
-        message.contains(r#"username "cltest" is too similar to username "CLTEST""#),
-        "{message}",
-    );
-
-    let invalid_script = serde_json::json!({
-        "cl\u{0442}est": {
-            "id": "u_01",
-            "status": "active",
-            "credential_kind": "bcrypt",
-            "password_hash": hash,
-            "created_at": 1000,
-        },
-    });
-    std::fs::write(&path, invalid_script.to_string()).unwrap();
-    let error = crate::UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, 4)
-        .unwrap_err();
-    assert!(error.to_string().contains("invalid username \"cl\u{0442}est\""), "{error}");
-
-    let with_deleted = serde_json::json!({
-        "cltest": {
-            "id": "u_01",
-            "status": "active",
-            "credential_kind": "bcrypt",
-            "password_hash": hash,
-            "created_at": 1000,
-        },
-        "deleted:u_02": {
-            "id": "u_02",
-            "status": "deleted",
-            "credential_kind": "none",
-            "created_at": 1000,
-        },
-    });
-    std::fs::write(&path, with_deleted.to_string()).unwrap();
-    let reopened =
-        crate::UserStore::open_with_cost(path, pnpr_config::MaxUsers::Unlimited, 4).unwrap();
-    assert!(!reopened.is_empty_for_test());
 }

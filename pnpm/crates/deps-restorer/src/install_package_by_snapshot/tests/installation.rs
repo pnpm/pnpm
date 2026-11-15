@@ -550,7 +550,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                     id: "pkg@1.0.0",
                 },
                 store: pnpm_tarball::ArchiveStoreContext {
-                    dir: &config.store_dir,
+                    dir: std::borrow::Cow::Borrowed(&config.store_dir),
                     index: None,
                     index_writer: None,
                     verify_integrity: config.verify_store_integrity,

@@ -304,7 +304,7 @@ fn check_directory_dep_in_scope(
             ignored: &ignored,
             frozen_lockfile: case.frozen_lockfile,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let dep = LocalDepContext {
         name: "lib",
@@ -836,7 +836,7 @@ snapshots:
             ignored: &ignored,
             frozen_lockfile: false,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let importer_c = lockfile.importers.get("packages/c").expect("packages/c importer");
     let err = super::check_directory_dependencies_freshness(&check, importer_c)
@@ -899,7 +899,7 @@ fn check_root_with_directories(
             ignored: &ignored,
             frozen_lockfile: false,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let importer = lockfile.importers.get(".").expect("root importer");
     super::check_directory_dependencies_freshness(&check, importer)
@@ -1242,7 +1242,7 @@ snapshots:
             ignored: &ignored,
             frozen_lockfile: false,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let importer_c = lockfile.importers.get("packages/c").expect("packages/c importer");
     super::check_directory_dependencies_freshness(&check, importer_c)
@@ -1388,7 +1388,7 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
             ignored: &ignored,
             frozen_lockfile: false,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let dep = LocalDepContext {
         name: "lib",

@@ -82,6 +82,8 @@ export interface ConfigContext {
   cliOptions: Record<string, any> // eslint-disable-line
   /** The `--config.<key>=<value>` options as given, forwarded to a child pnpm the command spawns. */
   rawCliConfig?: Record<string, unknown>
+  /** Raw `lockfileDir` anchored to its source directory so `clean` can step symlink parents safely. */
+  rawLockfileDir?: string
   /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
   explicitlySetKeys: Set<string>
   packageManager: {

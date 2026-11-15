@@ -539,6 +539,14 @@ fn set_object_field_with_json() {
 }
 
 #[test]
+fn set_string_field_preserves_multiple_trailing_newlines() {
+    let value = serde_json::json!("text\n\n");
+    let out = run_update_field(Some("cacheDir: ~/cache\n"), "notes", &value).expect("file written");
+    let parsed: serde_json::Value = serde_saphyr::from_str(&out).expect("parse");
+    assert_eq!(parsed["notes"], value);
+}
+
+#[test]
 fn delete_last_field_leaves_no_trailing_blank_line() {
     let out = run_update_field(
         Some("cacheDir: ~/cache\n\nvirtualStoreDir: .pnpm\n"),

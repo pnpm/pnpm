@@ -205,7 +205,7 @@ function markOptionalPeers (
 ): void {
   for (const [peerName, peerMeta] of Object.entries(peerDependenciesMeta)) {
     if (ownDeps.has(peerName) || peerMeta.optional !== true) continue
-    if (!peerDependencies[peerName]) peerDependencies[peerName] = { version: '*' }
+    if (!Object.hasOwn(peerDependencies, peerName)) peerDependencies[peerName] = { version: '*' }
     peerDependencies[peerName].optional = true
   }
 }

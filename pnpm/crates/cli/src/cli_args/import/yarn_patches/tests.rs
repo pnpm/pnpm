@@ -76,6 +76,11 @@ fn ignores_other_protocols() {
 }
 
 #[test]
+fn parses_multibyte_utf8_patch_descriptors() {
+    assert_eq!(parse("patch:ä@npm%3A1.0.0#~/a.patch"), owned("1.0.0", "ä@1.0.0", &["~/a.patch"]));
+}
+
+#[test]
 fn records_a_patch_once_and_reports_a_conflicting_one() {
     let workspace_dir = std::path::Path::new("/workspace");
     let mut patched_dependencies =

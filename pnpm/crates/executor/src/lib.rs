@@ -44,7 +44,13 @@ mod script_exit;
 mod script_options;
 mod script_working_dir;
 mod shell;
-#[cfg_attr(target_family = "wasm", path = "shell_emulator_wasm.rs")]
+#[cfg(all(feature = "shell-emulator", target_family = "wasm"))]
+#[path = "shell_emulator_wasm.rs"]
+mod shell_emulator;
+#[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
+mod shell_emulator;
+#[cfg(not(feature = "shell-emulator"))]
+#[path = "shell_emulator_disabled.rs"]
 mod shell_emulator;
 mod shell_emulator_types;
 

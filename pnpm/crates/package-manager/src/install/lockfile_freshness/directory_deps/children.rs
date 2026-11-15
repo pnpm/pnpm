@@ -65,7 +65,7 @@ pub(super) fn check_recorded_local_targets(
 ) -> Result<(), FreshnessCheckError> {
     let children = local_dep_children(check, (dep, local_manifest), shadowed)?;
     let bound = std::cell::LazyCell::new(|| {
-        pnpm_lockfile::BoundProviders::of_snapshot(check.lockfile.into(), key)
+        pnpm_lockfile::BoundProviders::from_recorded_snapshot(check.lockfile.into(), key)
     });
     let child_catalogs = local_child_catalogs(dep, local_manifest)?;
     for child in &children {

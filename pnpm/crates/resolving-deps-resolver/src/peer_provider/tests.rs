@@ -97,6 +97,7 @@ fn opts(
         override_bare_specifier: None,
         project_dir: Path::new("/workspace"),
         resolved_versions: &NOTHING_RESOLVED,
+        locked_versions: &NOTHING_RESOLVED,
     }
 }
 
@@ -582,6 +583,7 @@ fn installs_auto_installed_peer_at_the_overridden_specifier() {
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
         resolved_versions: &NOTHING_RESOLVED,
+        locked_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^16.5.1 || ^17.0.0 || ^18.0.0")]);
     let mut expected = BTreeMap::new();
@@ -601,6 +603,7 @@ fn override_does_not_install_a_peer_nothing_provides_without_auto_install_peers(
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
         resolved_versions: &NOTHING_RESOLVED,
+        locked_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     assert_eq!(result, BTreeMap::new());
@@ -618,6 +621,7 @@ fn leaves_a_deduplicating_hoist_to_the_graph_without_auto_install_peers() {
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
         resolved_versions: &NOTHING_RESOLVED,
+        locked_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
@@ -642,6 +646,7 @@ fn override_redirects_the_workspace_roots_hoist_without_auto_install_peers() {
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
         resolved_versions: &NOTHING_RESOLVED,
+        locked_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
@@ -661,6 +666,7 @@ fn passes_the_importer_directory_to_the_overrider() {
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace/packages/app"),
         resolved_versions: &NOTHING_RESOLVED,
+        locked_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
@@ -679,6 +685,7 @@ fn leaves_peer_removed_by_an_override_uninstalled() {
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
         resolved_versions: &NOTHING_RESOLVED,
+        locked_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     assert_eq!(result, BTreeMap::new());
@@ -777,6 +784,7 @@ fn skips_a_workspace_root_dep_without_a_specifier_in_favor_of_one_with() {
         override_bare_specifier: None,
         project_dir: Path::new("/workspace"),
         resolved_versions: &NOTHING_RESOLVED,
+        locked_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("postcss", "^8.0.0")]);
     let mut expected = BTreeMap::new();
@@ -974,5 +982,34 @@ fn locked_provider_eligibility_depends_on_requirement_and_scope() {
                 "optional={optional}, inherited={inherited:?}, locked={locked_version:?}, current_must_win={current_must_win}",
             );
         }
+    }
+}
+
+#[test]
+fn required_peer_pins_are_fallbacks_for_current_providers() {
+    let preferred = preferred(&[(
+        "peer",
+        &[
+            ("1.0.0", plain(VersionSelectorType::Version)),
+            ("2.0.0", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let locked = HashMap::from_iter([("peer".to_string(), versions(&["1.0.0"]))]);
+    for (resolved, range, expected) in [
+        (vec![], "*", "1.0.0"),
+        (vec!["2.0.0"], "*", "2.0.0"),
+        (vec!["1.0.0", "2.0.0"], "*", "2.0.0"),
+        (vec![], "^2.0.0", "2.0.0"),
+    ] {
+        let resolved = HashMap::from_iter([("peer".to_string(), versions(&resolved))]);
+        let opts = HoistPeersOptions {
+            resolved_versions: &resolved,
+            locked_versions: &locked,
+            ..opts(true, &preferred)
+        };
+        assert_eq!(
+            hoist_peers(&opts, &[missing("peer", range)]).get("peer").map(String::as_str),
+            Some(expected),
+        );
     }
 }

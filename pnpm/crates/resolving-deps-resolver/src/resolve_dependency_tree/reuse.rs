@@ -16,7 +16,7 @@ pub(super) use direct_versions::{
 };
 
 pub(super) use snapshot_children::PendingReusedNode;
-pub(super) use subtree::{SubtreeReuseCache, TargetDistances};
+pub(super) use subtree::{LockfileReuseCache, TargetDistances};
 
 mod direct_versions;
 mod snapshot_children;
@@ -125,7 +125,7 @@ impl ReuseSource {
 /// `ResolveResult` synthesized from the lockfile metadata.
 pub(super) struct ReusedNode {
     key: PkgNameVerPeer,
-    result: pnpm_resolving_resolver_base::ResolveResult,
+    pub(super) result: pnpm_resolving_resolver_base::ResolveResult,
 }
 
 /// Decide whether the current edge can reuse the prior lockfile's
@@ -325,6 +325,11 @@ where
     let node_id = reused.dep.node_id;
     let id = reused.dep.id;
     insert_tree_node(ctx, node_id.clone(), &id, children, depth);
+    super::locked_resolution::record(
+        ctx,
+        &node_id,
+        super::locked_resolution::from_prior(ctx, &reused.key),
+    );
     if is_current_children_owner(ctx, &id, &children_owner.owner) {
         make_non_owner_nodes_lazy(ctx, &id, &node_id);
     }

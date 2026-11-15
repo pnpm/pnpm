@@ -131,13 +131,13 @@ impl AuthState {
         Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
     }
 
-    /// Status revision of `user_id` when active with no pending token revocation.
+    /// Status revision of `user_id` when active.
     pub async fn active_account_revision(&self, user_id: &str) -> Result<Option<u64>> {
         let id = user_id.to_string();
         let revisions = self.users.status_revisions(std::slice::from_ref(&id)).await?;
         Ok(revisions
             .get(&id)
-            .filter(|rev| rev.status.is_active() && !rev.pending_token_revocation)
+            .filter(|rev| rev.status.is_active())
             .map(|rev| rev.revision))
     }
 

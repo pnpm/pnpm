@@ -293,11 +293,11 @@ impl WritePackageForPatch<'_> {
                 auth_headers: &self.config.auth_headers,
                 retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
-                tar_limits: self.config.tar_limits(),
+                tar_limits: pnpm_tarball::TarLimits::new(self.config.max_tarball_unpacked_size),
             },
             package,
             store: pnpm_tarball::ArchiveStoreContext {
-                dir: &self.config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&self.config.store_dir),
                 index: store_index,
                 index_writer: Some(Arc::clone(store_index_writer)),
                 verify_integrity: self.config.verify_store_integrity,

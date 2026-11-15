@@ -321,3 +321,126 @@ fn start_runs_declared_script() {
 
     drop(root);
 }
+
+#[test]
+fn start_and_restart_fail_without_script_or_server_js() {
+    for args in [&["start"][..], &["restart"]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "stop": r#"node -e "process.exit(0)""# },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        let output = pacquet
+            .with_args(args)
+            .output()
+            .expect("spawn pnpm");
+        assert!(!output.status.success(), "{args:?} must fail without start or server.js");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("ERR_PNPM_NO_SCRIPT_OR_SERVER"),
+            "{args:?} should report ERR_PNPM_NO_SCRIPT_OR_SERVER:\n{stderr}",
+        );
+
+        drop(root);
+    }
+}
+
+#[test]
+fn start_and_restart_succeed_with_if_present_when_script_and_server_js_are_missing() {
+    for args in [
+        &["--if-present", "start"][..],
+        &["run", "--if-present", "start"],
+        &["restart", "--if-present"],
+        &["--if-present", "restart"],
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "prestart": r#"node -e "require('fs').writeFileSync('prestart.txt', 'ran')""#,
+            },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        fs::write(workspace.join(".npmrc"), "enable-pre-post-scripts=true\n")
+            .expect("write .npmrc");
+
+        pacquet
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(
+            !workspace.join("prestart.txt").exists(),
+            "{args:?} must not run prestart when neither scripts.start nor server.js exists",
+        );
+
+        drop(root);
+    }
+}
+
+#[test]
+fn start_and_restart_with_if_present_still_run_server_js_when_present() {
+    for args in [
+        &["--if-present", "start"][..],
+        &["run", "--if-present", "start"],
+        &["restart", "--if-present"],
+        &["--if-present", "restart"],
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        fs::write(
+            workspace.join("server.js"),
+            "require('fs').writeFileSync('server-ran.txt', 'ok')",
+        )
+        .expect("write server.js");
+
+        pacquet
+            .with_args(args)
+            .assert()
+            .success();
+        assert_eq!(
+            fs::read_to_string(workspace.join("server-ran.txt")).expect("read server-ran.txt"),
+            "ok",
+            "{args:?} should run node server.js when server.js exists",
+        );
+
+        drop(root);
+    }
+}
+
+#[test]
+fn recursive_start_respects_if_present_when_no_package_has_start_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let pkg_a = workspace.join("packages/a");
+    fs::create_dir_all(&pkg_a).expect("create packages/a");
+    fs::write(
+        pkg_a.join("package.json"),
+        json!({ "name": "pkg-a", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/a/package.json");
+
+    pacquet
+        .with_args(["-r", "--if-present", "start"])
+        .assert()
+        .success();
+
+    drop(root);
+}

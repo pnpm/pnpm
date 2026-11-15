@@ -1,11 +1,9 @@
 use super::{
-    Arc, Config, Context, DedicatedProjectRuns, DedicatedProjects, IndexMap, InstallArgs,
-    InstallFamily, InstallFamilyPlan, Path, PathBuf, Reporter, RuntimePolicy, State,
-    ThrottledClient, dedicated_project_name, discover_workspace_projects, ecosystem_install,
-    injected_source_dirs, pipelined_runs::early_starts, prepare_root_config, project_dependencies,
-    project_names, select_install_family,
+    Arc, Config, Context, InstallArgs, InstallFamily, InstallFamilyPlan, Path, PathBuf, Reporter,
+    RuntimePolicy, State, ThrottledClient,
+    dedicated_runs::{discover_dedicated_workspace_projects, run_dedicated_projects},
+    ecosystem_install, prepare_root_config, select_install_family,
 };
-use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use tracing::Instrument as _;
@@ -54,8 +52,7 @@ pub(crate) struct InstallPipeline {
 
 impl InstallPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        self.run_with_config::<Reporter>().await
-            .map(|_| ())
+        Box::pin(self.run_with_config::<Reporter>()).await.map(|_| ())
     }
 
     pub(crate) async fn run_with_config<Reporter: self::Reporter + 'static>(
@@ -102,7 +99,7 @@ impl InstallPipeline {
             }
         }
 
-        self.run_prepared::<Reporter>(family, lockfile).await
+        Box::pin(self.run_prepared::<Reporter>(family, lockfile)).await
     }
 
     /// [`select_install_family`] inside the `discover_workspace_projects`
@@ -126,7 +123,7 @@ impl InstallPipeline {
     async fn run_prepared<Reporter: self::Reporter + 'static>(
         self,
         family: InstallFamily,
-        lockfile: Option<pnpm_lockfile::LazyLockfile>,
+        mut lockfile: Option<pnpm_lockfile::LazyLockfile>,
     ) -> miette::Result<&'static Config> {
         let http_client = {
             let _span =
@@ -134,17 +131,16 @@ impl InstallPipeline {
             State::new_http_client(self.cfg).wrap_err("initialize the install network")?
         };
         if !ecosystem_install::is_enabled(self.cfg) {
-            run_node_install::<Reporter>(
-                family.plan,
-                self.args,
-                self.cfg,
-                self.manifest_path,
-                self.require_lockfile,
-                lockfile,
-                http_client,
+            let SplitInstallPipeline { job, .. } = self.into_node_job();
+            let cfg = job.cfg;
+            let prepared = job.validate_and_clean_if_needed::<Reporter>(
+                &family.plan,
+                &mut lockfile,
+                &http_client,
             )
             .await?;
-            return Ok(self.cfg);
+            job.run::<Reporter>(family.plan, lockfile, http_client, prepared).await?;
+            return Ok(cfg);
         }
         self.run_with_ecosystems::<Reporter>(family, lockfile, http_client).await
     }
@@ -152,19 +148,21 @@ impl InstallPipeline {
     async fn run_with_ecosystems<Reporter: self::Reporter + 'static>(
         self,
         family: InstallFamily,
-        lockfile: Option<pnpm_lockfile::LazyLockfile>,
+        mut lockfile: Option<pnpm_lockfile::LazyLockfile>,
         http_client: Arc<ThrottledClient>,
     ) -> miette::Result<&'static Config> {
+        let SplitInstallPipeline { job, config_root, frozen_lockfile } = self.into_node_job();
+        let cfg = job.cfg;
         let ecosystem = ecosystem_install::plan::<Reporter>(
             ecosystem_install::InstallContext {
-                config: self.cfg,
+                config: cfg,
                 http_client: Arc::clone(&http_client),
-                lockfile_only: self.args.lockfile.only,
-                frozen_lockfile: self.frozen_lockfile,
+                lockfile_only: job.args.lockfile.only,
+                frozen_lockfile,
             },
-            self.config_root,
-            &self.prefix,
-            &self.args.dependency_options,
+            config_root,
+            &job.prefix,
+            &job.args.dependency_options,
             family.scope.as_ref(),
         )
         .await?;
@@ -174,20 +172,33 @@ impl InstallPipeline {
         {
             return Err(unmatched.counting(ecosystem.python.discovered).report());
         }
-        let node_install = run_node_install::<Reporter>(
-            family.plan,
-            self.args,
-            self.cfg,
-            self.manifest_path,
-            self.require_lockfile,
-            lockfile,
-            http_client,
-        );
+        let prepared =
+            job.validate_and_clean_if_needed::<Reporter>(&family.plan, &mut lockfile, &http_client)
+                .await?;
+        let node_install = job.run::<Reporter>(family.plan, lockfile, http_client, prepared);
         ecosystem.plan
             .with_task(pnpm_install_coordinator::InstallTask::in_place(Vec::new(), node_install))
             .run()
             .await?;
-        Ok(self.cfg)
+        Ok(cfg)
+    }
+
+    fn into_node_job(self) -> SplitInstallPipeline {
+        let InstallPipeline {
+            args,
+            cfg,
+            config_root,
+            prefix,
+            manifest_path,
+            require_lockfile,
+            frozen_lockfile,
+            ..
+        } = self;
+        SplitInstallPipeline {
+            job: NodeInstallJob { args, cfg, prefix, manifest_path, require_lockfile },
+            config_root,
+            frozen_lockfile,
+        }
     }
 
     /// Whether the fast "Already up to date" return cannot fire, so the run
@@ -204,53 +215,95 @@ impl InstallPipeline {
     }
 }
 
-async fn run_node_install<Reporter: self::Reporter + 'static>(
-    plan: InstallFamilyPlan,
-    args: InstallArgs,
-    cfg: &'static Config,
-    manifest_path: PathBuf,
-    require_lockfile: bool,
-    lockfile: Option<pnpm_lockfile::LazyLockfile>,
-    http_client: Arc<ThrottledClient>,
-) -> miette::Result<()> {
-    match plan {
-        InstallFamilyPlan::PerProject(projects) => {
-            DedicatedProjectRuns {
-                config: cfg,
-                projects: *projects,
-                require_lockfile,
-                http_client: Some(Arc::clone(&http_client)),
-                prune_excludes: !args.materialization.dry_run,
-                sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
-                pipelined: true,
+struct SplitInstallPipeline {
+    job: NodeInstallJob,
+    config_root: PathBuf,
+    frozen_lockfile: bool,
+}
+
+pub(super) struct NodeInstallJob {
+    pub(super) args: InstallArgs,
+    pub(super) cfg: &'static Config,
+    pub(super) prefix: PathBuf,
+    pub(super) manifest_path: PathBuf,
+    pub(super) require_lockfile: bool,
+}
+
+impl NodeInstallJob {
+    async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        plan: InstallFamilyPlan,
+        lockfile: Option<pnpm_lockfile::LazyLockfile>,
+        http_client: Arc<ThrottledClient>,
+        prepared: super::ci_validation::PreparedCiValidation,
+    ) -> miette::Result<()> {
+        match plan {
+            InstallFamilyPlan::PerProject(projects) => {
+                run_dedicated_projects::<Reporter>(
+                    &self.args,
+                    self.cfg,
+                    *projects,
+                    self.require_lockfile,
+                    http_client,
+                    prepared.per_project,
+                )
+                .await
             }
-            .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
-            .await
+            InstallFamilyPlan::Shared(selection) => {
+                if selection.selected_dirs.is_empty() {
+                    return Ok(());
+                }
+                let state = init_shared_state(
+                    self.manifest_path,
+                    self.cfg,
+                    self.require_lockfile,
+                    lockfile,
+                    Arc::clone(&http_client),
+                )?;
+                Box::pin(self.args.run_selected_prepared::<Reporter>(
+                    state,
+                    *selection,
+                    prepared.shared,
+                ))
+                .await
+            }
+            InstallFamilyPlan::Single => {
+                self.run_single::<Reporter>(lockfile, http_client, prepared).await
+            }
         }
-        InstallFamilyPlan::Shared(selection) => {
-            if selection.selected_dirs.is_empty() {
-                return Ok(());
-            }
-            let state = init_shared_state(
-                manifest_path,
-                cfg,
-                require_lockfile,
-                lockfile,
+    }
+
+    async fn run_single<Reporter: self::Reporter + 'static>(
+        self,
+        lockfile: Option<pnpm_lockfile::LazyLockfile>,
+        http_client: Arc<ThrottledClient>,
+        prepared: super::ci_validation::PreparedCiValidation,
+    ) -> miette::Result<()> {
+        if !self.cfg.shares_one_lockfile()
+            && let Some(workspace_dir) = self.cfg.workspace_dir.clone()
+        {
+            let projects = match prepared.dedicated_projects {
+                Some(projects) => projects,
+                None => discover_dedicated_workspace_projects(self.cfg, &workspace_dir)?,
+            };
+            return run_dedicated_projects::<Reporter>(
+                &self.args,
+                self.cfg,
+                projects,
+                self.require_lockfile,
                 Arc::clone(&http_client),
-            )?;
-            Box::pin(args.run_selected::<Reporter>(state, *selection)).await
-        }
-        InstallFamilyPlan::Single => {
-            run_single_node_install::<Reporter>(
-                args,
-                cfg,
-                manifest_path,
-                require_lockfile,
-                lockfile,
-                http_client,
+                prepared.per_project,
             )
-            .await
+            .await;
         }
+        let state = init_shared_state(
+            self.manifest_path,
+            self.cfg,
+            self.require_lockfile,
+            lockfile,
+            Arc::clone(&http_client),
+        )?;
+        Box::pin(self.args.run_prepared::<Reporter>(state, prepared.shared)).await
     }
 }
 
@@ -268,123 +321,3 @@ pub(super) fn init_shared_state(
     State::init_with_lockfile_and_http_client(manifest_path, config, lockfile, http_client)
         .wrap_err("initialize the state")
 }
-
-/// `sharedWorkspaceLockfile: false` workspace install: one independent
-/// single-project install per workspace project — each gets its own
-/// `pnpm-lock.yaml`, `node_modules`, and virtual store, mirroring
-/// pnpm's dedicated-lockfile per-project loop in its recursive
-/// dispatch. The workspace root participates when it has a manifest,
-/// matching the project set a shared-lockfile workspace install covers.
-/// Projects whose workspace dependencies have finished run concurrently
-/// under `workspaceConcurrency`, as a recursive install does.
-pub(in crate::cli_args) async fn run_dedicated_lockfile_workspace_install<
-    Reporter: self::Reporter + 'static,
->(
-    args: &super::super::install::InstallArgs,
-    cfg: &Config,
-    workspace_root: &Path,
-    require_lockfile: bool,
-    http_client: Arc<ThrottledClient>,
-) -> miette::Result<()> {
-    let (projects, _patterns) = discover_workspace_projects(workspace_root, cfg)?;
-    let mut names = project_names(cfg, &projects);
-    let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
-    let mut dependencies = IndexMap::with_capacity(projects.len() + 1);
-    let mut other_dirs = Vec::new();
-    if pnpm_package_manifest::project_manifest_path(workspace_root).is_file()
-        && !projects
-            .iter()
-            .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)
-    {
-        dependencies.insert(workspace_root.to_path_buf(), Vec::new());
-        other_dirs.push(workspace_root.to_path_buf());
-        // The root is installed alongside the discovered projects but is
-        // not one of them, so its name is not in the map yet.
-        if let Some(name) = dedicated_project_name(cfg, workspace_root) {
-            names.insert(workspace_root.to_path_buf(), name);
-        }
-    }
-    let injected_source_dirs = dedicated_injected_source_dirs(&projects, &other_dirs)?;
-    let selection =
-        select_recursive_projects(&projects, cfg, workspace_root, AutoExcludeRoot::Disabled)?;
-    dependencies.extend(project_dependencies(&selection, cfg.sort));
-    DedicatedProjectRuns {
-        config: cfg,
-        projects: DedicatedProjects {
-            dependencies,
-            names,
-            covers_workspace: true,
-            injected_source_dirs,
-            early_starts: early_starts(cfg, &projects),
-            workspace: pnpm_package_manager::DiscoveredWorkspace::new(projects),
-        },
-        require_lockfile,
-        http_client: Some(http_client),
-        prune_excludes: !args.materialization.dry_run,
-        sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
-        pipelined: true,
-    }
-    .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
-    .await
-}
-
-/// See [`injected_source_dirs`]. `other_dirs` are the directories installed
-/// alongside `projects` without being discovered, such as the workspace
-/// root. Their manifests are read here, before any lifecycle script runs.
-fn dedicated_injected_source_dirs(
-    projects: &[pnpm_workspace::Project],
-    other_dirs: &[PathBuf],
-) -> miette::Result<std::collections::HashSet<PathBuf>> {
-    let other_manifests = other_dirs
-        .iter()
-        .map(|dir| {
-            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)
-                .map_err(miette::Report::new)
-        })
-        .collect::<miette::Result<Vec<_>>>()?;
-    Ok(injected_source_dirs(
-        projects
-            .iter()
-            .map(|project| (project.root_dir.as_path(), Some(project.manifest.value())))
-            .chain(
-                other_dirs
-                    .iter()
-                    .map(PathBuf::as_path)
-                    .zip(other_manifests.iter().map(Option::as_ref)),
-            ),
-    ))
-}
-
-async fn run_single_node_install<Reporter: self::Reporter + 'static>(
-    args: InstallArgs,
-    cfg: &'static Config,
-    manifest_path: PathBuf,
-    require_lockfile: bool,
-    lockfile: Option<pnpm_lockfile::LazyLockfile>,
-    http_client: Arc<ThrottledClient>,
-) -> miette::Result<()> {
-    if !cfg.shares_one_lockfile()
-        && let Some(workspace_dir) = cfg.workspace_dir.clone()
-    {
-        return run_dedicated_lockfile_workspace_install::<Reporter>(
-            &args,
-            cfg,
-            &workspace_dir,
-            require_lockfile,
-            Arc::clone(&http_client),
-        )
-        .await;
-    }
-    let state = init_shared_state(
-        manifest_path,
-        cfg,
-        require_lockfile,
-        lockfile,
-        Arc::clone(&http_client),
-    )?;
-    Box::pin(args.run::<Reporter>(state)).await
-}
-
-#[cfg(test)]
-#[path = "install_tests.rs"]
-mod install_tests;

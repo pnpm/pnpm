@@ -22,6 +22,7 @@ use planning::{CandidatePlan, plan_candidate_groups, plan_eligible_roots};
 use crate::{
     AllowBuildPolicy, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
     SideEffectsBySnapshot, SideEffectsMapsBySnapshot, StoreIndexKeysBySnapshot,
+    artifact_signer_settings, artifact_store_options,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
@@ -190,9 +191,9 @@ pub(crate) fn shared_side_effects_publisher(
     }
     let platform = artifact_platform(importers)?;
     let organization = non_empty(settings.org.as_deref()?)?.to_string();
-    let store = ArtifactStore::from_config(config, &settings).ok()??;
+    let store = ArtifactStore::from_options(artifact_store_options(config, &settings)).ok()??;
     Some(SharedSideEffectsPublisher {
-        signer: ArtifactSigner::from_settings(&settings).ok()?,
+        signer: ArtifactSigner::from_settings(artifact_signer_settings(&settings)).ok()?,
         store,
         organization,
         packages: packages.iter().cloned().collect(),

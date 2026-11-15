@@ -2,7 +2,8 @@ use super::{
     Config, ExecutionStatus, GraphPkg, HashMap, HashSet, IndexMap, IntoDiagnostic, Mutex, Path,
     PathBuf, PipelineInvocation, PipelineOutcome, PipelineResults, PipelineRun, ProjectGraph,
     RunReport, SelectionMode, Status, TaskCache, TaskCompletion, TaskGraph, TaskKey, TaskNode,
-    Value, cache, format_task, render_task_graph_dry_run, task_environment, task_graph_to_json,
+    Value, cache, format_task, is_output_cacheable, render_task_graph_dry_run, task_environment,
+    task_graph_to_json,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 
@@ -109,6 +110,30 @@ pub(super) fn record_task_outcome(
     if failed { TaskCompletion::Failed } else { TaskCompletion::Passed }
 }
 
+pub(crate) struct TaskCachePlan {
+    pub(super) task_key: Option<String>,
+    pub(super) output_cache_key: Option<String>,
+    upstream_outputs_cached: bool,
+}
+
+pub(super) fn reported_task_keys(
+    plans: &HashMap<TaskKey, TaskCachePlan>,
+) -> HashMap<TaskKey, Option<String>> {
+    plans
+        .iter()
+        .map(|(task, plan)| (task.clone(), plan.task_key.clone()))
+        .collect()
+}
+
+struct KeyPlanContext<'a, 'graph> {
+    task_graph: &'a TaskGraph,
+    graph: &'a ProjectGraph<GraphPkg<'graph>>,
+    cache: &'a TaskCache,
+    config: &'a Config,
+    lockfile_selection: pnpm_lockfile::WantedLockfileSelection,
+    base_extra_env: HashMap<String, String>,
+}
+
 /// Pass-through tasks contribute keys to invalidate their dependents.
 pub(super) fn compute_task_keys(
     task_graph: &TaskGraph,
@@ -117,39 +142,83 @@ pub(super) fn compute_task_keys(
     cache: &TaskCache,
     config: &Config,
     emit: fn(&LogEvent),
-) -> miette::Result<HashMap<TaskKey, Option<String>>> {
-    let mut keys: HashMap<TaskKey, Option<String>> = HashMap::with_capacity(task_graph.len());
+) -> miette::Result<HashMap<TaskKey, TaskCachePlan>> {
+    let ctx = KeyPlanContext {
+        task_graph,
+        graph,
+        cache,
+        config,
+        lockfile_selection: config.wanted_lockfile_selection(),
+        base_extra_env: config.extra_env_with_node_options(),
+    };
+    let mut plans: HashMap<TaskKey, TaskCachePlan> = HashMap::with_capacity(task_graph.len());
     let mut warned_projects: HashSet<PathBuf> = HashSet::new();
     for key in sequenced_tasks {
         let node = &task_graph[key];
-        let manifest = graph[node.project.as_path()].package.project.manifest.value();
-        let script_bodies = task_script_bodies(node, manifest, config.enable_pre_post_scripts);
-        let Some(mut dependency_keys) = node.dependencies
-            .iter()
-            .map(|dependency| keys[dependency].as_deref())
-            .collect::<Option<Vec<&str>>>()
-        else {
-            keys.insert(key.clone(), None);
-            continue;
-        };
-        dependency_keys.sort_unstable();
-        let task_key = cache.compute_task_key(&cache::TaskKeyInputs {
-            node,
-            settings: config.tasks.get(&node.task_name),
-            dependency_keys: &dependency_keys,
-            script_bodies: &script_bodies,
-            environment: &task_environment(
-                config,
-                &node.project,
-                &config.extra_env_with_node_options(),
-            ),
-        })?;
-        if task_key.is_none() {
+        let plan = compute_single_task_plan(&ctx, node, &plans)?;
+        if plan.task_key.is_none() {
             warn_without_git_inputs(cache, &node.project, &mut warned_projects, emit);
         }
-        keys.insert(key.clone(), task_key);
+        plans.insert(key.clone(), plan);
     }
-    Ok(keys)
+    Ok(plans)
+}
+
+fn compute_single_task_plan(
+    ctx: &KeyPlanContext<'_, '_>,
+    node: &TaskNode,
+    plans: &HashMap<TaskKey, TaskCachePlan>,
+) -> miette::Result<TaskCachePlan> {
+    let upstream_outputs_cached =
+        upstream_outputs_are_cached(ctx.task_graph, node, plans, ctx.config);
+    let Some(mut dependency_keys) = node.dependencies
+        .iter()
+        .map(|dependency| plans[dependency].task_key.as_deref())
+        .collect::<Option<Vec<&str>>>()
+    else {
+        return Ok(TaskCachePlan {
+            task_key: None,
+            output_cache_key: None,
+            upstream_outputs_cached,
+        });
+    };
+    dependency_keys.sort_unstable();
+    let settings = ctx.config.tasks.get(&node.task_name);
+    let manifest = ctx.graph[node.project.as_path()].package.project.manifest.value();
+    let script_bodies = task_script_bodies(node, manifest, ctx.config.enable_pre_post_scripts);
+    let task_key = ctx.cache.compute_task_key(&cache::TaskKeyInputs {
+        node,
+        settings,
+        lockfile_dir: ctx.config.lockfile_dir_for(&node.project),
+        lockfile_selection: &ctx.lockfile_selection,
+        dependency_keys: &dependency_keys,
+        script_bodies: &script_bodies,
+        environment: &task_environment(ctx.config, &node.project, &ctx.base_extra_env),
+    })?;
+    let output_cache_key = task_key
+        .clone()
+        .filter(|_| upstream_outputs_cached && is_output_cacheable(settings));
+    Ok(TaskCachePlan { task_key, output_cache_key, upstream_outputs_cached })
+}
+
+/// Executable tasks without output caching (`cache: false`, omitted
+/// `outputs`, or `cargoTargetDir`) run every time and may rewrite files
+/// on disk, so their dependents keep input keys (for Cargo snapshots and
+/// run reports) while bypassing output-cache hits.
+fn upstream_outputs_are_cached(
+    task_graph: &TaskGraph,
+    node: &TaskNode,
+    plans: &HashMap<TaskKey, TaskCachePlan>,
+    config: &Config,
+) -> bool {
+    node.dependencies
+        .iter()
+        .all(|dependency| {
+            let dependency_node = &task_graph[dependency];
+            let dependency_cached = dependency_node.scripts.is_empty()
+                || is_output_cacheable(config.tasks.get(&dependency_node.task_name));
+            dependency_cached && plans[dependency].upstream_outputs_cached
+        })
 }
 
 /// Explain a task that runs without a cache key because git cannot

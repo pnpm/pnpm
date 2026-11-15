@@ -14,6 +14,7 @@ pub(super) use super::{
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
     update_packument,
 };
+pub(crate) use request_timeout::RequestDeadline;
 
 mod account_handlers;
 use account_handlers::account_routes;
@@ -40,6 +41,9 @@ use variant_handlers::get_scoped_variant_tarball;
 mod observability;
 use observability::with_observability_layers;
 
+mod request_timeout;
+use request_timeout::apply_request_timeout;
+
 use std::sync::Arc;
 
 use axum::{
@@ -49,11 +53,11 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
-use pnpr_storage::metadata::MAX_NOTE_BYTES;
+use pnpr_storage::database::MAX_NOTE_BYTES;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use pnpr_auth::AuthState;
-use pnpr_config::Config;
+use pnpr_config::{Config, RoutingConfig};
 use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 
@@ -67,7 +71,7 @@ pub(super) fn router_with_auth_and_osv(
 
 /// The main router and the state it serves, which [`metrics_listener_router`]
 /// shares.
-pub(super) fn state_and_router(
+pub(crate) fn state_and_router(
     config: Config,
     auth: AuthState,
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
@@ -109,8 +113,9 @@ fn finish_router(
         // Inside the trace layer below, so a rejection is still one record.
         .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
         .merge(main_listener_metrics_routes(&state));
-    let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout)
-        .layer(axum::middleware::from_fn(npm_errors::render));
+    let mut router =
+        apply_request_timeout(router, surfaces, state.inner.config.http.request_timeout)
+            .layer(axum::middleware::from_fn(npm_errors::render));
     if !cors_origins.is_empty() {
         router = router.layer(
             CorsLayer::new()
@@ -176,36 +181,6 @@ pub(super) fn metrics_listener_router(state: AppState) -> Router {
     with_observability_layers(router, state.clone()).with_state(state)
 }
 
-fn apply_request_timeout(
-    router: Router<AppState>,
-    timeout_duration: Option<std::time::Duration>,
-) -> Router<AppState> {
-    let Some(timeout_duration) = timeout_duration else {
-        return router;
-    };
-    router.layer(axum::middleware::from_fn(
-        move |request: axum::extract::Request, next: axum::middleware::Next| async move {
-            match tokio::time::timeout(timeout_duration, next.run(request)).await {
-                Ok(response) => response,
-                Err(_) => request_timeout_response(),
-            }
-        },
-    ))
-}
-
-fn request_timeout_response() -> Response {
-    let mut response = (
-        StatusCode::GATEWAY_TIMEOUT,
-        [(header::CONTENT_TYPE, "application/json")],
-        r#"{"error":"request timed out"}"#,
-    )
-        .into_response();
-    response
-        .extensions_mut()
-        .insert(pnpr_error::PublicErrorMessage("request timed out".to_string()));
-    response
-}
-
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
     config.http.cors
         .allowed_origins()
@@ -223,7 +198,7 @@ fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
 
 /// Which of the configurable surfaces this server mounts.
 #[derive(Clone, Copy)]
-struct EnabledSurfaces {
+pub(super) struct EnabledSurfaces {
     resolver: bool,
     registry: bool,
     artifacts: bool,
@@ -244,7 +219,8 @@ fn surface_routes(
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())
         .merge(super::user_admin::user_admin_routes())
-        .merge(super::rule_admin::rule_admin_routes());
+        .merge(super::rule_admin::rule_admin_routes())
+        .merge(super::registry_graph::registry_admin_routes());
     if state.inner.config.identity.auth.scim.is_some() {
         router = router.merge(super::scim::scim_routes());
     }
@@ -274,20 +250,19 @@ fn surface_routes(
         router = pipeline_routes(state, router);
     }
     if surfaces.registry {
-        router = registry_routes(state, router);
+        router = registry_routes(router);
     }
 
     router
 }
 
-/// Mount the npm-compatible registry surface and every other ecosystem the
-/// configuration declares.
-fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    let registries = &state.inner.config.routing.registries;
+/// Mount the npm-compatible registry surface and every other ecosystem. The
+/// stored graph can gain an ecosystem at any time, so all are mounted.
+fn registry_routes(router: Router<AppState>) -> Router<AppState> {
     let npm = npm_registry_routes();
     // One publish transaction for packages of any ecosystem. It answers here
     // rather than inside the npm surface.
-    let mut router = staged_archive_routes(router, "")
+    let router = staged_archive_routes(router, "")
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
         .route("/-/pnpr/v0/registries", get(super::registry_directory::serve))
         .route("/-/publications/{namespace}", get(super::publications::serve_member_publication))
@@ -302,19 +277,11 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
                 .delete(super::publications::serve_publication_note)
                 .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
         );
-    if registries.has_ecosystem(Ecosystem::Npm) {
-        router = router.nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm));
-    }
-    if registries.has_ecosystem(Ecosystem::Cargo) {
-        router = router.merge(cargo::routes());
-    }
-    if registries.has_ecosystem(Ecosystem::Pypi) {
-        router = router.merge(pypi::routes());
-    }
-    if registries.has_ecosystem(Ecosystem::Oci) {
-        router = router.merge(oci::routes());
-    }
     router
+        .nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm))
+        .merge(cargo::routes())
+        .merge(pypi::routes())
+        .merge(oci::routes())
 }
 
 /// The npm-registry surface: every packument/tarball read, publish,
@@ -440,8 +407,8 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
 }
 
-pub(super) fn local_registry_router(config: &Config) -> Router<AppState> {
-    if config.features.registry.enabled && config.routing.registries.has_ecosystem(Ecosystem::Npm) {
+pub(super) fn local_registry_router(config: &Config, routing: &RoutingConfig) -> Router<AppState> {
+    if config.features.registry.enabled && routing.registries.has_ecosystem(Ecosystem::Npm) {
         let mut packages = Router::new();
         for base in ["", "/~{registry}"] {
             packages = npm_package_routes(packages, base);

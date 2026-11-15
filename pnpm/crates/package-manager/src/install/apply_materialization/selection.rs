@@ -7,6 +7,7 @@ pub(super) struct SelectMaterializedStateInputs<'a> {
     pub(crate) lockfiles: crate::install::state_options::SelectedLockfiles<'a>,
     pub(crate) projects: crate::install::state_options::SelectedImporters<'a>,
     pub(super) node_linker: NodeLinker,
+    pub(super) virtual_store_only: bool,
     pub(super) workspace_root: &'a Path,
     pub(super) groups: crate::GroupSelection,
     pub(super) install_skipped: &'a crate::SkippedSnapshots,
@@ -78,7 +79,13 @@ pub(super) fn materialized_current_lockfile(
     inputs: &SelectMaterializedStateInputs<'_>,
     wanted: &Lockfile,
 ) -> Lockfile {
-    if inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check {
+    if inputs.virtual_store_only
+        && inputs.node_linker == NodeLinker::Hoisted
+        && !inputs.is_inconsistent
+        && let Some(current) = inputs.lockfiles.current
+    {
+        current.clone()
+    } else if inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check {
         crate::filter_lockfile_for_current(wanted, &inputs.groups, inputs.install_skipped)
     } else if inputs.node_linker == NodeLinker::Hoisted
         && let Some(requested_ids) = inputs.projects.requested_ids
@@ -109,7 +116,7 @@ pub(super) fn materialized_current_lockfile(
 pub(super) struct LinkMaterializedProjectsInputs<'a> {
     pub(super) filtered_install: bool,
     pub(super) node_linker: NodeLinker,
-    pub(super) config: &'static Config,
+    pub(super) config: &'a Config,
     pub(super) lockfiles: LinkMaterializedLockfiles<'a>,
     pub(super) workspace_root: &'a Path,
     pub(super) manifest_links: LinkMaterializedManifestLinks<'a>,
@@ -184,10 +191,7 @@ pub(super) async fn write_filtered_package_map(
     .map_err(InstallError::WritePackageMap)?;
     Ok(())
 }
-pub(super) async fn package_map_engine_name(
-    config: &'static Config,
-    current: &Lockfile,
-) -> Option<String> {
+pub(super) async fn package_map_engine_name(config: &Config, current: &Lockfile) -> Option<String> {
     let runtime_major = crate::install_frozen_lockfile::find_runtime_node_major(&current.importers);
     let configured_major = config.node_version
         .as_deref()

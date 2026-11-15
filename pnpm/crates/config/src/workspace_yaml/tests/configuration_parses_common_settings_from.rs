@@ -257,13 +257,13 @@ userAgent: my-agent/2.0
 }
 
 #[test]
-fn parses_max_tarball_unpacked_size_into_the_tar_limits() {
+fn parses_max_tarball_unpacked_size() {
     let mut config = Config::new();
-    assert_eq!(config.tar_limits(), pnpm_tarball::TarLimits::default());
+    assert_eq!(config.max_tarball_unpacked_size, pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE);
     let settings: WorkspaceSettings =
         serde_saphyr::from_str("maxTarballUnpackedSize: 1024\n").unwrap();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.tar_limits(), pnpm_tarball::TarLimits::new(1024));
+    assert_eq!(config.max_tarball_unpacked_size, 1024);
 }
 
 #[test]

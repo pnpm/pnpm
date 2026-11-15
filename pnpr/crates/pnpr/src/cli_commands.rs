@@ -4,6 +4,7 @@ pub use args::{FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval};
 use crate::{
     Config, RegistryError,
     cache_maintenance::{CacheGcEffect, CacheGcScope},
+    server::{Credentials, FileReferences, with_stored_routing},
 };
 use clap::Subcommand;
 use pnpm_diagnostics::{print, println};
@@ -56,15 +57,6 @@ pub enum Command {
         #[arg(long)]
         skip_hashes: bool,
     },
-    /// Export hosted packages and blobs to a directory.
-    Export {
-        /// Target directory to export packages into.
-        #[arg(long)]
-        out: PathBuf,
-        /// Include auth files (users.json, tokens.db) in export.
-        #[arg(long)]
-        include_auth: bool,
-    },
     /// Migrate hosted packages and blobs from local disk storage to S3.
     MigrateStorage {
         /// Source local storage directory. Defaults to config storage directory.
@@ -89,18 +81,16 @@ pub enum Command {
         #[arg(long)]
         verify: bool,
     },
-    /// Import users from an existing Verdaccio or Apache htpasswd file.
+    /// Import users from an existing Verdaccio or Apache htpasswd file into
+    /// the SQLite database.
     ImportHtpasswd {
         /// Path to source htpasswd file.
         #[arg(long)]
         source: PathBuf,
-        /// Path to the target JSON account file. Defaults to the configured account file.
-        #[arg(long)]
-        target: Option<PathBuf>,
-        /// Report what would be imported without writing to target file.
+        /// Report what would be imported without writing anything.
         #[arg(long)]
         dry_run: bool,
-        /// Overwrite conflicting credentials for existing users in destination file.
+        /// Overwrite the credentials of existing users whose credentials differ.
         #[arg(long)]
         overwrite: bool,
     },
@@ -111,6 +101,36 @@ pub enum Command {
         #[arg(skip)]
         password: Option<String>,
     },
+    /// Read or replace the registries the database stores.
+    Registries {
+        #[command(subcommand)]
+        action: RegistriesSubcommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RegistriesSubcommand {
+    /// Print the stored registries as YAML: the `registries`,
+    /// `defaultRegistry`, and `routes.public` keys.
+    Export {
+        /// Write the YAML to this file instead of standard output.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Replace the stored registries with the ones a YAML file declares, as one
+    /// new revision.
+    Import {
+        /// YAML file with the `registries`, `defaultRegistry`, and
+        /// `routes.public` keys.
+        file: PathBuf,
+        /// Check the file and report what would change without storing it.
+        #[arg(long, conflicts_with = "check")]
+        dry_run: bool,
+        /// Compare the file with the stored registries without storing it,
+        /// and exit with code 1 when they differ.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -120,6 +140,7 @@ pub enum ConfigSubcommand {
 }
 
 pub async fn run_command(config: &Config, command: Command) -> miette::Result<()> {
+    let config = &with_registries(config, &command).await?;
     match command {
         Command::Serve(..) => Err(miette::miette!(
             "`serve` is not a maintenance command; start the server with `pnpr::serve`"
@@ -128,13 +149,27 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
         Command::Config { .. } => run_config_check(),
         Command::Verify { .. } => run_verify_command(config, command).await,
-        Command::Export { .. } => run_export_command(config, command).await,
         Command::MigrateStorage { .. } => run_migrate_command(config, command).await,
-        Command::ImportHtpasswd { .. } => run_import_command(config, command),
+        Command::ImportHtpasswd { .. } => run_import_command(config, command).await,
         Command::AddUser { username, password } => {
             run_add_user_command(config, username, password).await
         }
+        Command::Registries { action } => crate::registries_command::run(config, action).await,
     }
+}
+
+/// `config` with the stored registries for the commands that walk them, when
+/// the database stores them.
+async fn with_registries(config: &Config, command: &Command) -> miette::Result<Config> {
+    let credentials = match command {
+        Command::CacheGc { .. } => Credentials::Resolve,
+        Command::Gc { .. } | Command::Verify { .. } | Command::MigrateStorage { .. } => {
+            Credentials::Skip
+        }
+        _ => return Ok(config.clone()),
+    };
+    with_stored_routing(config, credentials, FileReferences::Warn).await
+        .map_err(|err| redacted_report(&err))
 }
 
 async fn run_gc_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -167,13 +202,6 @@ async fn run_verify_command(config: &Config, command: Command) -> miette::Result
     run_verify(config, !skip_hashes).await
 }
 
-async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Export { out, include_auth } = command else {
-        return Ok(());
-    };
-    run_export(config, out, include_auth).await
-}
-
 async fn run_migrate_command(config: &Config, command: Command) -> miette::Result<()> {
     let Command::MigrateStorage {
         from,
@@ -199,11 +227,14 @@ async fn run_migrate_command(config: &Config, command: Command) -> miette::Resul
     run_migrate_storage(config, options).await
 }
 
-fn run_import_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::ImportHtpasswd { source, target, dry_run, overwrite } = command else {
+async fn run_import_command(config: &Config, command: Command) -> miette::Result<()> {
+    let Command::ImportHtpasswd { source, dry_run, overwrite } = command else {
         return Ok(());
     };
-    run_import_htpasswd(config, source, target, dry_run, overwrite)
+    let options = crate::htpasswd_import::HtpasswdImportOptions { source, dry_run, overwrite };
+    let report = crate::htpasswd_import::import_htpasswd(config, &options).await?;
+    print!("{}", crate::htpasswd_import::format_import_report(&report));
+    Ok(())
 }
 
 fn run_config_check() -> miette::Result<()> {
@@ -232,36 +263,6 @@ async fn run_verify(config: &Config, check_hashes: bool) -> miette::Result<()> {
             "storage verification failed: {missing_count} missing, {corrupted_count} corrupted blobs",
         ));
     }
-    Ok(())
-}
-
-async fn run_export(config: &Config, out: PathBuf, include_auth: bool) -> miette::Result<()> {
-    let report = crate::export::export_storage(config, &out, include_auth).await?;
-    print!("{}", crate::export::format_export_report(&report));
-    Ok(())
-}
-
-fn run_import_htpasswd(
-    config: &Config,
-    source: PathBuf,
-    target: Option<PathBuf>,
-    dry_run: bool,
-    overwrite: bool,
-) -> miette::Result<()> {
-    let target = target.or_else(|| config.identity.auth.users.file.clone());
-    let Some(target) = target else {
-        return Err(miette::miette!(
-            "no target account file specified and none configured in identity.auth.users.file; pass --target <path>"
-        ));
-    };
-    let options = crate::htpasswd_import::HtpasswdImportOptions {
-        source,
-        target: Some(target),
-        dry_run,
-        overwrite,
-    };
-    let report = crate::htpasswd_import::import_htpasswd(&options)?;
-    print!("{}", crate::htpasswd_import::format_import_report(&report));
     Ok(())
 }
 
@@ -340,13 +341,6 @@ async fn run_add_user_command(
     username: String,
     password: Option<String>,
 ) -> miette::Result<()> {
-    if matches!(config.identity.backend, pnpr_config::BackendConfig::Local)
-        && config.identity.auth.users.file.is_none()
-    {
-        return Err(miette::miette!(
-            "standalone add-user requires a persistent auth backend (configure auth.users.file or a database backend)"
-        ));
-    }
     let password = match password {
         Some(password) => password,
         None => read_password()?,

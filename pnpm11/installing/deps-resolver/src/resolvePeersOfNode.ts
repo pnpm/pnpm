@@ -59,6 +59,7 @@ export async function resolvePeersOfNode<Pkg extends PartialResolvedPackage> (
   const parentNodeIds = [...ctx.parentNodeIds, nodeId]
   const children = node.children
   const parentPkgs = pinLockedPeerProviders(ctx, {
+    nodeId,
     node,
     resolvedPackage,
     parentPkgs: addChildrenToParentPkgs(ctx, { parentParentPkgs, children, parentNodeIds }),
@@ -90,7 +91,7 @@ function addChildrenToParentPkgs<Pkg extends PartialResolvedPackage> (
   const newParentPkgs = toPkgByName(getPeerProvidingChildren(ctx, opts))
   for (const [newParentPkgName, newParentPkg] of Object.entries(newParentPkgs)) {
     const inheritedParentPkg = parentPkgs[newParentPkgName]
-    if (!inheritedParentPkg) {
+    if (!Object.hasOwn(parentPkgs, newParentPkgName)) {
       parentPkgs[newParentPkgName] = newParentPkg
       continue
     }
@@ -137,7 +138,7 @@ function reusePeersCacheHit<Pkg extends PartialResolvedPackage> (
 ): NodePeersResolution {
   const { hit } = opts
   for (const [peerName, { range: wantedRange, optional }] of hit.missingPeers.entries()) {
-    if (ctx.peerDependencyIssues.missing[peerName] == null) {
+    if (!Object.hasOwn(ctx.peerDependencyIssues.missing, peerName)) {
       ctx.peerDependencyIssues.missing[peerName] = []
     }
     const { parents } = getLocationFromParentNodeIds({
@@ -205,7 +206,7 @@ async function resolveUncachedPeersOfNode<Pkg extends PartialResolvedPackage> (
   for (const [peerName, peerNodeId] of ownPeers.resolvedPeers) {
     allResolvedPeers.set(peerName, peerNodeId)
   }
-  allResolvedPeers.delete(node.resolvedPackage.name)
+  removeSelfPeer(ctx.dependenciesTree, allResolvedPeers, resolvedPackage)
   const allMissingPeers = new Map<string, MissingPeerInfo>([...childrenResolution.missingPeers, ...ownPeers.missingPeers])
 
   const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
@@ -221,6 +222,18 @@ async function resolveUncachedPeersOfNode<Pkg extends PartialResolvedPackage> (
       missingPeersOfChildren: childrenResolution.missingPeers,
     }),
     finishing: childrenResolution.finishing,
+  }
+}
+
+function removeSelfPeer<Pkg extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<Pkg>,
+  resolvedPeers: Map<string, NodeId>,
+  resolvedPackage: Pkg
+): void {
+  const peer = resolvedPeers.get(resolvedPackage.name)
+  const peerPackage = peer == null ? undefined : dependenciesTree.get(peer)?.resolvedPackage
+  if (peerPackage != null && 'pkgIdWithPatchHash' in peerPackage && peerPackage.pkgIdWithPatchHash === resolvedPackage.pkgIdWithPatchHash) {
+    resolvedPeers.delete(resolvedPackage.name)
   }
 }
 

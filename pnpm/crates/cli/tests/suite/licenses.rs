@@ -1102,3 +1102,5 @@ snapshots:
         "the root package holds another version, so 1.0.0 falls back to its virtual-store path, got {nested_path:?}",
     );
 }
+
+mod named_registries;

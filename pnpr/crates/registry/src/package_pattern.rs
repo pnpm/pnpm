@@ -105,7 +105,10 @@ impl PackagePattern {
         }
         CanonicalPackageName::parse(pattern, ecosystem)
             .map(|name| PackagePattern::Exact(name.as_str().to_string()))
-            .map_err(|_| RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() })
+            .map_err(|_| RegistryConfigError::ExactPatternNotAName {
+                pattern: pattern.to_string(),
+                ecosystem,
+            })
     }
 
     /// How specific this pattern is: an exact name beats `@scope/*` beats

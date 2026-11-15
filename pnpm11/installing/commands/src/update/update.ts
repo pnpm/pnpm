@@ -1,6 +1,12 @@
 import type { CommandHandler } from '@pnpm/cli.command'
 import { createMatcher } from '@pnpm/config.matcher'
-import { isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions, updateGitHubActions } from '@pnpm/deps.github-actions'
+import {
+  expandGitHubActionSelectors,
+  hasPositiveGitHubActionSelector,
+  isGitHubActionSelector,
+  shouldCheckGitHubActions,
+  updateGitHubActions,
+} from '@pnpm/deps.github-actions'
 import { PnpmError } from '@pnpm/error'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import type { IncludedDependencies, PackageVulnerabilityAudit } from '@pnpm/types'
@@ -36,7 +42,7 @@ export async function update (
   const updateMatching = selectUpdateMatching(packageDependencies, opts, depth)
   const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
   const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
-  if (dependencies.length === 0 || packageDependencies.length > 0) {
+  if (packageDependencies.length > 0 || !updateActions || !hasPositiveGitHubActionSelector(dependencies)) {
     await installUpdates(packageDependencies, { depth, includeDirect, opts, rebuildHandler, updateMatching })
   }
   if (updateActions) {
@@ -114,7 +120,7 @@ export function getGitHubActionsDir (opts: UpdateCommandOptions): string {
 }
 
 export function createGitHubActionsMatcher (selectors: string[]): ReturnType<typeof createMatcher> | undefined {
-  return selectors.length > 0 ? createMatcher(selectors.map(normalizeGitHubActionSelector)) : undefined
+  return selectors.length > 0 ? createMatcher(expandGitHubActionSelectors(selectors)) : undefined
 }
 
 export function shouldUpdateGitHubActions (opts: UpdateCommandOptions, include: IncludedDependencies): boolean {

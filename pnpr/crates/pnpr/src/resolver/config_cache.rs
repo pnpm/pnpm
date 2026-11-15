@@ -2,35 +2,54 @@ use super::{
     HashMap, IndexMap, LazyLock, Mutex, PacquetConfig, Path, PathBuf, ResolveRequest, StoreDir,
 };
 
-/// Hard cap on how many distinct client configurations the server will
-/// intern. Each interned [`PacquetConfig`] is leaked (the install path
-/// requires a `&'static Config`), so without a cap an authenticated
-/// caller could exhaust memory by varying its registry/policy fields on
-/// every request. `1024` is far above the handful of distinct setups a
-/// real fleet produces (typically one), matching
-/// [`cache::MAX_RESOLUTION_CACHE_ENTRIES`](super::cache::MAX_RESOLUTION_CACHE_ENTRIES).
-pub(super) const MAX_INTERNED_CONFIGS: usize = 1024;
+use std::{sync::Arc, time::Instant};
 
-/// Returned (as a `503`) when [`MAX_INTERNED_CONFIGS`] is reached. The
-/// limit resets on restart and a real client reuses one configuration, so
-/// a legitimate caller never sees it.
-pub(super) const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configurations";
+pub(super) const MAX_ACTIVE_CONFIGS: usize = 1024;
 
-/// Hard cap on the byte size of a single interned config's canonical key,
-/// which carries its attacker-controlled `registry` / `namedRegistries` /
-/// `overrides` content. [`MAX_INTERNED_CONFIGS`] bounds only the *count* of
-/// leaked configs; without this a caller could pad each distinct config with
-/// a giant overrides/package-extensions/registry map and still amplify the per-request
-/// leak (the whole request body is allowed up to the publish-sized limit).
-/// `128 KiB` is far above any real resolver configuration.
+pub(super) struct ConfigCache {
+    pub(super) entries: Mutex<HashMap<String, CachedConfig>>,
+    pub(super) admission: Arc<tokio::sync::Semaphore>,
+}
+
+impl Default for ConfigCache {
+    fn default() -> Self {
+        Self {
+            entries: Mutex::default(),
+            admission: Arc::new(tokio::sync::Semaphore::new(MAX_ACTIVE_CONFIGS)),
+        }
+    }
+}
+
+/// Retains admission until verification or the detached resolution finishes.
+pub(super) struct ActiveConfig {
+    pub(super) config: Arc<PacquetConfig>,
+    pub(super) _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+impl std::ops::Deref for ActiveConfig {
+    type Target = PacquetConfig;
+
+    fn deref(&self) -> &Self::Target {
+        &self.config
+    }
+}
+
+pub(super) const MAX_CACHED_CONFIGS: usize = 1024;
+pub(super) const CONFIG_KEY_TOO_LARGE_MESSAGE: &str = "registry configuration is too large";
+
+/// Bound the memory retained for each cached request configuration.
 pub(super) const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
+
+pub(super) struct CachedConfig {
+    config: Arc<PacquetConfig>,
+    last_used: Instant,
+}
 
 /// The settings a request resolves under, and the only part of an input
 /// lockfile's `settings` block the interning key carries. Keying on the whole
 /// block would let a caller mint an unbounded number of distinct configs out
 /// of the fields the config never reads (`peersSuffixMaxLength` alone is a
-/// `u64`) and exhaust [`MAX_INTERNED_CONFIGS`], after which no caller gets a
-/// config at all.
+/// `u64`).
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct EffectiveResolverSettings {
@@ -81,48 +100,58 @@ impl EffectiveResolverSettings {
     }
 }
 
-/// Build + leak a `&'static Config` for a request's registry
-/// configuration, interned by its canonical JSON so repeat requests reuse
-/// it. Returns `None` when the config can't be safely interned:
-///
-/// * once `max_interned` distinct configurations have been interned — a
-///   leaked config can never be reclaimed, so refusing to leak more is the
-///   only real bound on the per-request leak (eviction would just let the
-///   same key be re-leaked); or
-/// * when a single config's canonical key exceeds `max_key_bytes`, which
-///   bounds the *size* of each leaked config so a caller can't amplify the
-///   leak with a giant `overrides`, `packageExtensions`, or registry map.
-///
-/// Both caps are generous enough that legitimate clients (which reuse one
-/// small configuration) never hit them.
+/// Reuse a request configuration, evicting the least recently used entry at capacity.
+/// Active requests retain their own reference across eviction.
 pub(super) fn intern_config(
-    configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
+    configs: &Mutex<HashMap<String, CachedConfig>>,
     store_dir: &StoreDir,
     cache_dir: &Path,
     request: &ResolveRequest,
-    max_interned: usize,
+    max_cached: usize,
     max_key_bytes: usize,
-) -> Option<&'static PacquetConfig> {
-    let registry =
-        request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
-    let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
-    let overrides: Option<IndexMap<String, String>> = request.overrides
-        .as_ref()
-        .and_then(|value| serde_json::from_value(value.clone()).ok());
-    let resolver_settings = EffectiveResolverSettings::for_request(request);
-    let key = config_cache_key(request, &registry, overrides.as_ref(), &resolver_settings);
+) -> Option<Arc<PacquetConfig>> {
+    let inputs = ConfigKeyInputs::for_request(request);
+    let key = key_value(CONFIG_KEY, request, &inputs).to_string();
     if key.len() > max_key_bytes {
         return None;
     }
 
     let mut configs = configs.lock().expect("config cache poisoned");
-    if let Some(config) = configs.get(&key) {
-        return Some(config);
+    if let Some(config) = configs.get_mut(&key) {
+        config.last_used = Instant::now();
+        return Some(Arc::clone(&config.config));
     }
-    if configs.len() >= max_interned {
-        return None;
+    if configs.len() >= max_cached
+        && let Some(oldest) = configs
+            .iter()
+            .min_by_key(|(_, entry)| entry.last_used)
+            .map(|(key, _)| key.clone())
+    {
+        configs.remove(&oldest);
     }
 
+    let config = build_config(store_dir, cache_dir, request, inputs);
+    let config = Arc::new(config);
+    if max_cached > 0 {
+        configs.insert(
+            key,
+            CachedConfig { config: Arc::clone(&config), last_used: Instant::now() },
+        );
+    }
+    Some(config)
+}
+
+fn build_config(
+    store_dir: &StoreDir,
+    cache_dir: &Path,
+    request: &ResolveRequest,
+    inputs: ConfigKeyInputs,
+) -> PacquetConfig {
+    let ConfigKeyInputs {
+        registry,
+        overrides,
+        resolver_settings,
+    } = inputs;
     let mut config = PacquetConfig::new();
     config.store_dir = store_dir.clone();
     config.cache_dir = cache_dir.to_path_buf();
@@ -141,46 +170,126 @@ pub(super) fn intern_config(
     config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
     config.add_missing_peer_types = resolver_settings.add_missing_peer_types;
     config.project_scoped_optional_peers = resolver_settings.project_scoped_optional_peers;
-    let config: &'static PacquetConfig = config.leak();
-    configs.insert(key, config);
-    Some(config)
+    config
+}
+
+/// The registry, overrides, and resolver settings a request resolves under,
+/// normalized the way [`intern_config`] keys them.
+pub(super) struct ConfigKeyInputs {
+    pub(super) registry: String,
+    pub(super) overrides: Option<IndexMap<String, String>>,
+    pub(super) resolver_settings: EffectiveResolverSettings,
+}
+
+impl ConfigKeyInputs {
+    pub(super) fn for_request(request: &ResolveRequest) -> Self {
+        let registry =
+            request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
+        let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
+        let overrides = request.overrides
+            .as_ref()
+            .and_then(|value| serde_json::from_value(value.clone()).ok());
+        ConfigKeyInputs {
+            registry,
+            overrides,
+            resolver_settings: EffectiveResolverSettings::for_request(request),
+        }
+    }
+}
+
+/// One part of a cache key: the request fields it covers, by their wire
+/// names, and the value it contributes.
+pub(super) struct KeyPart {
+    pub(super) fields: &'static [&'static str],
+    pub(super) value: fn(&ResolveRequest, &ConfigKeyInputs) -> serde_json::Value,
+}
+
+/// The parts of [`intern_config`]'s key. The resolution cache key carries
+/// them too. A test checks that every request field is in a key or listed as
+/// one neither key needs.
+pub(super) const CONFIG_KEY: &[KeyPart] = &[
+    KeyPart { fields: &["registry"], value: |_, inputs| serde_json::json!(inputs.registry) },
+    KeyPart { fields: &["overrides"], value: |_, inputs| sorted_overrides(inputs) },
+    KeyPart {
+        fields: &[
+            "autoInstallPeers",
+            "dedupePeers",
+            "excludeLinksFromLockfile",
+            "addMissingPeerTypes",
+            "projectScopedOptionalPeers",
+        ],
+        value: |_, inputs| serde_json::json!(inputs.resolver_settings),
+    },
+    KeyPart { fields: &["registries"], value: |request, _| serde_json::json!(request.registries) },
+    KeyPart {
+        fields: &["patchedDependencies"],
+        value: |request, _| serde_json::json!(request.patched_dependencies),
+    },
+    KeyPart {
+        fields: &["packageExtensions"],
+        value: |request, _| serde_json::json!(request.package_extensions),
+    },
+    KeyPart {
+        fields: &["allowUnusedPatches"],
+        value: |request, _| serde_json::json!(request.allow_unused_patches),
+    },
+    KeyPart {
+        fields: &["resolutionMode"],
+        value: |request, _| serde_json::json!(request.resolution_mode),
+    },
+    KeyPart {
+        fields: &["minimumReleaseAge"],
+        value: |request, _| serde_json::json!(request.minimum_release_age),
+    },
+    KeyPart {
+        fields: &["minimumReleaseAgeExclude"],
+        value: |request, _| serde_json::json!(request.minimum_release_age_exclude),
+    },
+    KeyPart {
+        fields: &["minimumReleaseAgeIgnoreMissingTime"],
+        value: |request, _| serde_json::json!(request.minimum_release_age_ignore_missing_time),
+    },
+    KeyPart {
+        fields: &["trustPolicy"],
+        value: |request, _| serde_json::json!(request.trust_policy),
+    },
+    KeyPart {
+        fields: &["trustPolicyExclude"],
+        value: |request, _| serde_json::json!(request.trust_policy_exclude),
+    },
+    KeyPart {
+        fields: &["trustPolicyIgnoreAfter"],
+        value: |request, _| serde_json::json!(request.trust_policy_ignore_after),
+    },
+];
+
+/// The values of `parts` for `request`, keyed by the fields each covers.
+pub(super) fn key_value(
+    parts: &[KeyPart],
+    request: &ResolveRequest,
+    inputs: &ConfigKeyInputs,
+) -> serde_json::Value {
+    parts
+        .iter()
+        .map(|part| (part.fields.join(","), (part.value)(request, inputs)))
+        .collect::<serde_json::Map<_, _>>()
+        .into()
 }
 
 /// Key on a sorted view of `overrides`: `serde_json` preserves insertion order
 /// and `IndexMap` is insertion-ordered, so the same overrides sent with a
-/// different key order would otherwise hash to distinct cache keys and intern
-/// duplicate leaked configs — defeating dedup and burning the cap faster.
-pub(super) fn config_cache_key(
-    request: &ResolveRequest,
-    registry: &str,
-    overrides: Option<&IndexMap<String, String>>,
-    resolver_settings: &EffectiveResolverSettings,
-) -> String {
-    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> =
-        overrides.map(|overrides| {
+/// different key order would otherwise intern duplicate configurations.
+fn sorted_overrides(inputs: &ConfigKeyInputs) -> serde_json::Value {
+    let overrides: Option<std::collections::BTreeMap<&str, &str>> = inputs
+        .overrides
+        .as_ref()
+        .map(|overrides| {
             overrides
                 .iter()
-                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .map(|(selector, spec)| (selector.as_str(), spec.as_str()))
                 .collect()
         });
-
-    serde_json::json!({
-        "registry": registry,
-        "resolverSettings": resolver_settings,
-        "registries": &request.registries,
-        "overrides": overrides_key,
-        "patchedDependencies": &request.patched_dependencies,
-        "packageExtensions": &request.package_extensions,
-        "allowUnusedPatches": request.allow_unused_patches,
-        "resolutionMode": request.resolution_mode,
-        "minimumReleaseAge": request.minimum_release_age,
-        "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
-        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
-        "trustPolicy": request.trust_policy,
-        "trustPolicyExclude": request.trust_policy_exclude,
-        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
-    })
-    .to_string()
+    serde_json::json!(overrides)
 }
 
 /// Apply the same declaration inversion as the client config reader.

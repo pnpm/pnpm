@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
 import type { CompletionFunc } from '@pnpm/cli.command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
@@ -205,6 +208,7 @@ export type RunOpts =
   & {
     argv?: {
       original: string[]
+      cooked?: string[]
     }
     fallbackCommandUsed?: boolean
     sequential?: boolean
@@ -233,7 +237,7 @@ export async function handler (
   if (!scriptName) {
     return printProjectCommands(manifest, await readOtherWorkspaceRootManifest(opts, dir))
   }
-  const specifiedScripts = selectSpecifiedScripts(manifest, scriptName)
+  const specifiedScripts = selectSpecifiedScripts(manifest, dir, scriptName)
   if (specifiedScripts.length < 1) {
     return handleMissingScript(opts, scriptName, manifest)
   }
@@ -279,8 +283,8 @@ async function readOtherWorkspaceRootManifest (opts: RunOpts, dir: string): Prom
   return (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest ?? undefined
 }
 
-function selectSpecifiedScripts (manifest: ProjectManifest, scriptName: string): string[] {
-  const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
+function selectSpecifiedScripts (manifest: ProjectManifest, dir: string, scriptName: string): string[] {
+  const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, dir, scriptName)
   if (process.env.npm_lifecycle_event) return specifiedScripts
   return throwOrFilterHiddenScripts(specifiedScripts, scriptName)
 }
@@ -291,6 +295,9 @@ async function handleMissingScript (
   manifest: ProjectManifest
 ): Promise<{ exitCode: number } | undefined> {
   if (opts.ifPresent) return undefined
+  if (scriptName === 'start') {
+    throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+  }
   if (opts.fallbackCommandUsed) {
     return exec({
       selectedProjectsGraph: {},
@@ -324,7 +331,7 @@ function getFallbackExecParams (opts: RunOpts): string[] {
 async function throwIfScriptIsInWorkspaceRoot (opts: RunOpts, scriptName: string): Promise<void> {
   if (!opts.workspaceDir) return
   const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
-  if (getSpecifiedScripts(rootManifest?.scripts ?? {}, scriptName).length > 0) {
+  if (getSpecifiedScripts(rootManifest?.scripts ?? {}, opts.workspaceDir, scriptName).length > 0) {
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
       hint: `But script matched with ${scriptName} is present in the root of the workspace,
 so you may run "pnpm -w run ${scriptName}"`,
@@ -406,15 +413,15 @@ function someSelectedProjectHasScript (selectedProjectsGraph: ProjectsGraph, scr
   )
 }
 
-function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
+function getSpecifiedScripts (scripts: PackageScripts, dir: string, scriptName: string): string[] {
   const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName)
 
   if (specifiedSelector.length > 0) {
     return specifiedSelector
   }
 
-  // if a user passes start command as scriptName, `node server.js` will be executed as a fallback, so return start command even if start command is not defined in package.json
-  if (scriptName === 'start') {
+  // if a user passes start command as scriptName, `node server.js` will be executed as a fallback when server.js exists
+  if (scriptName === 'start' && existsSync(path.join(dir, 'server.js'))) {
     return [scriptName]
   }
 

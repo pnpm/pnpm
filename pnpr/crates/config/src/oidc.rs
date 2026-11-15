@@ -17,7 +17,7 @@ pub struct OidcProvider {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OidcLogin {
     #[serde(default)]
-    pub client_secret: Option<String>,
+    pub client_secret: Option<crate::Secret>,
     #[serde(default)]
     pub users: Vec<OidcBinding>,
     /// Bind verified subjects through SCIM externalId.

@@ -12,7 +12,7 @@ use std::{
 
 #[derive(Clone, Copy)]
 pub struct FrozenInstallDrivers<'a> {
-    pub config: &'static Config,
+    pub config: &'a Config,
     pub http_client: &'a ThrottledClient,
     pub pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 
@@ -160,6 +160,8 @@ pub struct FrozenPlatformOptions<'a> {
     /// platform-tagged optional-dependency filter respects user-
     /// supplied architecture overrides.
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+
+    pub runtime_provisioning: bool,
 
     /// When `true`, runtime dependencies (`node@runtime:`,
     /// `deno@runtime:`, `bun@runtime:`) — i.e. packages whose

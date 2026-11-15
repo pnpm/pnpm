@@ -8,10 +8,9 @@
 
 pub(super) use pnpr_route::split_package_identifier;
 
-use super::{
-    AppState, CanonicalPackageName, RegistryError, RegistrySource, Value, revision_source_registry,
-};
+use super::{AppState, CanonicalPackageName, RegistryError, RegistrySource, Value};
 use pnpm_package_manifest::{MAX_PRECALCULATED_BINS_BYTES, serialize_precalculated_bins};
+use pnpr_config::RoutingConfig;
 use pnpr_storage::DerivedTar;
 use ssri::{Algorithm, Integrity};
 use std::{collections::BTreeMap, sync::Arc};
@@ -50,13 +49,16 @@ pub(super) async fn tar_integrities_of(
 /// How a document served through `registry` from `source` describes each
 /// version's tarball, given the derived tar table of the package.
 pub(super) fn dist_view<'a>(
-    state: &'a AppState,
+    state: &AppState,
+    routing: &'a RoutingConfig,
     registry: &str,
     source: &RegistrySource,
     tar_integrities: Option<&'a Arc<BTreeMap<String, DerivedTar>>>,
 ) -> DistView<'a> {
     let revision_registry = match source {
-        RegistrySource::Upstream(source) => revision_source_registry(state, source),
+        RegistrySource::Upstream(source) => {
+            routing.upstreams.get(source).map(|upstream| upstream.url.as_str())
+        }
         RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     };
     DistView {
@@ -69,7 +71,7 @@ pub(super) fn dist_view<'a>(
 
 /// Whether the registry `key` declares `tarballs: tar`.
 pub(super) fn is_tar_registry(state: &AppState, key: &str) -> bool {
-    state.inner.config.routing.tar_registries.contains(key)
+    state.routing().tar_registries.contains(key)
 }
 
 /// Overlay derived tar metadata onto every version of a packument, and on a

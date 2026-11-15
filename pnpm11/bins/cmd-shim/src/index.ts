@@ -129,11 +129,12 @@ function isShimForMissingTarget (shimContent: string): boolean {
 function isShimNodePath (shimContent: string, expected: { first?: string, middle?: string[], last?: string[] }): boolean {
   const first = expected.first == null ? undefined : normalizePathEnvVar([expected.first]).posix
   const last = expected.last == null ? undefined : normalizePathEnvVar(expected.last).posix
+  const middle = normalizePathEnvVar(expected.middle).posix
   const value = readShNodePath(shimContent)
-  if (value == null) return !first && !last
-  if (!first && !last) return false
+  if (value == null) return !first && !last && !middle
+  if (!first && !last && !middle) return false
   const rest = stripOuterEntries(value, first, last)
-  return rest != null && isMiddleCurrent(rest, normalizePathEnvVar(expected.middle).posix, {
+  return rest != null && isMiddleCurrent(rest, middle, {
     keepsLeading: first == null,
     keepsTrailing: last == null,
   })

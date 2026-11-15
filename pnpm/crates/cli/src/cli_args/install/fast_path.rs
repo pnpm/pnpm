@@ -252,6 +252,10 @@ impl InstallArgs {
         config: &pnpm_config::Config,
     ) -> Option<&'static str> {
         let gates = [
+            (
+                self.materialization.entry_mode.is_clean_install(),
+                "pnpm ci cleans before installing",
+            ),
             (self.effective_frozen_lockfile(config), "the lockfile is frozen"),
             (self.lockfile.only, "--lockfile-only"),
             (self.lockfile.fix, "--fix-lockfile"),

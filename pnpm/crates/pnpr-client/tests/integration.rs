@@ -26,13 +26,12 @@ use p256::{
     ecdsa::{SigningKey, signature::Signer as _},
     pkcs8::EncodePublicKey as _,
 };
-use pnpm_config::RegistryDeclaration;
 use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactBlobSource, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, ArtifactPublication, ArtifactSubject, BuilderProfile,
     CompatibilityConstraints, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
-    PublishArtifactRequest, ResolveArtifactsOptions, ResolveOptions, ResolveProject,
-    ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
+    PublishArtifactRequest, RegistryDeclaration, ResolveArtifactsOptions, ResolveOptions,
+    ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
 };
 use pnpm_testing_utils::registry::TestRegistry;
 use sha2::{Digest as _, Sha512};
@@ -87,8 +86,8 @@ async fn start_pnpr_inner(
 
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
     config.features.artifacts.enabled = artifacts_enabled;
-    let accounts_path = storage.path().join("users.json");
-    let accounts = pnpr::UserStore::open(accounts_path.clone(), pnpr::MaxUsers::Unlimited).unwrap();
+    let accounts_path = storage.path().join("auth.sqlite");
+    let accounts = pnpr::SqliteAuth::open(&accounts_path, pnpr::MaxUsers::Unlimited).unwrap();
     pnpr::UserBackend::create_user(&accounts, "pnpr-client", "password123")
         .await
         .unwrap();
@@ -98,7 +97,7 @@ async fn start_pnpr_inner(
         .unwrap()
         .unwrap();
     let reader_id = pnpr::UserBackend::account_id(&accounts, "reader").await.unwrap().unwrap();
-    config.identity.auth.users.file = Some(accounts_path);
+    config.identity.backend = pnpr::BackendConfig::Sqlite(accounts_path);
 
     config.features.artifacts.owners.insert(
         "pnpr-client".to_string(),
@@ -107,7 +106,11 @@ async fn start_pnpr_inner(
             publish: pnpr::AccessList::from_tokens([&publisher_id]),
         },
     );
-    config.http.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
+    // The test registries listen on other ports of 127.0.0.1, which pnpr
+    // refuses as other services of its own host when its public URL names
+    // that host too.
+    config.http.public_url =
+        public_url.unwrap_or_else(|| format!("http://localhost:{}", addr.port()));
     config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
     config.routing.route_policy.allowed_private_networks = ["127.0.0.0/8", "::1"]
         .into_iter()
@@ -286,7 +289,7 @@ fn options(
             exclude_links_from_lockfile: None,
             add_missing_peer_types: None,
             project_scoped_optional_peers: None,
-            resolution_mode: pnpm_config::ResolutionMode::default(),
+            resolution_mode: pnpm_pnpr_client::ResolutionMode::default(),
         },
         reuse: pnpm_pnpr_client::LockfileReuseOptions {
             lockfile: None,
@@ -300,7 +303,7 @@ fn options(
             minimum_release_age: None,
             minimum_release_age_exclude: None,
             minimum_release_age_ignore_missing_time: true,
-            trust_policy: pnpm_config::TrustPolicy::Off,
+            trust_policy: pnpm_pnpr_client::TrustPolicy::Off,
             trust_policy_exclude: None,
             trust_policy_ignore_after: None,
         },

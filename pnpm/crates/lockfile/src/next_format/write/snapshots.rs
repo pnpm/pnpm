@@ -127,7 +127,7 @@ impl Snapshot<'_> {
     }
 }
 
-pub(super) struct Snapshots<'a> {
+pub(in crate::next_format) struct Snapshots<'a> {
     /// Every package's snapshots, in the order the writer lists them.
     by_package: Vec<(PackageKey, Vec<Snapshot<'a>>)>,
     /// Where each of today's snapshot keys is in `by_package`.
@@ -186,7 +186,7 @@ impl<'a> Transitive<'a> {
 }
 
 impl<'a> Snapshots<'a> {
-    pub(super) fn of(
+    pub(in crate::next_format) fn of(
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     ) -> Result<Self, NextFormatError> {
@@ -255,6 +255,22 @@ impl<'a> Snapshots<'a> {
         Ok(snapshots)
     }
 
+    /// Each original identity and the identity reconstructed for its entry.
+    pub(in crate::next_format) fn rebuilt_keys(
+        &self,
+        rebuilt: &read::Rebuilt<'_>,
+    ) -> HashMap<PackageKey, PackageKey> {
+        self.index
+            .iter()
+            .map(|(key, &(package, index))| {
+                let rebuilt = rebuilt
+                    .snapshot_key(&self.by_package[package].0, index)
+                    .expect("every supplied snapshot has a reconstructed key");
+                ((*key).clone(), rebuilt.clone())
+            })
+            .collect()
+    }
+
     /// The bindings that name the snapshot `target` among its package's: the
     /// peers the package's snapshots bind differently, as `target` binds
     /// them. `None` when nothing tells the snapshot apart.
@@ -266,7 +282,7 @@ impl<'a> Snapshots<'a> {
     }
 
     /// Nested discriminators must also be written on the bindings they identify.
-    pub(super) fn mark_nested_bindings(&self, explicit: &mut Explicit) {
+    pub(in crate::next_format) fn mark_nested_bindings(&self, explicit: &mut Explicit) {
         for snapshot in self.by_package.iter().flat_map(|(_, snapshots)| snapshots) {
             let Some(bindings) = self.naming_bindings(snapshot.key) else { continue };
             for name in snapshot
@@ -282,7 +298,7 @@ impl<'a> Snapshots<'a> {
         }
     }
 
-    pub(super) fn sections(
+    pub(in crate::next_format) fn sections(
         &self,
         lockfile: &Lockfile,
         explicit: &Explicit,
@@ -314,7 +330,7 @@ impl<'a> Snapshots<'a> {
 
     /// Marks every reference that read back to another snapshot. Returns
     /// whether it marked one that was not marked before.
-    pub(super) fn mark_mismatches(
+    pub(in crate::next_format) fn mark_mismatches(
         &self,
         lockfile: &Lockfile,
         rebuilt: &read::Rebuilt<'_>,

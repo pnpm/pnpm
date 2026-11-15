@@ -382,6 +382,90 @@ async fn fresh_install_honors_skip_runtimes() {
 
     drop(dirs.dir);
 }
+
+#[cfg_attr(
+    feature = "runtime-provisioning",
+    ignore = "requires a build without runtime provisioning"
+)]
+#[tokio::test]
+async fn fresh_install_reports_unavailable_runtime_provisioning() {
+    let dirs = InstallDirs::new();
+
+    let manifest_path = dirs.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("node", "runtime:22", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
+    // Nothing listens here, so a request that reaches the network fails
+    // with a connection error, not the provisioning error.
+    config.registry = "http://127.0.0.1:9/".to_string();
+    let config = config.leak();
+
+    let error = Install {
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: false,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: true,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+            dedicated: None,
+            discovered_workspace: None,
+        },
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect_err("runtime provisioning is disabled");
+
+    let rendered = format!("{:?}", miette::Report::new(error));
+    assert!(
+        rendered.contains("Runtime provisioning is not enabled in this build for node@runtime:22"),
+        "expected the provisioning error, got: {rendered}",
+    );
+
+    drop(dirs.dir);
+}
 /// `nodeLinker` drift between `.modules.yaml` and the current config
 /// disqualifies the up-to-date short-circuit — a different linker
 /// forces a full rebuild of `node_modules` rather than a fast no-op.

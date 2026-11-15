@@ -23,6 +23,7 @@ pub use suffix_index::{
     DepPathSuffixIndex, get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix,
 };
 pub use try_get_package_id::try_get_package_id;
+pub use version_separator::version_separator_index;
 
 mod create_peer_dep_graph_hash;
 mod dep_path;
@@ -33,3 +34,4 @@ mod peer_id;
 mod registry_qualified;
 mod suffix_index;
 mod try_get_package_id;
+mod version_separator;

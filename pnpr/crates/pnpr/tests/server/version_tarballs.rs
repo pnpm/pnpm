@@ -444,7 +444,7 @@ async fn a_refreshed_version_manifest_replaces_a_tarball_with_a_different_integr
     let mut upstream = mockito::Server::new_async().await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    config.routing.upstreams.get_mut("npmjs").unwrap().packument_ttl = Some(Duration::ZERO);
     let app = router(config);
     let packument = upstream
         .mock("GET", "/foo")

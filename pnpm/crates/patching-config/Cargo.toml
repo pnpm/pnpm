@@ -3,7 +3,7 @@ name = "pnpm-patching-config"
 version = "0.0.1"
 publish = false
 authors.workspace = true
-description = "Parse, group, and match pnpm's patchedDependencies entries"
+description = "Parse, hash, group, and match pnpm's patchedDependencies entries"
 edition.workspace = true
 homepage.workspace = true
 keywords.workspace = true
@@ -12,11 +12,14 @@ repository.workspace = true
 
 [dependencies]
 derive_more = { workspace = true }
+indexmap = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

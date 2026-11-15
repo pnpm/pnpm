@@ -47,7 +47,7 @@ fn acme_config(storage: &std::path::Path, rules: Vec<pnpr::PackageRule>) -> Conf
     ];
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
-    config.storage.metadata = pnpr_config::MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
+    config.storage.database = pnpr_config::DatabaseBackend::Sqlite(storage.join("metadata.sqlite"));
     let signer = NoteSigner::from_private_key(LOG_SIGNING_KEY).unwrap();
     let statements = statement_signer();
     config.release_records.log_signing_key = Some(Arc::new(signer));
@@ -345,7 +345,7 @@ async fn restoring_an_older_sqlite_database_extends_the_log_without_forking() {
     // fresh router pointed at the earlier metadata backup reconciles the log
     // before staging or committing.
     let mut restored_config = acme_config(tmp.path(), Vec::new());
-    restored_config.storage.metadata = pnpr_config::MetadataBackend::Sqlite(db_backup);
+    restored_config.storage.database = pnpr_config::DatabaseBackend::Sqlite(db_backup);
     let app_restored = router_with_auth(restored_config, auth);
     let (republish_status, republish_body) =
         publish_response(&app_restored, &token, "@acme/widget", "1.0.1").await;
@@ -449,7 +449,7 @@ async fn migrate_local_to_s3_copies_transparency_log_for_migrated_startup() {
     let primary_dir = TempDir::new().unwrap();
     let (_primary, primary_addr, _primary_task) =
         pnpr_libsql::testing::serve_primary(primary_dir.path().join("primary.db")).await;
-    let metadata = pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+    let metadata = pnpr_config::DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
         url: format!("http://{primary_addr}"),
         auth_token: None,
         replica_path: None,
@@ -459,7 +459,7 @@ async fn migrate_local_to_s3_copies_transparency_log_for_migrated_startup() {
 
     let local_tmp = TempDir::new().unwrap();
     let mut local_config = acme_config(local_tmp.path(), Vec::new());
-    local_config.storage.metadata = metadata.clone();
+    local_config.storage.database = metadata.clone();
     pnpr::prepare_storage(&local_config).await.unwrap();
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
@@ -470,7 +470,7 @@ async fn migrate_local_to_s3_copies_transparency_log_for_migrated_startup() {
 
     let s3_scratch = TempDir::new().unwrap();
     let mut s3_config = acme_config(s3_scratch.path(), Vec::new());
-    s3_config.storage.metadata = metadata;
+    s3_config.storage.database = metadata;
     s3_config.storage.hosted_backend = pnpr_config::HostedStoreConfig::ObjectStore {
         store: Arc::new(object_store::memory::InMemory::new()),
         prefix: "registry".to_string(),

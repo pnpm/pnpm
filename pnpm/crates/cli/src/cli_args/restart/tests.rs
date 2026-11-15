@@ -63,6 +63,18 @@ fn restart_with_if_present_skips_missing_stop_and_restart() {
 
 #[cfg(unix)]
 #[test]
+fn restart_with_if_present_skips_when_all_scripts_and_server_js_are_missing() {
+    let tmp = TempDir::new().expect("tmp dir");
+    let dir = tmp.path();
+    setup_project(dir, &json!({}));
+    let config = test_config();
+    RestartArgs { args: vec![], if_present: true }
+        .run(dir, &config, ReporterType::Silent)
+        .expect("--if-present should skip missing stop, restart, and start");
+}
+
+#[cfg(unix)]
+#[test]
 fn restart_passes_args_to_each_script() {
     let tmp = TempDir::new().expect("tmp dir");
     let dir = tmp.path();

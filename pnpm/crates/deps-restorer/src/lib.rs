@@ -95,6 +95,9 @@ pub use pnp::*;
 pub use pnpm_workspace_task_scheduler::{GraphSequencerResult, PathNode, graph_sequencer};
 pub use prune_direct_deps::*;
 pub use prune_stale_modules::*;
+pub use remote_cache_options::{
+    ArtifactSignerSettings, ArtifactStoreOptions, artifact_signer_settings, artifact_store_options,
+};
 pub use safe_join_modules_dir::*;
 pub use symlink_direct_dependencies::*;
 pub use symlink_package::*;
@@ -106,6 +109,7 @@ mod custom_fetcher;
 mod installed_hoisted_state;
 mod link_pool;
 mod prune_extraneous_deps;
+mod remote_cache_options;
 mod shared_side_effects;
 
 /// The file older pnpm versions put in a global virtual store package

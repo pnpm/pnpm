@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use pnpr::{Config, MaxUsers, router};
-use pnpr_config::MetadataBackend;
+use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_policy::{AccessList, PackageRules, RuleOverride};
 use pnpr_registry::{PackagePattern, Registries, Registry};
@@ -28,7 +28,7 @@ fn sqlite_config(storage: &Path) -> Config {
     let mut config = Config::static_serve(listen, storage.to_path_buf());
     config.http.public_url = "http://example.test".to_string();
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
-    config.storage.metadata = MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
+    config.storage.database = DatabaseBackend::Sqlite(storage.join("metadata.sqlite"));
     config
 }
 

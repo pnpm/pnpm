@@ -602,9 +602,8 @@ fn access_log_uri_redacts_the_logout_token_segment() {
 }
 
 // --------------------------------------------------------------------
-// npm team API — listings from the config-declared `teams:` map,
-// config-managed rejection for mutations, not-found masking for callers
-// the registry-level `access` denies.
+// npm team API — listings from the registry's `teams:` map, not-found
+// masking for callers the registry-level `access` denies.
 // --------------------------------------------------------------------
 
 fn config_with_teams(tmp: &TempDir) -> Config {
@@ -685,33 +684,6 @@ async fn team_members_are_listed_sorted() {
         .await
         .unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn team_mutations_are_rejected_as_config_managed() {
-    let tmp = TempDir::new().unwrap();
-    let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
-    let mutations = [
-        (Method::PUT, "/npm/-/org/myorg/team"),
-        (Method::DELETE, "/npm/-/team/myorg/developers"),
-        (Method::PUT, "/npm/-/team/myorg/developers/user"),
-        (Method::DELETE, "/npm/-/team/myorg/developers/user"),
-        (Method::PUT, "/npm/~local/-/org/myorg/team"),
-        (Method::DELETE, "/npm/~local/-/team/myorg/developers"),
-        (Method::PUT, "/npm/~local/-/team/myorg/developers/user"),
-        (Method::DELETE, "/npm/~local/-/team/myorg/developers/user"),
-    ];
-    for (method, path) in mutations {
-        let response = app
-            .clone()
-            .oneshot(signed(method.clone(), path, "tok"))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let body = String::from_utf8(body.to_vec()).unwrap();
-        assert!(body.contains("declared in the pnpr configuration"), "{method} {path}: {body}");
-    }
 }
 
 #[tokio::test]

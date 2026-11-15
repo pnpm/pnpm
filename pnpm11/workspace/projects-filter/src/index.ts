@@ -2,14 +2,24 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
 import { type BaseProject, createProjectsGraph, type ProjectGraphNode } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
-import { partition, pick } from 'ramda'
+import { pick } from 'ramda'
 
 import { filterProjectsBySelectorObjectsFromDir } from './filterProjectsFromDir.js'
+import { type FilteredGraphWithProdResult, runFilterWithProdGraph } from './filterWithProdGraph.js'
 import { getChangedProjects } from './getChangedProjects.js'
 import { matchProjects, matchProjectsByExactPath, matchProjectsByGlob } from './matchProjects.js'
+import { orderWorkspaceFilters, type OrderWorkspaceFiltersOptions } from './orderWorkspaceFilters.js'
 import { parseProjectSelector, type ProjectSelector, rebaseProjectSelector } from './parseProjectSelector.js'
 
-export { filterProjectsBySelectorObjectsFromDir, parseProjectSelector, type ProjectSelector, rebaseProjectSelector }
+export {
+  type FilteredGraphWithProdResult,
+  filterProjectsBySelectorObjectsFromDir,
+  orderWorkspaceFilters,
+  type OrderWorkspaceFiltersOptions,
+  parseProjectSelector,
+  type ProjectSelector,
+  rebaseProjectSelector,
+}
 export { getChangedProjects } from './getChangedProjects.js'
 
 export interface WorkspaceFilter {
@@ -30,11 +40,6 @@ export interface ProjectGraph<Pkg extends BaseProject> {
 
 interface Graph {
   [nodeId: ProjectRootDir]: ProjectRootDir[]
-}
-
-interface FilteredGraph<Pkg extends BaseProject> {
-  selectedProjectsGraph: ProjectGraph<Pkg>
-  unmatchedFilters: string[]
 }
 
 export interface ReadProjectsResult {
@@ -117,7 +122,7 @@ export async function filterProjects<Pkg extends BaseProject> (
   return filterProjectsBySelectorObjects(projects, projectSelectors, opts)
 }
 
-interface FilterWorkspaceProjectsOptions {
+export interface FilterWorkspaceProjectsOptions {
   workspaceDir: string
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
@@ -142,34 +147,27 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
   prodOnlySelectedProjectDirs?: ProjectRootDir[]
   unmatchedFilters: string[]
 }> {
-  const [prodProjectSelectors, allProjectSelectors] = partition(({ followProdDepsOnly }) => !!followProdDepsOnly, projectSelectors)
-
-  if ((allProjectSelectors.length === 0) && (prodProjectSelectors.length === 0)) {
-    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
+  const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
+  if (projectSelectors.length === 0) {
     return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
-  const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
 
-  const filteredGraph = allProjectSelectors.length > 0
-    ? await filterWorkspaceProjects(graph, allProjectSelectors, toFilterWorkspaceProjectsOptions(opts))
+  const hasProdSelectors = projectSelectors.some(({ followProdDepsOnly }) => Boolean(followProdDepsOnly))
+  const prodAllProjectsGraph = hasProdSelectors
+    ? createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages }).graph
     : undefined
-
-  const prod = prodProjectSelectors.length > 0
-    ? await filterProdProjects(projects, prodProjectSelectors, opts)
-    : undefined
+  const filtered = await filterWorkspaceProjectsWithProdGraph(
+    { allProjectsGraph: graph, prodProjectsGraph: prodAllProjectsGraph },
+    projectSelectors,
+    toFilterWorkspaceProjectsOptions(opts)
+  )
 
   return {
     allProjectsGraph: graph,
-    selectedProjectsGraph: {
-      ...prod?.filteredGraph.selectedProjectsGraph,
-      ...filteredGraph?.selectedProjectsGraph,
-    },
-    prodAllProjectsGraph: prod?.graph,
-    prodOnlySelectedProjectDirs: prod && getProdOnlySelectedProjectDirs(prod.filteredGraph, filteredGraph),
-    unmatchedFilters: [
-      ...(prod?.filteredGraph.unmatchedFilters ?? []),
-      ...(filteredGraph?.unmatchedFilters ?? []),
-    ],
+    selectedProjectsGraph: filtered.selectedProjectsGraph,
+    prodAllProjectsGraph,
+    prodOnlySelectedProjectDirs: filtered.prodOnlySelectedProjectDirs,
+    unmatchedFilters: filtered.unmatchedFilters,
   }
 }
 
@@ -182,25 +180,6 @@ function toFilterWorkspaceProjectsOptions (opts: FilterWorkspaceProjectsOptions)
   }
 }
 
-async function filterProdProjects<Pkg extends BaseProject> (
-  projects: Pkg[],
-  prodProjectSelectors: ProjectSelector[],
-  opts: FilterWorkspaceProjectsOptions & { catalogs?: Catalogs, linkWorkspacePackages?: boolean }
-): Promise<{ graph: ProjectGraph<Pkg>, filteredGraph: FilteredGraph<Pkg> }> {
-  const graph = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages }).graph
-  const filteredGraph = await filterWorkspaceProjects(graph, prodProjectSelectors, toFilterWorkspaceProjectsOptions(opts))
-  return { graph, filteredGraph }
-}
-
-function getProdOnlySelectedProjectDirs<Pkg extends BaseProject> (
-  prodFilteredGraph: FilteredGraph<Pkg>,
-  filteredGraph: FilteredGraph<Pkg> | undefined
-): ProjectRootDir[] {
-  const regularSelectedProjectDirs = new Set(Object.keys(filteredGraph?.selectedProjectsGraph ?? {}) as ProjectRootDir[])
-  return (Object.keys(prodFilteredGraph.selectedProjectsGraph) as ProjectRootDir[])
-    .filter((projectDir) => !regularSelectedProjectDirs.has(projectDir))
-}
-
 export async function filterWorkspaceProjects<Pkg extends BaseProject> (
   projectsGraph: ProjectGraph<Pkg>,
   projectSelectors: ProjectSelector[],
@@ -209,66 +188,23 @@ export async function filterWorkspaceProjects<Pkg extends BaseProject> (
   selectedProjectsGraph: ProjectGraph<Pkg>
   unmatchedFilters: string[]
 }> {
-  if (projectSelectors.length === 0) {
-    return {
-      selectedProjectsGraph: projectsGraph,
-      unmatchedFilters: [],
-    }
-  }
-
-  const chunks = groupSelectorsIntoChunks(projectSelectors)
-
-  const selectedDirs = new Set<ProjectRootDir>(
-    chunks[0].exclude ? (Object.keys(projectsGraph) as ProjectRootDir[]) : []
+  const { selectedProjectsGraph, unmatchedFilters } = await filterWorkspaceProjectsWithProdGraph(
+    { allProjectsGraph: projectsGraph },
+    projectSelectors,
+    opts
   )
-  const unmatchedFilters: string[] = []
-
-  for (const chunk of chunks) {
-    // eslint-disable-next-line no-await-in-loop -- include and exclude chunks apply in order, so each result depends on the ones before it
-    const result = await _filterGraph(projectsGraph, opts, chunk.selectors)
-    unmatchedFilters.push(...result.unmatchedFilters)
-    applyChunkResult(selectedDirs, chunk.exclude, result.selected)
-  }
-
-  const validDirs = Array.from(selectedDirs).filter((dir) => projectsGraph[dir] != null)
-
-  return {
-    selectedProjectsGraph: pick(validDirs, projectsGraph),
-    unmatchedFilters,
-  }
+  return { selectedProjectsGraph, unmatchedFilters }
 }
 
-interface SelectorChunk {
-  exclude: boolean
-  selectors: ProjectSelector[]
-}
-
-function groupSelectorsIntoChunks (projectSelectors: ProjectSelector[]): SelectorChunk[] {
-  const chunks: SelectorChunk[] = []
-  for (const selector of projectSelectors) {
-    const last = chunks[chunks.length - 1]
-    if (last && last.exclude === Boolean(selector.exclude)) {
-      last.selectors.push(selector)
-    } else {
-      chunks.push({
-        exclude: Boolean(selector.exclude),
-        selectors: [selector],
-      })
-    }
-  }
-  return chunks
-}
-
-function applyChunkResult (selectedDirs: Set<ProjectRootDir>, exclude: boolean, chunkSelectedDirs: ProjectRootDir[]): void {
-  if (exclude) {
-    for (const dir of chunkSelectedDirs) {
-      selectedDirs.delete(dir)
-    }
-  } else {
-    for (const dir of chunkSelectedDirs) {
-      selectedDirs.add(dir)
-    }
-  }
+export async function filterWorkspaceProjectsWithProdGraph<Pkg extends BaseProject> (
+  graphs: {
+    allProjectsGraph: ProjectGraph<Pkg>
+    prodProjectsGraph?: ProjectGraph<Pkg>
+  },
+  projectSelectors: ProjectSelector[],
+  opts: FilterWorkspaceProjectsOptions
+): Promise<FilteredGraphWithProdResult<Pkg>> {
+  return runFilterWithProdGraph({ ...graphs, filterGraph: _filterGraph }, projectSelectors, opts)
 }
 
 interface Selection {

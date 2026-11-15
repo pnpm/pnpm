@@ -254,7 +254,9 @@ fn update_changeset_warns_and_skips_when_config_is_missing() {
         String::from_utf8_lossy(&output.stderr),
     );
     assert!(
-        rendered.contains("No changeset was generated") && rendered.contains("config.json"),
+        rendered.contains("No changeset was generated")
+            && rendered.contains(".changeset")
+            && rendered.contains("versioning"),
         "missing-config warning was not printed: {rendered}",
     );
     assert!(!workspace.join(".changeset").exists());
@@ -392,6 +394,126 @@ fn update_changeset_supports_a_package_outside_a_workspace() {
     assert_eq!(
         generated_changeset_text(&workspace),
         "---\n\"project\": patch\n---\n\nUpdate dependencies.\n",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn update_changeset_generates_without_config_json_when_changeset_directory_exists() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    fs::create_dir_all(workspace.join(".changeset")).expect("create .changeset directory");
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "--latest", "--changeset"]).assert().success();
+
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"project\": patch\n---\n\nUpdate dependencies.\n",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn update_changeset_creates_changeset_dir_when_versioning_is_configured_in_workspace_yaml() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, root_workspace_manifest());
+    append_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nversioning: {}\n");
+    write_manifest(
+        &workspace.join("packages/project-1"),
+        json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    write_manifest(
+        &workspace.join("packages/versionless"),
+        json!({
+            "name": "versionless",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    write_manifest(
+        &workspace.join("packages/non-semver"),
+        json!({
+            "name": "non-semver",
+            "version": "not-semver",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(!workspace.join(".changeset").exists());
+    pacquet(&workspace, ["update", "-r", "--latest", "--changeset"]).assert().success();
+
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"project-1\": patch\n---\n\nUpdate dependencies.\n",
+    );
+    pacquet(&workspace, ["change", "status"]).assert().success();
+    drop((root, anchor));
+}
+
+#[test]
+fn update_changeset_honors_versioning_ignore_with_and_without_changeset_config() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, root_workspace_manifest());
+    append_workspace_yaml(
+        &workspace,
+        "packages:\n  - 'packages/*'\nversioning:\n  ignore:\n    - 'ignored-by-name'\n    - './packages/ignored-by-dir'\n",
+    );
+    for (dir_name, pkg_name) in [
+        ("project-1", "project-1"),
+        ("ignored-by-name", "ignored-by-name"),
+        ("ignored-by-dir", "ignored-pkg-in-dir"),
+        ("ignored-by-config", "ignored-by-config"),
+    ] {
+        write_manifest(
+            &workspace.join("packages").join(dir_name),
+            json!({
+                "name": pkg_name,
+                "version": "1.0.0",
+                "dependencies": { (DEP): "^100.0.0" },
+            }),
+        );
+    }
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "-r", "--latest", "--changeset"]).assert().success();
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"ignored-by-config\": patch\n\"project-1\": patch\n---\n\nUpdate dependencies.\n",
+    );
+
+    for path in generated_changesets(&workspace) {
+        fs::remove_file(path).expect("remove first generated changeset");
+    }
+    for dir_name in ["project-1", "ignored-by-name", "ignored-by-dir", "ignored-by-config"] {
+        let pkg_name = if dir_name == "ignored-by-dir" { "ignored-pkg-in-dir" } else { dir_name };
+        write_manifest(
+            &workspace.join("packages").join(dir_name),
+            json!({
+                "name": pkg_name,
+                "version": "1.0.0",
+                "dependencies": { (DEP): "^100.0.0" },
+            }),
+        );
+    }
+    write_changeset_config(&workspace, json!({ "ignore": ["ignored-by-config"] }));
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "-r", "--latest", "--changeset"]).assert().success();
+
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"project-1\": patch\n---\n\nUpdate dependencies.\n",
     );
     drop((root, anchor));
 }

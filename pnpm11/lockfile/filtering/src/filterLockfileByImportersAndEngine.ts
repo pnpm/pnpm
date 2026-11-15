@@ -87,7 +87,7 @@ export function filterLockfileByImportersAndEngine (
         failOnMissingDependencies: opts.failOnMissingDependencies,
         include: opts.include,
         includeIncompatiblePackages:
-            opts.includeIncompatiblePackages === true,
+          opts.includeIncompatiblePackages === true,
         lockfileDir: opts.lockfileDir,
         peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(lockfile, opts),
         skipped: opts.skipped,

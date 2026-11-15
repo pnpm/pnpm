@@ -1,4 +1,3 @@
-use crate::Config;
 use clap::{Args, builder::BoolishValueParser};
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
@@ -7,20 +6,21 @@ pub fn parse_cli_interval(raw: &str) -> std::result::Result<Duration, String> {
         .ok_or_else(|| format!("invalid interval {raw:?}; expected e.g. 30s, 5m, 1h, 1d"))
 }
 
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Default, Clone, Args)]
 pub struct ServerArgs {
-    /// Address to bind to.
-    #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
-    pub listen: SocketAddr,
+    /// Address to bind to. Overrides the config's `listen`, which
+    /// defaults to 127.0.0.1:7677.
+    #[arg(long, env = "PNPR_LISTEN")]
+    pub listen: Option<SocketAddr>,
 
     /// URL clients should use to reach this server. Used when
-    /// rewriting `dist.tarball` URLs in served packuments. Defaults
-    /// to `http://<listen>`.
+    /// rewriting `dist.tarball` URLs in served packuments. Overrides the
+    /// config's `publicUrl`, which defaults to `http://<listen>`.
     #[arg(long, env = "PNPR_PUBLIC_URL")]
     pub public_url: Option<String>,
 
     /// Duration before a cached packument is considered stale and
-    /// refetched (e.g. "5m", "300s"). A registry's `maxAge` overrides it.
+    /// refetched (e.g. "5m", "300s"). A registry's `packumentTtl` overrides it.
     #[arg(long, env = "PNPR_PACKUMENT_TTL", value_parser = parse_cli_interval)]
     pub packument_ttl: Option<Duration>,
 
@@ -31,22 +31,10 @@ pub struct ServerArgs {
     pub features: FeatureArgs,
 }
 
-impl Default for ServerArgs {
-    fn default() -> Self {
-        Self {
-            listen: Config::DEFAULT_LISTEN.parse().unwrap(),
-            public_url: None,
-            packument_ttl: None,
-            osv_options: OsvArgs::default(),
-            features: FeatureArgs::default(),
-        }
-    }
-}
-
 impl ServerArgs {
     #[must_use]
     pub fn merge(mut self, other: Self) -> Self {
-        if other.listen.to_string() != Config::DEFAULT_LISTEN {
+        if other.listen.is_some() {
             self.listen = other.listen;
         }
         if other.public_url.is_some() {

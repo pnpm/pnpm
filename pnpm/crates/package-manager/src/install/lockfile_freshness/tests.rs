@@ -171,7 +171,7 @@ importers:
                 registries: Box::leak(Box::default()),
             },
             optional_exclusions: super::OptionalDependencyExclusions { ignored, frozen_lockfile },
-            parsed_overrides: None,
+            overrider: None,
         }
     }
     let fixture = (&lockfile, root.path(), &config);

@@ -23,9 +23,15 @@
 //! v12-only `autoDedupe`, and each row's fresh v11 lockfile has to equal the
 //! v12 one.
 
+mod cyclic_locked_contexts;
 mod fast_update;
 mod harness;
 mod moving_providers;
+mod nested_retained_pins;
+mod new_project_pins;
+mod patched_retained_pins;
+mod ranged_provider_pins;
+mod same_name_peer_contexts;
 
 use harness::{Harness, Move, Project, project};
 
@@ -312,3 +318,7 @@ fn peer_provided_by_another_projects_direct_dependency_moves() {
         vec![],
     );
 }
+
+mod retargeted_provider_removal;
+
+mod locked_provider_contexts;

@@ -130,6 +130,9 @@
       "path": "../../pkg-manifest/utils"
     },
     {
+      "path": "../../releasing/versioning"
+    },
+    {
       "path": "../../resolving/local-resolver"
     },
     {

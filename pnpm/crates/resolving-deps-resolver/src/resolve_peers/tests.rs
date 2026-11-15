@@ -13,6 +13,8 @@ mod behavior;
 
 mod tarball_peers;
 
+mod snapshot_budget;
+
 use super::{
     ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult, WorkspacePeerSettings,
     context::peer_id_pair,
@@ -297,6 +299,42 @@ mod locked_peer_provider_preferences {
         );
     }
 
+    #[test]
+    fn stable_occurrence_wins_over_an_earlier_changed_occurrence() {
+        let ids = ids();
+        let mut tree = locked_provider_tree(&ids, ">=1");
+        tree.dependencies_tree
+            .get_mut(&ids.current_peer)
+            .unwrap()
+            .locked_mut()
+            .previous_dep_path = Some("peer@2.0.0".into());
+        let initial = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                scope: crate::PeerResolutionScope {
+                    collect_paths_by_node_id: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let preferred = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                scope: crate::PeerResolutionScope {
+                    resolved_peer_provider_paths: Some(initial.paths_by_node_id),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        assert!(
+            preferred.graph.contains_key(&DepPath::from("consumer@1.0.0(peer@2.0.0)")),
+            "{:#?}",
+            preferred.graph,
+        );
+    }
+
     /// TS: `does not reuse a locked provider outside the current peer
     /// range` (`resolvePeers.ts:1100`).
     #[test]
@@ -341,6 +379,7 @@ mod locked_peer_provider_preferences {
 /// pending-edge tests, which only read and write `children`.
 fn graph_node(dep_path: &DepPath) -> crate::dependencies_graph::DependenciesGraphNode {
     crate::dependencies_graph::DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: dep_path.clone(),
         resolved_package_id: dep_path.to_string(),
         resolve_result: std::sync::Arc::new(resolve_result("parent", "1.0.0")),

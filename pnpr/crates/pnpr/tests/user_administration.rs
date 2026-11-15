@@ -7,8 +7,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthState, Config, OwnedTokens, PasswordChange, RegistryError, TokenBackend, TokenRecord,
-    TokenStore, UpsertOutcome, UserBackend, UserCreation, UserRemoval, UserStore,
+    AuthState, Config, PasswordChange, RegistryError, SqliteAuth, TokenBackend, TokenRecord,
+    UpsertOutcome, UserBackend, UserCreation, UserRemoval,
 };
 use serde_json::{Value, json};
 use std::{
@@ -24,13 +24,17 @@ fn load_config(dir: &TempDir) -> Config {
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     let yaml = format!(
-        "storage: {}\nauth:\n  admins: [root]\n  users:\n    file: ./htpasswd\n    maxUsers: 1\n",
+        "storage: {}\nauth:\n  admins: [root]\n  users:\n    maxUsers: 1\n",
         storage.display(),
     );
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+}
+
+fn sqlite_auth() -> Arc<SqliteAuth> {
+    Arc::new(SqliteAuth::in_memory(pnpr::MaxUsers::Unlimited).unwrap())
 }
 
 async fn app_router(config: Config) -> axum::Router {
@@ -353,7 +357,7 @@ impl UserBackend for RemovedDuringLogin {
 #[tokio::test]
 async fn a_login_racing_a_removal_keeps_no_token() {
     let dir = TempDir::new().unwrap();
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = sqlite_auth();
     let auth = AuthState { users: Arc::new(RemovedDuringLogin), tokens: Arc::clone(&tokens) as _ };
     let app = account_router(load_config(&dir), auth).await;
 
@@ -368,7 +372,7 @@ async fn a_login_racing_a_removal_keeps_no_token() {
 }
 
 /// A token store that cannot revoke.
-struct FailingRevocation(TokenStore);
+struct FailingRevocation(Arc<SqliteAuth>);
 
 #[async_trait::async_trait]
 impl TokenBackend for FailingRevocation {
@@ -408,11 +412,11 @@ impl TokenBackend for FailingRevocation {
 #[tokio::test]
 async fn a_failed_revocation_still_disables_the_account() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
+    let users = sqlite_auth();
     users.create_user("root", "secret123").await.unwrap();
     let auth = AuthState {
         users: Arc::clone(&users) as _,
-        tokens: Arc::new(FailingRevocation(TokenStore::in_memory())),
+        tokens: Arc::new(FailingRevocation(Arc::clone(&users))),
     };
     let app = account_router(load_config(&dir), auth).await;
     let root = login(&app, "root", "secret123").await.unwrap();
@@ -511,7 +515,7 @@ impl UserBackend for ReplacedDuringLogin {
 #[tokio::test]
 async fn an_old_password_gets_no_token_for_a_recreated_account() {
     let dir = TempDir::new().unwrap();
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = sqlite_auth();
     let old = pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("old-password", 4).unwrap());
     let new = pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("new-password", 4).unwrap());
     let credentials = vec![Some(new), Some(old)];
@@ -535,7 +539,7 @@ async fn an_old_password_gets_no_token_for_a_recreated_account() {
 #[tokio::test]
 async fn a_registration_gets_no_token_for_an_account_recreated_with_another_password() {
     let dir = TempDir::new().unwrap();
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = sqlite_auth();
     let replacement =
         pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("admin's password", 4).unwrap());
     let users = ReplacedDuringLogin {
@@ -558,9 +562,8 @@ async fn a_registration_gets_no_token_for_an_account_recreated_with_another_pass
 #[tokio::test]
 async fn a_removed_account_loses_its_tokens_without_any_revocation() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
-    let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
-    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::new(tokens) };
+    let users = sqlite_auth();
+    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&users) as _ };
     let app = account_router(load_config(&dir), auth).await;
     users.create_user("bob", "password-x").await.unwrap();
     let bob = login(&app, "bob", "password-x").await.unwrap();
@@ -582,9 +585,9 @@ async fn a_removed_account_loses_its_tokens_without_any_revocation() {
 #[tokio::test]
 async fn a_recreated_account_does_not_inherit_tokens_left_behind() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
+    let users = sqlite_auth();
     users.create_user("root", "secret123").await.unwrap();
-    let tokens = Arc::new(OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users)));
+    let tokens = Arc::clone(&users);
     let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
     let app = account_router(load_config(&dir), auth).await;
     let root = login(&app, "root", "secret123").await.unwrap();

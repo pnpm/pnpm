@@ -5,7 +5,7 @@ use crate::{
     leaks::{self, Leak},
     lexer,
     modules::{self, CrateModules},
-    surface,
+    surface::{self, Surface},
     use_tree::UsePath,
 };
 use pretty_assertions::assert_eq;
@@ -14,12 +14,18 @@ use std::collections::{BTreeMap, BTreeSet};
 fn exposed(source: &str) -> Vec<String> {
     let surface = surface::scan(&lexer::lex(source).tokens);
     dbg!(&surface);
-    surface.exposed
+    paths(&surface)
         .into_iter()
-        .chain(surface.resolved.exposed)
         .filter(|path| path[0] == "dep")
         .map(|path| path.join("::"))
         .collect()
+}
+
+/// The exposed paths of `surface` and of its inline modules.
+fn paths(surface: &Surface) -> Vec<Vec<String>> {
+    let own = surface.exposed.iter().map(|exposure| exposure.path.clone());
+    let inline = surface.inline_modules.iter().flat_map(|inline| paths(&inline.surface));
+    own.chain(inline).collect()
 }
 
 #[test]
@@ -98,7 +104,7 @@ fn surface_skips_test_only_items_and_their_imports() {
     );
     let surface = surface::scan(&lexer::lex(source).tokens);
     dbg!(&surface);
-    let names = surface.exposed
+    let names = paths(&surface)
         .iter()
         .filter(|path| path[0] == "dep")
         .map(|path| path.join("::"))
@@ -116,7 +122,7 @@ fn surface_expands_a_name_through_its_first_import() {
     );
     let surface = surface::scan(&lexer::lex(source).tokens);
     dbg!(&surface);
-    let clients = surface.exposed
+    let clients = paths(&surface)
         .iter()
         .filter(|path| {
             path.last()
@@ -224,7 +230,7 @@ fn a_module_sees_its_own_extern_crate_aliases_before_the_roots() {
     let tree = MemoryTree(BTreeMap::from([
         (
             "api/src/lib.rs",
-            "extern crate base as renamed;\nextern crate base as other;\nmod child;\nmod plain;\n",
+            "extern crate base as renamed;\nextern crate base as other;\npub mod child;\npub mod plain;\n",
         ),
         (
             "api/src/child.rs",
@@ -234,8 +240,8 @@ fn a_module_sees_its_own_extern_crate_aliases_before_the_roots() {
             "api/src/plain.rs",
             concat!(
                 "pub fn rooted(_: renamed::RootItem) {}\n",
-                "mod inline { extern crate other as renamed; pub fn once(_: renamed::Once) {} }\n",
-                "mod uses_root { pub fn inherited(_: renamed::Inherited) {} }\n",
+                "pub mod inline { extern crate other as renamed; pub fn once(_: renamed::Once) {} }\n",
+                "pub mod uses_root { pub fn inherited(_: renamed::Inherited) {} }\n",
             ),
         ),
     ]));
@@ -274,4 +280,175 @@ fn a_leak_is_a_dependency_named_in_public_signatures_and_not_reexported() {
         }],
     );
     assert_eq!(leaks::counts(&found), BTreeMap::from([("api".to_owned(), 1)]));
+}
+
+/// The items of `base` that the crate `api`, made of `files`, leaks.
+fn leaked_items(files: &[(&'static str, &'static str)]) -> Vec<String> {
+    let tree = MemoryTree(files.iter().copied().collect());
+    let graph = CrateGraph {
+        crates: BTreeSet::from(["api".to_owned(), "base".to_owned()]),
+        edges: BTreeSet::from([Edge {
+            from: "api".to_owned(),
+            to: "base".to_owned(),
+            kind: DependencyKind::Normal,
+        }]),
+        dirs: BTreeMap::from([("api".to_owned(), "api".to_owned())]),
+    };
+    let modules = modules::read_workspace(&tree, &graph).unwrap();
+    let found = leaks::find(&Reach::new(&graph), &modules);
+    dbg!(&found);
+    found
+        .into_iter()
+        .flat_map(|leak| leak.items)
+        .collect()
+}
+
+#[test]
+fn a_pub_item_counts_only_where_a_pub_mod_chain_or_pub_use_reaches_it() {
+    let lib = concat!(
+        "pub mod open;\n",
+        "mod hidden;\n",
+        "mod named;\n",
+        "mod globbed;\n",
+        "mod chained;\n",
+        "pub(crate) mod scoped;\n",
+        "pub use named::{Client, Renamed as Alias};\n",
+        "pub use self::globbed::*;\n",
+        "pub use chained::Deep;\n",
+        "mod inline_private { pub fn skipped(_: base::InlinePrivate) {} }\n",
+        "pub mod inline_public { pub fn kept(_: base::InlinePublic) {} }\n",
+    );
+    let named = concat!(
+        "pub struct Client { pub field: base::Field }\n",
+        "impl Client { pub fn new(_: base::Method) -> Self { todo!() } }\n",
+        "pub struct Renamed(pub base::Renamed);\n",
+        "pub fn unexported(_: base::Unexported) {}\n",
+        "struct Private { pub field: base::PrivateField }\n",
+    );
+    let leaked = leaked_items(&[
+        ("api/src/lib.rs", lib),
+        ("api/src/open.rs", "pub fn open(_: base::Open) {}\nmod inner;\n"),
+        ("api/src/open/inner.rs", "pub fn inner(_: base::InnerPrivate) {}\n"),
+        ("api/src/hidden.rs", "pub fn hidden(_: base::Hidden) {}\n"),
+        ("api/src/named.rs", named),
+        ("api/src/globbed.rs", "pub fn globbed(_: base::Globbed) {}\n"),
+        ("api/src/chained.rs", "mod deep;\npub use deep::Deep;\n"),
+        (
+            "api/src/chained/deep.rs",
+            "pub struct Deep(pub base::Deep);\npub fn other(_: base::Other) {}\n",
+        ),
+        ("api/src/scoped.rs", "pub fn scoped(_: base::Scoped) {}\n"),
+    ]);
+    assert_eq!(
+        leaked,
+        [
+            "base::Deep",
+            "base::Field",
+            "base::Globbed",
+            "base::InlinePublic",
+            "base::Method",
+            "base::Open",
+            "base::Renamed",
+        ],
+    );
+}
+
+#[test]
+fn only_a_reachable_pub_use_covers_a_leak() {
+    let leaked = leaked_items(&[
+        (
+            "api/src/lib.rs",
+            "mod private;\npub use base::Covered;\npub fn make(_: base::Covered, _: base::Uncovered) {}\n",
+        ),
+        ("api/src/private.rs", "pub use base::Uncovered;\n"),
+    ]);
+    assert_eq!(leaked, ["base::Uncovered"]);
+}
+
+#[test]
+fn a_signature_belongs_to_its_item_through_generics_foreign_blocks_and_static_mut() {
+    let lib = concat!("mod hidden;\n", "pub use hidden::{Client, VALUE, call};\n");
+    let hidden = concat!(
+        "pub struct Client<const N: usize>;\n",
+        "impl<const N: usize> Client<N> { pub fn send(_: base::Request) {} }\n",
+        "pub static mut VALUE: base::Value = base::Value;\n",
+        "unsafe extern \"C\" { pub fn call(_: *mut base::Foreign); }\n",
+        "pub fn unexported(_: base::Unexported) {}\n",
+    );
+    let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
+    assert_eq!(leaked, ["base::Foreign", "base::Request", "base::Value"]);
+}
+
+#[test]
+fn an_owner_named_through_a_reexport_or_a_raw_identifier_keeps_its_leaks() {
+    let lib = concat!(
+        "mod hidden;\n",
+        "pub use hidden::{Config, r#mut};\n",
+        "impl crate::Config { pub fn make(_: base::Input) {} }\n",
+    );
+    let hidden = concat!(
+        "pub struct Config;\n",
+        "struct Private;\n",
+        "pub static r#mut: base::Value = base::Value;\n",
+    );
+    let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
+    assert_eq!(leaked, ["base::Input", "base::Value"]);
+}
+
+#[test]
+fn a_private_type_shadows_a_reexported_function_of_the_same_name() {
+    let lib = concat!(
+        "mod hidden;\n",
+        "struct Config {}\n",
+        "pub use hidden::Config;\n",
+        "impl crate::Config { pub fn make(_: base::Input) {} }\n",
+    );
+    let hidden = "#[allow(non_snake_case)]\npub fn Config(_: base::Function) {}\n";
+    let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
+    assert_eq!(leaked, ["base::Function"]);
+}
+
+#[test]
+fn an_owner_is_followed_through_any_number_of_reexports() {
+    let lib = concat!(
+        "mod hidden { pub struct Config; }\n",
+        "mod aliases {\n",
+        "    pub use crate::hidden::Config as A0;\n",
+        "    pub use self::A0 as A1;\n",
+        "    pub use self::A1 as A2;\n",
+        "    pub use self::A2 as A3;\n",
+        "    pub use self::A3 as A4;\n",
+        "    pub use self::Loop as Loop;\n",
+        "}\n",
+        "pub use hidden::Config;\n",
+        "impl aliases::A4 { pub fn make(_: base::Input) {} }\n",
+        "impl aliases::Loop { pub fn cycle(_: base::Cycle) {} }\n",
+    );
+    let leaked = leaked_items(&[("api/src/lib.rs", lib)]);
+    assert_eq!(leaked, ["base::Input"]);
+}
+
+#[test]
+fn a_private_type_stays_unreachable_when_a_value_of_its_name_is_exported() {
+    let lib = concat!("mod facade;\n", "pub mod same;\n", "pub use facade::Config;\n");
+    let facade = concat!(
+        "mod hidden;\n",
+        "struct Config {}\n",
+        "pub use hidden::Config;\n",
+        "impl self::Config { pub fn make(_: base::Input) {} }\n",
+        "impl Config { pub fn unqualified(_: base::Unqualified) {} }\n",
+    );
+    let leaked = leaked_items(&[
+        ("api/src/lib.rs", lib),
+        ("api/src/facade.rs", facade),
+        (
+            "api/src/facade/hidden.rs",
+            "#[allow(non_snake_case)]\npub fn Config(_: base::Function) {}\n",
+        ),
+        (
+            "api/src/same.rs",
+            "struct Same {}\n#[allow(non_snake_case)]\npub fn Same(_: base::SameFunction) {}\nimpl Same { pub fn make(_: base::SameInput) {} }\n",
+        ),
+    ]);
+    assert_eq!(leaked, ["base::Function", "base::SameFunction"]);
 }

@@ -78,7 +78,7 @@ fn reusable_at(ctx: &TreeCtx, lockfile: &Lockfile, key: &str, depth: i32) -> boo
 }
 
 fn memoised_answers(ctx: &TreeCtx) -> usize {
-    lock_recoverable(&ctx.workspace.cache.subtree.reusable).len()
+    lock_recoverable(&ctx.workspace.cache.lockfile_reuse.reusable).len()
 }
 
 #[test]
@@ -227,7 +227,7 @@ fn importers_updating_the_same_targets_share_their_target_distances() {
             .with_importer_id(importer);
         assert!(!reusable(&ctx, &lockfile, "a@1.0.0"));
     }
-    assert_eq!(lock_recoverable(&workspace.cache.subtree.target_distances).len(), 1);
+    assert_eq!(lock_recoverable(&workspace.cache.lockfile_reuse.target_distances).len(), 1);
 }
 
 #[test]

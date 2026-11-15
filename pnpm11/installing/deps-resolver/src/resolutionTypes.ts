@@ -11,7 +11,7 @@ import type {
   WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
 import type { PkgRequestFetchResult, StoreController } from '@pnpm/store.controller-types'
-import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PackageManifest, PackageVersionPolicy, PkgIdWithPatchHash, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PackageManifest, PackageVersionPolicy, PkgIdWithPatchHash, ProjectId, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 import type { WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
@@ -123,6 +123,7 @@ export interface ResolutionContext extends RegistryContext {
   patchedDependencies?: PatchGroupRecord
   pendingNodes: PendingNode[]
   wantedLockfile: LockfileObject
+  originalImporterIds?: ReadonlySet<ProjectId>
   currentLockfile: LockfileObject
   injectWorkspacePackages?: boolean
   linkWorkspacePackagesDepth: number

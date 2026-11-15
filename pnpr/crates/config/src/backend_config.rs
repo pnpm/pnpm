@@ -1,21 +1,17 @@
 use super::{
     AuthFile, BTreeSet, Deserialize, Duration, Identity, Interval, LibsqlFile, Path, PathBuf,
-    RegistryError, ScimConfig, SqlBackendFile, build_admins, default_tokens_path_sibling_of, oidc,
-    parse_interval, resolve_relative,
+    RegistryError, ScimConfig, SqlBackendFile, build_admins, oidc, parse_interval,
 };
 use pnpr_error::redact_connection_url;
 
-/// The resolved record-store backend for auth (users + tokens). Unlike
-/// [`crate::HostedStoreConfig`], this only carries the parsed settings — the
-/// fallible step (connecting to the database and ensuring its schema)
-/// is async, so it runs in `AuthState::load` rather than at
-/// config-parse time.
-#[derive(Debug, Default, Clone)]
+/// The database that holds accounts and tokens.
+/// Unlike [`crate::HostedStoreConfig`], this only carries the parsed
+/// settings — the fallible step (opening the database and ensuring its
+/// schema) runs in `AuthState::load` rather than at config-parse time.
+#[derive(Debug, Clone)]
 pub enum BackendConfig {
-    /// Local JSON accounts + `SQLite` tokens (or in-memory when no file
-    /// is configured).
-    #[default]
-    Local,
+    /// The `SQLite` database at this path.
+    Sqlite(PathBuf),
     /// Networked `SQLite` (libsql / Turso): both records live in one
     /// shared database reachable over the network.
     Libsql(LibsqlSettings),
@@ -71,7 +67,7 @@ impl LibsqlSettings {
     pub const DEFAULT_MAX_CONNECTIONS: u32 = 10;
 }
 
-/// The settings of a `PostgreSQL` or `MySQL` `database:` block. Whole-file
+/// The settings of a `PostgreSQL` or `MySQL` `storage.database` block. Whole-file
 /// `${ENV}` substitution runs before parsing, so `url` can hold
 /// `${...}` refs and keep credentials out of the committed config.
 #[derive(Clone, PartialEq, Eq, Deserialize)]
@@ -118,23 +114,17 @@ pub struct AuthConfig {
     pub scim: Option<ScimConfig>,
 }
 
-/// Where the JSON account file lives and how many users may sign
-/// up before registration is refused.
+/// How many users may sign up before registration is refused.
 #[derive(Debug, Default, Clone)]
 pub struct UsersConfig {
-    /// Absolute path to the account file. `None` keeps user state
-    /// in memory.
-    pub file: Option<PathBuf>,
     /// Cap on new user registrations.
     pub max_users: MaxUsers,
 }
 
-/// Where the token database lives, and how long the bearer tokens issued by a
-/// login or `POST /-/npm/v1/tokens` stay valid. SQLite-backed when `file` is
-/// set; an in-memory map otherwise.
+/// How long the bearer tokens issued by a login or `POST /-/npm/v1/tokens`
+/// stay valid.
 #[derive(Debug, Clone)]
 pub struct TokensConfig {
-    pub file: Option<PathBuf>,
     /// The lifetime of a token whose request sets no expiry. Defaults to
     /// [`TokensConfig::DEFAULT_LIFETIME`].
     pub default_lifetime: Duration,
@@ -151,7 +141,7 @@ impl TokensConfig {
 
 impl Default for TokensConfig {
     fn default() -> Self {
-        Self { file: None, default_lifetime: Self::DEFAULT_LIFETIME, max_lifetime: None }
+        Self { default_lifetime: Self::DEFAULT_LIFETIME, max_lifetime: None }
     }
 }
 
@@ -186,71 +176,61 @@ impl MaxUsers {
     }
 }
 
-/// Build the runtime [`AuthConfig`] from the YAML `auth:` block.
-/// Relative paths are resolved against `base_dir` so a path like
-/// `./users.json` lives next to the config file (verdaccio's
-/// convention). When `auth.users.file` is set but
-/// `auth.tokens.file` is not, tokens default to a `tokens.db`
-/// sibling of the account file — keeping credentials co-located in
-/// one directory the operator can lock down (`chmod 600`).
+/// Who may sign in and administer the registry, and where accounts live.
 #[derive(Debug, Clone)]
 pub struct IdentityConfig {
-    /// Where to read/write the JSON account file and the
-    /// token database. Both stores are in-memory when their paths
-    /// are `None`.
     pub auth: AuthConfig,
-    /// Which record store backs the auth state (users + tokens).
-    /// Defaults to [`BackendConfig::Local`] — a JSON account file
-    /// plus `SQLite` token database. The YAML `database:` block can
-    /// switch both stores to one shared SQL database so several
-    /// stateless pnpr replicas see a consistent set of accounts.
+    /// The database that holds accounts and tokens, which is the metadata
+    /// database the `storage.database` block selects.
     pub backend: BackendConfig,
     /// Account IDs from `auth.admins`, who may administer every registry.
     pub admins: BTreeSet<String>,
+    /// Account IDs from `auth.registryAdmins`, who may also change the
+    /// structure of a registry graph stored in the database.
+    pub registry_admins: BTreeSet<String>,
 }
 
 impl IdentityConfig {
     #[must_use]
     pub fn is_admin(&self, identity: &Identity) -> bool {
-        match identity {
-            Identity::User { id, .. } => self.admins.contains(id),
-            Identity::Anonymous | _ => false,
-        }
+        is_listed(&self.admins, identity)
+    }
+
+    #[must_use]
+    pub fn is_registry_admin(&self, identity: &Identity) -> bool {
+        is_listed(&self.registry_admins, identity)
+    }
+}
+
+fn is_listed(accounts: &BTreeSet<String>, identity: &Identity) -> bool {
+    match identity {
+        Identity::User { id, .. } => accounts.contains(id),
+        Identity::Anonymous | _ => false,
     }
 }
 
 pub(super) fn build_identity_config(
     file: &AuthFile,
-    base_dir: &Path,
     backend: BackendConfig,
 ) -> Result<IdentityConfig, RegistryError> {
     if let Some(scim) = &file.scim {
         scim.validate()?;
     }
     Ok(IdentityConfig {
-        admins: build_admins(&file.admins)?,
-        auth: build_auth_config(file, base_dir)?,
+        admins: build_admins("auth.admins", &file.admins)?,
+        registry_admins: build_admins("auth.registryAdmins", &file.registry_admins)?,
+        auth: build_auth_config(file)?,
         backend,
     })
 }
 
-pub(super) fn build_auth_config(
-    file: &AuthFile,
-    base_dir: &Path,
-) -> Result<AuthConfig, RegistryError> {
-    let users_file = file.users.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
-    let tokens_file = file.tokens.file
-        .as_deref()
-        .map(|raw| resolve_relative(raw, base_dir))
-        .or_else(|| users_file.as_deref().map(default_tokens_path_sibling_of));
+pub(super) fn build_auth_config(file: &AuthFile) -> Result<AuthConfig, RegistryError> {
     Ok(AuthConfig {
         oidc: file.oidc.clone(),
         users: UsersConfig {
-            file: users_file,
             max_users: file.users.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
         tokens: TokensConfig {
-            file: tokens_file,
             default_lifetime: build_token_lifetime(
                 "defaultLifetime",
                 file.tokens.default_lifetime.as_ref(),
@@ -285,14 +265,14 @@ pub(super) fn build_sql_backend_settings(
         .unwrap_or(SqlBackendSettings::DEFAULT_TIMEOUT);
     if timeout.is_zero() {
         return Err(RegistryError::InvalidConfig {
-            reason: "database.timeout must be greater than 0".to_string(),
+            reason: "storage.database.timeout must be greater than 0".to_string(),
         });
     }
     let startup_timeout = parse_backend_interval("startupTimeout", file.startup_timeout.as_ref())?
         .unwrap_or(SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT);
     if startup_timeout.is_zero() {
         return Err(RegistryError::InvalidConfig {
-            reason: "database.startupTimeout must be greater than 0".to_string(),
+            reason: "storage.database.startupTimeout must be greater than 0".to_string(),
         });
     }
     Ok(SqlBackendSettings {
@@ -310,7 +290,7 @@ pub(super) fn parse_backend_interval(
     raw.map(|Interval(value)| {
         parse_interval(value)
             .ok_or_else(|| RegistryError::InvalidConfig {
-                reason: format!("database.{field} has an invalid interval {value:?}"),
+                reason: format!("storage.database.{field} has an invalid interval {value:?}"),
             })
     })
     .transpose()
@@ -353,11 +333,11 @@ pub(crate) fn build_libsql_settings(
     })
 }
 
-pub(super) fn build_backend_config(metadata: &crate::MetadataBackend) -> BackendConfig {
-    use crate::MetadataBackend;
+pub(super) fn build_backend_config(metadata: &crate::DatabaseBackend) -> BackendConfig {
+    use crate::DatabaseBackend;
     match metadata {
-        MetadataBackend::Sqlite(_) => BackendConfig::Local,
-        MetadataBackend::Libsql(settings) => {
+        DatabaseBackend::Sqlite(path) => BackendConfig::Sqlite(path.clone()),
+        DatabaseBackend::Libsql(settings) => {
             let mut auth = settings.clone();
             // Independent sync schedules need independent replica files.
             auth.replica_path = auth.replica_path.map(|path| {
@@ -367,7 +347,7 @@ pub(super) fn build_backend_config(metadata: &crate::MetadataBackend) -> Backend
             });
             BackendConfig::Libsql(auth)
         }
-        MetadataBackend::Postgres(settings) => BackendConfig::Postgres(settings.clone()),
-        MetadataBackend::Mysql(settings) => BackendConfig::Mysql(settings.clone()),
+        DatabaseBackend::Postgres(settings) => BackendConfig::Postgres(settings.clone()),
+        DatabaseBackend::Mysql(settings) => BackendConfig::Mysql(settings.clone()),
     }
 }

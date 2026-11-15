@@ -1,6 +1,6 @@
 use super::{AppState, RegistryError, ecosystem::sha256_hex};
 use pnpr_config::CloudflareCdnConfig;
-use pnpr_storage::{Storage, metadata::CdnInvalidation};
+use pnpr_storage::{Storage, database::CdnInvalidation};
 use std::{sync::Arc, time::Duration};
 
 pub(super) fn public_tarball_response(

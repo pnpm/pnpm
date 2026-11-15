@@ -13,7 +13,7 @@ pub use ignore_walk::files_field::{FilesMatcher, build_files_matcher};
 pub use pnpm_fs::{AdmittedSymlink, SymlinkTargetKind};
 
 use derive_more::{Display, Error};
-use ignore_walk::{PackageRules, walk_files};
+use ignore_walk::{Host, PackageRules, walk_files};
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
@@ -153,7 +153,7 @@ fn collect_own_files(
     options: PackageRules<'_>,
 ) -> Result<SelectedPackageFiles, PacklistError> {
     let mut out = SelectedPackageFiles::default();
-    walk_files(pkg_dir, options, &mut |path, file_type| {
+    walk_files::<Host>(pkg_dir, options, &mut |path, file_type| {
         if let Some(entry) = classify_entry(pkg_dir, path, file_type) {
             let rel = relative_forward_slash(pkg_dir, path);
             out.files.insert(rel.clone(), pkg_dir.join(&rel));

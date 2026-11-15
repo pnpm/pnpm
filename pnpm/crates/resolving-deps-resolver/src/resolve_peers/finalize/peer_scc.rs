@@ -97,7 +97,6 @@ impl Walker<'_> {
             self.collect_cyclic_target_peers(
                 node_id,
                 &target_id,
-                context,
                 occurrences_by_pkg,
                 &mut additions,
             );
@@ -113,7 +112,6 @@ impl Walker<'_> {
         &self,
         node_id: &NodeId,
         target_id: &NodeId,
-        context: FinalPeerContext<'_>,
         occurrences_by_pkg: &HashMap<Arc<str>, Vec<NodeId>>,
         additions: &mut Vec<(String, NodeId)>,
     ) {
@@ -131,7 +129,6 @@ impl Walker<'_> {
         for (alias, peer_node_id) in target_peers.iter() {
             let peer_owner = self.cache_owner_node_id(peer_node_id);
             if !peers.contains_key(alias)
-                && !Self::is_cyclic_peer(target_id, alias, peer_owner, context)
                 && !additions
                     .iter()
                     .any(|(added, _)| added == alias)
@@ -218,7 +215,11 @@ impl Walker<'_> {
         let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else {
             return false;
         };
-        pkg.name().as_ref() != peer_alias && !pkg.peer_set.taken().contains_key(peer_alias)
+        !pkg.peer_set.taken().contains_key(peer_alias)
+            && (pkg.name().as_ref() != peer_alias
+                || self.tree.dependencies_tree
+                    .get(peer_owner)
+                    .is_some_and(|peer| peer.resolved_package_id != tree_node.resolved_package_id))
     }
 
     fn apply_propagated_peers(&mut self, node_id: &NodeId, additions: Vec<(String, NodeId)>) {

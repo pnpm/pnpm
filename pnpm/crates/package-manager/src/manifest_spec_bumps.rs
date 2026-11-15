@@ -1,10 +1,11 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
-use crate::{
-    OverriddenDependencyMatcher, VersionsOverrider, runtime_specifier::node_runtime_version_spec,
-};
+#[cfg(feature = "runtime-provisioning")]
+use crate::runtime_specifier::node_runtime_version_spec;
+use crate::{OverriddenDependencyMatcher, VersionsOverrider};
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::{
     normalize_node_runtime_version_specifier, parse_node_specifier,
 };
@@ -13,10 +14,13 @@ use pnpm_lockfile::{
     ResolvedDependencySpec,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, is_runtime_alias};
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_package_manifest::is_runtime_alias;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::VersionSelectorType;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 use std::{
     borrow::Cow,
@@ -377,37 +381,45 @@ fn bumped_runtime_range(
     resolved: &node_semver::Version,
     default_style: RangeSpecStyle,
 ) -> Option<Option<String>> {
-    if let Some(selector) = node_runtime_version_spec(alias, declared) {
-        // A selector naming a release channel the resolver does not know is
-        // left for it to reject, rather than moved to a channel-less one it
-        // would accept.
-        if parse_node_specifier(selector).is_err() {
-            return Some(None);
-        }
-        let bumped = format!(
-            "{RUNTIME_PROTOCOL}{}",
-            normalize_node_runtime_version_specifier(
-                selector,
-                &resolved.to_string(),
-                Some(declared),
-            ),
-        );
-        return Some((bumped != declared).then_some(bumped));
-    }
-    if is_runtime_alias(alias)
-        && let Some(declared_range) = strip_tool_protocol(declared)
+    #[cfg(not(feature = "runtime-provisioning"))]
     {
-        let declared_range = declared_range.trim();
-        if declared_range.is_empty()
-            || get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag)
-        {
-            return Some(None);
-        }
-        let range = calc_version_range(resolved, Some(declared_range), None, default_style);
-        let bumped = format!("{RUNTIME_PROTOCOL}{range}");
-        return Some((bumped != declared).then_some(bumped));
+        let _ = (alias, declared, resolved, default_style);
+        None
     }
-    None
+    #[cfg(feature = "runtime-provisioning")]
+    {
+        if let Some(selector) = node_runtime_version_spec(alias, declared) {
+            // A selector naming a release channel the resolver does not know is
+            // left for it to reject, rather than moved to a channel-less one it
+            // would accept.
+            if parse_node_specifier(selector).is_err() {
+                return Some(None);
+            }
+            let bumped = format!(
+                "{RUNTIME_PROTOCOL}{}",
+                normalize_node_runtime_version_specifier(
+                    selector,
+                    &resolved.to_string(),
+                    Some(declared),
+                ),
+            );
+            return Some((bumped != declared).then_some(bumped));
+        }
+        if is_runtime_alias(alias)
+            && let Some(declared_range) = strip_tool_protocol(declared)
+        {
+            let declared_range = declared_range.trim();
+            if declared_range.is_empty()
+                || get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag)
+            {
+                return Some(None);
+            }
+            let range = calc_version_range(resolved, Some(declared_range), None, default_style);
+            let bumped = format!("{RUNTIME_PROTOCOL}{range}");
+            return Some((bumped != declared).then_some(bumped));
+        }
+        None
+    }
 }
 
 /// A declared specifier split into the `npm:<name>@` or `jsr:<name>@`

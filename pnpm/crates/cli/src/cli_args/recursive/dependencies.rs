@@ -2,7 +2,7 @@
 //! dependency edges among the `--filter`-selected projects, their topological
 //! order, and the workspace dependencies a selection reaches.
 
-use super::{RecursiveSelection, filter_against, recursive_filter_options};
+use super::{RecursiveSelection, filter_graphs, recursive_filter_options};
 use crate::cli_args::{
     catalogs::{configured_catalogs, workspace_catalogs},
     verify_deps::with_dependencies,
@@ -263,23 +263,20 @@ fn install_selected_projects(
     prefix: &Path,
 ) -> miette::Result<HashSet<PathBuf>> {
     let walk_opts = recursive_filter_options(config, prefix);
-    let filter = with_dependencies_selectors(&config.filter);
-    let mut installed: HashSet<PathBuf> =
-        filter_against(selection.full_graph(), &filter, None, false, prefix, &walk_opts)?
-            .into_iter()
-            .collect();
-    if let Some(prod_all) = &selection.prod_all {
-        let filter_prod = with_dependencies_selectors(&config.filter_prod);
-        installed.extend(filter_against(prod_all, &filter_prod, None, true, prefix, &walk_opts)?);
-    }
-    Ok(installed)
-}
-
-fn with_dependencies_selectors(selectors: &[String]) -> Vec<String> {
-    selectors
-        .iter()
-        .map(|selector| with_dependencies(selector))
-        .collect()
+    let selectors: Vec<_> = config
+        .ordered_filters()
+        .into_iter()
+        .map(|(source, filter)| {
+            let expanded = with_dependencies(filter);
+            let mut selector =
+                pnpm_workspace_projects_filter::parse_project_selector(&expanded, prefix);
+            selector.follow_prod_deps_only = source == pnpm_config::FilterSource::FilterProd;
+            selector
+        })
+        .collect();
+    let filtered =
+        filter_graphs(selection.full_graph(), selection.prod_all.as_ref(), &selectors, &walk_opts)?;
+    Ok(filtered.selected_projects.into_iter().collect())
 }
 
 /// `project_dirs` together with every workspace project they depend on,

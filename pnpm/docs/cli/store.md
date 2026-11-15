@@ -39,15 +39,19 @@ pnpm store add ./tarballs
 pnpm install --offline --frozen-lockfile
 ```
 
-An install takes a registry package from such a tarball when its lockfile entry
-names the same package and version and pins that tarball. The entry's
-`integrity` can be the tarball's sha512 or sha1, or the hash of the uncompressed
-tar inside it, which
+An install takes a package from such a tarball when its lockfile entry pins
+that tarball. The entry's `integrity` can be the tarball's sha512 or sha1, or the
+hash of the uncompressed tar inside it, which
 [`lockfile.integrityTarget: tar`](../settings/store.md#lockfileintegritytarget)
 records.
 
-For a package from a [named registry](../package-sources.md#named-registries)
-that the project declares, run `pnpm store add` in that project.
+Run `pnpm store add` in the project it prepares the store for. It then reads the
+project's lockfile and prepares each tarball for every entry that pins it. This
+covers a dependency on a tarball URL, a package from a
+[named registry](../package-sources.md#named-registries), and a dependency on a
+git host such as GitHub when its entry records an `integrity`. Outside a project,
+a tarball only serves registry entries that name the package and version in its
+`package.json`.
 
 [`pnpm add`]: ./add.md
 

@@ -159,6 +159,51 @@ fn store_status_rejects_escaping_importer_paths() {
     assert!(stderr.contains("ERR_PNPM_PACKAGE_MANAGER_UNSAFE_IMPORTER_PATH"), "{stderr}");
 }
 
+#[test]
+fn store_status_handles_multibyte_utf8_lockfile_package_names() {
+    let CommandTempCwd { workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("package.json"), r#"{"name":"app","version":"1.0.0"}"#).unwrap();
+    let lockfile = "\
+lockfileVersion: '9.0'
+
+importers:
+  .:
+    dependencies:
+      ä:
+        specifier: https://example.invalid/a.tgz
+        version: https://example.invalid/a.tgz
+      '@ä/ü':
+        specifier: https://example.invalid/b.tgz
+        version: https://example.invalid/b.tgz
+
+packages:
+  'ä@https://example.invalid/a.tgz':
+    version: 1.0.0
+    resolution: {tarball: https://example.invalid/a.tgz}
+  '@ä/ü@https://example.invalid/b.tgz':
+    version: 1.0.0
+    resolution: {tarball: https://example.invalid/b.tgz, integrity: sha512-MJ7MSJwS1utMxA9QyQLytNDtd+5RGnx6m808qG1M2G+YndNbxf9JlnDaNCVbRbDP2DDoH2Bdz33FVC6TrpzXbw==}
+
+snapshots:
+  'ä@https://example.invalid/a.tgz': {}
+  '@ä/ü@https://example.invalid/b.tgz': {}
+";
+    fs::write(workspace.join("pnpm-lock.yaml"), lockfile).unwrap();
+
+    for enable_gvs in [false, true] {
+        if enable_gvs {
+            _utils::enable_gvs_in_workspace_yaml(&workspace, "");
+        }
+        let output = pacquet_at(&workspace)
+            .args(["store", "status"])
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "enable_gvs={enable_gvs}: {stderr}");
+    }
+}
+
 fn check_workspace_links(settings: &str, modules_dir: &str) {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..

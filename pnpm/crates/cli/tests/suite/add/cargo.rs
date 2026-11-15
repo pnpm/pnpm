@@ -1,3 +1,5 @@
+mod detach;
+
 use super::{
     Command, CommandExtra, TempDir, assert_eq, cache_foo_index, cargo_add_project, prod_spec,
 };
@@ -280,4 +282,87 @@ fn install_discovers_multiple_nested_cargo_workspaces() {
             .is_file(),
     );
     assert!(!root.path().join("Cargo.lock").exists());
+}
+
+#[test]
+fn add_crate_preserves_multiline_arrays_and_replaces_workspace_inheritance() {
+    let root = TempDir::new().expect("create Cargo workspace");
+    let cache_dir = root.path().join("cache");
+    cache_foo_index(&cache_dir);
+    std::fs::write(
+        cache_dir.join("v11/cargo-index/crates-io/3/f/foo"),
+        r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"derive":[]},"yanked":false}"#,
+    )
+    .expect("cache foo index with derive feature");
+    let sibling = root.path().join("sibling");
+    std::fs::create_dir_all(sibling.join("src")).expect("create sibling source");
+    std::fs::write(sibling.join("src/lib.rs"), "").expect("write sibling lib.rs");
+    std::fs::write(
+        sibling.join("Cargo.toml"),
+        "[package]\nname = \"sibling\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[features]\nderive = []\n",
+    )
+    .expect("write sibling Cargo.toml");
+    std::fs::write(
+        root.path().join("Cargo.toml"),
+        concat!(
+            "[workspace]\n",
+            "members = [\"member\", \"sibling\"]\n",
+            "resolver = \"2\"\n\n",
+            "[workspace.dependencies]\n",
+            "foo = { version = \"0.9.0\", default-features = false, features = [\"derive\"] }\n",
+        ),
+    )
+    .expect("write root Cargo.toml");
+    std::fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - member\ncargo:\n  enabled: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let member = root.path().join("member");
+    std::fs::create_dir_all(member.join("src")).expect("create member source");
+    std::fs::write(member.join("src/lib.rs"), "").expect("write member lib.rs");
+    std::fs::write(
+        member.join("Cargo.toml"),
+        concat!(
+            "[package]\n",
+            "name = \"member\"\n",
+            "version = \"0.1.0\"\n",
+            "edition = \"2024\"\n\n",
+            "[dependencies]\n",
+            "sibling = {\n",
+            "  path = \"../sibling\",\n",
+            "  features =\n",
+            "  [\"derive\"]\n",
+            "}\n\n",
+            "[dependencies.foo]\n",
+            "workspace = true\n",
+            "optional = true\n",
+        ),
+    )
+    .expect("write member Cargo.toml");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&member)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "crate:foo@1.0.0", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let updated =
+        std::fs::read_to_string(member.join("Cargo.toml")).expect("read updated member Cargo.toml");
+    eprintln!("UPDATED:\n{updated}\n");
+    let parsed: toml::Table = toml::from_str(&updated).expect("updated Cargo.toml is valid TOML");
+    assert_eq!(parsed["dependencies"]["foo"]["version"].as_str(), Some("1.0.0"));
+    assert_eq!(parsed["dependencies"]["foo"]["default-features"].as_bool(), Some(false));
+    assert_eq!(
+        parsed["dependencies"]["foo"]["features"].as_array().map(Vec::as_slice),
+        Some(["derive".into()].as_slice()),
+    );
+    assert_eq!(parsed["dependencies"]["foo"]["optional"].as_bool(), Some(true));
+    assert_eq!(parsed["dependencies"]["foo"].get("workspace"), None);
+    assert_eq!(
+        parsed["dependencies"]["sibling"]["features"].as_array().map(Vec::as_slice),
+        Some(["derive".into()].as_slice()),
+    );
 }

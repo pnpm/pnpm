@@ -5,7 +5,7 @@ use crate::server::{
     AppState, RegistryError, managed_state::WRITE_ATTEMPTS, scim::resources::apply_patch,
 };
 use pnpr_auth::{AccountLifecycle, AccountStatusOutcome};
-use pnpr_storage::metadata::{NewScimUser, ScimUserRemoval, ScimUserWrite, StoredScimUser};
+use pnpr_storage::database::{NewScimUser, ScimUserRemoval, ScimUserWrite, StoredScimUser};
 use serde_json::Value;
 
 pub(in super::super) async fn create_user(

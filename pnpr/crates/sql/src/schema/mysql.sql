@@ -17,6 +17,17 @@ CREATE TABLE IF NOT EXISTS packages (
     PRIMARY KEY (namespace, ecosystem, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
+-- The account IDs of a package's owners (`maintainers[*].userId` on npm,
+-- `owners` on Cargo, PyPI, and OCI), kept in sync with `packages.state` so
+-- owner checks never read or parse the package document.
+CREATE TABLE IF NOT EXISTS package_owners (
+    namespace VARBINARY(512) NOT NULL,
+    ecosystem VARBINARY(512) NOT NULL,
+    name VARBINARY(512) NOT NULL,
+    user_id VARBINARY(512) NOT NULL,
+    PRIMARY KEY (namespace, ecosystem, name, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
 -- Published versions of a Cargo crate, ordered by `position` as the sparse
 -- index serves them. `entry` holds the immutable sparse-index fields; `yanked`
 -- flips in place.

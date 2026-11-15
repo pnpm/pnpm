@@ -2,12 +2,21 @@ pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
 pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
+pub(crate) use registry_graph::{
+    Credentials, FileReferences, HostedChange, RoutingSnapshot, carry_pinned_routing,
+    check_revision, graph_version, occupied_namespace_error, stored_document, with_stored_routing,
+};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
+pub(crate) use routing::state_and_router;
 pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;
 pub(crate) use tcp_listener::PeerAddr;
 
-pub(crate) use self::striped_locks::StripedLocks;
+pub(crate) use self::{
+    keyed_semaphores::{KeyedPermit, KeyedSemaphores},
+    routing::RequestDeadline,
+    striped_locks::StripedLocks,
+};
 
 mod lifecycle;
 mod log_routes;
@@ -118,6 +127,7 @@ mod documents;
 mod ecosystem;
 mod health;
 use health::shutdown_signal;
+mod keyed_semaphores;
 mod local_registry;
 mod managed_state;
 mod metrics;
@@ -128,16 +138,17 @@ mod oidc_groups;
 mod owner_access;
 use owner_access::CallerOwners;
 mod package_mutation;
+mod package_owners;
 mod publications;
 mod publishing;
 mod pypi;
 mod rate_limit;
 use rate_limit::LoginRateLimiter;
 mod registry_directory;
+mod registry_graph;
 mod request_id;
 mod routing;
 mod rule_admin;
-mod rule_overrides;
 mod scim;
 mod security_audit;
 mod singleflight;
@@ -147,7 +158,6 @@ mod staged_archives;
 mod striped_locks;
 mod team_access;
 mod team_mutations;
-mod team_rosters;
 mod user_admin;
 mod web_login;
 mod web_ui;
@@ -157,8 +167,10 @@ mod tests;
 
 use self::{
     authentication::{
-        Action, AuthedCaller, Ownership, authenticate, authorize, authorize_against_packument,
-        authorize_continuation, authorize_package, authorize_with_ownership,
+        Action, AuthedCaller, AuthorizationDecision, Ownership, allows_with_ownership,
+        authenticate, authorize, authorize_against_packument, authorize_continuation,
+        authorize_package, authorize_with_ownership, authorize_without_owners,
+        needs_package_owners,
     },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
@@ -169,7 +181,7 @@ use self::{
         PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
         resolve_publish_target_for, routes_to_upstream, stage_publish, validate_publish_doc,
     },
-    routing::{metrics_listener_router, router_with_auth_and_osv, state_and_router},
+    routing::{metrics_listener_router, router_with_auth_and_osv},
 };
 
 use axum::{
@@ -249,6 +261,7 @@ const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
 /// request at the same ceiling as an npm package publish.
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RESOLVE_BODY_BYTES: usize = 32 * 1024 * 1024;
 /// A pipeline run record is a summary plus a bounded event stream; well
 /// under this in practice, with the ceiling guarding against a hostile
 /// client rather than a large workspace.
@@ -267,6 +280,14 @@ impl AppState {
     /// [`pnpr_config::HttpConfig::max_tarball_bytes`].
     fn max_tarball_bytes(&self) -> u64 {
         self.inner.config.http.max_tarball_bytes
+    }
+
+    pub(crate) fn mark_shutting_down(&self) {
+        self.inner.shutting_down.store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    pub(crate) fn is_shutting_down(&self) -> bool {
+        self.inner.shutting_down.load(std::sync::atomic::Ordering::Acquire)
     }
 }
 

@@ -76,6 +76,7 @@ allow = [
   "Apache-2.0",
   "Unicode-3.0", # newer ICU crates switched from Unicode-DFS-2016 to this
   "Unicode-DFS-2016",
+  "BSD-2-Clause", # zstd-sys bundles zstd sources under it
   "BSD-3-Clause",
   "BSL-1.0",
   "CDLA-Permissive-2.0", # `webpki-root-certs`, pulled in by reqwest's `rustls` feature

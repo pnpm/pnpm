@@ -57,6 +57,7 @@ fn merged_peer_locators_survive_preferred_registry_versions() {
                     override_bare_specifier: None,
                     project_dir: Path::new("/workspace"),
                     resolved_versions: &HashMap::default(),
+                    locked_versions: &HashMap::default(),
                 };
                 let hoisted = hoist_peers(
                     &opts,

@@ -22,3 +22,11 @@ test('getPeerSet reports a missing catalog entry of a taken peer', () => {
   expect(() => getPeerSet({ peerDependencies: { foo: 'catalog:missing' } }, catalogResolver))
     .toThrow("No catalog entry 'foo' was found for catalog 'missing'.")
 })
+
+test.each(['constructor', 'toString'])('getPeerSet retains the metadata-only peer %s', (peerName) => {
+  const peers = getPeerSet({ peerDependenciesMeta: { [peerName]: { optional: true } } })
+  for (const group of [peers.declared, peers.taken]) {
+    expect(Object.hasOwn(group, peerName)).toBe(true)
+    expect(group[peerName]).toStrictEqual({ version: '*', optional: true })
+  }
+})

@@ -11,6 +11,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+derive_more = { workspace = true }
+pep508_rs = { workspace = true }
 
 [lints]
 workspace = true

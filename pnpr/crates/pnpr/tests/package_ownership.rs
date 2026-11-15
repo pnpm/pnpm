@@ -48,7 +48,7 @@ fn config_with_packages(packages_block: &str, admins: &[&str]) -> (TempDir, Conf
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
     let config =
-        Config::from_yaml(&path, listen(), Some("http://example.test".to_string())).unwrap();
+        pnpr_fixtures::load_seeded_config(&path, listen(), Some("http://example.test".to_string()));
     (dir, config)
 }
 
@@ -343,23 +343,55 @@ async fn organization_listing_reports_write_for_maintainers_under_the_default_ru
     let app = app_router(config, &[]).await;
     let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
     let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
-    let doc = publish_doc("@acme/lib", "1.0.0", b"tarball-1");
-    let response = app
-        .clone()
-        .oneshot(authed_put("/npm/@acme%2flib", &alice_token, doc))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED);
+    for (pkg, token, tarball) in [
+        ("@acme%2flib", &alice_token, &b"tarball-1"[..]),
+        ("@acme%2ftool", &bob_token, &b"tarball-2"[..]),
+    ] {
+        let name = pkg.replace("%2f", "/");
+        let doc = publish_doc(&name, "1.0.0", tarball);
+        let response = app
+            .clone()
+            .oneshot(authed_put(&format!("/npm/{pkg}"), token, doc))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+    }
 
-    for (token, permission) in [(&alice_token, "write"), (&bob_token, "read")] {
+    for (token, expected) in [
+        (&alice_token, json!({ "@acme/lib": "write", "@acme/tool": "read" })),
+        (&bob_token, json!({ "@acme/lib": "read", "@acme/tool": "write" })),
+    ] {
         let response = app
             .clone()
             .oneshot(authed_get("/npm/-/org/acme/package", token))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(body_json(response.into_body()).await["@acme/lib"], json!(permission));
+        assert_eq!(body_json(response.into_body()).await, expected);
     }
+
+    let add_bob = json!({
+        "_id": "@acme/lib",
+        "_rev": "1-abc",
+        "maintainers": [{ "name": "alice" }, { "name": "bob" }],
+    });
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/@acme%2flib/-rev/1-abc", &alice_token, add_bob))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let response = app
+        .clone()
+        .oneshot(authed_get("/npm/-/org/acme/package", &bob_token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(response.into_body()).await,
+        json!({ "@acme/lib": "write", "@acme/tool": "write" }),
+    );
 }
 
 #[tokio::test]
@@ -863,4 +895,264 @@ async fn staged_publish_approval_rejects_malformed_body_without_claiming_stage()
         .unwrap();
     let res = app.oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn mutations_reauthorize_after_concurrent_package_update() {
+    let primary_dir = TempDir::new().unwrap();
+    let (primary, address, _server) =
+        pnpr_libsql::testing::serve_primary(primary_dir.path().join("primary.db")).await;
+    let (_dir, mut config) = config_with_packages(
+        "packages:\n  'race-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &[],
+    );
+    config.has_configured_secret = true;
+    config.storage.database = pnpr_config::DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
+        url: format!("http://{address}"),
+        auth_token: None,
+        replica_path: None,
+        sync_interval_secs: None,
+        max_connections: None,
+    });
+    // The libSQL database holds no graph: serve the one seeded into SQLite.
+    config.graph_source = pnpr_config::GraphSource::Supplied;
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+
+    for (version, tarball) in [("1.0.0", b"v1".as_slice()), ("1.1.0", b"v2".as_slice())] {
+        let doc = publish_doc("race-pkg", version, tarball);
+        let res = app
+            .clone()
+            .oneshot(authed_put("/npm/race-pkg", &alice_token, doc))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+    }
+
+    let restore_both_owners = || {
+        let app = app.clone();
+        let bob_token = bob_token.clone();
+        async move {
+            let body = json!({
+                "_id": "race-pkg",
+                "_rev": "1-abc",
+                "maintainers": [{ "name": "alice" }, { "name": "bob" }],
+            });
+            let res = app
+                .oneshot(authed_put("/npm/race-pkg/-rev/1-abc", &bob_token, body))
+                .await
+                .unwrap();
+            assert_eq!(res.status(), StatusCode::CREATED);
+        }
+    };
+    let set_initial = json!({
+        "_id": "race-pkg",
+        "_rev": "1-abc",
+        "maintainers": [{ "name": "alice" }, { "name": "bob" }],
+    });
+    assert_eq!(
+        app.clone()
+            .oneshot(authed_put("/npm/race-pkg/-rev/1-abc", &alice_token, set_initial))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let packument = body_json(
+        app.clone()
+            .oneshot(authed_get("/npm/race-pkg", &alice_token))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let both_maintainers = packument["maintainers"].clone();
+    let bob_only = json!([both_maintainers
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["name"] == "bob")
+        .unwrap()
+        .clone()]);
+
+    // When a concurrent commit advances the package generation without
+    // removing Alice, her dist-tag update retries and succeeds.
+    let status = run_with_concurrent_state_commit(
+        &primary,
+        &both_maintainers,
+        app.clone(),
+        authed_put("/npm/-/package/race-pkg/dist-tags/next", &alice_token, json!("1.0.0")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    restore_both_owners().await;
+    let mut trimmed_packument = body_json(
+        app.clone()
+            .oneshot(authed_get("/npm/race-pkg", &alice_token))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let rev = trimmed_packument["_rev"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    trimmed_packument["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.1.0");
+    trimmed_packument["dist-tags"]["latest"] = json!("1.0.0");
+    let requests = [
+        authed_put(&format!("/npm/race-pkg/-rev/{rev}"), &alice_token, trimmed_packument),
+        authed_put("/npm/-/package/race-pkg/dist-tags/canary", &alice_token, json!("1.1.0")),
+        authed_delete("/npm/-/package/race-pkg/dist-tags/next", &alice_token),
+        authed_delete("/npm/race-pkg/-/race-pkg-1.1.0.tgz/-rev/1", &alice_token),
+        authed_delete("/npm/race-pkg/-rev/1", &alice_token),
+        authed_put(
+            "/npm/race-pkg/-rev/1",
+            &alice_token,
+            json!({ "_id": "race-pkg", "_rev": "1", "maintainers": [{ "name": "alice" }] }),
+        ),
+    ];
+    for request in requests {
+        let uri = request.uri().to_string();
+        let method = request.method().clone();
+        let status =
+            run_with_concurrent_state_commit(&primary, &bob_only, app.clone(), request).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}");
+        restore_both_owners().await;
+    }
+
+    let final_doc = body_json(
+        app.clone()
+            .oneshot(authed_get("/npm/race-pkg", &bob_token))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    assert!(final_doc["versions"]["1.0.0"].is_object());
+    assert!(final_doc["versions"]["1.1.0"].is_object());
+    assert_eq!(final_doc["dist-tags"]["next"], "1.0.0");
+    assert!(final_doc["dist-tags"].get("canary").is_none());
+    assert_eq!(final_doc["maintainers"], both_maintainers);
+
+    // When a concurrent replica removes the package before `remove_package_if_current`
+    // commits, `PackageRemoval::NotFound` re-authorizes against the tombstone and
+    // completes without exhausting the conflict retry loop.
+    primary.round_trips.pause_next_write();
+    let unpublish_task = tokio::spawn({
+        let app = app.clone();
+        let request = authed_delete("/npm/race-pkg/-rev/1", &alice_token);
+        async move {
+            app.oneshot(request).await
+                .unwrap()
+                .status()
+        }
+    });
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        primary.round_trips.write_paused.notified(),
+    )
+    .await
+    .expect("unpublish reaches its write transaction after pre-commit read");
+    let maintainer_user_ids = serde_json::to_string(
+        &both_maintainers
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["userId"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+    primary
+        .conn
+        .execute(
+            "INSERT INTO removed_packages (namespace, ecosystem, name, maintainers, unpublished_at, unpublished_by)
+             VALUES ('', 'npm', 'race-pkg', ?1, 1000, 'bob')",
+            [maintainer_user_ids],
+        )
+        .await
+        .unwrap();
+    primary.conn
+        .execute(
+            "DELETE FROM packages WHERE namespace = '' AND ecosystem = 'npm' AND name = 'race-pkg'",
+            (),
+        )
+        .await
+        .unwrap();
+    primary.round_trips.write_resume.notify_one();
+    assert_eq!(unpublish_task.await.unwrap(), StatusCode::CREATED);
+}
+
+async fn run_with_concurrent_state_commit(
+    primary: &pnpr_libsql::testing::Primary,
+    maintainers: &Value,
+    app: axum::Router,
+    request: Request<Body>,
+) -> StatusCode {
+    primary.round_trips.take();
+    primary.round_trips.pause_next_write();
+    let task = tokio::spawn(async move {
+        app.oneshot(request).await
+            .unwrap()
+            .status()
+    });
+    // Wait until the handler has read and authorized the pre-commit document
+    // and paused at its conditional write (`BEGIN IMMEDIATE`), then commit the
+    // competing update before releasing the write so it conflicts and retries.
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        primary.round_trips.write_paused.notified(),
+    )
+    .await
+    .expect("handler reaches its write transaction after pre-commit read");
+    let mut rows = primary
+        .conn
+        .query(
+            "SELECT state FROM packages WHERE namespace = '' AND ecosystem = 'npm' AND name = 'race-pkg'",
+            (),
+        )
+        .await
+        .unwrap();
+    let state: Vec<u8> = rows
+        .next()
+        .await
+        .unwrap()
+        .unwrap()
+        .get(0)
+        .unwrap();
+    drop(rows);
+    let mut parsed: Value = serde_json::from_slice(&state).unwrap();
+    parsed["maintainers"] = maintainers.clone();
+    let updated_state = serde_json::to_vec(&parsed).unwrap();
+    primary.conn
+        .execute("UPDATE namespaces SET generation = generation + 1 WHERE namespace = ''", ())
+        .await
+        .unwrap();
+    primary.conn
+        .execute(
+            "UPDATE packages
+             SET generation = (SELECT generation FROM namespaces WHERE namespace = ''),
+                 state = ?1
+             WHERE namespace = '' AND ecosystem = 'npm' AND name = 'race-pkg'",
+            [updated_state],
+        )
+        .await
+        .unwrap();
+    primary.round_trips.write_resume.notify_one();
+
+    let status = task.await.unwrap();
+    let reads = primary.round_trips
+        .take()
+        .iter()
+        .flatten()
+        .filter(|sql| sql.starts_with("SELECT generation, state_version, state FROM packages"))
+        .count();
+    assert!(reads >= 2, "expected initial read and retry read, got {reads}");
+    status
 }

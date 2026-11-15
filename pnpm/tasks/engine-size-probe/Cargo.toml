@@ -10,6 +10,11 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["runtime-provisioning", "shell-emulator"]
+runtime-provisioning = ["pnpm-package-manager/runtime-provisioning"]
+shell-emulator = ["pnpm-package-manager/shell-emulator"]
+
 [[bin]]
 name = "engine-size-probe"
 path = "src/main.rs"
@@ -18,7 +23,7 @@ path = "src/main.rs"
 pnpm-config = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
-pnpm-package-manager = { workspace = true }
+pnpm-package-manager = { workspace = true, default-features = false }
 pnpm-package-manifest = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-tarball = { workspace = true }

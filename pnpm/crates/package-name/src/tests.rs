@@ -1,4 +1,4 @@
-use super::{is_valid_old_npm_package_name, is_valid_package_version};
+use super::{canonicalize_python_name, is_valid_old_npm_package_name, is_valid_package_version};
 
 #[test]
 fn is_valid_old_npm_package_name_accepts_common_shapes() {
@@ -102,4 +102,15 @@ fn new_package_names_follow_npm_scoped_rules() {
     ] {
         assert!(!super::is_valid_new_npm_package_name(name), "{name}");
     }
+}
+
+#[test]
+fn canonicalize_python_name_normalizes_per_pep_503() {
+    assert_eq!(canonicalize_python_name("Foo.Bar__baz").unwrap(), "foo-bar-baz");
+}
+
+#[test]
+fn canonicalize_python_name_rejects_an_invalid_name() {
+    let error = canonicalize_python_name("demo package").unwrap_err();
+    assert_eq!(error.to_string(), r#""demo package" is not a valid Python project name"#);
 }

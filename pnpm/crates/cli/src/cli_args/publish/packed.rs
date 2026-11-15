@@ -177,6 +177,7 @@ impl PublishArgs {
             output: pnpm_pack::PackOutputOptions {
                 gzip_level: None,
                 dry_run: false,
+                base_dir: None,
                 out: None,
                 destination: Some(pack_destination.to_string_lossy().into_owned()),
                 injected_files: Vec::new(),

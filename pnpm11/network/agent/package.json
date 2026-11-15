@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.agent",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "An http/s agent factory with proxy support",
   "keywords": [
     "pnpm",

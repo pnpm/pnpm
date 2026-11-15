@@ -4,11 +4,13 @@ import path from 'node:path'
 
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
+import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,
   type ConfigReport,
   type PathExtenderReport,
+  quotePowerShell,
 } from '@pnpm/os.env.path-extender'
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
@@ -280,6 +282,7 @@ export async function handler (
     pnpmHomeDir: string
   }
 ): Promise<string> {
+  validatePnpmHomeDir(opts.pnpmHomeDir)
   const execPath = getExecPath()
   const binDir = path.join(opts.pnpmHomeDir, 'bin')
   validateGHActionsEnvFileValues(opts.pnpmHomeDir, binDir)
@@ -291,6 +294,22 @@ export async function handler (
   writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
   removeLegacyHomeDirShims(opts.pnpmHomeDir)
   return output
+}
+
+function validatePnpmHomeDir (pnpmHomeDir: string): void {
+  const unsafeCharacters = process.platform === 'win32' ? ';%\n\r' : ':\n\r\0'
+  const unsafeCharacter = [...pnpmHomeDir].find(character => unsafeCharacters.includes(character))
+  if (unsafeCharacter == null) return
+  throw new PnpmError(
+    'INVALID_PNPM_HOME',
+    `The pnpm home directory "${pnpmHomeDir}" contains a character ('${CONTROL_CHARACTER_ESCAPES[unsafeCharacter] ?? unsafeCharacter}') that is unsafe for the PATH`
+  )
+}
+
+const CONTROL_CHARACTER_ESCAPES: Record<string, string> = {
+  '\n': '\\n',
+  '\r': '\\r',
+  '\0': '\\0',
 }
 
 /**
@@ -327,13 +346,11 @@ async function addPnpmHomeToEnvPath (opts: { force?: boolean, pnpmHomeDir: strin
 }
 
 function renderWindowsManualSetupOutput (reason: string, pnpmHomeDir: string): string {
-  // PowerShell also treats typographic apostrophes as string delimiters.
-  const quotedHome = pnpmHomeDir.replace(/['\u2018-\u201b]/g, quote => quote + quote)
   return `${reason}
 
 pnpm is installed, but its environment could not be saved in the registry.
 To start using pnpm in this PowerShell session, run:
-$env:PNPM_HOME = '${quotedHome}'
+$env:PNPM_HOME = ${quotePowerShell(pnpmHomeDir)}
 $env:Path = "$env:PNPM_HOME\\bin;$env:Path"
 
 Add these lines to your PowerShell profile to use pnpm in future sessions.`
@@ -366,10 +383,17 @@ ${report.newSettings}`)
     output.push('Setup complete. Open a new terminal to start using pnpm.')
   } else if (report.configFile.changeType !== 'skipped') {
     output.push(`To start using pnpm, run:
-source ${report.configFile.path}
+${renderReloadCommand(report.configFile.path)}
 `)
   }
   return output.join('\n\n')
+}
+
+function renderReloadCommand (configFile: string): string {
+  if (configFile.endsWith('.ps1')) {
+    return `. ${quotePowerShell(configFile)}`
+  }
+  return `source ${configFile}`
 }
 
 function reportConfigChange (configReport: ConfigReport): string {

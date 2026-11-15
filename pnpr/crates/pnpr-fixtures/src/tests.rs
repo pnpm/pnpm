@@ -1,7 +1,7 @@
 use super::{
     COMPLETE_FILE, RemovedVersionField, build_storage_at, build_storage_at_with_edits,
-    build_storage_at_with_substitutions, deprecate_version, discard_unusable_storage,
-    ensure_storage, latest_version, metadata::read_packument, packages_dir, publish_storage,
+    build_storage_at_with_substitutions, database::read_packument, deprecate_version,
+    discard_unusable_storage, ensure_storage, latest_version, packages_dir, publish_storage,
     remove_tree, remove_version, restore_claimed_storage, set_dist_tag,
 };
 use std::{collections::BTreeSet, fs, path::Path};
@@ -50,7 +50,7 @@ fn latest_version_uses_semver_prerelease_order() {
 fn ensure_storage_generates_packuments_and_tarballs() {
     let storage = ensure_storage();
     assert!(packages_dir().join("@pnpm.e2e/abc/1.0.0/package.json").exists());
-    assert!(pnpr_config::default_metadata_path(storage).is_file());
+    assert!(pnpr_config::default_database_path(storage).is_file());
     assert_eq!(read_packument(storage, "@pnpm.e2e/abc")["name"], "@pnpm.e2e/abc");
     assert!(crate::tarball_path(storage, "@pnpm.e2e/abc", "1.0.0").exists());
     assert!(storage.join(pnpr_storage::layout::LAYOUT_FILE).exists());
@@ -384,7 +384,8 @@ fn mock_config_yaml_enforces_registry_mock_protections() {
     assert!(!MOCK_CONFIG_YAML.is_empty());
 
     let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
-    let config = Config::from_yaml(&path, listen, None).unwrap();
+    let mut config = Config::from_yaml(&path, listen, None).unwrap();
+    config.routing = super::registries_routing(&config, super::MOCK_REGISTRIES_YAML);
     let rules = &config.routing.hosted["local"].rules;
     let table = rules.snapshot();
     let needs_auth = table.for_package("@pnpm.e2e/needs-auth");
@@ -420,7 +421,9 @@ fn mock_config_yaml_and_proxy_preset_share_the_npm_upstream_timeout() {
     let from_yaml = Config::from_yaml(&mock_config_path(), listen, None).unwrap();
     let preset = Config::proxy(listen, std::env::temp_dir());
     assert_eq!(
-        from_yaml.routing.upstreams["npmjs"].requests.timeout,
+        super::registries_routing(&from_yaml, super::MOCK_REGISTRIES_YAML).upstreams["npmjs"]
+            .requests
+            .timeout,
         REGISTRY_MOCK_UPSTREAM_TIMEOUT,
     );
     assert_eq!(preset.routing.upstreams["npmjs"].requests.timeout, REGISTRY_MOCK_UPSTREAM_TIMEOUT);

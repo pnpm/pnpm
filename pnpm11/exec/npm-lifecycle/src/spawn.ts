@@ -1,6 +1,13 @@
 import { type ChildProcess, spawn as spawnProcess, type SpawnOptions, type StdioOptions } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { Socket } from 'node:net'
+import path from 'node:path'
 import type { Readable, Writable } from 'node:stream'
+import { fileURLToPath } from 'node:url'
+
+import which from 'which'
+
+import { prepareProcessGroupWatchdog, type ProcessGroupWatchdog } from './signals.js'
 
 /**
  * How long a script's piped output is still read once the script has exited.
@@ -29,6 +36,7 @@ export interface LifecycleChildProcess extends EventEmitter {
   stdout: Readable | null
   stderr: Readable | null
   pid?: number
+  watchdog?: ProcessGroupWatchdog
   kill: (signal?: NodeJS.Signals | number) => boolean
 }
 
@@ -50,7 +58,7 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
     stopped = true
     stopRunning(log)
   }
-  const raw = spawnProcess(cmd, args, spawnOptions)
+  const { raw, watchdog } = spawnScript(cmd, args, spawnOptions)
   const cooked = new EventEmitter() as LifecycleChildProcess
 
   raw.once('exit', () => {
@@ -76,9 +84,113 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
   cooked.stdout = raw.stdout
   cooked.stderr = raw.stderr
   cooked.pid = raw.pid
+  cooked.watchdog = watchdog
   cooked.kill = (signal) => raw.kill(signal)
 
   return cooked
+}
+
+function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw: ChildProcess, watchdog?: ProcessGroupWatchdog } {
+  if (!options.detached || process.platform === 'win32') return { raw: spawnProcess(cmd, args, options) }
+  const launch = planLaunch(cmd, args, options)
+  const stdio = scriptStdio(options.stdio)
+  // POSIX shells only guarantee single-digit descriptors.
+  const watch = launch == null || stdio.length > 8 ? undefined : prepareProcessGroupWatchdog()
+  if (launch == null || watch == null) return { raw: spawnProcess(cmd, args, options) }
+  const descriptor = stdio.length
+  const receipt = descriptor + 1
+  const raw = spawnProcess(path.resolve(launch.shell), [...launch.flags, registrationScript(descriptor, receipt), launch.shell, ...launch.command], {
+    ...options,
+    stdio: [...stdio, watch.lifeline, 'pipe'],
+  })
+  if (raw.pid != null) recoverScriptRegistration(raw, receipt, () => watch.recover(raw.pid!))
+  return { raw, watchdog: raw.pid == null ? undefined : watch.watch(raw.pid) }
+}
+
+interface Launch {
+  shell: string
+  flags: string[]
+  command: string[]
+}
+
+function planLaunch (cmd: string, args: string[], options: SpawnOptions): Launch | undefined {
+  const executable = resolveScript(cmd, options)
+  // The watchdog itself runs on sh.
+  const sh = which.sync('sh', { nothrow: true })
+  const launcher = executable == null || sh == null ? undefined : selectLauncher(cmd, { executable, sh })
+  if (launcher == null) return undefined
+  if (!launcher.bash) return { shell: launcher.shell, flags: ['-c'], command: [cmd, ...args] }
+  const command = preserveBashOptions(cmd, args, options.env ?? process.env)
+  // Bash -p preserves exported functions without loading BASH_ENV before registration.
+  return command == null ? undefined : { shell: launcher.shell, flags: ['-p', '-c'], command }
+}
+
+/** `command` keeps exported functions, which Bash imports even as sh, from replacing the builtins. */
+function registrationScript (descriptor: number, receipt: number): string {
+  return [
+    "trap '' PIPE",
+    `if ! command printf '+%s\\n' "$$" >&${descriptor} 2>/dev/null; then`,
+    `  command printf 'retry\\n' >&${receipt} || exit $?`,
+    `  command read -r registered <&${receipt} || exit 125`,
+    '  case $registered in registered) ;; *) exit 125 ;; esac',
+    'fi',
+    `exec ${descriptor}>&- ${receipt}>&-`,
+    'trap - PIPE',
+    'exec "$@"',
+  ].join('\n')
+}
+
+/**
+ * The shell that registers the script before exec. sh is used only for an sh
+ * script: dash drops environment variables whose names are not identifiers,
+ * so any other script registers through Bash, or without a launcher when
+ * there is no Bash.
+ */
+function selectLauncher (cmd: string, shells: { executable: string, sh: string }): { shell: string, bash: boolean } | undefined {
+  const name = path.basename(cmd)
+  if (name === 'sh' || name === 'dash') return { shell: shells.sh, bash: false }
+  if (name === 'bash') return { shell: shells.executable, bash: true }
+  const bash = which.sync('bash', { nothrow: true })
+  return bash == null ? undefined : { shell: bash, bash: true }
+}
+
+function preserveBashOptions (cmd: string, args: string[], environment: NodeJS.ProcessEnv): string[] | undefined {
+  const options = ['SHELLOPTS', 'BASHOPTS'].flatMap((name) => environment[name] == null ? [] : [`${name}=${environment[name]}`])
+  if (options.length === 0) return [cmd, ...args]
+  // Bash replaces these readonly exports even when -p prevents importing their values.
+  const env = which.sync('env', { nothrow: true })
+  return env == null ? undefined : [path.resolve(env), ...options, cmd, ...args]
+}
+
+function recoverScriptRegistration (raw: ChildProcess, descriptor: number, recover: () => Promise<void>): void {
+  const receipt = raw.stdio[descriptor]
+  if (!(receipt instanceof Socket)) throw new Error('The watchdog receipt is not a duplex pipe')
+  // The reply fails only when the launcher is gone, and its exit status reports that.
+  receipt.on('error', () => {})
+  receipt.once('data', () => {
+    recover().then(() => {
+      receipt.end('registered\n')
+    }, (error: Error) => {
+      raw.kill('SIGKILL')
+      raw.emit('error', error)
+    })
+  })
+}
+
+function resolveScript (cmd: string, options: SpawnOptions): string | null {
+  const cwd = typeof options.cwd === 'string' ? options.cwd : options.cwd == null ? process.cwd() : fileURLToPath(options.cwd)
+  const executable = cmd.includes('/') ? path.resolve(cwd, cmd) : cmd
+  const searchPath = (options.env == null ? process.env.PATH : options.env.PATH) ?? '/usr/bin:/bin'
+  return which.sync(executable, {
+    path: searchPath.split(path.delimiter).map((entry) => path.resolve(cwd, entry)).join(path.delimiter),
+    nothrow: true,
+  })
+}
+
+function scriptStdio (stdio: StdioOptions | undefined): Exclude<StdioOptions, string> {
+  if (Array.isArray(stdio)) return [...stdio, ...Array.from({ length: Math.max(0, 3 - stdio.length) }, () => 'pipe' as const)]
+  if (stdio === 'inherit') return [0, 1, 2]
+  return [stdio ?? 'pipe', stdio ?? 'pipe', stdio ?? 'pipe']
 }
 
 function stopReadingOutputAfterDrain (raw: ChildProcess): void {

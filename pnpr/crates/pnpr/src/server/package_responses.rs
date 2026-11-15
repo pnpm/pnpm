@@ -356,7 +356,7 @@ pub(super) fn tarball_response(body: Body, content_length: Option<u64>) -> Respo
 /// `response` with the generation its package view was rendered from.
 pub(super) fn with_generation(
     mut response: Response,
-    generation: Option<&pnpr_storage::metadata::Generation>,
+    generation: Option<&pnpr_storage::database::Generation>,
 ) -> Response {
     let value = generation.and_then(|generation| {
         axum::http::HeaderValue::from_str(&generation.to_string()).ok()

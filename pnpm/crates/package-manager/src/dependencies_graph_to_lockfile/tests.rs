@@ -163,6 +163,7 @@ fn make_node_with_optional(
 ) -> DependenciesGraphNode {
     let dep_path = DepPath::from(format!("{name}@{version}"));
     DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path,
         resolved_package_id: format!("{name}@{version}"),
         resolve_result: std::sync::Arc::new(make_resolve_result(name, version, manifest)),
@@ -224,6 +225,7 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
         },
     };
     let node = DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: dep_path.clone(),
         resolved_package_id: dep_path.to_string(),
         resolve_result: Arc::new(resolve_result),
@@ -293,6 +295,7 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
         },
     };
     DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: DepPath::from(id_text.clone()),
         resolved_package_id: id_text,
         resolve_result: std::sync::Arc::new(resolve_result),
@@ -334,6 +337,7 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
         },
     };
     DependenciesGraphNode {
+        recorded_peer_bindings: None,
         resolved_package_id: dep_path.to_string(),
         dep_path,
         resolve_result: Arc::new(resolve_result),
@@ -400,6 +404,7 @@ fn make_named_registry_node(
         },
     };
     DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path,
         resolved_package_id: format!("{name}@{registry_name}:{version}"),
         resolve_result: std::sync::Arc::new(resolve_result),

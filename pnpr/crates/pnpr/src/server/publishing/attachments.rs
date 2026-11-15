@@ -2,9 +2,9 @@ pub(super) use slot_writes::{write_attachment_slot, write_attachment_slots};
 
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
-    Integrity, PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
-    authorize_against_packument, authorize_package, cleanup_tmp_slots, extract_attachments,
-    generated_archive, hosted_storage,
+    Integrity, Ownership, PendingAttachment, RegistryError, RegistrySource, Storage, Value,
+    WriteTarget, authorize_against_packument, authorize_package, authorize_with_ownership,
+    cleanup_tmp_slots, extract_attachments, generated_archive, hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
@@ -16,7 +16,7 @@ use super::{
 };
 use pnpr_storage::{
     BlobId,
-    metadata::{ArtifactBlob, BlobLookup, BlobRow},
+    database::{ArtifactBlob, BlobLookup, BlobRow},
     publish::{now_iso, sigstore_bundle_bytes},
 };
 use std::{
@@ -178,8 +178,8 @@ pub(in super::super) struct StagedPublish {
     /// default hosted namespace. Threaded into the commit so the write
     /// lands in the right namespace.
     pub(in super::super) namespace: Option<String>,
-    /// Who published it, recorded with every dist-tag the document moves.
-    pub(in super::super) publisher: Option<String>,
+    /// Who published it.
+    pub(in super::super) publisher: Identity,
     /// What verifying the published archives produced.
     pub(in super::super) verification: Verification,
 }
@@ -215,7 +215,10 @@ pub(in super::super) struct Verification {
     pub(in super::super) notices: Vec<String>,
     /// The release record of each version the document introduces, which
     /// the metadata store accepts with it.
-    pub(in super::super) records: pnpr_storage::metadata::ReleaseRecords,
+    pub(in super::super) records: pnpr_storage::database::ReleaseRecords,
+    /// What the publish introduces, as the `package.publish` audit record
+    /// names it.
+    pub(in super::super) releases: Vec<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -232,18 +235,27 @@ pub(in super::super) async fn stage_publish(
     let storage = hosted_storage(state, namespace);
 
     let mut base = read_staged_base(state, &storage, namespace, &doc).await?;
-    check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
-    reauthorize_staged(state, &doc, &base)?;
-    let publisher = doc.publisher.user_id().map(str::to_string);
+    let tombstone = check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
+    reauthorize_staged(state, &doc, &base, tombstone.as_ref())?;
+    if base.version.is_none() {
+        base.version =
+            tombstone.map(|tombstone| HostedDocumentVersion::Tombstone(tombstone.maintainers));
+    }
+    let principal = doc.publisher.user_id().map(str::to_string);
     let (merged, without_any) =
         prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
     drop(doc.incoming);
     let ValidatedPublish {
-        name, prepared, tarballs, variants, ..
+        name,
+        prepared,
+        tarballs,
+        variants,
+        publisher,
+        ..
     } = doc;
 
     let verified = write_verified(
-        (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
+        (&storage, principal.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
         (prepared, tarballs),
         (merged, &variants, &without_any),
@@ -261,20 +273,32 @@ pub(in super::super) async fn stage_publish(
     })
 }
 
-/// Repeat the `publish` check against the document read under the package
-/// lock. The first check ran before the lock, so another publish may have
-/// claimed a new name since.
+/// Repeat the `publish` check against the document or tombstone read under the
+/// package lock. The first check ran before the lock, so another publish or
+/// unpublish may have changed the package's ownership since.
 fn reauthorize_staged(
     state: &AppState,
     doc: &ValidatedPublish,
     base: &StagedBase,
+    tombstone: Option<&pnpr_storage::PackageTombstone>,
 ) -> Result<(), RegistryError> {
-    let Some(packument) = &base.packument else {
-        return Ok(());
-    };
     let source = RegistrySource::Hosted(doc.registry.clone());
-    let package = (doc.name.as_str(), packument);
-    authorize_against_packument(state, &doc.publisher, &source, package, Action::Publish)
+    if let Some(packument) = &base.packument {
+        let package = (doc.name.as_str(), packument);
+        return authorize_against_packument(
+            state,
+            &doc.publisher,
+            &source,
+            package,
+            Action::Publish,
+        );
+    }
+    let ownership = match tombstone {
+        Some(tombstone) => Ownership::Owners(&tombstone.maintainers),
+        None => Ownership::Unclaimed,
+    };
+    let package = (doc.name.as_str(), &ownership);
+    authorize_with_ownership(state, &doc.publisher, &source, package, Action::Publish)
 }
 
 async fn prepare_publish_document(
@@ -332,7 +356,7 @@ async fn read_staged_base(
 /// The packument a publish of `name` is computed from, as `base` read it.
 fn staged_base(
     name: &CanonicalPackageName,
-    base: pnpr_storage::metadata::PublishBase,
+    base: pnpr_storage::database::PublishBase,
 ) -> Result<StagedBase, RegistryError> {
     let (packument, version) = parse_hosted_packument(name, base.stored)?;
     Ok(StagedBase { version, packument, blobs: base.blobs, ..StagedBase::default() })

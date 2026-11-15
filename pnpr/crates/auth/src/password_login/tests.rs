@@ -1,6 +1,6 @@
 use crate::{
-    AuthState, NewToken, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
-    UserStore,
+    AuthState, NewToken, PasswordCollisions, PasswordImport, SqliteAuth, TokenBackend, TokenRecord,
+    UpsertOutcome, UserBackend,
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
@@ -8,8 +8,12 @@ use pnpr_error::Result;
 use std::sync::Arc;
 use tokio::sync::Notify;
 
+fn test_backend() -> Arc<SqliteAuth> {
+    Arc::new(SqliteAuth::in_memory(MaxUsers::Unlimited).unwrap().with_bcrypt_cost(4))
+}
+
 struct DelayedTokens {
-    tokens: TokenStore,
+    tokens: Arc<SqliteAuth>,
     started: Notify,
     resume: Notify,
 }
@@ -45,14 +49,17 @@ impl TokenBackend for DelayedTokens {
 
 #[tokio::test]
 async fn a_password_reset_rejects_a_login_that_was_already_issuing_a_token() {
-    let users = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let users = test_backend();
     let (_, id) = users.add_or_login("example-user", "old-password").await.unwrap();
     let tokens = Arc::new(DelayedTokens {
-        tokens: TokenStore::in_memory(),
+        tokens: Arc::clone(&users),
         started: Notify::new(),
         resume: Notify::new(),
     });
-    let auth = Arc::new(AuthState { users, tokens: Arc::clone(&tokens) as Arc<dyn TokenBackend> });
+    let auth = Arc::new(AuthState {
+        users: Arc::clone(&users) as Arc<dyn UserBackend>,
+        tokens: Arc::clone(&tokens) as Arc<dyn TokenBackend>,
+    });
     let login = {
         let auth = Arc::clone(&auth);
         tokio::spawn(async move {
@@ -75,10 +82,8 @@ async fn a_password_reset_rejects_a_login_that_was_already_issuing_a_token() {
 
 #[tokio::test]
 async fn password_login_accepts_new_and_existing_accounts() {
-    let auth = AuthState {
-        users: Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4)),
-        tokens: Arc::new(TokenStore::in_memory()),
-    };
+    let auth =
+        AuthState::sharing(SqliteAuth::in_memory(MaxUsers::Unlimited).unwrap().with_bcrypt_cost(4));
     let (outcome, id, token) = auth
         .password_login("example-user", "test-password", NewToken::new())
         .await
@@ -110,16 +115,20 @@ async fn password_login_accepts_new_and_existing_accounts() {
 
 #[tokio::test]
 async fn password_login_accepts_a_credential_upgraded_during_verification() {
-    let users = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let users = test_backend();
     let integrity = ssri::IntegrityOpts::new()
         .algorithm(ssri::Algorithm::Sha1)
         .chain(b"test-password")
         .result();
     let digest = &integrity.hashes.first().unwrap().digest;
-    users.insert_user_for_test("example-user".to_string(), format!("{{SHA}}{digest}"));
+    let hashes =
+        std::collections::HashMap::from([("example-user".to_string(), format!("{{SHA}}{digest}"))]);
+    let options =
+        PasswordImport { collisions: PasswordCollisions::Keep, mode: crate::ImportMode::Apply };
+    users.import_password_hashes(hashes, options).await.unwrap();
     let auth = AuthState {
         users: Arc::clone(&users) as Arc<dyn crate::UserBackend>,
-        tokens: Arc::new(TokenStore::in_memory()),
+        tokens: Arc::clone(&users) as Arc<dyn TokenBackend>,
     };
     let (outcome, id, token) = auth
         .password_login("example-user", "test-password", NewToken::new())
@@ -147,7 +156,7 @@ async fn password_login_accepts_a_credential_upgraded_during_verification() {
 
 #[tokio::test]
 async fn token_creation_rejects_a_credential_reset_during_issuance() {
-    let users = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let users = test_backend();
     let (_, id) = users.add_or_login("example-user", "old-password").await.unwrap();
     let verified_credential = users
         .credential("example-user")
@@ -155,11 +164,14 @@ async fn token_creation_rejects_a_credential_reset_during_issuance() {
         .unwrap()
         .unwrap();
     let tokens = Arc::new(DelayedTokens {
-        tokens: TokenStore::in_memory(),
+        tokens: Arc::clone(&users),
         started: Notify::new(),
         resume: Notify::new(),
     });
-    let auth = Arc::new(AuthState { users, tokens: Arc::clone(&tokens) as Arc<dyn TokenBackend> });
+    let auth = Arc::new(AuthState {
+        users: Arc::clone(&users) as Arc<dyn UserBackend>,
+        tokens: Arc::clone(&tokens) as Arc<dyn TokenBackend>,
+    });
     let expected_revision = auth
         .active_account_revision(&id)
         .await
@@ -195,10 +207,10 @@ async fn token_creation_rejects_a_credential_reset_during_issuance() {
 
 #[tokio::test]
 async fn deactivation_during_login_or_token_creation_revokes_issued_token() {
-    let users = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let users = test_backend();
     let (_, id) = users.add_or_login("example-user", "old-password").await.unwrap();
     let tokens = Arc::new(DelayedTokens {
-        tokens: TokenStore::in_memory(),
+        tokens: Arc::clone(&users),
         started: Notify::new(),
         resume: Notify::new(),
     });
@@ -299,7 +311,6 @@ pub(crate) async fn assert_password_update_keeps_concurrent_resets(users: &dyn U
 }
 
 #[tokio::test]
-async fn local_password_updates_preserve_a_concurrent_admin_reset() {
-    let users = UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4);
-    assert_password_update_keeps_concurrent_resets(&users).await;
+async fn sqlite_password_updates_preserve_a_concurrent_admin_reset() {
+    assert_password_update_keeps_concurrent_resets(&*test_backend()).await;
 }

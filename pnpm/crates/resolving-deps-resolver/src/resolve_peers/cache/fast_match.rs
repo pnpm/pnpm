@@ -28,7 +28,6 @@ impl Walker<'_> {
         let query = FastProviderQuery { canonical_scc: &canonical_scc, parent_refs, pkg_id };
         self.caches.peers_cache
             .get(pkg_id)?
-            .iter()
             .find(|item| matches!(self.fast_cache_item_matches(query, item), CacheMatch::Match))
     }
 

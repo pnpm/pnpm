@@ -710,3 +710,47 @@ async fn git_does_not_connect_to_an_allowlisted_name_that_resolves_to_loopback()
     assert_eq!(request_count.load(Ordering::SeqCst), 0, "{body}");
     assert!(body.contains("which this client is not allowed to connect to"), "{body}");
 }
+
+#[tokio::test]
+async fn resolver_keeps_serving_after_configuration_cache_eviction() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "client").await;
+    let app = router_with_auth(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()), auth);
+    for age in 0..1026 {
+        let path = if age % 2 == 0 { "resolve" } else { "verify-lockfile" };
+        let body = json!({
+            "minimumReleaseAge": age,
+            "frozenLockfile": true,
+            "ignoreManifestCheck": true,
+            "lockfile": {
+                "lockfileVersion": "9.0",
+                "settings": { "autoInstallPeers": true, "excludeLinksFromLockfile": false },
+                "importers": { ".": {} },
+            },
+        });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post(format!("/-/pnpr/v0/{path}"))
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let (status, body) = drain_resolve_response(response).await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "configuration {age}: {}",
+            String::from_utf8_lossy(&body),
+        );
+        assert!(
+            String::from_utf8_lossy(&body).contains(r#""type":"done""#),
+            "configuration {age}: {}",
+            String::from_utf8_lossy(&body),
+        );
+    }
+}

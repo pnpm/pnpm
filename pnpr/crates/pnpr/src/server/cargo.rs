@@ -18,12 +18,14 @@
 
 pub(super) use publication::{CratePublication, authorize_crate_publish, verify_crate_archive};
 
+mod owners;
 mod publication;
+use owners::{delete_owners, get_owners, put_owners};
 use publication::{delete_yank, put_publish, put_unyank};
 
 use super::{
-    Action, AppState, AuthedCaller, DiscoverySource, RegistrySource, SearchPage, TargetRegistry,
-    authorize_package,
+    Action, AppState, AuthedCaller, DiscoverySource, Ownership, RegistrySource, SearchPage,
+    TargetRegistry, authorize_package, authorize_with_ownership,
     conditional_requests::is_not_modified,
     discovery_sources,
     documents::{
@@ -35,14 +37,16 @@ use super::{
         load_upstream_document, mount_bases, registry_endpoint, registry_requires_auth,
         serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
-    hosted_search_names, json_response, not_found, private_no_cache,
+    hosted_search_names, json_response, not_found,
+    package_owners::MAX_OWNER_BODY_BYTES,
+    private_no_cache,
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
     resolve_ecosystem_source, resolve_write_target_for,
 };
 use axum::{
     Router,
     body::{Body, Bytes},
-    extract::{Path, RawQuery, State},
+    extract::{DefaultBodyLimit, Path, RawQuery, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, put},
@@ -78,7 +82,10 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/api/v1/crates/new"), put(put_publish))
             .route(
                 &format!("{base}/api/v1/crates/{{name}}/owners"),
-                get(unsupported_owners).put(unsupported_owners).delete(unsupported_owners),
+                get(get_owners)
+                    .put(put_owners)
+                    .delete(delete_owners)
+                    .layer(DefaultBodyLimit::max(MAX_OWNER_BODY_BYTES)),
             )
             .route(
                 &format!("{base}/api/v1/crates/{{name}}/{{version}}/download"),
@@ -88,13 +95,6 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/api/v1/crates/{{name}}/{{version}}/unyank"), put(put_unyank));
     }
     router
-}
-
-async fn unsupported_owners() -> Response {
-    json_response(
-        StatusCode::NOT_IMPLEMENTED,
-        &errors_json("cargo owner is not supported by this registry"),
-    )
 }
 
 /// `cargo search`'s default page size, which is also what crates.io returns
@@ -311,7 +311,7 @@ async fn load_upstream_index(
         accept: None,
         limit: INDEX_FILE_LIMIT,
     };
-    let bytes = load_upstream_document(state, upstream, &namespace, request, |document| {
+    let bytes = load_upstream_document(state, &upstream, &namespace, request, |document| {
         decode_index_text(document.bytes, path).map(String::into_bytes)
     })
     .await?;
@@ -412,7 +412,7 @@ async fn download_via_upstream(
             reason: format!("index entry {name}@{version} has no SHA-256 checksum"),
         });
     };
-    let config = match upstream_index_config(state, upstream, &namespace).await {
+    let config = match upstream_index_config(state, &upstream, &namespace).await {
         Ok(config) => config,
         Err(err) => return error_response(err),
     };
@@ -424,7 +424,7 @@ async fn download_via_upstream(
         });
     }
     let filename = crate_filename(&entry.name, &entry.vers);
-    serve_upstream_artifact(state, upstream, &namespace, key, &filename, &url, &integrity).await
+    serve_upstream_artifact(state, &upstream, &namespace, key, &filename, &url, &integrity).await
 }
 
 /// The upstream sparse index's `config.json`, through the cache.

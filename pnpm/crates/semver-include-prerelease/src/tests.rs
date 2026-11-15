@@ -104,6 +104,9 @@ fn matches_npm_semver_under_include_prerelease() {
         ("<18.x", "18.1.0-rc.1", false),
         ("<18.x", "19.0.0", false),
         ("<18.x", "19.0.0-rc.1", false),
+        ("<18.x.0", "17.9.9", true),
+        ("<18.x.0", "18.0.0", false),
+        ("<18.x.0", "18.0.0-rc.1", false),
         ("<=18", "17.9.9", true),
         ("<=18", "18.0.0", true),
         ("<=18", "18.0.0-rc.1", true),
@@ -210,7 +213,9 @@ fn matches_npm_semver_under_include_prerelease() {
 /// parse drops its alternative to the same answer.
 #[test]
 fn matches_nothing_when_a_bound_names_an_out_of_range_component() {
-    for range in ["<=18446744073709551615", "<=18.18446744073709551615"] {
+    for range in
+        ["<=18446744073709551615", "<=18.18446744073709551615", "<18.foo", "<18.1.foo", "<18."]
+    {
         let version = "1.0.0".parse().expect("valid version");
         assert!(!IncludePrereleaseRange::parse(range).satisfies(&version), "{range}");
     }

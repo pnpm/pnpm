@@ -95,6 +95,15 @@ impl Discovery {
             .map(|(root, _)| root.as_path())
     }
 
+    /// The project directories a command targeting `dir` acts on: all
+    /// members of the shared environment rooted at `dir` when `dir`
+    /// declares one, `dir` itself when it declares a `[project]`, or none
+    /// for an unshared virtual workspace root.
+    #[must_use]
+    pub fn target_projects(&self, dir: &Path) -> Vec<PathBuf> {
+        self.workspace.target_projects(dir)
+    }
+
     /// Read the manifests of `edited` again, for a command that changed
     /// them. Only those are read: the rest were parsed once and say the
     /// same thing they said then.
@@ -302,12 +311,17 @@ async fn read_manifest(path: &Path, contents: &str, allowed_root: &Path) -> Resu
     read_adjacent_requirements(path, manifest, allowed_root).await
 }
 
+/// Read the `requirements.txt` beside a manifest that declares no
+/// `[project]` as its dependencies. A manifest that declares a workspace
+/// is excluded: like uv's virtual workspace root, it is not a member of
+/// its own workspace, and a `requirements.txt` there usually lists tooling
+/// installed by other means.
 async fn read_adjacent_requirements(
     path: &Path,
     mut manifest: Manifest,
     allowed_root: &Path,
 ) -> Result<Manifest> {
-    if manifest.project.is_none() {
+    if manifest.project.is_none() && manifest.tool.uv.workspace.is_none() {
         let requirements_path = path.with_file_name("requirements.txt");
         if tokio::fs::try_exists(&requirements_path).await.into_diagnostic()? {
             let allowed_root = allowed_root.to_path_buf();

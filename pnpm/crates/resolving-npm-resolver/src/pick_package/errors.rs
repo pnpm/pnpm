@@ -87,6 +87,10 @@ pub enum PickPackageError {
         #[error(not(source))]
         error: String,
     },
+    /// `ERR_PNPM_MALFORMED_METADATA`: `dist.revision` in a registry package
+    /// document is not a valid tarball revision.
+    #[diagnostic(transparent)]
+    InvalidRevisionMetadata(crate::InvalidTarballRevisionMetadataError),
 }
 
 impl From<PickPackageFromMetaError> for PickPackageError {
@@ -98,5 +102,11 @@ impl From<PickPackageFromMetaError> for PickPackageError {
 impl From<FetchMetadataError> for PickPackageError {
     fn from(error: FetchMetadataError) -> Self {
         PickPackageError::Fetch(error)
+    }
+}
+
+impl From<crate::InvalidTarballRevisionMetadataError> for PickPackageError {
+    fn from(error: crate::InvalidTarballRevisionMetadataError) -> Self {
+        PickPackageError::InvalidRevisionMetadata(error)
     }
 }

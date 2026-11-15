@@ -112,10 +112,7 @@ fn busy_month() -> Value {
     for day in 1..=20 {
         let version = format!("1.0.{day}");
         time.insert(version.clone(), json!(format!("2025-01-{day:02}T00:00:00.000Z")));
-        versions.insert(
-            version.clone(),
-            json!({ "dist": { "integrity": format!("sha512-{day}") } }),
-        );
+        versions.insert(version, json!({ "dist": { "integrity": format!("sha512-{day}") } }));
     }
     json!({ "name": "acme", "dist-tags": { "latest": "1.0.20" }, "time": time, "versions": versions })
 }

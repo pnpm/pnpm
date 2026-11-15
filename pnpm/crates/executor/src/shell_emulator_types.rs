@@ -9,6 +9,10 @@ use std::io;
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ShellEmulatorError {
+    #[display("Shell emulation is not enabled in this build.")]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_SHELL_EMULATOR_UNSUPPORTED))]
+    Unsupported,
+
     #[display("Failed to parse `{script}` with the shell emulator: {message}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_SHELL_EMULATOR_PARSE))]
     Parse { script: String, message: String },

@@ -263,3 +263,65 @@ overrides:
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn narrower_version_override_wins_regardless_of_yaml_declaration_order() {
+    for overrides_block in [
+        "\
+overrides:
+  \"my-lib@^1.0.0\": \"file:./lib-broad\"
+  \"my-lib@1.0.0\": \"file:./lib-exact\"
+",
+        "\
+overrides:
+  \"my-lib@1.0.0\": \"file:./lib-exact\"
+  \"my-lib@^1.0.0\": \"file:./lib-broad\"
+",
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+        fs::create_dir_all(workspace.join("lib-broad")).expect("create lib-broad");
+        fs::write(
+            workspace.join("lib-broad/package.json"),
+            serde_json::json!({ "name": "my-lib", "version": "1.0.0" }).to_string(),
+        )
+        .expect("write lib-broad/package.json");
+
+        fs::create_dir_all(workspace.join("lib-exact")).expect("create lib-exact");
+        fs::write(
+            workspace.join("lib-exact/package.json"),
+            serde_json::json!({ "name": "my-lib", "version": "1.0.1" }).to_string(),
+        )
+        .expect("write lib-exact/package.json");
+
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "name": "repro",
+                "version": "1.0.0",
+                "dependencies": { "my-lib": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+
+        extend_workspace_yaml(&workspace, overrides_block);
+
+        pacquet
+            .with_args(["install"])
+            .assert()
+            .success();
+
+        let installed_manifest: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(workspace.join("node_modules/my-lib/package.json"))
+                .expect("read installed my-lib/package.json"),
+        )
+        .expect("parse installed my-lib/package.json");
+        assert_eq!(
+            installed_manifest["version"], "1.0.1",
+            "exact override my-lib@1.0.0 must beat my-lib@^1.0.0 for:\n{overrides_block}",
+        );
+
+        drop(root);
+    }
+}

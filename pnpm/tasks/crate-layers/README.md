@@ -7,7 +7,8 @@ Checks the Rust workspace's crate dependency graph against the layers in
   in a higher layer, when a crate is in no layer, or when an exception no
   longer matches an upward edge. It also fails when a
   [ratchet](#ratchets) value differs from its entry, and when a crate
-  exceeds its layer's [transitive budget](#transitive-budgets). CI runs it in
+  exceeds its layer's [transitive budget](#transitive-budgets). The
+  [product boundary](#product-boundary) list is checked too. CI runs it in
   the `Crate Layers` job.
 - `just crate-layers modules` lists the crates whose top-level modules form
   a cycle. `--crate <name>` prints one crate's cycle and the references inside
@@ -24,6 +25,10 @@ Checks the Rust workspace's crate dependency graph against the layers in
 - `just crate-layers diff <rev>` prints, as Markdown, the crates and edges the
   working tree adds or removes compared to `<rev>`. CI writes it to the job
   summary of every pull request.
+- `just crate-layers dsm` prints a [dependency structure matrix](#dependency-structure-matrix)
+  of the workspace crates as an HTML page. `--crate <name>` shows one
+  crate's top-level modules. `--output <file>` writes the page to a file.
+  CI uploads it as the `crate-dsm` artifact of the `Crate Layers` job.
 
 The tool reads the manifests directly, so it needs neither `cargo metadata`
 nor network access, and reads a git revision without touching the working
@@ -73,13 +78,21 @@ leak by re-exporting the item from the crate that exposes it, or by keeping
 it out of the public signature.
 
 The public signatures are those of `pub` functions, fields, enums, traits,
-type aliases, constants, and statics, outside test-only modules. The tool
-reads `pub` alone, so a `pub` item in a private module counts. It follows
-the imports of the item's own file or inline module, and `extern crate … as …`
-aliases from the item's module and the crate root. It misses:
+type aliases, constants, and statics, outside test-only modules, that a
+caller can reach. An item is reachable when a chain of `pub mod` leads to it
+from the crate root, or when a reachable `pub use` re-exports it, its module,
+or a glob over its module. A field or an `impl` method is reachable with the
+type it belongs to, and a `pub use` covers a leak only when it is reachable.
+The tool follows the imports of the item's own file or inline module, and
+`extern crate … as …` aliases from the item's module and the crate root. It
+misses:
 
 - a path that reaches the dependency through another module of the crate;
 - a name brought in by a glob import such as `use dep::*`;
+- an item a `pub use` reaches through another `use` rather than through
+  the module tree, which it counts as unreachable;
+- the methods of an `impl` on a private type alias of a public type, which
+  it counts as unreachable;
 - a dependency renamed in `Cargo.toml`, which it looks for under its package
   name.
 
@@ -90,3 +103,44 @@ of its crates reaches through normal and build dependencies. It keeps the
 lower layers cheap to build and to depend on. When a crate exceeds it, cut
 the dependency that pulls in the most crates, usually by moving a type down to
 the crate that owns it.
+
+## Product boundary
+
+The workspace holds two products, the pnpm CLI and the pnpr registry server.
+A crate's product is the first component of its directory, `pnpm/` or
+`pnpr/`, whatever the crate's name. `[product_boundary]` lists the crates
+that a crate of the other product may depend on. The check covers every
+dependency kind, dev-dependencies included, and fails:
+
+- when a crate depends on a crate of the other product that is not listed;
+- when a listed crate has no dependent in the other product, so the list
+  only shrinks.
+
+Before listing a crate, consider moving what both products need into a
+crate that is already listed.
+
+## Dependency structure matrix
+
+The page lists the crates in rows and columns in the same order: by layer
+from the bottom up, then by name. A mark in a cell means the row depends on
+the column, so a dependency on a lower layer sits below the diagonal and an
+upward dependency sits above it, highlighted. Lines separate the layers.
+
+A cell's shade grows with how many commits changed both crates. A commit
+changes a crate when it changes a file in the crate's directory, and a move
+changes both directories. In a shallow clone, the oldest commit is left
+out, since `git` lists every file of a commit without parents as changed. A
+pair
+that is shaded but not marked changes together without depending on each
+other, and the page lists those pairs below the matrix. Hover a cell for
+its dependency kinds and commit counts.
+
+`--commits` sets how many of the latest non-merge commits before `HEAD` the
+page reads. A commit that changes more crates than `--max-changed`, such as
+a rename across the workspace, counts for each crate but for no pair.
+`just crate-layers dsm --help` prints the defaults.
+
+With `--crate <name>`, the rows are the crate's top-level modules in name
+order, and a mark means the module names the other. A commit changes a
+module when it changes `src/<module>.rs` or a file under `src/<module>/`, so
+a module whose file is set with `#[path]` shows no changes.

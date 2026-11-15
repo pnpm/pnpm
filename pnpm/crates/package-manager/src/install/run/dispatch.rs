@@ -33,7 +33,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     options: &mut InstallRunOptions<'install, '_>,
     root_preinstall_ran: bool,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
-    let Settled { install, mode, lockfiles, .. } = settled;
+    let Settled { install, mode, .. } = settled;
     run_pre_uninstall_hooks::<Reporter>(settled, options.selection.as_ref())?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
     // semantics:
@@ -60,17 +60,9 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         install.lockfile_policy.update_checksums,
         install.lockfile_policy.frozen,
     )?;
-    let take_frozen_path = decide_frozen_path::<Reporter>(&FrozenDispatch {
-        dry_run: install.execution.dry_run,
-        frozen_lockfile: install.lockfile_policy.frozen,
-        lockfile_had_conflicts: settled.loaded.wanted.had_conflicts,
-        update_checksums: install.lockfile_policy.update_checksums,
-        prefer_frozen_lockfile: mode.prefer_frozen_lockfile || settled.trusts_dedupe_record(),
-        lockfile: lockfiles.wanted.get(),
-        lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
-        freshness: settled.freshness_inputs().for_rebuild(options.rebuild.as_ref()),
-    })
-    .await?;
+    let take_frozen_path =
+        decide_frozen_path::<Reporter>(&FrozenDispatch::new(settled, options.rebuild.as_ref()))
+            .await?;
 
     let take_frozen_path = take_frozen_path
         && super::frozen_local_tarballs::local_tarballs_keep_frozen_path(settled).await?;
@@ -265,6 +257,25 @@ pub(super) struct FrozenDispatch<'a> {
     lockfile: Option<&'a Lockfile>,
     lockfile_synthesized_from_current: bool,
     freshness: LockfileFreshnessInputs<'a, 'a>,
+}
+
+impl<'a> FrozenDispatch<'a> {
+    pub(super) fn new(
+        settled: Settled<'a, '_>,
+        rebuild: Option<&'a crate::RebuildOptions>,
+    ) -> Self {
+        let Settled { install, mode, lockfiles, .. } = settled;
+        Self {
+            dry_run: install.execution.dry_run,
+            frozen_lockfile: install.lockfile_policy.frozen,
+            lockfile_had_conflicts: settled.loaded.wanted.had_conflicts,
+            update_checksums: install.lockfile_policy.update_checksums,
+            prefer_frozen_lockfile: mode.prefer_frozen_lockfile || settled.trusts_dedupe_record(),
+            lockfile: lockfiles.wanted.get(),
+            lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
+            freshness: settled.freshness_inputs().for_rebuild(rebuild),
+        }
+    }
 }
 /// `take_frozen_path` is true for both state 1 (`--frozen-lockfile`) and state
 /// 2 (auto-frozen via `preferFrozenLockfile`). The freshness check fires for

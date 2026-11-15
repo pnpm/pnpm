@@ -393,6 +393,8 @@ fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
     root.decoupled.set(true);
     let mut path_locators = HashSet::from([node_locator(&root)]);
     hoist_to(&root, opts, &mut path_locators, true);
+    #[cfg(test)]
+    tests::resolution::assert_resolves_as_declared(tree, &root);
     // Returning an owned `HoisterResult` (rather than
     // `Rc<HoisterResult>`) keeps the wrapper's post-hoist
     // `external_dependencies` filter from mutating the shared graph.
@@ -475,10 +477,10 @@ fn get_used_dependencies(root: &Rc<HoisterResult>) -> HashMap<String, Rc<Hoister
         for (name, dep) in node.hoisted_dependencies.borrow().iter() {
             used.insert(name.clone(), Rc::clone(dep));
         }
+        // Unlike upstream, a peer edge here is a copy nested under the node,
+        // so the names its subtree resolves above the root count too.
         for dep in node.dependencies.borrow().iter() {
-            if !node.peer_names.contains(&dep.0.name) {
-                pending.push(Rc::clone(&dep.0));
-            }
+            pending.push(Rc::clone(&dep.0));
         }
     }
     used
@@ -491,29 +493,8 @@ fn node_locator(node: &HoisterResult) -> String {
     format!("{}@{}", node.ident_name, node_ident(node))
 }
 
-/// Whether two nodes are the same package *version*, ignoring the
-/// peer-resolution suffix — upstream's `ident` equality (its
-/// `makeIdent` strips the virtual segment the way this drops the
-/// `(...)` suffix). Peer-suffix variants of one version compare
-/// equal: they merge in a hoisted layout, so they never shadow each
-/// other.
-fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
-    fn ident_of(node: &HoisterResult) -> String {
-        let references = node.references.borrow();
-        let reference = references
-            .iter()
-            .next()
-            .map_or("", String::as_str);
-        match reference.find('(') {
-            Some(idx) => reference[..idx].to_string(),
-            None => reference.to_string(),
-        }
-    }
-    left.ident_name == right.ident_name && ident_of(left) == ident_of(right)
-}
-
 /// Whether an ancestor strictly below the root carries a different
-/// package version under `candidate`'s name (see
+/// package under `candidate`'s name, a peer variant included (see
 /// [`AbsorbDecision::PathShadow`](crate::absorption::AbsorbDecision::PathShadow)). `path[0]` is the hoist root —
 /// its slot is judged by the root-index decision, not here.
 fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool {
@@ -523,7 +504,7 @@ fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool 
             ancestor.dependencies
                 .borrow()
                 .iter()
-                .any(|dep| dep.0.name == candidate.name && !same_ident(&dep.0, candidate))
+                .any(|dep| dep.0.name == candidate.name && !same_locator(&dep.0, candidate))
         })
 }
 

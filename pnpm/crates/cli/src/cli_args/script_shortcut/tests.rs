@@ -1,8 +1,3 @@
-// Every test here drives `/bin/sh`-style lifecycle scripts, so the whole
-// module is Unix-only; gating it keeps Windows builds free of unused-import
-// and dead-code warnings.
-#![cfg(unix)]
-
 use super::ScriptShortcutArgs;
 use crate::cli_args::reporter::ReporterType;
 use serde_json::json;
@@ -17,7 +12,7 @@ fn setup_project(dir: &std::path::Path, scripts: &serde_json::Value) {
     std::fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
-#[cfg(unix)]
+#[cfg_attr(windows, ignore = "runs a `touch` shell command, which Windows does not provide")]
 #[test]
 fn stop_runs_declared_script() {
     let tmp = TempDir::new().expect("tmp dir");
@@ -31,36 +26,63 @@ fn stop_runs_declared_script() {
     );
     let config = test_config();
     ScriptShortcutArgs { args: vec![] }
-        .run("stop", false, dir, &config, ReporterType::Silent)
+        .into_run_args("stop")
+        .run(dir, &config, ReporterType::Silent)
         .expect("stop should succeed");
     assert!(marker.exists(), "stop script should have run");
 }
 
-#[cfg(unix)]
 #[test]
 fn stop_with_if_present_skips_missing_script() {
     let tmp = TempDir::new().expect("tmp dir");
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    ScriptShortcutArgs { args: vec![] }
-        .run("stop", true, dir, &config, ReporterType::Silent)
+    let mut args = ScriptShortcutArgs { args: vec![] }.into_run_args("stop");
+    args.if_present = true;
+    args.run(dir, &config, ReporterType::Silent)
         .expect("--if-present should succeed when script is missing");
 }
 
-#[cfg(unix)]
 #[test]
 fn stop_fails_on_missing_script_without_if_present() {
     let tmp = TempDir::new().expect("tmp dir");
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    let res =
-        ScriptShortcutArgs { args: vec![] }.run("stop", false, dir, &config, ReporterType::Silent);
+    let res = ScriptShortcutArgs { args: vec![] }
+        .into_run_args("stop")
+        .run(dir, &config, ReporterType::Silent);
     assert!(res.is_err(), "should fail because script is missing");
 }
 
-/// These tests drive `ScriptShortcutArgs::run` in-process, so the
+#[test]
+fn test_fails_on_missing_script_without_if_present() {
+    let tmp = TempDir::new().expect("tmp dir");
+    let dir = tmp.path();
+    setup_project(dir, &json!({}));
+    let config = test_config();
+    let res = ScriptShortcutArgs { args: vec![] }
+        .into_run_args("test")
+        .run(dir, &config, ReporterType::Silent);
+    assert!(res.is_err(), "test shortcut should fail when scripts.test is missing");
+}
+
+#[test]
+fn start_with_if_present_skips_when_script_and_server_js_are_missing() {
+    let tmp = TempDir::new().expect("tmp dir");
+    let dir = tmp.path();
+    setup_project(dir, &json!({}));
+    let config = test_config();
+    let mut args = ScriptShortcutArgs { args: vec![] }.into_run_args("start");
+    args.if_present = true;
+    args.run(dir, &config, ReporterType::Silent)
+        .expect(
+            "--if-present start should succeed when neither scripts.start nor server.js exists",
+        );
+}
+
+/// These tests drive `RunArgs::run` in-process, so the
 /// verify-deps-before-run gate must stay off: its `install` default
 /// would spawn `current_exe()` — the test harness binary — as the
 /// installer. pnpm's unit tests equally construct their options

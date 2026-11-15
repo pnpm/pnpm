@@ -34,7 +34,7 @@ async fn rotating_secret_prunes_private_resolver_scopes_and_updates_marker() {
         ),
     )
     .unwrap();
-    let old_config = Config::from_yaml(&old_cfg_path, listen, None).unwrap();
+    let old_config = pnpr_fixtures::load_seeded_config(&old_cfg_path, listen, None);
     std::fs::write(
         cache.join(pnpr_config::CACHE_SECRET_MARKER),
         pnpr_config::cache_secret_fingerprint(&old_config.cache_secret),
@@ -60,7 +60,7 @@ async fn rotating_secret_prunes_private_resolver_scopes_and_updates_marker() {
         ),
     )
     .unwrap();
-    let new_config = Config::from_yaml(&new_cfg_path, listen, None).unwrap();
+    let new_config = pnpr_fixtures::load_seeded_config(&new_cfg_path, listen, None);
 
     let dry_report = collect_cache(
         &new_config,
@@ -201,8 +201,8 @@ async fn cli_cache_gc_rejects_unconfigured_secret_on_populated_persistent_cache(
     let mut config = Config::from_default_yaml(tmp.path(), listen, None);
     config.storage.hosted_dir = tmp.path().join("storage");
     config.storage.cache_dir = tmp.path().join("cache");
-    config.storage.metadata = pnpr_config::MetadataBackend::Sqlite(
-        pnpr_config::default_metadata_path(&config.storage.hosted_dir),
+    config.storage.database = pnpr_config::DatabaseBackend::Sqlite(
+        pnpr_config::default_database_path(&config.storage.hosted_dir),
     );
 
     let active_file = config.storage.cache_dir.join("~upstreams/existing-secret/pkg/doc.json");
@@ -220,7 +220,7 @@ async fn cli_cache_gc_rejects_unconfigured_secret_on_populated_persistent_cache(
     .await
     .unwrap_err();
     assert!(
-        err.to_string().contains("`secret` or `secrets.cache` must be configured"),
+        err.to_string().contains("`secret` or `secret.cache` must be configured"),
         "unexpected error: {err}",
     );
     assert!(active_file.exists(), "populated private cache must not be wiped on missing secret");
@@ -435,7 +435,7 @@ async fn failed_private_scope_cleanup_preserves_old_secret_marker_for_retry() {
         ),
     )
     .unwrap();
-    let new_config = Config::from_yaml(&new_cfg_path, listen, None).unwrap();
+    let new_config = pnpr_fixtures::load_seeded_config(&new_cfg_path, listen, None);
 
     std::fs::set_permissions(&npm_priv_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
 

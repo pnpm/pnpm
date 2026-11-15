@@ -2,13 +2,16 @@ import path from 'node:path'
 
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
+import { publishedName } from '../publishedNames.js'
 import type { PackOptions, PackResultJson } from './pack.js'
-import { api, resolvePackOutput, toPackResultJson } from './packApi.js'
+import { api, toPackResultJson } from './packApi.js'
+import { canonicalizePackDestination, type PackDestinationCache, resolvePackOutput, resolveRelativeTarget } from './packOutput.js'
 
 export type PackDestinationLocker = (destination: string, write: () => Promise<void>) => Promise<void>
 
@@ -17,6 +20,9 @@ export type PackDestinationLocker = (destination: string, write: () => Promise<v
  * and returns their results in that order.
  */
 export async function packRecursively (opts: PackOptions): Promise<PackResultJson[]> {
+  if (opts.out && opts.packDestination) {
+    throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+  }
   const selectedProjectsGraph = opts.selectedProjectsGraph as ProjectsGraph
   const packedPkgDirs = selectPackablePkgDirs(selectedProjectsGraph)
 
@@ -35,7 +41,7 @@ export async function packRecursively (opts: PackOptions): Promise<PackResultJso
   })
 
   const resolvedOpts = resolvePackDestinationOptions(opts)
-  const packOrder = serializeSharedPackDestinations({
+  const packOrder = await serializeSharedPackDestinations({
     opts: resolvedOpts,
     packedPkgDirs,
     projectDependencies,
@@ -67,15 +73,10 @@ function selectPackablePkgDirs (selectedProjectsGraph: ProjectsGraph): Set<Proje
 }
 
 function resolvePackDestinationOptions (opts: PackOptions): PackOptions {
-  const resolvedOpts = { ...opts }
-  if (opts.out) {
-    resolvedOpts.out = path.resolve(opts.dir, opts.out)
-  } else if (opts.packDestination) {
-    resolvedOpts.packDestination = path.resolve(opts.dir, opts.packDestination)
-  } else {
-    resolvedOpts.packDestination = path.resolve(opts.dir)
+  return {
+    ...opts,
+    outputBaseDir: resolveRelativeTarget(process.cwd(), opts.dir),
   }
-  return resolvedOpts
 }
 
 interface PackGraphParams {
@@ -112,26 +113,66 @@ async function packInGraphOrder ({ opts, packedPkgDirs, projectDependencies, pro
   return packedByDir
 }
 
+interface PlannedPackOutput {
+  destDir: string
+  pkgDir: ProjectRootDir
+  tarballName: string
+}
+
 /**
  * Makes each project that writes to the same tarball path as an earlier project in pack order
  * depend on that project, so the two never write the same file at once. Returns the pack order.
  */
-function serializeSharedPackDestinations (params: PackGraphParams): ProjectRootDir[] {
-  const { opts, packedPkgDirs, projectDependencies, projectsGraph } = params
+async function serializeSharedPackDestinations (params: PackGraphParams): Promise<ProjectRootDir[]> {
+  const { opts, projectDependencies, projectsGraph } = params
   const order = graphSequencer(projectDependencies).order
   if (canPackOutputChangeWhilePacking(opts, order, projectsGraph) && !isLiteralPackOutput(opts.out)) return order
+  const candidates = collectCollidingPackOutputs({ ...params, order })
+  if (candidates.length === 0) return order
+  const destinationCache: PackDestinationCache = new Map()
+  const outputs = await Promise.all(
+    candidates.map(async ({ destDir, tarballName }) => path.join(
+      await canonicalizePackDestination(destDir, destinationCache),
+      tarballName
+    ))
+  )
+  linkSharedDestinationPredecessors(candidates, outputs, projectDependencies)
+  return order
+}
+
+function collectCollidingPackOutputs (params: PackGraphParams & { order: ProjectRootDir[] }): PlannedPackOutput[] {
+  const planned: PlannedPackOutput[] = []
+  for (const pkgDir of params.order) {
+    if (!params.packedPkgDirs.has(pkgDir)) continue
+    const item = planPackOutput(params.opts, pkgDir, params.projectsGraph[pkgDir].package)
+    if (item != null) planned.push(item)
+  }
+  return filterRepeatedTarballNames(planned)
+}
+
+function filterRepeatedTarballNames (planned: PlannedPackOutput[]): PlannedPackOutput[] {
+  const counts = new Map<string, number>()
+  for (const { tarballName } of planned) {
+    counts.set(tarballName, (counts.get(tarballName) ?? 0) + 1)
+  }
+  return planned.filter(({ tarballName }) => (counts.get(tarballName) ?? 0) > 1)
+}
+
+function linkSharedDestinationPredecessors (
+  candidates: PlannedPackOutput[],
+  outputs: string[],
+  projectDependencies: Map<ProjectRootDir, ProjectRootDir[]>
+): void {
   const previousByOutput = new Map<string, ProjectRootDir>()
-  for (const pkgDir of order) {
-    if (!packedPkgDirs.has(pkgDir)) continue
-    const output = packOutputPath(opts, projectsGraph[pkgDir].package)
-    if (output == null) continue
+  for (let index = 0; index < candidates.length; index += 1) {
+    const output = outputs[index]
+    const { pkgDir } = candidates[index]
     const predecessor = previousByOutput.get(output)
     previousByOutput.set(output, pkgDir)
     if (predecessor != null && !projectDependencies.get(pkgDir)!.includes(predecessor)) {
       projectDependencies.get(pkgDir)!.push(predecessor)
     }
   }
-  return order
 }
 
 function canPackOutputChangeWhilePacking (opts: PackOptions, order: ProjectRootDir[], projectsGraph: ProjectsGraph): boolean {
@@ -146,7 +187,7 @@ function isLiteralPackOutput (out: string | undefined): boolean {
   return out != null && !out.includes('%s') && !out.includes('%v')
 }
 
-function createPackDestinationLocker (): PackDestinationLocker {
+export function createPackDestinationLocker (): PackDestinationLocker {
   const pending = new Map<string, Promise<void>>()
   return async (destination, write) => {
     const previous = pending.get(destination)
@@ -165,15 +206,26 @@ function createPackDestinationLocker (): PackDestinationLocker {
   }
 }
 
-function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
-  const publishedName = pkg.manifest.publishConfig?.name ?? pkg.manifest.name
+function planPackOutput (
+  opts: PackOptions,
+  pkgDir: ProjectRootDir,
+  pkg: Project
+): PlannedPackOutput | undefined {
+  const targetName = publishedName(pkg.manifest)
   const publishedVersion = pkg.manifest.version
-  if (publishedName == null || publishedVersion == null) return undefined
-  return resolvePackOutput({
-    dir: pkg.rootDir,
-    out: opts.out,
-    packDestination: opts.packDestination,
-    publishedName,
-    publishedVersion,
-  }).outputPath
+  if (!targetName || !publishedVersion) return undefined
+  try {
+    const { destDir, tarballName } = resolvePackOutput({
+      dir: pkg.rootDir,
+      outputBaseDir: opts.outputBaseDir,
+      out: opts.out,
+      packDestination: opts.packDestination,
+      publishedName: targetName,
+      publishedVersion,
+    })
+    return { destDir, pkgDir, tarballName }
+  } catch (err: unknown) {
+    if (err instanceof PnpmError) return undefined
+    throw err
+  }
 }

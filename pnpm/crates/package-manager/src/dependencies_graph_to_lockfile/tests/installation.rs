@@ -538,6 +538,7 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
     use pnpm_lockfile::ImporterDepVersion;
 
     let node = DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: DepPath::from("@scope/comp1@file:comp1(react@16.0.0)".to_string()),
         resolved_package_id: "file:comp1".to_string(),
         resolve_result: std::sync::Arc::new(ResolveResult {

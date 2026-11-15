@@ -21,7 +21,6 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-assert_cmd = { workspace = true }
 clap = { workspace = true }
 home = { workspace = true }
 pipe-trait = { workspace = true }
@@ -34,6 +33,9 @@ serde-saphyr = { workspace = true }
 sysinfo = { workspace = true }
 tokio = { workspace = true }
 walkdir = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "signal"] }

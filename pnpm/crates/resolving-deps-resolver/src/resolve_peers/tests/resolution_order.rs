@@ -123,6 +123,8 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
             DirectDep { alias: alias.to_string(), node_id, id: pkg_id.into() }
         };
         let importer = |id: &str, direct: Vec<DirectDep>| ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: id.to_string(),
             direct,
             root_dir: std::path::PathBuf::from(format!("/repo/{id}")),

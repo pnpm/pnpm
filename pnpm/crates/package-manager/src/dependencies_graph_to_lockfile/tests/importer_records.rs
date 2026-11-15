@@ -124,6 +124,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         },
     };
     let node = DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: dep_path.clone(),
         resolved_package_id: "node@runtime:26.3.0".to_string(),
         resolve_result: std::sync::Arc::new(resolve_result),
@@ -298,6 +299,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
         },
     };
     let node = DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: dep_path.clone(),
         resolved_package_id: dep_path.to_string(),
         resolve_result: Arc::new(resolve_result),

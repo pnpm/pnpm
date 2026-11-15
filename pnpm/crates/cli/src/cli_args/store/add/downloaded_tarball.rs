@@ -1,7 +1,7 @@
 //! Warming the store from a package tarball on disk, such as one a
 //! sandboxed build downloaded before it lost network access.
 
-use super::{AddOne, ArchiveToAdd, Reporter};
+use super::{AddOne, ArchiveToAdd, Reporter, lockfile_entries::LockfileEntries};
 use miette::{IntoDiagnostic, WrapErr};
 use pnpm_local_spec::{is_filespec, is_tarball_filename};
 use pnpm_resolving_local_resolver::local_spec_path;
@@ -133,7 +133,9 @@ impl AddOne<'_> {
     /// registry reached through a prefix may be keyed
     /// `<name>@<prefix>:<version>`, and the tarball does not say which
     /// registry it came from, so every declared and built-in prefix gets
-    /// aliases.
+    /// aliases. Each entry of the project's lockfile that pins one of those
+    /// hashes gets its key too, which covers ids no manifest reveals, such as
+    /// a tarball URL.
     ///
     /// Each alias names a hash of the bytes that were ingested, so a lockfile
     /// entry reaches the row only when it pins exactly this tarball.
@@ -142,6 +144,7 @@ impl AddOne<'_> {
         path: &Path,
         archive: &ArchiveToAdd<'_>,
     ) -> miette::Result<()> {
+        let lockfile_entries = self.lockfile_entries().await?;
         let fetched = self
             .ingestion(archive, None)
             .ingest_local_tarball::<Reporter>(path)
@@ -155,15 +158,35 @@ impl AddOne<'_> {
             tarball.tar_integrity.as_ref(),
         ];
         let prefixes = self.store.registry_prefixes.iter().map(String::as_str);
-        for registry_id in registry_package_ids(tarball.manifest.as_ref(), prefixes) {
-            integrities
-                .iter()
-                .flatten()
-                .map(|integrity| store_index_key(&integrity.to_string(), &registry_id))
-                .filter(|alias| *alias != row_key)
-                .for_each(|alias| self.store.index_writer.queue_alias(alias, row_key.clone()));
-        }
+        let registry_aliases = registry_package_ids(tarball.manifest.as_ref(), prefixes)
+            .into_iter()
+            .flat_map(|registry_id| {
+                integrities
+                    .iter()
+                    .flatten()
+                    .map(move |integrity| store_index_key(&integrity.to_string(), &registry_id))
+            });
+        let lockfile_aliases = lockfile_entries
+            .store_index_keys(integrities.into_iter().flatten())
+            .map(str::to_owned);
+        registry_aliases
+            .chain(lockfile_aliases)
+            .filter(|alias| *alias != row_key)
+            .collect::<FxHashSet<_>>()
+            .into_iter()
+            .for_each(|alias| self.store.index_writer.queue_alias(alias, row_key.clone()));
         Ok(())
+    }
+
+    async fn lockfile_entries(&self) -> miette::Result<&LockfileEntries> {
+        self.lockfile_entries.get_or_try_init(|| async {
+            let config = self.config;
+            let project_dir = self.resolve_options.project.project_dir.clone();
+            tokio::task::spawn_blocking(move || LockfileEntries::load(config, &project_dir))
+                .await
+                .into_diagnostic()?
+        })
+        .await
     }
 }
 

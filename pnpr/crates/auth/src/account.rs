@@ -85,11 +85,6 @@ impl CredentialKind {
         }
     }
 
-    #[cfg(any(
-        feature = "backend-libsql",
-        feature = "backend-postgres",
-        feature = "backend-mysql"
-    ))]
     pub(crate) fn for_optional_hash(password_hash: Option<&str>) -> Self {
         match password_hash {
             Some(hash) => Self::from_hash(hash).expect("requires a supported password hash"),
@@ -151,7 +146,6 @@ pub(crate) fn validate_credential_pair(
     }
 }
 
-#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 pub(crate) fn decode_sql_account_state(
     user_id: &str,
     raw_status: &str,
@@ -270,13 +264,12 @@ pub enum UserRename {
 pub struct AccountStatusRevision {
     pub status: AccountStatus,
     pub revision: u64,
-    pub pending_token_revocation: bool,
 }
 
 impl AccountStatusRevision {
     #[must_use]
     pub const fn reconciled(status: AccountStatus, revision: u64) -> Self {
-        Self { status, revision, pending_token_revocation: false }
+        Self { status, revision }
     }
 }
 

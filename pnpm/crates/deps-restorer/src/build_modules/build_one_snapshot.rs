@@ -244,6 +244,7 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
     } = writes;
     if !context.cache.frozen_store
         || !context.directories.layout.enable_global_virtual_store()
+        || context.directories.pkg_roots_by_key.is_some()
         || !(has_patch || should_run_scripts)
     {
         return Ok(false);

@@ -18,7 +18,7 @@ pnpm-matcher = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-process = { path = "../process" }
 pnpm-reporter = { workspace = true }
-pnpm-resolving-git-resolver = { workspace = true }
+pnpm-resolving-git-resolver = { workspace = true, features = ["shell-emulator"] }
 
 chrono = { workspace = true }
 futures-util = { workspace = true }

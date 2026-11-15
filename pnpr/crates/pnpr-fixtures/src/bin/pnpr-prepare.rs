@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use pnpr_fixtures::build_storage_at_with_substitutions;
+use pnpr_fixtures::{build_storage_at_with_substitutions, seed_storage_registries};
 
 /// Build verdaccio-shaped registry storage from raw package fixtures, so the
 /// `pnpr` server can serve them.
@@ -19,6 +19,10 @@ struct Args {
     /// Replace an exact manifest string. May be passed more than once.
     #[arg(long = "substitute", value_parser = parse_substitution)]
     substitutions: Vec<(String, String)>,
+
+    /// Registries document to store instead of the registry-mock one.
+    #[arg(long)]
+    registries: Option<PathBuf>,
 }
 
 fn main() {
@@ -28,6 +32,11 @@ fn main() {
         .map(|(from, to)| (from.as_str(), to.as_str()))
         .collect::<Vec<_>>();
     build_storage_at_with_substitutions(&args.packages, &args.out, &substitutions);
+    if let Some(registries) = &args.registries {
+        let yaml = std::fs::read_to_string(registries)
+            .unwrap_or_else(|error| panic!("read {}: {error}", registries.display()));
+        seed_storage_registries(&args.out, &yaml);
+    }
 }
 
 fn parse_substitution(value: &str) -> Result<(String, String), String> {

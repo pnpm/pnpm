@@ -17,7 +17,7 @@ impl WorkEnv {
     /// A pnpr target builds from the same monorepo clone as a pacquet
     /// target (the `pacquet` and `pnpr` crates share one workspace), so
     /// the layout matches [`Self::pacquet_source_dir`].
-    fn pnpr_source_dir(&self, revision: &str) -> PathBuf {
+    pub(super) fn pnpr_source_dir(&self, revision: &str) -> PathBuf {
         self.bench_dir(BenchId::PnprRevision(revision))
             .join("pacquet")
     }

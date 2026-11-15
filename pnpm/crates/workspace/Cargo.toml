@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-ffi-fs = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
+pnpm-env-replace = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-local-spec = { workspace = true }
 pnpm-package-manifest = { workspace = true }

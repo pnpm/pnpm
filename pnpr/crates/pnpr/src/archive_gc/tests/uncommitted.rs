@@ -7,8 +7,8 @@ use pnpr_oci::Digest;
 use pnpr_package_name::Ecosystem;
 use pnpr_storage::{
     BlobId, Storage,
+    database::{ArtifactBlob, BlobRef},
     layout::local_archive_path,
-    metadata::{ArtifactBlob, BlobRef},
 };
 use std::{path::Path, time::Duration};
 

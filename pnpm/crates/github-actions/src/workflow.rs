@@ -1,6 +1,6 @@
 use super::{
     ActionReference, Component, Document, HashSet, Path, PathBuf, QueryError, Range, Route, Value,
-    VecDeque, fs, parse_version,
+    VecDeque, fs, parse_comment_version,
 };
 
 pub(super) async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
@@ -108,10 +108,7 @@ fn action_reference(
     let (Some(owner), Some(repository)) = (parts.next(), parts.next()) else {
         return None;
     };
-    let comment_version = comment
-        .and_then(|comment| comment.split_whitespace().next())
-        .filter(|candidate| parse_version(candidate).is_some())
-        .map(str::to_string);
+    let comment_version = comment_version_token(comment);
     Some(ActionReference {
         file: real_file.to_path_buf(),
         name: name.to_string(),
@@ -165,6 +162,13 @@ async fn existing_file(path: &Path) -> miette::Result<bool> {
     }
 }
 
+pub(super) fn comment_version_token(comment: Option<&str>) -> Option<String> {
+    comment
+        .and_then(|comment| comment.split_whitespace().next())
+        .filter(|candidate| parse_comment_version(candidate).is_some())
+        .map(str::to_string)
+}
+
 pub(super) fn split_uses_value(value: &str) -> (&str, Option<&str>) {
     let value = value.trim();
     if let Some(quote) = value
@@ -180,9 +184,21 @@ pub(super) fn split_uses_value(value: &str) -> (&str, Option<&str>) {
             .map(str::trim);
         return (&value[1..end], comment);
     }
-    value
-        .split_once(" #")
-        .map_or((value, None), |(value, comment)| (value, Some(comment.trim())))
+    match unquoted_comment_offset(value) {
+        Some(offset) => (value[..offset].trim_end(), Some(value[offset + 1..].trim())),
+        None => (value, None),
+    }
+}
+
+fn unquoted_comment_offset(value: &str) -> Option<usize> {
+    let bytes = value.as_bytes();
+    bytes
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find_map(|(index, &byte)| {
+            (byte == b'#' && bytes[index - 1].is_ascii_whitespace()).then_some(index)
+        })
 }
 
 struct UsesValue<'a> {

@@ -18,6 +18,7 @@ use crate::{
     SaveLockfileError, SnapshotEntry, SymlinkedLockfile, declares_next_format,
     extract_main_document,
     git_merge_file::{ParsedWantedFile, parse_wanted_file},
+    load_lockfile::yaml_parse_options,
     merge_env_lockfile_changes,
     save_lockfile::lockfile_write_target,
     serialize_yaml,
@@ -139,8 +140,11 @@ impl EnvLockfile {
         let mut env = if declares_next_format(env_doc) {
             next::from_text(env_doc, path)?
         } else {
-            serde_saphyr::from_str::<EnvLockfile>(env_doc)
-                .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
+            serde_saphyr::from_str_with_options::<EnvLockfile>(
+                env_doc,
+                yaml_parse_options(env_doc.len()),
+            )
+            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
         };
         env.root_importer_mut();
         Ok(Some(env))

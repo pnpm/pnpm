@@ -81,7 +81,7 @@ struct Workspace<'a> {
 /// discovers and resolves every importer in one pass, producing a lockfile
 /// keyed by the same POSIX importer dirs the client sent.
 pub async fn resolve(
-    config: &'static Config,
+    config: &Config,
     client: &Arc<ThrottledClient>,
     request: &ResolveRequest,
     auth_headers: &Arc<AuthHeaders>,

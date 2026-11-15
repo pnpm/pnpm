@@ -3,8 +3,8 @@
 
 use crate::{
     HostedBackend, Result, Storage,
+    database::sql::{StoreBinding, StoreClaim},
     layout::{LAYOUT_FILE, LAYOUT_VERSION, LayoutMarker, new_store_id},
-    metadata::sql::{StoreBinding, StoreClaim},
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
@@ -70,7 +70,7 @@ impl Storage {
     }
 
     /// Check the hosted store's layout and database binding before anything
-    /// writes it, writing the marker and binding the metadata database when
+    /// writes it, writing the marker and binding the database when
     /// both hold no packages yet.
     ///
     /// # Errors
@@ -101,14 +101,14 @@ impl Storage {
     }
 
     /// Check that this pnpr can read the hosted store and that its `store_id`
-    /// matches the metadata database, without writing to either. Returns the
+    /// matches the database, without writing to either. Returns the
     /// layout, which is [`HostedLayout::Current`] with a matching `store_id`
     /// or an empty unmarked store with an unbound database.
     ///
     /// # Errors
     ///
     /// A store written by a newer pnpr, one in an earlier layout, or a store
-    /// and metadata database whose `store_id`s differ or are present on only
+    /// and database whose `store_id`s differ or are present on only
     /// one side.
     pub async fn check_hosted_layout(&self) -> Result<HostedLayout> {
         let layout = self.hosted_layout().await?;
@@ -117,7 +117,7 @@ impl Storage {
     }
 
     /// Prepare the target store of `migrate-storage` to receive the archives of
-    /// `source_layout`, which was checked against the shared metadata database.
+    /// `source_layout`, which was checked against the shared database.
     ///
     /// # Errors
     ///
@@ -137,7 +137,7 @@ impl Storage {
             }
             HostedLayout::Current { store_id: None } => Err(RegistryError::StorageUnavailable {
                 reason: format!(
-                    "the metadata database is bound to hosted store {store_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
+                    "the database is bound to hosted store {store_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
                 ),
             }),
             HostedLayout::Unmarked { has_data: true } => Err(unmarked_with_data_error()),
@@ -149,7 +149,7 @@ impl Storage {
     }
 
     /// Mark the hosted store as being in [`LAYOUT_VERSION`] and bind the
-    /// metadata database to its `store_id`. Only for an empty store and
+    /// database to its `store_id`. Only for an empty store and
     /// database.
     pub async fn write_hosted_layout_marker(&self) -> Result<()> {
         self.ensure_hosted_layout().await
@@ -226,7 +226,7 @@ impl Storage {
             Some(current_id) => Err(store_mismatch_error(&current_id, store_id)),
             None => Err(RegistryError::StorageUnavailable {
                 reason: format!(
-                    "the metadata database is bound to hosted store {store_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
+                    "the database is bound to hosted store {store_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
                 ),
             }),
         }
@@ -357,7 +357,7 @@ fn verify_store_binding(layout: HostedLayout, binding: StoreBinding) -> Result<H
 fn missing_marker_id_error(binding: StoreBinding) -> RegistryError {
     let reason = match binding {
         StoreBinding::Bound(db_id) | StoreBinding::Pending(db_id) => format!(
-            "the metadata database is bound to hosted store {db_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
+            "the database is bound to hosted store {db_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
         ),
         StoreBinding::Unmarked { .. } => {
             format!("the hosted store's {LAYOUT_FILE} has no store_id")
@@ -371,7 +371,7 @@ fn verify_unmarked_store(layout: HostedLayout, binding: StoreBinding) -> Result<
         StoreBinding::Bound(db_id) | StoreBinding::Pending(db_id) => {
             Err(RegistryError::StorageUnavailable {
                 reason: format!(
-                    "the metadata database is bound to hosted store {db_id}, but the hosted store has no {LAYOUT_FILE}",
+                    "the database is bound to hosted store {db_id}, but the hosted store has no {LAYOUT_FILE}",
                 ),
             })
         }
@@ -383,9 +383,7 @@ fn verify_unmarked_store(layout: HostedLayout, binding: StoreBinding) -> Result<
 fn pending_binding_error(store_id: &str, pending_nonce: &str) -> RegistryError {
     if marker_matches_pending_claim(store_id, pending_nonce) {
         return RegistryError::StorageUnavailable {
-            reason: format!(
-                "the metadata database has an unconfirmed binding to hosted store {store_id}",
-            ),
+            reason: format!("the database has an unconfirmed binding to hosted store {store_id}"),
         };
     }
     store_mismatch_error(store_id, pending_nonce)
@@ -394,21 +392,23 @@ fn pending_binding_error(store_id: &str, pending_nonce: &str) -> RegistryError {
 fn unmarked_database_error(store_id: &str) -> RegistryError {
     RegistryError::StorageUnavailable {
         reason: format!(
-            "the hosted store's {LAYOUT_FILE} is bound to store {store_id}, but the metadata database has no store_id in hosted_store",
+            "the hosted store's {LAYOUT_FILE} is bound to store {store_id}, but the database has no store_id in hosted_store",
         ),
     }
 }
 
 fn unmarked_database_with_data_error() -> RegistryError {
     RegistryError::StorageUnavailable {
-        reason: "the metadata database has no store_id in hosted_store and holds data from an earlier schema".to_string(),
+        reason:
+            "the database has no store_id in hosted_store and holds data from an earlier schema"
+                .to_string(),
     }
 }
 
 fn store_mismatch_error(store_id: &str, db_id: &str) -> RegistryError {
     RegistryError::StorageUnavailable {
         reason: format!(
-            "the hosted store's {LAYOUT_FILE} is bound to store {store_id}, but the metadata database is bound to store {db_id}",
+            "the hosted store's {LAYOUT_FILE} is bound to store {store_id}, but the database is bound to store {db_id}",
         ),
     }
 }

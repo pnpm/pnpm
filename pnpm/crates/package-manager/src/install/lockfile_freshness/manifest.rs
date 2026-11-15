@@ -22,7 +22,7 @@ pub(crate) struct ImporterSatisfactionCheck<'a> {
     pub(crate) config: &'a Config,
     pub(crate) workspace: WorkspaceProjects<'a>,
     pub(crate) optional_exclusions: OptionalDependencyExclusions<'a>,
-    pub(crate) parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
+    pub(crate) overrider: Option<&'a crate::VersionsOverrider>,
 }
 
 /// The workspace projects an importer's dependencies may point at.
@@ -215,7 +215,7 @@ pub(super) fn normalized_freshness_manifest<'a>(
     check: &'a ImporterSatisfactionCheck<'a>,
     importer: &pnpm_lockfile::ProjectSnapshot,
 ) -> std::borrow::Cow<'a, PackageManifest> {
-    if check.parsed_overrides.is_none() && !check.config.exclude_links_from_lockfile {
+    if check.overrider.is_none() && !check.config.exclude_links_from_lockfile {
         return std::borrow::Cow::Borrowed(check.manifest);
     }
     let project_dir = check.manifest
@@ -223,13 +223,8 @@ pub(super) fn normalized_freshness_manifest<'a>(
         .parent()
         .unwrap_or_else(|| Path::new("."));
     let mut cloned = check.manifest.clone();
-    if let Some(parsed) = check.parsed_overrides {
-        crate::VersionsOverrider::new(
-            parsed,
-            check.config.root_project_manifest_dir(check.lockfile_dir),
-        )
-        .with_catalogs(check.workspace.catalogs)
-        .apply(&mut cloned, Some(project_dir));
+    if let Some(overrider) = check.overrider {
+        overrider.apply(&mut cloned, Some(project_dir));
     }
     if check.config.exclude_links_from_lockfile {
         let workspace_links = check.workspace.packages.map(|packages| crate::WorkspaceLinks {

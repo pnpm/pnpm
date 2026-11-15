@@ -398,7 +398,7 @@ test('update --changeset generates no changeset when a catalog entry re-resolves
   expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('No changeset was generated'))
 })
 
-test('update --changeset warns and skips generation when .changeset/config.json is missing', async () => {
+test('update --changeset warns and skips generation when neither .changeset nor versioning is configured', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
 
   prepare({
@@ -422,7 +422,8 @@ test('update --changeset warns and skips generation when .changeset/config.json 
   })
 
   expect(loadJsonFileSync('package.json')).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '^100.1.0')
-  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining(path.join('.changeset', 'config.json')))
+  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('.changeset'))
+  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('versioning'))
   expect(fs.existsSync('.changeset')).toBe(false)
 })
 
@@ -572,6 +573,245 @@ test('update --changeset generates a changeset for a single package outside a wo
   expect(changesetFiles).toHaveLength(1)
   expect(fs.readFileSync(path.join('.changeset', changesetFiles[0]), 'utf8')).toBe(`---
 "project": patch
+---
+
+Update dependencies.
+`)
+})
+
+test('update --changeset generates without .changeset/config.json when .changeset directory exists', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+  fs.mkdirSync('.changeset', { recursive: true })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    changeset: true,
+    dir: process.cwd(),
+    latest: true,
+  })
+
+  const changesetFiles = readGeneratedChangesets()
+  expect(changesetFiles).toHaveLength(1)
+  expect(fs.readFileSync(path.join('.changeset', changesetFiles[0]), 'utf8')).toBe(`---
+"project": patch
+---
+
+Update dependencies.
+`)
+})
+
+test('update --changeset creates .changeset directory when versioning is configured in pnpm-workspace.yaml', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+    {
+      name: 'non-semver',
+      version: 'not-semver',
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+  ])
+  fs.mkdirSync('versionless', { recursive: true })
+  fs.writeFileSync(path.join('versionless', 'package.json'), JSON.stringify({
+    name: 'versionless',
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  }))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    versioning: {},
+  })
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  expect(fs.existsSync('.changeset')).toBe(false)
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    changeset: true,
+    dir: process.cwd(),
+    latest: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  const changesetFiles = readGeneratedChangesets()
+  expect(changesetFiles).toHaveLength(1)
+  expect(fs.readFileSync(path.join('.changeset', changesetFiles[0]), 'utf8')).toBe(`---
+"project-1": patch
+---
+
+Update dependencies.
+`)
+})
+
+test('update --changeset honors versioning.ignore with and without .changeset/config.json', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+    {
+      name: 'ignored-by-name',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+    {
+      location: 'ignored-by-dir',
+      package: {
+        name: 'ignored-pkg-in-dir',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/foo': '^100.0.0',
+        },
+      },
+    },
+    {
+      location: 'packages/ignored-by-win-dir',
+      package: {
+        name: 'ignored-pkg-in-win-dir',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/foo': '^100.0.0',
+        },
+      },
+    },
+    {
+      name: 'ignored-by-config',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    versioning: {
+      ignore: ['ignored-by-name', './ignored-by-dir', './packages\\ignored-by-win-dir'],
+    },
+  })
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    changeset: true,
+    dir: process.cwd(),
+    latest: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  let changesetFiles = readGeneratedChangesets()
+  expect(changesetFiles).toHaveLength(1)
+  expect(fs.readFileSync(path.join('.changeset', changesetFiles[0]), 'utf8')).toBe(`---
+"ignored-by-config": patch
+"project-1": patch
+---
+
+Update dependencies.
+`)
+
+  fs.unlinkSync(path.join('.changeset', changesetFiles[0]))
+  writeChangesetConfig({ ignore: ['ignored-by-config'] })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  for (const [dirName, pkgName] of [
+    ['project-1', 'project-1'],
+    ['ignored-by-name', 'ignored-by-name'],
+    ['ignored-by-dir', 'ignored-pkg-in-dir'],
+    ['packages/ignored-by-win-dir', 'ignored-pkg-in-win-dir'],
+    ['ignored-by-config', 'ignored-by-config'],
+  ] as const) {
+    fs.writeFileSync(path.join(dirName, 'package.json'), JSON.stringify({
+      name: pkgName,
+      version: '1.0.0',
+      dependencies: { '@pnpm.e2e/foo': '^100.0.0' },
+    }, null, 2))
+  }
+  const refreshed = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects: refreshed.allProjects,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph: refreshed.selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects: refreshed.allProjects,
+    changeset: true,
+    dir: process.cwd(),
+    latest: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph: refreshed.selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  changesetFiles = readGeneratedChangesets()
+  expect(changesetFiles).toHaveLength(1)
+  expect(fs.readFileSync(path.join('.changeset', changesetFiles[0]), 'utf8')).toBe(`---
+"project-1": patch
 ---
 
 Update dependencies.

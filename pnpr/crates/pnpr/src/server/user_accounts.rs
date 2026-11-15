@@ -167,21 +167,41 @@ pub(super) async fn add_user(
                 err,
                 RegistryError::Unauthenticated { .. } | RegistryError::Forbidden { .. },
             ) {
-                state.inner.identity.login_rate_limiter.record_failure(client_ip, name);
+                record_login_failure(state, client_ip, crate::audit::Actor::NONE, name);
             }
             return err.into_response();
         }
     };
+    let actor = crate::audit::Actor { id: &id, name: &username };
     if matches!(outcome, UpsertOutcome::Created) {
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "user.register",
-            actor = %username,
+        crate::audit!(
+            actor,
+            "user.register",
             user = %username,
+            user_id = %id,
             "user account registered",
         );
     }
+    crate::audit!(actor, "auth.sign_in", method = "password", "signed in");
     user_upsert_response(outcome, &username, &id, &token)
+}
+
+/// Count a refused password login of `user` against the login rate limit, and
+/// audit it.
+pub(super) fn record_login_failure(
+    state: &AppState,
+    client_ip: Option<std::net::IpAddr>,
+    actor: crate::audit::Actor<'_>,
+    user: &str,
+) {
+    state.inner.identity.login_rate_limiter.record_failure(client_ip, user);
+    crate::audit!(
+        actor,
+        "auth.login_failed",
+        user = %user,
+        method = "password",
+        "login failed",
+    );
 }
 
 fn user_upsert_response(outcome: UpsertOutcome, username: &str, id: &str, token: &str) -> Response {

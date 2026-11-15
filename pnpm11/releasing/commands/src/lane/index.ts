@@ -1,11 +1,11 @@
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { indexProjectRefs, toProjectDir } from '@pnpm/releasing.versioning'
+import { indexProjectRefs, toProjectDir, validateVersioningLanes } from '@pnpm/releasing.versioning'
 import type { Project, ProjectsGraph, VersioningSettings } from '@pnpm/types'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { renderHelp } from 'render-help'
 
-import { getReleasableProjects } from '../change/index.js'
+import { getReleasableProjects, toWorkspaceProjects } from '../change/index.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}
@@ -81,7 +81,17 @@ export async function handler (opts: LaneCommandOptions, params: string[]): Prom
     ? moveToMainLane(move)
     : moveToPrereleaseLane(move, laneName)
 
-  await writeLanes(workspaceDir, opts.versioning, lanes)
+  const nextVersioning = buildNextVersioning(opts.versioning, lanes)
+  validateVersioningLanes({
+    workspaceDir,
+    projects: toWorkspaceProjects(opts.allProjects ?? []),
+    versioning: nextVersioning,
+  })
+  await updateWorkspaceManifest(workspaceDir, {
+    updatedFields: {
+      versioning: nextVersioning,
+    },
+  })
   return output
 }
 
@@ -165,18 +175,14 @@ function validateLaneName (laneName: string): void {
   }
 }
 
-async function writeLanes (workspaceDir: string, currentVersioning: VersioningSettings | undefined, lanes: Record<string, string>): Promise<void> {
+function buildNextVersioning (currentVersioning: VersioningSettings | undefined, lanes: Record<string, string>): VersioningSettings | undefined {
   const versioning: VersioningSettings = { ...currentVersioning }
   if (Object.keys(lanes).length > 0) {
     versioning.lanes = lanes
   } else {
     delete versioning.lanes
   }
-  await updateWorkspaceManifest(workspaceDir, {
-    updatedFields: {
-      versioning: Object.keys(versioning).length > 0 ? versioning : undefined,
-    },
-  })
+  return Object.keys(versioning).length > 0 ? versioning : undefined
 }
 
 /**

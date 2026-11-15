@@ -1,6 +1,7 @@
 use super::{
     AddOptions, AddOwned,
-    manifest::{PickedVersion, catalog_version_requests, merge_catalogs},
+    manifest::{catalog_version_requests, merge_catalogs},
+    prepared_manifest::PickedVersion,
 };
 use crate::{
     ImporterUpdateSeedPolicy, Install, PolicyExcludes, ProjectMutation, UpdateSeedPolicy,
@@ -13,7 +14,7 @@ use pnpm_lockfile::{Lockfile, PkgName, PkgVerPeer, ProjectSnapshot};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use pnpm_resolving_resolver_base::PreferredVersions;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 /// Scoped to this project's importer: a sibling that declares the same package
 /// keeps its pin, so its resolution stands.
@@ -56,18 +57,26 @@ pub(super) fn selected_add_seed(
     owned: &AddOwned,
     manifest: &PackageManifest,
     selected: (&[pnpm_workspace::Project], &[usize]),
-    picked_versions: &[Vec<PickedVersion>],
+    prepared: (&[Vec<PickedVersion>], &[BTreeSet<String>]),
     catalogs_override: Option<Catalogs>,
     catalogs: &Catalogs,
 ) -> AddSeed {
     let (projects, selected_indices) = selected;
+    let (picked_versions, requested_aliases) = prepared;
     let manifest_dir = manifest
         .path()
         .parent()
         .expect("manifest path always has a parent dir");
     let importer_root = add.config.lockfile_dir_for(manifest_dir);
-    let mut seed_policies = BTreeMap::new();
-    let mut preferred_versions_override = PreferredVersions::new();
+    let mut seed = AddSeed {
+        requested_direct_dependencies: selected_requests(
+            selected,
+            importer_root,
+            requested_aliases,
+        ),
+        catalogs_override,
+        ..Default::default()
+    };
     for (&index, picked) in selected_indices.iter().zip(picked_versions) {
         let (mut names, mut preferred) = catalog_version_requests(
             add.package_names,
@@ -83,19 +92,14 @@ pub(super) fn selected_add_seed(
             (&mut names, &mut preferred),
         );
         if !names.is_empty() {
-            seed_policies.insert(
+            seed.seed_policies.insert(
                 pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir),
                 ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
             );
         }
-        for (name, selectors) in preferred {
-            preferred_versions_override
-                .entry(name)
-                .or_default()
-                .extend(selectors);
-        }
+        seed.extend_preferences(preferred);
     }
-    AddSeed { seed_policies, preferred_versions_override, catalogs_override, workspace: None }
+    seed
 }
 /// The seed of the install a single-project add runs, and the workspace
 /// directory the add wrote its catalogs to.
@@ -124,6 +128,13 @@ pub(super) fn single_add_seed(
         (&mut dropped_pins, &mut preferred_versions_override),
     );
     let seed = AddSeed {
+        requested_direct_dependencies: BTreeMap::from([(
+            pnpm_workspace::importer_id_from_root_dir(
+                add.config.lockfile_dir_for(manifest_dir),
+                manifest_dir,
+            ),
+            prepared.requested_aliases,
+        )]),
         seed_policies: project_seed_policy(add.config, manifest, dropped_pins),
         preferred_versions_override,
         catalogs_override: merged_catalogs_override(
@@ -240,13 +251,26 @@ pub(super) fn same_build(locked: &Version, picked: &Version) -> bool {
 /// What the install resolves from: the importers whose catalog pins are
 /// withheld, the versions the add named, and the catalogs as it rewrote
 /// them.
+#[derive(Default)]
 pub(super) struct AddSeed {
+    pub(super) requested_direct_dependencies: BTreeMap<String, BTreeSet<String>>,
     pub(super) seed_policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
     pub(super) preferred_versions_override: PreferredVersions,
     pub(super) catalogs_override: Option<Catalogs>,
     /// `None` for a selected add, whose selection carries the projects.
     pub(super) workspace: Option<crate::DiscoveredWorkspace>,
 }
+impl AddSeed {
+    fn extend_preferences(&mut self, preferred: PreferredVersions) {
+        for (name, selectors) in preferred {
+            self.preferred_versions_override
+                .entry(name)
+                .or_default()
+                .extend(selectors);
+        }
+    }
+}
+
 /// `dependency_groups` names the manifest group the new
 /// package is saved into ([`prepare_manifest`](crate::add::manifest::prepare_manifest)), not an
 /// include filter: unless `included_groups` narrows it, and like
@@ -269,7 +293,9 @@ pub(super) fn add_install<'i>(
     seed: AddSeed,
 ) -> Install<'i, Vec<DependencyGroup>> {
     let named_a_version = !seed.seed_policies.is_empty();
-    let reresolves = named_a_version || !seed.preferred_versions_override.is_empty();
+    let reresolves = named_a_version
+        || !seed.preferred_versions_override.is_empty()
+        || requests_peer_provider(add.lockfile.document, &seed.requested_direct_dependencies);
     let included_groups = owned.included_groups.unwrap_or_else(|| {
         included_direct_groups(add.config.optional).collect()
     });
@@ -295,7 +321,11 @@ pub(super) fn add_install<'i>(
     } else {
         UpdateSeedPolicy::KeepAll
     };
-    install.resolution.preferred_versions_override = Some(seed.preferred_versions_override.into());
+    let mut overrides: crate::PreferredVersionsOverride = seed
+        .preferred_versions_override
+        .into();
+    overrides.requested_direct_dependencies = seed.requested_direct_dependencies;
+    install.resolution.preferred_versions_override = Some(overrides);
     install.context.emit_initial_manifest = false;
     install.context.lockfile_path = add.lockfile.path;
     install.projects.supported_architectures = owned.supported_architectures;
@@ -309,5 +339,42 @@ pub(super) fn unversioned_targets(names: HashSet<String>) -> UpdateTargets {
     names
         .into_iter()
         .map(|name| (name, None))
+        .collect()
+}
+
+fn requests_peer_provider(
+    lockfile: Option<&Lockfile>,
+    requests: &BTreeMap<String, BTreeSet<String>>,
+) -> bool {
+    let names: HashSet<_> = requests.values().flatten().collect();
+    if names.is_empty() {
+        return false;
+    }
+    lockfile
+        .and_then(|lockfile| lockfile.packages.as_ref())
+        .into_iter()
+        .flatten()
+        .any(|(_, package)| {
+            package.peer_dependencies
+                .iter()
+                .flatten()
+                .any(|(name, _)| names.contains(name))
+        })
+}
+
+fn selected_requests(
+    (projects, indices): (&[pnpm_workspace::Project], &[usize]),
+    importer_root: &std::path::Path,
+    aliases: &[BTreeSet<String>],
+) -> BTreeMap<String, BTreeSet<String>> {
+    indices
+        .iter()
+        .zip(aliases)
+        .map(|(&index, aliases)| {
+            (
+                pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir),
+                aliases.clone(),
+            )
+        })
         .collect()
 }

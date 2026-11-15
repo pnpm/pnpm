@@ -40,6 +40,25 @@ async fn reads_only_declared_workspace_members() {
 }
 
 #[tokio::test]
+async fn a_virtual_workspace_root_ignores_its_requirements_file() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['app']\nexclude = ['.']\n",
+    )
+    .unwrap();
+    fs::write(root.path().join("requirements.txt"), "ruff==0.14.13\n").unwrap();
+    let member = root.path().join("app");
+    fs::create_dir_all(&member).unwrap();
+    fs::write(member.join("pyproject.toml"), "[project]\nname = 'app'\nversion = '1.0'\n").unwrap();
+    let manifests = vec![root.path().join("pyproject.toml"), member.join("pyproject.toml")];
+
+    let discovery = discover(&Config::default(), root.path(), &manifests).await.unwrap();
+
+    assert_eq!(discovery.project_roots().collect::<Vec<_>>(), [member]);
+}
+
+#[tokio::test]
 async fn skips_conventional_sample_and_fixture_directories_by_default() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("packages/app");

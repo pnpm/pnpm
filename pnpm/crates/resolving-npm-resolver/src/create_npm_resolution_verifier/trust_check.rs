@@ -6,7 +6,7 @@ use super::{
 
 impl NpmResolutionVerifier {
     /// Every unconditional binding must have been checked under the same
-    /// named-registry routing map before a cached verification can be trusted.
+    /// registry routing maps before a cached verification can be trusted.
     pub(super) fn past_check_has_structural_rules(
         &self,
         cached_policy: &serde_json::Map<String, JsonValue>,
@@ -23,13 +23,9 @@ impl NpmResolutionVerifier {
             return false;
         }
 
-        if cached_policy.get("namedRegistriesRouting")
-            != self.policy_snapshot.get("namedRegistriesRouting")
-        {
-            return false;
-        }
-
-        true
+        ["namedRegistriesRouting", "registriesRouting", "registryOptions"]
+            .into_iter()
+            .all(|key| cached_policy.get(key) == self.policy_snapshot.get(key))
     }
 
     /// Run the resolver-time `failIfTrustDowngraded` check against the
@@ -64,6 +60,16 @@ impl NpmResolutionVerifier {
 }
 
 impl super::TrustCheck {
+    pub(super) fn new(opts: super::VerificationTrustOptions) -> Self {
+        let sorted_excludes = super::policy_snapshot::sorted_unique(&opts.exclude_patterns);
+        Self {
+            policy: opts.policy,
+            exclude: opts.exclude,
+            ignore_after: opts.ignore_after,
+            sorted_excludes,
+        }
+    }
+
     pub(super) fn trust_check_active(&self) -> bool {
         matches!(self.policy, Some(TrustPolicy::NoDowngrade))
     }

@@ -7,7 +7,7 @@ Deploy a package from a workspace. During deployment, the files of the deployed 
 
 :::note
 
-Since v11.26.0, `pnpm deploy` no longer requires [`injectWorkspacePackages`](../workspaces.md#injectworkspacepackages). A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile. The peer dependencies it declares are bound the way an injected install binds them: to the version its parent provides. If the parent does not depend on the peer, pnpm looks further up, to the deployed project. A peer that no ancestor provides is bound to the deployed graph's own resolution.
+Since v11.26.0, `pnpm deploy` no longer requires [`injectWorkspacePackages`](../workspaces.md#injectworkspacepackages). A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile. The peer dependencies it declares are bound the way an injected install binds them: to the version its parent provides. If the parent does not depend on the peer, pnpm looks further up, to the deployed project. A peer that no ancestor provides is bound to the deployed graph's own resolution. This includes optional peers declared only in [`peerDependenciesMeta`](../package_json.md#peerdependenciesmeta).
 
 The binding is ambiguous when the ancestors provide more than one package or version, or when no ancestor provides the peer and the deployed graph holds more than one version. The deploy then fails with `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER`, naming the package, the peer, and the competing resolutions. Pin the peer to one version with an [`overrides`](../settings/dependency-resolution.md#overrides) entry, or turn `injectWorkspacePackages` on, which is the setting that decides between the candidates.
 

@@ -4,14 +4,20 @@ import path from 'node:path'
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { packageManager } from '@pnpm/cli.meta'
 import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
-import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
+import {
+  anchorRawLockfileDir,
+  type CliOptions,
+  type Config,
+  type ConfigContext,
+  getConfig as _getConfig,
+} from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { type ConfigDepsInstallMode, readConfigDependencyLockfile, resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { ConfigDependencies } from '@pnpm/types'
+import { type ConfigDependencies, isPlainObject } from '@pnpm/types'
 import { rebaseProjectSelector } from '@pnpm/workspace.projects-filter'
 import camelcase from 'camelcase'
 import { equals } from 'ramda'
@@ -180,6 +186,7 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
     filter: cloneCliSetting(config.filter),
     filterProd: cloneCliSetting(config.filterProd),
   }
+  const lockfileDirBeforeHooks = config.lockfileDir
   const cliSettings = pickCliSettings(config, context.cliOptions)
   for (const updateConfig of context.hooks?.updateConfig ?? []) {
     const updateConfigResult = updateConfig(config)
@@ -188,6 +195,11 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
   applyRegistryRoutingChanges(config, routingBeforeHooks)
   rebaseHookFilters(config, context, filtersBeforeHooks)
   restoreCliSettings(config, cliSettings)
+  if (config.lockfileDir !== lockfileDirBeforeHooks) {
+    context.rawLockfileDir = typeof config.lockfileDir === 'string'
+      ? anchorRawLockfileDir(config.workspaceDir ?? config.dir, config.lockfileDir)
+      : undefined
+  }
   if (DERIVED_CONFIG_INPUTS.some((setting) => cliSettings.settings.has(setting))) {
     applyDerivedConfig(config)
   }
@@ -348,14 +360,6 @@ function readHookRegistryRoutes (routes: unknown): Record<string, string> {
     result[scope] = registry
   }
   return result
-}
-
-function isPlainObject (value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return false
-  }
-  const proto = Object.getPrototypeOf(value)
-  return proto === null || proto === Object.prototype
 }
 
 function invalidHookResult (key: string): PnpmError {

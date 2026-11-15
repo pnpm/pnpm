@@ -198,11 +198,11 @@ fn fix_lockfile_flag_parses() {
 #[test]
 fn frozen_store_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(!parsed.args.materialization.frozen_store, "flag absent → false");
+    assert!(!parsed.args.materialization.store.frozen_store, "flag absent → false");
 
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--frozen-store"])
         .expect("parses --frozen-store");
-    assert!(parsed.args.materialization.frozen_store, "flag present → true");
+    assert!(parsed.args.materialization.store.frozen_store, "flag present → true");
 }
 
 #[test]

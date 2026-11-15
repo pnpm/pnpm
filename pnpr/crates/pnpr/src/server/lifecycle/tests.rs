@@ -1,4 +1,8 @@
-use super::{Config, Storage, load_startup_auth, sweep_abandoned_archive_temps};
+use super::{
+    Config, StartupGraph, Storage, adopt_startup_graph, current_routing_of, load_startup_auth,
+    load_stored_graph, spawn_periodic_archive_temp_sweep, state_and_router,
+    sweep_abandoned_archive_temps, sweep_current_archive_temps,
+};
 use object_store::memory::InMemory;
 use pnpr_auth::TokenBackend;
 use pnpr_config::HostedStoreConfig;
@@ -28,7 +32,7 @@ registries:
         cache = tmp.path().join("cache").display(),
     );
     std::fs::write(&config_path, yaml).unwrap();
-    let mut config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let mut config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     config.storage.hosted_backend =
         HostedStoreConfig::ObjectStore { store: Arc::new(InMemory::new()), prefix: String::new() };
     config
@@ -69,6 +73,8 @@ async fn startup_and_periodic_sweeps_reclaim_s3_staging_files_past_request_timeo
     assert!(!stale_path.exists(), "startup sweep must remove staging files past request_timeout");
     assert!(fresh_path.exists(), "startup sweep must keep staging files within request_timeout");
     assert!(active_path.exists(), "startup sweep must keep active in-process slots");
+    let (state, _) = state_and_router(config, pnpr_auth::AuthState::in_memory(), None).unwrap();
+    spawn_periodic_archive_temp_sweep(&state.inner);
 
     tokio::task::yield_now().await;
     set_age(&fresh_path, Duration::from_mins(2));
@@ -108,7 +114,7 @@ registries:
         cache = tmp.path().join("cache").display(),
     );
     std::fs::write(&config_path, yaml).unwrap();
-    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     let storage = Storage::from_config(&config.storage).unwrap().for_hosted("acme", Ecosystem::Npm);
     let name = CanonicalPackageName::parse("@acme/pkg", Ecosystem::Npm).unwrap();
 
@@ -124,16 +130,21 @@ registries:
 
 #[tokio::test(start_paused = true)]
 async fn shutdown_deadline_starts_when_shutdown_is_requested() {
+    let drain_timeout = Duration::from_secs(12);
     let (send_shutdown, shutdown) = tokio::sync::oneshot::channel::<()>();
-    let serving = tokio::spawn(super::drain_until_deadline(std::future::pending(), async {
-        shutdown.await.unwrap();
-    }));
+    let serving = tokio::spawn(super::drain_until_deadline(
+        std::future::pending(),
+        async {
+            shutdown.await.unwrap();
+        },
+        drain_timeout,
+    ));
     tokio::time::advance(Duration::from_secs(120)).await;
     assert!(!serving.is_finished());
     send_shutdown.send(()).unwrap();
     tokio::task::yield_now().await;
     tokio::time::advance(
-        super::SHUTDOWN_DRAIN_TIMEOUT
+        drain_timeout
             .checked_sub(Duration::from_secs(1))
             .unwrap(),
     )
@@ -152,10 +163,128 @@ async fn shutdown_drain_returns_when_requests_finish() {
             Ok(())
         },
         std::future::ready(()),
+        pnpr_config::HttpConfig::DEFAULT_SHUTDOWN_TIMEOUT,
     )
     .await
     .unwrap();
     assert_eq!(start.elapsed(), Duration::from_secs(1));
+}
+
+#[tokio::test]
+async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout() {
+    use axum::{body::Body, http::Request, http::StatusCode};
+    use tower::ServiceExt as _;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = s3_config(&tmp);
+    config.http.shutdown_timeout = Duration::from_millis(80);
+    let auth = load_startup_auth(&config, StartupGraph::Supplied).await.unwrap();
+    let (state, app) = super::state_and_router(config, auth, None).unwrap();
+    let probe_app = app.clone();
+
+    let (inflight_started_tx, mut inflight_started_rx) = tokio::sync::watch::channel(false);
+    let (_hold_tx, hold_rx) = tokio::sync::watch::channel(false);
+    let inflight_started_tx = std::sync::Arc::new(inflight_started_tx);
+    let wrapped = app.route(
+        "/-/test-slow",
+        axum::routing::get(move || {
+            let inflight_started_tx = std::sync::Arc::clone(&inflight_started_tx);
+            let mut hold_rx = hold_rx.clone();
+            async move {
+                let _ = inflight_started_tx.send(true);
+                let _ = hold_rx.changed().await;
+                StatusCode::OK
+            }
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let mut serve_task = tokio::spawn(super::serve_until_shutdown_with(
+        state.clone(),
+        listener,
+        wrapped,
+        None,
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+
+    let ready_before = probe_app
+        .clone()
+        .oneshot(
+            Request::get("/-/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ready_before.status(), StatusCode::OK);
+
+    let _slow_client = tokio::spawn(async move {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream
+            .write_all(b"GET /-/test-slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        let mut buf = Vec::new();
+        let _ = stream.read_to_end(&mut buf).await;
+    });
+    inflight_started_rx.changed().await.unwrap();
+
+    shutdown_tx.send(()).unwrap();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+    while !state.is_shutting_down() {
+        assert!(tokio::time::Instant::now() < deadline, "shutdown state did not flip");
+        tokio::task::yield_now().await;
+    }
+    assert!(!serve_task.is_finished(), "server must still be draining in-flight request");
+    assert_shutting_down_routes(&probe_app).await;
+
+    tokio::time::timeout(Duration::from_secs(2), &mut serve_task).await
+        .expect("server must stop once configured shutdown_timeout expires")
+        .unwrap()
+        .unwrap();
+}
+
+async fn assert_shutting_down_routes(probe_app: &axum::Router) {
+    use axum::{body::Body, http::Request, http::StatusCode};
+    use tower::ServiceExt as _;
+
+    for path in ["/-/ready", "/~local/-/ready"] {
+        let ready_during = probe_app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ready_during.status(), StatusCode::SERVICE_UNAVAILABLE, "{path}");
+        let body_bytes = axum::body::to_bytes(ready_during.into_body(), 4096)
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body["status"], "shutting_down", "{path}");
+        assert_eq!(body["code"], "ERR_PNPR_SERVICE_UNAVAILABLE", "{path}");
+        assert_eq!(body["error"], body["reason"], "{path}");
+    }
+
+    for path in ["/-/live", "/-/ping"] {
+        let probe = probe_app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(probe.status(), StatusCode::OK, "{path}");
+    }
 }
 
 #[tokio::test(start_paused = true)]
@@ -170,9 +299,7 @@ async fn upstream_only_proxy_startup_preserves_staged_archives_in_shared_store()
 
     let mut proxy_config = hosted_config.clone();
     proxy_config.routing.hosted.clear();
-    proxy_config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("proxy-replica.sqlite"));
-    load_startup_auth(&proxy_config).await.unwrap();
+    load_startup_auth(&proxy_config, StartupGraph::Supplied).await.unwrap();
     tokio::time::advance(Duration::from_hours(2)).await;
     tokio::task::yield_now().await;
 
@@ -203,7 +330,7 @@ async fn ephemeral_run_marks_cache_and_requires_secret_on_restart() {
     )
     .unwrap();
 
-    let first_config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let first_config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     assert!(!first_config.has_configured_secret);
     let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -233,7 +360,7 @@ async fn ephemeral_run_marks_cache_and_requires_secret_on_restart() {
         ),
     )
     .unwrap();
-    let configured_restart = Config::from_yaml(&config_path, listen, None).unwrap();
+    let configured_restart = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     let listener3 = tokio::net::TcpListener::bind(listen).await.unwrap();
     let addr3 = listener3.local_addr().unwrap();
     let mut serve_task3 = tokio::spawn(super::serve_listener(configured_restart, listener3));
@@ -255,8 +382,8 @@ async fn default_osv_dir_in_unmarked_hosted_store_passes_layout_check() {
     let mut config = Config::from_default_yaml(tmp.path(), listen, None);
     config.storage.hosted_dir = storage_dir.clone();
     config.storage.cache_dir = tmp.path().join("cache");
-    config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage_dir));
+    config.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(pnpr_config::default_database_path(&storage_dir));
 
     super::prepare_storage(&config).await.unwrap();
     assert!(storage_dir.join(pnpr_storage::layout::LAYOUT_FILE).exists());
@@ -274,8 +401,8 @@ async fn non_dot_cache_subdir_inside_fresh_hosted_storage_starts_cleanly() {
     let mut config = Config::from_default_yaml(tmp.path(), listen, None);
     config.storage.hosted_dir = storage_dir.clone();
     config.storage.cache_dir = cache_dir.clone();
-    config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage_dir));
+    config.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(pnpr_config::default_database_path(&storage_dir));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -376,7 +503,10 @@ async fn artifacts_only_startup_prunes_private_scopes_on_secret_rotation() {
     )
     .unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
-    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let overrides = pnpr_config::FeatureOverrides { disable_registry: true, ..Default::default() };
+    let (config, _) =
+        Config::resolve_with_overrides(Some(&config_path), None, Some(listen), None, overrides)
+            .unwrap();
     assert!(!config.features.registry.enabled && !config.features.resolver.enabled);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -484,7 +614,7 @@ async fn concurrent_same_config_claims_reject_dirty_cache_and_prepare_validates_
             prefix: None,
             endpoint: Some("http://127.0.0.1:9000".to_string()),
             access_key_id: Some("key".to_string()),
-            secret_access_key: Some("secret".to_string()),
+            secret_access_key: Some("secret".to_string().into()),
             allow_http: Some(true),
             force_path_style: Some(true),
         });
@@ -564,25 +694,26 @@ async fn startup_and_periodic_sweeps_delete_expired_tokens() {
     let mut config = s3_config(&tmp);
     config.features.registry.enabled = false;
     config.features.resolver.enabled = true;
-    let tokens_path = tmp.path().join("tokens.db");
-    config.identity.auth.tokens.file = Some(tokens_path.clone());
+    let auth_path = tmp.path().join("metadata.sqlite");
+    config.identity.backend = pnpr_config::BackendConfig::Sqlite(auth_path.clone());
 
     let now = pnpr_auth::unix_millis();
-    let seeded = pnpr_auth::TokenStore::open(tokens_path).unwrap();
+    let seeded = pnpr_auth::SqliteAuth::open(&auth_path, pnpr_config::MaxUsers::Disabled).unwrap();
+    let alice = pnpr_auth::UserBackend::provision_user(&seeded, "alice").await.unwrap();
     let (already_expired, _) = seeded
         .issue_token(
-            "alice",
+            &alice,
             pnpr_auth::NewToken::new().with_expires_at(Some(now.saturating_sub(1_000))),
         )
         .await
         .unwrap();
     let (kept_token, _) = seeded
-        .issue_token("alice", pnpr_auth::NewToken::new())
+        .issue_token(&alice, pnpr_auth::NewToken::new())
         .await
         .unwrap();
     drop(seeded);
 
-    let auth = load_startup_auth(&config).await.unwrap();
+    let auth = load_startup_auth(&config, StartupGraph::Supplied).await.unwrap();
     assert!(
         auth.tokens
             .find_by_key(&crate::server::ecosystem::sha256_hex(already_expired.as_bytes()))
@@ -683,8 +814,135 @@ async fn failing_expired_token_sweep_does_not_abort_startup() {
     }
 
     let auth = pnpr_auth::AuthState {
-        users: std::sync::Arc::new(pnpr_auth::UserStore::in_memory()),
+        users: pnpr_auth::AuthState::in_memory().users,
         tokens: std::sync::Arc::new(FailingSweepTokens),
     };
     super::sweep_expired_tokens(&auth).await;
+}
+
+#[tokio::test]
+async fn a_periodic_cache_pass_keeps_the_cache_of_a_served_upstream() {
+    let tmp = TempDir::new().unwrap();
+    let config_path = tmp.path().join("config.yaml");
+    let yaml = format!(
+        "storage: {storage}\ncache:\n  path: {cache}\n  maxAge: 30d\nsecret: test-secret-key-32-chars-long-12\n\
+         registries:\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n",
+        storage = tmp.path().join("storage").display(),
+        cache = tmp.path().join("cache").display(),
+    );
+    std::fs::write(&config_path, yaml).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
+    let namespace = crate::cache_maintenance::active_cache_namespaces(&config)
+        .into_iter()
+        .find(|namespace| namespace.starts_with("~public/"))
+        .unwrap();
+    let cached = config.storage.cache_dir.join(&namespace).join("example");
+    std::fs::create_dir_all(&cached).unwrap();
+    std::fs::write(cached.join("packument.json"), b"{}").unwrap();
+    let (state, _) = state_and_router(config, pnpr_auth::AuthState::in_memory(), None).unwrap();
+    adopt_startup_graph(&state, StartupGraph::Stored { generation: Some(1) });
+
+    let mut pass = state.inner.config.clone();
+    pass.routing = current_routing_of(&state.inner)().unwrap();
+    crate::cache_maintenance::evict_configured_cache(&pass).await.unwrap();
+    assert!(cached.join("packument.json").exists());
+}
+
+#[tokio::test]
+async fn a_periodic_sweep_covers_a_hosted_registry_added_while_serving() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let write_config = |registries: &str| {
+        let path = tmp.path().join("config.yaml");
+        let yaml = format!(
+            "storage: {storage}\ncache: {cache}\nsecret: test-secret-key-32-chars-long-12\nregistries:\n{registries}",
+            storage = tmp.path().join("storage").display(),
+            cache = tmp.path().join("cache").display(),
+        );
+        std::fs::write(&path, yaml).unwrap();
+        pnpr_fixtures::load_seeded_config(&path, listen, None)
+    };
+    let upstream =
+        "  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n";
+    let config = write_config(upstream);
+    let (state, _) = state_and_router(config, pnpr_auth::AuthState::in_memory(), None).unwrap();
+    let added =
+        write_config(&format!("{upstream}  acme-reg:\n    type: hosted\n    namespace: acme\n"));
+    state.inner.replace_routing(crate::server::registry_graph::build_snapshot(
+        &state.inner.config,
+        added.routing,
+        Some(&state.inner.current_routing()),
+        &state.inner.upstream_guard_context,
+    ));
+
+    let storage = Storage::from_config(&state.inner.config.storage)
+        .unwrap()
+        .for_hosted("acme", Ecosystem::Npm);
+    let name = CanonicalPackageName::parse("@acme/pkg", Ecosystem::Npm).unwrap();
+    let probe = storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap();
+    let stale_path = pnpr_storage::unique_tmp_path(&probe.tmp_path.with_file_name("archive"));
+    drop(probe);
+    tokio::fs::write(&stale_path, b"stale-local-payload").await.unwrap();
+    set_age(&stale_path, Duration::from_hours(1));
+
+    sweep_current_archive_temps(&state.inner).await.unwrap();
+    assert!(!stale_path.exists());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_graph_loaded_at_startup_counts_its_stale_limit_from_startup() {
+    let tmp = TempDir::new().unwrap();
+    let config_path = tmp.path().join("config.yaml");
+    let yaml = format!(
+        "storage: {}\nsecret: test-secret-key-32-chars-long-12\n",
+        tmp.path().join("storage").display(),
+    );
+    std::fs::write(&config_path, yaml).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let (state, _) = state_and_router(config, pnpr_auth::AuthState::in_memory(), None).unwrap();
+    let graph = state.inner.identity.managed.graph.as_ref().unwrap();
+    assert!(!graph.is_available());
+
+    adopt_startup_graph(&state, StartupGraph::Stored { generation: Some(1) });
+    assert!(graph.is_available());
+    assert_eq!(state.inner.current_routing().generation, Some(1));
+    tokio::time::advance(Duration::from_secs(59)).await;
+    assert!(graph.is_available());
+    tokio::time::advance(Duration::from_secs(2)).await;
+    assert!(!graph.is_available());
+}
+
+#[tokio::test]
+async fn a_graph_loaded_at_startup_that_lacks_what_the_config_names_is_served_with_a_warning() {
+    let tmp = TempDir::new().unwrap();
+    let config_path = tmp.path().join("config.yaml");
+    let yaml = format!(
+        "storage: {}\nsecret: test-secret-key-32-chars-long-12\n\
+         auth:\n  oidc:\n    - name: company\n      issuer: https://issuer.example\n      \
+         audience: pnpr\n      login:\n        groups:\n          teams:\n            \
+         - group: eng\n              registry: local\n              teamId: platform\n",
+        tmp.path().join("storage").display(),
+    );
+    std::fs::write(&config_path, yaml).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let mut config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let log = tmp.path().join("startup.log");
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::WARN)
+        .with_ansi(false)
+        .with_writer(std::fs::File::create(&log).unwrap())
+        .finish();
+    let graph = {
+        let _default = tracing::subscriber::set_default(subscriber);
+        load_stored_graph(&mut config).await
+    };
+    assert_eq!(graph, StartupGraph::Stored { generation: Some(1) }, "the seeded defaults");
+    let output = std::fs::read_to_string(&log).unwrap();
+    assert!(
+        output.contains("the stored registry graph lacks what the config file names"),
+        "{output}",
+    );
+    assert!(output.contains(r#"OIDC group "eng""#), "{output}");
 }

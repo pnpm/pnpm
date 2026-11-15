@@ -1,5 +1,8 @@
 use super::{
-    _utils::{assert_success, ndjson_records, pacquet_in},
+    _utils::{
+        assert_shim_omits_path, assert_success, enable_gvs_in_workspace_yaml, ndjson_records,
+        pacquet_in,
+    },
     workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
 };
 use assert_cmd::prelude::*;
@@ -261,6 +264,56 @@ fn lifecycle_scripts_run_before_linking_bins() {
 #[test]
 fn own_bin_is_not_on_path_before_preinstall_creates_it() {
     install_own_bin_created_by_preinstall(None, "1.0.0", &[ROOT_BIN]);
+}
+
+#[test]
+fn global_virtual_store_build_shims_do_not_capture_the_project_path() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/own-bin-created-by-preinstall": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    allow_builds(&workspace, &[("@pnpm.e2e/own-bin-created-by-preinstall", true)]);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir = store_dir.join("v11/links/@pnpm.e2e/own-bin-created-by-preinstall/1.0.0");
+    let hashes: Vec<_> = fs::read_dir(&version_dir)
+        .expect("read GVS hash directories")
+        .map(|entry| entry.expect("read GVS hash directory").path())
+        .collect();
+    assert_eq!(hashes.len(), 1, "the package has one shared GVS slot");
+    let shim_dir =
+        hashes[0].join("node_modules/@pnpm.e2e/own-bin-created-by-preinstall/node_modules/.bin");
+    let shim = fs::read_dir(&shim_dir)
+        .expect("read built package bin shims")
+        .map(|entry| entry.expect("read bin shim").path())
+        .find(|path| {
+            path.file_name()
+                .is_some_and(|name| {
+                    name.to_string_lossy().starts_with("own-bin-created-by-preinstall")
+                })
+        })
+        .expect("built package bin shim exists");
+    let content = fs::read_to_string(shim).expect("read built package bin shim");
+    assert_shim_omits_path(&content, &workspace.join("node_modules/.pnpm/node_modules"));
+
+    drop((root, mock_instance));
 }
 
 #[test]

@@ -33,7 +33,7 @@ export async function settleIgnoredBuilds (
   installIgnoredBuilds: IgnoredBuilds | undefined
 ): Promise<IgnoredBuilds | undefined> {
   let ignoredBuilds = installIgnoredBuilds
-  if (!opts.ignoreScripts && ignoredBuilds?.size) {
+  if (!opts.ignoreScripts && !(opts.virtualStoreOnly && opts.nodeLinker === 'hoisted') && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, ctx.wantedLockfile, allowBuild)
   }
   const revokedBuilds = findRevokedBuilds(ctx, allowBuild, ignoredBuilds)

@@ -7,7 +7,7 @@ use tempfile::{NamedTempFile, tempdir};
 
 use super::{
     BINDING_GYP, BundleDependencies, InitAuthor, InitOptions, PackageManifest,
-    PackageManifestError, ReadmeKind, apply_runtime_on_fail_override,
+    PackageManifestError, RawPackageManifest, ReadmeKind, apply_runtime_on_fail_override,
     convert_dependencies_to_engines_runtime, convert_engines_runtime_to_dependencies,
     downloaded_node_version_from_engines_runtime, extract_license, files_build_triggers,
     is_preferred_readme, manifest_opts_out_of_gyp_build, manifest_requires_build,
@@ -99,5 +99,7 @@ mod lockfile;
 mod yaml;
 
 mod json5;
+
+mod raw;
 
 mod bundled_manifest;

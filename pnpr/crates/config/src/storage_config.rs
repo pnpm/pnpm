@@ -34,14 +34,14 @@ pub struct StorageConfig {
     pub cache: CacheConfig,
     /// Where the authoritative (hosted) store lives (local filesystem or S3).
     pub hosted_backend: HostedStoreConfig,
-    /// Where the hosted packages' metadata lives.
-    pub metadata: MetadataBackend,
+    /// Where the database lives.
+    pub database: DatabaseBackend,
 }
 
-/// Where the hosted packages' metadata lives: package documents, tags,
-/// deprecations. Archives stay in the hosted store.
+/// Where the database lives: package documents, tags, accounts, registries,
+/// and the rest of pnpr's state. Archives stay in the hosted store.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MetadataBackend {
+pub enum DatabaseBackend {
     /// An embedded `SQLite` database at this path. Single-instance only, so
     /// only with the filesystem hosted store.
     Sqlite(PathBuf),
@@ -52,20 +52,20 @@ pub enum MetadataBackend {
     Libsql(LibsqlSettings),
 }
 
-/// Disk shape of the `database:` block.
+/// Disk shape of the `storage.database` block.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct DatabaseFile {
-    /// The metadata database: `sqlite:<path>`, with a relative path resolved
+    /// The database: `sqlite:<path>`, with a relative path resolved
     /// against the config file's directory, `postgres://`, `mysql://`, or
     /// libSQL (`libsql://`, `http://`, or `https://`).
     /// Without it, a filesystem hosted store keeps its metadata in
-    /// [`default_metadata_path`].
+    /// [`default_database_path`].
     #[serde(default)]
-    url: Option<String>,
+    url: Option<crate::Secret>,
     /// The libSQL database's bearer token.
     #[serde(default)]
-    auth_token: Option<String>,
+    auth_token: Option<crate::Secret>,
     /// Where the libSQL database's embedded replica lives.
     #[serde(default)]
     replica_path: Option<PathBuf>,
@@ -84,20 +84,89 @@ pub(crate) struct DatabaseFile {
     startup_timeout: Option<Interval>,
 }
 
-/// The default `SQLite` metadata database of a filesystem hosted store. The
+/// The `storage:` value: the storage directory, or a table that also names
+/// the hosted store and the database.
+#[derive(Debug)]
+pub(crate) enum StorageFile {
+    Path(String),
+    // Boxed: the table is far larger than a path.
+    Settings(Box<StorageSettingsFile>),
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct StorageSettingsFile {
+    /// The storage directory. Omitted ⇒ [`DEFAULT_STORAGE_PATH`].
+    #[serde(default)]
+    pub(crate) path: Option<String>,
+    /// Store the hosted (published) packages in an S3-compatible object
+    /// store instead of `path`.
+    #[serde(default)]
+    pub(crate) s3: Option<crate::S3Settings>,
+    /// The database for accounts, tokens, and package metadata.
+    #[serde(default)]
+    pub(crate) database: Option<DatabaseFile>,
+}
+
+pub(crate) const DEFAULT_STORAGE_PATH: &str = "./storage";
+
+impl StorageFile {
+    pub(crate) fn into_settings(self) -> StorageSettingsFile {
+        match self {
+            Self::Path(path) => StorageSettingsFile { path: Some(path), ..Default::default() },
+            Self::Settings(settings) => *settings,
+        }
+    }
+}
+
+/// Hand-written rather than `#[serde(untagged)]`, which would replace the
+/// located error of a nested field, such as an unknown key or a refused
+/// [`crate::Secret`], with one that names no field.
+impl<'de> Deserialize<'de> for StorageFile {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(StorageFileVisitor)
+    }
+}
+
+struct StorageFileVisitor;
+
+impl<'de> serde::de::Visitor<'de> for StorageFileVisitor {
+    type Value = StorageFile;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a storage path or a table of `path`, `s3`, and `database`")
+    }
+
+    fn visit_str<DeError: serde::de::Error>(self, value: &str) -> Result<StorageFile, DeError> {
+        Ok(StorageFile::Path(value.to_string()))
+    }
+
+    fn visit_map<Map: serde::de::MapAccess<'de>>(
+        self,
+        map: Map,
+    ) -> Result<StorageFile, Map::Error> {
+        StorageSettingsFile::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+            .map(|settings| StorageFile::Settings(Box::new(settings)))
+    }
+}
+
+/// The default `SQLite` database of a filesystem hosted store. The
 /// leading dot keeps it out of the package listing.
 #[must_use]
-pub fn default_metadata_path(storage: &Path) -> PathBuf {
+pub fn default_database_path(storage: &Path) -> PathBuf {
     storage.join(".metadata").join("metadata.sqlite")
 }
 
-pub(crate) fn resolve_metadata_backend(
+pub(crate) fn resolve_database_backend(
     file: Option<&DatabaseFile>,
     storage: &Path,
     base_dir: &Path,
     hosted: &HostedStoreConfig,
     hosts_packages: bool,
-) -> Result<MetadataBackend, RegistryError> {
+) -> Result<DatabaseBackend, RegistryError> {
     // A tier that hosts no packages, such as an artifact-only one, never
     // reads package metadata, whichever store its bucket is.
     let on_fs = matches!(hosted, HostedStoreConfig::Fs) || !hosts_packages;
@@ -106,15 +175,15 @@ pub(crate) fn resolve_metadata_backend(
         && !file.url.as_deref().is_some_and(is_network_sql_url)
     {
         return Err(invalid(
-            "database.timeout and startupTimeout require a PostgreSQL or MySQL URL",
+            "storage.database.timeout and startupTimeout require a PostgreSQL or MySQL URL",
         ));
     }
     match &file.url {
         None if has_remote_settings(file) => Err(invalid(REMOTE_ONLY_SETTINGS)),
         None => default_metadata(storage, on_fs),
-        Some(url) if is_network_sql_url(url) => network_metadata(file, url),
-        Some(url) if is_libsql_url(url) => libsql_metadata(file, url, base_dir),
-        Some(url) => sqlite_metadata(file, url, base_dir, on_fs),
+        Some(url) if is_network_sql_url(url) => network_database(file, url),
+        Some(url) if is_libsql_url(url) => libsql_database(file, url, base_dir),
+        Some(url) => sqlite_database(file, url, base_dir, on_fs),
     }
 }
 
@@ -122,19 +191,19 @@ pub(crate) fn resolve_metadata_backend(
 /// store, or in a tier that hosts no packages. An object store of packages
 /// is shared by instances a local database would not be shared by, so it
 /// needs a URL.
-fn default_metadata(storage: &Path, on_fs: bool) -> Result<MetadataBackend, RegistryError> {
+fn default_metadata(storage: &Path, on_fs: bool) -> Result<DatabaseBackend, RegistryError> {
     if on_fs {
-        Ok(MetadataBackend::Sqlite(default_metadata_path(storage)))
+        Ok(DatabaseBackend::Sqlite(default_database_path(storage)))
     } else {
         Err(invalid(
-            "an `s3:` hosted store needs database.url to name a shared database, such as \
+            "a `storage.s3` hosted store needs storage.database.url to name a shared database, such as \
              `libsql://<host>`: pnpr keeps package metadata in a database, not in the bucket",
         ))
     }
 }
 
-const REMOTE_ONLY_SETTINGS: &str = "database.authToken, replicaPath, and syncInterval require a \
-    libSQL URL. database.maxConnections requires a libSQL, PostgreSQL, or MySQL URL";
+const REMOTE_ONLY_SETTINGS: &str = "storage.database.authToken, replicaPath, and syncInterval require a \
+    libSQL URL. storage.database.maxConnections requires a libSQL, PostgreSQL, or MySQL URL";
 
 fn has_remote_settings(file: &DatabaseFile) -> bool {
     file.auth_token.is_some()
@@ -148,30 +217,30 @@ fn invalid(reason: &str) -> RegistryError {
 }
 
 /// `SQLite` metadata at the path of a `sqlite:` URL.
-fn sqlite_metadata(
+fn sqlite_database(
     file: &DatabaseFile,
     url: &str,
     base_dir: &Path,
     on_fs: bool,
-) -> Result<MetadataBackend, RegistryError> {
+) -> Result<DatabaseBackend, RegistryError> {
     let Some(path) = url.strip_prefix("sqlite:") else {
         return Err(RegistryError::InvalidConfig {
-            reason: "database.url names an unsupported database; use `sqlite:<path>`, `postgres://`, `mysql://`, or `libsql://<host>`".to_string(),
+            reason: "storage.database.url names an unsupported database; use `sqlite:<path>`, `postgres://`, `mysql://`, or `libsql://<host>`".to_string(),
         });
     };
     if has_remote_settings(file) {
         return Err(invalid(REMOTE_ONLY_SETTINGS));
     }
     if path.is_empty() {
-        return Err(invalid("database.url `sqlite:` needs a path after the colon"));
+        return Err(invalid("storage.database.url `sqlite:` needs a path after the colon"));
     }
     if !on_fs {
         return Err(invalid(
-            "database.url `sqlite:` is single-instance and needs the filesystem hosted store; \
-             remove the `s3:` block or the metadata URL",
+            "storage.database.url `sqlite:` is single-instance and needs the filesystem hosted store; \
+             remove the `storage.s3` block or the metadata URL",
         ));
     }
-    Ok(MetadataBackend::Sqlite(resolve_relative(path, base_dir)))
+    Ok(DatabaseBackend::Sqlite(resolve_relative(path, base_dir)))
 }
 
 /// Whether `url` names a libSQL database: `libsql://`, or the HTTP a
@@ -187,33 +256,29 @@ fn is_libsql_url(url: &str) -> bool {
 
 /// libSQL metadata, which any hosted store can use: it is shared by every
 /// instance.
-fn libsql_metadata(
+fn libsql_database(
     file: &DatabaseFile,
     url: &str,
     base_dir: &Path,
-) -> Result<MetadataBackend, RegistryError> {
+) -> Result<DatabaseBackend, RegistryError> {
     let settings = build_libsql_settings(
         LibsqlFile {
             url: url.to_string(),
-            auth_token: file.auth_token.clone(),
+            auth_token: file.auth_token.clone().map(crate::Secret::into_inner),
             replica_path: file.replica_path.clone(),
             sync_interval: file.sync_interval.clone(),
             max_connections: file.max_connections,
         },
         base_dir,
-        "database",
+        "storage.database",
     )?;
     if settings.replica_path.is_some() && settings.sync_interval_secs == Some(0) {
         return Err(invalid(
-            "database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
+            "storage.database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
              replica read may be",
         ));
     }
-    Ok(MetadataBackend::Libsql(settings))
-}
-
-pub(crate) fn default_storage_string() -> String {
-    "./storage".to_string()
+    Ok(DatabaseBackend::Libsql(settings))
 }
 
 /// The default location for the disposable proxy cache directory.
@@ -241,11 +306,14 @@ pub(crate) fn resolve_relative(raw: &str, base_dir: &Path) -> PathBuf {
     base_dir.join(path)
 }
 
+/// The storage directory at `storage_path`, or at the default path, with the
+/// cache directory and its settings.
 pub(crate) fn resolve_storage_paths(
     file: &ConfigFile,
+    storage_path: Option<&str>,
     base_dir: &Path,
 ) -> Result<(PathBuf, PathBuf, CacheConfig), RegistryError> {
-    let storage = resolve_relative(&file.storage, base_dir);
+    let storage = resolve_relative(storage_path.unwrap_or(DEFAULT_STORAGE_PATH), base_dir);
     let (cache_dir, cache) = match &file.cache {
         None => (default_cache_dir(&storage), CacheConfig::default()),
         Some(CacheFile::Path(raw)) => (resolve_relative(raw, base_dir), CacheConfig::default()),
@@ -278,17 +346,17 @@ pub(crate) fn resolve_storage_paths(
     Ok((storage, cache_dir, cache))
 }
 
-fn network_metadata(file: &DatabaseFile, url: &str) -> Result<MetadataBackend, RegistryError> {
+fn network_database(file: &DatabaseFile, url: &str) -> Result<DatabaseBackend, RegistryError> {
     if file.auth_token.is_some()
         || file.replica_path.is_some()
         || file.sync_interval.is_some()
     {
         return Err(invalid(
-            "database.authToken, replicaPath, and syncInterval require a libSQL URL",
+            "storage.database.authToken, replicaPath, and syncInterval require a libSQL URL",
         ));
     }
     if file.max_connections == Some(0) {
-        return Err(invalid("database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0"));
     }
     let mysql = url
         .split_once(':')
@@ -299,7 +367,7 @@ fn network_metadata(file: &DatabaseFile, url: &str) -> Result<MetadataBackend, R
         timeout: file.timeout.clone(),
         startup_timeout: file.startup_timeout.clone(),
     })?;
-    Ok(if mysql { MetadataBackend::Mysql(settings) } else { MetadataBackend::Postgres(settings) })
+    Ok(if mysql { DatabaseBackend::Mysql(settings) } else { DatabaseBackend::Postgres(settings) })
 }
 
 fn is_network_sql_url(url: &str) -> bool {

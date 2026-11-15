@@ -2,7 +2,7 @@ use super::{
     AmazonS3Builder, AmazonS3ConfigKey, Arc, Deserialize, ObjectStore, fmt, redact_url_credentials,
 };
 
-/// The YAML `s3:` block. Selects the object store for hosted packages and
+/// The YAML `storage.s3` block. Selects the object store for hosted packages and
 /// enabled shared artifacts.
 /// Credentials fall back to the standard AWS environment variables
 /// (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) when not set here,
@@ -28,7 +28,7 @@ pub struct S3Settings {
     #[serde(default)]
     pub access_key_id: Option<String>,
     #[serde(default)]
-    pub secret_access_key: Option<String>,
+    pub secret_access_key: Option<crate::Secret>,
     /// Force path-style addressing (`endpoint/bucket/key`) instead of
     /// virtual-hosted (`bucket.endpoint/key`). `MinIO` typically needs
     /// this; AWS and R2 work with the default.
@@ -71,7 +71,7 @@ impl S3Settings {
     }
 }
 
-/// Build the object-store client from the YAML `s3:` settings. The
+/// Build the object-store client from the YAML `storage.s3` settings. The
 /// builder seeds from the AWS environment first so env credentials
 /// work out of the box, then the explicit YAML values override.
 /// Failures here are config errors surfaced at startup, not over HTTP.
@@ -103,7 +103,7 @@ pub(super) fn s3_builder(settings: &S3Settings) -> AmazonS3Builder {
         builder = builder.with_access_key_id(key);
     }
     if let Some(secret) = &settings.secret_access_key {
-        builder = builder.with_secret_access_key(secret);
+        builder = builder.with_secret_access_key(secret.expose());
     }
     if let Some(force_path_style) = settings.force_path_style {
         builder = builder.with_virtual_hosted_style_request(!force_path_style);
@@ -140,7 +140,7 @@ pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
 pub enum HostedStoreConfig {
     /// Local directory — [`crate::StorageConfig::hosted_dir`].
     Fs,
-    /// S3-compatible bucket, as declared by the YAML `s3:` block.
+    /// S3-compatible bucket, as declared by the YAML `storage.s3` block.
     S3(S3Settings),
     /// A caller-supplied object store. Parsing never produces this variant —
     /// it is how an embedder brings its own [`ObjectStore`]: a provider pnpr

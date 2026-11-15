@@ -86,7 +86,7 @@ pub async fn ensure_schema(connection: &libsql::Connection, name: &str) -> Resul
     })?
 }
 
-/// A metadata database in libSQL.
+/// A database in libSQL.
 pub struct LibsqlAdapter {
     settings: LibsqlSettings,
     opened: tokio::sync::OnceCell<Arc<Opened>>,
@@ -136,7 +136,7 @@ impl LibsqlAdapter {
                 tokio::time::timeout(STARTUP_TIMEOUT, Opened::open(&self.settings))
                     .await
                     .map_err(|_| RegistryError::StorageUnavailable {
-                        reason: "the libSQL metadata database did not open in time".to_string(),
+                        reason: "the libSQL database did not open in time".to_string(),
                     })?
             }))
             .map_err(|error| pnpr_libsql::startup_error(&self.settings, error))?;
@@ -146,7 +146,7 @@ impl LibsqlAdapter {
 
 impl Opened {
     async fn open(settings: &LibsqlSettings) -> Result<Arc<Self>> {
-        let connector = pnpr_libsql::connector(settings, "database")?;
+        let connector = pnpr_libsql::connector(settings, "storage.database")?;
         let _startup_dials = connector.retry_timed_out_dials();
         let max_connections =
             settings.max_connections.unwrap_or(LibsqlSettings::DEFAULT_MAX_CONNECTIONS) as usize;
@@ -463,7 +463,7 @@ fn checkout_fresh_before(
 /// What a metadata operation past [`OPERATION_TIMEOUT`] fails with.
 fn timed_out() -> RegistryError {
     RegistryError::StorageUnavailable {
-        reason: "the libSQL metadata database did not answer in time".to_string(),
+        reason: "the libSQL database did not answer in time".to_string(),
     }
 }
 

@@ -43,3 +43,26 @@ fn a_variant_with_its_own_dependencies_gets_its_own_snapshot() {
         entry(&[("semver", "7.7.0"), ("libvips", "1.0.0"), ("react", "18.3.1")], &[]),
     );
 }
+
+#[test]
+fn split_variant_snapshots_handles_multibyte_utf8_package_names() {
+    let manifest = serde_json::json!({
+        "dependencies": {},
+        "dist": { "pnpr": { "variants": [
+            {
+                "platforms": [{ "os": "linux", "cpu": "x64", "libc": "glibc" }],
+                "manifest": { "dependencies": { "libvips": "1.0.0" } },
+            },
+        ] } },
+    });
+    for (raw_key, expected) in [
+        ("ä@0.35.0(react@18.3.1)", "ä@0.35.0/variants/linux-x64(react@18.3.1)"),
+        ("@ä/sharp@0.35.0", "@ä/sharp@0.35.0/variants/linux-x64"),
+    ] {
+        let key: PackageKey = raw_key.parse().unwrap();
+        let full = entry(&[("libvips", "1.0.0")], &[]);
+        let (_, variants) = split_variant_snapshots(&key, Some(&manifest), full);
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].0.to_string(), expected);
+    }
+}

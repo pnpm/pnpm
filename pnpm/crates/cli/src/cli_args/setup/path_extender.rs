@@ -5,7 +5,7 @@
 //! current shell's rc file is edited. The Windows changes are rendered into
 //! the same `old_settings` / `new_settings` shape the POSIX path reports.
 
-pub(super) use posix::{detect_current_shell, render_shell_settings, sh_quote};
+pub(super) use posix::{detect_current_shell, pwsh_quote, render_shell_settings, sh_quote};
 
 mod posix;
 mod windows;
@@ -40,6 +40,19 @@ pub(super) enum ConfigFileChangeType {
 pub(super) struct ConfigReport {
     pub path: PathBuf,
     pub change_type: ConfigFileChangeType,
+}
+
+impl ConfigReport {
+    /// The command that loads the config file into the running shell.
+    pub fn reload_command(&self) -> String {
+        if self.path
+            .extension()
+            .is_some_and(|extension| extension == "ps1")
+        {
+            return format!(". {}", pwsh_quote(&self.path.to_string_lossy()));
+        }
+        format!("source {}", self.path.display())
+    }
 }
 
 /// The before/after of a path-extension run.
@@ -79,7 +92,7 @@ pub(crate) enum PathExtenderError {
     #[diagnostic(
         code(ERR_PNPM_UNKNOWN_SHELL),
         help(
-            "Set the SHELL environment variable to your active shell.\nSupported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell."
+            "Set the SHELL environment variable to your active shell.\nSupported shell languages are bash, zsh, fish, ksh, dash, sh, nushell, and PowerShell."
         )
     )]
     UnknownShell,
@@ -87,7 +100,9 @@ pub(crate) enum PathExtenderError {
     #[display(r#"Can't setup configuration for "{shell}" shell"#)]
     #[diagnostic(
         code(ERR_PNPM_UNSUPPORTED_SHELL),
-        help("Supported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell.")
+        help(
+            "Supported shell languages are bash, zsh, fish, ksh, dash, sh, nushell, and PowerShell."
+        )
     )]
     UnsupportedShell {
         shell: String,

@@ -25,7 +25,7 @@ use pnpr_error::{RegistryError, Result};
 use std::{future::Future, path::Path, time::Duration};
 
 /// The connector for the database `settings` name, the settings of the
-/// config block `section`, such as `database`. An auth token must not
+/// config block `section`, such as `storage.database`. An auth token must not
 /// cross a cleartext link to a host other than loopback.
 ///
 /// # Errors

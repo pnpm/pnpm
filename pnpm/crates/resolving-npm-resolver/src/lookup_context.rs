@@ -47,11 +47,9 @@ pub(crate) struct AbbreviatedMetaProjection {
     ///
     /// [`ObservedDistStats`]: crate::ObservedDistStats
     pub version_dist_stats: Option<HashMap<String, crate::DistStats>>,
-    /// version → publish timestamp from the document's `time` map, for
-    /// registries that serve it in abbreviated metadata
-    /// (`registrySupportsTimeField`). Populated only when the verifier
-    /// asked for it, so registries without the field pay no memory for
-    /// an always-empty map.
+    /// version → publish timestamp from the document's `time` map.
+    /// `None` for a pnpr document whose clamped dates cannot answer the
+    /// release-age window.
     pub version_time: Option<HashMap<String, String>>,
 }
 
@@ -73,6 +71,7 @@ pub(crate) struct TrustHistoryProjection {
 pub(crate) struct RegistryArtifactHistory {
     pub current: RegistryArtifact,
     pub revisions: Vec<RegistryArtifact>,
+    pub install_v2: Option<pnpm_registry::InstallV2Entry>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -104,6 +103,7 @@ pub(crate) struct PublishedAtLookupContext {
     /// from a version genuinely absent from the metadata; the age shortcut
     /// ignores it and falls back to per-version lookups.
     pub abbreviated_meta: SingleflightMap<Result<AbbreviatedMetaProjection, String>>,
+    pub release_records: SingleflightMap<Result<Option<Integrity>, String>>,
     pub local_meta: SingleflightMap<Option<Arc<PublishedAtTimeMap>>>,
     /// Package-level `Last-Modified` header from a packument `HEAD`
     /// probe, keyed per `(registry, name)`. `None` for a probe the

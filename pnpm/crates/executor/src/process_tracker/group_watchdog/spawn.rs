@@ -10,12 +10,13 @@ use std::{
 };
 
 pub(super) fn registered(command: &mut Command, watchdog: &GroupWatchdog) -> io::Result<Child> {
-    let (mut reader, writer) = {
-        // macOS sets CLOEXEC after creating a pipe; exclude concurrent forks.
-        #[cfg(not(any(target_os = "linux", target_os = "android")))]
-        let _spawning = pnpm_process::watchdog_spawning();
-        io::pipe()?
-    };
+    // Platforms without `pipe2` mark pipes `FD_CLOEXEC` after creation, and
+    // `pre_exec` forces `Command::spawn` onto `fork` rather than `posix_spawn`,
+    // so hold the exclusive spawn guard across both pipe creation and `fork`
+    // to keep concurrent spawns from inheriting an unclosed exec-error pipe.
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    let spawning = pnpm_process::watchdog_spawning();
+    let (mut reader, writer) = io::pipe()?;
     let active = Arc::new(AtomicBool::new(true));
     let hook_active = Arc::clone(&active);
     let lifeline = watchdog.lifeline.as_raw_fd();
@@ -31,6 +32,13 @@ pub(super) fn registered(command: &mut Command, watchdog: &GroupWatchdog) -> io:
             Ok(())
         });
     }
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    let spawned = {
+        let spawned = spawning.spawn(command);
+        drop(spawning);
+        spawned
+    };
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     let spawned = command.spawn();
     active.store(false, Ordering::SeqCst);
     drop(writer);

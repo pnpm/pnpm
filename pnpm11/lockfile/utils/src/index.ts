@@ -8,6 +8,7 @@ export { packageIsIndependent } from './packageIsIndependent.js'
 export { pkgSnapshotToResolution, type PkgSnapshotToResolutionOptions } from './pkgSnapshotToResolution.js'
 export { refIsLocalDirectory, refIsLocalTarball, resolveLocalTarballPath } from './refIsLocalTarball.js'
 export {
+  createMovedRegistryRouteMatcher,
   findMovedRegistryKey,
   findOutdatedRegistryKey,
   keyPrefixForAlias,

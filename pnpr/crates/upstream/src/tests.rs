@@ -57,7 +57,7 @@ fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
         &UpstreamConfig {
             url,
             headers: HeaderMap::new(),
-            maxage: None,
+            packument_ttl: None,
             requests: pnpr_config::UpstreamRequestPolicy {
                 timeout: UpstreamConfig::DEFAULT_TIMEOUT,
                 max_packument_size: UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE,

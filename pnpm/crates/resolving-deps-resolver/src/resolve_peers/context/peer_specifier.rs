@@ -132,7 +132,7 @@ pub(in super::super) fn peer_id_pair(result: &ResolveResult) -> PeerId {
 /// (`<name>@<registryName>:<version>`), if it is one.
 pub(super) fn named_registry_of(result: &ResolveResult) -> Option<&str> {
     let id = result.id.as_str();
-    let at = id.get(1..)?.find('@')? + 1;
+    let at = pnpm_deps_path::version_separator_index(id)?;
     let (registry_name, _) = pnpm_deps_path::parse_registry_qualified_version(id.get(at + 1..)?)?;
     Some(registry_name)
 }
@@ -149,11 +149,7 @@ pub(in super::super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<Str
 }
 
 pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
-    let version_separator = if let Some(unscoped) = segment.strip_prefix('@') {
-        1 + unscoped.find('@')?
-    } else {
-        segment.find('@')?
-    };
+    let version_separator = pnpm_deps_path::version_separator_index(segment)?;
     Some(&segment[..version_separator])
 }
 

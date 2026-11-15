@@ -1002,3 +1002,5 @@ fn ignore_workspace_skips_the_allow_builds_scaffold() {
 
     drop(harness);
 }
+
+mod non_interactive;

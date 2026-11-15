@@ -1,8 +1,8 @@
 use super::{
     Arc, AutoExcludeRoot, Catalogs, Config, HashMap, Mutex, PackArgs, PackError, PackOutputLocks,
     PackResultJson, Path, PathBuf, PnpmfileHooks, Reporter, WorkspacePackageManifest,
-    absolute_against, configured_catalogs, discover_workspace_projects,
-    filtered_projects_dependencies, format_pack_output, graph_sequencer, pack_output_path,
+    canonicalize_pack_dir, configured_catalogs, discover_workspace_projects,
+    filtered_projects_dependencies, format_pack_output, graph_sequencer, pack_output_parts,
     select_recursive_projects,
 };
 
@@ -20,6 +20,7 @@ pub(super) struct RecursivePack<'a, 'graph> {
 }
 
 pub(crate) struct PackOutput {
+    pub(super) base_dir: PathBuf,
     pub(super) out: Option<String>,
     pub(super) destination: Option<String>,
     pub(super) locks: Arc<PackOutputLocks>,
@@ -70,28 +71,31 @@ fn serialize_shared_outputs(
     project_dependencies: &mut indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
     graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
     dependency_order: &[PathBuf],
+    base_dir: &Path,
     out: Option<&str>,
     pack_destination: Option<&str>,
 ) {
+    let planned = collect_planned_outputs(graph, dependency_order, base_dir, out, pack_destination);
+    let mut tarball_counts = HashMap::<&str, usize>::new();
+    for (_, _, tarball_name) in &planned {
+        *tarball_counts.entry(tarball_name.as_str()).or_default() += 1;
+    }
+    let mut canonical_dirs = HashMap::<PathBuf, PathBuf>::new();
     let mut previous_by_output = HashMap::<PathBuf, PathBuf>::new();
-    for root in dependency_order {
-        let project = graph[root].package.project;
-        let manifest = project.manifest.value();
-        let Some(name) = manifest.get("name").and_then(serde_json::Value::as_str) else {
+    for (root, dest_dir, tarball_name) in &planned {
+        if tarball_counts
+            .get(tarball_name.as_str())
+            .copied()
+            .unwrap_or(0)
+            < 2
+        {
             continue;
-        };
-        let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) else {
-            continue;
-        };
-        let published_name = manifest
-            .pointer("/publishConfig/name")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or(name);
-        let predecessor =
-            pack_output_path(&project.root_dir, out, pack_destination, published_name, version)
-                .ok()
-                .and_then(|output| previous_by_output.insert(output, root.clone()));
-        if let Some(predecessor) = predecessor {
+        }
+        let canonical_dir = canonical_dirs
+            .entry(dest_dir.clone())
+            .or_insert_with(|| canonicalize_pack_dir(dest_dir));
+        let output = canonical_dir.join(tarball_name);
+        if let Some(predecessor) = previous_by_output.insert(output, root.clone()) {
             let dependencies = project_dependencies
                 .get_mut(root)
                 .expect("ordered project exists in dependency graph");
@@ -100,6 +104,34 @@ fn serialize_shared_outputs(
             }
         }
     }
+}
+
+fn collect_planned_outputs(
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    dependency_order: &[PathBuf],
+    base_dir: &Path,
+    out: Option<&str>,
+    pack_destination: Option<&str>,
+) -> Vec<(PathBuf, PathBuf, String)> {
+    dependency_order
+        .iter()
+        .filter_map(|root| {
+            let manifest = graph[root].package.project.manifest.value();
+            let name = manifest
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                .filter(|name| !name.is_empty())?;
+            let version = manifest
+                .get("version")
+                .and_then(serde_json::Value::as_str)
+                .filter(|version| !version.is_empty())?;
+            let published_name =
+                crate::cli_args::changelog::published_name(manifest).unwrap_or(name);
+            let (dest_dir, tarball_name) =
+                pack_output_parts(base_dir, out, pack_destination, published_name, version).ok()?;
+            Some((root.clone(), dest_dir, tarball_name))
+        })
+        .collect()
 }
 
 /// Whether a project's tarball path can change while the run packs, so
@@ -161,12 +193,19 @@ fn prepare_project_dependencies(
     graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
     config: &Config,
     hooks: &[Arc<dyn PnpmfileHooks>],
-    out: Option<&str>,
-    destination: Option<&str>,
+    output: &PackOutput,
 ) -> Vec<PathBuf> {
     let order = dependency_order(project_dependencies);
+    let out = output.out.as_deref();
     if !output_can_change_while_packing(config, graph, hooks) || output_is_literal(out) {
-        serialize_shared_outputs(project_dependencies, graph, &order, out, destination);
+        serialize_shared_outputs(
+            project_dependencies,
+            graph,
+            &order,
+            &output.base_dir,
+            out,
+            output.destination.as_deref(),
+        );
     }
     order
 }
@@ -197,18 +236,21 @@ impl PackArgs {
             &selection.prod_only_selected,
         );
 
-        // In recursive mode `--out` / `--pack-destination` resolves to an
-        // absolute path against the CLI dir (and defaults the destination
-        // to the CLI dir), so every tarball lands in one place regardless
-        // of each project's own root.
-        let (out, pack_destination) = self.resolve_recursive_destination(dir);
+        // Keep `--out` raw so `%s` / `%v` expand only inside the user's
+        // template, and anchor relative destinations at the CLI `dir` so
+        // every tarball lands in one place regardless of each project's root.
+        let output = PackOutput {
+            base_dir: dir.to_path_buf(),
+            out: self.out.clone(),
+            destination: self.pack_destination.clone(),
+            locks: Arc::new(PackOutputLocks::default()),
+        };
         let dependency_order = prepare_project_dependencies(
             &mut project_dependencies,
             graph,
             config,
             &before_packing_hooks,
-            out.as_deref(),
-            pack_destination.as_deref(),
+            &output,
         );
 
         let pack = RecursivePack {
@@ -217,11 +259,7 @@ impl PackArgs {
             catalogs: configured_catalogs(config)?,
             before_packing_hooks,
             workspace_packages: Some(workspace_packages),
-            output: PackOutput {
-                out,
-                destination: pack_destination,
-                locks: Arc::new(PackOutputLocks::default()),
-            },
+            output,
             results: PackResults::new(dependency_order),
         };
         pack.execute::<Reporter>(self, &project_dependencies).await;
@@ -233,18 +271,6 @@ impl PackArgs {
             return Err(miette::Report::new(PackError::OutAndPackDestination));
         }
         Ok(())
-    }
-
-    /// Resolve the recursive-mode `(out, pack_destination)` pair to
-    /// absolute paths against the CLI `dir`.
-    fn resolve_recursive_destination(&self, dir: &Path) -> (Option<String>, Option<String>) {
-        if let Some(out) = &self.out {
-            (Some(absolute_against(dir, out)), None)
-        } else if let Some(destination) = &self.pack_destination {
-            (None, Some(absolute_against(dir, destination)))
-        } else {
-            (None, Some(dir.to_string_lossy().into_owned()))
-        }
     }
 }
 

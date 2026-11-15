@@ -1,5 +1,5 @@
 use super::{account_router, load_config, send};
-use pnpr::{AuthState, TokenBackend, TokenStore, UserBackend, UserStore};
+use pnpr::{AuthState, SqliteAuth, TokenBackend, UserBackend};
 use serde_json::json;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -7,9 +7,9 @@ use tempfile::TempDir;
 #[tokio::test]
 async fn a_passwordless_account_cannot_enroll_a_password_with_its_token() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
+    let users = Arc::new(SqliteAuth::in_memory(pnpr::MaxUsers::Unlimited).unwrap());
     let id = users.provision_user("example-user").await.unwrap();
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = Arc::clone(&users);
     let token = tokens.issue(&id).await.unwrap();
     let auth = AuthState { users: Arc::clone(&users) as Arc<dyn UserBackend>, tokens };
     let app = account_router(load_config(&dir), auth).await;
@@ -25,7 +25,7 @@ async fn a_passwordless_account_cannot_enroll_a_password_with_its_token() {
 }
 
 struct PausedPasswordUpdate {
-    users: Arc<UserStore>,
+    users: Arc<SqliteAuth>,
     entered: tokio::sync::Notify,
     resume: tokio::sync::Notify,
 }
@@ -110,7 +110,7 @@ impl UserBackend for PausedPasswordUpdate {
 #[tokio::test]
 async fn a_profile_update_cannot_overwrite_an_admin_reset_after_verification() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
+    let users = Arc::new(SqliteAuth::in_memory(pnpr::MaxUsers::Unlimited).unwrap());
     users.create_user("example-user", "old-password").await.unwrap();
     let id = users
         .account_id("example-user")
@@ -122,7 +122,7 @@ async fn a_profile_update_cannot_overwrite_an_admin_reset_after_verification() {
         entered: tokio::sync::Notify::new(),
         resume: tokio::sync::Notify::new(),
     });
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = Arc::clone(&users);
     let token = tokens.issue(&id).await.unwrap();
     let auth = Arc::new(AuthState { users: Arc::clone(&delayed) as Arc<dyn UserBackend>, tokens });
     let app = account_router(load_config(&dir), (*auth).clone()).await;
@@ -141,29 +141,30 @@ async fn a_profile_update_cannot_overwrite_an_admin_reset_after_verification() {
 #[tokio::test]
 async fn imported_sha_passwords_support_token_creation_and_profile_changes() {
     let dir = TempDir::new().unwrap();
-    let path = dir.path().join("accounts.json");
     let integrity = ssri::IntegrityOpts::new()
         .algorithm(ssri::Algorithm::Sha1)
         .chain(b"imported-password")
         .result();
     let hash = format!("{{SHA}}{}", integrity.hashes.first().unwrap().digest);
     let hashes = std::collections::HashMap::from([("example-user".to_string(), hash.clone())]);
-    UserStore::import_password_hashes(
-        &path,
-        hashes,
-        pnpr_auth::PasswordImport {
-            collisions: pnpr_auth::PasswordCollisions::Keep,
-            mode: pnpr_auth::ImportMode::Persist,
-        },
-    )
-    .unwrap();
-    let users = Arc::new(UserStore::open_with_cost(path, pnpr::MaxUsers::Disabled, 4).unwrap());
+    let users =
+        Arc::new(SqliteAuth::in_memory(pnpr::MaxUsers::Disabled).unwrap().with_bcrypt_cost(4));
+    users
+        .import_password_hashes(
+            hashes,
+            pnpr_auth::PasswordImport {
+                collisions: pnpr_auth::PasswordCollisions::Keep,
+                mode: pnpr_auth::ImportMode::Apply,
+            },
+        )
+        .await
+        .unwrap();
     let id = users
         .account_id("example-user")
         .await
         .unwrap()
         .unwrap();
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = Arc::clone(&users);
     let token = tokens.issue(&id).await.unwrap();
     let auth = AuthState {
         users: Arc::clone(&users) as Arc<dyn UserBackend>,
@@ -212,7 +213,7 @@ async fn imported_sha_passwords_support_token_creation_and_profile_changes() {
 }
 
 struct FailedPostUpdateLookup {
-    users: Arc<UserStore>,
+    users: Arc<SqliteAuth>,
     has_updated: std::sync::atomic::AtomicBool,
 }
 
@@ -305,7 +306,7 @@ impl UserBackend for FailedPostUpdateLookup {
 #[tokio::test]
 async fn admin_create_and_password_change_do_not_query_account_after_commit() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
+    let users = Arc::new(SqliteAuth::in_memory(pnpr::MaxUsers::Unlimited).unwrap());
     let pnpr::UserCreation::Created(root_id) =
         users.create_user("root", "secret123").await.unwrap()
     else {
@@ -315,7 +316,7 @@ async fn admin_create_and_password_change_do_not_query_account_after_commit() {
         users: Arc::clone(&users),
         has_updated: std::sync::atomic::AtomicBool::new(false),
     });
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = Arc::clone(&users);
     let token = tokens.issue(&root_id).await.unwrap();
     let auth = AuthState { users: Arc::clone(&backend) as Arc<dyn UserBackend>, tokens };
     let app = account_router(load_config(&dir), auth).await;
@@ -350,7 +351,7 @@ async fn admin_create_and_password_change_do_not_query_account_after_commit() {
 #[tokio::test]
 async fn a_custom_backend_reports_unsupported_password_changes() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
+    let users = Arc::new(SqliteAuth::in_memory(pnpr::MaxUsers::Unlimited).unwrap());
     users.create_user("example-user", "old-password").await.unwrap();
     let id = users
         .account_id("example-user")
@@ -361,7 +362,7 @@ async fn a_custom_backend_reports_unsupported_password_changes() {
         users: Arc::clone(&users),
         has_updated: std::sync::atomic::AtomicBool::new(false),
     };
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = Arc::clone(&users);
     let token = tokens.issue(&id).await.unwrap();
     let auth = AuthState { users: Arc::new(backend), tokens };
     let app = account_router(load_config(&dir), auth).await;

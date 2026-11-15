@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     RegistryError, Result, Storage,
-    metadata::{StagedRecord, StagedState},
+    database::{StagedRecord, StagedState},
 };
 
 impl Storage {

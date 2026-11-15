@@ -1,6 +1,6 @@
-use crate::{PkgName, SnapshotDepRef};
+use crate::{PkgName, RecordedPeerBindings, SnapshotDepRef};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[cfg(test)]
 mod tests;
@@ -10,9 +10,14 @@ mod tests;
 /// An entry describes the wiring of one concrete installation of a package:
 /// which versions its dependencies were resolved to, plus any optional /
 /// transitive-peer metadata needed to recreate the install.
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotEntry {
+    /// In-memory bindings for the exact key restored from recorded peers.
+    /// Not part of the serialized entry or its equality comparison.
+    #[serde(skip)]
+    pub recorded_peer_bindings: Option<Arc<RecordedPeerBindings>>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
 
@@ -43,6 +48,26 @@ pub struct SnapshotEntry {
     /// `pnpm:skipped-optional-dependency`.
     #[serde(default, skip_serializing_if = "is_false")]
     pub optional: bool,
+}
+
+impl PartialEq for SnapshotEntry {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            id,
+            dependencies,
+            optional_dependencies,
+            transitive_peer_dependencies,
+            patched,
+            optional,
+            recorded_peer_bindings: _,
+        } = self;
+        id == &other.id
+            && dependencies == &other.dependencies
+            && optional_dependencies == &other.optional_dependencies
+            && transitive_peer_dependencies == &other.transitive_peer_dependencies
+            && patched == &other.patched
+            && optional == &other.optional
+    }
 }
 
 #[expect(

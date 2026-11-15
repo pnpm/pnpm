@@ -210,3 +210,43 @@ test.each([
   const result = execPnpmSync([command])
   expect(result.stdout.toString()).toMatch(`npm_command: "${expected ?? command}"`)
 })
+
+test('pnpm -r pkg fix repairs malformed dependency fields alongside downloaded devEngines.runtime', () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "packages/*"\n', 'utf8')
+  const brokenManifest = {
+    name: 'root',
+    version: '1.0.0',
+    devDependencies: 'invalid',
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      },
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(brokenManifest, null, 2) + '\n', 'utf8')
+  fs.mkdirSync(path.join('packages', 'child'), { recursive: true })
+  fs.writeFileSync(
+    path.join('packages', 'child', 'package.json'),
+    JSON.stringify({ ...brokenManifest, name: 'child' }, null, 2) + '\n',
+    'utf8'
+  )
+
+  const result = execPnpmSync(['-r', 'pkg', 'fix'], {
+    env: { XDG_CONFIG_HOME: path.resolve('xdg-config') },
+  })
+  expect(result.stderr.toString()).toBe('')
+  expect(result.status).toBe(0)
+
+  for (const manifestPath of ['package.json', path.join('packages', 'child', 'package.json')]) {
+    const saved = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    expect(saved.devDependencies).toBeUndefined()
+    expect(saved.devEngines.runtime).toStrictEqual({
+      name: 'node',
+      version: '22.14.0',
+      onFail: 'download',
+    })
+  }
+})

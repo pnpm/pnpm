@@ -204,3 +204,28 @@ test('readLockfiles() ignores incompatible lockfile in CI when frozenLockfile is
 
   expect(context.existsWantedLockfile).toBe(false)
 })
+
+
+test('readLockfiles() preserves importer membership before adding empty entries', async () => {
+  const lockfileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-get-context-'))
+  try {
+    await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\nimporters:\n  existing: {}\n")
+    const context = await readLockfiles({
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+      peersSuffixMaxLength: 1000,
+      ci: false,
+      force: false,
+      frozenLockfile: false,
+      projects: ['existing', 'new'].map((id) => ({ id: id as ProjectId, manifest: {}, rootDir: lockfileDir as ProjectRootDir })),
+      lockfileDir,
+      registry: 'https://registry.npmjs.org/',
+      useLockfile: true,
+      installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+    })
+    expect(context.originalImporterIds).toStrictEqual(new Set(['existing']))
+    expect(Object.keys(context.wantedLockfile.importers)).toStrictEqual(['existing', 'new'])
+  } finally {
+    await fs.rm(lockfileDir, { recursive: true, force: true })
+  }
+})

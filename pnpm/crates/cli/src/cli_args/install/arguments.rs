@@ -137,18 +137,29 @@ pub struct InstallMaterializationArgs {
     /// Overrides the configured value.
     #[clap(long = "node-linker", value_enum)]
     pub node_linker: Option<NodeLinkerArg>,
-    /// Open the store read-only and skip all store writes. For installing
-    /// against a store on a read-only filesystem (e.g. a Nix store); pair
-    /// with `--offline --frozen-lockfile`.
-    #[clap(long = "frozen-store", overrides_with = "no_frozen_store")]
-    pub frozen_store: bool,
-    /// Allow store writes even when the configuration enables the
-    /// read-only store.
-    #[clap(long = "no-frozen-store", overrides_with = "frozen_store")]
-    pub no_frozen_store: bool,
+    #[clap(flatten)]
+    pub store: crate::cli_args::install_options::FrozenStoreArgs,
     /// Package names allowed to run lifecycle (build) scripts during this
     /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
     /// its scripts instead. May be repeated.
     #[clap(long = "allow-build")]
     pub allow_build: Vec<String>,
+    /// Distinguishes `pnpm ci` from a standard `pnpm install` so the
+    /// pipeline validates frozen lockfiles before cleaning `node_modules`
+    /// and skips the repeat-install shortcut.
+    #[clap(skip)]
+    pub(crate) entry_mode: InstallEntryMode,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InstallEntryMode {
+    #[default]
+    Standard,
+    CleanInstall,
+}
+
+impl InstallEntryMode {
+    pub(crate) fn is_clean_install(self) -> bool {
+        matches!(self, Self::CleanInstall)
+    }
 }

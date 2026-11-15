@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsStr,
     fs::{self, File, FileTimes},
     io,
     path::Path,
@@ -38,26 +39,48 @@ pub(super) fn clone_file(source: &Path, target: &Path) -> io::Result<()> {
 /// Content changes can retain mtimes, and relocated build scripts can retain
 /// the publisher's paths. Invalidate all freshness records for new inputs, or
 /// local units and build-script runs when moving an exact-input snapshot.
+///
+/// Recognizes both Cargo build-dir layouts: `.fingerprint/<package>-<hash>`
+/// and `build/<package>/<hash>/fingerprint`.
 pub(super) fn invalidate_fingerprints(
     root: &Path,
     local_packages: Option<&[String]>,
 ) -> io::Result<()> {
     for entry in fs::read_dir(root)? {
         let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
+        if entry.file_type()?.is_dir() {
+            invalidate_directory(&entry.path(), local_packages)?;
         }
-        if entry.file_name() != ".fingerprint" {
-            invalidate_fingerprints(&entry.path(), local_packages)?;
-            continue;
-        }
-        let Some(packages) = local_packages else {
-            fs::remove_dir_all(entry.path())?;
-            continue;
-        };
-        invalidate_local_fingerprints(&entry.path(), packages)?;
     }
     Ok(())
+}
+
+fn invalidate_directory(path: &Path, local_packages: Option<&[String]>) -> io::Result<()> {
+    if path.file_name() == Some(OsStr::new(".fingerprint")) {
+        return match local_packages {
+            None => fs::remove_dir_all(path),
+            Some(packages) => invalidate_local_fingerprints(path, packages),
+        };
+    }
+    let Some(package) = unit_fingerprint_package(path) else {
+        return invalidate_fingerprints(path, local_packages);
+    };
+    if is_stale_unit(path, package, local_packages)? {
+        fs::remove_dir_all(path)?;
+    }
+    Ok(())
+}
+
+fn is_stale_unit(
+    fingerprint: &Path,
+    package: &str,
+    local_packages: Option<&[String]>,
+) -> io::Result<bool> {
+    let Some(packages) = local_packages else { return Ok(true) };
+    Ok(packages
+        .iter()
+        .any(|local| local == package)
+        || runs_build_script(fingerprint)?)
 }
 
 /// Drop the fingerprints of the workspace's own packages and of every
@@ -76,17 +99,32 @@ fn invalidate_local_fingerprints(fingerprint_dir: &Path, packages: &[String]) ->
         let local = packages
             .iter()
             .any(|package| name.starts_with(&format!("{package}-")));
-        let build_script = fs::read_dir(fingerprint.path())?
-            .collect::<io::Result<Vec<_>>>()?
-            .iter()
-            .any(|file| {
-                file.file_name()
-                    .to_string_lossy()
-                    .starts_with("run-build-script")
-            });
-        if local || build_script {
+        if local || runs_build_script(&fingerprint.path())? {
             fs::remove_dir_all(fingerprint.path())?;
         }
     }
     Ok(())
+}
+
+/// The package of a `build/<package>/<hash>/fingerprint` directory.
+fn unit_fingerprint_package(path: &Path) -> Option<&str> {
+    if path.file_name()? != "fingerprint" {
+        return None;
+    }
+    let package_dir = path.parent()?.parent()?;
+    if package_dir.parent()?.file_name()? != "build" {
+        return None;
+    }
+    package_dir.file_name()?.to_str()
+}
+
+fn runs_build_script(fingerprint: &Path) -> io::Result<bool> {
+    Ok(fs::read_dir(fingerprint)?
+        .collect::<io::Result<Vec<_>>>()?
+        .iter()
+        .any(|file| {
+            file.file_name()
+                .to_string_lossy()
+                .starts_with("run-build-script")
+        }))
 }
