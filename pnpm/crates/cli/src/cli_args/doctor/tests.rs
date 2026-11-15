@@ -149,6 +149,11 @@ fn probe_reports_the_links_a_normal_filesystem_supports() {
 fn can_write_to_dir_detects_a_writable_dir() {
     let dir = tempfile::tempdir().expect("create temp dir");
     assert!(can_write_to_dir(dir.path()));
+    assert_eq!(
+        fs::read_dir(dir.path()).expect("read temp dir").count(),
+        0,
+        "file-write probe must clean up its temporary file",
+    );
 }
 
 #[test]
@@ -173,16 +178,30 @@ fn can_write_to_dir_rejects_empty_and_file_blocked_paths() {
     assert!(!can_write_to_dir(&blocker.join("cache/pnpm")));
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[test]
-fn can_write_to_dir_rejects_dangling_symlinks_and_readonly_ancestors() {
-    use std::os::unix::fs::{PermissionsExt as _, symlink};
-
+fn can_write_to_dir_rejects_dangling_symlinks() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let dangling = dir.path().join("dangling-link");
-    symlink(dir.path().join("nowhere"), &dangling).expect("create dangling symlink");
+    let missing_target = dir.path().join("nowhere");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&missing_target, &dangling).expect("create dangling symlink");
+    #[cfg(windows)]
+    if let Err(error) = std::os::windows::fs::symlink_dir(&missing_target, &dangling) {
+        if error.raw_os_error() == Some(1314) {
+            eprintln!("skipping symlink assertion without Windows symlink privilege: {error}");
+            return;
+        }
+        panic!("create dangling symlink: {error}");
+    }
     assert!(!can_write_to_dir(&dangling));
     assert!(!can_write_to_dir(&dangling.join("pnpm")));
+}
+
+#[cfg(unix)]
+#[test]
+fn can_write_to_dir_rejects_readonly_ancestors() {
+    use std::os::unix::fs::PermissionsExt as _;
 
     // Root bypasses POSIX permission bits.
     // SAFETY: `geteuid` takes no arguments and has no preconditions.
@@ -190,6 +209,7 @@ fn can_write_to_dir_rejects_dangling_symlinks_and_readonly_ancestors() {
         return;
     }
 
+    let dir = tempfile::tempdir().expect("create temp dir");
     let readonly = dir.path().join("readonly");
     fs::create_dir(&readonly).expect("create readonly dir");
     fs::set_permissions(&readonly, fs::Permissions::from_mode(0o555)).expect("chmod 0555");

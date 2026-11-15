@@ -9,7 +9,6 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { isError } from '@pnpm/error'
 import { ping } from '@pnpm/registry-access.commands'
 import chalk from 'chalk'
-import { pathAbsolute } from 'path-absolute'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -19,6 +18,7 @@ import {
   checkFilesystemCapabilities,
   checkWritableDir,
   type LinkOperations,
+  resolveConfiguredStoreDir,
 } from './doctorFilesystem.js'
 
 export type { LinkOperations }
@@ -123,7 +123,7 @@ export async function handler (opts: DoctorCommandOptions): Promise<{ output: st
     checkInstallMethod(),
     await checkGlobalBinDir(opts),
     await checkWritableDir('Cache directory', opts.cacheDir),
-    ...(opts.storeDir ? [await checkWritableDir('Store directory', pathAbsolute(opts.storeDir, pkgRoot))] : []),
+    ...(opts.storeDir ? [await checkWritableDir('Store directory', resolveConfiguredStoreDir(opts.storeDir, pkgRoot))] : []),
     await checkFilesystemCapabilities(opts),
     await checkConnectivity(opts),
     await checkInstallSmokeTest(pnpmCommand, opts),

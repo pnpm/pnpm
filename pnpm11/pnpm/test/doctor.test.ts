@@ -3,16 +3,20 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
+import { STORE_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 
 import { type CheckResult, handler, type LinkOperations } from '../src/cmd/doctor.js'
+import { canWriteToDir } from '../src/cmd/doctorFilesystem.js'
+import { execPnpmSync } from './utils/execPnpm.js'
 import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
 const PNPM_BIN = path.resolve(import.meta.dirname, '../bin/pnpm.mjs')
 
 function simulatedMount (filePath: string): string | undefined {
-  return path.resolve(filePath).split(path.sep).find((part) => part.startsWith('mount-'))
+  const realParent = fs.realpathSync(path.dirname(filePath))
+  return realParent.split(path.sep).find((part) => part.startsWith('mount-'))
 }
 
 function createCrossMountLinkOperations (): LinkOperations {
@@ -208,4 +212,118 @@ test('pnpm doctor warns when storeDir and project are on different filesystems',
   expect(fsCheck?.fix).toBe(
     'Neither reflink nor hardlink works between the store and this project; installs will copy files and be slower. Put the store on the same filesystem as your projects.'
   )
+})
+
+test('pnpm doctor CLI reads storeDir from pnpm-workspace.yaml and checks the versioned store path', () => {
+  prepare()
+  const root = process.cwd()
+  const blocker = path.join(root, 'blocked-store')
+  fs.writeFileSync(blocker, 'file')
+  fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'storeDir: ./blocked-store\n')
+
+  const result = execPnpmSync(['doctor', '--offline', '--json'], {
+    cwd: root,
+    omitEnvDefaults: ['pnpm_config_store_dir'],
+  })
+  expect(result.status).toBe(1)
+  const { checks } = JSON.parse(result.stdout.toString()) as { checks: CheckResult[] }
+  const storeCheck = checks.find((check) => check.title === 'Store directory')
+  expect(storeCheck?.status).toBe('fail')
+  expect(storeCheck?.detail).toContain(path.join('blocked-store', STORE_VERSION))
+})
+
+test('pnpm doctor probes the versioned store directory and workspace member modules directory', async () => {
+  prepare()
+  const root = process.cwd()
+  const storeBase = path.join(root, 'shared-store')
+  const mountAVersionedStore = path.join(root, 'mount-a', 'store-v')
+  const workspaceRoot = path.join(root, 'mount-a', 'workspace')
+  const memberDir = path.join(root, 'mount-b', 'member')
+  fs.mkdirSync(storeBase, { recursive: true })
+  fs.mkdirSync(mountAVersionedStore, { recursive: true })
+  fs.mkdirSync(workspaceRoot, { recursive: true })
+  fs.mkdirSync(memberDir, { recursive: true })
+  fs.symlinkSync(mountAVersionedStore, path.join(storeBase, STORE_VERSION), 'junction')
+
+  const { output, exitCode } = await handler({
+    dir: memberDir,
+    workspaceDir: workspaceRoot,
+    lockfileDir: workspaceRoot,
+    nodeLinker: 'hoisted',
+    cacheDir: path.join(workspaceRoot, 'cache'),
+    pnpmHomeDir: path.join(workspaceRoot, 'pnpm-home'),
+    storeDir: storeBase,
+    offline: true,
+    json: true,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    configByUri: {},
+    pnpmCommand: [process.execPath, PNPM_BIN],
+    linkOperations: createCrossMountLinkOperations(),
+  })
+  const { checks } = JSON.parse(output) as { checks: CheckResult[] }
+  const fsCheck = checks.find((check) => check.title === 'Filesystem')
+
+  expect(exitCode).toBe(0)
+  expect(fsCheck?.status).toBe('warn')
+})
+
+test('pnpm doctor returns a filesystem warning when writing the store probe file fails', async () => {
+  prepare()
+  const root = process.cwd()
+  const projectDir = path.join(root, 'proj')
+  const storeDir = path.join(root, 'store', STORE_VERSION)
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.mkdirSync(storeDir, { recursive: true })
+
+  const realWriteFile = fs.promises.writeFile.bind(fs.promises)
+  const writeSpy = jest.spyOn(fs.promises, 'writeFile').mockImplementation(async (target, data, options) => {
+    if (typeof target === 'string' && target.includes('.pnpm-doctor-') && target.endsWith(`${path.sep}source`)) {
+      throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+    }
+    return realWriteFile(target, data, options)
+  })
+  try {
+    const { output, exitCode } = await handler({
+      dir: projectDir,
+      cacheDir: path.join(root, 'cache'),
+      pnpmHomeDir: path.join(root, 'pnpm-home'),
+      storeDir,
+      offline: true,
+      json: true,
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      configByUri: {},
+      pnpmCommand: [process.execPath, '-e', ''],
+    })
+    const { checks } = JSON.parse(output) as { checks: CheckResult[] }
+    const fsCheck = checks.find((check) => check.title === 'Filesystem')
+
+    expect(exitCode).toBe(1)
+    expect(fsCheck).toStrictEqual({
+      title: 'Filesystem',
+      status: 'warn',
+      detail: 'could not write a probe file',
+      fix: 'Check that the store directory is writable.',
+    })
+    expect(fs.readdirSync(storeDir)).toStrictEqual([])
+    expect(fs.readdirSync(projectDir)).toStrictEqual([])
+  } finally {
+    writeSpy.mockRestore()
+  }
+})
+
+test('canWriteToDir verifies file creation in an existing directory even if subdirectory creation works', () => {
+  prepare()
+  const existingDir = path.resolve('existing-dir')
+  fs.mkdirSync(existingDir, { recursive: true })
+
+  const openSpy = jest.spyOn(fs, 'openSync').mockImplementation(() => {
+    throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+  })
+  try {
+    expect(canWriteToDir(existingDir)).toBe(false)
+  } finally {
+    openSpy.mockRestore()
+  }
+  expect(canWriteToDir(existingDir)).toBe(true)
+  expect(fs.readdirSync(existingDir)).toStrictEqual([])
 })

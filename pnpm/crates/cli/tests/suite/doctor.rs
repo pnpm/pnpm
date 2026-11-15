@@ -1,7 +1,3 @@
-//! End-to-end tests for `pnpm doctor`, covering fresh environments where
-//! cache, store, and global bin directories do not exist yet on disk, as well
-//! as blocked directory paths.
-
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use serde::Deserialize;

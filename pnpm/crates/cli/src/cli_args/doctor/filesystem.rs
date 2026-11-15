@@ -30,35 +30,82 @@ pub(super) fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
         })
 }
 
-/// Probe write access for `dir` at its deepest existing ancestor directory so
-/// missing cache, store, or global bin directories pass on a fresh environment
-/// without `doctor` creating empty directories on disk.
+/// Probe write access for `dir`: existing directories are checked for file
+/// creation directly, while missing cache, store, or global bin directories
+/// probe subdirectory and file creation at their deepest existing ancestor
+/// without leaving empty directories on disk.
 pub(super) fn can_write_to_dir(dir: &Path) -> bool {
-    existing_ancestor_dir(dir).is_some_and(|ancestor| make_probe_dir(&ancestor).is_ok())
+    match resolve_existing_dir(dir) {
+        Some(ExistingDir::Target(existing)) => can_create_file(&existing),
+        Some(ExistingDir::Ancestor(ancestor)) => can_create_subdir(&ancestor),
+        None => false,
+    }
+}
+
+fn can_create_file(dir: &Path) -> bool {
+    pnpm_fs::private_named_tempfile_in(dir).is_ok()
+}
+
+fn can_create_subdir(ancestor: &Path) -> bool {
+    let Ok(probe_dir) = make_probe_dir(ancestor) else {
+        return false;
+    };
+    can_create_file(probe_dir.path())
+}
+
+enum ExistingDir {
+    Target(PathBuf),
+    Ancestor(PathBuf),
 }
 
 /// Return the deepest ancestor of `dir` (including `dir` itself) that already
 /// exists on disk and resolves to a directory, or `None` when an ancestor is
 /// blocked by a non-directory entry, a dangling symlink, or an unreadable parent.
 pub(super) fn existing_ancestor_dir(dir: &Path) -> Option<PathBuf> {
+    match resolve_existing_dir(dir)? {
+        ExistingDir::Target(path) | ExistingDir::Ancestor(path) => Some(path),
+    }
+}
+
+enum PathEntryState {
+    Dir,
+    Missing,
+    Blocked,
+}
+
+fn classify_path_entry(candidate: &Path) -> PathEntryState {
+    match fs::symlink_metadata(candidate) {
+        Ok(_) if fs::metadata(candidate).is_ok_and(|meta| meta.is_dir()) => PathEntryState::Dir,
+        Ok(_) => PathEntryState::Blocked,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => PathEntryState::Missing,
+        Err(_) => PathEntryState::Blocked,
+    }
+}
+
+fn normalize_non_empty_path(dir: &Path) -> Option<PathBuf> {
     if dir.as_os_str().is_empty() {
         return None;
     }
     let absolute =
         if dir.is_absolute() { dir.to_path_buf() } else { std::env::current_dir().ok()?.join(dir) };
-    let normalized = pnpm_fs::lexical_normalize(&absolute);
-    for ancestor in normalized.ancestors() {
-        if ancestor.as_os_str().is_empty() {
-            continue;
-        }
-        match fs::symlink_metadata(ancestor) {
-            Ok(_) => {
-                return fs::metadata(ancestor)
-                    .is_ok_and(|meta| meta.is_dir())
-                    .then(|| ancestor.to_path_buf());
+    Some(pnpm_fs::lexical_normalize(&absolute))
+}
+
+fn resolve_existing_dir(dir: &Path) -> Option<ExistingDir> {
+    let normalized = normalize_non_empty_path(dir)?;
+    for ancestor in normalized
+        .ancestors()
+        .filter(|path| !path.as_os_str().is_empty())
+    {
+        match classify_path_entry(ancestor) {
+            PathEntryState::Dir if ancestor == normalized => {
+                return Some(ExistingDir::Target(ancestor.to_path_buf()));
             }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(_) => return None,
+            PathEntryState::Dir => {
+                return Some(ExistingDir::Ancestor(ancestor.to_path_buf()));
+            }
+            PathEntryState::Missing => {}
+            PathEntryState::Blocked => return None,
         }
     }
     None
@@ -118,7 +165,8 @@ impl ProbeWorkspaces {
             link_target: self.link_target.path(),
             symlink_target: self.symlink_target
                 .as_ref()
-                .map_or_else(|| self.link_target.path(), tempfile::TempDir::path),
+                .map(tempfile::TempDir::path)
+                .unwrap_or_else(|| self.link_target.path()),
         }
     }
 }
