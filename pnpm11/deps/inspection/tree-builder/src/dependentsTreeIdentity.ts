@@ -76,7 +76,7 @@ function normalizeUncDirectory (directory: string): string {
 function trimTrailingSeparators (normalizedPath: string): string {
   const { root } = path.parse(normalizedPath)
   let end = normalizedPath.length
-  while (end > root.length && (normalizedPath[end - 1] === '/' || normalizedPath[end - 1] === '\\')) {
+  while (end > root.length && normalizedPath[end - 1] === path.sep) {
     end--
   }
   return normalizedPath.slice(0, end)

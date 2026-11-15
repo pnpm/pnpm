@@ -324,6 +324,16 @@ describe('buildDependentsTree', () => {
     expect(project1MergeId).toBe(project2MergeId)
     expect(project1MergeId).not.toBe(distinctMergeId)
 
+    if (path.sep === '/') {
+      const literalBackslashMergeId = getPackageMergeId({
+        lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+        depPath: 'foo@file:../../vendor/foo-v1\\' as DepPath,
+        snapshot: { resolution: { type: 'directory', directory: '../../vendor/foo-v1\\' } },
+        version: undefined,
+      })
+      expect(literalBackslashMergeId).not.toBe(project1MergeId)
+    }
+
     expect(getPackageMergeId({
       lockfileDir: path.join('/workspace', 'packages', 'project-1'),
       depPath: 'root@file:/' as DepPath,
