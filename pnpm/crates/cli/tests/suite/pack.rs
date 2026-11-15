@@ -542,7 +542,7 @@ fn ignore_flags_pack_without_running_project_code() {
     assert!(workspace.join("pkg-1.0.0.tgz").exists(), "the tarball must be packed");
     assert!(
         !workspace.join("pnpmfile-ran.txt").exists(),
-        "--ignore-pnpmfile must not load the pnpmfile"
+        "--ignore-pnpmfile must not load the pnpmfile",
     );
     assert!(!workspace.join("prepack-ran.txt").exists(), "--ignore-scripts must suppress prepack");
 
