@@ -123,6 +123,27 @@ fn legacy_registries_warning_is_absent_when_urls_differ_only_by_trailing_slash()
 }
 
 #[test]
+fn legacy_registries_warning_is_absent_when_urls_differ_only_by_default_port() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example:443/" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+
+    assert_eq!(
+        legacy_registries_warning(
+            &before,
+            &after,
+            &BTreeMap::from([("@acme".to_string(), "https://mirror.example/".to_string())]),
+        ),
+        None,
+    );
+}
+
+#[test]
 fn legacy_registries_warning_is_present_when_scope_routes_are_omitted() {
     let before = serde_json::json!({
         "registries": { "default": "https://registry-a/" },
