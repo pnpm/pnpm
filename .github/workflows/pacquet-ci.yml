@@ -93,7 +93,8 @@ jobs:
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
               - '.config/crate-layers.toml'
-              - 'deny.toml'
+              - '.config/deny.toml'
+              - '.config/clippy.toml'
               - 'dylint.toml'
               - '.taplo.toml'
               - '.typos.toml'
@@ -825,7 +826,7 @@ jobs:
           filters: |
             src:
               - 'Cargo.lock'
-              - 'deny.toml'
+              - '.config/deny.toml'
 
       # `pnpm pipeline` installs before it runs anything, and that install
       # runs `cargo`. Provision the pinned toolchain first so it does not race

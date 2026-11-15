@@ -367,7 +367,7 @@ User-facing text names only what the user can reach: their project, their config
 
 ### Prose linting
 
-[Vale](https://vale.sh) enforces the rules above with the style in [`.vale/styles/pnpm`](./.vale/styles/pnpm). [`.vale.ini`](./.vale.ini) sets which rules apply to which files. `pnpm lint:prose` runs it on the Markdown, the comments in Rust and TypeScript, and the changesets added since `origin/main`. Only errors fail the run. Pass `--minAlertLevel=warning` to also see the warnings.
+[Vale](https://vale.sh) enforces the rules above with the style in [`.config/vale/styles/pnpm`](./.config/vale/styles/pnpm). [`.vale.ini`](./.vale.ini) sets which rules apply to which files. `pnpm lint:prose` runs it on the Markdown, the comments in Rust and TypeScript, and the changesets added since `origin/main`. Only errors fail the run. Pass `--minAlertLevel=warning` to also see the warnings.
 
 Vale flags patterns, not meaning. After a prose rewrite, check whether the opening answers the reader's question, conditions are easy to find, and punctuation makes the sentence easier to read. If behavior is uncertain, name the condition or source of uncertainty instead of removing it.
 

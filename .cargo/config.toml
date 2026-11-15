@@ -8,6 +8,8 @@ codecov = "llvm-cov nextest --workspace --exclude pnpm-integrated-benchmark --ex
 # machines, and aws-lc then calls abort() during the first TLS handshake:
 # pnpm/tasks#239, aws/aws-lc-rs#1072.
 AWS_LC_SYS_NO_JITTER_ENTROPY = "1"
+# clippy looks for clippy.toml in each crate directory and its parents, which never include .config/.
+CLIPPY_CONF_DIR = { value = ".config", relative = true }
 
 [target.powerpc64le-unknown-linux-gnu]
 # cross's binutils 2.26 mislinks calls to optional libc symbols such as gettid.
