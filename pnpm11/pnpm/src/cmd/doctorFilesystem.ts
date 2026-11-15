@@ -262,7 +262,7 @@ async function resolveProbeStoreDir (opts: FilesystemProbeOptions, linkOps: Link
   if (pkgAncestor == null) {
     return fallbackDefault
   }
-  if (await canUseHomeStoreDir(homeStoreDir, pkgAncestor, linkOps)) {
+  if (await canUseHomeStoreDir(opts.pnpmHomeDir, pkgAncestor, linkOps)) {
     return homeStoreDir
   }
   const mountRoot = await findLinkableMountRoot(pkgAncestor, linkOps)
@@ -270,11 +270,11 @@ async function resolveProbeStoreDir (opts: FilesystemProbeOptions, linkOps: Link
 }
 
 async function canUseHomeStoreDir (
-  homeStoreDir: string,
+  pnpmHomeDir: string,
   pkgAncestor: string,
   linkOps: LinkOperations
 ): Promise<boolean> {
-  const homeAncestor = existingAncestorDir(homeStoreDir)
+  const homeAncestor = existingAncestorDir(pnpmHomeDir)
   if (homeAncestor == null) return false
   if (areSameDir(homeAncestor, pkgAncestor)) return true
   return canHardlinkBetweenAncestors(pkgAncestor, homeAncestor, linkOps)

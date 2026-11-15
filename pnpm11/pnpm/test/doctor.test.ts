@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
+import { isError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 
 import { type CheckResult, handler, type LinkOperations } from '../src/cmd/doctor.js'
@@ -307,6 +308,31 @@ test('pnpm doctor resolves the linkable mount root .pnpm-store fallback when sto
   expect(fs.readdirSync(projectDir)).toStrictEqual([])
 })
 
+test('pnpm doctor keeps the home store target when storeDir is unset and pnpmHomeDir/store is blocked by a file', async () => {
+  prepare()
+  const root = process.cwd()
+  const pnpmHomeDir = path.join(root, 'pnpm-home')
+  const projectDir = path.join(root, 'proj')
+  fs.mkdirSync(pnpmHomeDir, { recursive: true })
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(pnpmHomeDir, 'store'), 'blocked')
+
+  const fsCheck = await checkFilesystemCapabilities({
+    dir: projectDir,
+    pnpmHomeDir,
+    linkOperations: createCrossMountLinkOperations(),
+  })
+
+  expect(fsCheck).toStrictEqual({
+    title: 'Filesystem',
+    status: 'warn',
+    detail: 'could not create a probe directory',
+    fix: 'Check that the store and project directories are writable.',
+  })
+  expect(fs.readdirSync(pnpmHomeDir)).toStrictEqual(['store'])
+  expect(fs.readdirSync(projectDir)).toStrictEqual([])
+})
+
 test('pnpm doctor passes filesystem check across mounts when global virtual store links on the store mount', async () => {
   prepare()
   const root = process.cwd()
@@ -402,7 +428,7 @@ test('canWriteToDir rejects empty, file-blocked, dangling-symlink, and read-only
     fs.symlinkSync(path.join(root, 'nowhere'), dangling, 'dir')
     createdSymlink = true
   } catch (err: unknown) {
-    if (!(err instanceof Error && 'code' in err && err.code === 'EPERM' && process.platform === 'win32')) {
+    if (!(isError(err) && 'code' in err && err.code === 'EPERM' && process.platform === 'win32')) {
       throw err
     }
   }
