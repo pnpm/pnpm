@@ -9,16 +9,7 @@ use std::{
 };
 
 #[cfg(unix)]
-use std::{
-    ffi::CString,
-    os::{
-        fd::AsFd,
-        unix::{
-            ffi::OsStrExt,
-            fs::{MetadataExt, OpenOptionsExt},
-        },
-    },
-};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 
 mod child_ops;
 #[cfg(unix)]
@@ -94,8 +85,8 @@ impl OpenDir {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
         {
-            match unix::open_dir_at(self.handle.as_fd(), &c_name(name)?) {
-                Ok(handle) => Ok(Some(Self { path: self.path.join(name), handle: handle.into() })),
+            match pnpm_ffi_fs::open_directory_at(&self.handle, validate_child_name(name)?) {
+                Ok(handle) => Ok(Some(Self { path: self.path.join(name), handle })),
                 Err(error) if unix::is_not_a_real_dir(&error) => Ok(None),
                 Err(error) => Err(error),
             }
@@ -116,7 +107,7 @@ impl OpenDir {
     /// `..` excluded.
     pub fn entry_names(&self) -> io::Result<Vec<OsString>> {
         #[cfg(unix)]
-        return unix::entry_names(self.handle.as_fd());
+        return unix::entry_names(&self.handle);
         #[cfg(windows)]
         return read_dir_entry_names(self.pinned.path());
         #[cfg(not(any(unix, windows)))]
@@ -161,8 +152,8 @@ impl OpenDir {
     pub fn try_reopen(&self) -> io::Result<Self> {
         #[cfg(unix)]
         {
-            let handle = unix::open_dir_at(self.handle.as_fd(), c".")?;
-            Ok(Self { path: self.path.clone(), handle: handle.into() })
+            let handle = pnpm_ffi_fs::reopen_directory(&self.handle)?;
+            Ok(Self { path: self.path.clone(), handle })
         }
         #[cfg(windows)]
         {
@@ -181,10 +172,9 @@ impl OpenDir {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
         {
-            let c_str = c_name(name)?;
-            let parent = self.handle.as_fd();
-            match unix::open_dir_at(parent, &c_str) {
-                Ok(dir) => unix::remove_dir_all_at(parent, &c_str, dir).map(|()| true),
+            let name = validate_child_name(name)?;
+            match pnpm_ffi_fs::open_directory_at(&self.handle, name) {
+                Ok(dir) => unix::remove_dir_all_at(&self.handle, name, &dir).map(|()| true),
                 Err(error) if unix::is_not_a_real_dir(&error) => Ok(false),
                 Err(error) => Err(error),
             }
@@ -262,11 +252,6 @@ fn canonicalize(path: &Path) -> io::Result<Option<PathBuf>> {
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
-}
-
-#[cfg(unix)]
-fn c_name(name: &OsStr) -> io::Result<CString> {
-    Ok(CString::new(validate_child_name(name)?.as_bytes())?)
 }
 
 #[cfg(not(any(unix, windows)))]
