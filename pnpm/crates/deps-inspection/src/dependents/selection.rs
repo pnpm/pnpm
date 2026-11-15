@@ -138,12 +138,38 @@ pub(super) fn package_merge_id(
         .map(|metadata| &metadata.resolution);
     if let Some(LockfileResolution::Directory(dir_res)) = resolution {
         if dir_res.directory.starts_with(r"\\") || dir_res.directory.starts_with("//") {
-            return Some(format!("dir:{}", dir_res.directory));
+            return Some(format!("dir:{}", normalize_unc_directory(&dir_res.directory)));
         }
         let normalized = lexical_normalize(&lockfile_dir.join(&dir_res.directory));
         return Some(format!("dir:{}", normalized.to_string_lossy()));
     }
     Some(format!("dep:{without_peer}"))
+}
+
+fn normalize_unc_directory(directory: &str) -> String {
+    let mut parts = directory
+        .trim_start_matches(['/', '\\'])
+        .split(['/', '\\'])
+        .filter(|part| !part.is_empty());
+    let mut normalized = Vec::new();
+    for _ in 0..2 {
+        if let Some(part) = parts.next() {
+            normalized.push(part);
+        }
+    }
+    let root_len = normalized.len();
+    for segment in parts {
+        match segment {
+            "." => {}
+            ".." => {
+                if normalized.len() > root_len {
+                    normalized.pop();
+                }
+            }
+            other => normalized.push(other),
+        }
+    }
+    format!("//{}", normalized.join("/"))
 }
 
 /// `semver.compare` when both versions parse as semver, lexicographic

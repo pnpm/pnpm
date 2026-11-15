@@ -48,14 +48,38 @@ export function getPackageMergeId (opts: GetPackageMergeIdOpts): string | undefi
   if ('directory' in opts.snapshot.resolution && opts.snapshot.resolution.type === 'directory') {
     const { directory } = opts.snapshot.resolution
     if (directory.startsWith('\\\\') || directory.startsWith('//')) {
-      return `dir:${directory}`
+      return `dir:${normalizeUncDirectory(directory)}`
     }
     const normalized = path.isAbsolute(directory)
       ? path.normalize(directory)
       : path.join(opts.lockfileDir, directory)
-    return `dir:${normalized}`
+    return `dir:${trimTrailingSeparators(normalized)}`
   }
   return `dep:${removePeersSuffix(opts.depPath)}`
+}
+
+function normalizeUncDirectory (directory: string): string {
+  const parts = directory.replace(/^[/\\]+/, '').split(/[/\\]+/).filter(Boolean)
+  const head = parts.slice(0, 2)
+  const tail: string[] = []
+  for (const segment of parts.slice(2)) {
+    if (segment === '.') continue
+    if (segment === '..') {
+      tail.pop()
+    } else {
+      tail.push(segment)
+    }
+  }
+  return `//${[...head, ...tail].join('/')}`
+}
+
+function trimTrailingSeparators (normalizedPath: string): string {
+  const { root } = path.parse(normalizedPath)
+  let end = normalizedPath.length
+  while (end > root.length && (normalizedPath[end - 1] === '/' || normalizedPath[end - 1] === '\\')) {
+    end--
+  }
+  return normalizedPath.slice(0, end)
 }
 
 export interface RecordPackageNodeMergeIdOpts {

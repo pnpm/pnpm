@@ -18,6 +18,9 @@ packages:
   foo@file:../../vendor/foo-v1:
     resolution: {type: directory, directory: ../../vendor/foo-v1}
 
+  foo@file:../../vendor/foo-v1/:
+    resolution: {type: directory, directory: ../../vendor/foo-v1/}
+
   foo@file:../../../vendor/foo-v1:
     resolution: {type: directory, directory: ../../../vendor/foo-v1}
 
@@ -28,10 +31,11 @@ packages:
     resolution: {type: directory, directory: '\\server\share\foo'}
 
   unc-slash@file:share:
-    resolution: {type: directory, directory: '//server/share/foo'}
+    resolution: {type: directory, directory: '//server/share/foo/'}
 
 snapshots:
   foo@file:../../vendor/foo-v1: {}
+  foo@file:../../vendor/foo-v1/: {}
   foo@file:../../../vendor/foo-v1: {}
   foo@file:../../vendor/foo-v2: {}
   unc-bs@file:share: {}
@@ -47,6 +51,12 @@ snapshots:
         &"foo@file:../../vendor/foo-v1".parse().unwrap(),
         "",
     );
+    let p1_trailing = package_merge_id(
+        Path::new("/workspace/packages/project-1"),
+        &lockfile,
+        &"foo@file:../../vendor/foo-v1/".parse().unwrap(),
+        "",
+    );
     let p2 = package_merge_id(
         Path::new("/workspace/packages/nested/project-2"),
         &lockfile,
@@ -59,27 +69,22 @@ snapshots:
         &"foo@file:../../vendor/foo-v2".parse().unwrap(),
         "",
     );
+    assert_eq!(p1, p1_trailing);
     assert_eq!(p1, p2);
     assert_ne!(p1, p3);
 
-    assert_eq!(
-        package_merge_id(
-            Path::new("/workspace/packages/project-1"),
-            &lockfile,
-            &"unc-bs@file:share".parse().unwrap(),
-            "",
-        )
-        .as_deref(),
-        Some(r"dir:\\server\share\foo"),
+    let unc_bs = package_merge_id(
+        Path::new("/workspace/packages/project-1"),
+        &lockfile,
+        &"unc-bs@file:share".parse().unwrap(),
+        "",
     );
-    assert_eq!(
-        package_merge_id(
-            Path::new("/workspace/packages/project-1"),
-            &lockfile,
-            &"unc-slash@file:share".parse().unwrap(),
-            "",
-        )
-        .as_deref(),
-        Some("dir://server/share/foo"),
+    let unc_slash = package_merge_id(
+        Path::new("/workspace/packages/project-1"),
+        &lockfile,
+        &"unc-slash@file:share".parse().unwrap(),
+        "",
     );
+    assert_eq!(unc_bs.as_deref(), Some("dir://server/share/foo"));
+    assert_eq!(unc_bs, unc_slash);
 }

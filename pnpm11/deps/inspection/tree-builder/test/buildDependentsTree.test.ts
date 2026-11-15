@@ -295,11 +295,17 @@ describe('buildDependentsTree', () => {
     })
   })
 
-  test('getPackageMergeId resolves directory paths lexically and preserves UNC paths without I/O', () => {
+  test('getPackageMergeId resolves directory paths lexically and normalizes UNC and trailing slashes without I/O', () => {
     const project1MergeId = getPackageMergeId({
       lockfileDir: path.join('/workspace', 'packages', 'project-1'),
       depPath: 'foo@file:../../vendor/foo-v1' as DepPath,
       snapshot: { resolution: { type: 'directory', directory: '../../vendor/foo-v1' } },
+      version: undefined,
+    })
+    const project1TrailingSlashMergeId = getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+      depPath: 'foo@file:../../vendor/foo-v1/' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '../../vendor/foo-v1/' } },
       version: undefined,
     })
     const project2MergeId = getPackageMergeId({
@@ -314,20 +320,30 @@ describe('buildDependentsTree', () => {
       snapshot: { resolution: { type: 'directory', directory: '../../vendor/foo-v2' } },
       version: undefined,
     })
+    expect(project1MergeId).toBe(project1TrailingSlashMergeId)
     expect(project1MergeId).toBe(project2MergeId)
     expect(project1MergeId).not.toBe(distinctMergeId)
 
     expect(getPackageMergeId({
       lockfileDir: path.join('/workspace', 'packages', 'project-1'),
+      depPath: 'root@file:/' as DepPath,
+      snapshot: { resolution: { type: 'directory', directory: '/' } },
+      version: undefined,
+    })).toBe(`dir:${path.normalize('/')}`)
+
+    const uncBackslash = getPackageMergeId({
+      lockfileDir: path.join('/workspace', 'packages', 'project-1'),
       depPath: 'foo@file://server/share/foo' as DepPath,
       snapshot: { resolution: { type: 'directory', directory: '\\\\server\\share\\foo' } },
       version: undefined,
-    })).toBe('dir:\\\\server\\share\\foo')
-    expect(getPackageMergeId({
+    })
+    const uncForwardSlash = getPackageMergeId({
       lockfileDir: path.join('/workspace', 'packages', 'project-1'),
       depPath: 'foo@file://server/share/foo' as DepPath,
-      snapshot: { resolution: { type: 'directory', directory: '//server/share/foo' } },
+      snapshot: { resolution: { type: 'directory', directory: '//server/share/foo/' } },
       version: undefined,
-    })).toBe('dir://server/share/foo')
+    })
+    expect(uncBackslash).toBe('dir://server/share/foo')
+    expect(uncBackslash).toBe(uncForwardSlash)
   })
 })
