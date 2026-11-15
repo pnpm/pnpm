@@ -30,9 +30,17 @@ fn a_command_taking_a_foreign_command_line_forwards_everything_after_its_first_p
         (&["run", "show", "-s", "--if-present"], &["-s", "--if-present"]),
         (&["exec", "node", "show.js", "--config.foo=bar"], &["show.js", "--config.foo=bar"]),
         (&["dlx", "cowsay", "--silent"], &["--silent"]),
-        // The recursive prefix forms defer the classification one positional.
+        (&["create", "vite", "my-app", "--env-file", ".env"], &["my-app", "--env-file", ".env"]),
+        (
+            &["create", "--allow-build", "esbuild", "vite", "my-app", "--silent"],
+            &["my-app", "--silent"],
+        ),
+        // The recursive and pm prefix forms defer the classification.
         (&["recursive", "run", "show", "--silent"], &["--silent"]),
         (&["m", "run", "show", "--silent"], &["--silent"]),
+        (&["pm", "run", "show", "--silent"], &["--silent"]),
+        (&["--dir", "/tmp", "pm", "run", "show", "--silent"], &["--silent"]),
+        (&["with", "current", "pm", "run", "show", "--silent"], &["--silent"]),
     ] {
         let (_, actual) = split(argv);
         assert_eq!(actual, forwarded, "{argv:?}");
@@ -126,9 +134,8 @@ fn a_value_taking_option_does_not_move_the_boundary_onto_its_value() {
 /// their arguments to another process.
 ///
 /// `with current` is spliced into pnpm's own argv by `with_current::rewrite`
-/// *after* the pre-clap passes, so an override in it is still pnpm's to
-/// claim — leaving it would let clap mistake it for the script name. Any
-/// other version execs a child pnpm, so stripping an override would lose it
+/// after `env_file` runs, so an option in it is still pnpm's to claim. Any
+/// other version execs a child pnpm, so stripping an option would lose it
 /// for that child.
 #[test]
 fn with_forwards_only_for_a_version_that_execs_a_child() {

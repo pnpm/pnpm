@@ -648,3 +648,23 @@ fn lockfile_dir_flag_shares_one_lockfile_across_dedicated_projects() {
     assert_eq!(config.lockfile_dir.as_deref(), Some(workspace));
     assert!(config.shares_one_lockfile());
 }
+
+#[test]
+fn create_stops_scanning_bootstrap_flags_after_starter_name() {
+    let argv = [
+        "pnpm",
+        "--dir",
+        "/tmp/project",
+        "create",
+        "vite",
+        "my-app",
+        "--dir",
+        "/tmp/forwarded-to-starter",
+        "--global",
+    ]
+    .map(OsString::from);
+    let invocation = Invocation::from_argv(&argv, EntryPoint::Command);
+    assert_eq!(invocation.command.as_deref(), Some("create"));
+    assert_eq!(invocation.paths.dir, PathBuf::from("/tmp/project"));
+    assert!(!invocation.global);
+}

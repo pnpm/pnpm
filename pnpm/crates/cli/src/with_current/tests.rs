@@ -1,4 +1,4 @@
-use super::{MissingWithCurrentCommand, option_consumes_value, plan};
+use super::{MissingWithCurrentCommand, plan};
 use std::ffi::OsString;
 
 /// Build an argv (with a leading program name) from string slices.
@@ -106,24 +106,32 @@ fn rewrites_with_current_after_a_clustered_value_taking_short() {
 }
 
 #[test]
-fn option_value_consumption_matches_pnpm() {
-    // Value-takers and unknown long options consume their successor, as
-    // does a cluster ending in a value-taking short.
-    assert!(option_consumes_value("--reporter"));
-    assert!(option_consumes_value("--unknown-flag"));
-    assert!(option_consumes_value("-C"));
-    assert!(option_consumes_value("-F"));
-    assert!(option_consumes_value("-rC"));
-    assert!(option_consumes_value("-rwF"));
-    // Booleans, `--no-` negations, inline `=` values, boolean shorts and
-    // their clusters, and a short carrying its value inline do not.
-    assert!(!option_consumes_value("--color"));
-    assert!(!option_consumes_value("--recursive"));
-    assert!(!option_consumes_value("--yes"));
-    assert!(!option_consumes_value("--no-something"));
-    assert!(!option_consumes_value("--reporter=ndjson"));
-    assert!(!option_consumes_value("-r"));
-    assert!(!option_consumes_value("-rw"));
-    assert!(!option_consumes_value("-Cpackages/foo"));
-    assert!(!option_consumes_value("-rCpackages/foo"));
+fn rewrites_with_current_after_subcommand_boolean_and_setting_flags() {
+    for (tokens, expected) in [
+        (["--bare", "with", "current", "init"].as_slice(), ["pnpm", "--bare", "init"].as_slice()),
+        (&["--prod", "with", "current", "install"], &["pnpm", "--prod", "install"]),
+        (
+            &["--shamefully-hoist", "with", "current", "install"],
+            &["pnpm", "--shamefully-hoist", "install"],
+        ),
+        (&["pm", "with", "current", "list"], &["pnpm", "pm", "list"]),
+        (&["recursive", "with", "current", "list"], &["pnpm", "recursive", "list"]),
+    ] {
+        let (rewritten, force) = plan(argv(tokens)).expect("plan");
+        assert!(force, "tokens: {tokens:?}");
+        assert_eq!(strings(&rewritten), expected, "tokens: {tokens:?}");
+    }
+}
+
+#[test]
+fn skips_with_after_separator_or_short_value_option() {
+    for tokens in [
+        ["-C", "with", "current", "install"].as_slice(),
+        ["--", "with", "current", "install"].as_slice(),
+    ] {
+        let original = argv(tokens);
+        let (rewritten, force) = plan(original.clone()).expect("plan");
+        assert!(!force, "tokens: {tokens:?}");
+        assert_eq!(strings(&rewritten), strings(&original), "tokens: {tokens:?}");
+    }
 }

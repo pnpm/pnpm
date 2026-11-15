@@ -1,10 +1,13 @@
 import { parseCliArgs as parseCliArgsLib, type ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
+import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import nopt from '@pnpm/nopt'
 
 import {
   getCliOptionsTypes,
   getCommandFullName,
   GLOBAL_OPTIONS,
+  pnpmCmds,
   shorthandsByCommandName,
 } from './cmd/index.js'
 import { shorthands as universalShorthands } from './shorthands.js'
@@ -14,14 +17,20 @@ const RENAMED_OPTIONS = {
   store: 'store-dir',
 }
 
+type FlagTypeMap = Parameters<typeof nopt>[0]
+
+const PRE_COMMAND_SHORTHANDS = { r: '--recursive', ...universalShorthands }
+const RECURSIVE_PREFIXES = new Set(['recursive', 'multi', 'm'])
+let preCommandTypes: FlagTypeMap | undefined
+
 export type ParsedCliArgsWithBuiltIn = ParsedCliArgs & { builtInCommandForced: boolean }
 
 export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsWithBuiltIn> {
-  const builtInCommandForced = inputArgv[0] === 'pm'
-  if (builtInCommandForced) {
-    inputArgv.splice(0, 1)
+  const { argv, builtInCommandForced, withCurrent } = stripPreCommandPrefixes(inputArgv)
+  if (withCurrent) {
+    process.env.pnpm_config_pm_on_fail = 'ignore'
   }
-  const libOpts = {
+  const result = await parseCliArgsLib({
     fallbackCommand: 'run',
     escapeArgs: ['create', 'exec', 'test'],
     getCommandLongName: getCommandFullName,
@@ -30,57 +39,123 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
     shorthandsByCommandName,
     universalOptionsTypes: GLOBAL_OPTIONS,
     universalShorthands,
-  }
-  let result = await parseCliArgsLib(libOpts, inputArgv)
-  // `pnpm [global-opts] with current <cmd> [args]` is sugar for
-  // `pnpm [global-opts] --pm-on-fail=ignore <cmd> [args]` — re-parse so the
-  // inner command is dispatched directly, in-process. The override is
-  // propagated via env var (not --pm-on-fail=ignore in argv) so it survives
-  // parseCliArgsLib's special short-circuits like the -v/--version
-  // interceptor, which discards other parsed options.
-  //
-  // We rebuild argv by removing the `with current` tokens in place so that
-  // any global flags the user put BEFORE `with` (e.g. `--dir`, `--filter`)
-  // are preserved.
-  if (result.cmd === 'with' && result.params[0] === 'current') {
-    const withIdx = findWithCurrentIndex(inputArgv, GLOBAL_OPTIONS)
-    if (withIdx < 0 || inputArgv.length - withIdx - 2 === 0) {
-      throw new PnpmError('MISSING_WITH_CURRENT_CMD',
-        'Missing command after "current". Usage: pnpm with current <command> [args...]')
-    }
-    process.env.pnpm_config_pm_on_fail = 'ignore'
-    result = await parseCliArgsLib(libOpts, [
-      ...inputArgv.slice(0, withIdx),
-      ...inputArgv.slice(withIdx + 2),
-    ])
-  }
+  }, argv)
   return { ...result, builtInCommandForced }
 }
 
-/**
- * Locate the `with current` token pair in argv. We assume the first
- * occurrence that's plausibly the command (not the value of a preceding flag)
- * is the one. Good enough for realistic CLI usage — no pnpm option is
- * expected to take the literal value `with`.
- */
-function findWithCurrentIndex (argv: string[], optionTypes: Record<string, unknown>): number {
-  for (let tokenIndex = 0; tokenIndex < argv.length - 1; tokenIndex++) {
-    if (argv[tokenIndex] !== 'with' || argv[tokenIndex + 1] !== 'current') continue
-    const prev = argv[tokenIndex - 1]
-    // A preceding long option that takes a value would consume `with` as its
-    // value, so this `with current` pair isn't the command — skip it. Boolean
-    // flags (e.g. `--color`) and `--no-` negations don't consume a value.
-    if (prev != null && longOptionConsumesValue(prev, optionTypes)) continue
-    return tokenIndex
+interface ScannedPrefixes {
+  pmIndex?: number
+  withCurrentIndices?: [number, number]
+  recursiveSeen?: boolean
+}
+
+interface StrippedPrefixes {
+  argv: string[]
+  builtInCommandForced: boolean
+  withCurrent: boolean
+}
+
+function stripPreCommandPrefixes (inputArgv: string[]): StrippedPrefixes {
+  if (!inputArgv.includes('pm') && !inputArgv.includes('with')) {
+    return { argv: [...inputArgv], builtInCommandForced: false, withCurrent: false }
+  }
+  const { pmIndex, withCurrentIndices } = scanPreCommandPrefixes(inputArgv)
+  const removed = new Set<number>([
+    ...(pmIndex === undefined ? [] : [pmIndex]),
+    ...(withCurrentIndices ?? []),
+  ])
+  if (withCurrentIndices != null) {
+    const hasTrailingArg = inputArgv.some((_, idx) => idx > withCurrentIndices[1] && !removed.has(idx))
+    if (!hasTrailingArg) {
+      throw new PnpmError('MISSING_WITH_CURRENT_CMD',
+        'Missing command after "current". Usage: pnpm with current <command> [args...]')
+    }
+  }
+  return {
+    argv: inputArgv.filter((_, idx) => !removed.has(idx)),
+    builtInCommandForced: pmIndex !== undefined,
+    withCurrent: withCurrentIndices !== undefined,
+  }
+}
+
+function scanPreCommandPrefixes (argv: string[]): ScannedPrefixes {
+  const scanned: ScannedPrefixes = {}
+  let resumeAt = 0
+  while (true) {
+    const pos = nextPositionalBeforeSeparator(argv, resumeAt)
+    const nextResume = pos >= 0 ? consumePrefixAt(argv, pos, scanned) : -1
+    if (nextResume < 0) break
+    resumeAt = nextResume
+  }
+  return scanned
+}
+
+function consumePrefixAt (argv: string[], pos: number, scanned: ScannedPrefixes): number {
+  if (scanned.pmIndex === undefined && argv[pos] === 'pm') {
+    scanned.pmIndex = pos
+    return pos + 1
+  }
+  const currentPos = scanned.withCurrentIndices === undefined ? matchWithCurrentAt(argv, pos) : -1
+  if (currentPos >= 0) {
+    scanned.withCurrentIndices = [pos, currentPos]
+    return currentPos + 1
+  }
+  if (!scanned.recursiveSeen && RECURSIVE_PREFIXES.has(argv[pos]) && nextPositionalBeforeSeparator(argv, pos + 1) >= 0) {
+    scanned.recursiveSeen = true
+    return pos + 1
   }
   return -1
 }
 
-function longOptionConsumesValue (token: string, optionTypes: Record<string, unknown>): boolean {
-  if (!token.startsWith('--') || token.includes('=')) return false
-  const name = token.slice(2)
-  if (name.startsWith('no-')) return false
-  return !isBooleanType(optionTypes[name])
+function matchWithCurrentAt (argv: string[], pos: number): number {
+  if (argv[pos] !== 'with') return -1
+  const currentPos = nextPositionalBeforeSeparator(argv, pos + 1)
+  return currentPos >= 0 && argv[currentPos] === 'current' ? currentPos : -1
+}
+
+function nextPositionalBeforeSeparator (argv: string[], from: number): number {
+  let index = from
+  while (index < argv.length) {
+    const token = argv[index]
+    if (token === '--') return -1
+    if (!token.startsWith('-') || token === '-') return index
+    index += optionConsumesNext(token, argv[index + 1]) ? 2 : 1
+  }
+  return -1
+}
+
+function optionConsumesNext (token: string, next: string | undefined): boolean {
+  if (next === undefined || next === '--' || token.startsWith('--config.')) return false
+  const types = getPreCommandTypes()
+  if (!next.startsWith('-') || next === '-') {
+    return nopt(types, PRE_COMMAND_SHORTHANDS, [token, next], 0).argv.remain.length === 0
+  }
+  if (nopt(types, PRE_COMMAND_SHORTHANDS, [token, 'value'], 0).argv.remain.length > 0) {
+    return false
+  }
+  return !('__probe__' in nopt(types, PRE_COMMAND_SHORTHANDS, [token, '--__probe__'], 0))
+}
+
+function getPreCommandTypes (): FlagTypeMap {
+  if (preCommandTypes != null) return preCommandTypes
+  const merged: Record<string, unknown> = { ...allTypes }
+  for (const commandName of Object.keys(pnpmCmds)) {
+    mergeCommandOptionTypes(merged, getCliOptionsTypes(commandName))
+  }
+  Object.assign(merged, GLOBAL_OPTIONS)
+  preCommandTypes = merged as FlagTypeMap
+  return preCommandTypes
+}
+
+function mergeCommandOptionTypes (
+  merged: Record<string, unknown>,
+  commandTypes: Record<string, unknown>
+): void {
+  for (const [key, type] of Object.entries(commandTypes)) {
+    merged[key] = key in merged && isBooleanType(merged[key]) !== isBooleanType(type)
+      ? Boolean
+      : (merged[key] ?? type)
+  }
 }
 
 function isBooleanType (type: unknown): boolean {
