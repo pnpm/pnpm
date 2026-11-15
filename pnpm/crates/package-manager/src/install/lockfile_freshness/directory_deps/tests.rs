@@ -69,6 +69,20 @@ fn a_changed_catalog_peer_range_is_outdated() {
     );
 }
 
+#[test]
+fn a_raw_recorded_catalog_peer_is_outdated_when_its_entry_changes() {
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        std::collections::BTreeMap::from([("foo".to_string(), "2.0.0".to_string())]),
+    )]);
+    let error = check_peer_spec("catalog:", "catalog:", &catalogs)
+        .expect_err("the raw recorded catalog peer does not capture its resolved range");
+    assert!(matches!(
+        &error,
+        FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated { .. })
+    ));
+}
+
 fn check_peer_spec(
     manifest_spec: &str,
     recorded_spec: &str,

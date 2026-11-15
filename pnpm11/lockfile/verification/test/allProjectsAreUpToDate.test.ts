@@ -1522,6 +1522,23 @@ describe('local file dependency', () => {
     expect(await check({ ...localDirSnapshot, peerDependencies: { 'is-positive': '^3.0.0' } })).toBeFalsy()
   })
 
+  test('allProjectsAreUpToDate(): detects a changed catalog range for a local file peer', async () => {
+    await writeLocalDirManifest({ peerDependencies: { 'is-positive': 'catalog:' } })
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      catalogs: { default: { 'is-positive': '^2.0.0' } },
+      lockfileDir: process.cwd(),
+      wantedLockfile: {
+        ...options.wantedLockfile,
+        packages: {
+          ...options.wantedLockfile.packages,
+          'local@file:./local-dir': { ...localDirSnapshot, peerDependencies: { 'is-positive': 'catalog:' } },
+        } as LockfileObject['packages'],
+      },
+    })).toBeFalsy()
+  })
+
   test('allProjectsAreUpToDate(): reads the dependencies of local file from a package.yaml', async () => {
     await rm('./local-dir/package.json')
     await writeFile('./local-dir/package.yaml', 'name: local-dir\nversion: 1.0.0\ndependencies:\n  is-positive: 2.0.0\n')

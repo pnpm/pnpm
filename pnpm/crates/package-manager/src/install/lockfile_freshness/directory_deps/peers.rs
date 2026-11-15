@@ -98,7 +98,9 @@ pub(super) fn check_recorded_peer_specs_match(
     for name in recorded_names() {
         let spec = declared[name.as_str()];
         let recorded_spec = recorded.and_then(|p| p.get(name));
-        if recorded_spec.map(String::as_str) == Some(spec) {
+        if recorded_spec.map(String::as_str) == Some(spec)
+            && (!spec.starts_with("catalog:") || dep.catalogs.is_empty())
+        {
             continue;
         }
         if dep.catalogs.is_empty() {

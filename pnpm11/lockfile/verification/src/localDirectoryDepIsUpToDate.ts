@@ -273,7 +273,7 @@ function peerRangeMatches (
   recordedRange: string | undefined
 ): boolean {
   if (recordedRange == null) return false
-  return recordedRange === peer.bareSpecifier || recordedRange === resolveCatalogSpec(ctx, peer)
+  return recordedRange === resolveCatalogSpec(ctx, peer)
 }
 
 /** Every child the snapshot records is one the resolver walks, or a peer, whose resolution it records too. */
