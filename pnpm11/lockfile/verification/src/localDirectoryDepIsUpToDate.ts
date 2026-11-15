@@ -334,7 +334,7 @@ function peerRangeMatches (
       range: catalogRange,
       pkgSnapshot,
       depPathsBySnapshot,
-    })
+    }) ?? (recordedRange === peer.bareSpecifier)
   }
   return recordedRange === resolveCatalogSpec(ctx, peer)
 }
@@ -349,13 +349,17 @@ function catalogPeerVersionSatisfies ({
   range: string
   pkgSnapshot: PackageSnapshot
   depPathsBySnapshot: Map<PackageSnapshot, DepPath>
-}): boolean {
+}): boolean | undefined {
   const depPath = depPathsBySnapshot.get(pkgSnapshot)
-  if (depPath == null) return false
+  if (depPath == null) return undefined
   const bindings = parsePeerBindings(depPath)
-  if (bindings?.kind !== 'explicit') return false
+  if (bindings?.kind !== 'explicit') return undefined
   const provider = getPeerBindingProviders(bindings).find((providerPath) => parse(providerPath).name === alias)
-  return provider != null && versionSatisfies(parse(provider).version, range)
+  if (provider == null) return undefined
+  const providerVersion = parse(provider).version
+  if (providerVersion === range) return true
+  if (providerVersion == null || semver.validRange(range) == null) return undefined
+  return versionSatisfies(providerVersion, range)
 }
 
 /** Every child the snapshot records is one the resolver walks, or a peer, whose resolution it records too. */
