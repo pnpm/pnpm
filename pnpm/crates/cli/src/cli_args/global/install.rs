@@ -360,8 +360,10 @@ pub(super) fn global_group_config(
         if let Some(allow_all) = settings.dangerously_allow_all_builds {
             cfg.dangerously_allow_all_builds = allow_all;
         }
-        if let Some(exclude) = settings.trust_policy_exclude {
-            cfg.trust_policy_exclude.get_or_insert_with(Vec::new).extend(exclude);
+        if let Some(exclude) = settings.trust_policy_exclude
+            && !cfg.cli_settings.contains("trustPolicyExclude")
+        {
+            cfg.trust_policy_exclude = Some(exclude);
         }
     }
     // Don't fail the install when a dependency's build is ignored; the

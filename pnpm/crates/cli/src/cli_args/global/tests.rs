@@ -639,20 +639,32 @@ fn a_group_config_carries_the_persisted_minimum_release_age_excludes() {
     );
 }
 
-#[test]
-fn a_group_config_carries_the_global_trust_policy_excludes() {
+fn global_trust_policy_exclude(base: &Config) -> Option<Vec<String>> {
     let global_pkg_dir = TempDir::new().expect("temp dir");
     let install_dir = global_pkg_dir.path().join("1234");
     fs::create_dir(&install_dir).expect("create the group install dir");
     fs::write(global_pkg_dir.path().join("pnpm-workspace.yaml"), "trustPolicyExclude:\n  - foo\n")
         .expect("write the global manifest");
+    global_group_config(base, &install_dir, global_pkg_dir.path(), None)
+        .expect("build the group config")
+        .trust_policy_exclude
+}
+
+#[test]
+fn a_group_config_takes_the_trust_policy_excludes_of_the_global_packages_dir() {
     let mut base = Config::new();
     base.trust_policy_exclude = Some(vec!["bar".to_string()]);
 
-    let config = global_group_config(&base, &install_dir, global_pkg_dir.path(), None)
-        .expect("build the group config");
+    assert_eq!(global_trust_policy_exclude(&base), Some(vec!["foo".to_string()]));
+}
 
-    assert_eq!(config.trust_policy_exclude, Some(vec!["bar".to_string(), "foo".to_string()]));
+#[test]
+fn a_group_config_keeps_the_trust_policy_excludes_of_the_command_line() {
+    let mut base = Config::new();
+    base.trust_policy_exclude = Some(vec!["bar".to_string()]);
+    base.cli_settings.insert("trustPolicyExclude".to_string());
+
+    assert_eq!(global_trust_policy_exclude(&base), Some(vec!["bar".to_string()]));
 }
 
 #[test]
