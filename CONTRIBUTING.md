@@ -160,7 +160,7 @@ One-time setup:
    so commit and push hooks run when you commit from any worktree:
 
    ```shell
-   git config core.hooksPath .husky/_
+   git config core.hooksPath .config/husky/_
    ```
 
 3. Create the first worktree for `main` and install dependencies:
