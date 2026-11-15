@@ -285,7 +285,7 @@ function mergeExtractedConfigArgs (options: Record<string, unknown>, configDotAr
  * the bare `--<key>` flag would give. A key the command does not declare
  * keeps its raw value.
  */
-function configDotTypes (types: Parameters<typeof nopt>[0]): Parameters<typeof nopt>[0] {
+export function configDotTypes (types: Parameters<typeof nopt>[0]): Parameters<typeof nopt>[0] {
   return Object.fromEntries(
     Object.entries(types).map(([name, type]) => [`${CUSTOM_OPTION_PREFIX}${name}`, type])
   )

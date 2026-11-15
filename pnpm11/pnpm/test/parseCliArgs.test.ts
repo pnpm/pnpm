@@ -61,6 +61,7 @@ test('pm prefix is recognized after pre-command flags and with current, but not 
   const forcedCases = await Promise.all([
     ['pm', 'clean'],
     ['--dir', '/tmp/pkg', 'pm', 'clean'],
+    ['--dir', 'pm', 'pm', 'clean'],
     ['--config.dir', '/tmp/pkg', 'pm', 'clean'],
     ['--config.dir=/tmp/pkg', 'pm', 'clean'],
     ['--config.lockfile', 'pm', 'clean'],
@@ -145,4 +146,9 @@ test('command-specific value options before with current and pm resolve the targ
   expect(forcedInitType.cmd).toBe('init')
   expect(forcedInitType.builtInCommandForced).toBe(true)
   expect(forcedInitType.options['init-type']).toBe('commonjs')
+
+  const tripleDashDir = await parseCliArgs(['--dir', '---dir', 'with', 'current', 'list'])
+  expect(tripleDashDir.cmd).toBe('list')
+  expect(tripleDashDir.params).toStrictEqual([])
+  expect(tripleDashDir.options.dir).toMatch(/(?:^|[\\/])---dir$/)
 })

@@ -1,6 +1,7 @@
 import {
   BASE_EXPLORATORY_TYPES,
   buildExploratoryTypes,
+  configDotTypes,
   parseCliArgs as parseCliArgsLib,
   type ParseCliArgsOptions,
   type ParsedCliArgs,
@@ -26,9 +27,16 @@ type FlagTypeMap = Parameters<typeof nopt>[0]
 const OPTION_SEPARATOR_RE = /^-{2,}$/
 const CUSTOM_OPTION_PREFIX = '--config.'
 const RECURSIVE_PREFIXES = new Set(['recursive', 'multi', 'm'])
+const PREFIX_WORDS = new Set(['pm', 'with', 'current', ...RECURSIVE_PREFIXES])
 const EXPLORATORY_SHORTHANDS = { r: '--recursive', ...universalShorthands }
+
+interface BaseScanTypes {
+  rawBase: FlagTypeMap
+  baseWithConfigDot: FlagTypeMap
+}
+
 let libOpts: ParseCliArgsOptions | undefined
-let basePreCommandTypes: FlagTypeMap | undefined
+let cachedBaseScanTypes: BaseScanTypes | undefined
 
 export type ParsedCliArgsWithBuiltIn = ParsedCliArgs & { builtInCommandForced: boolean }
 
@@ -39,20 +47,6 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
   }
   const result = await parseCliArgsLib(getLibOpts(), argv)
   return { ...result, builtInCommandForced }
-}
-
-function getLibOpts (): ParseCliArgsOptions {
-  libOpts ??= {
-    fallbackCommand: 'run',
-    escapeArgs: ['create', 'exec', 'test'],
-    getCommandLongName: getCommandFullName,
-    getTypesByCommandName: getCliOptionsTypes,
-    renamedOptions: RENAMED_OPTIONS,
-    shorthandsByCommandName,
-    universalOptionsTypes: GLOBAL_OPTIONS,
-    universalShorthands,
-  }
-  return libOpts
 }
 
 interface ScannedPrefixes {
@@ -90,144 +84,138 @@ function stripPreCommandPrefixes (inputArgv: string[]): StrippedPrefixes {
   }
 }
 
+function getLibOpts (): ParseCliArgsOptions {
+  libOpts ??= {
+    fallbackCommand: 'run',
+    escapeArgs: ['create', 'exec', 'test'],
+    getCommandLongName: getCommandFullName,
+    getTypesByCommandName: getCliOptionsTypes,
+    renamedOptions: RENAMED_OPTIONS,
+    shorthandsByCommandName,
+    universalOptionsTypes: GLOBAL_OPTIONS,
+    universalShorthands,
+  }
+  return libOpts
+}
+
 function scanPreCommandPrefixes (argv: string[]): ScannedPrefixes {
-  const scanned: ScannedPrefixes = {}
-  let exploratoryTypes: FlagTypeMap | undefined
-  const getExploratoryTypes = (): FlagTypeMap => {
-    exploratoryTypes ??= buildExploratoryTypes(getLibOpts(), argv)
-    return exploratoryTypes
-  }
-  let resumeAt = 0
-  while (true) {
-    const pos = nextPositionalBeforeSeparator(argv, resumeAt, getExploratoryTypes)
-    const nextResume = pos >= 0 ? consumePrefixAt(argv, pos, scanned, getExploratoryTypes) : -1
-    if (nextResume < 0) break
-    resumeAt = nextResume
-  }
-  return scanned
+  const positionals = extractRemainingPositionals(argv)
+  return consumeLeadingPrefixes(argv, positionals)
 }
 
-function nextPositionalBeforeSeparator (
-  argv: string[],
-  from: number,
-  getExploratoryTypes: () => FlagTypeMap
-): number {
-  let index = from
-  while (index < argv.length) {
-    const token = argv[index]
-    if (isOptionSeparator(token)) return -1
-    if (!token.startsWith('-') || token === '-') return index
-    index += optionConsumesNext(token, argv[index + 1], getExploratoryTypes) ? 2 : 1
+function extractRemainingPositionals (argv: string[]): Array<number | undefined> {
+  const sepIndex = argv.findIndex((token) => OPTION_SEPARATOR_RE.test(token))
+  const head = sepIndex >= 0 ? argv.slice(0, sepIndex) : argv
+  if (!head.some((token) => token.startsWith('-') && token.length > 1)) {
+    return head.map((token, idx) => (PREFIX_WORDS.has(token) ? idx : undefined))
   }
-  return -1
+  const { taggedArgs, tagToIndex } = tagPrefixCandidates(head)
+  const parsed = nopt(resolveScanTypes(head, argv), EXPLORATORY_SHORTHANDS, taggedArgs, 0)
+  return parsed.argv.remain.map((token) => tagToIndex.get(token))
 }
 
-function consumePrefixAt (
+interface PrefixCursor {
+  argv: string[]
+  positionals: Array<number | undefined>
+  scanned: ScannedPrefixes
+}
+
+function consumeLeadingPrefixes (
   argv: string[],
-  pos: number,
-  scanned: ScannedPrefixes,
-  getExploratoryTypes: () => FlagTypeMap
-): number {
-  if (scanned.pmIndex === undefined && argv[pos] === 'pm') {
-    scanned.pmIndex = pos
-    return pos + 1
+  positionals: Array<number | undefined>
+): ScannedPrefixes {
+  const state: PrefixCursor = { argv, positionals, scanned: {} }
+  let cursor = 0
+  while (cursor < positionals.length) {
+    const nextCursor = advancePrefixCursor(state, cursor)
+    if (nextCursor < 0) break
+    cursor = nextCursor
   }
-  const currentPos = scanned.withCurrentIndices === undefined
-    ? matchWithCurrentAt(argv, pos, getExploratoryTypes)
-    : -1
-  if (currentPos >= 0) {
-    scanned.withCurrentIndices = [pos, currentPos]
-    return currentPos + 1
+  return state.scanned
+}
+
+function advancePrefixCursor (state: PrefixCursor, cursor: number): number {
+  const { argv, positionals, scanned } = state
+  const index = positionals[cursor]
+  if (index === undefined) return -1
+  const word = argv[index]
+  if (scanned.pmIndex === undefined && word === 'pm') {
+    scanned.pmIndex = index
+    return cursor + 1
   }
-  if (
-    !scanned.recursiveSeen &&
-    RECURSIVE_PREFIXES.has(argv[pos]) &&
-    nextPositionalBeforeSeparator(argv, pos + 1, getExploratoryTypes) >= 0
-  ) {
+  if (scanned.withCurrentIndices === undefined && word === 'with') {
+    const nextIndex = positionals[cursor + 1]
+    if (nextIndex !== undefined && argv[nextIndex] === 'current') {
+      scanned.withCurrentIndices = [index, nextIndex]
+      return cursor + 2
+    }
+    return -1
+  }
+  if (!scanned.recursiveSeen && RECURSIVE_PREFIXES.has(word) && cursor + 1 < positionals.length) {
     scanned.recursiveSeen = true
-    return pos + 1
+    return cursor + 1
   }
   return -1
 }
 
-function matchWithCurrentAt (
-  argv: string[],
-  pos: number,
-  getExploratoryTypes: () => FlagTypeMap
-): number {
-  if (argv[pos] !== 'with') return -1
-  const currentPos = nextPositionalBeforeSeparator(argv, pos + 1, getExploratoryTypes)
-  return currentPos >= 0 && argv[currentPos] === 'current' ? currentPos : -1
+interface TaggedCandidates {
+  taggedArgs: string[]
+  tagToIndex: Map<string, number>
 }
 
-function isOptionSeparator (token: string): boolean {
-  return OPTION_SEPARATOR_RE.test(token)
+function tagPrefixCandidates (head: string[]): TaggedCandidates {
+  const prefix = chooseMarkerPrefix(head)
+  const tagToIndex = new Map<string, number>()
+  const taggedArgs = head.map((token, idx) => {
+    if (!PREFIX_WORDS.has(token)) return token
+    const tag = `${prefix}${idx}__`
+    tagToIndex.set(tag, idx)
+    return tag
+  })
+  return { taggedArgs, tagToIndex }
 }
 
-function optionConsumesNext (
-  token: string,
-  next: string | undefined,
-  getExploratoryTypes: () => FlagTypeMap
-): boolean {
-  if (next === undefined || isOptionSeparator(next) || token.includes('=')) return false
-  const normalized = normalizePreCommandOption(token, getExploratoryTypes)
-  if (normalized == null) return false
-  const { probeToken, shorthands, types } = normalized
-  if (!next.startsWith('-') || next === '-') {
-    return nopt(types, shorthands, [probeToken, next], 0).argv.remain.length === 0
+function chooseMarkerPrefix (head: string[]): string {
+  let salt = 0
+  let candidate = `__pnpm_prefix_${salt}_`
+  while (head.some((token) => token.startsWith(candidate))) {
+    salt += 1
+    candidate = `__pnpm_prefix_${salt}_`
   }
-  if (nopt(types, shorthands, [probeToken, 'value'], 0).argv.remain.length > 0) {
-    return false
+  return candidate
+}
+
+function resolveScanTypes (head: string[], argv: string[]): FlagTypeMap {
+  const { rawBase, baseWithConfigDot } = getBaseScanTypes()
+  if (head.every((token) => isCoveredByBaseTypes(token, rawBase))) {
+    return baseWithConfigDot
   }
-  return !('__probe__' in nopt(types, shorthands, [probeToken, '--__probe__'], 0))
+  const exploratory = buildExploratoryTypes(getLibOpts(), argv)
+  return { ...exploratory, ...configDotTypes(exploratory) }
 }
 
-interface NormalizedPreCommandOption {
-  probeToken: string
-  shorthands: Record<string, string>
-  types: FlagTypeMap
-}
-
-function normalizePreCommandOption (
-  token: string,
-  getExploratoryTypes: () => FlagTypeMap
-): NormalizedPreCommandOption | undefined {
-  if (token.startsWith(CUSTOM_OPTION_PREFIX)) {
-    const key = token.slice(CUSTOM_OPTION_PREFIX.length)
-    if (key === '') return undefined
-    const probeToken = `--${key}`
-    return {
-      probeToken,
-      shorthands: {},
-      types: resolvePreCommandTypes(probeToken, false, getExploratoryTypes),
+function getBaseScanTypes (): BaseScanTypes {
+  if (cachedBaseScanTypes == null) {
+    const rawBase = { ...BASE_EXPLORATORY_TYPES, ...GLOBAL_OPTIONS } as FlagTypeMap
+    cachedBaseScanTypes = {
+      rawBase,
+      baseWithConfigDot: { ...rawBase, ...configDotTypes(rawBase) },
     }
   }
-  return {
-    probeToken: token,
-    shorthands: EXPLORATORY_SHORTHANDS,
-    types: resolvePreCommandTypes(token, true, getExploratoryTypes),
+  return cachedBaseScanTypes
+}
+
+function isCoveredByBaseTypes (token: string, rawBase: FlagTypeMap): boolean {
+  if (!token.startsWith('-') || token.length === 1) return true
+  const flag = token.split('=', 1)[0]
+  if (!flag.startsWith('--')) {
+    return [...flag.slice(1)].every((ch) => Object.hasOwn(EXPLORATORY_SHORTHANDS, ch))
   }
-}
-
-function resolvePreCommandTypes (
-  probeToken: string,
-  allowShorthands: boolean,
-  getExploratoryTypes: () => FlagTypeMap
-): FlagTypeMap {
-  const base = getBasePreCommandTypes()
-  return isKnownBaseOption(probeToken, base, allowShorthands) ? base : getExploratoryTypes()
-}
-
-function getBasePreCommandTypes (): FlagTypeMap {
-  basePreCommandTypes ??= { ...BASE_EXPLORATORY_TYPES, ...GLOBAL_OPTIONS } as FlagTypeMap
-  return basePreCommandTypes
-}
-
-function isKnownBaseOption (probeToken: string, base: FlagTypeMap, allowShorthands: boolean): boolean {
-  if (!probeToken.startsWith('--')) {
-    return allowShorthands && probeToken.length === 2 && Object.hasOwn(EXPLORATORY_SHORTHANDS, probeToken[1])
+  if (flag.startsWith(CUSTOM_OPTION_PREFIX)) {
+    const key = flag.slice(CUSTOM_OPTION_PREFIX.length)
+    return key !== '' && Object.hasOwn(rawBase, key)
   }
-  const rawName = probeToken.slice(2)
+  const rawName = flag.replace(/^-+/, '')
   const name = rawName.startsWith('no-') ? rawName.slice(3) : rawName
-  return Object.hasOwn(base, name) || (allowShorthands && Object.hasOwn(EXPLORATORY_SHORTHANDS, rawName))
+  return Object.hasOwn(rawBase, name) || Object.hasOwn(EXPLORATORY_SHORTHANDS, rawName)
 }

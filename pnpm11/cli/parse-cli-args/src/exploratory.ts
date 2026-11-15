@@ -5,7 +5,7 @@ import type { ParseCliArgsOptions } from './index.js'
 const OPTION_SEPARATOR_RE = /^-{2,}$/
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
-export const VERSION_BOOTSTRAP_TYPES = {
+const VERSION_BOOTSTRAP_TYPES = {
   'frozen-lockfile': Boolean,
   global: Boolean,
   'global-dir': String,

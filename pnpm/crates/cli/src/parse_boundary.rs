@@ -189,8 +189,7 @@ fn subcommand_scan(
     };
     let name = subcommand.get_name();
     if COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.contains(&name) {
-        let subcommand_arity = ArgTable::for_subcommand(command, subcommand);
-        let index = next_positional(argv, index + 1, &subcommand_arity)? + 1;
+        let index = next_positional(argv, index + 1, foreign_subcommand_arity(name))? + 1;
         return Some(SubcommandScan::Boundary(CommandBoundary {
             index,
             is_script_shortcut: false,
@@ -220,6 +219,24 @@ fn subcommand_scan(
     // resume the scan just past it: whatever boundary the nested command line
     // has is the one that applies, and pnpm still owns everything ahead of it.
     Some(SubcommandScan::Resume(version + 1))
+}
+
+fn foreign_subcommand_arity(name: &str) -> &'static ArgTable {
+    static TABLES: std::sync::OnceLock<
+        [(&'static str, ArgTable); COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.len()],
+    > = std::sync::OnceLock::new();
+    TABLES
+        .get_or_init(|| {
+            let command = grammar();
+            COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.map(|sub_name| {
+                let subcommand = matching_subcommand(command, sub_name)
+                    .expect("foreign-command-line subcommand exists in grammar");
+                (sub_name, ArgTable::for_subcommand(command, subcommand))
+            })
+        })
+        .iter()
+        .find_map(|(sub_name, table)| (*sub_name == name).then_some(table))
+        .expect("caller verified `name` is in COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE")
 }
 
 /// The long options — including aliases — that the command named in `argv`
