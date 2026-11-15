@@ -78,10 +78,62 @@ fn partitions_python_requirements_without_applying_node_or_cargo_semver() {
         plan.ecosystem_packages[2],
         EcosystemPackageSpecifier::Python("other==2.0rc1".into()),
     );
-    for specifier in
-        ["pypi:", "pypi:alpha@", "pypi:alpha@^1.0", "pypi:alpha@https://example.org/a.whl"]
-    {
+    for specifier in [
+        "pypi:",
+        "pypi:alpha@",
+        "pypi:alpha@ ; sys_platform == 'linux'",
+        "pypi:alpha@^1.0",
+        "pypi:alpha @ file:///tmp/a.whl",
+        "pypi:alpha @ ftp://example.org/a.whl",
+    ] {
         assert!(PackageSpecifierPlan::parse([specifier.into()]).is_err(), "{specifier}");
+    }
+    let unsupported = PackageSpecifierPlan::parse(["pypi:alpha @ file:///tmp/a.whl".into()])
+        .expect_err("file:// direct wheel URL is rejected")
+        .to_string();
+    assert!(
+        unsupported.contains("unsupported scheme in direct URL Python requirements"),
+        "{unsupported}",
+    );
+}
+
+#[test]
+fn parses_python_pep508_direct_urls_extras_and_markers() {
+    let cases = [
+        (
+            "pypi:six @ https://files.pythonhosted.org/packages/six-1.16.0-py2.py3-none-any.whl",
+            "six @ https://files.pythonhosted.org/packages/six-1.16.0-py2.py3-none-any.whl",
+        ),
+        (
+            "pypi:alpha@https://example.org/alpha-1.0-py3-none-any.whl",
+            "alpha @ https://example.org/alpha-1.0-py3-none-any.whl",
+        ),
+        (
+            "pypi:Some_Package[extra1, extra2] @ https://example.org/some_package-1.0-py3-none-any.whl#sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ; sys_platform == 'linux'",
+            "some-package[extra1,extra2] @ https://example.org/some_package-1.0-py3-none-any.whl#sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ; sys_platform == 'linux'",
+        ),
+        (
+            "pypi:fork @ git+https://example.org/repo.git@v1.0#subdirectory=pkg",
+            "fork @ git+https://example.org/repo.git@v1.0#subdirectory=pkg",
+        ),
+        (
+            "pypi:fork @ git+file:///tmp/repo@deadbeef ; sys_platform == 'linux'",
+            "fork @ git+file:///tmp/repo@deadbeef ; sys_platform == 'linux'",
+        ),
+        ("pypi:six>=2.0 ; sys_platform == 'linux'", "six>=2.0 ; sys_platform == 'linux'"),
+        (
+            "pypi:six[extra]@1.16.0 ; sys_platform == 'linux'",
+            "six[extra]==1.16.0 ; sys_platform == 'linux'",
+        ),
+        ("pypi:six@~=1.16 ; sys_platform == 'linux'", "six~=1.16 ; sys_platform == 'linux'"),
+    ];
+    for (input, expected) in cases {
+        let plan = PackageSpecifierPlan::parse([input.into()]).expect(input);
+        assert_eq!(
+            plan.ecosystem_packages,
+            [EcosystemPackageSpecifier::Python(expected.to_string())],
+            "{input}",
+        );
     }
 }
 
@@ -276,6 +328,10 @@ fn a_rejected_selector_is_redacted_and_sanitized_before_it_is_printed() {
         message("pkg:npm/foo@https:%2F%252F%2Fuser:pass%40example.test"),
         message("pkg:npm/foo@https%3A%2F%2Fuser%3Apass%40example.test"),
         message("crate:foo@https:%20%2F%2Fuser:pass%40example.test"),
+        message("pypi:foo @ ftp://user:pass@example.test/a.whl"),
+        message("pypi:foo@https:%20%2F%2Fuser:pass%40example.test"),
+        message("pypi:foo @ https://user:pass@example.test/a.whl"),
+        message("pypi:foo @ https://user:pass@example.test:bad/a.whl"),
     ] {
         assert!(!credentials.contains("pass"), "{credentials}");
     }

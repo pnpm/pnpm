@@ -203,14 +203,11 @@ impl UpdateArgs {
         if !updates_all && eco_outcome.remaining_node_selectors.is_empty() {
             return false;
         }
-        if updates_all
-            && eco_outcome.updated_any
-            && selection.is_none()
-            && !state.manifest.path().exists()
-        {
-            return false;
-        }
-        true
+        let has_node_targets = selection.map_or_else(
+            || state.manifest.path().exists(),
+            |selection| !selection.selected_dirs.is_empty(),
+        );
+        !(updates_all && eco_outcome.updated_any && !has_node_targets)
     }
 
     async fn run_ecosystem_update_step<Reporter: self::Reporter + 'static>(

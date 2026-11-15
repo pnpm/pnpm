@@ -12,10 +12,11 @@ pub use add::{AddOptions, plan_add, writable_project};
 pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;
 pub use outdated::{
-    DeclaredPythonDep, PythonDependencyGroup, declared_dependencies, locked_versions,
-    lockfile_dir_for, project_name, resolve_target_version,
+    DeclaredPythonDep, LockedPythonPackages, PythonDependencyGroup, PythonIndexCache,
+    TargetPyproject, declared_dependencies, inspect_target_pyproject, lockfile_dir_for,
+    project_name, resolve_target_version,
 };
-pub use pep508_rs::PackageName;
+pub use pep508_rs::{PackageName, VersionOrUrl};
 pub use update::{UpdateOptions, plan_update};
 pub use workspace::members::in_declared_workspace;
 

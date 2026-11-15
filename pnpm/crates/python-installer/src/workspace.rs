@@ -112,6 +112,7 @@ pub(super) fn offer(packages: &mut Packages, local: &[LocalProject]) {
 /// `[tool.uv.sources]`. Without that declaration the requirement is
 /// refused: resolving it from the index would install different code
 /// under the same name.
+#[derive(Clone)]
 pub(super) struct Workspace {
     declared: BTreeMap<PathBuf, BTreeSet<PackageName>>,
     /// Where each distribution is declared. Two projects may declare one
@@ -379,6 +380,7 @@ impl Workspace {
     }
 }
 
+#[derive(Clone)]
 struct Selection {
     config: &'static pnpm_config::Config,
     environments: Vec<MarkerEnvironment>,
