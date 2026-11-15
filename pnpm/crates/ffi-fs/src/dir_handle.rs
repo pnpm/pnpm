@@ -345,6 +345,7 @@ fn entry_kind(mode: libc::mode_t) -> EntryKind {
 /// for, rather than the real one that comparing a `stat` against an id
 /// would describe. A path that does not exist, or that cannot be reached,
 /// answers `false`.
+#[must_use]
 pub fn can_write_and_search(path: &Path) -> bool {
     let Ok(path) = path_argument(path.as_os_str()) else {
         return false;
