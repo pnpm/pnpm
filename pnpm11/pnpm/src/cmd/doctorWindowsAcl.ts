@@ -36,6 +36,8 @@ export interface WindowsSecurityIdentity {
   adminSids: ReadonlySet<string>
 }
 
+export type WindowsPathRole = 'strict-ancestor' | 'probe-parent'
+
 interface CachedDirSecurity {
   ctimeNs: bigint
   expiresAt: number
@@ -61,27 +63,27 @@ const MAX_BATCH_DIRS = 64
 
 const TRUSTED_INSTALLER_SID = 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
 
-const SYSTEM_TRUSTED_SIDS = new Set([
-  'S-1-5-18',
-  'S-1-5-32-544',
-  TRUSTED_INSTALLER_SID,
-])
-
+const SYSTEM_TRUSTED_SIDS = new Set(['S-1-5-18', 'S-1-5-32-544', TRUSTED_INSTALLER_SID])
 const BUILTIN_ADMIN_USER_PATTERN = /^S-1-5-21-[\d-]+-500$/
 
 // cspell:ignore netapi Pinvoke Winapi
 const POWERSHELL_SECURITY_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
-  '$me = $null',
-  '$groups = @()',
-  '$admins = @()',
+  '$ps7 = $PSVersionTable.PSVersion.Major -ge 6',
+  'if ($ps7) {',
+  "  [void][System.Reflection.Assembly]::Load('System.Security.Principal.Windows')",
+  "  [void][System.Reflection.Assembly]::Load('System.IO.FileSystem.AccessControl')",
+  '  [void][System.IO.FileSystemAclExtensions]',
+  '}',
+  '$me = $null; $groups = @(); $admins = @()',
   "if ($env:PNPM_DOCTOR_SKIP_ID -ne '1') {",
   '  $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()',
   '  $me = $id.User.Value',
   '  $groups = [object[]]@(@($me) + @($id.Groups | ForEach-Object { $_.Value }))',
   '  try {',
-  "    $mod = [System.AppDomain]::CurrentDomain.DefineDynamicAssembly([System.Reflection.AssemblyName]::new('PnpmSam'), [System.Reflection.Emit.AssemblyBuilderAccess]::Run).DefineDynamicModule('M')",
-  "    $tb = $mod.DefineType('N', [System.Reflection.TypeAttributes]'Public,Abstract,Sealed')",
+  "    $an = [System.Reflection.AssemblyName]::new('PnpmSam'); $acc = [System.Reflection.Emit.AssemblyBuilderAccess]::Run",
+  '    $ab = if ($ps7) { [System.Reflection.Emit.AssemblyBuilder]::DefineDynamicAssembly($an, $acc) } else { [System.AppDomain]::CurrentDomain.DefineDynamicAssembly($an, $acc) }',
+  "    $tb = $ab.DefineDynamicModule('M').DefineType('N', [System.Reflection.TypeAttributes]'Public,Abstract,Sealed')",
   "    $m1 = $tb.DefinePInvokeMethod('NetLocalGroupGetMembers', 'netapi32.dll', [System.Reflection.MethodAttributes]'Public,Static,PinvokeImpl', [System.Reflection.CallingConventions]::Standard, [int], [Type[]]@([IntPtr], [string], [int], [IntPtr].MakeByRefType(), [int], [int].MakeByRefType(), [int].MakeByRefType(), [IntPtr].MakeByRefType()), [System.Runtime.InteropServices.CallingConvention]::Winapi, [System.Runtime.InteropServices.CharSet]::Unicode)",
   '    $m1.SetImplementationFlags([System.Reflection.MethodImplAttributes]::PreserveSig)',
   "    $m2 = $tb.DefinePInvokeMethod('NetApiBufferFree', 'netapi32.dll', [System.Reflection.MethodAttributes]'Public,Static,PinvokeImpl', [System.Reflection.CallingConventions]::Standard, [int], [Type[]]@([IntPtr]), [System.Runtime.InteropServices.CallingConvention]::Winapi, [System.Runtime.InteropServices.CharSet]::Auto)",
@@ -100,24 +102,20 @@ const POWERSHELL_SECURITY_SCRIPT = [
   '  } catch {}',
   '}',
   '$sections = [System.Security.AccessControl.AccessControlSections]::Access -bor [System.Security.AccessControl.AccessControlSections]::Owner',
-  '$sidType = [System.Security.Principal.SecurityIdentifier]',
-  '$allowType = [System.Security.AccessControl.AccessControlType]::Allow',
+  '$sidType = [System.Security.Principal.SecurityIdentifier]; $allowType = [System.Security.AccessControl.AccessControlType]::Allow',
   '$items = @()',
   '$rawPaths = if ($null -ne $env:PNPM_DOCTOR_PATHS -and $env:PNPM_DOCTOR_PATHS.Length -gt 0) { $env:PNPM_DOCTOR_PATHS -split "`n" } else { @() }',
   'foreach ($raw in $rawPaths) {',
   '  try {',
   '    $dir = [System.IO.DirectoryInfo]::new($raw)',
-  '    $isReparse = ($dir.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0',
-  '    if (-not $dir.Exists -or $isReparse) { $items += @{ ok = $false }; continue }',
-  '    $sec = $dir.GetAccessControl($sections)',
+  '    if (-not $dir.Exists -or (($dir.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { $items += @{ ok = $false }; continue }',
+  '    $sec = if ($ps7) { [System.IO.FileSystemAclExtensions]::GetAccessControl($dir, $sections) } else { $dir.GetAccessControl($sections) }',
   '    $rawDesc = [System.Security.AccessControl.RawSecurityDescriptor]::new($sec.GetSecurityDescriptorBinaryForm(), 0)',
   '    $rules = @(foreach ($rule in $sec.GetAccessRules($true, $true, $sidType)) {',
   '      @{ sid = $rule.IdentityReference.Value; allow = ($rule.AccessControlType -eq $allowType); mask = [int]$rule.FileSystemRights; prop = [int]$rule.PropagationFlags }',
   '    })',
   '    $items += @{ ok = $true; nullAcl = ($null -eq $rawDesc.DiscretionaryAcl); owner = $sec.GetOwner($sidType).Value; rules = [object[]]@($rules) }',
-  '  } catch {',
-  '    $items += @{ ok = $false }',
-  '  }',
+  '  } catch { $items += @{ ok = $false } }',
   '}',
   '@{ me = $me; admins = [object[]]@($admins); groups = [object[]]@($groups); items = [object[]]@($items) } | ConvertTo-Json -Depth 6 -Compress',
   'exit 0',
@@ -145,9 +143,7 @@ export function isTrustedWindowsPrincipal (
 
 function isTrustedRuleSid (rule: WindowsAccessRule, ctx: TrustedRuleContext): boolean {
   const sid = rule.sid.toUpperCase()
-  if (sid === 'S-1-3-0') {
-    return (rule.prop & INHERIT_ONLY_PROPAGATION) !== 0
-  }
+  if (sid === 'S-1-3-0') return (rule.prop & INHERIT_ONLY_PROPAGATION) !== 0
   if (sid === 'S-1-3-4') {
     return ctx.ownerSid.toUpperCase() !== 'S-1-3-4' &&
       isTrustedWindowsPrincipal(ctx.ownerSid, ctx.currentUserSid, ctx.adminSids)
@@ -158,7 +154,7 @@ function isTrustedRuleSid (rule: WindowsAccessRule, ctx: TrustedRuleContext): bo
 export function isSafeWindowsDirSecurity (
   security: WindowsDirSecurity,
   identity: WindowsSecurityIdentity,
-  isProbeParent = true
+  role: WindowsPathRole = 'probe-parent'
 ): boolean {
   if (!security.ok || security.nullAcl || !security.owner || !security.rules || security.rules.length === 0) {
     return false
@@ -169,7 +165,7 @@ export function isSafeWindowsDirSecurity (
   const ctx: TrustedRuleContext = { ...identity, ownerSid: security.owner }
   return security.rules.every((rule) =>
     !rule.allow ||
-    (!isProbeParent && (rule.prop & INHERIT_ONLY_PROPAGATION) !== 0) ||
+    (role === 'strict-ancestor' && (rule.prop & INHERIT_ONLY_PROPAGATION) !== 0) ||
     (rule.mask & UNSAFE_REPLACE_MASK) === 0 ||
     isTrustedRuleSid(rule, ctx)
   )
@@ -275,12 +271,7 @@ function inspectDirectories (dirs: string[], changeTimes: Map<string, bigint>): 
     populateSecurityCache(missing.slice(offset, offset + MAX_BATCH_DIRS), changeTimes, now)
   }
   return dirs.map((dir) => securityCache.get(normalizeCacheKey(dir)) ?? {
-    ctimeNs: 0n,
-    expiresAt: 0,
-    known: false,
-    ancestorSafe: false,
-    leafSafe: false,
-    writable: false,
+    ctimeNs: 0n, expiresAt: 0, known: false, ancestorSafe: false, leafSafe: false, writable: false,
   })
 }
 
@@ -307,8 +298,8 @@ function populateSecurityCache (dirs: string[], changeTimes: Map<string, bigint>
       ctimeNs,
       expiresAt: now + CACHE_TTL_MS,
       known: Boolean(rawItem.ok),
-      ancestorSafe: isSafeWindowsDirSecurity(rawItem, secIdentity, false),
-      leafSafe: isSafeWindowsDirSecurity(rawItem, secIdentity, true),
+      ancestorSafe: isSafeWindowsDirSecurity(rawItem, secIdentity, 'strict-ancestor'),
+      leafSafe: isSafeWindowsDirSecurity(rawItem, secIdentity, 'probe-parent'),
       writable: canWriteWindowsDirSecurity(rawItem, identity.memberSids),
     })
   }
@@ -326,7 +317,7 @@ function resolveIdentity (batch: WindowsSecurityBatch): CachedIdentity | undefin
 
 function runPowerShellSecurityQuery (dirs: string[]): WindowsSecurityBatch | undefined {
   const env = buildPowerShellEnv(dirs)
-  const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-InputFormat', 'None', '-EncodedCommand', ENCODED_POWERSHELL_SCRIPT]
+  const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', ENCODED_POWERSHELL_SCRIPT]
   for (const executable of resolvePowerShellExecutables()) {
     try {
       const stdout = execFileSync(executable, args, {
@@ -334,7 +325,7 @@ function runPowerShellSecurityQuery (dirs: string[]): WindowsSecurityBatch | und
         env,
         stdio: ['ignore', 'pipe', 'ignore'],
         windowsHide: true,
-        timeout: 10_000,
+        timeout: 30_000,
       })
       return JSON.parse(stdout.trim()) as WindowsSecurityBatch
     } catch {
@@ -346,28 +337,34 @@ function runPowerShellSecurityQuery (dirs: string[]): WindowsSecurityBatch | und
 
 function buildPowerShellEnv (dirs: string[]): NodeJS.ProcessEnv {
   const tempDir = os.tmpdir()
+  const localAppData = process.env.LOCALAPPDATA || tempDir
+  const appData = process.env.APPDATA || tempDir
   const env: NodeJS.ProcessEnv = {}
   for (const [key, value] of Object.entries(process.env)) {
     const upper = key.toUpperCase()
-    if (upper !== 'LOCALAPPDATA' && upper !== 'APPDATA' && upper !== 'PSModuleAnalysisCachePath'.toUpperCase()) {
-      env[key] = value
-    }
+    if (upper !== 'LOCALAPPDATA' && upper !== 'APPDATA') env[key] = value
   }
-  env.LOCALAPPDATA = tempDir
-  env.APPDATA = tempDir
-  env.PSModuleAnalysisCachePath = 'NUL'
+  env.LOCALAPPDATA = localAppData
+  env.APPDATA = appData
   env.PNPM_DOCTOR_PATHS = dirs.join('\n')
   env.PNPM_DOCTOR_SKIP_ID = cachedIdentity != null ? '1' : '0'
   return env
 }
 
 function resolvePowerShellExecutables (): string[] {
-  const candidates = ['C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe']
-  const systemRoot = process.env.SystemRoot
-  if (systemRoot && path.isAbsolute(systemRoot)) {
-    candidates.push(path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'))
-  }
-  return deduplicateDirs(candidates)
+  const defaultWinPs = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+  const candidates = [
+    'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    envSubpath(process.env.ProgramFiles, 'PowerShell\\7\\pwsh.exe'),
+    defaultWinPs,
+    envSubpath(process.env.SystemRoot, 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'),
+  ].filter((item): item is string => item != null)
+  const available = deduplicateDirs(candidates).filter((candidate) => fs.existsSync(candidate))
+  return available.length > 0 ? available : [defaultWinPs]
+}
+
+function envSubpath (base: string | undefined, subpath: string): string | undefined {
+  return base != null && path.isAbsolute(base) ? path.join(base, subpath) : undefined
 }
 
 function deduplicateDirs (dirs: string[]): string[] {

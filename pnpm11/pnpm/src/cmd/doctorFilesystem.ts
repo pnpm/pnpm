@@ -57,16 +57,33 @@ const defaultLinkOperations: LinkOperations = {
 export const areSameDir = (dir1: string, dir2: string): boolean =>
   dir1 !== '' && dir2 !== '' && path.relative(dir1, dir2) === ''
 
+const TRAILING_SEPARATORS_RE = process.platform === 'win32' ? /[\\/]+$/ : /\/+$/
+const LEADING_DOT_SEPARATORS_RE = process.platform === 'win32' ? /^(?:\.[\\/])+/ : /^(?:\.\/)+/
+
+function trimTrailingSeparators (target: string): string {
+  const { root } = path.parse(target)
+  return root + target.slice(root.length).replace(TRAILING_SEPARATORS_RE, '')
+}
+
+function appendSubpath (baseDir: string, subpath: string): string {
+  const base = trimTrailingSeparators(baseDir)
+  if (subpath === '' || subpath === '.') return base
+  const hasTrailingSep = base.endsWith(path.sep) || (process.platform === 'win32' && base.endsWith('/'))
+  return hasTrailingSep ? `${base}${subpath}` : `${base}${path.sep}${subpath}`
+}
+
 export function resolveConfiguredStoreDir (storeDir: string, pkgRoot: string): string {
-  const trimmed = storeDir.replace(/[\\/]+$/, '')
+  const trimmed = trimTrailingSeparators(storeDir)
+  const isHomeOrDriveRel = trimmed.startsWith('~/') ||
+    (process.platform === 'win32' && (trimmed.startsWith('~\\') || /^[A-Z]:/i.test(trimmed)))
   const storeBasePath = path.isAbsolute(trimmed)
     ? trimmed
-    : trimmed.startsWith('~/') || trimmed.startsWith('~\\') || (process.platform === 'win32' && /^[A-Z]:/i.test(trimmed))
-      ? pathAbsolute(trimmed, pkgRoot)
-      : `${pkgRoot.replace(/[\\/]+$/, '')}${path.sep}${trimmed.replace(/^(?:\.[\\/])+/, '')}`
-  return storeBasePath.endsWith(`${path.sep}${STORE_VERSION}`) || storeBasePath.endsWith(`/${STORE_VERSION}`)
-    ? storeBasePath
-    : `${storeBasePath}${path.sep}${STORE_VERSION}`
+    : isHomeOrDriveRel
+      ? trimTrailingSeparators(pathAbsolute(trimmed, pkgRoot))
+      : appendSubpath(pkgRoot, trimmed.replace(LEADING_DOT_SEPARATORS_RE, ''))
+  const hasVersion = storeBasePath.endsWith(`${path.sep}${STORE_VERSION}`) ||
+    (process.platform === 'win32' && storeBasePath.endsWith(`/${STORE_VERSION}`))
+  return hasVersion ? storeBasePath : appendSubpath(storeBasePath, STORE_VERSION)
 }
 
 interface ProbeWorkspaces {
@@ -110,41 +127,26 @@ export async function checkFilesystemCapabilities (opts: FilesystemProbeOptions)
   }
 }
 
-function missingPnpmHomeFailure (): CheckResult {
-  return {
-    title: 'Filesystem',
-    status: 'fail',
-    detail: 'the pnpm home directory is unknown; cannot determine the store location',
-    fix: 'Run "pnpm setup" or configure store-dir.',
-  }
-}
+const missingPnpmHomeFailure = (): CheckResult => ({
+  title: 'Filesystem',
+  status: 'fail',
+  detail: 'the pnpm home directory is unknown; cannot determine the store location',
+  fix: 'Run "pnpm setup" or configure store-dir.',
+})
 
-function unsafeProbeAncestorWarning (): CheckResult {
-  return {
-    title: 'Filesystem',
-    status: 'warn',
-    detail: 'cannot safely probe link support in a directory writable by other users',
-    fix: 'Check ownership and permissions on the store and project ancestor directories.',
-  }
-}
-
-function probeDirectoryWarning (): CheckResult {
-  return {
-    title: 'Filesystem',
-    status: 'warn',
-    detail: 'could not create a probe directory',
-    fix: 'Check that the store and project directories are writable.',
-  }
-}
-
-function probeFileWarning (): CheckResult {
-  return {
-    title: 'Filesystem',
-    status: 'warn',
-    detail: 'could not write a probe file',
-    fix: 'Check that the store directory is writable.',
-  }
-}
+const fsWarning = (detail: string, fix: string): CheckResult => ({ title: 'Filesystem', status: 'warn', detail, fix })
+const unsafeProbeAncestorWarning = (): CheckResult => fsWarning(
+  'cannot safely probe link support in a directory writable by other users',
+  'Check ownership and permissions on the store and project ancestor directories.'
+)
+const probeDirectoryWarning = (): CheckResult => fsWarning(
+  'could not create a probe directory',
+  'Check that the store and project directories are writable.'
+)
+const probeFileWarning = (): CheckResult => fsWarning(
+  'could not write a probe file',
+  'Check that the store directory is writable.'
+)
 
 function formatCapabilitiesResult (
   capabilities: { reflink: boolean, hardlink: boolean, symlink: boolean },
@@ -189,6 +191,7 @@ function resolveWorkspaceAncestors (
   linkTargetDir: string,
   symlinkTargetDir: string
 ): { kind: 'ok', store: string, link: string, symlink: string } | { kind: 'unsafe' } | { kind: 'unavailable' } {
+  prefetchDoctorCandidatePaths([storeDir, linkTargetDir, symlinkTargetDir])
   const store = resolveProbeAncestor(storeDir)
   const link = resolveProbeAncestor(linkTargetDir)
   const symlink = resolveProbeAncestor(symlinkTargetDir)
@@ -228,34 +231,25 @@ async function resolveProbeStoreDir (
     return { kind: 'ok', storeDir: resolveConfiguredStoreDir(opts.storeDir, pkgRoot) }
   }
   if (!opts.pnpmHomeDir) return { kind: 'missing-home' }
+  prefetchDoctorCandidatePaths([pkgRoot, opts.pnpmHomeDir])
   const homeStoreDir = path.join(opts.pnpmHomeDir, 'store', STORE_VERSION)
   const pkgAncestor = resolveProbeAncestor(pkgRoot)
   if (pkgAncestor.kind === 'unsafe') return { kind: 'unsafe' }
   if (pkgAncestor.kind === 'unavailable') return { kind: 'ok', storeDir: homeStoreDir }
-  const homeDecision = await decideHomeStoreDir({
-    pnpmHomeDir: opts.pnpmHomeDir,
-    homeStoreDir,
-    pkgAncestor: pkgAncestor.path,
-    linkOps,
-  })
+  const homeDecision = await decideHomeStoreDir({ pnpmHomeDir: opts.pnpmHomeDir, homeStoreDir, pkgAncestor: pkgAncestor.path, linkOps })
   if (homeDecision != null) return homeDecision
   const mountRoot = await findLinkableMountRoot(pkgAncestor.path, linkOps)
   const storeDir = mountRoot != null ? path.join(mountRoot, '.pnpm-store', STORE_VERSION) : homeStoreDir
   return { kind: 'ok', storeDir }
 }
 
-async function decideHomeStoreDir ({
-  pnpmHomeDir,
-  homeStoreDir,
-  pkgAncestor,
-  linkOps,
-}: HomeStoreContext): Promise<ProbeStoreResolution | undefined> {
-  const homeAncestor = resolveProbeAncestor(pnpmHomeDir)
+async function decideHomeStoreDir (ctx: HomeStoreContext): Promise<ProbeStoreResolution | undefined> {
+  const homeAncestor = resolveProbeAncestor(ctx.pnpmHomeDir)
   if (homeAncestor.kind === 'unsafe') return { kind: 'unsafe' }
-  if (homeAncestor.kind === 'unavailable') return { kind: 'ok', storeDir: homeStoreDir }
-  const canUse = areSameDir(homeAncestor.path, pkgAncestor) ||
-    await canHardlinkBetweenAncestors(homeAncestor.path, pkgAncestor, linkOps)
-  return canUse ? { kind: 'ok', storeDir: homeStoreDir } : undefined
+  if (homeAncestor.kind === 'unavailable') return { kind: 'ok', storeDir: ctx.homeStoreDir }
+  const canUse = areSameDir(homeAncestor.path, ctx.pkgAncestor) ||
+    await canHardlinkBetweenAncestors(homeAncestor.path, ctx.pkgAncestor, ctx.linkOps)
+  return canUse ? { kind: 'ok', storeDir: ctx.homeStoreDir } : undefined
 }
 
 async function findLinkableMountRoot (pkgAncestor: string, linkOps: LinkOperations): Promise<string | undefined> {
@@ -263,7 +257,7 @@ async function findLinkableMountRoot (pkgAncestor: string, linkOps: LinkOperatio
   try {
     const pkgProbe = await makeProbeDir(pkgAncestor, created)
     const source = await writeExclusiveProbeFile(pkgProbe, 'mount-source', '')
-    for (const candidate of mountCandidates(pkgAncestor, linkOps === defaultLinkOperations)) {
+    for (const candidate of mountCandidates(pkgAncestor, linkOps)) {
       if (await canHardlinkToAncestor(source, candidate, linkOps)) { // eslint-disable-line no-await-in-loop -- return the shallowest linkable mount root without probing deeper ancestors
         return candidate
       }
@@ -276,9 +270,9 @@ async function findLinkableMountRoot (pkgAncestor: string, linkOps: LinkOperatio
   }
 }
 
-function mountCandidates (pkgAncestor: string, sameDeviceOnly: boolean): string[] {
+function mountCandidates (pkgAncestor: string, linkOps: LinkOperations): string[] {
   const ancestors = ancestorsFromRoot(pkgAncestor)
-  if (!sameDeviceOnly) return ancestors
+  if (linkOps !== defaultLinkOperations) return ancestors
   try {
     const targetDev = fs.lstatSync(pkgAncestor).dev
     return ancestors.filter((ancestor) => {

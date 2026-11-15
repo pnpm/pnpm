@@ -10,7 +10,11 @@ import { isError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 
 import { type CheckResult, handler, type LinkOperations } from '../src/cmd/doctor.js'
-import { canWriteToDir, checkFilesystemCapabilities } from '../src/cmd/doctorFilesystem.js'
+import {
+  canWriteToDir,
+  checkFilesystemCapabilities,
+  resolveConfiguredStoreDir,
+} from '../src/cmd/doctorFilesystem.js'
 import {
   canWriteWindowsDirSecurity,
   isSafeWindowsDirSecurity,
@@ -517,8 +521,8 @@ test('Windows directory security evaluator distinguishes standard roots from sha
       { sid: 'S-1-5-11', allow: true, mask: 0x00000004, inherit: 0, prop: 0 },
     ],
   }
-  expect(isSafeWindowsDirSecurity(clientRoot, identity, false)).toBe(true)
-  expect(isSafeWindowsDirSecurity(clientRoot, identity, true)).toBe(false)
+  expect(isSafeWindowsDirSecurity(clientRoot, identity, 'strict-ancestor')).toBe(true)
+  expect(isSafeWindowsDirSecurity(clientRoot, identity, 'probe-parent')).toBe(false)
 
   expect(isSafeWindowsDirSecurity({
     ok: true,
@@ -691,4 +695,22 @@ test('pnpm doctor resolves symlinks before parent segments in configured storeDi
   })
 
   expect(fsCheck.status).toBe('warn')
+})
+
+test('resolveConfiguredStoreDir preserves filesystem roots and literal POSIX backslashes', () => {
+  if (process.platform === 'win32') {
+    expect(resolveConfiguredStoreDir('C:\\', 'C:\\workspace\\proj')).toBe(`C:\\${STORE_VERSION}`)
+    expect(resolveConfiguredStoreDir('C:\\\\\\', 'C:\\workspace\\proj')).toBe(`C:\\${STORE_VERSION}`)
+    expect(resolveConfiguredStoreDir('./store', 'C:\\')).toBe(`C:\\store\\${STORE_VERSION}`)
+    return
+  }
+  expect(resolveConfiguredStoreDir('/', '/workspace/proj')).toBe(`/${STORE_VERSION}`)
+  expect(resolveConfiguredStoreDir('///', '/workspace/proj')).toBe(`/${STORE_VERSION}`)
+  expect(resolveConfiguredStoreDir('./store', '/')).toBe(`/store/${STORE_VERSION}`)
+  expect(resolveConfiguredStoreDir('/tmp/my\\store/', '/workspace/proj')).toBe(`/tmp/my\\store/${STORE_VERSION}`)
+
+  prepare()
+  const root = process.cwd()
+  fs.writeFileSync(path.join(root, 'foo'), 'blocker')
+  expect(canWriteToDir(path.join(root, 'foo\\bar'))).toBe(true)
 })

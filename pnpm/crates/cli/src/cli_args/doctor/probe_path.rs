@@ -43,23 +43,30 @@ pub(super) fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
 }
 
 #[cfg(not(windows))]
-pub(super) fn prefetch_config_paths(_config: &Config) {}
+pub(super) fn prefetch_candidate_paths(_candidates: &[&Path]) {}
 
 #[cfg(windows)]
+pub(super) fn prefetch_candidate_paths(candidates: &[&Path]) {
+    let mut dirs = Vec::new();
+    for candidate in candidates {
+        append_canonical_ancestors(candidate, &mut dirs);
+    }
+    windows_acl::prefetch_windows_dir_security(&dirs);
+}
+
 pub(super) fn prefetch_config_paths(config: &Config) {
-    let candidates = [
+    let candidates: Vec<&Path> = [
         config.global_bin_dir.as_deref(),
         config.global_dir.as_deref(),
         Some(config.cache_dir.as_path()),
         Some(config.store_dir.root()),
         Some(config.virtual_store_dir()),
         Some(config.modules_dir.as_path()),
-    ];
-    let mut dirs = Vec::new();
-    for candidate in candidates.into_iter().flatten() {
-        append_canonical_ancestors(candidate, &mut dirs);
-    }
-    windows_acl::prefetch_windows_dir_security(&dirs);
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    prefetch_candidate_paths(&candidates);
 }
 
 #[cfg(windows)]

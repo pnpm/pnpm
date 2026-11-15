@@ -156,7 +156,7 @@ function initWalkOrigin (dir: string): { origin: string, segments: string[] } | 
 }
 
 function splitSegments (raw: string): string[] {
-  return raw.split(/[\\/]+/).filter(Boolean)
+  return raw.split(process.platform === 'win32' ? /[\\/]+/ : /\/+/).filter(Boolean)
 }
 
 function stepPathSegment (state: WalkState, segment: string): boolean {
@@ -233,15 +233,9 @@ export function ancestorsFromRoot (dir: string): string[] {
 }
 
 function isSafeProbeAncestorChain (canonicalDir: string): boolean {
-  if ('webcontainer' in process.versions) {
-    return true
-  }
-  if (process.platform === 'win32') {
-    return isSafeWindowsAncestorChain(canonicalDir, ancestorsFromRoot(canonicalDir))
-  }
-  if (typeof process.geteuid !== 'function') {
-    return false
-  }
+  if ('webcontainer' in process.versions) return true
+  if (process.platform === 'win32') return isSafeWindowsAncestorChain(canonicalDir, ancestorsFromRoot(canonicalDir))
+  if (typeof process.geteuid !== 'function') return false
   const effectiveUid = process.geteuid()
   return ancestorsFromRoot(canonicalDir).every((ancestor) => isSafeDirectoryEntry(ancestor, effectiveUid))
 }

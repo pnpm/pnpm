@@ -1,6 +1,6 @@
 use super::{
     CheckResult,
-    probe_path::{ProbeAncestor, ProbeDir, resolve_probe_ancestor},
+    probe_path::{ProbeAncestor, ProbeDir, prefetch_candidate_paths, resolve_probe_ancestor},
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::{FsHardLink, FsReflink};
@@ -88,8 +88,10 @@ fn create_probe_workspaces(config: &Config) -> Result<ProbeWorkspaces, ProbeWork
 fn resolve_workspace_ancestors(
     config: &Config,
 ) -> Result<(PathBuf, PathBuf, PathBuf), ProbeWorkspaceError> {
+    let link_dir = link_target_dir(config);
+    prefetch_candidate_paths(&[config.store_dir.root(), link_dir, &config.modules_dir]);
     let store = resolve_probe_ancestor(config.store_dir.root());
-    let link = resolve_probe_ancestor(link_target_dir(config));
+    let link = resolve_probe_ancestor(link_dir);
     let symlink = resolve_probe_ancestor(&config.modules_dir);
     match (store, link, symlink) {
         (ProbeAncestor::Unsafe, _, _)

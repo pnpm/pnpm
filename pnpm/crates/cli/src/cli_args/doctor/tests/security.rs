@@ -3,7 +3,7 @@ use crate::cli_args::doctor::{
     CheckStatus,
     filesystem::check_filesystem_capabilities,
     probe_path::windows_acl::{
-        WindowsAccessRule, WindowsDirSecurity, can_write_windows_dir_security,
+        WindowsAccessRule, WindowsDirSecurity, WindowsPathRole, can_write_windows_dir_security,
         is_safe_windows_dir_security, is_trusted_windows_principal, is_unc_windows_path,
     },
 };
@@ -148,7 +148,12 @@ fn windows_dir_security_accepts_standard_system_roots() {
             },
         ],
     };
-    assert!(is_safe_windows_dir_security(&root_security, current_user, &admins, true));
+    assert!(is_safe_windows_dir_security(
+        &root_security,
+        current_user,
+        &admins,
+        WindowsPathRole::ProbeParent,
+    ));
 }
 
 #[test]
@@ -192,8 +197,18 @@ fn windows_dir_security_accepts_client_root_inherit_only_modify_for_strict_ances
             },
         ],
     };
-    assert!(is_safe_windows_dir_security(&client_root, current_user, &admins, false));
-    assert!(!is_safe_windows_dir_security(&client_root, current_user, &admins, true));
+    assert!(is_safe_windows_dir_security(
+        &client_root,
+        current_user,
+        &admins,
+        WindowsPathRole::StrictAncestor,
+    ));
+    assert!(!is_safe_windows_dir_security(
+        &client_root,
+        current_user,
+        &admins,
+        WindowsPathRole::ProbeParent,
+    ));
 }
 
 #[test]
@@ -212,7 +227,12 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
             prop: 0,
         }],
     };
-    assert!(!is_safe_windows_dir_security(&shared_modify, current_user, &admins, true));
+    assert!(!is_safe_windows_dir_security(
+        &shared_modify,
+        current_user,
+        &admins,
+        WindowsPathRole::ProbeParent,
+    ));
 
     let untrusted_owner = WindowsDirSecurity {
         ok: true,
@@ -225,7 +245,12 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
             prop: 0,
         }],
     };
-    assert!(!is_safe_windows_dir_security(&untrusted_owner, current_user, &admins, true));
+    assert!(!is_safe_windows_dir_security(
+        &untrusted_owner,
+        current_user,
+        &admins,
+        WindowsPathRole::ProbeParent,
+    ));
 
     let null_acl = WindowsDirSecurity {
         ok: true,
@@ -238,7 +263,12 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
             prop: 0,
         }],
     };
-    assert!(!is_safe_windows_dir_security(&null_acl, current_user, &admins, true));
+    assert!(!is_safe_windows_dir_security(
+        &null_acl,
+        current_user,
+        &admins,
+        WindowsPathRole::ProbeParent,
+    ));
 
     let denied_write = WindowsDirSecurity {
         ok: true,
@@ -272,7 +302,12 @@ fn windows_dir_security_rejects_untrusted_service_sids_and_reparse_rights() {
             prop: 0,
         }],
     };
-    assert!(!is_safe_windows_dir_security(&service_owned, current_user, &admins, true));
+    assert!(!is_safe_windows_dir_security(
+        &service_owned,
+        current_user,
+        &admins,
+        WindowsPathRole::ProbeParent,
+    ));
 
     for mask in [0x0000_0100, 0x4000_0000] {
         let reparse_ace = WindowsDirSecurity {
@@ -286,7 +321,12 @@ fn windows_dir_security_rejects_untrusted_service_sids_and_reparse_rights() {
                 prop: 0,
             }],
         };
-        assert!(!is_safe_windows_dir_security(&reparse_ace, current_user, &admins, true));
+        assert!(!is_safe_windows_dir_security(
+            &reparse_ace,
+            current_user,
+            &admins,
+            WindowsPathRole::ProbeParent,
+        ));
     }
 
     assert!(is_unc_windows_path(Path::new(r"\\server\share\cache")));
