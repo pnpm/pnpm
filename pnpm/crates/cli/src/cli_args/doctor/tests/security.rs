@@ -1,3 +1,4 @@
+use super::CrossMountFs;
 use crate::cli_args::doctor::{
     CheckStatus,
     filesystem::check_filesystem_capabilities,
@@ -147,7 +148,52 @@ fn windows_dir_security_accepts_standard_system_roots() {
             },
         ],
     };
-    assert!(is_safe_windows_dir_security(&root_security, current_user, &admins));
+    assert!(is_safe_windows_dir_security(&root_security, current_user, &admins, true));
+}
+
+#[test]
+fn windows_dir_security_accepts_client_root_inherit_only_modify_for_strict_ancestors_only() {
+    let current_user = "S-1-5-21-10-20-30-1001";
+    let admins: FxHashSet<String> = FxHashSet::default();
+    let client_root = WindowsDirSecurity {
+        ok: true,
+        null_acl: false,
+        owner: Some("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464".to_owned()),
+        rules: vec![
+            WindowsAccessRule {
+                sid: "S-1-5-18".to_owned(),
+                allow: true,
+                mask: 0x001f_01ff,
+                prop: 0,
+            },
+            WindowsAccessRule {
+                sid: "S-1-5-32-544".to_owned(),
+                allow: true,
+                mask: 0x001f_01ff,
+                prop: 0,
+            },
+            WindowsAccessRule {
+                sid: "S-1-5-32-545".to_owned(),
+                allow: true,
+                mask: 0x0012_00a9,
+                prop: 0,
+            },
+            WindowsAccessRule {
+                sid: "S-1-5-11".to_owned(),
+                allow: true,
+                mask: 0x0013_01bf,
+                prop: 2,
+            },
+            WindowsAccessRule {
+                sid: "S-1-5-11".to_owned(),
+                allow: true,
+                mask: 0x0000_0004,
+                prop: 0,
+            },
+        ],
+    };
+    assert!(is_safe_windows_dir_security(&client_root, current_user, &admins, false));
+    assert!(!is_safe_windows_dir_security(&client_root, current_user, &admins, true));
 }
 
 #[test]
@@ -166,7 +212,7 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
             prop: 0,
         }],
     };
-    assert!(!is_safe_windows_dir_security(&shared_modify, current_user, &admins));
+    assert!(!is_safe_windows_dir_security(&shared_modify, current_user, &admins, true));
 
     let untrusted_owner = WindowsDirSecurity {
         ok: true,
@@ -179,7 +225,7 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
             prop: 0,
         }],
     };
-    assert!(!is_safe_windows_dir_security(&untrusted_owner, current_user, &admins));
+    assert!(!is_safe_windows_dir_security(&untrusted_owner, current_user, &admins, true));
 
     let null_acl = WindowsDirSecurity {
         ok: true,
@@ -192,7 +238,7 @@ fn windows_dir_security_rejects_shared_untrusted_owners_and_null_acls() {
             prop: 0,
         }],
     };
-    assert!(!is_safe_windows_dir_security(&null_acl, current_user, &admins));
+    assert!(!is_safe_windows_dir_security(&null_acl, current_user, &admins, true));
 
     let denied_write = WindowsDirSecurity {
         ok: true,
@@ -226,7 +272,7 @@ fn windows_dir_security_rejects_untrusted_service_sids_and_reparse_rights() {
             prop: 0,
         }],
     };
-    assert!(!is_safe_windows_dir_security(&service_owned, current_user, &admins));
+    assert!(!is_safe_windows_dir_security(&service_owned, current_user, &admins, true));
 
     for mask in [0x0000_0100, 0x4000_0000] {
         let reparse_ace = WindowsDirSecurity {
@@ -240,9 +286,45 @@ fn windows_dir_security_rejects_untrusted_service_sids_and_reparse_rights() {
                 prop: 0,
             }],
         };
-        assert!(!is_safe_windows_dir_security(&reparse_ace, current_user, &admins));
+        assert!(!is_safe_windows_dir_security(&reparse_ace, current_user, &admins, true));
     }
 
     assert!(is_unc_windows_path(Path::new(r"\\server\share\cache")));
     assert!(!is_unc_windows_path(Path::new(r"C:\Users\demo\cache")));
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn filesystem_check_resolves_symlinks_before_parent_segments() {
+    let sandbox = tempfile::tempdir().expect("create sandbox");
+    let mount_a_sub = sandbox.path().join("mount-a/sub");
+    let mount_b = sandbox.path().join("mount-b");
+    let project_dir = mount_b.join("proj");
+    fs::create_dir_all(&mount_a_sub).expect("create mount-a/sub");
+    fs::create_dir_all(&project_dir).expect("create mount-b/proj");
+
+    let link_path = mount_b.join("link");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&mount_a_sub, &link_path).expect("create symlink");
+    #[cfg(windows)]
+    if let Err(error) = std::os::windows::fs::symlink_dir(&mount_a_sub, &link_path) {
+        if error.raw_os_error() == Some(1314) {
+            eprintln!("skipping symlink assertion without Windows symlink privilege: {error}");
+            return;
+        }
+        panic!("create symlink: {error}");
+    }
+
+    let modules_dir = project_dir.join("node_modules");
+    let mut config = Config {
+        store_dir: StoreDir::new(link_path.join("../store")),
+        modules_dir: modules_dir.clone(),
+        install_state_dir: modules_dir.join(".pnpm"),
+        ..Config::default()
+    };
+    config.apply_global_virtual_store_derivation(false, false);
+
+    let result = check_filesystem_capabilities::<CrossMountFs>(&config);
+    dbg!(&result);
+    assert_eq!(result.status, CheckStatus::Warn);
 }

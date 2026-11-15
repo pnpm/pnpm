@@ -11,8 +11,9 @@ use probe_dir::random_probe_entry_name;
 #[cfg(unix)]
 use probe_dir::{create_exclusive_file_unix, unlink_probe_entry_unix};
 use std::{
+    ffi::OsStr,
     fs, io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 mod probe_dir;
@@ -41,37 +42,40 @@ pub(super) fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
         })
 }
 
+#[cfg(not(windows))]
+pub(super) fn prefetch_config_paths(_config: &Config) {}
+
+#[cfg(windows)]
 pub(super) fn prefetch_config_paths(config: &Config) {
-    #[cfg(not(windows))]
-    let _ = config;
-    #[cfg(windows)]
-    {
-        let candidates: Vec<&Path> = [
-            config.global_bin_dir.as_deref(),
-            config.global_dir.as_deref(),
-            Some(config.cache_dir.as_path()),
-            Some(config.store_dir.root()),
-            Some(config.virtual_store_dir()),
-            Some(config.modules_dir.as_path()),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        let mut dirs = Vec::new();
-        for candidate in candidates {
-            if let Some(existing) = existing_ancestor_dir(candidate)
-                && let Ok(canonical) = dunce::canonicalize(existing)
-            {
-                dirs.extend(
-                    canonical
-                        .ancestors()
-                        .filter(|ancestor| !ancestor.as_os_str().is_empty())
-                        .map(Path::to_path_buf),
-                );
-            }
-        }
-        windows_acl::prefetch_windows_dir_security(&dirs);
+    let candidates = [
+        config.global_bin_dir.as_deref(),
+        config.global_dir.as_deref(),
+        Some(config.cache_dir.as_path()),
+        Some(config.store_dir.root()),
+        Some(config.virtual_store_dir()),
+        Some(config.modules_dir.as_path()),
+    ];
+    let mut dirs = Vec::new();
+    for candidate in candidates.into_iter().flatten() {
+        append_canonical_ancestors(candidate, &mut dirs);
     }
+    windows_acl::prefetch_windows_dir_security(&dirs);
+}
+
+#[cfg(windows)]
+fn append_canonical_ancestors(candidate: &Path, dirs: &mut Vec<PathBuf>) {
+    let Some(existing) = existing_ancestor_dir(candidate) else {
+        return;
+    };
+    let Ok(canonical) = dunce::canonicalize(existing) else {
+        return;
+    };
+    dirs.extend(
+        canonical
+            .ancestors()
+            .filter(|ancestor| !ancestor.as_os_str().is_empty())
+            .map(Path::to_path_buf),
+    );
 }
 
 /// Probe write access for `dir`: existing directories are checked for file
@@ -188,33 +192,74 @@ fn classify_path_entry(candidate: &Path) -> PathEntryState {
     }
 }
 
-fn normalize_non_empty_path(dir: &Path) -> Option<PathBuf> {
+fn resolve_existing_dir(dir: &Path) -> Option<ExistingDir> {
     if dir.as_os_str().is_empty() {
         return None;
     }
     let absolute =
         if dir.is_absolute() { dir.to_path_buf() } else { std::env::current_dir().ok()?.join(dir) };
-    Some(pnpm_fs::lexical_normalize(&absolute))
+    let mut current = PathBuf::new();
+    let mut missing_depth = 0usize;
+    for component in absolute.components() {
+        step_path_component(component, &mut current, &mut missing_depth)?;
+    }
+    if current.as_os_str().is_empty() {
+        return None;
+    }
+    if missing_depth == 0 {
+        Some(ExistingDir::Target(current))
+    } else {
+        Some(ExistingDir::Ancestor(current))
+    }
 }
 
-fn resolve_existing_dir(dir: &Path) -> Option<ExistingDir> {
-    let normalized = normalize_non_empty_path(dir)?;
-    for ancestor in normalized
-        .ancestors()
-        .filter(|path| !path.as_os_str().is_empty())
-    {
-        match classify_path_entry(ancestor) {
-            PathEntryState::Dir if ancestor == normalized => {
-                return Some(ExistingDir::Target(ancestor.to_path_buf()));
+fn step_path_component(
+    component: Component<'_>,
+    current: &mut PathBuf,
+    missing_depth: &mut usize,
+) -> Option<()> {
+    match component {
+        Component::Prefix(prefix) => current.push(prefix.as_os_str()),
+        Component::RootDir => {
+            current.push(component.as_os_str());
+            if !matches!(classify_path_entry(current), PathEntryState::Dir) {
+                return None;
             }
-            PathEntryState::Dir => {
-                return Some(ExistingDir::Ancestor(ancestor.to_path_buf()));
-            }
-            PathEntryState::Missing => {}
-            PathEntryState::Blocked => return None,
+            *current = dunce::canonicalize(&*current).ok()?;
         }
+        Component::CurDir => {}
+        Component::ParentDir if *missing_depth > 0 => *missing_depth -= 1,
+        Component::ParentDir => {
+            if let Some(parent) = current
+                .parent()
+                .filter(|path| !path.as_os_str().is_empty())
+            {
+                *current = parent.to_path_buf();
+            }
+        }
+        Component::Normal(_) if *missing_depth > 0 => *missing_depth += 1,
+        Component::Normal(segment) => step_normal_segment(segment, current, missing_depth)?,
     }
-    None
+    Some(())
+}
+
+fn step_normal_segment(
+    segment: &OsStr,
+    current: &mut PathBuf,
+    missing_depth: &mut usize,
+) -> Option<()> {
+    let candidate = current.join(segment);
+    match classify_path_entry(&candidate) {
+        PathEntryState::Dir => {
+            *current = dunce::canonicalize(&candidate).ok()?;
+            Some(())
+        }
+        PathEntryState::Missing => {
+            *missing_depth = 1;
+            Some(())
+        }
+        PathEntryState::Blocked => None,
+    }
 }
 
 pub(super) enum ProbeAncestor {

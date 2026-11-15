@@ -58,10 +58,15 @@ export const areSameDir = (dir1: string, dir2: string): boolean =>
   dir1 !== '' && dir2 !== '' && path.relative(dir1, dir2) === ''
 
 export function resolveConfiguredStoreDir (storeDir: string, pkgRoot: string): string {
-  const storeBasePath = pathAbsolute(storeDir, pkgRoot)
-  return storeBasePath.endsWith(`${path.sep}${STORE_VERSION}`)
+  const trimmed = storeDir.replace(/[\\/]+$/, '')
+  const storeBasePath = path.isAbsolute(trimmed)
+    ? trimmed
+    : trimmed.startsWith('~/') || trimmed.startsWith('~\\') || (process.platform === 'win32' && /^[A-Z]:/i.test(trimmed))
+      ? pathAbsolute(trimmed, pkgRoot)
+      : `${pkgRoot.replace(/[\\/]+$/, '')}${path.sep}${trimmed.replace(/^(?:\.[\\/])+/, '')}`
+  return storeBasePath.endsWith(`${path.sep}${STORE_VERSION}`) || storeBasePath.endsWith(`/${STORE_VERSION}`)
     ? storeBasePath
-    : path.join(storeBasePath, STORE_VERSION)
+    : `${storeBasePath}${path.sep}${STORE_VERSION}`
 }
 
 interface ProbeWorkspaces {
@@ -78,6 +83,7 @@ type ProbeWorkspacesResult =
 type ProbeStoreResolution =
   | { kind: 'ok', storeDir: string }
   | { kind: 'unsafe' }
+  | { kind: 'missing-home' }
 
 /**
  * Probe which link strategies work between the store and the project.
@@ -89,25 +95,27 @@ export async function checkFilesystemCapabilities (opts: FilesystemProbeOptions)
   const createdProbeDirs: ProbeDir[] = []
   try {
     const storeResolution = await resolveProbeStoreDir(opts, linkOps)
-    if (storeResolution.kind === 'unsafe') {
-      return unsafeProbeAncestorWarning()
-    }
+    if (storeResolution.kind === 'missing-home') return missingPnpmHomeFailure()
+    if (storeResolution.kind === 'unsafe') return unsafeProbeAncestorWarning()
     const workspaceResult = await createProbeWorkspaces(opts, storeResolution.storeDir, createdProbeDirs)
-    if (workspaceResult.kind === 'unsafe') {
-      return unsafeProbeAncestorWarning()
-    }
-    if (workspaceResult.kind === 'unavailable') {
-      return probeDirectoryWarning()
-    }
+    if (workspaceResult.kind === 'unsafe') return unsafeProbeAncestorWarning()
+    if (workspaceResult.kind === 'unavailable') return probeDirectoryWarning()
     const capabilities = await probeLinkCapabilities(workspaceResult.workspaces, linkOps)
-    if (capabilities == null) {
-      return probeFileWarning()
-    }
+    if (capabilities == null) return probeFileWarning()
     return formatCapabilitiesResult(capabilities, opts.benchmark ? Date.now() - started : undefined)
   } catch {
     return probeDirectoryWarning()
   } finally {
     await removeProbeDirs(createdProbeDirs)
+  }
+}
+
+function missingPnpmHomeFailure (): CheckResult {
+  return {
+    title: 'Filesystem',
+    status: 'fail',
+    detail: 'the pnpm home directory is unknown; cannot determine the store location',
+    fix: 'Run "pnpm setup" or configure store-dir.',
   }
 }
 
@@ -163,9 +171,7 @@ async function createProbeWorkspaces (
   const projectModulesDir = await resolveProjectModulesDir(opts)
   const { linkTargetDir, symlinkTargetDir } = resolveProbeTargetDirs(opts, storeDir, projectModulesDir)
   const ancestors = resolveWorkspaceAncestors(storeDir, linkTargetDir, symlinkTargetDir)
-  if (ancestors.kind !== 'ok') {
-    return ancestors
-  }
+  if (ancestors.kind !== 'ok') return ancestors
   try {
     const storeProbeDir = await makeProbeDir(ancestors.store, createdProbeDirs)
     const linkProbeDir = await makeProbeDir(ancestors.link, createdProbeDirs)
@@ -186,27 +192,19 @@ function resolveWorkspaceAncestors (
   const store = resolveProbeAncestor(storeDir)
   const link = resolveProbeAncestor(linkTargetDir)
   const symlink = resolveProbeAncestor(symlinkTargetDir)
-  if (store.kind === 'unsafe' || link.kind === 'unsafe' || symlink.kind === 'unsafe') {
-    return { kind: 'unsafe' }
-  }
-  if (store.kind === 'unavailable' || link.kind === 'unavailable' || symlink.kind === 'unavailable') {
-    return { kind: 'unavailable' }
-  }
+  if (store.kind === 'unsafe' || link.kind === 'unsafe' || symlink.kind === 'unsafe') return { kind: 'unsafe' }
+  if (store.kind === 'unavailable' || link.kind === 'unavailable' || symlink.kind === 'unavailable') return { kind: 'unavailable' }
   return { kind: 'ok', store: store.path, link: link.path, symlink: symlink.path }
 }
 
 async function resolveProjectModulesDir (opts: FilesystemProbeOptions): Promise<string> {
-  if (opts.lockfileDir != null) {
-    return modulesDirOf(opts.dir, opts.modulesDir)
-  }
+  if (opts.lockfileDir != null) return modulesDirOf(opts.dir, opts.modulesDir)
   const manifestName = await readProjectManifestName(opts)
   return modulesDirOf(opts.dir, createProjectModulesDirResolver(opts)(manifestName))
 }
 
 async function readProjectManifestName (opts: FilesystemProbeOptions): Promise<string | undefined> {
-  if (opts.dir === opts.rootProjectManifestDir && opts.rootProjectManifest != null) {
-    return opts.rootProjectManifest.name
-  }
+  if (opts.dir === opts.rootProjectManifestDir && opts.rootProjectManifest != null) return opts.rootProjectManifest.name
   try {
     return (await safeReadProjectManifestOnly(opts.dir))?.name
   } catch {
@@ -229,26 +227,20 @@ async function resolveProbeStoreDir (
   if (opts.storeDir != null && opts.storeDir !== '') {
     return { kind: 'ok', storeDir: resolveConfiguredStoreDir(opts.storeDir, pkgRoot) }
   }
-  const homeStoreDir = opts.pnpmHomeDir !== '' ? path.join(opts.pnpmHomeDir, 'store', STORE_VERSION) : ''
-  const fallbackDefault = homeStoreDir !== '' ? homeStoreDir : path.join(pkgRoot, '.pnpm-store', STORE_VERSION)
+  if (!opts.pnpmHomeDir) return { kind: 'missing-home' }
+  const homeStoreDir = path.join(opts.pnpmHomeDir, 'store', STORE_VERSION)
   const pkgAncestor = resolveProbeAncestor(pkgRoot)
-  if (pkgAncestor.kind === 'unsafe') {
-    return { kind: 'unsafe' }
-  }
-  if (pkgAncestor.kind === 'unavailable') {
-    return { kind: 'ok', storeDir: fallbackDefault }
-  }
+  if (pkgAncestor.kind === 'unsafe') return { kind: 'unsafe' }
+  if (pkgAncestor.kind === 'unavailable') return { kind: 'ok', storeDir: homeStoreDir }
   const homeDecision = await decideHomeStoreDir({
     pnpmHomeDir: opts.pnpmHomeDir,
     homeStoreDir,
     pkgAncestor: pkgAncestor.path,
     linkOps,
   })
-  if (homeDecision != null) {
-    return homeDecision
-  }
+  if (homeDecision != null) return homeDecision
   const mountRoot = await findLinkableMountRoot(pkgAncestor.path, linkOps)
-  const storeDir = mountRoot != null ? path.join(mountRoot, '.pnpm-store', STORE_VERSION) : fallbackDefault
+  const storeDir = mountRoot != null ? path.join(mountRoot, '.pnpm-store', STORE_VERSION) : homeStoreDir
   return { kind: 'ok', storeDir }
 }
 
@@ -258,14 +250,9 @@ async function decideHomeStoreDir ({
   pkgAncestor,
   linkOps,
 }: HomeStoreContext): Promise<ProbeStoreResolution | undefined> {
-  if (pnpmHomeDir === '') return undefined
   const homeAncestor = resolveProbeAncestor(pnpmHomeDir)
-  if (homeAncestor.kind === 'unsafe') {
-    return { kind: 'unsafe' }
-  }
-  if (homeAncestor.kind === 'unavailable') {
-    return { kind: 'ok', storeDir: homeStoreDir }
-  }
+  if (homeAncestor.kind === 'unsafe') return { kind: 'unsafe' }
+  if (homeAncestor.kind === 'unavailable') return { kind: 'ok', storeDir: homeStoreDir }
   const canUse = areSameDir(homeAncestor.path, pkgAncestor) ||
     await canHardlinkBetweenAncestors(homeAncestor.path, pkgAncestor, linkOps)
   return canUse ? { kind: 'ok', storeDir: homeStoreDir } : undefined
@@ -276,13 +263,33 @@ async function findLinkableMountRoot (pkgAncestor: string, linkOps: LinkOperatio
   try {
     const pkgProbe = await makeProbeDir(pkgAncestor, created)
     const source = await writeExclusiveProbeFile(pkgProbe, 'mount-source', '')
-    const candidates = ancestorsFromRoot(pkgAncestor)
-    const linkable = await Promise.all(candidates.map(async (candidate) => canHardlinkToAncestor(source, candidate, linkOps)))
-    return candidates.find((_, index) => linkable[index])
+    for (const candidate of mountCandidates(pkgAncestor, linkOps === defaultLinkOperations)) {
+      if (await canHardlinkToAncestor(source, candidate, linkOps)) { // eslint-disable-line no-await-in-loop -- return the shallowest linkable mount root without probing deeper ancestors
+        return candidate
+      }
+    }
+    return undefined
   } catch {
     return undefined
   } finally {
     await removeProbeDirs(created)
+  }
+}
+
+function mountCandidates (pkgAncestor: string, sameDeviceOnly: boolean): string[] {
+  const ancestors = ancestorsFromRoot(pkgAncestor)
+  if (!sameDeviceOnly) return ancestors
+  try {
+    const targetDev = fs.lstatSync(pkgAncestor).dev
+    return ancestors.filter((ancestor) => {
+      try {
+        return fs.lstatSync(ancestor).dev === targetDev
+      } catch {
+        return false
+      }
+    })
+  } catch {
+    return ancestors
   }
 }
 

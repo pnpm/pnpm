@@ -488,6 +488,7 @@ test('pnpm doctor refuses to write probe files beneath a shared Windows ancestor
 test('Windows directory security evaluator distinguishes standard roots from shared directories', () => {
   const me = 'S-1-5-21-10-20-30-1001'
   const admins = new Set(['S-1-5-21-10-20-30-1000'])
+  const identity = { currentUserSid: me, adminSids: admins }
 
   expect(isSafeWindowsDirSecurity({
     ok: true,
@@ -502,7 +503,22 @@ test('Windows directory security evaluator distinguishes standard roots from sha
       { sid: 'S-1-5-32-545', allow: true, mask: 0x00000004, inherit: 1, prop: 0 },
       { sid: 'S-1-5-32-545', allow: true, mask: 0x00000002, inherit: 1, prop: 2 },
     ],
-  }, me, admins)).toBe(true)
+  }, identity)).toBe(true)
+
+  const clientRoot = {
+    ok: true,
+    nullAcl: false,
+    owner: 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464',
+    rules: [
+      { sid: 'S-1-5-18', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 },
+      { sid: 'S-1-5-32-544', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 },
+      { sid: 'S-1-5-32-545', allow: true, mask: 0x001200a9, inherit: 3, prop: 0 },
+      { sid: 'S-1-5-11', allow: true, mask: 0x001301bf, inherit: 3, prop: 2 },
+      { sid: 'S-1-5-11', allow: true, mask: 0x00000004, inherit: 0, prop: 0 },
+    ],
+  }
+  expect(isSafeWindowsDirSecurity(clientRoot, identity, false)).toBe(true)
+  expect(isSafeWindowsDirSecurity(clientRoot, identity, true)).toBe(false)
 
   expect(isSafeWindowsDirSecurity({
     ok: true,
@@ -511,7 +527,7 @@ test('Windows directory security evaluator distinguishes standard roots from sha
     rules: [
       { sid: 'S-1-5-32-545', allow: true, mask: 0x001301bf, inherit: 3, prop: 0 },
     ],
-  }, me, admins)).toBe(false)
+  }, identity)).toBe(false)
 
   expect(isSafeWindowsDirSecurity({
     ok: true,
@@ -520,14 +536,14 @@ test('Windows directory security evaluator distinguishes standard roots from sha
     rules: [
       { sid: 'S-1-5-18', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 },
     ],
-  }, me, admins)).toBe(false)
+  }, identity)).toBe(false)
 
   expect(isSafeWindowsDirSecurity({
     ok: true,
     nullAcl: true,
     owner: me,
     rules: [{ sid: 'S-1-1-0', allow: true, mask: 0x001f01ff, inherit: 3, prop: 0 }],
-  }, me, admins)).toBe(false)
+  }, identity)).toBe(false)
 
   const unrelatedServiceSid = 'S-1-5-80-111-222-333-444-555'
   expect(isSafeWindowsDirSecurity({
@@ -535,28 +551,28 @@ test('Windows directory security evaluator distinguishes standard roots from sha
     nullAcl: false,
     owner: unrelatedServiceSid,
     rules: [{ sid: 'S-1-5-18', allow: true, mask: 0x001f01ff, prop: 0 }],
-  }, me, admins)).toBe(false)
+  }, identity)).toBe(false)
 
   expect(isSafeWindowsDirSecurity({
     ok: true,
     nullAcl: false,
     owner: me,
     rules: [{ sid: unrelatedServiceSid, allow: true, mask: 0x00010000, prop: 0 }],
-  }, me, admins)).toBe(false)
+  }, identity)).toBe(false)
 
   expect(isSafeWindowsDirSecurity({
     ok: true,
     nullAcl: false,
     owner: me,
     rules: [{ sid: 'S-1-5-32-545', allow: true, mask: 0x00000100, prop: 0 }],
-  }, me, admins)).toBe(false)
+  }, identity)).toBe(false)
 
   expect(isSafeWindowsDirSecurity({
     ok: true,
     nullAcl: false,
     owner: me,
     rules: [{ sid: 'S-1-5-32-545', allow: true, mask: 0x40000000, prop: 0 }],
-  }, me, admins)).toBe(false)
+  }, identity)).toBe(false)
 
   expect(isUncWindowsPath('\\\\server\\share\\cache')).toBe(true)
   expect(isUncWindowsPath('C:\\Users\\demo\\cache')).toBe(false)
@@ -628,6 +644,7 @@ test('canWriteToDir rejects empty, file-blocked, dangling-symlink, and read-only
     expect(canWriteToDir(path.join(dangling, 'pnpm'))).toBe(false)
   }
 
+  // UID 0 bypasses POSIX chmod permission bits on directories.
   if (process.platform !== 'win32' && process.getuid?.() !== 0) {
     const readonlyDir = path.join(root, 'readonly-dir')
     fs.mkdirSync(readonlyDir, { mode: 0o555 })
@@ -638,4 +655,40 @@ test('canWriteToDir rejects empty, file-blocked, dangling-symlink, and read-only
       fs.chmodSync(readonlyDir, 0o755)
     }
   }
+})
+
+test('pnpm doctor fails filesystem check when both storeDir and pnpmHomeDir are empty', async () => {
+  prepare()
+  const fsCheck = await checkFilesystemCapabilities({
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+  })
+
+  expect(fsCheck).toStrictEqual({
+    title: 'Filesystem',
+    status: 'fail',
+    detail: 'the pnpm home directory is unknown; cannot determine the store location',
+    fix: 'Run "pnpm setup" or configure store-dir.',
+  })
+})
+
+test('pnpm doctor resolves symlinks before parent segments in configured storeDir', async () => {
+  prepare()
+  const root = process.cwd()
+  const mountASub = path.join(root, 'mount-a', 'sub')
+  const mountB = path.join(root, 'mount-b')
+  const projectDir = path.join(mountB, 'proj')
+  fs.mkdirSync(mountASub, { recursive: true })
+  fs.mkdirSync(projectDir, { recursive: true })
+  const linkPath = path.join(mountB, 'link')
+  fs.symlinkSync(mountASub, linkPath, 'junction')
+
+  const fsCheck = await checkFilesystemCapabilities({
+    dir: projectDir,
+    pnpmHomeDir: path.join(mountB, 'pnpm-home'),
+    storeDir: `${linkPath}${path.sep}..${path.sep}store`,
+    linkOperations: createCrossMountLinkOperations(),
+  })
+
+  expect(fsCheck.status).toBe('warn')
 })

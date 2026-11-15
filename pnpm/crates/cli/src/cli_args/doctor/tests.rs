@@ -10,7 +10,7 @@ use super::{
     probe_path::{ProbeDir, can_write_to_dir},
     render_report, status_mark,
 };
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
 use pnpm_fs::{FsHardLink, FsReflink, Host};
 use pnpm_store_dir::StoreDir;
 use pretty_assertions::assert_eq;
@@ -319,6 +319,26 @@ fn filesystem_check_passes_across_mounts_when_global_virtual_store_links_on_stor
     let result = check_filesystem_capabilities::<CrossMountFs>(&config);
     dbg!(&result);
     assert_eq!(result.status, CheckStatus::Pass);
+}
+
+#[test]
+fn filesystem_check_warns_for_hoisted_cross_mount_modules_dir() {
+    let sandbox = tempfile::tempdir().expect("create sandbox");
+    let mount_a = sandbox.path().join("mount-a");
+    let project_dir = sandbox.path().join("mount-b/proj");
+    fs::create_dir_all(&mount_a).expect("create mount-a");
+    fs::create_dir_all(&project_dir).expect("create mount-b project");
+
+    let config = Config {
+        store_dir: StoreDir::new(mount_a.join("store")),
+        modules_dir: project_dir.join("node_modules"),
+        node_linker: NodeLinker::Hoisted,
+        ..Config::default()
+    };
+
+    let result = check_filesystem_capabilities::<CrossMountFs>(&config);
+    dbg!(&result);
+    assert_eq!(result.status, CheckStatus::Warn);
 }
 
 #[test]

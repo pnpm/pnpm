@@ -65,9 +65,7 @@ export function canWriteToDir (dir: string): boolean {
 }
 
 function canAccessWritableDir (dir: string): boolean {
-  if (process.platform === 'win32') {
-    return canAccessWindowsWritableDir(dir)
-  }
+  if (process.platform === 'win32') return canAccessWindowsWritableDir(dir)
   try {
     fs.accessSync(dir, fs.constants.W_OK | fs.constants.X_OK)
     return true
@@ -77,46 +75,25 @@ function canAccessWritableDir (dir: string): boolean {
 }
 
 function canCreateFile (dir: string): boolean {
-  if (HAS_PROC_SELF_FD) {
-    return canCreateFileViaProcFd(dir)
-  }
-  const probeFile = path.join(dir, `.pnpm-doctor-write-${process.pid}-${crypto.randomUUID()}`)
+  const name = `.pnpm-doctor-write-${process.pid}-${crypto.randomUUID()}`
+  let dirFd: number | undefined
+  let entryPath = path.join(dir, name)
   let created = false
   try {
-    const fd = fs.openSync(probeFile, EXCLUSIVE_PROBE_WRITE_FLAGS, 0o600)
+    if (HAS_PROC_SELF_FD) {
+      dirFd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
+      if (!fs.fstatSync(dirFd).isDirectory()) return false
+      entryPath = `/proc/self/fd/${dirFd}/${name}`
+    }
+    const fd = fs.openSync(entryPath, EXCLUSIVE_PROBE_WRITE_FLAGS, 0o600)
     created = true
     fs.closeSync(fd)
     return true
   } catch {
     return false
   } finally {
-    if (created) {
-      tryUnlinkSync(probeFile)
-    }
-  }
-}
-
-function canCreateFileViaProcFd (dir: string): boolean {
-  let dirFd: number | undefined
-  let entryPath: string | undefined
-  let created = false
-  try {
-    dirFd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
-    if (!fs.fstatSync(dirFd).isDirectory()) return false
-    entryPath = `/proc/self/fd/${dirFd}/.pnpm-doctor-write-${process.pid}-${crypto.randomUUID()}`
-    const fileFd = fs.openSync(entryPath, EXCLUSIVE_PROBE_WRITE_FLAGS, 0o600)
-    created = true
-    fs.closeSync(fileFd)
-    return true
-  } catch {
-    return false
-  } finally {
-    if (created && entryPath != null) {
-      tryUnlinkSync(entryPath)
-    }
-    if (dirFd != null) {
-      tryCloseSync(dirFd)
-    }
+    if (created) tryUnlinkSync(entryPath)
+    if (dirFd != null) tryCloseSync(dirFd)
   }
 }
 
@@ -129,31 +106,18 @@ function canCreateSubdir (ancestor: string): boolean {
   } catch {
     return false
   } finally {
-    if (probeDir != null) {
-      tryRmdirSync(probeDir)
-    }
+    if (probeDir != null) tryRmdirSync(probeDir)
   }
 }
 
 function ignoreSyncError (operation: () => void): void {
   try {
     operation()
-  } catch {
-    // Cleanup failures should never abort the doctor report.
-  }
+  } catch { /* Cleanup failures should never abort the doctor report. */ }
 }
-
-function tryUnlinkSync (filePath: string): void {
-  ignoreSyncError(() => fs.unlinkSync(filePath))
-}
-
-function tryRmdirSync (dirPath: string): void {
-  ignoreSyncError(() => fs.rmdirSync(dirPath))
-}
-
-function tryCloseSync (fd: number): void {
-  ignoreSyncError(() => fs.closeSync(fd))
-}
+const tryUnlinkSync = (filePath: string): void => ignoreSyncError(() => fs.unlinkSync(filePath))
+const tryRmdirSync = (dirPath: string): void => ignoreSyncError(() => fs.rmdirSync(dirPath))
+const tryCloseSync = (fd: number): void => ignoreSyncError(() => fs.closeSync(fd))
 
 type AncestorEntryState = 'dir' | 'missing' | 'blocked'
 
@@ -161,19 +125,62 @@ export function existingAncestorDir (dir: string): string | undefined {
   return resolveExistingDir(dir)?.path
 }
 
+interface WalkState {
+  current: string
+  missingDepth: number
+}
+
 function resolveExistingDir (dir: string): { path: string, kind: 'target' | 'ancestor' } | undefined {
   if (dir === '') return undefined
-  let current = path.resolve(dir)
-  let kind: 'target' | 'ancestor' = 'target'
-  for (;;) {
-    const state = classifyPathEntry(current)
-    if (state === 'dir') return { path: current, kind }
-    if (state === 'blocked') return undefined
-    const parent = path.dirname(current)
-    if (parent === current) return undefined
-    current = parent
-    kind = 'ancestor'
+  const initial = initWalkOrigin(dir)
+  if (initial == null) return undefined
+  const state: WalkState = { current: initial.origin, missingDepth: 0 }
+  for (const segment of initial.segments) {
+    if (!stepPathSegment(state, segment)) return undefined
   }
+  return { path: state.current, kind: state.missingDepth === 0 ? 'target' : 'ancestor' }
+}
+
+function initWalkOrigin (dir: string): { origin: string, segments: string[] } | undefined {
+  if (path.isAbsolute(dir)) {
+    const { root } = path.parse(dir)
+    const origin = classifyPathEntry(root) === 'dir' ? tryRealpathSync(root) : undefined
+    return origin != null ? { origin, segments: splitSegments(dir.slice(root.length)) } : undefined
+  }
+  if (process.platform === 'win32' && /^[A-Z]:/i.test(dir)) {
+    const origin = tryRealpathSync(path.resolve(dir.slice(0, 2)))
+    return origin != null ? { origin, segments: splitSegments(dir.slice(2)) } : undefined
+  }
+  const origin = tryRealpathSync(process.cwd())
+  return origin != null ? { origin, segments: splitSegments(dir) } : undefined
+}
+
+function splitSegments (raw: string): string[] {
+  return raw.split(/[\\/]+/).filter(Boolean)
+}
+
+function stepPathSegment (state: WalkState, segment: string): boolean {
+  if (segment === '.') return true
+  if (segment === '..') {
+    if (state.missingDepth > 0) state.missingDepth -= 1
+    else state.current = path.dirname(state.current)
+    return true
+  }
+  if (state.missingDepth > 0) {
+    state.missingDepth += 1
+    return true
+  }
+  const candidate = path.join(state.current, segment)
+  const entryState = classifyPathEntry(candidate)
+  if (entryState === 'blocked') return false
+  if (entryState === 'missing') {
+    state.missingDepth = 1
+    return true
+  }
+  const real = tryRealpathSync(candidate)
+  if (real == null) return false
+  state.current = real
+  return true
 }
 
 function classifyPathEntry (candidate: string): AncestorEntryState {
@@ -340,10 +347,9 @@ export async function prepareProbeEntryPath (probe: ProbeDir, prefix: string): P
 }
 
 function descriptorOrJoinedPath (probe: ProbeDir, entryName: string): string {
-  if (HAS_PROC_SELF_FD && probe.dirFd != null) {
-    return `/proc/self/fd/${probe.dirFd}/${entryName}`
-  }
-  return path.join(probe.path, entryName)
+  return HAS_PROC_SELF_FD && probe.dirFd != null
+    ? `/proc/self/fd/${probe.dirFd}/${entryName}`
+    : path.join(probe.path, entryName)
 }
 
 export async function writeExclusiveProbeFile (probe: ProbeDir, prefix: string, content: string): Promise<string> {
@@ -352,9 +358,7 @@ export async function writeExclusiveProbeFile (probe: ProbeDir, prefix: string, 
   probe.entries.push(entryName)
   const handle = await fs.promises.open(descriptorOrJoinedPath(probe, entryName), EXCLUSIVE_PROBE_WRITE_FLAGS, 0o600)
   try {
-    if (content !== '') {
-      await handle.writeFile(content)
-    }
+    if (content !== '') await handle.writeFile(content)
   } finally {
     await handle.close()
   }

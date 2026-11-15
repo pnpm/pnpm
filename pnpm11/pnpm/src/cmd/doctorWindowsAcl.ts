@@ -31,11 +31,17 @@ interface CachedIdentity {
   memberSids: Set<string>
 }
 
+export interface WindowsSecurityIdentity {
+  currentUserSid: string
+  adminSids: ReadonlySet<string>
+}
+
 interface CachedDirSecurity {
   ctimeNs: bigint
   expiresAt: number
   known: boolean
-  safe: boolean
+  ancestorSafe: boolean
+  leafSafe: boolean
   writable: boolean
 }
 
@@ -63,6 +69,7 @@ const SYSTEM_TRUSTED_SIDS = new Set([
 
 const BUILTIN_ADMIN_USER_PATTERN = /^S-1-5-21-[\d-]+-500$/
 
+// cspell:ignore netapi Pinvoke Winapi
 const POWERSHELL_SECURITY_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
   '$me = $null',
@@ -73,10 +80,22 @@ const POWERSHELL_SECURITY_SCRIPT = [
   '  $me = $id.User.Value',
   '  $groups = [object[]]@(@($me) + @($id.Groups | ForEach-Object { $_.Value }))',
   '  try {',
-  "    $adminGroup = [System.DirectoryServices.DirectoryEntry]::new('WinNT://./Administrators,group')",
-  "    foreach ($member in $adminGroup.Invoke('Members')) {",
-  "      $bytes = $member.GetType().InvokeMember('objectSid', 'GetProperty', $null, $member, $null)",
-  '      $admins += [System.Security.Principal.SecurityIdentifier]::new($bytes, 0).Value',
+  "    $mod = [System.AppDomain]::CurrentDomain.DefineDynamicAssembly([System.Reflection.AssemblyName]::new('PnpmSam'), [System.Reflection.Emit.AssemblyBuilderAccess]::Run).DefineDynamicModule('M')",
+  "    $tb = $mod.DefineType('N', [System.Reflection.TypeAttributes]'Public,Abstract,Sealed')",
+  "    $m1 = $tb.DefinePInvokeMethod('NetLocalGroupGetMembers', 'netapi32.dll', [System.Reflection.MethodAttributes]'Public,Static,PinvokeImpl', [System.Reflection.CallingConventions]::Standard, [int], [Type[]]@([IntPtr], [string], [int], [IntPtr].MakeByRefType(), [int], [int].MakeByRefType(), [int].MakeByRefType(), [IntPtr].MakeByRefType()), [System.Runtime.InteropServices.CallingConvention]::Winapi, [System.Runtime.InteropServices.CharSet]::Unicode)",
+  '    $m1.SetImplementationFlags([System.Reflection.MethodImplAttributes]::PreserveSig)',
+  "    $m2 = $tb.DefinePInvokeMethod('NetApiBufferFree', 'netapi32.dll', [System.Reflection.MethodAttributes]'Public,Static,PinvokeImpl', [System.Reflection.CallingConventions]::Standard, [int], [Type[]]@([IntPtr]), [System.Runtime.InteropServices.CallingConvention]::Winapi, [System.Runtime.InteropServices.CharSet]::Auto)",
+  '    $m2.SetImplementationFlags([System.Reflection.MethodImplAttributes]::PreserveSig)',
+  '    $sam = $tb.CreateType()',
+  "    $grpName = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544').Translate([System.Security.Principal.NTAccount]).Value.Split('\\')[-1]",
+  '    $buf = [IntPtr]::Zero; $read = 0; $tot = 0; $res = [IntPtr]::Zero',
+  '    if ($sam::NetLocalGroupGetMembers([IntPtr]::Zero, $grpName, 0, [ref]$buf, -1, [ref]$read, [ref]$tot, [ref]$res) -eq 0 -and $buf -ne [IntPtr]::Zero) {',
+  '      try {',
+  '        for ($idx = 0; $idx -lt $read; $idx++) {',
+  '          $sidPtr = [System.Runtime.InteropServices.Marshal]::ReadIntPtr($buf, $idx * [IntPtr]::Size)',
+  '          if ($sidPtr -ne [IntPtr]::Zero) { $admins += [System.Security.Principal.SecurityIdentifier]::new($sidPtr).Value }',
+  '        }',
+  '      } finally { [void]$sam::NetApiBufferFree($buf) }',
   '    }',
   '  } catch {}',
   '}',
@@ -138,18 +157,21 @@ function isTrustedRuleSid (rule: WindowsAccessRule, ctx: TrustedRuleContext): bo
 
 export function isSafeWindowsDirSecurity (
   security: WindowsDirSecurity,
-  currentUserSid: string,
-  adminSids: ReadonlySet<string>
+  identity: WindowsSecurityIdentity,
+  isProbeParent = true
 ): boolean {
   if (!security.ok || security.nullAcl || !security.owner || !security.rules || security.rules.length === 0) {
     return false
   }
-  if (!isTrustedWindowsPrincipal(security.owner, currentUserSid, adminSids)) {
+  if (!isTrustedWindowsPrincipal(security.owner, identity.currentUserSid, identity.adminSids)) {
     return false
   }
-  const ctx: TrustedRuleContext = { currentUserSid, adminSids, ownerSid: security.owner }
-  return security.rules.every(
-    (rule) => !rule.allow || (rule.mask & UNSAFE_REPLACE_MASK) === 0 || isTrustedRuleSid(rule, ctx)
+  const ctx: TrustedRuleContext = { ...identity, ownerSid: security.owner }
+  return security.rules.every((rule) =>
+    !rule.allow ||
+    (!isProbeParent && (rule.prop & INHERIT_ONLY_PROPAGATION) !== 0) ||
+    (rule.mask & UNSAFE_REPLACE_MASK) === 0 ||
+    isTrustedRuleSid(rule, ctx)
   )
 }
 
@@ -191,16 +213,17 @@ export function isSafeWindowsAncestorChain (canonicalDir: string, ancestors: str
   if (isUncWindowsPath(canonicalDir)) return false
   const stats = statAllRealDirectories(ancestors)
   if (stats == null) return false
-  return inspectDirectories(ancestors, stats).every((entry) => entry.safe)
+  const canonicalKey = normalizeCacheKey(canonicalDir)
+  return inspectDirectories(ancestors, stats).every((entry, index) =>
+    normalizeCacheKey(ancestors[index]) === canonicalKey ? entry.leafSafe : entry.ancestorSafe
+  )
 }
 
 export function canAccessWindowsWritableDir (canonicalDir: string): boolean {
   const stats = statAllRealDirectories([canonicalDir])
   if (stats == null) return false
   const inspected = inspectDirectories([canonicalDir], stats)[0]
-  if (inspected?.known) {
-    return inspected.writable
-  }
+  if (inspected?.known) return inspected.writable
   return isUncWindowsPath(canonicalDir) && isWritableByReadOnlyStat(canonicalDir)
 }
 
@@ -255,7 +278,8 @@ function inspectDirectories (dirs: string[], changeTimes: Map<string, bigint>): 
     ctimeNs: 0n,
     expiresAt: 0,
     known: false,
-    safe: false,
+    ancestorSafe: false,
+    leafSafe: false,
     writable: false,
   })
 }
@@ -272,18 +296,19 @@ function populateSecurityCache (dirs: string[], changeTimes: Map<string, bigint>
   if (batch == null) return
   const identity = resolveIdentity(batch)
   if (identity == null) return
+  const secIdentity: WindowsSecurityIdentity = { currentUserSid: identity.me, adminSids: identity.adminSids }
   const items = toObjectArray<WindowsDirSecurity>(batch.items)
   for (let index = 0; index < dirs.length; index++) {
-    const dir = dirs[index]
     const rawItem = items[index]
-    const key = normalizeCacheKey(dir)
+    const key = normalizeCacheKey(dirs[index])
     const ctimeNs = changeTimes.get(key)
     if (rawItem == null || ctimeNs == null) continue
     securityCache.set(key, {
       ctimeNs,
       expiresAt: now + CACHE_TTL_MS,
       known: Boolean(rawItem.ok),
-      safe: isSafeWindowsDirSecurity(rawItem, identity.me, identity.adminSids),
+      ancestorSafe: isSafeWindowsDirSecurity(rawItem, secIdentity, false),
+      leafSafe: isSafeWindowsDirSecurity(rawItem, secIdentity, true),
       writable: canWriteWindowsDirSecurity(rawItem, identity.memberSids),
     })
   }
@@ -347,32 +372,22 @@ function resolvePowerShellExecutables (): string[] {
 
 function deduplicateDirs (dirs: string[]): string[] {
   const seen = new Set<string>()
-  const unique: string[] = []
-  for (const dir of dirs) {
+  return dirs.filter((dir) => {
     const key = normalizeCacheKey(dir)
-    if (!seen.has(key)) {
-      seen.add(key)
-      unique.push(dir)
-    }
-  }
-  return unique
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function toObjectArray<Item> (value: unknown): Item[] {
   if (Array.isArray(value)) return value as Item[]
-  if (value != null && typeof value === 'object') return [value as Item]
-  return []
+  return value != null && typeof value === 'object' ? [value as Item] : []
 }
 
 function toUppercaseSet (value: unknown): Set<string> {
   const items = Array.isArray(value) ? value : value != null ? [value] : []
-  const result = new Set<string>()
-  for (const item of items) {
-    if (typeof item === 'string') {
-      result.add(item.toUpperCase())
-    }
-  }
-  return result
+  return new Set(items.filter((item): item is string => typeof item === 'string').map((item) => item.toUpperCase()))
 }
 
 function normalizeCacheKey (dir: string): string {

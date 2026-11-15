@@ -28,10 +28,22 @@ if ($env:PNPM_DOCTOR_SKIP_ID -ne '1') {
   $me = $id.User.Value
   $groups = [object[]]@(@($me) + @($id.Groups | ForEach-Object { $_.Value }))
   try {
-    $adminGroup = [System.DirectoryServices.DirectoryEntry]::new('WinNT://./Administrators,group')
-    foreach ($member in $adminGroup.Invoke('Members')) {
-      $bytes = $member.GetType().InvokeMember('objectSid', 'GetProperty', $null, $member, $null)
-      $admins += [System.Security.Principal.SecurityIdentifier]::new($bytes, 0).Value
+    $mod = [System.AppDomain]::CurrentDomain.DefineDynamicAssembly([System.Reflection.AssemblyName]::new('PnpmSam'), [System.Reflection.Emit.AssemblyBuilderAccess]::Run).DefineDynamicModule('M')
+    $tb = $mod.DefineType('N', [System.Reflection.TypeAttributes]'Public,Abstract,Sealed')
+    $m1 = $tb.DefinePInvokeMethod('NetLocalGroupGetMembers', 'netapi32.dll', [System.Reflection.MethodAttributes]'Public,Static,PinvokeImpl', [System.Reflection.CallingConventions]::Standard, [int], [Type[]]@([IntPtr], [string], [int], [IntPtr].MakeByRefType(), [int], [int].MakeByRefType(), [int].MakeByRefType(), [IntPtr].MakeByRefType()), [System.Runtime.InteropServices.CallingConvention]::Winapi, [System.Runtime.InteropServices.CharSet]::Unicode)
+    $m1.SetImplementationFlags([System.Reflection.MethodImplAttributes]::PreserveSig)
+    $m2 = $tb.DefinePInvokeMethod('NetApiBufferFree', 'netapi32.dll', [System.Reflection.MethodAttributes]'Public,Static,PinvokeImpl', [System.Reflection.CallingConventions]::Standard, [int], [Type[]]@([IntPtr]), [System.Runtime.InteropServices.CallingConvention]::Winapi, [System.Runtime.InteropServices.CharSet]::Auto)
+    $m2.SetImplementationFlags([System.Reflection.MethodImplAttributes]::PreserveSig)
+    $sam = $tb.CreateType()
+    $grpName = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544').Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
+    $buf = [IntPtr]::Zero; $read = 0; $tot = 0; $res = [IntPtr]::Zero
+    if ($sam::NetLocalGroupGetMembers([IntPtr]::Zero, $grpName, 0, [ref]$buf, -1, [ref]$read, [ref]$tot, [ref]$res) -eq 0 -and $buf -ne [IntPtr]::Zero) {
+      try {
+        for ($idx = 0; $idx -lt $read; $idx++) {
+          $sidPtr = [System.Runtime.InteropServices.Marshal]::ReadIntPtr($buf, $idx * [IntPtr]::Size)
+          if ($sidPtr -ne [IntPtr]::Zero) { $admins += [System.Security.Principal.SecurityIdentifier]::new($sidPtr).Value }
+        }
+      } finally { [void]$sam::NetApiBufferFree($buf) }
     }
   } catch {}
 }
@@ -82,7 +94,8 @@ struct CachedDirSecurity {
     modified: Option<SystemTime>,
     expires_at: Instant,
     known: bool,
-    safe: bool,
+    ancestor_safe: bool,
+    leaf_safe: bool,
     writable: bool,
 }
 
@@ -114,7 +127,13 @@ pub(in crate::cli_args::doctor::probe_path) fn is_safe_windows_ancestor_chain(
     {
         return false;
     }
-    inspect_directories(&ancestors).into_iter().all(|entry| entry.safe)
+    let inspected = inspect_directories(&ancestors);
+    ancestors
+        .iter()
+        .zip(inspected)
+        .all(
+            |(dir, entry)| if dir == canonical_dir { entry.leaf_safe } else { entry.ancestor_safe },
+        )
 }
 
 pub(in crate::cli_args::doctor::probe_path) fn can_access_windows_writable_dir(
@@ -176,7 +195,8 @@ fn inspect_directories(dirs: &[PathBuf]) -> Vec<CachedDirSecurity> {
                     modified: None,
                     expires_at: now,
                     known: false,
-                    safe: false,
+                    ancestor_safe: false,
+                    leaf_safe: false,
                     writable: false,
                 })
         })
@@ -219,10 +239,17 @@ fn populate_security_cache(dirs: &[PathBuf], now: Instant) {
                 modified: dir_modified_time(dir),
                 expires_at: now + CACHE_TTL,
                 known: item.ok,
-                safe: is_safe_windows_dir_security(
+                ancestor_safe: is_safe_windows_dir_security(
                     item,
                     &identity.current_user,
                     &identity.admin_sids,
+                    false,
+                ),
+                leaf_safe: is_safe_windows_dir_security(
+                    item,
+                    &identity.current_user,
+                    &identity.admin_sids,
+                    true,
                 ),
                 writable: can_write_windows_dir_security(item, &identity.member_sids),
             },
@@ -285,15 +312,7 @@ fn try_exec_powershell(
 ) -> Option<WindowsSecurityBatch> {
     let temp_dir = std::env::temp_dir();
     let mut child = Command::new(executable)
-        .args([
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-InputFormat",
-            "None",
-            "-EncodedCommand",
-            encoded_script,
-        ])
+        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded_script])
         .env("LOCALAPPDATA", &temp_dir)
         .env("APPDATA", &temp_dir)
         .env("PSModuleAnalysisCachePath", "NUL")
