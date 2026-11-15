@@ -20,10 +20,12 @@ permissions: {}
 
 # Runs write the npm dist-tags and then the GitHub "Latest" release. Overlapping
 # runs could interleave those writes and leave the two pointing at different
-# versions, and cancelling a run could stop it between them.
+# versions, and cancelling a run could stop it between them. The default queue
+# keeps one pending run and cancels it when another dispatch arrives.
 concurrency:
   group: update-latest
   cancel-in-progress: false
+  queue: max
 
 env:
   # Passed to each command as `--registry`, which is the only form pnpm reads;
