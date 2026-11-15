@@ -5979,7 +5979,6 @@ dependencies = [
  "async-trait",
  "dashmap",
  "indexmap 2.14.2",
- "libc",
  "miette 7.6.0",
  "mockito",
  "napi",

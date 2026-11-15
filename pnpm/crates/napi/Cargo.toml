@@ -48,7 +48,6 @@ pnpm-workspace = { workspace = true }
 async-trait = { workspace = true }
 dashmap = { workspace = true }
 indexmap = { workspace = true }
-libc = { workspace = true }
 miette = { workspace = true }
 napi = { workspace = true }
 napi-derive = { workspace = true }
