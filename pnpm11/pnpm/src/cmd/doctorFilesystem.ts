@@ -2,9 +2,15 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { Config } from '@pnpm/config.reader'
+import {
+  type Config,
+  type ConfigContext,
+  createProjectModulesDirResolver,
+  modulesDirOf,
+} from '@pnpm/config.reader'
 import { STORE_VERSION } from '@pnpm/constants'
 import { isError } from '@pnpm/error'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pathAbsolute } from 'path-absolute'
 
 import type { CheckResult } from './doctor.js'
@@ -21,10 +27,11 @@ export type FilesystemProbeOptions = Pick<Config,
 | 'lockfileDir'
 | 'workspaceDir'
 | 'modulesDir'
+| 'packageConfigs'
 | 'virtualStoreDir'
 | 'enableGlobalVirtualStore'
 | 'nodeLinker'
-> & {
+> & Partial<Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>> & {
   benchmark?: boolean
   linkOperations?: LinkOperations
 }
@@ -214,7 +221,8 @@ async function createProbeWorkspaces (
   storeDir: string,
   createdProbeDirs: string[]
 ): Promise<ProbeWorkspaces | undefined> {
-  const { linkTargetDir, symlinkTargetDir } = resolveProbeTargetDirs(opts, storeDir)
+  const projectModulesDir = await resolveProjectModulesDir(opts)
+  const { linkTargetDir, symlinkTargetDir } = resolveProbeTargetDirs(opts, storeDir, projectModulesDir)
   const storeAncestor = existingAncestorDir(storeDir)
   const linkAncestor = existingAncestorDir(linkTargetDir)
   const symlinkAncestor = existingAncestorDir(symlinkTargetDir)
@@ -233,21 +241,71 @@ async function createProbeWorkspaces (
   }
 }
 
+async function resolveProjectModulesDir (opts: FilesystemProbeOptions): Promise<string> {
+  if (opts.lockfileDir != null) {
+    return modulesDirOf(opts.dir, opts.modulesDir)
+  }
+  const manifest = opts.dir === opts.rootProjectManifestDir && opts.rootProjectManifest != null
+    ? opts.rootProjectManifest
+    : await safeReadProjectManifestOnly(opts.dir) ?? undefined
+  return modulesDirOf(opts.dir, createProjectModulesDirResolver(opts)(manifest?.name))
+}
+
 async function resolveProbeStoreDir (opts: FilesystemProbeOptions, linkOps: LinkOperations): Promise<string> {
   const pkgRoot = opts.workspaceDir ?? opts.dir
   if (opts.storeDir != null && opts.storeDir !== '') {
     return resolveConfiguredStoreDir(opts.storeDir, pkgRoot)
   }
   const homeStoreDir = opts.pnpmHomeDir !== '' ? path.join(opts.pnpmHomeDir, 'store', STORE_VERSION) : ''
-  const homeAncestor = existingAncestorDir(homeStoreDir)
+  const fallbackDefault = homeStoreDir !== '' ? homeStoreDir : path.join(pkgRoot, '.pnpm-store', STORE_VERSION)
   const pkgAncestor = existingAncestorDir(pkgRoot)
-  if (homeAncestor == null || pkgAncestor == null) {
-    return homeStoreDir !== '' ? homeStoreDir : path.join(pkgRoot, '.pnpm-store', STORE_VERSION)
+  if (pkgAncestor == null) {
+    return fallbackDefault
   }
-  if (areSameDir(homeAncestor, pkgAncestor) || await canHardlinkBetweenAncestors(homeAncestor, pkgAncestor, linkOps)) {
+  if (await canUseHomeStoreDir(homeStoreDir, pkgAncestor, linkOps)) {
     return homeStoreDir
   }
-  return path.join(pkgRoot, '.pnpm-store', STORE_VERSION)
+  const mountRoot = await findLinkableMountRoot(pkgAncestor, linkOps)
+  return mountRoot != null ? path.join(mountRoot, '.pnpm-store', STORE_VERSION) : fallbackDefault
+}
+
+async function canUseHomeStoreDir (
+  homeStoreDir: string,
+  pkgAncestor: string,
+  linkOps: LinkOperations
+): Promise<boolean> {
+  const homeAncestor = existingAncestorDir(homeStoreDir)
+  if (homeAncestor == null) return false
+  if (areSameDir(homeAncestor, pkgAncestor)) return true
+  return canHardlinkBetweenAncestors(pkgAncestor, homeAncestor, linkOps)
+}
+
+async function findLinkableMountRoot (pkgAncestor: string, linkOps: LinkOperations): Promise<string | undefined> {
+  const created: string[] = []
+  try {
+    const pkgProbe = await makeProbeDir(pkgAncestor, created)
+    const source = path.join(pkgProbe, 'source')
+    await fs.promises.writeFile(source, '')
+    const candidates = ancestorsFromRoot(pkgAncestor)
+    const linkable = await Promise.all(candidates.map(async (candidate) => canHardlinkToAncestor(source, candidate, linkOps)))
+    return candidates.find((_, index) => linkable[index])
+  } catch {
+    return undefined
+  } finally {
+    await removeProbeDirs(created)
+  }
+}
+
+function ancestorsFromRoot (dir: string): string[] {
+  const ancestors: string[] = []
+  let current = path.resolve(dir)
+  for (;;) {
+    ancestors.push(current)
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return ancestors.reverse()
 }
 
 async function canHardlinkBetweenAncestors (
@@ -258,9 +316,20 @@ async function canHardlinkBetweenAncestors (
   const created: string[] = []
   try {
     const fromProbe = await makeProbeDir(fromAncestor, created)
-    const toProbe = await makeProbeDir(toAncestor, created)
     const source = path.join(fromProbe, 'source')
     await fs.promises.writeFile(source, '')
+    return await canHardlinkToAncestor(source, toAncestor, linkOps)
+  } catch {
+    return false
+  } finally {
+    await removeProbeDirs(created)
+  }
+}
+
+async function canHardlinkToAncestor (source: string, toAncestor: string, linkOps: LinkOperations): Promise<boolean> {
+  const created: string[] = []
+  try {
+    const toProbe = await makeProbeDir(toAncestor, created)
     await linkOps.hardlink(source, path.join(toProbe, 'hardlink'))
     return true
   } catch {
@@ -272,21 +341,22 @@ async function canHardlinkBetweenAncestors (
 
 function resolveProbeTargetDirs (
   opts: FilesystemProbeOptions,
-  storeDir: string
+  storeDir: string,
+  projectModulesDir: string
 ): { linkTargetDir: string, symlinkTargetDir: string } {
-  const modulesDirName = opts.modulesDir ?? 'node_modules'
-  const projectModulesDir = pathAbsolute(modulesDirName, opts.dir)
-  if (opts.nodeLinker === 'hoisted') {
-    return { linkTargetDir: projectModulesDir, symlinkTargetDir: projectModulesDir }
-  }
   const lockfileBaseDir = opts.lockfileDir ?? opts.dir
+  const lockfileModulesDir = opts.lockfileDir != null
+    ? modulesDirOf(opts.lockfileDir, opts.modulesDir)
+    : projectModulesDir
+  if (opts.nodeLinker === 'hoisted') {
+    return { linkTargetDir: lockfileModulesDir, symlinkTargetDir: projectModulesDir }
+  }
   if (opts.enableGlobalVirtualStore) {
     const gvsDir = opts.virtualStoreDir != null
       ? pathAbsolute(opts.virtualStoreDir, lockfileBaseDir)
       : path.join(storeDir, 'links')
     return { linkTargetDir: gvsDir, symlinkTargetDir: projectModulesDir }
   }
-  const lockfileModulesDir = pathAbsolute(modulesDirName, lockfileBaseDir)
   const virtualStoreDir = opts.virtualStoreDir != null
     ? pathAbsolute(opts.virtualStoreDir, lockfileBaseDir)
     : path.join(lockfileModulesDir, '.pnpm')

@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { getCurrentPackageName, isExecutedByCorepack, packageManager, resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { isError } from '@pnpm/error'
 import { ping } from '@pnpm/registry-access.commands'
 import chalk from 'chalk'
@@ -94,11 +94,12 @@ export interface DoctorCommandOptions extends Omit<ping.PingOptions, 'registry'>
 | 'lockfileDir'
 | 'workspaceDir'
 | 'modulesDir'
+| 'packageConfigs'
 | 'virtualStoreDir'
 | 'enableGlobalVirtualStore'
 | 'nodeLinker'
 | 'registriesByScope'
-> {
+>, Partial<Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>> {
   offline?: boolean
   json?: boolean
   benchmark?: boolean

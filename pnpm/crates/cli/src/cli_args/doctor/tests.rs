@@ -1,7 +1,8 @@
 use super::{
     CheckResult, CheckStatus, DoctorArgs, DoctorReport, check_versions,
     filesystem::{
-        ProbeDirs, can_write_to_dir, check_filesystem_capabilities, probe_link_capabilities,
+        ProbeDirs, can_write_to_dir, check_filesystem_capabilities,
+        check_filesystem_capabilities_in_dirs, probe_link_capabilities,
     },
     last_line, render_report, status_mark,
 };
@@ -307,6 +308,21 @@ fn filesystem_check_passes_across_mounts_when_global_virtual_store_links_on_stor
     let result = check_filesystem_capabilities::<CrossMountFs>(&config);
     dbg!(&result);
     assert_eq!(result.status, CheckStatus::Pass);
+}
+
+#[test]
+fn filesystem_check_warns_when_store_probe_cannot_write_file() {
+    let target = tempfile::tempdir().expect("create target temp dir");
+    let missing_store = target.path().join("missing-store-probe");
+    let result = check_filesystem_capabilities_in_dirs::<Host>(ProbeDirs {
+        store: &missing_store,
+        link_target: target.path(),
+        symlink_target: target.path(),
+    });
+    dbg!(&result);
+    assert_eq!(result.status, CheckStatus::Warn);
+    assert_eq!(result.detail.as_deref(), Some("could not write a probe file"));
+    assert_eq!(result.fix.as_deref(), Some("Check that the store directory is writable."));
 }
 
 /// The install smoke test surfaces the last meaningful stderr line, so a

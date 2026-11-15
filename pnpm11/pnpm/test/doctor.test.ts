@@ -8,7 +8,7 @@ import { STORE_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 
 import { type CheckResult, handler, type LinkOperations } from '../src/cmd/doctor.js'
-import { canWriteToDir } from '../src/cmd/doctorFilesystem.js'
+import { canWriteToDir, checkFilesystemCapabilities } from '../src/cmd/doctorFilesystem.js'
 import { execPnpmSync } from './utils/execPnpm.js'
 import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
@@ -232,39 +232,98 @@ test('pnpm doctor CLI reads storeDir from pnpm-workspace.yaml and checks the ver
   expect(storeCheck?.detail).toContain(path.join('blocked-store', STORE_VERSION))
 })
 
-test('pnpm doctor probes the versioned store directory and workspace member modules directory', async () => {
+test('pnpm doctor probes the versioned store directory and hoisted lockfile root modules directory', async () => {
   prepare()
   const root = process.cwd()
   const storeBase = path.join(root, 'shared-store')
   const mountAVersionedStore = path.join(root, 'mount-a', 'store-v')
-  const workspaceRoot = path.join(root, 'mount-a', 'workspace')
-  const memberDir = path.join(root, 'mount-b', 'member')
+  const memberDir = path.join(root, 'mount-a', 'member')
+  const workspaceRoot = path.join(root, 'mount-b', 'workspace')
   fs.mkdirSync(storeBase, { recursive: true })
   fs.mkdirSync(mountAVersionedStore, { recursive: true })
-  fs.mkdirSync(workspaceRoot, { recursive: true })
   fs.mkdirSync(memberDir, { recursive: true })
+  fs.mkdirSync(workspaceRoot, { recursive: true })
   fs.symlinkSync(mountAVersionedStore, path.join(storeBase, STORE_VERSION), 'junction')
 
-  const { output, exitCode } = await handler({
+  const fsCheck = await checkFilesystemCapabilities({
     dir: memberDir,
     workspaceDir: workspaceRoot,
     lockfileDir: workspaceRoot,
     nodeLinker: 'hoisted',
-    cacheDir: path.join(workspaceRoot, 'cache'),
     pnpmHomeDir: path.join(workspaceRoot, 'pnpm-home'),
     storeDir: storeBase,
-    offline: true,
-    json: true,
-    registriesByScope: { default: 'https://registry.npmjs.org/' },
-    configByUri: {},
-    pnpmCommand: [process.execPath, PNPM_BIN],
     linkOperations: createCrossMountLinkOperations(),
   })
-  const { checks } = JSON.parse(output) as { checks: CheckResult[] }
-  const fsCheck = checks.find((check) => check.title === 'Filesystem')
 
-  expect(exitCode).toBe(0)
-  expect(fsCheck?.status).toBe('warn')
+  expect(fsCheck.status).toBe('warn')
+})
+
+test('pnpm doctor honors per-project packageConfigs.modulesDir when lockfileDir is unset', async () => {
+  prepare()
+  const root = process.cwd()
+  const mountA = path.join(root, 'mount-a')
+  const mountB = path.join(root, 'mount-b')
+  const memberDir = path.join(mountA, 'member')
+  fs.mkdirSync(memberDir, { recursive: true })
+  fs.mkdirSync(mountB, { recursive: true })
+  fs.writeFileSync(path.join(memberDir, 'package.json'), JSON.stringify({ name: 'member', version: '1.0.0' }))
+
+  const fsCheck = await checkFilesystemCapabilities({
+    dir: memberDir,
+    workspaceDir: mountA,
+    pnpmHomeDir: path.join(mountA, 'pnpm-home'),
+    storeDir: path.join(mountA, 'store'),
+    packageConfigs: { member: { modulesDir: path.join(mountB, 'custom-modules') } },
+    linkOperations: createCrossMountLinkOperations(),
+  })
+
+  expect(fsCheck.status).toBe('warn')
+})
+
+test('pnpm doctor resolves the linkable mount root .pnpm-store fallback when storeDir is unset', async () => {
+  prepare()
+  const root = process.cwd()
+  const mountA = path.join(root, 'mount-a')
+  const mountB = path.join(root, 'mount-b')
+  const projectDir = path.join(mountB, 'workspace', 'proj')
+  fs.mkdirSync(mountA, { recursive: true })
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(mountB, '.pnpm-store'), 'blocked')
+
+  const fsCheck = await checkFilesystemCapabilities({
+    dir: projectDir,
+    pnpmHomeDir: path.join(mountA, 'pnpm-home'),
+    linkOperations: createCrossMountLinkOperations(),
+  })
+
+  expect(fsCheck).toStrictEqual({
+    title: 'Filesystem',
+    status: 'warn',
+    detail: 'could not create a probe directory',
+    fix: 'Check that the store and project directories are writable.',
+  })
+  expect(fs.readdirSync(mountA)).toStrictEqual([])
+  expect(fs.readdirSync(mountB).sort()).toStrictEqual(['.pnpm-store', 'workspace'])
+  expect(fs.readdirSync(projectDir)).toStrictEqual([])
+})
+
+test('pnpm doctor passes filesystem check across mounts when global virtual store links on the store mount', async () => {
+  prepare()
+  const root = process.cwd()
+  const mountA = path.join(root, 'mount-a')
+  const projectDir = path.join(root, 'mount-b', 'proj')
+  fs.mkdirSync(mountA, { recursive: true })
+  fs.mkdirSync(projectDir, { recursive: true })
+
+  const fsCheck = await checkFilesystemCapabilities({
+    dir: projectDir,
+    pnpmHomeDir: path.join(mountA, 'pnpm-home'),
+    storeDir: path.join(mountA, 'store'),
+    enableGlobalVirtualStore: true,
+    linkOperations: createCrossMountLinkOperations(),
+  })
+
+  expect(fsCheck.status).toBe('pass')
 })
 
 test('pnpm doctor returns a filesystem warning when writing the store probe file fails', async () => {
@@ -326,4 +385,40 @@ test('canWriteToDir verifies file creation in an existing directory even if subd
   }
   expect(canWriteToDir(existingDir)).toBe(true)
   expect(fs.readdirSync(existingDir)).toStrictEqual([])
+})
+
+test('canWriteToDir rejects empty, file-blocked, dangling-symlink, and read-only ancestor paths', () => {
+  prepare()
+  const root = process.cwd()
+  const blocker = path.join(root, 'blocker-file')
+  fs.writeFileSync(blocker, 'file')
+  expect(canWriteToDir('')).toBe(false)
+  expect(canWriteToDir(blocker)).toBe(false)
+  expect(canWriteToDir(path.join(blocker, 'cache', 'pnpm'))).toBe(false)
+
+  const dangling = path.join(root, 'dangling-link')
+  let createdSymlink = false
+  try {
+    fs.symlinkSync(path.join(root, 'nowhere'), dangling, 'dir')
+    createdSymlink = true
+  } catch (err: unknown) {
+    if (!(err instanceof Error && 'code' in err && err.code === 'EPERM' && process.platform === 'win32')) {
+      throw err
+    }
+  }
+  if (createdSymlink) {
+    expect(canWriteToDir(dangling)).toBe(false)
+    expect(canWriteToDir(path.join(dangling, 'pnpm'))).toBe(false)
+  }
+
+  if (process.platform !== 'win32' && process.getuid?.() !== 0) {
+    const readonlyDir = path.join(root, 'readonly-dir')
+    fs.mkdirSync(readonlyDir, { mode: 0o555 })
+    try {
+      expect(canWriteToDir(readonlyDir)).toBe(false)
+      expect(canWriteToDir(path.join(readonlyDir, 'missing', 'store'))).toBe(false)
+    } finally {
+      fs.chmodSync(readonlyDir, 0o755)
+    }
+  }
 })

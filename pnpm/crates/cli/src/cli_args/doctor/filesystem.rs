@@ -118,16 +118,22 @@ pub(super) fn check_filesystem_capabilities<Sys>(config: &Config) -> CheckResult
 where
     Sys: FsReflink + FsHardLink,
 {
-    let title = "Filesystem";
     let Ok(probes) = create_probe_workspaces(config) else {
         return CheckResult::warn(
-            title,
+            "Filesystem",
             "could not create a probe directory",
             "Check that the store and project directories are writable.",
         );
     };
+    check_filesystem_capabilities_in_dirs::<Sys>(probes.as_dirs())
+}
 
-    let Ok(capabilities) = probe_link_capabilities::<Sys>(probes.as_dirs()) else {
+pub(super) fn check_filesystem_capabilities_in_dirs<Sys>(dirs: ProbeDirs<'_>) -> CheckResult
+where
+    Sys: FsReflink + FsHardLink,
+{
+    let title = "Filesystem";
+    let Ok(capabilities) = probe_link_capabilities::<Sys>(dirs) else {
         return CheckResult::warn(
             title,
             "could not write a probe file",
