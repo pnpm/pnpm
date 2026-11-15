@@ -145,7 +145,7 @@ fn list_stops_paginating_at_the_fail_safe_page_cap() {
         .expect(1000)
         .create();
 
-    let output = stage(dir.path(), &["list", "--json", "--reporter=silent"]);
+    let output = stage(dir.path(), &["list", "--json"]);
 
     mock.assert();
     assert_success(&output);
@@ -477,11 +477,8 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         &json!({ "name": "@stage-e2e/lifecycle", "version": "1.0.0" }),
     );
 
-    let publish = stage_with_auth(
-        dir.path(),
-        &auth_file,
-        &["publish", "--json", "--no-git-checks", "--reporter=silent"],
-    );
+    let publish =
+        stage_with_auth(dir.path(), &auth_file, &["publish", "--json", "--no-git-checks"]);
     assert_success(&publish);
     let keyed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&publish.stdout)).expect("keyed JSON output");
@@ -495,7 +492,7 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
     // Held back: not installable until approved.
     assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 404);
 
-    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json", "--reporter=silent"]);
+    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json"]);
     assert_success(&list);
     let listed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&list.stdout)).expect("list JSON output");
@@ -510,11 +507,7 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
     assert!(stdout.contains("package name: @stage-e2e/lifecycle"), "stdout: {stdout}");
     assert!(stdout.contains("staged by: alice (user)"), "stdout: {stdout}");
 
-    let download = stage_with_auth(
-        dir.path(),
-        &auth_file,
-        &["download", &stage_id, "--json", "--reporter=silent"],
-    );
+    let download = stage_with_auth(dir.path(), &auth_file, &["download", &stage_id, "--json"]);
     assert_success(&download);
     let downloaded: Value = serde_json::from_str(&String::from_utf8_lossy(&download.stdout))
         .expect("download JSON output");
@@ -634,11 +627,82 @@ fn stage_list_paginates_against_pnpr() {
         }
     });
 
-    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json", "--reporter=silent"]);
+    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json"]);
     assert_success(&list);
     let listed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&list.stdout)).expect("list JSON output");
     assert_eq!(listed.as_array().map(Vec::len), Some(101));
+}
+
+#[test]
+fn stage_publish_json_keeps_stdout_parseable_on_dry_run_empty_workspace_and_error() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(dir.path(), &registry, &json!({ "name": "demo-json", "version": "1.0.0" }));
+
+    let dry_run = stage(dir.path(), &["publish", "--dry-run", "--no-git-checks", "--json"]);
+    assert_success(&dry_run);
+    let dry_run_json: Value =
+        serde_json::from_slice(&dry_run.stdout).expect("dry-run stdout must be pure JSON");
+    assert_eq!(dry_run_json["demo-json"]["version"], "1.0.0");
+
+    let ws = tempfile::tempdir().expect("recursive workspace");
+    fs::write(ws.path().join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+    fs::write(ws.path().join("pnpm-workspace.yaml"), "packages:\n  - pkg\n")
+        .expect("write pnpm-workspace.yaml");
+    let pkg_dir = ws.path().join("pkg");
+    fs::create_dir_all(&pkg_dir).expect("create pkg dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        json!({ "name": "already-published", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write pkg package.json");
+    let packument = server
+        .mock("GET", "/already-published")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "name": "already-published",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": {
+                    "1.0.0": {
+                        "name": "already-published",
+                        "version": "1.0.0",
+                        "dist": {
+                            "tarball": format!("{registry}already-published/-/already-published-1.0.0.tgz"),
+                        },
+                    },
+                },
+            })
+            .to_string(),
+        )
+        .create();
+    let mut recursive = pacquet(ws.path());
+    apply_test_registry(&mut recursive, ws.path());
+    let empty_publish = recursive
+        .with_args(["--reporter=default", "-r", "stage", "publish", "--no-git-checks", "--json"])
+        .output()
+        .expect("spawn recursive stage publish");
+    packument.assert();
+    assert_success(&empty_publish);
+    let empty_json: Value = serde_json::from_slice(&empty_publish.stdout)
+        .expect("empty recursive stage publish stdout must be pure JSON");
+    assert_eq!(empty_json, json!({}));
+
+    let bad_dir = tempfile::tempdir().expect("bad workspace");
+    write_project(bad_dir.path(), &registry, &json!({ "name": "missing-version" }));
+    let failed = stage(bad_dir.path(), &["publish", "--no-git-checks", "--json"]);
+    assert!(!failed.status.success(), "missing version must fail");
+    assert!(
+        failed.stderr.is_empty(),
+        "JSON error mode must not print miette output on stderr: {}",
+        String::from_utf8_lossy(&failed.stderr),
+    );
+    let err_json: Value =
+        serde_json::from_slice(&failed.stdout).expect("failed stage --json stdout must be JSON");
+    assert_eq!(err_json["error"]["code"], "ERR_PNPM_PACKAGE_VERSION_NOT_FOUND");
 }
 
 mod approval;

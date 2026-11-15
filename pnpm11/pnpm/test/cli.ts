@@ -5,6 +5,7 @@ import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 import PATH_NAME from 'path-name'
@@ -248,5 +249,26 @@ test('pnpm -r pkg fix repairs malformed dependency fields alongside downloaded d
       version: '22.14.0',
       onFail: 'download',
     })
+  }
+})
+
+test('outdated --json and --format=json write warnings to stderr instead of stdout', () => {
+  prepareEmpty()
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'demo', version: '1.0.0' }, null, 2) + '\n', 'utf8')
+  fs.mkdirSync(path.join('.github', 'workflows'), { recursive: true })
+  fs.writeFileSync(
+    path.join('.github', 'workflows', 'ci.yml'),
+    'jobs:\n  test:\n    steps:\n      - uses: actions/checkout@0000000000000000000000000000000000000000 # v4\n',
+    'utf8'
+  )
+
+  for (const flag of ['--json', '--format=json']) {
+    const result = execPnpmSync(['outdated', '--include-github-actions', flag], {
+      omitEnvDefaults: ['pnpm_config_silent'],
+      env: { GITHUB_SERVER_URL: `http://localhost:${REGISTRY_MOCK_PORT}` },
+    })
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout.toString())).toStrictEqual({})
+    expect(result.stderr.toString()).toContain('Skipping the GitHub Actions from "actions/checkout"')
   }
 })

@@ -329,6 +329,13 @@ impl OutdatedArgs {
         .await
     }
 
+    pub(crate) fn uses_json_output(&self) -> bool {
+        match self.resolve_format() {
+            OutdatedFormat::Json => true,
+            OutdatedFormat::Table | OutdatedFormat::List => false,
+        }
+    }
+
     fn resolve_format(&self) -> OutdatedFormat {
         if self.output.json {
             OutdatedFormat::Json
