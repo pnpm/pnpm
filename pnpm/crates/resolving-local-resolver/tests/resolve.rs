@@ -991,3 +991,29 @@ async fn resolve_file_directory_beneath_a_malformed_ancestor_manifest() {
         .expect("manifest");
     assert_eq!(manifest["name"], "dep");
 }
+
+/// A `file:` publish directory that does not exist yet fails as missing, even
+/// though its publishing project could describe it.
+#[tokio::test]
+async fn resolve_missing_publish_directory_fails_as_missing() {
+    let tmp = TempDir::new().expect("tempdir");
+    let project = tmp.path().join("lib");
+    fs::create_dir_all(&project).expect("create project");
+    fs::write(
+        project.join("package.json"),
+        r#"{"name":"lib","version":"1.0.0","publishConfig":{"directory":"dist"}}"#,
+    )
+    .expect("write project manifest");
+    let consumer = tmp.path().join("app");
+    fs::create_dir_all(&consumer).expect("create consumer");
+    let wd =
+        WantedLocalDependency { bare_specifier: "file:../lib/dist".to_string(), injected: false };
+    let opts =
+        LocalResolverOptions { workspace_dir: Some(tmp.path().to_path_buf()), ..opts(&consumer) };
+    let error = resolve_from_local_scheme(&ctx_default(), &wd, &opts).await
+        .expect_err("a missing directory fails");
+    assert!(
+        matches!(error, ResolveLocalError::LinkedPkgDirNotFound { .. }),
+        "unexpected error: {error:?}",
+    );
+}

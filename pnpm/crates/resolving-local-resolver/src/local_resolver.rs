@@ -307,11 +307,12 @@ async fn resolve_spec(
 ///
 /// Only projects inside the workspace root count, and a manifest that fails
 /// to read is no such project, as the lockfile freshness check reads them.
+/// A directory that does not exist gets none, so it fails as missing.
 fn publishing_project_manifest(
     spec: &LocalPackageSpec,
     opts: &LocalResolverOptions,
 ) -> Option<serde_json::Value> {
-    if !spec.id.as_str().starts_with("file:") {
+    if !spec.id.as_str().starts_with("file:") || !spec.fetch_spec.is_dir() {
         return None;
     }
     let root = opts.workspace_dir
