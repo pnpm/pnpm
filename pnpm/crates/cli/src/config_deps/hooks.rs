@@ -173,36 +173,17 @@ pub(super) fn legacy_registries_warning(
     current: &Value,
     final_routes: &BTreeMap<String, String>,
 ) -> Option<String> {
-    if input.get("registries") == current.get("registries")
-        || input.get("registriesByScope") != current.get("registriesByScope")
-    {
+    if !has_legacy_registries_update(input, current) {
         return None;
     }
     let routes = input.get("registriesByScope")?.as_object()?;
     let legacy_routes = current.get("registries")?.as_object()?;
-    if !legacy_routes
-        .iter()
-        .all(|(key, value)| (key == "default" || key.starts_with('@')) && value.is_string())
-    {
+    if !is_legacy_registry_map(legacy_routes) {
         return None;
     }
     let default_route = legacy_routes.get("default").and_then(Value::as_str);
-    let unchanged_scopes = routes
-        .iter()
-        .filter(|(scope, _)| {
-            if scope.as_str() == "default" {
-                return false;
-            }
-            let expected_route = legacy_routes
-                .get(*scope)
-                .and_then(Value::as_str)
-                .or_else(|| if scope.as_str() == "@jsr" { None } else { default_route });
-            expected_route.is_some_and(|expected| {
-                final_routes.get(*scope).is_some_and(|route| route != expected)
-            })
-        })
-        .map(|(scope, _)| scope.as_str())
-        .collect::<Vec<_>>();
+    let unchanged_scopes =
+        unchanged_legacy_scopes(routes, legacy_routes, default_route, final_routes);
     if unchanged_scopes.is_empty() {
         return None;
     }
@@ -210,6 +191,51 @@ pub(super) fn legacy_registries_warning(
         "The updateConfig hook changed the `registries` setting, but {} still use their configured registry. Return `registriesByScope` to replace scope routing.",
         unchanged_scopes.join(", "),
     ))
+}
+
+fn has_legacy_registries_update(input: &Value, current: &Value) -> bool {
+    input.get("registries") != current.get("registries")
+        && input.get("registriesByScope") == current.get("registriesByScope")
+}
+
+fn is_legacy_registry_map(legacy_routes: &serde_json::Map<String, Value>) -> bool {
+    legacy_routes
+        .iter()
+        .all(|(key, value)| (key == "default" || key.starts_with('@')) && value.is_string())
+}
+
+fn unchanged_legacy_scopes<'a>(
+    routes: &'a serde_json::Map<String, Value>,
+    legacy_routes: &serde_json::Map<String, Value>,
+    default_route: Option<&str>,
+    final_routes: &BTreeMap<String, String>,
+) -> Vec<&'a str> {
+    routes
+        .iter()
+        .filter(|(scope, _)| {
+            expected_legacy_route(scope, legacy_routes, default_route)
+                .is_some_and(|expected| {
+                    final_routes
+                        .get(*scope)
+                        .is_some_and(|route| route != expected)
+                })
+        })
+        .map(|(scope, _)| scope.as_str())
+        .collect()
+}
+
+fn expected_legacy_route<'a>(
+    scope: &str,
+    legacy_routes: &'a serde_json::Map<String, Value>,
+    default_route: Option<&'a str>,
+) -> Option<&'a str> {
+    if scope == "default" {
+        return None;
+    }
+    legacy_routes
+        .get(scope)
+        .and_then(Value::as_str)
+        .or_else(|| if scope == "@jsr" { None } else { default_route })
 }
 
 pub(super) fn warn_legacy_registries<Reporter: self::Reporter>(
