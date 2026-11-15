@@ -235,11 +235,12 @@ Passing a number is interpreted as a PR number. The PR is fetched via
 for both same-repo branches and forks.
 
 For PR worktrees, `git wt <pr-number>` will additionally launch an agent review of the PR via
-the tracked hook at `.git-wt/pr-hook`. The hook defaults to
+the tracked hook at `.config/git-wt/pr-hook`. The hook defaults to
 [Claude Code](https://www.anthropic.com/claude-code), but you can pass another agent CLI name
 after the PR number, for example `git wt 10000 codex`. The hook silently no-ops if the
 requested CLI isn't on your `PATH`, so contributors who don't use an agent aren't affected.
-Requires a version of `@zkochan/git-wt` with per-repo hook lookup.
+Requires `@zkochan/git-wt` 0.0.13 or later, and a shell that has re-run `git-wt init` since
+upgrading.
 
 If you only need the worktree path (e.g. to open it in an editor) without switching directories,
 invoke `git-wt` directly — it's also exposed as a native git subcommand:
