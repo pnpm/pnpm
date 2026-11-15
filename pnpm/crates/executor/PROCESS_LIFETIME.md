@@ -124,7 +124,7 @@ pnpm waits for them, and further `Ctrl+C` escalate as described in
   task a bail may cancel a nested job of its own (difference 2).
 - [`exit.rs`](./src/exit.rs) is the only way pnpm exits on its own. It lets the
   cancelled tasks finish their grace, then releases the Job Object, so no exit
-  ends what a command left running. `clippy.toml` bans `std::process::exit`
+  ends what a command left running. `.config/clippy.toml` bans `std::process::exit`
   everywhere else, and `main` calls `before_exit` before it returns.
 - [`interrupt/windows.rs`](./src/interrupt/windows.rs) releases the Job Object
   when the console closes, because the operating system ends the console's
