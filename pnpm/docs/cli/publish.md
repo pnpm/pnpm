@@ -75,6 +75,10 @@ The branch that publishing is allowed from. It overrides the
 [`publishBranch`](#publishbranch) setting. Without either, the current branch
 must be `master` or `main`. In CI, a detached `HEAD` skips the branch check.
 
+### --ignore-pnpmfile
+
+Don't load the project's `.pnpmfile.cjs`, so its hooks, including `beforePacking`, don't run.
+
 ### --ignore-scripts
 
 Don't run the publish lifecycle scripts.

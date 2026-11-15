@@ -518,3 +518,26 @@ export const hooks = {
   expect(fs.existsSync('packages/app/ran.txt')).toBe(true)
   expect(fs.existsSync('packages/other/ran.txt')).toBe(false)
 })
+
+test('pack --ignore-pnpmfile --ignore-scripts packs without running project code', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    scripts: {
+      prepack: 'node -e "require(\'fs\').writeFileSync(\'prepack-ran.txt\', \'\')"',
+    },
+  })
+  fs.writeFileSync('.pnpmfile.cjs', `
+require('fs').writeFileSync('pnpmfile-ran.txt', '')
+module.exports = { hooks: {} }
+`, 'utf8')
+
+  await execPnpm(['pack', '--ignore-pnpmfile', '--ignore-scripts'])
+  expect(fs.existsSync('project-1.0.0.tgz')).toBe(true)
+  expect(fs.existsSync('pnpmfile-ran.txt')).toBe(false)
+  expect(fs.existsSync('prepack-ran.txt')).toBe(false)
+
+  await execPnpm(['pack'])
+  expect(fs.existsSync('pnpmfile-ran.txt')).toBe(true)
+  expect(fs.existsSync('prepack-ran.txt')).toBe(true)
+})

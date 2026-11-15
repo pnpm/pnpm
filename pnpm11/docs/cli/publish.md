@@ -78,6 +78,14 @@ Don't check if current branch is your publish branch, clean, and up-to-date with
 The primary branch of the repository which is used for publishing the latest
 changes.
 
+### --ignore-pnpmfile
+
+Don't load the project's `.pnpmfile.cjs`, so its hooks, including `beforePacking`, don't run.
+
+### --ignore-scripts
+
+Don't run the publish lifecycle scripts.
+
 ### --force
 
 Try to publish packages even if their current version is already found in the
