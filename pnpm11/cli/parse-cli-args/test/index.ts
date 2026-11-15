@@ -681,6 +681,15 @@ test('command-specific value options before the command name do not hide the com
   expect(missingDepthWithTarget.cmd).toBe('list')
   expect(missingDepthWithTarget.params).toStrictEqual(['react'])
 
+  const missingDepthRepeatedCommandSpelling = await parseCliArgs(opts, ['--depth', 'list', 'list', 'react'])
+  expect(missingDepthRepeatedCommandSpelling.cmd).toBe('list')
+  expect(missingDepthRepeatedCommandSpelling.params).toStrictEqual(['list', 'react'])
+
+  const recursiveMissingDepth = await parseCliArgs(opts, ['recursive', '--depth', 'list', 'react'])
+  expect(recursiveMissingDepth.cmd).toBe('list')
+  expect(recursiveMissingDepth.options.recursive).toBe(true)
+  expect(recursiveMissingDepth.params).toStrictEqual(['react'])
+
   const missingInitType = await parseCliArgs(opts, ['--init-type', 'init'])
   expect(missingInitType.cmd).toBe('init')
   expect(missingInitType.params).toStrictEqual([])
@@ -688,6 +697,41 @@ test('command-specific value options before the command name do not hide the com
   const missingStringOpt = await parseCliArgs(opts, ['--otp', 'publish'])
   expect(missingStringOpt.cmd).toBe('publish')
   expect(missingStringOpt.options.otp).toBe('publish')
+})
+
+test('preserves escaped script params when a preceding numeric option lacks a value', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    getCommandLongName: (name: string) => name === 'run' ? 'run' : null,
+    getTypesByCommandName: (name: string) => name === 'run' ? { 'workspace-concurrency': Number } : {},
+  }
+
+  const parsed = await parseCliArgs(opts, ['--workspace-concurrency', 'run', 'build', '--help'])
+  expect(parsed.cmd).toBe('run')
+  expect(parsed.params).toStrictEqual(['build', '--help'])
+})
+
+test('preserves command token when --config.<key> options precede a command declaring --config', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { filter: [String, Array] },
+    getTypesByCommandName: (name: string) => name === 'config' ? { config: Boolean, depth: Number } : {},
+  }
+
+  const parsed = await parseCliArgs(opts, [
+    '--config.foo=bar',
+    '--filter',
+    'pkg-a',
+    '--filter',
+    'pkg-b',
+    '--depth',
+    'config',
+    'config',
+    'get',
+  ])
+  expect(parsed.cmd).toBe('config')
+  expect(parsed.options.foo).toBe('bar')
+  expect(parsed.params).toStrictEqual(['config', 'get'])
 })
 
 test('dlx space-separated --package and -p forward --help to the target command', async () => {

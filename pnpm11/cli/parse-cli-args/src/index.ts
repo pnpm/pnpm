@@ -1,15 +1,18 @@
 import { PnpmError } from '@pnpm/error'
-import nopt from '@pnpm/nopt'
+import type nopt from '@pnpm/nopt'
 import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
+import { parseResolvedCommandArgs } from './commandParse.js'
 import {
   BASE_EXPLORATORY_TYPES,
   buildBaseExploratoryTypes,
   collectCandidateCommands,
   configDotTypes,
+  type ExploratoryResult,
   extendExploratoryTypes,
   parseExploratory,
+  type PreservedCommandToken,
   VERSION_BOOTSTRAP_KEYS,
 } from './exploratory.js'
 
@@ -56,9 +59,8 @@ export interface ParseCliArgsOptions {
 interface EarlyResolution {
   commandName: string
   cmd: string | null
-  expectedHead?: string
-  exploratoryRemainCount: number
   fallbackCommandUsed: boolean
+  preservedTokens: PreservedCommandToken[]
   recursiveCommandUsed: boolean
 }
 
@@ -66,24 +68,26 @@ export async function parseCliArgs (
   opts: ParseCliArgsOptions,
   inputArgv: string[]
 ): Promise<ParsedCliArgs> {
-  const exploratory = parseExploratory(opts, inputArgv)
-  const resolution = resolveCommand(opts, exploratory.argv.remain, inputArgv)
-  const earlyExit = await checkEarlyExit(opts, exploratory, resolution)
+  const exploratoryResult = parseExploratory(opts, inputArgv)
+  const resolution = resolveCommand(opts, exploratoryResult, inputArgv)
+  const earlyExit = await checkEarlyExit(opts, exploratoryResult.parsed, resolution)
   if (earlyExit != null) return earlyExit
 
   const types = {
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(resolution.commandName),
   } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- option types are declared as unknown values
-  const { filteredArgv, configDotArgs } = separateConfigDotArgs(inputArgv, 'config' in types)
-  const escapeArgs = getEscapeArgs(opts, resolution, exploratory)
-  const { argv, ...rawOptions } = parseCommandNopt(opts, resolution.commandName, types, filteredArgv, escapeArgs)
+  const { argv, rawOptions } = parseResolvedCommandArgs(opts, inputArgv, {
+    commandName: resolution.commandName,
+    types,
+    escapeArgs: getEscapeArgs(opts, resolution, exploratoryResult.parsed),
+    preservedTokens: resolution.preservedTokens,
+  })
 
-  mergeExtractedConfigArgs(rawOptions, configDotArgs, types)
   applyRenamedOptions(rawOptions, opts.renamedOptions)
   const workspaceDir = await getWorkspaceDir(rawOptions)
   if (SPECIALLY_ESCAPED_CMDS.has(resolution.cmd!) && rawOptions['help']) {
-    return buildEarlyHelpResult(opts, exploratory, workspaceDir)
+    return buildEarlyHelpResult(opts, exploratoryResult.parsed, workspaceDir)
   }
 
   const { cmd, params } = adjustPostParseCommands(rawOptions, argv, resolution, opts)
@@ -100,9 +104,10 @@ export async function parseCliArgs (
 
 function resolveCommand (
   opts: ParseCliArgsOptions,
-  remain: string[],
+  exploratoryResult: ExploratoryResult,
   inputArgv: string[]
 ): EarlyResolution {
+  const remain = exploratoryResult.parsed.argv.remain
   const recursiveCommandUsed = RECURSIVE_CMDS.has(remain[0])
   let commandName = getCommandName(remain, recursiveCommandUsed, opts)
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
@@ -115,9 +120,8 @@ function resolveCommand (
   return {
     commandName,
     cmd,
-    expectedHead: fallbackCommandUsed ? opts.fallbackCommand : remain[0],
-    exploratoryRemainCount: remain.length + (fallbackCommandUsed ? 1 : 0),
     fallbackCommandUsed,
+    preservedTokens: fallbackCommandUsed ? [] : exploratoryResult.preservedTokens,
     recursiveCommandUsed,
   }
 }
@@ -245,47 +249,6 @@ function getEscapeArgs (
   return [exploratory.argv.remain[indexOfRunScriptName]]
 }
 
-function separateConfigDotArgs (
-  inputArgv: string[],
-  hasConfigOption: boolean
-): { filteredArgv: string[], configDotArgs: string[] } {
-  if (!hasConfigOption) return { filteredArgv: inputArgv, configDotArgs: [] }
-  const configDotArgs: string[] = []
-  const filteredArgv = inputArgv.filter(arg => {
-    if (arg.startsWith('--config.')) {
-      configDotArgs.push(arg)
-      return false
-    }
-    return true
-  })
-  return { filteredArgv, configDotArgs }
-}
-
-function parseCommandNopt (
-  opts: ParseCliArgsOptions,
-  commandName: string,
-  types: Parameters<typeof nopt>[0],
-  filteredArgv: string[],
-  escapeArgs?: string[]
-): ReturnType<typeof nopt> {
-  return nopt(
-    { recursive: Boolean, ...types, ...configDotTypes(types) },
-    {
-      ...opts.universalShorthands,
-      ...opts.shorthandsByCommandName[commandName],
-    },
-    filteredArgv,
-    0,
-    { escapeArgs }
-  )
-}
-
-function mergeExtractedConfigArgs (options: Record<string, unknown>, configDotArgs: string[], types: Parameters<typeof nopt>[0]): void {
-  if (configDotArgs.length === 0) return
-  const { argv: _, ...configOptions } = nopt(configDotTypes(types), {}, configDotArgs, 0)
-  Object.assign(options, configOptions)
-}
-
 function applyRenamedOptions (options: Record<string, unknown>, renamedOptions?: Record<string, string>): void {
   if (renamedOptions == null) return
   for (const [cliOption, optionValue] of Object.entries(options)) {
@@ -310,13 +273,6 @@ function adjustPostParseCommands (
   resolution: EarlyResolution,
   opts: ParseCliArgsOptions
 ): AdjustedCommands {
-  if (
-    resolution.expectedHead !== undefined &&
-    argv.remain[0] !== resolution.expectedHead &&
-    argv.remain.length < resolution.exploratoryRemainCount
-  ) {
-    argv.remain.unshift(resolution.expectedHead)
-  }
   let cmd = resolution.cmd
   const params = argv.remain.slice(1)
   cmd = handleRecursiveInvocation(options, argv, resolution, opts, params, cmd)

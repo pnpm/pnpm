@@ -171,6 +171,25 @@ test('command-specific value options before with current and pm resolve the targ
   expect(listTargetNamedPm.builtInCommandForced).toBe(false)
   expect(listTargetNamedPm.params).toStrictEqual(['pm'])
 
+  const listTargetNamedList = await parseCliArgs(['--depth', 'list', 'list', 'react'])
+  expect(listTargetNamedList.cmd).toBe('list')
+  expect(listTargetNamedList.params).toStrictEqual(['list', 'react'])
+
+  const dirNamedList = await parseCliArgs(['-C', 'list', 'list', 'react'])
+  expect(dirNamedList.cmd).toBe('list')
+  expect(dirNamedList.params).toStrictEqual(['react'])
+  expect(dirNamedList.options.dir).toMatch(/(?:^|[\\/])list$/)
+
+  const recursiveMissingDepth = await parseCliArgs(['recursive', '--depth', 'list', 'pm'])
+  expect(recursiveMissingDepth.cmd).toBe('list')
+  expect(recursiveMissingDepth.options.recursive).toBe(true)
+  expect(recursiveMissingDepth.params).toStrictEqual(['pm'])
+
+  const missingConcurrencyRun = await parseCliArgs(['--workspace-concurrency', 'run', 'build', '--help'])
+  expect(missingConcurrencyRun.cmd).toBe('run')
+  expect(missingConcurrencyRun.fallbackCommandUsed).toBe(false)
+  expect(missingConcurrencyRun.params).toStrictEqual(['build', '--help'])
+
   const fallbackScriptWithCurrent = await parseCliArgs([
     '--workspace-concurrency',
     '2',
