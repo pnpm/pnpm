@@ -369,7 +369,7 @@ jobs:
           #
           # Assert on the packed tarball rather than on any of the strippers,
           # because an npm publish cannot be taken back and only two of these
-          # fields are stripped at pack time: the .pnpmfile.cjs beforePacking
+          # fields are stripped at pack time: the .config/pnpm/pnpmfile.cjs beforePacking
           # hook deliberately leaves `optionalDependencies` alone (the v12 Rust
           # wrapper needs them for its natives), which leaves meta-updater — a
           # source normalizer, not a release gate — as the only thing between

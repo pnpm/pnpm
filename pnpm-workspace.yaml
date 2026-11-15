@@ -151,6 +151,8 @@ lockfile:
 
 nodeVersion: 22.13.0
 
+pnpmfile: .config/pnpm/pnpmfile.cjs
+
 publishBranch: main
 
 resolutionMode: lowest-direct

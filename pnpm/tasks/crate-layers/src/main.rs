@@ -46,7 +46,7 @@ mod visibility;
 #[cfg(test)]
 mod tests;
 
-const LAYERS_FILE: &str = "crate-layers.toml";
+const LAYERS_FILE: &str = ".config/crate-layers.toml";
 
 /// Check the workspace crate graph against the layers in `crate-layers.toml`.
 #[derive(Debug, Parser)]
