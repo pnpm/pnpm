@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "bump": "node pnpm11/__utils__/scripts/src/bump.ts",
-    "prepare": "husky",
+    "prepare": "husky .config/husky",
     "pretest": "pn compile-only && pn prepare-fixtures",
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
     "lint": "pn spellcheck && pn lint:meta && pn check:versioning && pn lint:ts",

@@ -169,7 +169,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       'tsconfig.json': updateTSConfig.bind(null, tsConfigContext),
       [`tsconfig.lint.json [${GENERATED_JSON}]`]: updateLintTSConfig.bind(null, workspaceDir),
       [`test/tsconfig.json [${GENERATED_JSON}]`]: updateTestTSConfig.bind(null, tsConfigContext),
-    'cspell.json': (cspell: any) => { // eslint-disable-line
+    '.config/cspell.json': (cspell: any) => { // eslint-disable-line
         if (cspell && typeof cspell === 'object' && 'words' in cspell && Array.isArray(cspell.words)) {
           cspell.words = cspell.words.sort((w1: string, w2: string) => w1.localeCompare(w2))
         }

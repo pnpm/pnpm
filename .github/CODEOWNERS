@@ -10,7 +10,7 @@
 # Supply-chain and CI settings, and code that runs on install
 /pnpm-workspace.yaml @zkochan
 /.config/pnpm/policies.yaml @zkochan
-/.pnpmfile.cjs @zkochan
+/.config/pnpm/pnpmfile.cjs @zkochan
 /.config/pnpm/patches/ @zkochan
 /.config/pnpm/tasks.yaml @zkochan
 

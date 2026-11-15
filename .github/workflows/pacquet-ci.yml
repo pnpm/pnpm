@@ -92,7 +92,7 @@ jobs:
               - '.config/pnpm/**'
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
-              - 'crate-layers.toml'
+              - '.config/crate-layers.toml'
               - 'deny.toml'
               - 'dylint.toml'
               - '.taplo.toml'

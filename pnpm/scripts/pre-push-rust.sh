@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Catch formatter, rustdoc, dylint, and spelling violations before they hit CI.
-# Invoked from .husky/pre-push.
+# Invoked from .config/husky/pre-push.
 set -euo pipefail
 
 red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
