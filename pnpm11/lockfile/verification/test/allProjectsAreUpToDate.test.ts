@@ -1522,12 +1522,12 @@ describe('local file dependency', () => {
     expect(await check({ ...localDirSnapshot, peerDependencies: { 'is-positive': '^3.0.0' } })).toBeFalsy()
   })
 
-  test('allProjectsAreUpToDate(): detects a changed catalog range for a local file peer', async () => {
+  test('allProjectsAreUpToDate(): detects when a catalog range rejects a local file peer', async () => {
     await writeLocalDirManifest({ peerDependencies: { 'is-positive': 'catalog:' } })
     const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
     expect(await allProjectsAreUpToDate(projects, {
       ...options,
-      catalogs: { default: { 'is-positive': '^2.0.0' } },
+      catalogs: { default: { 'is-positive': '^3.0.0' } },
       lockfileDir: process.cwd(),
       wantedLockfile: {
         ...options.wantedLockfile,
