@@ -153,7 +153,8 @@ fn a_locked_build_matches_only_the_same_build() {
 }
 
 /// `pnpm add file:<publish directory>` saves the name the install resolves:
-/// the publishing project's, found within the workspace root.
+/// the publishing project's, found within the workspace root, or the lockfile
+/// root outside a workspace.
 #[tokio::test]
 async fn add_names_a_publish_directory_after_its_project() {
     let tmp = tempfile::tempdir().expect("create a temporary directory");
@@ -181,5 +182,26 @@ async fn add_names_a_publish_directory_after_its_project() {
             .package_name
     };
     assert_eq!(name(Some(workspace)).await, "lib");
-    assert_eq!(name(None).await, "built", "outside a workspace the consumer bounds the search");
+    assert_eq!(name(None).await, "built", "without a root the consumer bounds the search");
+}
+
+/// Outside a workspace, an explicit lockfile root bounds the search as it
+/// bounds the install's.
+#[test]
+fn add_bounds_the_publish_search_by_the_lockfile_root_outside_a_workspace() {
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        std::path::PathBuf::from("/repo/app/package.json"),
+        serde_json::json!({ "name": "app" }),
+    );
+    let mut config = pnpm_config::Config::new();
+    config.lockfile_dir = Some(std::path::PathBuf::from("/repo"));
+    assert_eq!(
+        crate::add::aliasless::publish_search_root(&config, &manifest),
+        std::path::Path::new("/repo"),
+    );
+    config.workspace_dir = Some(std::path::PathBuf::from("/ws"));
+    assert_eq!(
+        crate::add::aliasless::publish_search_root(&config, &manifest),
+        std::path::Path::new("/ws"),
+    );
 }
