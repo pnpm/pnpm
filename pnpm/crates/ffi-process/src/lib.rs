@@ -16,6 +16,8 @@
 pub use core_dump::suppress_core_dump;
 #[cfg(unix)]
 pub use credentials::effective_user_id;
+#[cfg(unix)]
+pub use group_announcement::spawn_announcing_group;
 #[cfg(all(unix, not(target_os = "cygwin")))]
 pub use credentials::real_user_id;
 #[cfg(target_vendor = "apple")]
@@ -43,6 +45,8 @@ pub use umask::current_umask;
 mod core_dump;
 #[cfg(unix)]
 mod credentials;
+#[cfg(unix)]
+mod group_announcement;
 #[cfg(target_vendor = "apple")]
 mod descriptors;
 mod environment;
