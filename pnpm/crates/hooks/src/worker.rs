@@ -98,6 +98,8 @@ struct Pending {
 enum WorkerError {
     Execution(String),
     BadReadPackageResult(String),
+    ConfigIsUndefined(String),
+    BadAfterAllResolvedReturn(String),
 }
 
 /// Pending requests keyed by id. A `std` mutex (never held across an
@@ -425,12 +427,22 @@ impl NodeWorker {
         };
         match timeout(request_timeout, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
-            Ok(Ok(Err(WorkerError::Execution(message)))) => Err(self.exec_err(message)),
-            Ok(Ok(Err(WorkerError::BadReadPackageResult(message)))) => {
-                Err(HookError::BadReadPackageResult { message })
-            }
+            Ok(Ok(Err(err))) => Err(self.worker_err(err)),
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
             Err(_) => Err(HookError::Timeout(label.to_string(), request_timeout.as_secs())),
+        }
+    }
+
+    fn worker_err(&self, err: WorkerError) -> HookError {
+        match err {
+            WorkerError::Execution(message) => self.exec_err(message),
+            WorkerError::BadReadPackageResult(message) => {
+                HookError::BadReadPackageResult { message }
+            }
+            WorkerError::ConfigIsUndefined(message) => HookError::ConfigIsUndefined { message },
+            WorkerError::BadAfterAllResolvedReturn(message) => {
+                HookError::BadAfterAllResolvedReturn { message }
+            }
         }
     }
 }

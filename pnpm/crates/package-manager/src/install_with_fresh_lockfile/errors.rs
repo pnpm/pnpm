@@ -220,6 +220,11 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     AfterAllResolvedHook(#[error(not(source))] pnpm_hooks::HookError),
 
+    /// The `afterAllResolved` pnpmfile hook returned `undefined`, `null`, or a
+    /// value that is not a serializable lockfile object.
+    #[diagnostic(code(ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN))]
+    BadAfterAllResolvedReturn(#[error(not(source))] pnpm_hooks::HookError),
+
     /// The freshly-built lockfile could not be serialized to JSON to pass to
     /// the `afterAllResolved` pnpmfile hook.
     #[display("Failed to serialize lockfile for the afterAllResolved hook: {_0}")]

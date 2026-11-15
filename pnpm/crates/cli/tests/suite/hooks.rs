@@ -1594,3 +1594,57 @@ fn frozen_install_accepts_an_injected_project_the_root_pnpmfile_rewrites() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn update_config_returning_undefined_reports_config_is_undefined() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"name":"app","version":"1.0.0"}"#)
+        .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (cfg) { cfg.hoist = false; } } };\n",
+    )
+    .expect("write pnpmfile");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "STDERR:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_CONFIG_IS_UNDEFINED"), "STDERR:\n{stderr}");
+    assert!(stderr.contains("The updateConfig hook returned undefined"), "STDERR:\n{stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn after_all_resolved_returning_undefined_reports_bad_after_all_resolved_return() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { afterAllResolved (lockfile) { delete lockfile.packages; } } };\n",
+    )
+    .expect("write pnpmfile");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "STDERR:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN"), "STDERR:\n{stderr}");
+    assert!(stderr.contains("The afterAllResolved hook returned undefined"), "STDERR:\n{stderr}");
+
+    drop((root, mock_instance));
+}

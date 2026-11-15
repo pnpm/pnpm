@@ -204,11 +204,15 @@ async fn finder_verdicts(
             .run_finder(&finder.name, ctx.clone())
             .await
             .map_err(|err| miette::miette!("running finder {}: {err}", finder.name))?;
-        if let serde_json::Value::String(message) = verdict {
-            found = true;
-            messages.push(message);
-        } else if truthy(&verdict) {
-            found = true;
+        match verdict {
+            serde_json::Value::String(message) if !message.is_empty() => {
+                found = true;
+                messages.push(message);
+            }
+            other if truthy(&other) => {
+                found = true;
+            }
+            _ => {}
         }
     }
     Ok((messages, found))

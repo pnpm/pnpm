@@ -105,3 +105,62 @@ async fn update_config_without_hook_returns_config_unchanged() {
     assert!(hooks.ignored_hooks().await.is_empty());
     assert_eq!(updated, config, "a pnpmfile without updateConfig leaves config unchanged");
 }
+
+#[tokio::test]
+async fn update_config_returning_undefined_or_null_fails_with_config_is_undefined() {
+    for source in [
+        "module.exports = { hooks: { updateConfig (config) { config.catalogs = {}; } } }",
+        "module.exports = { hooks: { updateConfig () { return null; } } }",
+    ] {
+        let tmp = TempDir::new().expect("temp dir");
+        let pnpmfile_path = tmp.path().join("pnpmfile.cjs");
+        std::fs::write(&pnpmfile_path, source).expect("write pnpmfile");
+
+        let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+        let err = hooks
+            .update_config(serde_json::json!({ "registry": "https://r/" }), noop_context())
+            .await
+            .expect_err("undefined/null updateConfig return must fail");
+
+        assert!(
+            matches!(
+                &err,
+                pnpm_hooks::HookError::ConfigIsUndefined { message }
+                    if message == "The updateConfig hook returned undefined"
+            ),
+            "unexpected error for `{source}`: {err:?}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn combined_pnpmfile_hooks_chains_update_config() {
+    let tmp = TempDir::new().expect("temp dir");
+    let first = tmp.path().join("first.cjs");
+    let second = tmp.path().join("second.cjs");
+    std::fs::write(
+        &first,
+        "module.exports = { hooks: { updateConfig (c) { c.a = 1; return c; } } }",
+    )
+    .expect("write first");
+    std::fs::write(
+        &second,
+        "module.exports = { hooks: { updateConfig (c) { c.b = (c.a || 0) + 1; return c; } } }",
+    )
+    .expect("write second");
+
+    let configured = [first, second];
+    let hooks = finder::load_pnpmfiles(
+        tmp.path(),
+        finder::PnpmfileSelection { configured: Some(&configured), ..Default::default() },
+    )
+    .expect("configured pnpmfiles exist")
+    .expect("configured pnpmfiles load");
+
+    let updated = hooks
+        .update_config(serde_json::json!({}), noop_context())
+        .await
+        .expect("chained updateConfig should succeed");
+    assert_eq!(updated["a"], 1);
+    assert_eq!(updated["b"], 2);
+}

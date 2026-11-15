@@ -482,7 +482,8 @@ pub fn normalize_node_runtime_version_specifier(
     resolved_version: &str,
     prev_specifier: Option<&str>,
 ) -> String {
-    if resolved_version == version_spec
+    let stripped_spec = crate::parse_node_specifier::strip_leading_v(version_spec);
+    if resolved_version == stripped_spec
         || matches!(Version::parse(resolved_version), Ok(version) if !version.pre_release.is_empty())
     {
         return resolved_version.to_string();

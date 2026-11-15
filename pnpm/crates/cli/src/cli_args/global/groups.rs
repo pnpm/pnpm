@@ -7,11 +7,10 @@ use super::{
     check_global_bin_conflicts, check_virtual_shim_conflicts, cleanup_replaced_global_installs,
     collect_existing_global_installs, create_global_cache_key, create_install_dir,
     discard_install_dir_on_error, fs, get_actual_bin_names, get_hash_link, global_group_config,
-    hash_linked_packages, link_global_bins, missing_file_source_warning, pins_for_downgrades,
-    plan_replaced_global_bins, prompt_approve_install_builds, read_direct_dependencies,
-    read_installed_packages, registries_with_default, replacement_aliases, restore_virtual_shims,
-    run_group_install, should_replace_existing_package, snapshot_global_package, update_selectors,
-    warn_global,
+    hash_linked_packages, link_global_bins, missing_file_source_warning, plan_replaced_global_bins,
+    prompt_approve_install_builds, read_direct_dependencies, read_installed_packages,
+    registries_with_default, replacement_aliases, restore_virtual_shims, run_group_install,
+    should_replace_existing_package, snapshot_global_package, warn_global,
 };
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 
@@ -94,7 +93,7 @@ impl GlobalInstallTarget<'_> {
     pub(super) async fn update_groups<Reporter: self::Reporter + 'static>(
         &self,
         groups: &[GlobalPackageInfo],
-        latest: bool,
+        mode: super::GlobalUpdateMode,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
@@ -108,7 +107,7 @@ impl GlobalInstallTarget<'_> {
             checked = true;
             changed |= self.update_group::<Reporter>(
                 pkg,
-                latest,
+                mode,
                 range_spec_style,
                 supported_architectures.clone(),
             )
@@ -122,13 +121,13 @@ impl GlobalInstallTarget<'_> {
     async fn update_group<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        latest: bool,
+        mode: super::GlobalUpdateMode,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
         let (install_dir, selectors) = self.prepare_update_candidate::<Reporter>(
             pkg,
-            latest,
+            mode,
             range_spec_style,
             supported_architectures.clone(),
         )
@@ -158,7 +157,7 @@ impl GlobalInstallTarget<'_> {
     async fn prepare_update_candidate<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        latest: bool,
+        mode: super::GlobalUpdateMode,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<(PathBuf, Vec<String>)> {
@@ -168,7 +167,7 @@ impl GlobalInstallTarget<'_> {
         let resolved = Box::pin(self.resolve_update_candidate::<Reporter>(
             pkg,
             &install_dir,
-            latest,
+            mode,
             range_spec_style,
             supported_architectures,
         ))
@@ -184,7 +183,7 @@ impl GlobalInstallTarget<'_> {
         &self,
         pkg: &GlobalPackageInfo,
         install_dir: &Path,
-        latest: bool,
+        mode: super::GlobalUpdateMode,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<Vec<String>> {
@@ -192,31 +191,14 @@ impl GlobalInstallTarget<'_> {
             .into_diagnostic()
             .wrap_err("seed global update manifest")?;
         let _filter = EventFilter::GlobalUpdateResolution.apply();
-        let downgrade_check = Box::pin(pins_for_downgrades::<Reporter>(
-            self.base_config,
-            self.global_pkg_dir,
-            install_dir,
+        self.resolve_candidate_selectors::<Reporter>(
             pkg,
-            latest,
+            install_dir,
+            mode,
             range_spec_style,
-            supported_architectures.clone(),
-        ))
-        .await?;
-        let selectors = update_selectors(&pkg.dependencies, latest, &downgrade_check.pins);
-        if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
-            Box::pin(run_group_install::<Reporter>(GroupInstall {
-                base_config: self.base_config,
-                global_pkg_dir: self.global_pkg_dir,
-                install_dir,
-                selectors: &selectors,
-                range_spec_style,
-                supported_architectures,
-                allow_build: &[],
-                lockfile_only: true,
-            }))
-            .await?;
-        }
-        Ok(selectors)
+            supported_architectures,
+        )
+        .await
     }
 
     async fn discard_unchanged_update<Reporter: self::Reporter + 'static>(

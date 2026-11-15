@@ -43,8 +43,7 @@ use crate::{
 use cleanup::discard_install_dir_on_error;
 use derive_more::{Display, Error};
 use install::{
-    GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, is_plain_version_spec,
-    pins_for_downgrades, run_group_install,
+    GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, run_group_install,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
@@ -60,7 +59,7 @@ use pnpm_global::{
     get_installed_bin_names, installed_versions, is_global_install_subdir,
     read_direct_dependencies, read_installed_packages, scan_global_packages,
 };
-use pnpm_lockfile::{ImporterDepVersion, Lockfile};
+use pnpm_lockfile::Lockfile;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pnpm_package_name::is_valid_old_npm_package_name;
@@ -74,9 +73,13 @@ use remove::{
     collect_existing_global_installs, snapshot_global_package,
 };
 use selectors::{
-    SelectorGroup, groups_matching_params, infer_local_package_alias, missing_file_source_warning,
+    SelectorGroup, groups_matching_params, infer_local_package_alias, parse_npm_spec_body,
     replacement_aliases, should_replace_existing_package, split_into_groups, take_rust_toolchains,
-    tool_install_selectors, update_selectors,
+    tool_install_selectors,
+};
+use update_selectors::{
+    apply_runtime_range_bumps, can_update_to_latest, missing_file_source_warning,
+    needs_runtime_range_bump, update_selectors,
 };
 
 use shims::{
@@ -240,15 +243,28 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
     };
+    let mode = GlobalUpdateMode::from_latest_flag(latest);
     let up_to_date = target.update_groups::<Reporter>(
         &to_update,
-        latest,
+        mode,
         range_spec_style,
         supported_architectures,
     )
     .await?;
     emit_global_update_result::<Reporter>(&global_pkg_dir, up_to_date);
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) enum GlobalUpdateMode {
+    DeclaredRange,
+    Latest,
+}
+
+impl GlobalUpdateMode {
+    const fn from_latest_flag(latest: bool) -> Self {
+        if latest { Self::Latest } else { Self::DeclaredRange }
+    }
 }
 
 /// The global groups `pnpm update -g` may reinstall, or `None` after saying
@@ -335,6 +351,8 @@ mod remove;
 mod shims;
 
 mod selectors;
+
+mod update_selectors;
 
 mod builds;
 
