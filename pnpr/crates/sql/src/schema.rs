@@ -10,7 +10,10 @@
 //! (`schema_migrations`), refuses pre-1.0 databases without [`MARKER`] or
 //! databases from a newer release, and runs each pending step in order.
 
-use crate::adapter::{Adapter, Connection, Value, WriteTransaction};
+use crate::{
+    adapter::{Adapter, Connection, Value, WriteTransaction},
+    dialect::DialectSql,
+};
 use pnpr_error::{RegistryError, Result};
 use std::{
     fmt,
@@ -29,7 +32,7 @@ pub(crate) fn retry_delay(attempt: u32) -> Duration {
 }
 
 /// The latest schema version this pnpr creates and reads (`STEPS.len()`).
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
 /// The table recording each applied migration step (`1..=SCHEMA_VERSION`).
 pub const MARKER: &str = "schema_migrations";
@@ -40,11 +43,69 @@ pub const LEGACY_MARKER: &str = "schema_version";
 /// The pre-1.0 auth migrations table, refused without migration.
 pub const LEGACY_AUTH_MARKER: &str = "auth_schema_migrations";
 
-/// The statement that creates the [`MARKER`] table on `SQLite` and `libSQL`.
-pub const MARKER_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, applied_at INTEGER NOT NULL) STRICT";
+/// The statement that creates the [`MARKER`] table. On `MySQL` its table
+/// comment marks a first migration still in progress, so an interrupted one
+/// can resume.
+pub const MARKER_TABLE: DialectSql = DialectSql {
+    sqlite: "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, applied_at INTEGER NOT NULL) STRICT",
+    postgres: "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL)",
+    mysql: "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL) ENGINE=InnoDB COMMENT='pnpr-init:1'",
+};
 
-/// The tables and indexes created by step 1.
-pub const TABLES: &str = include_str!("schema/tables.sql");
+/// The tables and indexes created by step 1. Every dialect's script creates
+/// the same tables, columns, keys, and indexes.
+pub const TABLES: DialectSql = DialectSql {
+    sqlite: include_str!("schema/tables.sql"),
+    postgres: include_str!("schema/postgres.sql"),
+    mysql: include_str!("schema/mysql.sql"),
+};
+
+/// The `hosted_store` table step 2 creates.
+pub const HOSTED_STORE_TABLE: DialectSql = DialectSql {
+    sqlite: "CREATE TABLE IF NOT EXISTS hosted_store (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL) STRICT",
+    postgres: "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL)",
+    mysql: "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id VARBINARY(512) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs",
+};
+
+/// The `registry_graph_revisions` table step 3 creates: every stored revision
+/// of the registry graph, the newest one current.
+pub const REGISTRY_GRAPH_REVISIONS_TABLE: DialectSql = DialectSql {
+    sqlite: "CREATE TABLE IF NOT EXISTS registry_graph_revisions (generation INTEGER NOT NULL PRIMARY KEY, document TEXT NOT NULL, actor_id TEXT NOT NULL, created_at INTEGER NOT NULL, restored_from INTEGER) STRICT",
+    postgres: "CREATE TABLE IF NOT EXISTS registry_graph_revisions (generation BIGINT NOT NULL PRIMARY KEY, document TEXT NOT NULL, actor_id TEXT NOT NULL, created_at BIGINT NOT NULL, restored_from BIGINT)",
+    mysql: "CREATE TABLE IF NOT EXISTS registry_graph_revisions (generation BIGINT NOT NULL PRIMARY KEY, document LONGTEXT NOT NULL, actor_id VARBINARY(512) NOT NULL, created_at BIGINT NOT NULL, restored_from BIGINT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs",
+};
+
+/// The `retired_hosted_namespaces` table step 3 creates: each hosted
+/// `(namespace, ecosystem)` a stored registry graph revision stopped serving
+/// and no later revision serves again. Publishing into one is refused.
+pub const RETIRED_HOSTED_NAMESPACES_TABLE: DialectSql = DialectSql {
+    sqlite: "CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (namespace TEXT NOT NULL, ecosystem TEXT NOT NULL, PRIMARY KEY (namespace, ecosystem)) STRICT",
+    postgres: "CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (namespace TEXT NOT NULL, ecosystem TEXT NOT NULL, PRIMARY KEY (namespace, ecosystem))",
+    mysql: "CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (namespace VARBINARY(512) NOT NULL, ecosystem VARBINARY(512) NOT NULL, PRIMARY KEY (namespace, ecosystem)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs",
+};
+
+/// The tables step 3 creates.
+pub const CREATED_IN_STEP_3: &[&str] = &["registry_graph_revisions", "retired_hosted_namespaces"];
+
+/// The step-1 tables step 3 drops: the team rosters and rule overrides that
+/// the registry graph replaced.
+pub const DROPPED_IN_STEP_3: &[&str] = &[
+    "team_rosters",
+    "teams",
+    "team_members",
+    "rule_override_sets",
+    "rule_overrides",
+    "rule_override_grants",
+];
+
+/// The `SQLite` statements of every step, so a cache of databases can tell a
+/// layout that changed under one version apart.
+pub const SQLITE_STATEMENTS: &[&str] = &[
+    TABLES.sqlite,
+    HOSTED_STORE_TABLE.sqlite,
+    REGISTRY_GRAPH_REVISIONS_TABLE.sqlite,
+    RETIRED_HOSTED_NAMESPACES_TABLE.sqlite,
+];
 
 /// One forward-only migration step.
 ///
@@ -55,7 +116,7 @@ pub const TABLES: &str = include_str!("schema/tables.sql");
 pub type Step = fn(&dyn Connection) -> Result<()>;
 
 /// Every numbered migration step in order (`1..=SCHEMA_VERSION`).
-pub const STEPS: &[Step] = &[step_1, step_2];
+pub const STEPS: &[Step] = &[step_1, step_2, step_3];
 
 const _: () = assert!(
     SCHEMA_VERSION > 0 && STEPS.len() == SCHEMA_VERSION.cast_unsigned() as usize,
@@ -64,8 +125,7 @@ const _: () = assert!(
 
 /// Step 1: the 1.0 metadata and auth schema.
 pub fn step_1(connection: &dyn Connection) -> Result<()> {
-    let tables = connection.schema_tables().unwrap_or_else(|| TABLES.to_string());
-    for statement in statements(&tables) {
+    for statement in statements(TABLES.get(connection.dialect())) {
         connection.execute_ddl(&statement)?;
     }
     Ok(())
@@ -73,8 +133,20 @@ pub fn step_1(connection: &dyn Connection) -> Result<()> {
 
 /// Step 2: the `hosted_store` table binding the database to its store.
 pub fn step_2(connection: &dyn Connection) -> Result<()> {
-    connection.execute_ddl(connection.hosted_store_table())
+    connection.execute_ddl(HOSTED_STORE_TABLE.get(connection.dialect()))
 }
+
+/// Step 3: the tables holding the registry graph, replacing the team roster
+/// and rule override tables.
+pub fn step_3(connection: &dyn Connection) -> Result<()> {
+    connection.execute_ddl(REGISTRY_GRAPH_REVISIONS_TABLE.get(connection.dialect()))?;
+    connection.execute_ddl(RETIRED_HOSTED_NAMESPACES_TABLE.get(connection.dialect()))?;
+    for table in DROPPED_IN_STEP_3 {
+        connection.execute_ddl(&format!("DROP TABLE IF EXISTS {table}"))?;
+    }
+    Ok(())
+}
+
 fn record_step(connection: &dyn Connection, version: i64) -> Result<()> {
     let applied_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -240,8 +312,7 @@ fn prepare_transactional(connection: &dyn Connection, steps: &[Step]) -> Result<
             return Ok(None);
         }
         if current == 0 {
-            let marker = transaction.schema_marker().unwrap_or(MARKER_TABLE);
-            transaction.execute(marker, params![])?;
+            transaction.execute(MARKER_TABLE.get(transaction.dialect()), params![])?;
         }
         let next = current + 1;
         let index = usize::try_from(current).expect("0 <= current < steps.len()");
@@ -267,8 +338,7 @@ fn prepare_non_transactional(
         return Ok(None);
     }
     if current == 0 {
-        let marker = connection.schema_marker().unwrap_or(MARKER_TABLE);
-        connection.execute(marker, params![])?;
+        connection.execute(MARKER_TABLE.get(connection.dialect()), params![])?;
     }
     let start = usize::try_from(current).expect("0 <= current < steps.len()");
     for (index, step) in steps.iter().enumerate().skip(start) {
@@ -312,7 +382,10 @@ fn inspect_without_marker(
     if has(LEGACY_AUTH_MARKER) {
         return Ok(Inspection::Refused(Stored::Pre1_0Auth));
     }
-    if has("hosted_store") || table_names(TABLES).iter().any(|table| has(table)) {
+    if has("hosted_store")
+        || CREATED_IN_STEP_3.iter().any(|table| has(table))
+        || table_names(TABLES.sqlite).iter().any(|table| has(table))
+    {
         return Ok(Inspection::Refused(Stored::Unmarked));
     }
     Ok(Inspection::Current(0))
@@ -380,12 +453,23 @@ fn stored_legacy(connection: &dyn Connection) -> Result<Stored> {
 /// The tables a database marked with [`MARKER`] lacks, given whether it `has`
 /// each table.
 fn incomplete(max_version: i64, has: impl Fn(&str) -> bool) -> Option<Stored> {
-    let mut missing = table_names(TABLES)
+    let mut missing = table_names(TABLES.sqlite)
         .into_iter()
+        // Step 3 drops these. Its DDL can commit statement by statement
+        // (MySQL), so a database at version 2 may already lack some of them.
+        .filter(|table| max_version < 2 || !DROPPED_IN_STEP_3.contains(&table.as_str()))
         .filter(|table| !has(table))
         .collect::<Vec<_>>();
     if max_version >= 2 && !has("hosted_store") {
         missing.push("hosted_store".to_string());
+    }
+    if max_version >= 3 {
+        missing.extend(
+            CREATED_IN_STEP_3
+                .iter()
+                .filter(|table| !has(table))
+                .map(|table| (*table).to_string()),
+        );
     }
     (!missing.is_empty()).then_some(Stored::Incomplete(missing))
 }

@@ -16,9 +16,6 @@ tempfile = { workspace = true }
 [target.'cfg(not(windows))'.dependencies]
 cap-primitives = { workspace = true }
 
-[target.'cfg(unix)'.dependencies]
-pnpm-ffi-process = { workspace = true }
-
 [target.'cfg(any(unix, target_os = "wasi"))'.dependencies]
 libc = { workspace = true }
 
@@ -38,3 +35,6 @@ windows-sys = { workspace = true, features = [
 
 [lints]
 workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+pnpm-ffi-process = { workspace = true }

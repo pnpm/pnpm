@@ -1,5 +1,9 @@
-use crate::{PasswordChange, UserBackend, UserRemoval, UserStore};
+use crate::{PasswordChange, SqliteAuth, UserBackend, UserRemoval};
 use pnpr_config::MaxUsers;
+
+fn test_auth() -> SqliteAuth {
+    SqliteAuth::in_memory(MaxUsers::Unlimited).unwrap().with_bcrypt_cost(4)
+}
 
 pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     let (_, original) = users.add_or_login("former-member", "old-password").await.unwrap();
@@ -30,17 +34,107 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     assert_eq!(users.add_or_login("renamed-member", "new-password").await.unwrap().1, original);
     assert_eq!(users.clear_password(&original).await.unwrap(), PasswordChange::Changed);
     assert_eq!(
+        users.credential("renamed-member").await.unwrap(),
+        Some(crate::AccountCredential::None),
+    );
+    assert!(users.add_or_login("renamed-member", "new-password").await.is_err());
+    assert_eq!(users.account_status(&original).await.unwrap(), Some(crate::AccountStatus::Active));
+    assert_eq!(
         users
-            .password_hash("renamed-member")
+            .status_revisions(&[original.clone(), "missing".to_string()])
+            .await
+            .unwrap(),
+        std::collections::HashMap::from([(
+            original.clone(),
+            crate::AccountStatusRevision::reconciled(crate::AccountStatus::Active, 0),
+        )]),
+    );
+    assert!(
+        users
+            .status_revisions(&[])
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert_eq!(
+        users
+            .apply_account_status(&original, 1, crate::AccountLifecycle::Deactivated)
+            .await
+            .unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert_eq!(
+        users.account_status(&original).await.unwrap(),
+        Some(crate::AccountStatus::Deactivated),
+    );
+    assert_eq!(
+        users
+            .status_revisions(std::slice::from_ref(&original))
+            .await
+            .unwrap()
+            .get(&original)
+            .copied(),
+        Some(crate::AccountStatusRevision::reconciled(crate::AccountStatus::Deactivated, 1)),
+    );
+    assert_eq!(users.account_id("renamed-member").await.unwrap(), Some(original.clone()));
+    assert_eq!(users.active_account_id("renamed-member").await.unwrap(), None);
+    assert_eq!(users.active_account_name(&original).await.unwrap(), None);
+    assert_eq!(users.credential("renamed-member").await.unwrap(), None);
+    assert_eq!(users.list_users().await.unwrap(), ["renamed-member"]);
+    assert_eq!(
+        users
+            .list_accounts()
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(
+        users
+            .add_or_login("renamed-member", "new-password")
+            .await
+            .unwrap_err()
+            .status_code(),
+        403,
+    );
+    assert_eq!(
+        users.apply_account_status(&original, 2, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert_eq!(
+        users
+            .status_revisions(std::slice::from_ref(&original))
+            .await
+            .unwrap()
+            .get(&original)
+            .copied(),
+        Some(crate::AccountStatusRevision::reconciled(crate::AccountStatus::Active, 2)),
+    );
+    assert_eq!(users.active_account_id("renamed-member").await.unwrap(), Some(original.clone()));
+    assert_eq!(
+        users
+            .active_account_name(&original)
             .await
             .unwrap()
             .as_deref(),
-        Some(crate::NO_PASSWORD_HASH),
+        Some("renamed-member"),
     );
-    assert!(users.add_or_login("renamed-member", "new-password").await.is_err());
-    assert_eq!(users.account_id("renamed-member").await.unwrap(), Some(original.clone()));
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::Removed);
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::NoSuchUser);
+    assert_eq!(users.account_status(&original).await.unwrap(), Some(crate::AccountStatus::Deleted));
+    assert_eq!(
+        users
+            .status_revisions(std::slice::from_ref(&original))
+            .await
+            .unwrap()
+            .get(&original)
+            .copied(),
+        Some(crate::AccountStatusRevision::reconciled(crate::AccountStatus::Deleted, 2)),
+    );
+    assert_eq!(
+        users.apply_account_status(&original, 3, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Missing,
+    );
     assert_eq!(users.account_name(&original).await.unwrap(), None);
     assert_eq!(users.clear_password(&original).await.unwrap(), PasswordChange::NoSuchUser);
     assert_eq!(
@@ -79,23 +173,7 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
 
 #[tokio::test]
 async fn account_ids_survive_rename_and_password_changes_but_are_never_reassigned() {
-    assert_account_identity(&UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4)).await;
-}
-
-#[tokio::test]
-async fn account_ids_and_deleted_records_survive_restart() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("users.json");
-    let users = UserStore::open_with_cost(path.clone(), MaxUsers::Limited(1), 4).unwrap();
-    let (_, id) = users.add_or_login("member", "password").await.unwrap();
-    let reopened = UserStore::open_with_cost(path.clone(), MaxUsers::Limited(1), 4).unwrap();
-    assert_eq!(reopened.account_id("member").await.unwrap(), Some(id.clone()));
-    reopened.delete_user(&id).await.unwrap();
-    let (_, replacement) = users.add_or_login("member", "password").await.unwrap();
-    assert_ne!(id, replacement);
-    let records: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-    assert_eq!(records[format!("deleted:{id}")]["id"], id);
-    assert_eq!(records["member"]["id"], replacement);
+    assert_account_identity(&test_auth()).await;
 }
 
 #[tokio::test]
@@ -105,13 +183,52 @@ async fn a_renamed_account_keeps_its_tokens_and_a_reused_name_cannot_reactivate_
     let token = auth.tokens.issue(&id).await.unwrap();
     auth.users.rename_user(&id, "renamed").await.unwrap();
     assert_eq!(auth.tokens.lookup(&token).await.unwrap(), Some(id.clone()));
+    assert_eq!(
+        auth.users
+            .apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)
+            .await
+            .unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
+    assert!(
+        auth.tokens
+            .find_by_key(&crate::sha256_hex(token.as_bytes()))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let dormant = auth.tokens.issue(&id).await.unwrap();
+    assert_eq!(auth.tokens.lookup(&dormant).await.unwrap(), None);
+    assert!(
+        auth.tokens
+            .lookup_record(&dormant)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        auth.users.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
+    assert_eq!(auth.tokens.lookup(&dormant).await.unwrap(), Some(id.clone()));
+    assert_eq!(
+        auth.tokens
+            .lookup_record(&dormant)
+            .await
+            .unwrap()
+            .unwrap()
+            .owner_name(),
+        Some("renamed"),
+    );
     auth.users.delete_user(&id).await.unwrap();
     let (_, replacement) = auth.users.add_or_login("renamed", "password").await.unwrap();
     assert_ne!(id, replacement);
-    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
+    assert_eq!(auth.tokens.lookup(&dormant).await.unwrap(), None);
     assert_eq!(
         auth.tokens
-            .find_by_key(&crate::sha256_hex(token.as_bytes()))
+            .find_by_key(&crate::sha256_hex(dormant.as_bytes()))
             .await
             .unwrap()
             .unwrap()
@@ -122,7 +239,7 @@ async fn a_renamed_account_keeps_its_tokens_and_a_reused_name_cannot_reactivate_
 
 #[tokio::test]
 async fn passwordless_accounts_have_ids_and_cannot_be_self_registered() {
-    let users = UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4);
+    let users = test_auth();
     let id = users.provision_user("member").await.unwrap();
     assert_eq!(users.account_id("member").await.unwrap(), Some(id));
     assert!(users.add_or_login("member", "*").await.is_err());

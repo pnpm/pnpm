@@ -155,7 +155,7 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
         &HostedStoreConfig::Fs,
         tmp.path().join("hosted"),
         cache.clone(),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
@@ -196,7 +196,7 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
         &HostedStoreConfig::Fs,
         tmp.path().join("hosted"),
         cache.clone(),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
@@ -230,7 +230,7 @@ async fn download_returns_the_sha512_of_the_staged_bytes() {
             &HostedStoreConfig::Fs,
             tmp.path().join("hosted"),
             cache.clone(),
-            &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+            &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
         )
         .unwrap();
         let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
@@ -261,7 +261,7 @@ async fn a_sealed_download_is_not_in_the_cache_until_promoted() {
         &HostedStoreConfig::Fs,
         tmp.path().join("hosted"),
         cache.clone(),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
@@ -291,7 +291,7 @@ async fn download_stages_nothing_when_the_expected_integrity_mismatches() {
         &HostedStoreConfig::Fs,
         tmp.path().join("hosted"),
         cache.clone(),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();

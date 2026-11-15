@@ -12,10 +12,11 @@ pub use add::{AddOptions, plan_add, writable_project};
 pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;
 pub use outdated::{
-    DeclaredPythonDep, PythonDependencyGroup, declared_dependencies, locked_versions,
-    lockfile_dir_for, project_name, resolve_target_version,
+    DeclaredPythonDep, LockedPythonPackages, PythonDependencyGroup, PythonIndexCache,
+    TargetPyproject, declared_dependencies, inspect_target_pyproject, lockfile_dir_for,
+    project_name, resolve_target_version,
 };
-pub use pep508_rs::PackageName;
+pub use pep508_rs::{PackageName, VersionOrUrl};
 pub use update::{UpdateOptions, plan_update};
 pub use workspace::members::in_declared_workspace;
 
@@ -238,7 +239,7 @@ impl PythonPrepare<'_> {
             interpreter: self.interpreter,
             resolution: registry::Resolution::new(self.interpreter.target.clone()),
             store: pnpm_tarball::ArchiveStoreContext {
-                dir: &self.context.config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&self.context.config.store_dir),
                 index: self.store.index.clone(),
                 index_writer: Some(Arc::clone(self.store.writer)),
                 verify_integrity: self.context.config.verify_store_integrity,

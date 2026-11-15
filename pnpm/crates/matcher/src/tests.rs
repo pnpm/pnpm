@@ -212,3 +212,17 @@ fn question_wildcard_handles_long_near_matches() {
 
     assert!(!WildcardMatcher::new(&pattern).matches(&input));
 }
+
+#[test]
+fn matches_any_evaluates_includes_and_ignores_across_all_identities() {
+    let ids = ["ryu", "my_ryu", "other_ryu"];
+
+    assert!(!create_matcher(&[]).matches_any(&ids));
+    assert!(!create_matcher(&pats(["*"])).matches_any(&[]));
+    assert!(create_matcher(&pats(["other_ryu"])).matches_any(&ids));
+    assert!(!create_matcher(&pats(["!other_ryu"])).matches_any(&ids));
+    assert!(!create_matcher(&pats(["!ryu", "!itoa"])).matches_any(&ids));
+    assert!(create_matcher(&pats(["!serde", "!itoa"])).matches_any(&ids));
+    assert!(!create_matcher(&pats(["*ryu*", "!other_ryu"])).matches_any(&ids));
+    assert!(create_matcher(&pats(["!ryu*", "other_ryu"])).matches_any(&ids));
+}

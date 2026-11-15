@@ -251,7 +251,7 @@ impl InstallPackageBySnapshot<'_> {
                 auth_headers: &config.auth_headers,
                 retry_opts: config.retry_opts(),
                 offline: config.offline,
-                tar_limits: config.tar_limits(),
+                tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),
             },
             package: pnpm_tarball::TarballPackage {
                 integrity_kind: pnpm_tarball::IntegrityKind::Resource,
@@ -262,7 +262,7 @@ impl InstallPackageBySnapshot<'_> {
                 id: package_id,
             },
             store: pnpm_tarball::ArchiveStoreContext {
-                dir: &config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&config.store_dir),
                 index: self.fetching.store_index.cloned(),
                 index_writer: self.fetching.store_index_writer.cloned(),
                 verify_integrity: config.verify_store_integrity,

@@ -177,3 +177,13 @@ fn registry_versions_with_build_metadata_are_not_hashed() {
     );
     assert_eq!(dep_path_to_filename("foo@work:1.0.0+build", 120), "foo@work+1.0.0+build");
 }
+
+#[test]
+fn multibyte_utf8_package_names_do_not_panic() {
+    assert_eq!(dep_path_to_filename("ä@1.0.0", 120), "ä@1.0.0");
+    assert_eq!(dep_path_to_filename("@ä/ü@1.0.0", 120), "@ä+ü@1.0.0");
+    assert_eq!(
+        dep_path_to_filename("ä@https://example.invalid/a+b.tgz", 120),
+        "ä@https+++example.invalid+a+b.tgz_1e2b5d665e065394578a5d949b14cddc",
+    );
+}

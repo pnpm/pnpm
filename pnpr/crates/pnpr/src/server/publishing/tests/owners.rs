@@ -12,7 +12,7 @@ use pnpr_error::RegistryError;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_policy::{Identity, PackageRules};
-use pnpr_storage::metadata::{BatchDocument, PublishNotes, ReleaseRecords};
+use pnpr_storage::database::{BatchDocument, PublishNotes, ReleaseRecords};
 use serde_json::{Value, json};
 use std::io::Write;
 use tempfile::TempDir;
@@ -63,7 +63,7 @@ async fn a_publish_admitted_for_a_new_name_is_refused_once_another_account_claim
             .await
             .unwrap();
     state.inner.storage
-        .sql_metadata()
+        .sql_database()
         .commit_publication(
             &target.namespace,
             vec![BatchDocument {

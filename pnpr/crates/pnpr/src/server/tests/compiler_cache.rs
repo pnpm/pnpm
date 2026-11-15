@@ -85,7 +85,7 @@ async fn compiler_cache_limits_upload_size_and_rejects_invalid_keys() {
 
 fn config(directory: &TempDir) -> Config {
     let path = directory.path().join("pnpr.yaml");
-    std::fs::write(&path, "resolver:\n  enabled: false\nartifacts:\n  enabled: true\n  owners:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    other:\n      access: ci\n      publish: ci\n").unwrap();
+    std::fs::write(&path, "secret: test-secret-key-32-chars-long-12\nresolver:\n  enabled: false\nartifacts:\n  enabled: true\n  owners:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    other:\n      access: ci\n      publish: ci\n").unwrap();
     Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap()
 }
 

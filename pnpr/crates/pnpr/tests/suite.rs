@@ -2,6 +2,8 @@
 // each loading a copy.
 #[path = "common/ecosystem.rs"]
 mod ecosystem;
+#[path = "common/managed_registries.rs"]
+mod managed_registries;
 #[path = "common/multi_ecosystem.rs"]
 mod multi_ecosystem;
 #[path = "common/network.rs"]
@@ -36,6 +38,7 @@ mod policy;
 mod provenance;
 mod pypi_registry;
 mod pypi_resolve;
+mod registry_administration;
 mod registry_mock;
 mod release_databases;
 mod release_notes;

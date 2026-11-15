@@ -144,9 +144,7 @@ fn prepare_modules_layout(
             filtered_install: inputs.repeat.filtered,
         },
 
-        config: inputs.tree.config,
-        workspace_root: inputs.tree.workspace_root,
-        included: inputs.tree.included,
+        tree: inputs.tree,
         modules_manifest,
         current_lockfile: inputs.lockfiles.current,
         requested_importer_ids: inputs.lockfiles.importer_ids,

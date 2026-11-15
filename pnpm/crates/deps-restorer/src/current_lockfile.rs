@@ -17,11 +17,13 @@
 pub use missing_projects::missing_project_importers;
 pub use platform_archives::{KeptArchive, PlatformArchivesInput, StoredArchive, platform_archives};
 pub use reachability::{GroupSelection, ReachableLockfileGraph, VariantWalk, collect_reachable};
+pub use runtime_dependencies::runtime_dependency_alias;
 pub use variant_snapshots::{has_variant_snapshots, with_selected_variant_snapshots};
 
 mod missing_projects;
 mod platform_archives;
 mod reachability;
+mod runtime_dependencies;
 mod variant_snapshots;
 
 use std::{

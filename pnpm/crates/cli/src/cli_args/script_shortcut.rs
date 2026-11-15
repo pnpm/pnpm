@@ -1,4 +1,4 @@
-use super::{reporter::ReporterType, run::RunArgs};
+use super::run::RunArgs;
 use clap::Args;
 
 /// The arguments of a command that stands for one named script —
@@ -18,10 +18,10 @@ pub struct ScriptShortcutArgs {
 }
 
 impl ScriptShortcutArgs {
-    pub(crate) fn into_run_args(self, script_name: &str, if_present: bool) -> RunArgs {
+    pub(crate) fn into_run_args(self, script_name: &str) -> RunArgs {
         RunArgs {
             script: RunArgs::script(script_name, self.args),
-            if_present,
+            if_present: false,
             sequential: false,
             dry_run: false,
             json: false,
@@ -34,17 +34,6 @@ impl ScriptShortcutArgs {
                 parallel: false,
             },
         }
-    }
-
-    pub fn run(
-        self,
-        script_name: &str,
-        if_present: bool,
-        dir: &std::path::Path,
-        config: &pnpm_config::Config,
-        reporter: ReporterType,
-    ) -> miette::Result<()> {
-        self.into_run_args(script_name, if_present).run(dir, config, reporter)
     }
 }
 

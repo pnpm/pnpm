@@ -21,8 +21,8 @@ use pnpr_policy::Identity;
 use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    BlobId, BlobSlot, Storage,
-    metadata::{ArtifactBlob, BlobLookup, HostedLookup},
+    BlobId, BlobSlot, HostedDocumentVersion, Storage,
+    database::{ArtifactBlob, BlobLookup, HostedLookup},
 };
 
 /// The per-project document a hosted registry keeps in its document slot: a
@@ -44,6 +44,10 @@ pub(super) trait HostedDocument: Sized {
     /// what was published in the meantime stays, and only what is genuinely
     /// missing is added.
     fn merge(&mut self, addition: Self) -> bool;
+
+    /// What this document records publishes of, each named as the
+    /// `package.publish` audit record names it.
+    fn releases(&self) -> Vec<String>;
 
     /// The account IDs that may publish to this package.
     fn owners(&self) -> &[String];
@@ -76,6 +80,13 @@ impl HostedDocument for CrateDocument {
 
     fn to_bytes(&self) -> Vec<u8> {
         CrateDocument::to_bytes(self)
+    }
+
+    fn releases(&self) -> Vec<String> {
+        self.versions
+            .iter()
+            .map(|entry| entry.vers.clone())
+            .collect()
     }
 
     fn owners(&self) -> &[String] {
@@ -126,6 +137,13 @@ impl HostedDocument for ProjectDocument {
         ProjectDocument::to_bytes(self)
     }
 
+    fn releases(&self) -> Vec<String> {
+        self.files
+            .iter()
+            .map(|file| file.filename.clone())
+            .collect()
+    }
+
     fn owners(&self) -> &[String] {
         &self.owners
     }
@@ -164,6 +182,13 @@ impl HostedDocument for ImageDocument {
 
     fn to_bytes(&self) -> Vec<u8> {
         ImageDocument::to_bytes(self)
+    }
+
+    fn releases(&self) -> Vec<String> {
+        self.manifests()
+            .iter()
+            .map(|entry| entry.digest.to_string())
+            .collect()
     }
 
     fn owners(&self) -> &[String] {
@@ -309,7 +334,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
     target: &HostedTarget<'_>,
     key: &CanonicalPackageName,
     artifact: HostedArtifact<'_>,
-    base: pnpr_storage::metadata::PublishBase,
+    base: pnpr_storage::database::PublishBase,
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
@@ -326,14 +351,16 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             supported_version: Document::FORMAT_VERSION,
         });
     }
-    let record = if stored.is_some() || restore_owners(&storage, key, &mut document).await? {
-        OwnerRecord::Recorded
-    } else {
-        OwnerRecord::Unclaimed
+    let (version, record) = match stored {
+        Some(stored) => (Some(stored.version), OwnerRecord::Recorded),
+        None => match restore_owners(&storage, key, &mut document).await? {
+            Some(tombstone) => (Some(tombstone), OwnerRecord::Recorded),
+            None => (None, OwnerRecord::Unclaimed),
+        },
     };
     claim_ownership(state, target, key, &mut document, record)?;
     refuse(&document)?;
-    document.merge(addition);
+    let releases = merge_releases(&mut document, addition);
 
     let slot = write_hosted_blob(&storage, key, artifact.filename, artifact.bytes).await?;
     Ok(StagedPublish {
@@ -341,7 +368,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
         ecosystem: Document::ECOSYSTEM,
         document: document.to_bytes(),
         base: StagedBase {
-            version: stored.map(|stored| stored.version),
+            version,
             packument: None,
             blobs: base.blobs,
             references: artifact.references,
@@ -349,10 +376,26 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
         },
         slots: vec![slot],
         namespace: Some(target.namespace.to_string()),
-        // Only an npm document has dist-tags to record a publisher with.
-        publisher: None,
-        verification: Verification::default(),
+        publisher: target.publisher.clone(),
+        verification: Verification { releases, ..Verification::default() },
     })
+}
+
+/// Merge `addition` into `document` and return the releases it added.
+fn merge_releases<Document: HostedDocument>(
+    document: &mut Document,
+    addition: Document,
+) -> Vec<String> {
+    let before: std::collections::BTreeSet<String> = document
+        .releases()
+        .into_iter()
+        .collect();
+    document.merge(addition);
+    document
+        .releases()
+        .into_iter()
+        .filter(|release| !before.contains(release))
+        .collect()
 }
 
 /// Whether a package being published records its owners yet.
@@ -365,18 +408,19 @@ enum OwnerRecord {
 }
 
 /// Give a package being published again after its removal the owners its
-/// tombstone kept. Returns whether there was a tombstone: one with no owners
-/// still records them, so `$owners` admits only admins.
+/// tombstone kept, and return the [`HostedDocumentVersion::Tombstone`] the
+/// commit must still see. One with no owners still records them, so `$owners`
+/// admits only admins.
 async fn restore_owners<Document: HostedDocument>(
     storage: &Storage,
     key: &CanonicalPackageName,
     document: &mut Document,
-) -> Result<bool, RegistryError> {
+) -> Result<Option<HostedDocumentVersion>, RegistryError> {
     let Some(tombstone) = storage.read_tombstone(key).await? else {
-        return Ok(false);
+        return Ok(None);
     };
-    *document.owners_mut() = tombstone.maintainers;
-    Ok(true)
+    document.owners_mut().clone_from(&tombstone.maintainers);
+    Ok(Some(HostedDocumentVersion::Tombstone(tombstone.maintainers)))
 }
 
 /// Admit the publisher against the owners `document` records, as read under

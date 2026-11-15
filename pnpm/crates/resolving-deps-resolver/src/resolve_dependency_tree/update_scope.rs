@@ -276,3 +276,24 @@ pub(super) fn is_update_target(
 
 #[cfg(test)]
 mod tests;
+
+impl super::TreeCtx {
+    pub(crate) fn direct_dependency_is_updated(&self, alias: &str, specifier: &str) -> bool {
+        if matches!(self.update_reuse_scope(), UpdateReuseScope::All) {
+            return false;
+        }
+        let wanted = WantedDependency {
+            alias: Some(alias.to_string()),
+            bare_specifier: Some(specifier.to_string()),
+            ..Default::default()
+        };
+        let prior = super::reuse::ReuseSource::Importer { importer_id: self.importer.id.clone() }
+            .prior_key(self, &wanted);
+        update_unpins_edge(
+            self.update_scope(),
+            &wanted,
+            prior.as_ref().and_then(|key| key.suffix.version_semver()),
+            0,
+        )
+    }
+}

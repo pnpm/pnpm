@@ -574,6 +574,7 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
 
     let hoisting_off = ResolveImporterOptions {
         peers: crate::ImporterPeerOptions {
+            explicitly_requested_direct_dependencies: HashSet::default(),
             auto_install_peers: false,
             dedupe_peer_dependents: crate::PeerDependentsDedupe::Off,
             ..default_opts().peers
@@ -602,6 +603,7 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
     // `autoInstallPeers`.
     let dedupe_only = ResolveImporterOptions {
         peers: crate::ImporterPeerOptions {
+            explicitly_requested_direct_dependencies: HashSet::default(),
             auto_install_peers: false,
             dedupe_peer_dependents: crate::PeerDependentsDedupe::On,
             ..default_opts().peers

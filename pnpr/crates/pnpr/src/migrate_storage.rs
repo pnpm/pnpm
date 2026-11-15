@@ -1,8 +1,8 @@
 use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
-use pnpr_config::{Config, HostedStoreConfig, MetadataBackend, S3Settings};
+use pnpr_config::{Config, DatabaseBackend, HostedStoreConfig, S3Settings};
 use pnpr_package_name::Ecosystem;
-use pnpr_storage::{Storage, metadata::BlobRef};
+use pnpr_storage::{Storage, database::BlobRef};
 use std::path::PathBuf;
 
 #[derive(Debug, Default)]
@@ -51,7 +51,7 @@ pub async fn migrate_local_to_s3(
             .map_err(|err| miette::miette!("target: {err}"))?;
     }
 
-    for namespace in crate::export::configured_hosted_namespaces(config) {
+    for namespace in crate::hosted_storage::configured_hosted_namespaces(config) {
         for ecosystem in Ecosystem::all() {
             let src = source.for_hosted(&namespace, ecosystem);
             let tgt = target.for_hosted(&namespace, ecosystem);
@@ -86,15 +86,15 @@ fn init_source_and_target_storage(
     }
     if !options.dry_run
         && !matches!(
-            config.storage.metadata,
-            MetadataBackend::Libsql(_) | MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_),
+            config.storage.database,
+            DatabaseBackend::Libsql(_) | DatabaseBackend::Postgres(_) | DatabaseBackend::Mysql(_),
         )
     {
         return Err(miette::miette!(
             "migrate-storage moves archives and leaves package metadata in its database, which \
-             an S3 deployment reads through a shared database.url. Move the metadata into the \
+             an S3 deployment reads through a shared storage.database.url. Move the metadata into the \
              database the S3 deployment will use, such as by importing the SQLite file into Turso, \
-             and point database.url at it before migrating"
+             and point storage.database.url at it before migrating"
         ));
     }
 
@@ -104,7 +104,7 @@ fn init_source_and_target_storage(
         &HostedStoreConfig::Fs,
         source_dir,
         config.storage.cache_dir.clone(),
-        &config.storage.metadata,
+        &config.storage.database,
     )
     .map_err(|err| miette::miette!("failed to initialize source storage: {err}"))?;
 
@@ -112,7 +112,7 @@ fn init_source_and_target_storage(
         &target_hosted_config,
         config.storage.hosted_dir.clone(),
         config.storage.cache_dir.clone(),
-        &config.storage.metadata,
+        &config.storage.database,
     )
     .map_err(|err| miette::miette!("failed to initialize target S3 storage: {err}"))?;
 
@@ -142,7 +142,7 @@ fn resolve_target_s3_config(
         Ok(config.storage.hosted_backend.clone())
     } else {
         Err(miette::miette!(
-            "destination S3 storage must be configured via YAML 's3:' or CLI flag '--to-bucket'"
+            "destination S3 storage must be configured via YAML 'storage.s3' or CLI flag '--to-bucket'"
         ))
     }
 }

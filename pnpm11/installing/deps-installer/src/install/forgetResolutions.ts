@@ -27,7 +27,7 @@ export function forgetResolutionsOfPrevWantedDeps (
       isWantedDepBareSpecifierSame(prevCatalogs, catalogsConfig, alias, prevBareSpecifier, bareSpecifier) &&
       !catalogResolutionIsStale({ importer, catalogs: prevCatalogs, alias, specifier: prevBareSpecifier })
     ) continue
-    if (!importer.dependencies[alias]?.startsWith('link:')) {
+    if (Object.hasOwn(importer.dependencies, alias) && !importer.dependencies[alias].startsWith('link:')) {
       delete importer.dependencies[alias]
     }
     delete importer.devDependencies[alias]

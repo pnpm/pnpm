@@ -6,9 +6,12 @@ title: Container images
 Added in: v0.1.0-alpha.11
 
 pnpr serves the OCI distribution API, so `docker`, `podman`, and `skopeo` can
-push to and pull from the same server that hosts your packages.
+push to and pull from the same server that hosts your packages. Declare an
+image registry in the
+[stored registries](configuration.md#registries-in-the-database) and store it
+with [`pnpr registries import`](cli.md#registries):
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   images:
     type: hosted
@@ -29,7 +32,7 @@ skopeo copy docker://pnpr.example.com/acme/app:1.0 oci:./app:1.0
 
 Use a pnpr token as the password. The username is not checked, as on every
 registry that takes a personal access token. The account that first pushes to
-a repository becomes its [owner](configuration.md#the-packages-map).
+a repository becomes its [owner](ecosystems.md#package-owners).
 
 ## Why `/v2/` is at the root
 
@@ -66,7 +69,7 @@ exchange their pnpr credential at `/v2/token` for a five-minute token scoped to
 actions the caller already has; the parent credential's revocation, read-only
 flag, and network restrictions all still apply. Anonymous tokens can pull public
 repositories. Scoped tokens reach neither the other pnpr APIs nor the whole
-catalog. Use the same [`secret:`](configuration.md#secret-and-secrets) and registry
+catalog. Use the same [`secret:`](configuration.md#secret) and registry
 configuration on every replica so their tokens interoperate.
 
 ## Uploads and limits
@@ -77,8 +80,8 @@ anything is stored.
 
 ```yaml title="pnpr.yaml"
 oci:
-  maxBlobBytes: 10737418240   # 10 GiB, the default
-  maxManifestBytes: 4194304   # 4 MiB, the default
+  maxBlobSize: 10GiB     # the default
+  maxManifestSize: 4MiB  # the default
 ```
 
 The blob limit applies to a whole resumable upload, mounted layers included, and
@@ -168,14 +171,14 @@ a retained manifest or index of that repository is refused, as is
 manifest. The blob deletion unmaps
 the blob from the repository, while the repository is still as the deletion
 found it, and the
-metadata database fences the removal of its bytes the same way it fences `gc`:
+database fences the removal of its bytes the same way it fences `gc`:
 a manifest push that read the blob before it was deleted is refused with `409`
 when it commits, and a push that starts afterwards does not find the blob. If a
 deletion is interrupted after the blob was unmapped, `gc` removes its bytes.
 
 ## Caching Docker Hub and GHCR
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   dockerhub:
     type: upstream

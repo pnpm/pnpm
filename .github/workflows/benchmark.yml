@@ -73,9 +73,9 @@ jobs:
         shared-key: pnpm-benchmark
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
-        runtime: node@26.13.0
+        runtime: node@26.13.1
 
     - name: Install hyperfine
       uses: $/.github/actions/binstall
@@ -95,7 +95,7 @@ jobs:
 
     - name: Install Bencher CLI
       if: steps.bench.outputs.bench_dir != ''
-      uses: bencherdev/bencher@7de3c69a85380826613050826b4bce062be2f07d # v0.6.16
+      uses: bencherdev/bencher@b2484bc6734c8e6da4fad141bd13527a11da3988 # v0.6.17
 
     - name: Upload results to Bencher
       if: steps.bench.outputs.bench_dir != ''

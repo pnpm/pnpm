@@ -14,13 +14,13 @@ use crate::{
         ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
         rebuild::{RebuildSelection, run_rebuild},
     },
-    confirm_prompt::stdin_is_terminal,
+    confirm_prompt::PromptAvailability,
 };
 use clap::{Args, Subcommand};
 use miette::{Context, IntoDiagnostic, Report};
-use pnpm_config::{Config, PermissionCapability, SkillsPermission, is_ci};
+use pnpm_config::{Config, PermissionCapability, SkillsPermission};
 use pnpm_package_manager::{
-    allow_build_key_from_ignored_build, resync_installed_agent_skills, skill_approval_options,
+    resync_installed_agent_skills, skill_approval_key, skill_approval_options,
 };
 use pnpm_reporter::{Reporter, emit_global_warning};
 use pnpm_workspace_manifest_writer::set_skills_dirs;
@@ -89,7 +89,7 @@ pub(crate) fn pending_permissions(config: &Config) -> miette::Result<PendingPerm
         .flat_map(|modules| modules.pending_skills.iter().flatten());
     for dep_path in pending_skills {
         by_package
-            .entry(allow_build_key_from_ignored_build(dep_path.as_str()))
+            .entry(skill_approval_key(dep_path.as_str()))
             .or_default()
             .insert(PermissionCapability::Skills);
     }
@@ -155,6 +155,21 @@ impl ApproveArgs {
         config: &'static Config,
         manifest_dir: &Path,
     ) -> miette::Result<Option<Approval>> {
+        self.decide_with_prompt::<Reporter>(
+            pending,
+            config,
+            manifest_dir,
+            PromptAvailability::detect(config.ci),
+        )
+    }
+
+    fn decide_with_prompt<Reporter: self::Reporter>(
+        &self,
+        pending: &BTreeMap<String, Capabilities>,
+        config: &'static Config,
+        manifest_dir: &Path,
+        prompt: PromptAvailability,
+    ) -> miette::Result<Option<Approval>> {
         if !self.packages.is_empty() {
             return Ok(Some(Approval {
                 decisions: named_decisions::<Reporter>(&self.packages, pending)?,
@@ -166,6 +181,12 @@ impl ApproveArgs {
                 decisions: decisions_for_all(pending),
                 skills_dirs: Vec::new(),
             }));
+        }
+        if pending.is_empty() {
+            return Ok(None);
+        }
+        if !prompt.is_available() {
+            return Err(ApproveNonInteractive.into());
         }
         let Some(selected) = prompt_for_packages(pending)? else {
             return Ok(None);
@@ -283,7 +304,7 @@ fn resolve_skills_dirs(
     if config.skills_dirs.is_none()
         && skills_by_package.values().any(SkillsPermission::links_any)
         && !detected_dirs.is_empty()
-        && can_prompt()
+        && PromptAvailability::detect(config.ci).is_available()
     {
         return prompt_for_skills_dirs(detected_dirs);
     }
@@ -334,11 +355,15 @@ fn prompt_for_skills_dirs(detected_dirs: &[String]) -> miette::Result<Option<Vec
     prompt_for_choices("Choose where the approved agent skills are linked", &choices)
 }
 
-/// Whether the current run can prompt. Under CI, or when the input is not a
-/// terminal, a prompt is skipped and answered another time.
-fn can_prompt() -> bool {
-    !is_ci() && stdin_is_terminal().unwrap_or(false)
-}
+#[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
+#[display(r#""pnpm approve" without package arguments or --all requires an interactive terminal"#)]
+#[diagnostic(
+    code(ERR_PNPM_APPROVE_NON_INTERACTIVE),
+    help(
+        r#"Run "pnpm approve" in an interactive terminal outside CI, pass --all, or pass the package names to approve (<pkg>) or deny (!<pkg>)."#
+    )
+)]
+struct ApproveNonInteractive;
 
 #[cfg(test)]
 mod tests;

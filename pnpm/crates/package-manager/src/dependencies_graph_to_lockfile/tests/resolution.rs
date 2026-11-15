@@ -45,6 +45,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     );
     let react_dom_dep_path = DepPath::from("react-dom@17.0.2(react@17.0.2)".to_string());
     let react_dom = DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: react_dom_dep_path.clone(),
         resolved_package_id: "react-dom@17.0.2".to_string(),
         resolve_result: std::sync::Arc::new(make_resolve_result(
@@ -478,6 +479,7 @@ fn tarball_manifest_with_traversal_version_is_not_recorded_in_lockfile() {
         },
     };
     let node = DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: dep_path.clone(),
         resolved_package_id: dep_path.to_string(),
         resolve_result: Arc::new(resolve_result),

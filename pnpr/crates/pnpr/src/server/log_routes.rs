@@ -120,7 +120,7 @@ fn bytes_response(body: Vec<u8>, content_type: &'static str) -> Response {
 /// none, or several, has no log.
 fn registry_log(state: &AppState, registry: Option<&str>) -> Option<LogId> {
     let target = addressed_registry(state, registry, Ecosystem::Npm)?;
-    let routing = &state.inner.config.routing;
+    let routing = state.routing();
     let mut namespaces = routing.registries
         .sources(&target, Ecosystem::Npm)
         .into_iter()
@@ -146,11 +146,12 @@ impl LogReaders {
     /// What `identity` may read of `log`, by the rules of every hosted
     /// registry of its namespace.
     fn of(state: &AppState, log: &LogId, identity: &Identity) -> Self {
-        let hosted: Vec<&HostedConfig> = state.inner.config.routing.hosted
+        let routing = state.routing();
+        let hosted: Vec<&HostedConfig> = routing.hosted
             .iter()
             .filter(|(name, hosted)| {
                 hosted.namespace == log.namespace
-                    && state.inner.config.routing.registries.ecosystem(name) == Some(log.ecosystem)
+                    && routing.registries.ecosystem(name) == Some(log.ecosystem)
             })
             .map(|(_, hosted)| hosted)
             .collect();
@@ -286,7 +287,7 @@ async fn logged_record(
     if state.inner.config.release_records.log_signing_key.is_none() {
         return Err(not_found());
     }
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     let entry = database.release_record_entry(&name, &namespace, version).await;
     let (index, digest) = entry.map_err(IntoResponse::into_response)?.ok_or_else(not_found)?;
     Ok(LoggedRecord { namespace, name, version: version.to_string(), index, digest })
@@ -324,8 +325,7 @@ fn proof_pending() -> Response {
 
 /// A `503` the client retries after a second.
 fn retry_later(reason: &'static str) -> Response {
-    let mut response =
-        (StatusCode::SERVICE_UNAVAILABLE, axum::Json(json!({ "error": reason }))).into_response();
+    let mut response = pnpr_error::json_error(StatusCode::SERVICE_UNAVAILABLE, reason, None);
     response
         .headers_mut()
         .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));

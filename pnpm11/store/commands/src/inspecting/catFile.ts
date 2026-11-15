@@ -3,10 +3,11 @@ import path from 'node:path'
 import type { Config } from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
+import { getFilePathByModeInCafs } from '@pnpm/store.cafs'
 import { getStorePath } from '@pnpm/store.path'
 import { renderHelp } from 'render-help'
 
-const INTEGRITY_REGEX: RegExp = /^[^-]+-([a-z0-9+/=]+)$/i
+const INTEGRITY_REGEX: RegExp = /^[^-]+-([A-Z0-9+/]+={0,2})$/i
 
 export const skipPackageManagerCheck = true
 
@@ -36,16 +37,28 @@ export async function handler (opts: CatFileCommandOptions, params: string[]): P
     })
   }
 
-  const [, integrityHash] = params[0].match(INTEGRITY_REGEX)!
+  const match = INTEGRITY_REGEX.exec(params[0])
+  if (!match) {
+    throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${params[0]}`)
+  }
 
-  const toHex = Buffer.from(integrityHash, 'base64').toString('hex')
+  const encoded = match[1]
+  const decoded = Buffer.from(encoded, 'base64')
+  const canonical = decoded.toString('base64')
+  const isValidBase64 = encoded.includes('=')
+    ? canonical === encoded
+    : canonical.replace(/=+$/, '') === encoded
+  const toHex = decoded.toString('hex')
+  if (!isValidBase64 || toHex.length <= 2) {
+    throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${params[0]}`)
+  }
+
   const storeDir = await getStorePath({
     pkgRoot: process.cwd(),
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const cafsDir = path.join(storeDir, 'files')
-  const filePath = path.resolve(cafsDir, toHex.slice(0, 2), toHex.slice(2))
+  const filePath = path.resolve(getFilePathByModeInCafs(storeDir, toHex, 0))
 
   try {
     return gfs.readFileSync(filePath, 'utf8')

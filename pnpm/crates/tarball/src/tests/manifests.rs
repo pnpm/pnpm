@@ -252,7 +252,7 @@ async fn mem_cache_partitions_synthesized_package_manifests_by_content() {
             id: "artifact@1.0.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -320,7 +320,7 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
                 id: package_id,
             },
             store: crate::ArchiveStoreContext {
-                dir: store_path,
+                dir: std::borrow::Cow::Borrowed(store_path),
                 index: StoreIndex::shared_readonly_in(store_path),
                 index_writer: Some(Arc::clone(&writer)),
                 verify_integrity: true,
@@ -363,7 +363,7 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
                 id: package_id,
             },
             store: crate::ArchiveStoreContext {
-                dir: store_path,
+                dir: std::borrow::Cow::Borrowed(store_path),
                 index: store_index.clone(),
                 index_writer: None,
                 verify_integrity: true,
@@ -421,7 +421,7 @@ async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
             id: "artifact@1.0.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,

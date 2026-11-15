@@ -230,7 +230,8 @@ async fn resolve_settlement_tree(
             patched_dependencies: None,
             manifest_hook: None,
             overrides_hook: None,
-            pnpmfile_hook: None,
+            // Disable speculative warmup so resolver delays exercise the actual walk.
+            pnpmfile_hook: Some(std::sync::Arc::new(pnpm_hooks::NoopHooks)),
             read_package_log: None,
             auto_install_peers: false,
         },

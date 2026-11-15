@@ -10,6 +10,7 @@
 mod attribution;
 mod build;
 mod cli_args;
+mod compare;
 mod install_timing;
 mod report;
 mod sections;
@@ -31,6 +32,12 @@ fn main() -> ExitCode {
 }
 
 fn run(args: &CliArgs) -> Result<(), String> {
+    let report = build_report(args)?;
+    println!("{}", render_report(args, &report)?);
+    Ok(())
+}
+
+fn build_report(args: &CliArgs) -> Result<Report, String> {
     let target_dir = args.target_dir()?;
     let target = build::host_target()?;
     let out_dir = target_dir.join("engine-size-report");
@@ -40,13 +47,35 @@ fn run(args: &CliArgs) -> Result<(), String> {
         .iter()
         .map(|&lto| measure(args, lto, &site))
         .collect::<Result<Vec<_>, _>>()?;
-    let report = Report { target, measurements };
-    if let Some(path) = &args.json {
-        let json = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
+    let probe_features =
+        if args.report.no_default_features { "no-default-features" } else { "default" };
+    Ok(Report { target, probe_features: probe_features.to_string(), measurements })
+}
+
+fn render_report(args: &CliArgs, report: &Report) -> Result<String, String> {
+    let json = if args.report.json.is_some() || args.report.compare.is_some() {
+        Some(serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?)
+    } else {
+        None
+    };
+    let baseline = args.report.compare
+        .as_ref()
+        .map(|path| {
+            let contents = read(path)?;
+            std::str::from_utf8(&contents)
+                .map(str::to_owned)
+                .map_err(|error| format!("read {}: {error}", path.display()))
+        })
+        .transpose()?;
+    if let (Some(path), Some(json)) = (&args.report.json, &json) {
         fs::write(path, json).map_err(|error| format!("write {}: {error}", path.display()))?;
     }
-    println!("{}", report.to_markdown(args.top));
-    Ok(())
+    let mut output = report.to_markdown(args.top);
+    if let (Some(json), Some(baseline)) = (&json, &baseline) {
+        output.push_str("\n## Change from baseline\n\n");
+        output.push_str(&compare::render_comparison(json, baseline)?);
+    }
+    Ok(output)
 }
 
 fn measure(

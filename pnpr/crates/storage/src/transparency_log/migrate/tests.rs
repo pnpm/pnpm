@@ -1,6 +1,6 @@
 use super::{Ecosystem, LOG_NAMESPACE, LogId, Storage};
 use pnpm_transparency_log::NoteSigner;
-use pnpr_config::{HostedStoreConfig, MetadataBackend};
+use pnpr_config::{DatabaseBackend, HostedStoreConfig};
 use tempfile::TempDir;
 
 const LOG_SIGNING_KEY: &str =
@@ -11,7 +11,7 @@ fn test_storage(dir: &TempDir) -> Storage {
     let cache = dir.path().join("cache");
     std::fs::create_dir_all(&hosted).unwrap();
     std::fs::create_dir_all(&cache).unwrap();
-    let db = MetadataBackend::Sqlite(dir.path().join("metadata.sqlite"));
+    let db = DatabaseBackend::Sqlite(dir.path().join("metadata.sqlite"));
     Storage::new(&HostedStoreConfig::Fs, hosted, cache, &db).unwrap()
 }
 
@@ -38,7 +38,7 @@ async fn log_record_copy_protects_existing_checkpoints_and_preserves_keyless_cop
     let log = LogId { namespace: "acme".to_string(), ecosystem: Ecosystem::Npm };
     let key = NoteSigner::from_private_key(LOG_SIGNING_KEY).unwrap();
 
-    src.sql_metadata()
+    src.sql_database()
         .import_log_entries(
             &log,
             0,
@@ -91,7 +91,7 @@ async fn log_record_copy_protects_existing_checkpoints_and_preserves_keyless_cop
     assert_eq!(preserved, first_checkpoint);
 
     // Grow source to 2 entries: keyless replacement is refused, while signed advancement succeeds.
-    src.sql_metadata()
+    src.sql_database()
         .import_log_entries(
             &log,
             1,

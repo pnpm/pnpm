@@ -13,6 +13,8 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
     let consumer_v2 = NodeId::next();
     let importers = [
         ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: "project-a".to_string(),
             direct: vec![
                 DirectDep {
@@ -31,6 +33,8 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
             rejected_optional_peers: HashSet::default(),
         },
         ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: "project-b".to_string(),
             direct: vec![
                 DirectDep {
@@ -87,7 +91,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
 }
 
 #[test]
-fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
+fn a_shared_consumer_keeps_each_importers_peer_provider_variant() {
     let plugin_v1 = NodeId::next();
     let plugin_v2 = NodeId::next();
     let utils_root = NodeId::next();
@@ -98,6 +102,8 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
 
     let importers = [
         ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: ".".to_string(),
             direct: vec![
                 DirectDep {
@@ -121,6 +127,8 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
             rejected_optional_peers: HashSet::default(),
         },
         ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: "app".to_string(),
             direct: vec![
                 DirectDep {
@@ -193,22 +201,12 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         ResolvePeersOptions::default(),
     );
 
-    // Both `utils` occurrences collapse onto one depPath because the
-    // `resolver` peer id collapses on the plugin/resolver peer cycle, so
-    // exactly one of them supplies the graph node's edges.
-    let utils = result.graph
-        .keys()
-        .filter(|dep_path| dep_path.as_str().starts_with("utils@"));
-    assert_eq!(utils.count(), 1, "one utils entry: {:?}", result.graph.keys().collect::<Vec<_>>());
-    let utils_dep_path = result.graph
-        .keys()
-        .find(|dep_path| dep_path.as_str().starts_with("utils@"))
-        .expect("utils entry")
-        .clone();
-    assert_eq!(
-        result.graph[&utils_dep_path].edges.children.get("resolver"),
-        Some(&DepPath::from("resolver@1.0.0(plugin@1.0.0)")),
-    );
+    for importer in [".", "app"] {
+        let direct = &result.direct_dependencies_by_importer[importer];
+        let plugin = &result.graph[&direct["plugin"]];
+        let utils = &result.graph[&plugin.edges.children["utils"]];
+        assert_eq!(utils.edges.children["resolver"], direct["resolver"]);
+    }
     // Trimming a peer segment off the edge would key it to a variant no
     // importer reaches, leaving an orphan entry in the lockfile —
     // <https://github.com/pnpm/pnpm/issues/13320>.
@@ -235,6 +233,8 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
     let peer = NodeId::leaf("link:packages/peer");
     let consumer = NodeId::next();
     let importer = ImporterPeerInput {
+        declared_direct_dependencies: HashSet::default(),
+        explicitly_requested_direct_dependencies: HashSet::default(),
         id: "apps/nested/app".to_string(),
         direct: vec![
             DirectDep {
@@ -309,6 +309,8 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
     let peer = NodeId::leaf("link:packages/peer");
     let consumer = NodeId::next();
     let importer = ImporterPeerInput {
+        declared_direct_dependencies: HashSet::default(),
+        explicitly_requested_direct_dependencies: HashSet::default(),
         id: "apps/app".to_string(),
         direct: vec![
             DirectDep {

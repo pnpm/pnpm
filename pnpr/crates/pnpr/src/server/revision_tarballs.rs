@@ -106,7 +106,7 @@ async fn serve_upstream_revision_tarball(
         state,
         headers,
         source,
-        upstream,
+        upstream: &upstream,
         name,
         version,
         revision,
@@ -115,14 +115,14 @@ async fn serve_upstream_revision_tarball(
     request.serve(&integrity).await
 }
 
-async fn load_upstream_revision_target<'state>(
-    state: &'state AppState,
+async fn load_upstream_revision_target(
+    state: &AppState,
     identity: &Identity,
     source: &str,
     name: &CanonicalPackageName,
     version: &str,
     revision: TarballRevision,
-) -> Result<Option<(&'state Upstream, Integrity)>, Response> {
+) -> Result<Option<(Upstream, Integrity)>, Response> {
     let resolved = RegistrySource::Upstream(source.to_string());
     if let Err(err) = authorize(state, identity, &resolved, name.as_str(), Action::Access) {
         return Err(err.into_response());
@@ -142,7 +142,7 @@ async fn load_upstream_revision_target<'state>(
         Ok(None) => return Ok(None),
         Err(err) => return Err(err.into_response()),
     };
-    match extract_upstream_revision_integrity(&bytes, name, version, revision, source_registry) {
+    match extract_upstream_revision_integrity(&bytes, name, version, revision, &source_registry) {
         Ok(integrity) => Ok(integrity.map(|integrity| (upstream, integrity))),
         Err(err) => Err(RegistryError::from(err).into_response()),
     }

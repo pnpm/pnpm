@@ -80,6 +80,8 @@ export interface HoistPeersOptions {
    * pick does not depend on the order in which concurrent importers resolve.
    */
   lockfileOnlyVersions?: Map<string, Set<string>>
+  /** Peer versions recorded for this importer. */
+  lockedVersions?: Map<string, Set<string>>
   workspaceRootDeps: HoistableRootDep[]
   /**
    * Applies `overrides` to a peer nobody declares as a dependency. Such a
@@ -144,6 +146,7 @@ function pickMissingPeerSpec (
   return pickPreferredPeerSpec(preferredSelectors, {
     autoInstallPeers: opts.autoInstallPeers,
     lockfileOnlyVersions: opts.lockfileOnlyVersions?.get(peerName),
+    getLockedVersions: () => opts.isUpdateTarget?.(peerName) ? undefined : opts.lockedVersions?.get(peerName),
     range,
   })
 }
@@ -154,7 +157,7 @@ function isRegistryPeerSpecifier (range: string): boolean {
 
 function pickPreferredPeerSpec (
   preferredSelectors: VersionSelectors,
-  { autoInstallPeers, lockfileOnlyVersions, range }: { autoInstallPeers: boolean, lockfileOnlyVersions?: Set<string>, range: string }
+  { autoInstallPeers, lockfileOnlyVersions, getLockedVersions, range }: { autoInstallPeers: boolean, lockfileOnlyVersions?: Set<string>, getLockedVersions: () => Set<string> | undefined, range: string }
 ): string | undefined {
   const nonVersions = getNonVersionSelectors(preferredSelectors)
   // Dedupe onto a preferred version only when it actually satisfies the
@@ -168,7 +171,7 @@ function pickPreferredPeerSpec (
   const isSemverRange = semver.validRange(rangeForMatch, { includePrerelease: true }) != null
   if (isSemverRange) {
     const satisfyingVersion = pickProviderVersion(preferredSelectors, {
-      tiers: getRequiredPeerTiers(preferredSelectors, lockfileOnlyVersions),
+      tiers: getRequiredPeerTiers(preferredSelectors, { lockfileOnly: lockfileOnlyVersions, getLockedVersions }),
       qualifies: (version) => semver.satisfies(version, rangeForMatch, { includePrerelease: true }),
     })
     if (satisfyingVersion) {
@@ -203,14 +206,15 @@ function getOptionalPeerTiers (
   return [reached, resolved, locked].filter((tier) => tier.size > 0)
 }
 
-/**
- * The versions this install resolved, so a version in `lockfileOnly` is
- * picked only when no other version qualifies. Its provider has moved on, so
- * it must not outrank a version the install resolved.
- */
-function getRequiredPeerTiers (selectors: VersionSelectors, lockfileOnly: Set<string> | undefined): Array<Set<string>> {
-  if (lockfileOnly == null) return []
-  return [new Set(Object.keys(selectors).filter((version) => !lockfileOnly.has(version)))]
+/** Current providers first, then the importer's recorded peer pins. */
+function * getRequiredPeerTiers (
+  selectors: VersionSelectors,
+  { lockfileOnly, getLockedVersions }: { lockfileOnly?: Set<string>, getLockedVersions: () => Set<string> | undefined }
+): Iterable<Set<string>> {
+  if (lockfileOnly == null) return
+  yield new Set(Object.keys(selectors).filter((version) => !lockfileOnly.has(version)))
+  const locked = getLockedVersions()
+  if (locked != null) yield locked
 }
 
 /**
@@ -220,7 +224,7 @@ function getRequiredPeerTiers (selectors: VersionSelectors, lockfileOnly: Set<st
  */
 function pickProviderVersion (
   selectors: VersionSelectors,
-  { tiers = [], qualifies }: { tiers?: Array<Set<string>>, qualifies: (version: string) => boolean }
+  { tiers = [], qualifies }: { tiers?: Iterable<Set<string>>, qualifies: (version: string) => boolean }
 ): string | undefined {
   for (const tier of tiers) {
     const picked = pickHighestVersion(selectors, { tier, qualifies })

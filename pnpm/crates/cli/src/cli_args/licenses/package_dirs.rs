@@ -25,6 +25,18 @@ pub(super) struct PackageDirs {
     is_shamefully_hoist: bool,
 }
 
+/// How a hoisted `node_modules/<name>` candidate may match when
+/// `.modules.yaml` has no `hoistedLocations` entry for the package.
+///
+/// A manifest on disk carries only bare `version`, never registry origin, so
+/// registry-qualified keys match only when the candidate resolves to the
+/// package's virtual-store slot.
+#[derive(Clone, Copy)]
+enum CandidateMatch<'a> {
+    VirtualStoreOnly,
+    VirtualStoreOrVersion(&'a str),
+}
+
 impl PackageDirs {
     pub(super) fn new(
         config: &Config,
@@ -74,7 +86,12 @@ impl PackageDirs {
             .join("node_modules")
             .join(name);
         let dir = if self.is_hoisted {
-            self.resolve_hoisted_candidate(&vs_path, name, version)
+            let candidate_match = if key.suffix.registry_qualified().is_some() {
+                CandidateMatch::VirtualStoreOnly
+            } else {
+                CandidateMatch::VirtualStoreOrVersion(version)
+            };
+            self.resolve_hoisted_candidate(&vs_path, name, candidate_match)
         } else if self.is_shamefully_hoist {
             self.resolve_shamefully_hoist_candidate(&vs_path, name)
         } else {
@@ -83,13 +100,18 @@ impl PackageDirs {
         Cow::Owned(vec![dir])
     }
 
-    fn resolve_hoisted_candidate(&self, vs_path: &Path, name: &str, version: &str) -> PathBuf {
+    fn resolve_hoisted_candidate(
+        &self,
+        vs_path: &Path,
+        name: &str,
+        candidate_match: CandidateMatch<'_>,
+    ) -> PathBuf {
         let candidate_project = self.project_dir.join(&self.modules_dir_name).join(name);
-        if matches_candidate(&candidate_project, vs_path, version) {
+        if matches_candidate(&candidate_project, vs_path, candidate_match) {
             return candidate_project;
         }
         let candidate_root = self.lockfile_dir.join(&self.modules_dir_name).join(name);
-        if matches_candidate(&candidate_root, vs_path, version) {
+        if matches_candidate(&candidate_root, vs_path, candidate_match) {
             return candidate_root;
         }
         vs_path.to_path_buf()
@@ -150,11 +172,14 @@ fn matches_virtual_store(candidate: &Path, expected_virtual_store: &Path) -> boo
 fn matches_candidate(
     candidate: &Path,
     expected_virtual_store: &Path,
-    expected_version: &str,
+    candidate_match: CandidateMatch<'_>,
 ) -> bool {
     if matches_virtual_store(candidate, expected_virtual_store) {
         return true;
     }
+    let CandidateMatch::VirtualStoreOrVersion(expected_version) = candidate_match else {
+        return false;
+    };
     if let Ok(Some(manifest)) = safe_read_package_json_from_dir(candidate) {
         return manifest.get("version").and_then(|version| version.as_str())
             == Some(expected_version);

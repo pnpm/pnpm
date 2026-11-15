@@ -1,5 +1,6 @@
 use std::path::{Component, Path, PathBuf};
 
+use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::PkgNameVerPeer;
 
 use super::{EdgeContext, InspectionLayout};
@@ -36,12 +37,14 @@ pub fn resolve_package_path(
 ) -> PathBuf {
     let store_name = dep_path.to_virtual_store_name(layout.virtual_store_dir_max_length);
     if is_unsafe_path_component(&store_name) || is_unsafe_path_component(name) {
-        return layout.virtual_store_dir.clone();
+        return lexical_normalize(&layout.virtual_store_dir);
     }
-    if layout.is_hoisted {
-        return resolve_hoisted_package_path(layout, dep_path, name, version, alias, ctx);
-    }
-    resolve_virtual_store_package_path(layout, &store_name, name, alias, ctx)
+    let resolved = if layout.is_hoisted {
+        resolve_hoisted_package_path(layout, dep_path, name, version, alias, ctx)
+    } else {
+        resolve_virtual_store_package_path(layout, &store_name, name, alias, ctx)
+    };
+    lexical_normalize(&resolved)
 }
 
 /// The copy Node.js resolves from the parent package, or from the

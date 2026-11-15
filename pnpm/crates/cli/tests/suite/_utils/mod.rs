@@ -1159,3 +1159,14 @@ pub fn resolve_node_modules_package(from: &Path, name: &str) -> Option<PathBuf> 
         .map(|dir| dir.join("node_modules").join(name))
         .find(|candidate| candidate.join("package.json").is_file())
 }
+
+/// Assert that a shim's text does not name `path` in any form a shim writes
+/// it: native, forward-slashed, or the `/mnt/<drive>` form Windows shims use.
+pub fn assert_shim_omits_path(shim: &str, path: &Path) {
+    let path = path.to_string_lossy().replace('\\', "/");
+    let without_drive = path.split_once(':').map_or(path.as_str(), |(_, rest)| rest);
+    assert!(
+        !shim.replace('\\', "/").contains(without_drive),
+        "the shim must not contain {path:?}: {shim:?}",
+    );
+}

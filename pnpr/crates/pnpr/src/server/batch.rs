@@ -44,7 +44,7 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_pypi::Upload;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    metadata::{PublicationRequest, PublishNotes},
+    database::{PublicationRequest, PublishNotes},
     publish::now_iso,
 };
 use serde::Deserialize;

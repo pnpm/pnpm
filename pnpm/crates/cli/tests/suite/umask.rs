@@ -16,7 +16,7 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::WORKSPACE_STATE_FILENAME;
 use std::{
     fs,
-    os::unix::fs::PermissionsExt,
+    os::unix::{fs::PermissionsExt, process::ExitStatusExt},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -48,7 +48,9 @@ fn pnpm_with_umask(dir: &Path, umask: Umask, args: &[&str]) {
     let mask = umask.mask();
     assert!(
         output.status.success(),
-        "{args:?} under umask {mask:#o} failed\nstdout:\n{}\nstderr:\n{}",
+        "{args:?} under umask {mask:#o} failed: {} (signal: {:?})\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        output.status.signal(),
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );

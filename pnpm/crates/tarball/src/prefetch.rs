@@ -220,7 +220,7 @@ impl PrefetchResult {
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
 pub async fn prefetch_cas_paths(
     index: Option<SharedReadonlyStoreIndex>,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     cache_keys: Vec<String>,
     integrity_check: PrefetchIntegrityCheck,
     verified_files_cache: SharedVerifiedFilesCache,
@@ -229,10 +229,11 @@ pub async fn prefetch_cas_paths(
     if cache_keys.is_empty() {
         return PrefetchResult::default();
     }
+    let store_dir = store_dir.clone();
     let result = tokio::task::spawn_blocking(move || -> PrefetchResult {
         prefetch_cas_paths_blocking(
             &index,
-            store_dir,
+            &store_dir,
             &cache_keys,
             integrity_check,
             &verified_files_cache,
@@ -251,7 +252,7 @@ pub async fn prefetch_cas_paths(
 
 fn prefetch_cas_paths_blocking(
     index: &SharedReadonlyStoreIndex,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     cache_keys: &[String],
     integrity_check: PrefetchIntegrityCheck,
     verified_files_cache: &SharedVerifiedFilesCache,
@@ -291,7 +292,7 @@ fn prefetch_cas_paths_blocking(
 fn decode_prefetch_row(
     cache_key: String,
     bytes: &[u8],
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     integrity_check: PrefetchIntegrityCheck,
     verified_files_cache: &SharedVerifiedFilesCache,
 ) -> Option<DecodedPrefetchRow> {

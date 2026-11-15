@@ -21,7 +21,7 @@ supply the new `userId` with the current name. A mismatched ID and name are reje
 
 Teams also have stable IDs and mutable names:
 
-```yaml
+```yaml title="registries.yaml"
 registries:
   private:
     type: hosted
@@ -38,8 +38,9 @@ The `teams:` keys are IDs. Keep them stable when editing names. API-created
 teams receive server-generated IDs. OIDC group grants use these IDs too;
 deleting and recreating a team name does not restore an old grant.
 
-The native file backend uses `auth.users.file`, a JSON account file containing
-IDs and password hashes. Protect it like any other credentials file. Apache
+Accounts live in the `users` table of the database: account IDs,
+status, credential kind, password hashes, and creation timestamps. Protect the
+database like any other credentials file. Apache
 and Verdaccio htpasswd files are import sources for `pnpr import-htpasswd`.
 An overwrite changes credentials on the existing account without changing its ID.
 

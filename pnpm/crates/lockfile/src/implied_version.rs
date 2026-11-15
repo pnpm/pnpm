@@ -74,9 +74,8 @@ pub(crate) fn catalog_implied_version(specifier: &str) -> Option<&str> {
 
 /// The package name of an `npm:` alias target, `name` or `name@range`.
 fn alias_name(target: &str) -> &str {
-    let Some(rest) = target.get(1..) else { return target };
-    match rest.find('@') {
-        Some(at) => &target[..=at],
+    match pnpm_deps_path::version_separator_index(target) {
+        Some(at) => &target[..at],
         None => target,
     }
 }
@@ -104,7 +103,7 @@ fn workspace_version<'path>(
 /// The package a `workspace:` specifier names, in its `workspace:name@range`
 /// form; `None` for a bare range such as `*` or `^1.0.0`.
 pub(crate) fn workspace_name(target: &str) -> Option<&str> {
-    let at = target.get(1..)?.find('@')? + 1;
+    let at = pnpm_deps_path::version_separator_index(target)?;
     Some(&target[..at])
 }
 
@@ -148,3 +147,6 @@ fn segments(id: &str) -> impl Iterator<Item = &str> {
 fn joined(segments: &[&str]) -> String {
     if segments.is_empty() { ".".to_string() } else { segments.join("/") }
 }
+
+#[cfg(test)]
+mod tests;

@@ -75,7 +75,7 @@ async fn packages_under_orgs_should_work() {
     let cas_files = IngestTarballToStore {
 fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false, tar_limits: crate::TarLimits::default()},
 package: crate::TarballPackage {integrity_kind: crate::IntegrityKind::Resource,integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
-store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None},
+store: crate::ArchiveStoreContext {dir: std::borrow::Cow::Borrowed(store_path),index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None},
 
 
 
@@ -159,7 +159,7 @@ async fn store_row_holding_another_package_fails_the_read() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: StoreIndex::shared_readonly_in(store_path),
             index_writer: None,
             verify_integrity: true,
@@ -317,7 +317,7 @@ async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
                 id: "artifact@1.0.0",
             },
             store: crate::ArchiveStoreContext {
-                dir: store_path,
+                dir: std::borrow::Cow::Borrowed(store_path),
                 index: None,
                 index_writer: None,
                 verify_integrity: true,
@@ -445,7 +445,7 @@ async fn synthesized_projection_reuses_only_a_matching_legacy_row_offline() {
             id: package_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: store_index.clone(),
             index_writer: None,
             verify_integrity: true,
@@ -535,7 +535,7 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
             id: package_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: StoreIndex::shared_readonly_in(store_path),
             index_writer: None,
             verify_integrity: true,
@@ -591,7 +591,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
             id: "@fastify/error@3.3.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: Some(Arc::clone(&writer)),
             verify_integrity: true,
@@ -708,7 +708,7 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
             id: "test-pkg",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -785,7 +785,7 @@ async fn mem_cache_spends_one_retry_budget_on_a_failing_archive() {
             id: "test-pkg@1.0.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -861,7 +861,7 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
             id: "test-pkg",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,

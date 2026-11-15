@@ -31,6 +31,75 @@ test('using a global virtual store', async () => {
   expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
+test('shared global virtual store bin shims do not capture the installing project', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin-parent': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+  })
+  await execPnpm(['install'])
+
+  const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/hello-world-js-bin-parent/1.0.0')
+  const [hash] = fs.readdirSync(versionDir)
+  const binDir = path.join(
+    versionDir,
+    hash!,
+    'node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin'
+  )
+  const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
+  const shimContent = fs.readFileSync(path.join(binDir, 'hello-world-js-bin'), 'utf8')
+  expectShimOmitsPath(shimContent, projectHoistedModulesDir)
+  // Windows shims assign the value to `new_node_path` and export that.
+  expect(shimContent).toMatch(/(?:export NODE_PATH|new_node_path)='[^']*[\\/]v11[\\/]links[\\/]/)
+})
+
+test('builds and rebuilds keep shared global virtual store bin shims free of project paths', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/own-bin-created-by-preinstall': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/own-bin-created-by-preinstall': true },
+  })
+  await execPnpm(['install'])
+
+  const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/own-bin-created-by-preinstall/1.0.0')
+  const [hash] = fs.readdirSync(versionDir)
+  const binDir = path.join(
+    versionDir,
+    hash!,
+    'node_modules/@pnpm.e2e/own-bin-created-by-preinstall/node_modules/.bin'
+  )
+  const shim = fs.readdirSync(binDir).find((name) => name.startsWith('own-bin-created-by-preinstall'))
+  expect(shim).toBeDefined()
+  const shimPath = path.join(binDir, shim!)
+  const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
+  expectShimOmitsPath(fs.readFileSync(shimPath, 'utf8'), projectHoistedModulesDir)
+
+  await execPnpm(['rebuild'])
+  expectShimOmitsPath(fs.readFileSync(shimPath, 'utf8'), projectHoistedModulesDir)
+})
+
+/**
+ * Checks every form a shim writes a path in: native, forward-slashed, and the
+ * `/mnt/<drive>` form of a Windows shell shim.
+ */
+function expectShimOmitsPath (shim: string, dir: string): void {
+  const withoutDrive = dir.replace(/^[a-z]:/i, '').replaceAll('\\', '/')
+  expect(shim.replaceAll('\\', '/')).not.toContain(withoutDrive)
+}
+
 test('scripts resolve phantom ESM imports through the private hoist', async () => {
   prepare({
     dependencies: {

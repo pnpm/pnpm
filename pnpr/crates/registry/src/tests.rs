@@ -756,3 +756,26 @@ fn a_refused_pattern_names_the_shapes_its_own_ecosystem_takes() {
     let crates = PackagePattern::parse("foo*", Ecosystem::Cargo).unwrap_err().to_string();
     assert!(crates.contains("nothing narrower"), "{crates}");
 }
+
+#[test]
+fn a_pattern_that_is_not_a_name_names_the_shapes_its_own_ecosystem_takes() {
+    let message = |raw, ecosystem| PackagePattern::parse(raw, ecosystem).unwrap_err().to_string();
+
+    let npm = message("@acme", Ecosystem::Npm);
+    assert!(npm.contains("not a valid npm package name"), "{npm}");
+    assert!(npm.contains("`@scope/*`"), "{npm}");
+
+    let image = message("-acme", Ecosystem::Oci);
+    assert!(image.contains("`<namespace>/*`"), "{image}");
+    assert!(!image.contains("@scope"), "{image}");
+
+    for ecosystem in [Ecosystem::Cargo, Ecosystem::Pypi] {
+        assert_eq!(
+            message("-acme", ecosystem),
+            format!(
+                "registry pattern \"-acme\" is not a valid {ecosystem} package name, so it can \
+                 never match; use an exact name, nothing narrower, or `**`",
+            ),
+        );
+    }
+}

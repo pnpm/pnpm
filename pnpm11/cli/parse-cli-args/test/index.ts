@@ -642,3 +642,188 @@ test('dlx stops parsing after "--"', async () => {
     'argument',
   ])
 })
+
+test('command-specific value options before the command name do not hide the command', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: (name: string) => (
+      name === 'init' || name === 'list' || name === 'publish' ? name : null
+    ),
+    getTypesByCommandName: (name: string) => {
+      if (name === 'init') return { 'init-type': ['commonjs', 'module'] }
+      if (name === 'list') return { depth: Number }
+      if (name === 'publish') return { otp: String }
+      return {}
+    },
+  }
+
+  const direct = await parseCliArgs(opts, ['--init-type', 'commonjs', 'init'])
+  expect(direct.cmd).toBe('init')
+  expect(direct.params).toStrictEqual([])
+  expect(direct.options['init-type']).toBe('commonjs')
+
+  const configDot = await parseCliArgs(opts, ['--config.init-type', 'commonjs', 'init'])
+  expect(configDot.cmd).toBe('init')
+  expect(configDot.params).toStrictEqual([])
+  expect(configDot.options['init-type']).toBe('commonjs')
+
+  const withDepth = await parseCliArgs(opts, ['--depth', '2', 'list'])
+  expect(withDepth.cmd).toBe('list')
+  expect(withDepth.params).toStrictEqual([])
+  expect(withDepth.options.depth).toBe(2)
+
+  const missingDepth = await parseCliArgs(opts, ['--depth', 'list'])
+  expect(missingDepth.cmd).toBe('list')
+  expect(missingDepth.params).toStrictEqual([])
+
+  const missingDepthWithTarget = await parseCliArgs(opts, ['--depth', 'list', 'react'])
+  expect(missingDepthWithTarget.cmd).toBe('list')
+  expect(missingDepthWithTarget.params).toStrictEqual(['react'])
+
+  const missingDepthRepeatedCommandSpelling = await parseCliArgs(opts, ['--depth', 'list', 'list', 'react'])
+  expect(missingDepthRepeatedCommandSpelling.cmd).toBe('list')
+  expect(missingDepthRepeatedCommandSpelling.params).toStrictEqual(['list', 'react'])
+
+  const recursiveMissingDepth = await parseCliArgs(opts, ['recursive', '--depth', 'list', 'react'])
+  expect(recursiveMissingDepth.cmd).toBe('list')
+  expect(recursiveMissingDepth.options.recursive).toBe(true)
+  expect(recursiveMissingDepth.params).toStrictEqual(['react'])
+
+  const missingInitType = await parseCliArgs(opts, ['--init-type', 'init'])
+  expect(missingInitType.cmd).toBe('init')
+  expect(missingInitType.params).toStrictEqual([])
+
+  const missingStringOpt = await parseCliArgs(opts, ['--otp', 'publish'])
+  expect(missingStringOpt.cmd).toBe('publish')
+  expect(missingStringOpt.options.otp).toBe('publish')
+})
+
+test('preserves escaped script params when a preceding numeric option lacks a value', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    getCommandLongName: (name: string) => name === 'run' ? 'run' : null,
+    getTypesByCommandName: (name: string) => name === 'run' ? { 'workspace-concurrency': Number } : {},
+  }
+
+  const parsed = await parseCliArgs(opts, ['--workspace-concurrency', 'run', 'build', '--help'])
+  expect(parsed.cmd).toBe('run')
+  expect(parsed.params).toStrictEqual(['build', '--help'])
+})
+
+test('preserves command token when --config.<key> options precede a command declaring --config', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { filter: [String, Array] },
+    getTypesByCommandName: (name: string) => name === 'config' ? { config: Boolean, depth: Number } : {},
+  }
+
+  const parsed = await parseCliArgs(opts, [
+    '--config.foo=bar',
+    '--filter',
+    'pkg-a',
+    '--filter',
+    'pkg-b',
+    '--depth',
+    'config',
+    'config',
+    'get',
+  ])
+  expect(parsed.cmd).toBe('config')
+  expect(parsed.options.foo).toBe('bar')
+  expect(parsed.params).toStrictEqual(['config', 'get'])
+
+  const unflaggedRepeated = await parseCliArgs(opts, ['config', 'config', 'get'])
+  expect(unflaggedRepeated.cmd).toBe('config')
+  expect(unflaggedRepeated.params).toStrictEqual(['config', 'get'])
+
+  const consumedByUniversalOption = await parseCliArgs(opts, ['--filter', 'config', 'config', 'get'])
+  expect(consumedByUniversalOption.cmd).toBe('config')
+  expect(consumedByUniversalOption.options.filter).toStrictEqual(['config'])
+  expect(consumedByUniversalOption.params).toStrictEqual(['get'])
+})
+
+test('normal flagged commands with array and string shorthands skip prefix recovery probes', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { filter: [String, Array], recursive: Boolean },
+    universalShorthands: { r: '--recursive' },
+    shorthandsByCommandName: {
+      list: { seq: ['--recursive', '--filter=pkg-a'] },
+    },
+    getTypesByCommandName: (name: string) => name === 'list' ? { depth: Number } : {},
+  }
+
+  const flaggedInstall = await parseCliArgs(opts, ['--filter', 'pkg-a', 'install'])
+  expect(flaggedInstall.cmd).toBe('install')
+  expect(flaggedInstall.params).toStrictEqual([])
+
+  const shorthandList = await parseCliArgs(opts, ['--seq', 'list', 'react'])
+  expect(shorthandList.cmd).toBe('list')
+  expect(shorthandList.options.recursive).toBe(true)
+  expect(shorthandList.params).toStrictEqual(['react'])
+
+  const repeatedList = await parseCliArgs(opts, ['-r', 'list', 'list'])
+  expect(repeatedList.cmd).toBe('list')
+  expect(repeatedList.params).toStrictEqual(['list'])
+
+  const attachedBoolEq = await parseCliArgs(opts, ['--recursive=list', '--depth', 'list'])
+  expect(attachedBoolEq.cmd).toBe('list')
+  expect(attachedBoolEq.options.recursive).toBe(true)
+  expect(attachedBoolEq.params).toStrictEqual(['list'])
+})
+
+test('dlx space-separated --package and -p forward --help to the target command', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: (name: string) => name === 'dlx' || name === 'run' ? name : null,
+    getTypesByCommandName: (name: string) => name === 'dlx' ? { package: [String, Array] } : {},
+    shorthandsByCommandName: {
+      ...DEFAULT_OPTS.shorthandsByCommandName,
+      dlx: { p: '--package' },
+    },
+    universalShorthands: {
+      ...DEFAULT_OPTS.universalShorthands,
+      p: '--parseable',
+    },
+  }
+
+  const longFlag = await parseCliArgs(opts, ['dlx', '--package', 'typescript', 'tsc', '--help'])
+  expect(longFlag.cmd).toBe('dlx')
+  expect(longFlag.options.package).toStrictEqual(['typescript'])
+  expect(longFlag.params).toStrictEqual(['tsc', '--help'])
+
+  const shortFlag = await parseCliArgs(opts, ['dlx', '-p', 'typescript', 'tsc', '--help'])
+  expect(shortFlag.cmd).toBe('dlx')
+  expect(shortFlag.options.package).toStrictEqual(['typescript'])
+  expect(shortFlag.params).toStrictEqual(['tsc', '--help'])
+
+  const preCommandShortFlag = await parseCliArgs(opts, ['-p', 'typescript', 'dlx', 'tsc', '--help'])
+  expect(preCommandShortFlag.cmd).toBe('dlx')
+  expect(preCommandShortFlag.options.package).toStrictEqual(['typescript'])
+  expect(preCommandShortFlag.params).toStrictEqual(['tsc', '--help'])
+})
+
+test('candidate command shorthands do not let later positional args hijack earlier flags', async () => {
+  const known = new Set(['list', 'patch', 'run'])
+  const typesByCommand: Record<string, object> = {
+    list: { depth: Number },
+    patch: { 'edit-dir': String },
+  }
+  const result = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: (name: string) => known.has(name) ? name : null,
+    getTypesByCommandName: (name: string) => typesByCommand[name] ?? {},
+    shorthandsByCommandName: {
+      patch: { d: '--edit-dir' },
+    },
+    universalOptionsTypes: { loglevel: String },
+    universalShorthands: { d: '--loglevel=info' },
+  }, ['--depth', '2', '-d', 'list', 'patch'])
+  expect(result.cmd).toBe('list')
+  expect(result.options.depth).toBe(2)
+  expect(result.options.loglevel).toBe('info')
+  expect(result.params).toStrictEqual(['patch'])
+})

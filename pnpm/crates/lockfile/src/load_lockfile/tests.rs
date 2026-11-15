@@ -451,10 +451,8 @@ fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
     assert_eq!(lockfile.pnpmfile_checksum.unwrap().len(), huge_string_len);
 }
 
-// A regression here makes every subsequent install re-resolve from
-// scratch after failing to read the lockfile it just wrote.
-#[test]
-fn snapshot_key_over_simple_key_limit_round_trips() {
+/// A snapshot key longer than YAML's 1,024-character simple-key limit.
+fn snapshot_key_over_simple_key_limit() -> String {
     let long_key = (0..40).fold(String::from("@scope/pkg@1.0.0"), |mut key, index| {
         write!(key, "(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)").expect(
             "write peer suffix",
@@ -462,6 +460,14 @@ fn snapshot_key_over_simple_key_limit_round_trips() {
         key
     });
     assert!(long_key.len() > 1024, "fixture key must exceed the simple-key limit");
+    long_key
+}
+
+// A regression here makes every subsequent install re-resolve from
+// scratch after failing to read the lockfile it just wrote.
+#[test]
+fn snapshot_key_over_simple_key_limit_round_trips() {
+    let long_key = snapshot_key_over_simple_key_limit();
 
     let content = format!(
         "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\nsnapshots:\n\n  ? '{long_key}'\n  : {{}}\n",
@@ -483,6 +489,69 @@ fn snapshot_key_over_simple_key_limit_round_trips() {
         .expect("reparse emitted lockfile")
         .expect("reparsed lockfile should be present");
     assert_eq!(reparsed, lockfile);
+}
+
+// pnpm v11 reads a long key in implicit form, which a tool that rewrites
+// the paths inside a lockfile can leave behind.
+#[test]
+fn implicit_snapshot_key_over_simple_key_limit_is_read() {
+    let long_key = snapshot_key_over_simple_key_limit();
+    let lockfile_with = |entry: &str| {
+        format!(
+            "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\nsnapshots:\n\n{entry}\n    dependencies:\n      '@scope/very-long-peer-dependency-name-00': 33.44.55\n",
+        )
+    };
+    let implicit = lockfile_with(&format!("  '{long_key}':"));
+    let explicit = lockfile_with(&format!("  ? '{long_key}'\n  :"));
+    let unscoped_key = long_key.strip_prefix("@scope/").expect("scoped fixture key");
+    let plain = lockfile_with(&format!("  {unscoped_key}:"));
+
+    let parse = |content: &str| {
+        Lockfile::parse(content, Path::new(Lockfile::FILE_NAME))
+            .expect("parse lockfile with a long snapshot key")
+            .expect("lockfile should be present")
+    };
+    let lockfile = parse(&implicit);
+    let key: PackageKey = long_key.parse().expect("parse long snapshot key");
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .get(&key)
+        .expect("long key");
+    assert_eq!(
+        snapshot.dependencies
+            .as_ref()
+            .expect("dependencies")
+            .len(),
+        1,
+    );
+    let explicit_lockfile = parse(&explicit);
+    dbg!(&lockfile, &explicit_lockfile);
+    assert_eq!(lockfile, explicit_lockfile);
+
+    let key: PackageKey = unscoped_key.parse().expect("parse long unscoped snapshot key");
+    assert!(
+        parse(&plain).snapshots
+            .as_ref()
+            .expect("snapshots")
+            .contains_key(&key),
+        "an unquoted key goes through the plain-scalar scanner",
+    );
+}
+
+#[test]
+fn implicit_key_over_one_mebibyte_is_refused() {
+    let long_key = (0..45_000).fold(String::from("@scope/pkg@1.0.0"), |mut key, index| {
+        write!(key, "(@scope/peer-{index:05}@1.0.0)").expect("write peer suffix");
+        key
+    });
+    assert!(long_key.len() > 1024 * 1024, "fixture key must exceed the lookahead cap");
+    let content = format!(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\nsnapshots:\n\n  '{long_key}': {{}}\n",
+    );
+    let error = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect_err("a key past the lookahead cap is refused");
+    assert!(matches!(error, LoadLockfileError::ParseYaml { .. }), "{error:?}");
 }
 
 #[test]

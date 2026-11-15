@@ -6,61 +6,67 @@ use axum::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::DocumentWrite;
+use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite, wait_after_document_write_conflict};
 use serde_json::{Value, json};
 
-use super::{super::AppState, no_published_packument};
+use super::{
+    super::{Action, AppState, WriteTarget, hosted_storage},
+    no_published_packument, read_authorized_packument,
+};
 
 pub(super) async fn update_package_maintainers(
     state: &AppState,
     identity: &Identity,
-    source: &str,
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-    body: &Value,
+    target: &WriteTarget,
+    (name, body): (&CanonicalPackageName, &Value),
 ) -> Response {
-    let mut new_maintainers = match extract_and_validate_maintainers(body, name) {
-        Ok(maintainers) => maintainers,
-        Err(response) => return response,
-    };
-
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let hosted_packument = match storage.read_hosted_document_for_update(name).await {
-        Ok(Some(packument)) => packument,
-        Ok(None) => return no_published_packument(name).into_response(),
-        Err(err) => return err.into_response(),
-    };
-    let mut hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
-        Ok(value) => value,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-
-    if let Err(err) = check_maintainer_authority(state, identity, &hosted, name) {
-        return err.into_response();
+    for attempt in 0..DOCUMENT_WRITE_RETRIES {
+        match try_update_package_maintainers(state, identity, target, (name, body)).await {
+            Ok(Some(response)) => return response,
+            Ok(None) if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
+                wait_after_document_write_conflict(attempt).await;
+            }
+            Ok(None) => {}
+            Err(response) => return response,
+        }
     }
+    RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }.into_response()
+}
 
-    if let Err(err) = bind_maintainer_ids(state, &hosted, &mut new_maintainers).await {
-        return err.into_response();
-    }
-    hosted["maintainers"] = Value::Array(new_maintainers);
+async fn try_update_package_maintainers(
+    state: &AppState,
+    identity: &Identity,
+    target: &WriteTarget,
+    (name, body): (&CanonicalPackageName, &Value),
+) -> Result<Option<Response>, Response> {
+    let Some((mut hosted, version)) =
+        read_authorized_packument(state, identity, (target, name), Action::Publish)
+            .await
+            .map_err(IntoResponse::into_response)?
+    else {
+        return Err(no_published_packument(name).into_response());
+    };
+    check_maintainer_authority(state, identity, &hosted, name)
+        .map_err(IntoResponse::into_response)?;
+    let mut maintainers = extract_and_validate_maintainers(body, name)?;
+    bind_maintainer_ids(state, &hosted, &mut maintainers).await
+        .map_err(IntoResponse::into_response)?;
+    hosted["maintainers"] = Value::Array(maintainers);
     update_modified_time(&mut hosted);
-    let bytes = match serde_json::to_vec_pretty(&hosted) {
-        Ok(bytes) => bytes,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    let version = Some(&hosted_packument.version);
-    let written =
-        storage.write_hosted_document_if_current(name, &bytes, version, identity.user_id()).await;
-    match written {
-        Ok(DocumentWrite::Written) => {
-            log_maintainers_updated(identity, name, source);
-            ok_created()
+    let bytes =
+        serde_json::to_vec_pretty(&hosted).map_err(|err| RegistryError::Json(err).into_response())?;
+    let storage = hosted_storage(state, Some(&target.namespace));
+    match storage
+        .write_hosted_document_if_current(name, &bytes, Some(&version), identity.user_id())
+        .await
+        .map_err(IntoResponse::into_response)?
+    {
+        DocumentWrite::Written => {
+            log_maintainers_updated(identity, name, &target.source);
+            Ok(Some(ok_created()))
         }
-        Ok(DocumentWrite::Conflict) => {
-            RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }
-                .into_response()
-        }
-        Err(err) => err.into_response(),
+        DocumentWrite::Conflict => Ok(None),
     }
 }
 
@@ -132,11 +138,10 @@ fn check_maintainer_authority(
 }
 
 fn log_maintainers_updated(identity: &Identity, name: &CanonicalPackageName, source: &str) {
-    let actor = identity.username().unwrap_or("-");
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "package.update_maintainers",
-        actor = %actor,
+    let actor = crate::audit::Actor::of(identity);
+    crate::audit!(
+        actor,
+        "package.update_maintainers",
         package = %name.as_str(),
         registry = %source,
         "package maintainers updated",
@@ -192,7 +197,7 @@ async fn maintainer_id(
     match requested {
         Some(Value::String(id)) if Some(id.as_str()) == previous => Ok(id.clone()),
         Some(Value::String(id)) => {
-            if users.account_name(id).await?.as_deref() != Some(name) {
+            if users.active_account_name(id).await?.as_deref() != Some(name) {
                 return Err(RegistryError::BadRequest {
                     reason: format!("maintainer account ID does not match {name:?}"),
                 });
@@ -205,7 +210,7 @@ async fn maintainer_id(
         None => match previous {
             Some(id) => Ok(id.to_string()),
             None => users
-                .account_id(name)
+                .active_account_id(name)
                 .await?
                 .ok_or_else(|| RegistryError::BadRequest {
                     reason: format!("unknown maintainer {name:?}"),

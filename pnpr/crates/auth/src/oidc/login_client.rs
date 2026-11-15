@@ -44,7 +44,7 @@ impl OidcState {
         Ok(CoreClient::from_provider_metadata(
             metadata,
             ClientId::new(config.audience.clone()),
-            login.client_secret.clone().map(ClientSecret::new),
+            login.client_secret.clone().map(|secret| ClientSecret::new(secret.into_inner())),
         )
         .set_auth_type(auth_type)
         .set_redirect_uri(

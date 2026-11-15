@@ -57,9 +57,9 @@ fn metadata_refreshes_bypass_the_resolution_cache() {
         ..ResolveRequest::default()
     };
 
-    assert!(resolution_cache_key(&config(), &ordinary).is_some());
-    assert!(resolution_cache_key(&config(), &refresh).is_none());
-    assert!(resolution_cache_key(&config(), &repair).is_none());
+    assert!(resolution_cache_key(&ordinary).is_some());
+    assert!(resolution_cache_key(&refresh).is_none());
+    assert!(resolution_cache_key(&repair).is_none());
 }
 
 #[test]

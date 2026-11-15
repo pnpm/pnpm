@@ -1,4 +1,4 @@
-use super::{Regex, RunError, Value};
+use super::{Path, Regex, RunError, Value};
 use std::fmt::Write as _;
 
 /// The `run` positional, resolved once into whichever of pnpm's two
@@ -49,15 +49,15 @@ impl<'a> ScriptSelector<'a> {
     }
 
     /// [`Self::select`] plus single-project `run`'s `start` fallback:
-    /// `pnpm start` resolves to `node server.js` even when the manifest
-    /// declares no `start` script. The recursive runner has no such
-    /// fallback.
-    pub(super) fn select_with_start(&self, manifest: &Value) -> Vec<String> {
+    /// `pnpm start` resolves to `node server.js` when `server.js` exists in
+    /// `dir` and the manifest declares no `start` script. The recursive
+    /// runner has no such fallback.
+    pub(super) fn select_with_start(&self, manifest: &Value, dir: &Path) -> Vec<String> {
         let specified = self.select(manifest);
         if !specified.is_empty() {
             return specified;
         }
-        if self.name == "start" {
+        if self.name == "start" && dir.join("server.js").exists() {
             return vec![self.name.to_string()];
         }
         Vec::new()

@@ -25,14 +25,17 @@ mod upload_errors;
 use publication::post_upload;
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize_package,
+    Action, AppState, AuthedCaller, HostedGate, Ownership, RegistrySource, TargetRegistry,
+    authorize_package, authorize_with_ownership,
     documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
         is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
         serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
-    hosted_gate, not_found, private_no_cache,
+    hosted_gate, not_found,
+    package_owners::owner_routes,
+    private_no_cache,
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
     resolve_ecosystem_source,
 };
@@ -83,7 +86,8 @@ pub(super) fn routes() -> Router<AppState> {
                 delete(management::delete_file),
             )
             .route(&format!("{base}/{UPLOAD_PATH}"), post(post_upload))
-            .route(&format!("{base}/{UPLOAD_PATH}/"), post(post_upload));
+            .route(&format!("{base}/{UPLOAD_PATH}/"), post(post_upload))
+            .route(&format!("{base}/owners/{{name}}"), owner_routes::<ProjectDocument>());
     }
     router
 }
@@ -177,7 +181,8 @@ async fn visible_project_names(
 ) -> Result<BTreeSet<String>, RegistryError> {
     let mut names = BTreeSet::new();
     for source in hosted_sources(state, target, ECOSYSTEM) {
-        let Some(hosted) = state.inner.config.routing.hosted.get(&source) else { continue };
+        let routing = state.routing();
+        let Some(hosted) = routing.hosted.get(&source) else { continue };
         let listed = state.inner.storage
             .for_hosted(&hosted.namespace, ECOSYSTEM)
             .hosted_package_names()
@@ -275,7 +280,7 @@ async fn load_upstream_page(
         accept: Some(JSON_CONTENT_TYPE),
         limit: PAGE_LIMIT,
     };
-    let Some(bytes) = load_upstream_document(state, upstream, &namespace, request, |document| {
+    let Some(bytes) = load_upstream_document(state, &upstream, &namespace, request, |document| {
         let body = serde_json::from_slice::<Box<RawValue>>(&document.bytes)
             .map_err(|_| RegistryError::UpstreamResponse {
                 url: document.url.clone(),
@@ -363,12 +368,12 @@ async fn file_via_upstream(
         _ => return bad_entry(format!("file {filename} has no fetchable HTTP(S) URL")),
     };
     if filename.ends_with(".metadata") {
-        return metadata::serve(state, upstream, &namespace, key, entry, &url).await;
+        return metadata::serve(state, &upstream, &namespace, key, entry, &url).await;
     }
     let Some(integrity) = entry.sha256().and_then(sha256_integrity) else {
         return bad_entry(format!("file {filename} has no SHA-256 hash"));
     };
-    serve_upstream_artifact(state, upstream, &namespace, key, filename, url.as_str(), &integrity)
+    serve_upstream_artifact(state, &upstream, &namespace, key, filename, url.as_str(), &integrity)
         .await
 }
 

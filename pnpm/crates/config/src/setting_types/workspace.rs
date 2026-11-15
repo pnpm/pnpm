@@ -1,42 +1,5 @@
 use super::{Deserialize, Serialize};
 
-/// How the resolver picks a version for a direct dependency when more
-/// than one satisfies the wanted range.
-///
-/// The setting is `'highest' | 'time-based' | 'lowest-direct'`.
-///
-/// Only direct dependencies are affected by the lowest-version pick;
-/// subdependencies are always picked highest. Under
-/// [`ResolutionMode::TimeBased`] the resolver additionally constrains
-/// subdependencies to versions published no later than the newest
-/// resolved direct dependency (plus a one-hour delta).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ResolutionMode {
-    /// Pick the highest version that satisfies the range, everywhere.
-    #[default]
-    Highest,
-
-    /// Resolve direct dependencies to their lowest satisfying version,
-    /// then resolve subdependencies from versions published before the
-    /// last direct dependency was published.
-    TimeBased,
-
-    /// Resolve direct dependencies to their lowest satisfying version;
-    /// subdependencies are unconstrained (picked highest).
-    LowestDirect,
-}
-
-impl ResolutionMode {
-    /// Whether direct dependencies are resolved to their lowest
-    /// satisfying version. True for both [`Self::TimeBased`] and
-    /// [`Self::LowestDirect`].
-    #[must_use]
-    pub fn picks_lowest_direct(self) -> bool {
-        matches!(self, ResolutionMode::TimeBased | ResolutionMode::LowestDirect)
-    }
-}
-
 /// How `pnpm add` / `pnpm update` reconcile a directly-specified version
 /// against a `catalog:` entry for the same package.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

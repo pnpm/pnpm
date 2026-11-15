@@ -27,7 +27,7 @@ use std::{
 };
 
 /// Per-name entry in the propagating [`ParentRefs`] map.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ParentRef {
     pub(super) version: Arc<str>,
     /// `None` for top-level deps that were already installed. Pacquet

@@ -1,4 +1,4 @@
-use crate::model::{DependencyKind, RegistryDependency, RegistryVersion};
+use crate::model::{DependencyKind, RegistryDependency, RegistryVersion, ensure_not_cancelled};
 use cargo_util_schemas::index::{IndexPackage, RegistryDependency as IndexDependency};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use semver::{Version, VersionReq};
@@ -74,8 +74,16 @@ pub(crate) struct Registry {
 
 impl Registry {
     pub(crate) fn new(index_files: &BTreeMap<String, String>, source: &str) -> Result<Self> {
+        Self::new_until(index_files, source, &|| false)
+    }
+
+    pub(crate) fn new_until(
+        index_files: &BTreeMap<String, String>,
+        source: &str,
+        should_cancel: &(dyn Fn() -> bool + Send + Sync),
+    ) -> Result<Self> {
         let mut registry = Self::empty(source);
-        registry.add_entries(index_files)?;
+        registry.add_entries_until(index_files, should_cancel)?;
         Ok(registry)
     }
 
@@ -83,9 +91,17 @@ impl Registry {
         Self { packages: BTreeMap::new(), source: source.to_string() }
     }
 
-    pub(crate) fn add_entries(&mut self, index_files: &BTreeMap<String, String>) -> Result<()> {
+    pub(crate) fn add_entries_until(
+        &mut self,
+        index_files: &BTreeMap<String, String>,
+        should_cancel: &(dyn Fn() -> bool + Send + Sync),
+    ) -> Result<()> {
         for (name, contents) in index_files {
-            self.packages.insert(normalize_name(name), parse_index_file(name, contents)?);
+            ensure_not_cancelled(should_cancel)?;
+            self.packages.insert(
+                normalize_name(name),
+                parse_index_file_until(name, contents, should_cancel)?,
+            );
         }
         Ok(())
     }
@@ -190,9 +206,14 @@ pub fn latest_matching_version(
     Ok(selected.map(|version| version.version.clone()))
 }
 
-fn parse_index_file(name: &str, contents: &str) -> Result<Vec<RegistryVersion>> {
+fn parse_index_file_until(
+    name: &str,
+    contents: &str,
+    should_cancel: &(dyn Fn() -> bool + Send + Sync),
+) -> Result<Vec<RegistryVersion>> {
     let mut versions = Vec::new();
     for (line_index, line) in contents.lines().enumerate() {
+        ensure_not_cancelled(should_cancel)?;
         let package: IndexPackage<'_> = serde_json::from_str(line)
             .into_diagnostic()
             .wrap_err_with(|| format!("parse sparse index entry {name}:{}", line_index + 1))?;

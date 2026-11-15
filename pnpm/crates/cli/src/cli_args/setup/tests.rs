@@ -51,6 +51,22 @@ fn created_config_reports_the_source_hint() {
 }
 
 #[test]
+fn created_powershell_profile_reports_the_dot_source_hint() {
+    let report = PathExtenderReport {
+        config_file: Some(ConfigReport {
+            path: PathBuf::from("/home/o'neil/.config/powershell/profile.ps1"),
+            change_type: ConfigFileChangeType::Created,
+        }),
+        old_settings: String::new(),
+        new_settings: "$env:PNPM_HOME = ...".to_string(),
+    };
+    assert_eq!(
+        render_setup_output(&report),
+        "Created /home/o'neil/.config/powershell/profile.ps1\n\nThe following configuration changes were made:\n$env:PNPM_HOME = ...\n\nTo start using pnpm, run:\n. '/home/o''neil/.config/powershell/profile.ps1'\n",
+    );
+}
+
+#[test]
 fn windows_report_omits_the_source_hint() {
     let report = PathExtenderReport {
         config_file: None,
@@ -112,6 +128,12 @@ fn no_modify_path_prints_fish_syntax_for_fish() {
 fn no_modify_path_prints_nushell_syntax_for_nu() {
     let settings = unmodified_path_settings(&ManualSetupShell::Posix(Some("nu".to_string())));
     assert!(settings.starts_with("$env.PNPM_HOME = "), "{settings}");
+}
+
+#[test]
+fn no_modify_path_prints_powershell_syntax_for_pwsh() {
+    let settings = unmodified_path_settings(&ManualSetupShell::Posix(Some("pwsh".to_string())));
+    assert!(settings.starts_with("$env:PNPM_HOME = '/root/.pnpm'\n"), "{settings}");
 }
 
 #[test]

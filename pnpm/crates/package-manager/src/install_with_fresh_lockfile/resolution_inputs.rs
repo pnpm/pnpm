@@ -20,6 +20,8 @@ pub(crate) struct WorkspaceLifecycleHooks {
     pub pnpmfile: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub read_package_log: Option<pnpm_hooks::LogFn>,
     pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
+    pub max_snapshots: Option<usize>,
+    pub cancel: pnpm_resolving_deps_resolver::ResolutionCancel,
 }
 
 /// Each importer's root preference layer of the specifiers its manifest
@@ -27,6 +29,8 @@ pub(crate) struct WorkspaceLifecycleHooks {
 pub(crate) type OwnManifestSpecifiers = BTreeMap<String, Arc<PreferredVersionsOverlay>>;
 
 pub(crate) struct ImporterVersionSeeds<'a> {
+    pub requested_direct_dependencies:
+        Option<&'a BTreeMap<String, std::collections::BTreeSet<String>>>,
     pub shared: &'a Arc<PreferredVersions>,
     pub by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
     /// Each importer's own manifest specifiers, when the seeds leave out other
@@ -38,7 +42,7 @@ pub(crate) struct ImporterVersionSeeds<'a> {
 }
 
 pub(crate) struct ResolverStoreContext<'a> {
-    pub dir: &'static StoreDir,
+    pub dir: &'a StoreDir,
     pub index: Option<&'a SharedReadonlyStoreIndex>,
     pub index_writer: &'a Arc<StoreIndexWriter>,
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
@@ -108,6 +112,15 @@ pub(crate) struct ReuseLockfileInputs<'a> {
 }
 
 impl<'a> ImporterVersionSeeds<'a> {
+    pub(super) fn requested_for_importer(&self, id: &str) -> rustc_hash::FxHashSet<String> {
+        self.requested_direct_dependencies
+            .and_then(|requests| requests.get(id))
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect()
+    }
+
     pub(super) fn for_importer(&self, id: &str) -> &'a Arc<PreferredVersions> {
         self.by_importer.get(id).unwrap_or(self.shared)
     }

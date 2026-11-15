@@ -375,3 +375,45 @@ fn a_url_whose_userinfo_survives_the_scan_is_hidden_entirely() {
         assert!(rendered.contains("tcp connect error"), "the reason must survive: {rendered}");
     }
 }
+
+#[cfg(not(feature = "runtime-provisioning"))]
+#[tokio::test]
+async fn add_runtime_request_reports_unavailable_when_runtime_provisioning_is_disabled() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
+        .expect("create manifest");
+    let config = Config::new().leak();
+    let http_client = ThrottledClient::default();
+    let resolved_packages = ResolvedPackages::default();
+    let package_names = ["node@runtime:22".to_string()];
+
+    let error = Add {
+        manifest: &mut manifest,
+        options: crate::AddOptions {
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            config,
+            lockfile: crate::CommandLockfile::loaded(None, None),
+            package_names: &package_names,
+            range_spec_style: RangeSpecStyle::Major,
+            lockfile_only: true,
+            save_types: false,
+        },
+        resources: crate::AddResources {
+            tarball_mem_cache: Arc::default(),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some([DependencyGroup::Prod]),
+            included_groups: None,
+            save_catalog_name: None,
+            supported_architectures: None,
+        },
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect_err("a runtime request must fail when runtime provisioning is disabled");
+
+    assert!(matches!(error, AddError::RuntimeProvisioningUnavailable));
+    assert_eq!(error.to_string(), "Runtime provisioning is not enabled in this build");
+}

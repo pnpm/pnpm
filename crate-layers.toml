@@ -4,7 +4,8 @@
 # crates each of its crates reaches through normal and build dependencies. `just crate-layers check` enforces this, and
 # `just crate-layers diff <rev>` lists the edges a change adds or removes.
 # A new crate goes into the layer that matches its role, not the lowest
-# layer its current dependencies allow.
+# layer its current dependencies allow. `[product_boundary]` lists the crates
+# that pnpm and pnpr may share.
 
 [[layer]]
 name = "foundation"
@@ -106,6 +107,7 @@ crates = [
   "pnpm-lockfile-preferred-versions",
   "pnpm-lockfile-verification",
   "pnpm-patching",
+  "pnpm-pnpr-client",
   "pnpm-python-resolver",
   "pnpm-real-hoist",
   "pnpm-registry",
@@ -144,7 +146,6 @@ crates = [
   "pnpm-github-actions",
   "pnpm-pack",
   "pnpm-package-manager",
-  "pnpm-pnpr-client",
   "pnpm-publish",
   "pnpm-python-installer",
   "pnpm-resolving-default-resolver",
@@ -187,6 +188,50 @@ crates = [
   "pnpm-testing-utils",
   "pnpm-unsafe-audit",
   "pnpr-fixtures",
+]
+
+# The crates that a crate of another product may depend on. A crate's
+# product is the first component of its directory: `pnpm` for the pnpm CLI
+# and its tasks, `pnpr` for the registry server. The check covers every
+# dependency kind, dev-dependencies included. It fails when a crate depends
+# on a crate of another product that is not listed here, and when a listed
+# crate no longer has a dependent in another product, so the list only
+# shrinks. Before listing a crate, consider moving what both products need
+# into a crate already listed.
+[product_boundary]
+crates = [
+  # pnpm crates that pnpr depends on.
+  "pnpm-cargo-resolver",
+  "pnpm-catalogs-types",
+  "pnpm-config",
+  "pnpm-config-dir",
+  "pnpm-crypto-hash",
+  "pnpm-deps-path",
+  "pnpm-diagnostics",
+  "pnpm-env-replace",
+  "pnpm-ffi-process",
+  "pnpm-fs",
+  "pnpm-lockfile",
+  "pnpm-lockfile-verification",
+  "pnpm-network",
+  "pnpm-package-manager",
+  "pnpm-package-manifest",
+  "pnpm-package-name",
+  "pnpm-platform-variants",
+  "pnpm-python-resolver",
+  "pnpm-release-record",
+  "pnpm-reporter",
+  "pnpm-resolving-npm-resolver",
+  "pnpm-resolving-resolver-base",
+  "pnpm-shared-artifact-protocol",
+  "pnpm-store-dir",
+  "pnpm-tarball",
+  "pnpm-testing-utils",
+  "pnpm-transparency-log",
+  # pnpr crates that pnpm depends on.
+  "pnpr",
+  "pnpr-fixtures",
+  "pnpr-package-name",
 ]
 
 # The accepted size of each crate's largest cycle among its top-level
@@ -243,7 +288,7 @@ pnpm-catalogs-protocol-parser = 1
 pnpm-catalogs-resolver = 3
 pnpm-cli = 82
 pnpm-cmd-shim = 2
-pnpm-config = 22
+pnpm-config = 21
 pnpm-config-parse-overrides = 3
 pnpm-crypto-shasums-file = 4
 pnpm-default-reporter = 4
@@ -252,7 +297,7 @@ pnpm-deps-inspection-peers = 10
 pnpm-deps-path = 2
 pnpm-deps-restorer = 33
 pnpm-detect-libc = 1
-pnpm-directory-fetcher = 5
+pnpm-directory-fetcher = 4
 pnpm-engine-pm-yarn-resolver = 6
 pnpm-engine-runtime-bun-resolver = 8
 pnpm-engine-runtime-deno-resolver = 7
@@ -294,7 +339,7 @@ pnpm-patching = 5
 pnpm-platform-variants = 2
 pnpm-pnpr-client = 10
 pnpm-process = 2
-pnpm-publish = 13
+pnpm-publish = 11
 pnpm-python-installer = 19
 pnpm-python-resolver = 1
 pnpm-real-hoist = 2
@@ -303,7 +348,7 @@ pnpm-registry-mock = 2
 pnpm-release-notes = 1
 pnpm-release-record = 1
 pnpm-reporter = 1
-pnpm-resolving-default-resolver = 11
+pnpm-resolving-default-resolver = 12
 pnpm-resolving-deps-resolver = 19
 pnpm-resolving-git-resolver = 10
 pnpm-resolving-jsr-specifier-parser = 1
@@ -320,8 +365,8 @@ pnpm-version-policy = 1
 pnpm-versioning = 3
 pnpm-wasm-host = 1
 pnpm-which = 1
-pnpm-workspace = 6
-pnpm-workspace-manifest-writer = 7
+pnpm-workspace = 7
+pnpm-workspace-manifest-writer = 8
 pnpm-workspace-projects-filter = 7
 pnpm-workspace-projects-graph = 6
 pnpm-workspace-state = 2
@@ -329,10 +374,9 @@ pnpm-workspace-task-scheduler = 2
 pnpr = 40
 pnpr-auth = 6
 pnpr-cargo = 2
-pnpr-config = 7
+pnpr-config = 8
 pnpr-fixtures = 5
 pnpr-libsql = 3
-pnpr-oci = 1
 pnpr-osv = 3
 pnpr-package-name = 2
 pnpr-pipeline-runs = 2
@@ -355,9 +399,8 @@ pnpr-upstream = 6
 pnpm-auth-commands = 4
 pnpm-catalogs-config = 2
 pnpm-catalogs-resolver = 1
-pnpm-cli = 24
 pnpm-cmd-shim = 1
-pnpm-config = 9
+pnpm-config = 8
 pnpm-config-parse-overrides = 1
 pnpm-crypto-shasums-file = 2
 pnpm-default-reporter = 2
@@ -365,9 +408,9 @@ pnpm-deps-inspection = 3
 pnpm-deps-inspection-peers = 5
 pnpm-deps-restorer = 21
 pnpm-directory-fetcher = 2
-pnpm-engine-pm-yarn-resolver = 3
-pnpm-engine-runtime-bun-resolver = 4
-pnpm-engine-runtime-deno-resolver = 4
+pnpm-engine-pm-yarn-resolver = 2
+pnpm-engine-runtime-bun-resolver = 3
+pnpm-engine-runtime-deno-resolver = 3
 pnpm-engine-runtime-node-resolver = 3
 pnpm-env-installer = 10
 pnpm-executor = 2
@@ -381,7 +424,6 @@ pnpm-lockfile = 5
 pnpm-lockfile-import = 1
 pnpm-lockfile-preferred-versions = 4
 pnpm-lockfile-verification = 3
-pnpm-napi = 4
 pnpm-network = 1
 pnpm-network-web-auth = 2
 pnpm-network-web-auth-testing = 1
@@ -400,7 +442,7 @@ pnpm-resolving-default-resolver = 4
 pnpm-resolving-deps-resolver = 8
 pnpm-resolving-git-resolver = 4
 pnpm-resolving-local-resolver = 4
-pnpm-resolving-npm-resolver = 8
+pnpm-resolving-npm-resolver = 7
 pnpm-resolving-resolver-base = 3
 pnpm-resolving-tarball-resolver = 4
 pnpm-rust-toolchain = 5
@@ -412,7 +454,7 @@ pnpm-workspace = 2
 pnpm-workspace-manifest-writer = 4
 pnpm-workspace-projects-filter = 2
 pnpm-workspace-projects-graph = 1
-pnpr = 7
+pnpr = 1
 pnpr-auth = 2
 pnpr-config = 4
 pnpr-fixtures = 3

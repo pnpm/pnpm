@@ -146,14 +146,14 @@ fn aliasless_tarball_resolver(
             mem_cache: None,
             auth_headers: Arc::clone(&config.auth_headers),
             retry_opts: config.retry_opts(),
-            tar_limits: config.tar_limits(),
+            tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),
             prior_tarball_entries: Arc::new(HashMap::new()),
             cache_dir: Some(config.cache_dir.clone()),
             integrity_target: config.lockfile_integrity_target,
             store: pnpm_tarball::ArchiveStoreContext {
                 strict_pkg_content_check: false,
                 prefetched_cas_paths: None,
-                dir: &config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&config.store_dir),
                 index_writer: None,
                 index: None,
                 verify_integrity: config.verify_store_integrity,
@@ -345,11 +345,11 @@ pub(super) fn aliasless_git_resolver(
     .with_fetch_context(GitFetchContext {
         source_cache: Arc::clone(inputs.git_source_cache),
         http_client: Arc::clone(http_client),
-        store_dir: &config.store_dir,
+        store_dir: std::borrow::Cow::Borrowed(&config.store_dir),
         store_index_writer: None,
         auth_headers: Arc::clone(&config.auth_headers),
         retry_opts: config.retry_opts(),
-        tar_limits: config.tar_limits(),
+        tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),
         git_shallow_hosts: config.git_shallow_hosts.clone(),
     })
 }

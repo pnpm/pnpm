@@ -137,7 +137,8 @@ async fn request_timeout_returns_504_gateway_timeout() {
         body_json(response.into_body()).await,
         json!({
             "error": "request timed out",
-            "reason": "request timed out"
+            "reason": "request timed out",
+            "code": "ERR_PNPR_REQUEST_TIMEOUT"
         }),
     );
 }

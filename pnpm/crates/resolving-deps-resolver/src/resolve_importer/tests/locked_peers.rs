@@ -45,7 +45,7 @@ fn locked_peer_versions_are_recorded_for_direct_deps() {
         extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "app");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "app", |_| true);
 
     assert_eq!(versions["peer"], HashSet::from_iter(["2.0.0".to_string()]));
 }
@@ -84,7 +84,7 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
@@ -101,7 +101,7 @@ fn explicit_peer_suffix_uses_the_dependency_alias() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
@@ -140,7 +140,7 @@ fn nested_peer_suffix_uses_its_providers_dependency_alias() {
     );
 
     assert_eq!(
-        importer_locked_peer_versions(Some(&lockfile), "app"),
+        importer_locked_peer_versions(Some(&lockfile), "app", |_| true),
         HashMap::from_iter([
             ("provider".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
             ("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()])),
@@ -164,7 +164,7 @@ fn an_ordinary_alias_onto_a_peers_provider_does_not_rename_it() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
@@ -187,7 +187,7 @@ fn a_declared_peer_alias_outranks_a_competing_ordinary_alias() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
@@ -209,7 +209,7 @@ fn declared_peers_sharing_a_provider_each_get_their_alias_back() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([
@@ -235,7 +235,7 @@ fn a_declared_peer_does_not_consume_the_propagated_peers_segment() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([
@@ -260,7 +260,7 @@ fn a_linked_dependency_is_not_a_peer_provider() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
@@ -279,7 +279,7 @@ fn a_hashed_peer_suffix_without_package_metadata_records_nothing() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert!(versions.is_empty());
 }
 
@@ -312,14 +312,30 @@ fn importers_missing_from_the_lockfile_share_one_locked_peer_scan() {
     );
     let workspace =
         Arc::new(WorkspaceTreeCtx::default().with_wanted_lockfile(Some(Arc::new(lockfile))));
-    let peers_of = |importer_id| {
+    let peers_of = |importer_id, wanted: &[_]| {
         let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
-        LockedPeers::of(&ctx, importer_id).versions
+        let retained = super::super::locked_peers::retained_dependency_names(
+            workspace.wanted_lockfile().unwrap(),
+            importer_id,
+            wanted,
+        );
+        Arc::clone(LockedPeers::for_importer(&ctx, importer_id, &retained).versions(&workspace))
     };
-
-    let first = peers_of("new-a");
-    let second = peers_of("new-b");
-    let listed = peers_of("app");
+    let wanted = [crate::resolve_dependency_tree::DependencySpec {
+        alias: "consumer".to_string(),
+        bare_specifier: "1.0.0".to_string(),
+        optional: false,
+        injected: false,
+    }];
+    let first = peers_of("new-a", &wanted);
+    let second = peers_of("new-b", &wanted);
+    let listed = peers_of("app", &wanted);
+    assert!(peers_of("app", &[]).is_empty());
+    let changed = [crate::resolve_dependency_tree::DependencySpec {
+        bare_specifier: "2.0.0".to_string(),
+        ..wanted[0].clone()
+    }];
+    assert!(peers_of("app", &changed).is_empty());
 
     assert_eq!(first["peer"], HashSet::from_iter(["2.0.0".to_string(), "3.0.0".to_string()]));
     assert!(Arc::ptr_eq(&first, &second));
@@ -339,7 +355,7 @@ fn explicit_peer_suffix_of_an_undeclared_peer_is_kept() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]),
@@ -800,6 +816,80 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
                 .iter()
                 .all(|range| *range == "1.0.0"),
             "{name} should resolve via the sibling's exact-version spec only, got {ranges:?}",
+        );
+    }
+}
+
+#[test]
+fn recorded_hashed_pins_match_explicit_pins() {
+    use pnpm_deps_path::PeerId;
+    use pnpm_lockfile::{PeerBindings, RecordedPeerBindings};
+
+    for snapshot in [
+        SnapshotEntry::default(),
+        snapshot_with_dependencies([
+            ("first", alias_dependency("provider@1.0.0(nested@2.0.0)")),
+            ("second", alias_dependency("provider@1.0.0(nested@2.0.0)")),
+        ]),
+    ] {
+        let peers = vec![
+            PeerId::DepPath("provider@1.0.0(nested@2.0.0)".into()),
+            PeerId::DepPath("provider@1.0.0(nested@2.0.0)".into()),
+        ];
+        let versions = |max_length| {
+            let key = format!("consumer@1.0.0{}", PeerBindings::suffix_of(&peers, max_length));
+            let mut snapshot = snapshot.clone();
+            snapshot.recorded_peer_bindings =
+                RecordedPeerBindings::for_dep_path(&key.clone().into(), &peers);
+            let lockfile = peer_context_lockfile(
+                Some(("consumer@1.0.0", peer_declaring_metadata(["first", "second"]))),
+                [(&key, snapshot)],
+            );
+            importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true)
+        };
+        let explicit = versions(1000);
+        assert!(!explicit.is_empty());
+        assert_eq!(versions(3), explicit);
+    }
+}
+
+#[test]
+fn retained_transitive_peer_pins_keep_descendant_aliases() {
+    use pnpm_deps_path::PeerId;
+    use pnpm_lockfile::{PeerBindings, RecordedPeerBindings};
+
+    let peers = [PeerId::DepPath("provider@1.0.0".into())];
+    let suffix = PeerBindings::suffix_of(&peers, 3);
+    let key = format!("parent@1.0.0{suffix}");
+    let recorded = RecordedPeerBindings::for_dep_path(&key.clone().into(), &peers);
+    assert!(recorded.is_some());
+    for bindings in [None, recorded] {
+        let mut parent =
+            snapshot_with_dependency("child", plain_dependency("1.0.0(provider@1.0.0)"));
+        parent.transitive_peer_dependencies = Some(vec!["peer".to_string()]);
+        parent.recorded_peer_bindings = bindings;
+        let mut lockfile = peer_context_lockfile(
+            Some(("child@1.0.0", peer_declaring_metadata(["peer"]))),
+            [
+                (key.as_str(), parent),
+                (
+                    "child@1.0.0(provider@1.0.0)",
+                    snapshot_with_dependency("peer", alias_dependency("provider@1.0.0")),
+                ),
+            ],
+        );
+        lockfile.importers.insert(
+            "app".to_string(),
+            serde_json::from_value(serde_json::json!({
+                "dependencies": {
+                    "parent": { "specifier": "1.0.0", "version": format!("1.0.0{suffix}") },
+                },
+            }))
+            .unwrap(),
+        );
+        assert_eq!(
+            importer_locked_peer_versions(Some(&lockfile), "app", |_| true),
+            HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
         );
     }
 }

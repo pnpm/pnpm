@@ -49,6 +49,7 @@ export function addDepPathOrDeferCalculation<Pkg extends PartialResolvedPackage>
     addDepPathToGraph(ctx, resolvedNode, pkgIdWithPatchHash as unknown as DepPath)
     return undefined
   }
+  recordPeerNode(ctx, resolvedNode)
   const peerIds: PeerId[] = []
   const pendingPeers: PendingPeer[] = []
   for (const [alias, peerNodeId] of resolvedNode.allResolvedPeers.entries()) {
@@ -65,6 +66,21 @@ export function addDepPathOrDeferCalculation<Pkg extends PartialResolvedPackage>
     return undefined
   }
   return async (cycles) => calculateDepPath(ctx, { resolvedNode, peerIds, pendingPeerNodes: pendingPeers }, cycles)
+}
+
+function recordPeerNode<Pkg extends PartialResolvedPackage> (
+  ctx: ResolveNodePeersContext<Pkg>,
+  resolvedNode: NodeWithResolvedPeers<Pkg>
+): void {
+  const { pkgIdWithPatchHash } = resolvedNode.resolvedPackage
+  const parentNodeIds = ctx.parentDepPathsChain.includes(pkgIdWithPatchHash)
+    ? ctx.parentNodeIds.filter((nodeId) => (ctx.dependenciesTree.get(nodeId)!.resolvedPackage as Pkg).pkgIdWithPatchHash === pkgIdWithPatchHash)
+    : []
+  ctx.peerNodes.set(resolvedNode.nodeId, {
+    resolvedNode: { ...resolvedNode },
+    parentNodeIds,
+    parentDepPathsChain: parentNodeIds.length > 0 ? [pkgIdWithPatchHash] : [],
+  })
 }
 
 async function calculateDepPath<Pkg extends PartialResolvedPackage> (
@@ -142,8 +158,14 @@ async function getPendingPeerId<Pkg extends PartialResolvedPackage> (
   return ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)!.promise
 }
 
-function addDepPathToGraph<Pkg extends PartialResolvedPackage> (
-  ctx: ResolveNodePeersContext<Pkg>,
+export type AddDepPathContext<Pkg extends PartialResolvedPackage> = Pick<ResolveNodePeersContext<Pkg>,
+| 'pathsByNodeId' | 'pathsByNodeIdPromises' | 'depPathsByPkgId' | 'depGraph'
+| 'virtualStoreDir' | 'virtualStoreDirMaxLength' | 'dependenciesTree'
+| 'parentNodeIds' | 'parentDepPathsChain'
+>
+
+export function addDepPathToGraph<Pkg extends PartialResolvedPackage> (
+  ctx: AddDepPathContext<Pkg>,
   resolvedNode: NodeWithResolvedPeers<Pkg>,
   depPath: DepPath
 ): void {
@@ -241,7 +263,7 @@ function getPreviouslyResolvedChildren<Pkg extends PartialResolvedPackage> (
  * registries produce one suffix, so two variants of the dependent — each
  * bound to a different peer artifact — would collapse onto a single depPath.
  */
-function peerIdOfResolvedPackage (
+export function peerIdOfResolvedPackage (
   resolvedPackage: { name: string, version: string, id?: PkgResolutionId }
 ): { name: string, version: string } {
   // Importer and link nodes carry no resolution id and can never be

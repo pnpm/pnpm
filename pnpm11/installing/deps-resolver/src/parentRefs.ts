@@ -65,7 +65,7 @@ export function toPkgByName<Pkg extends PartialResolvedPackage> (nodes: Array<Pa
 
 function updateParentRefs (parentRefs: ParentRefs, newAlias: string, pkg: ParentRef): void {
   const existing = parentRefs[newAlias]
-  if (existing) {
+  if (Object.hasOwn(parentRefs, newAlias)) {
     const existingHasAlias = existing.alias != null && existing.alias !== newAlias
     if (!existingHasAlias) return
     const newHasAlias = pkg.alias != null && pkg.alias !== newAlias

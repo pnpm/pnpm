@@ -20,7 +20,7 @@ If you used the standalone script to install pnpm, then you should be able to un
 rm -rf "$PNPM_HOME"
 ```
 
-You might also want to clean the `PNPM_HOME` env variable in your shell configuration file (`$HOME/.bashrc`, `$HOME/.zshrc` or `$HOME/.config/fish/config.fish`).
+You might also want to clean the `PNPM_HOME` env variable in your shell configuration file (`$HOME/.bashrc`, `$HOME/.zshrc`, `$HOME/.config/fish/config.fish`, or `$HOME/.config/powershell/profile.ps1`).
 
 If you used npm to install pnpm, then you should use npm to uninstall pnpm:
 

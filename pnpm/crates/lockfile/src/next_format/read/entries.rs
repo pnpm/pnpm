@@ -2,7 +2,7 @@
 
 use super::{
     super::{NextSnapshotEntry, RestoreContext},
-    Graph, Provider, Sid, child_named,
+    Graph, Provider, RestoredKey, Sid, child_named,
 };
 use crate::{
     ImporterDepVersion, PackageKey, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotDepRef,
@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 impl Graph<'_> {
     pub(super) fn snapshot_entries(
         &self,
-        keys: &[PkgNameVerPeer],
+        keys: &[RestoredKey],
         context: RestoreContext<'_>,
     ) -> HashMap<PackageKey, SnapshotEntry> {
         let unbound = self.unbound_peers(context);
@@ -23,7 +23,7 @@ impl Graph<'_> {
             .into_par_iter()
             .map(|sid| {
                 let below = self.unbound_below(sid, &unbound, context);
-                (keys[sid].clone(), self.snapshot_entry(sid, keys, context, &below))
+                (keys[sid].key.clone(), self.snapshot_entry(sid, keys, context, &below))
             })
             .collect()
     }
@@ -31,7 +31,7 @@ impl Graph<'_> {
     pub(super) fn snapshot_entry(
         &self,
         sid: Sid,
-        keys: &[PkgNameVerPeer],
+        keys: &[RestoredKey],
         context: RestoreContext<'_>,
         unbound_below: &HashSet<String>,
     ) -> SnapshotEntry {
@@ -50,6 +50,7 @@ impl Graph<'_> {
             target.insert(name.clone(), self.restored_peer(sid, name, reference, keys));
         }
         SnapshotEntry {
+            recorded_peer_bindings: keys[sid].bindings.clone(),
             id: entry.id.clone(),
             dependencies: non_empty(dependencies),
             optional_dependencies: non_empty(optional_dependencies),
@@ -64,14 +65,14 @@ impl Graph<'_> {
         &self,
         sid: Sid,
         children: Option<&HashMap<PkgName, NextRef>>,
-        keys: &[PkgNameVerPeer],
+        keys: &[RestoredKey],
     ) -> HashMap<PkgName, SnapshotDepRef> {
         children
             .into_iter()
             .flatten()
             .map(|(alias, reference)| {
                 let restored = match child_named(&self.children[sid], alias) {
-                    Some(child) => with_key(reference.version(), &keys[child]),
+                    Some(child) => with_key(reference.version(), &keys[child].key),
                     None => reference.version().clone(),
                 };
                 (alias.clone(), restored)
@@ -85,14 +86,16 @@ impl Graph<'_> {
         sid: Sid,
         name: &PkgName,
         reference: &NextRef,
-        keys: &[PkgNameVerPeer],
+        keys: &[RestoredKey],
     ) -> SnapshotDepRef {
         let provider = self.providers[sid]
             .iter()
             .find(|(bound, _)| *bound == name)
             .map(|(_, provider)| provider);
         match provider {
-            Some(Provider::Snapshot(provider)) => with_key(reference.version(), &keys[*provider]),
+            Some(Provider::Snapshot(provider)) => {
+                with_key(reference.version(), &keys[*provider].key)
+            }
             _ => reference.version().clone(),
         }
     }
@@ -101,11 +104,11 @@ impl Graph<'_> {
         &self,
         id: &str,
         importer: &NextImporter,
-        keys: &[PkgNameVerPeer],
+        keys: &[RestoredKey],
     ) -> ProjectSnapshot {
         let chosen = &self.importer_children[id];
         importer.project_snapshot(|alias, dep| match child_named(chosen, alias) {
-            Some(sid) => importer_version_with_key(&dep.version, &keys[sid]),
+            Some(sid) => importer_version_with_key(&dep.version, &keys[sid].key),
             None => dep.version.clone(),
         })
     }

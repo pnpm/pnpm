@@ -144,3 +144,16 @@ fn update_selectors_keep_prefixed_exclusions_scoped_alongside_positive_requests(
     assert_eq!(parsed.python_exclusions, vec!["requests"]);
     assert_eq!(parsed.bare_patterns, vec!["foo*"]);
 }
+
+#[test]
+fn update_selectors_reject_direct_url_pypi_requirements() {
+    let mut config = Config::default();
+    config.python.enabled = true;
+    let err = parse_update_selectors(
+        &["pypi:six @ https://example.org/six-1.16.0-py2.py3-none-any.whl".to_string()],
+        &config,
+    )
+    .expect_err("direct URL requirement should be rejected by update")
+    .to_string();
+    assert!(err.contains("direct URL requirements are not supported by pnpm update"), "{err}");
+}

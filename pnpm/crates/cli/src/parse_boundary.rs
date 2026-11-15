@@ -20,11 +20,12 @@ use std::{collections::HashSet, ffi::OsString};
 
 /// Commands whose own arguments are unconditionally a foreign command line.
 ///
-/// pnpm's `SPECIALLY_ESCAPED_CMDS` is `run` / `dlx` / `with`; `exec` joins
-/// them here because its argv shape reaches the same place. `with` is
-/// handled separately in [`command_boundary`], because only some of its
-/// invocations forward their arguments to another process.
-const COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE: [&str; 3] = ["run", "exec", "dlx"];
+/// pnpm's `SPECIALLY_ESCAPED_CMDS` is `run` / `dlx` / `with`; `exec` and
+/// `create` join them here because their argv shapes reach the same place.
+/// `with` is handled separately in [`command_boundary`], because only some
+/// of its invocations forward their arguments to another process.
+pub(crate) const COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE: [&str; 4] =
+    ["run", "exec", "dlx", "create"];
 
 /// Commands that stand for one named script, whose own arguments are that
 /// script's command line.
@@ -32,7 +33,7 @@ const COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE: [&str; 3] = ["run", "exec", "dlx"]
 /// pnpm has no command by these names: they reach `run` through the
 /// `pnpm <script>` fallback, so the boundary is the token right after the
 /// command name — there is no script name to skip, unlike `run`.
-const SCRIPT_SHORTCUTS: [&str; 3] = ["test", "start", "stop"];
+pub(crate) const SCRIPT_SHORTCUTS: [&str; 3] = ["test", "start", "stop"];
 
 /// Commands that prefix another command rather than taking arguments of
 /// their own, so the command to classify is the positional after them.
@@ -71,12 +72,67 @@ pub(crate) struct CommandBoundary {
     pub(crate) is_script_shortcut: bool,
 }
 
+/// Leading `pm` and `with current` prefixes ahead of the invoked command,
+/// in whichever order they appear.
+///
+/// [`crate::pm_prefix`], [`crate::with_current`], [`command_boundary`], and
+/// [`subcommand_option_names`] all share this scan so pre-parse passes agree
+/// on where top-level and subcommand options end and command prefixes begin.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PreCommandPrefixes {
+    /// Index of the `pm` prefix token, when present.
+    pub(crate) pm: Option<usize>,
+    /// Indices `(with_index, current_index)` of a `with current` prefix,
+    /// when present.
+    pub(crate) with_current: Option<(usize, usize)>,
+    /// Whether a `recursive` / `multi` / `m` prefix was stepped past.
+    pub(crate) recursive: bool,
+    /// Index at which scanning for the invoked command resumes past any
+    /// matched prefixes.
+    pub(crate) resume_at: usize,
+}
+
+impl PreCommandPrefixes {
+    pub(crate) fn scan(argv: &[OsString]) -> Self {
+        let arity = union_arity();
+        let mut prefixes = Self { pm: None, with_current: None, recursive: false, resume_at: 1 };
+        while let Some(pos) = next_positional_before_separator(argv, prefixes.resume_at, arity) {
+            if prefixes.pm.is_none() && argv[pos] == "pm" {
+                prefixes.pm = Some(pos);
+                prefixes.resume_at = pos + 1;
+                continue;
+            }
+            if prefixes.with_current.is_none()
+                && argv[pos] == "with"
+                && let Some(current) = next_positional_before_separator(argv, pos + 1, arity)
+                && argv[current] == "current"
+            {
+                prefixes.with_current = Some((pos, current));
+                prefixes.resume_at = current + 1;
+                continue;
+            }
+            if !prefixes.recursive
+                && let Some(arg) = argv[pos].to_str()
+                && COMMAND_PREFIXES.contains(&arg)
+                && next_positional_before_separator(argv, pos + 1, arity).is_some()
+            {
+                prefixes.recursive = true;
+                prefixes.resume_at = pos + 1;
+                continue;
+            }
+            break;
+        }
+        prefixes
+    }
+}
+
 /// The boundary implied by the command alone, ignoring any `--`.
 pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
     let command = grammar();
     let arity = union_arity();
-    let mut index = 1;
-    let mut prefix_allowed = true;
+    let prefixes = PreCommandPrefixes::scan(argv);
+    let mut index = prefixes.resume_at;
+    let mut prefix_allowed = !prefixes.recursive;
     while let Some(positional) = next_positional(argv, index, arity) {
         let Some(arg) = argv[positional].to_str() else {
             return Some(CommandBoundary { index: positional, is_script_shortcut: false });
@@ -133,7 +189,7 @@ fn subcommand_scan(
     };
     let name = subcommand.get_name();
     if COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.contains(&name) {
-        let index = next_positional(argv, index + 1, arity)? + 1;
+        let index = next_positional(argv, index + 1, foreign_subcommand_arity(name))? + 1;
         return Some(SubcommandScan::Boundary(CommandBoundary {
             index,
             is_script_shortcut: false,
@@ -159,11 +215,28 @@ fn subcommand_scan(
         }));
     }
     // `with current` is spliced into pnpm's own argv by
-    // [`crate::with_current::rewrite`], which runs after the pre-clap
-    // passes. So resume the scan just past it: whatever boundary the nested
-    // command line has is the one that will apply, and pnpm still owns
-    // everything ahead of it.
+    // [`crate::with_current::rewrite`] after [`crate::env_file`] runs, so
+    // resume the scan just past it: whatever boundary the nested command line
+    // has is the one that applies, and pnpm still owns everything ahead of it.
     Some(SubcommandScan::Resume(version + 1))
+}
+
+fn foreign_subcommand_arity(name: &str) -> &'static ArgTable {
+    static TABLES: std::sync::OnceLock<
+        [(&'static str, ArgTable); COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.len()],
+    > = std::sync::OnceLock::new();
+    TABLES
+        .get_or_init(|| {
+            let command = grammar();
+            COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.map(|sub_name| {
+                let subcommand = matching_subcommand(command, sub_name)
+                    .expect("foreign-command-line subcommand exists in grammar");
+                (sub_name, ArgTable::for_subcommand(command, subcommand))
+            })
+        })
+        .iter()
+        .find_map(|(sub_name, table)| (*sub_name == name).then_some(table))
+        .expect("caller verified `name` is in COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE")
 }
 
 /// The long options — including aliases — that the command named in `argv`
@@ -185,7 +258,7 @@ fn subcommand_scan(
 pub(crate) fn subcommand_option_names(argv: &[OsString]) -> HashSet<&'static str> {
     let command = grammar();
     let arity = union_arity();
-    let mut index = 1;
+    let mut index = PreCommandPrefixes::scan(argv).resume_at;
     while let Some(positional) = next_positional(argv, index, arity) {
         let Some(name) = argv[positional]
             .to_str()
@@ -240,6 +313,14 @@ pub(crate) fn union_arity() -> &'static ArgTable {
 fn names_a_package(argv: &[OsString], from: usize, arity: &ArgTable) -> bool {
     next_positional(argv, from, arity)
         .is_some_and(|index| argv[index] != "--" || index + 1 < argv.len())
+}
+
+fn next_positional_before_separator(
+    argv: &[OsString],
+    from: usize,
+    arity: &ArgTable,
+) -> Option<usize> {
+    next_positional(argv, from, arity).filter(|&index| argv[index] != "--")
 }
 
 /// The index of the first positional at or after `from`, or `None` when the

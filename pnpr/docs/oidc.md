@@ -41,6 +41,9 @@ Create the account with `pnpr add-user` or SCIM before binding it. There is no
 automatic account creation or linking by email or username. Renaming the
 account does not change the binding. A deleted account ID cannot sign in.
 
+For SCIM-provisioned accounts, [enable `login.scim`](scim.md#sign-in-through-oidc)
+to bind subjects without per-user configuration.
+
 ### Teams from groups
 
 A signed-in session can also join teams through the groups your identity
@@ -69,13 +72,13 @@ auth:
 - `teamId` is the stable team ID, not its display name.
 - A session whose claim lists `group` is a member of `teamId` on the hosted
   registry `registry`, as if the team listed its account ID. `registry` is the
-  registry's key in `registries:`.
+  registry's key in the
+  [stored registries](configuration.md#registries-in-the-database).
 - The membership lasts as long as the session. Removing someone from a group
   takes effect at their next sign-in, within an hour. It never applies to the
   user's password logins or `npm token`s.
-- On a registry whose teams are the config's, the team must be declared in its
-  `teams:`. With [`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api),
-  it may name a team the admin API creates later.
+- The registry must declare the team. pnpr refuses a change to the stored
+  registries that removes a team or registry a grant names.
 
 Configure the provider to issue the claim, and use the values it emits as
 `group`. Entra ID emits group object IDs under `groups` once group claims are
@@ -139,15 +142,21 @@ An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](contain
 
 Create a dedicated workload account, a named hosted npm registry, and exact
 package names. The package's normal `publish` rule must grant that account ID
-access too.
+access too, in the
+[stored registries](configuration.md#registries-in-the-database):
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   private:
     type: hosted
     packages:
       '@example/widget':
         publish: [<workload-account-id>]
+```
+
+The workload itself is configured in the config file:
+
+```yaml title="pnpr.yaml"
 auth:
   oidc:
     - name: github
@@ -228,7 +237,8 @@ Every block rejects unknown keys.
 | `issuer` | yes | The provider's issuer URL. |
 | `audience` | yes | The expected `aud` claim. For browser sign-in, the client ID. |
 | `login.clientSecret` | no | Client secret for browser sign-in. Omit for public clients with PKCE. |
-| `login.users` | yes, with `login` | Bindings of `subject`, `userId`, and optional `claims`. |
+| `login.users` | unless `login.scim` is true | Bindings of `subject`, `userId`, and optional `claims`. |
+| `login.scim` | no | Match the verified `sub` to a provisioned SCIM `externalId`. Requires `auth.scim`; only one provider may enable it. Mutually exclusive with nonempty `login.users`. |
 | `login.groups.claim` | no | The ID-token claim that lists groups. Defaults to `groups`. |
 | `login.groups.teams` | yes, with `groups` | Grants of `group`, `registry`, and `teamId`. See [Teams from groups](#teams-from-groups). |
 | `workloads[].identity` | yes | A binding of `subject`, `userId`, and optional `claims`. |
@@ -243,8 +253,9 @@ Browser login also verifies a browser-bound state, a nonce, and S256 PKCE.
 Unmapped and ambiguous identities are rejected, and user subjects must be unique
 within a provider, its workload bindings included.
 
-The `pnpr_oidc_` and `pnpr_workload_` credential prefixes are reserved for OIDC,
-and workload credentials bypass the persistent token backend.
+Personal bearer tokens use the `pnpr_` prefix with a base62 payload and CRC-32
+checksum. The `pnpr_oidc_` and `pnpr_workload_` credential prefixes are reserved
+for OIDC, and workload credentials bypass the persistent token backend.
 
 Discovery and JWKS use HTTPS with redirects disabled and bounded response sizes
 and deadlines. Literal and DNS-resolved destinations must be public IP addresses,
@@ -262,3 +273,5 @@ callbacks perform network operations concurrently.
 
 pnpr omits OIDC callback query strings from its request logs. Configure reverse
 proxies to omit them too.
+
+See [Access evaluation](access.md) for how sessions, personal tokens, teams, and package rules combine.

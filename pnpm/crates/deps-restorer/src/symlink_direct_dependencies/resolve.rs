@@ -158,7 +158,8 @@ pub(super) fn resolve_target_path(
 /// absolute. Normalized lexically, so the dedupe pass treats
 /// `<workspace>/packages/a` and `<workspace>/packages/b/../a` as one
 /// target, as pnpm's `path.relative` comparison does.
-pub(crate) fn link_target_dir(project_dir: &Path, target: &str) -> PathBuf {
+#[must_use]
+pub fn link_target_dir(project_dir: &Path, target: &str) -> PathBuf {
     pnpm_fs::lexical_normalize(&project_dir.join(target))
 }
 /// Build the `<alias → resolved-target>` map a dedupe pass needs

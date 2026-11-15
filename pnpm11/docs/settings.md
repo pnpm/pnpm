@@ -196,6 +196,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 [Full reference →](./settings/store.md#lockfile-settings)
 
 * [lockfile](./settings/store.md#lockfile)
+* [lockfileDir](./settings/store.md#lockfiledir)
 * [frozenLockfile](./settings/store.md#frozenlockfile)
 * [preferFrozenLockfile](./settings/store.md#preferfrozenlockfile)
 * [lockfileIncludeTarballUrl](./settings/store.md#lockfileincludetarballurl)

@@ -213,21 +213,49 @@ async fn an_override_of_another_revision_reads_that_revisions_record() {
 
 #[test]
 fn the_record_a_pick_needs() {
+    let registry = "https://registry.example/";
     let external = listed("acme", InstallV2Entry::External, &json!({ "revision": 2 }));
-    assert_eq!(record_revision(&external, None), Some(2));
+    assert_eq!(record_revision(&external, registry, None).unwrap(), Some(2));
     let complete = listed("acme", InstallV2Entry::Complete, &json!({ "revision": 2 }));
-    assert_eq!(record_revision(&complete, None), None);
+    assert_eq!(record_revision(&complete, registry, None).unwrap(), None);
     let selected = RegistryRevisionSelector::Valid(2);
-    assert_eq!(record_revision(&complete, Some(&selected)), None);
+    assert_eq!(record_revision(&complete, registry, Some(&selected)).unwrap(), None);
     let original = RegistryRevisionSelector::Valid(0);
-    assert_eq!(record_revision(&complete, Some(&original)), Some(0));
+    assert_eq!(record_revision(&complete, registry, Some(&original)).unwrap(), Some(0));
     // A version outside the revision protocol has only its original.
     let ordinary = listed("acme", InstallV2Entry::Complete, &json!({}));
-    assert_eq!(record_revision(&ordinary, Some(&RegistryRevisionSelector::Valid(1))), None);
+    assert_eq!(
+        record_revision(&ordinary, registry, Some(&RegistryRevisionSelector::Valid(1))).unwrap(),
+        None,
+    );
     let ordinary_external = listed("acme", InstallV2Entry::External, &json!({}));
-    assert_eq!(record_revision(&ordinary_external, None), Some(0));
+    assert_eq!(record_revision(&ordinary_external, registry, None).unwrap(), Some(0));
     let another = RegistryRevisionSelector::Valid(1);
-    assert_eq!(record_revision(&ordinary_external, Some(&another)), None);
+    assert_eq!(record_revision(&ordinary_external, registry, Some(&another)).unwrap(), None);
+
+    for invalid in [json!("bad"), json!(-1), json!(9_007_199_254_740_992_u64)] {
+        let malformed = listed("acme", InstallV2Entry::External, &json!({ "revision": invalid }));
+        assert!(record_revision(&malformed, registry, None).is_err());
+    }
+}
+
+#[tokio::test]
+async fn a_malformed_revision_is_rejected_without_reading_a_record() {
+    use miette::Diagnostic as _;
+
+    let registry = "http://127.0.0.1:9/";
+    let install = Install::new(registry, true);
+    let ctx = install.ctx(None, NetworkPolicy::default());
+    let picked = listed("acme", InstallV2Entry::External, &json!({ "revision": "bad" }));
+    let error = with_release_record(&ctx, registry, picked, None).await.expect_err("rejected");
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_MALFORMED_METADATA"),
+    );
+    assert!(error.to_string().contains("acme@1.0.0"), "{error}");
 }
 
 #[tokio::test]

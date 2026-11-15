@@ -247,7 +247,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                         id: "fastify-error@3.3.0",
                     },
                     store: crate::ArchiveStoreContext {
-                        dir: store_path,
+                        dir: std::borrow::Cow::Borrowed(store_path),
                         index: None,
                         index_writer: None,
                         verify_integrity: true,
@@ -410,7 +410,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
             id: "deadlock@1.0.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -611,7 +611,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             id: "@fastify/error@3.3.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: Some(Arc::clone(&writer)),
             verify_integrity: true,
@@ -664,7 +664,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             id: "@fastify/error@3.3.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: Some(store_index),
             index_writer: None,
             verify_integrity: true,
@@ -896,7 +896,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -988,7 +988,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,

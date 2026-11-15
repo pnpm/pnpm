@@ -602,11 +602,12 @@ fn install_through_a_symlinked_modules_dir_writes_links_that_resolve() {
     for file in ["package.json", "pnpm-lock.yaml"] {
         fs::copy(workspace.join(file), nested.join(file)).expect("copy the project files");
     }
-    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
-        .expect("read pnpm-workspace.yaml")
-        .replace("../pacquet-", "../../pacquet-");
-    fs::write(nested.join("pnpm-workspace.yaml"), workspace_yaml)
-        .expect("write the nested pnpm-workspace.yaml");
+    for file in [".npmrc", "pnpm-workspace.yaml"] {
+        let config = fs::read_to_string(workspace.join(file))
+            .expect("read workspace config")
+            .replace("../pacquet-", "../../pacquet-");
+        fs::write(nested.join(file), config).expect("write the nested workspace config");
+    }
     pnpm_fs::symlink_dir(&workspace.join("node_modules"), &nested.join("node_modules"))
         .expect("symlink the nested project's node_modules");
 

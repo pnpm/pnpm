@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
@@ -209,6 +210,42 @@ test('publish: rejects an unknown symbolic HEAD in CI', async () => {
     dir: process.cwd(),
     dryRun: true,
   }, [])).rejects.toThrow(new PnpmError('GIT_UNKNOWN_BRANCH', 'The Git HEAD may not attached to any branch, but your "publish-branch" is set to "master|main".'))
+})
+
+test('publish: enforces git checks on nested target repository when caller directory is outside it', async () => {
+  const callerDir = temporaryDirectory()
+  const targetRoot = temporaryDirectory()
+  const nestedRepo = path.join(targetRoot, 'nested')
+  fs.mkdirSync(nestedRepo, { recursive: true })
+  fs.writeFileSync(path.join(nestedRepo, 'package.json'), JSON.stringify({
+    name: 'test-nested-git-checks',
+    version: '1.0.0',
+  }))
+
+  await execa('git', ['init', '--initial-branch=main'], { cwd: callerDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: callerDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: callerDir })
+  fs.writeFileSync(path.join(callerDir, 'README.md'), 'clean caller\n')
+  await execa('git', ['add', 'README.md'], { cwd: callerDir })
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'], { cwd: callerDir })
+
+  await execa('git', ['init', '--initial-branch=main'], { cwd: nestedRepo })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: nestedRepo })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: nestedRepo })
+  await execa('git', ['add', 'package.json'], { cwd: nestedRepo })
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'], { cwd: nestedRepo })
+  fs.writeFileSync(path.join(nestedRepo, 'LICENSE'), 'dirty uncommitted change\n')
+
+  process.chdir(callerDir)
+
+  await expect(publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['-C', targetRoot, 'publish', 'nested'] },
+    dir: targetRoot,
+    dryRun: true,
+  }, ['nested'])).rejects.toThrow(
+    new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
+  )
 })
 
 async function prepareDetachedTag (): Promise<void> {

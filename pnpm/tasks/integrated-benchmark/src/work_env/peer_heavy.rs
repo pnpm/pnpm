@@ -2,7 +2,7 @@
 //! [`PEER_HEAVY_DEPTH`] layers of [`PEER_HEAVY_WIDTH`] packages, each
 //! depending on the whole next layer and peering on the provider.
 //!
-//! The shared mock gets them committed into its metadata database. A
+//! The shared mock gets them committed into its database. A
 //! revision's own mock gets them published over HTTP by that revision's
 //! `pnpr`, so a revision with another metadata schema serves them too. Both
 //! carry the same archives, so every target resolves the same lockfile.
@@ -19,7 +19,7 @@ use std::path::Path;
 
 const PUBLISHED_AT: &str = "2020-01-01T00:00:00.000Z";
 
-/// Commit the peer-heavy packages to the registry metadata database at
+/// Commit the peer-heavy packages to the registry's database at
 /// `database`. Their archives are never fetched, so none is written; their
 /// integrity is the one a publish over HTTP stores.
 pub(crate) fn seed_peer_heavy_registry(database: &Path) {
@@ -177,7 +177,7 @@ fn archive_file(name: &str) -> String {
 }
 
 /// Publish the peer-heavy packages through the revision mock on
-/// `mock_port`, so its own `pnpr` stores them in its own metadata database.
+/// `mock_port`, so its own `pnpr` stores them in its own database.
 fn publish_peer_heavy_to(mock_port: u16) {
     let origin = format!("http://127.0.0.1:{mock_port}");
     let registry = if serves_npm_under_base_path(mock_port) {

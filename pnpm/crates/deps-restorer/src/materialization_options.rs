@@ -172,7 +172,7 @@ pub struct SnapshotFetchContext<'a> {
 #[derive(Clone, Copy)]
 pub struct RegistryFetchContext<'a> {
     pub http_client: &'a ThrottledClient,
-    pub config: &'static Config,
+    pub config: &'a Config,
     pub store_index: Option<&'a SharedReadonlyStoreIndex>,
     pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
     /// Install-scoped `verifiedFilesCache` shared across every

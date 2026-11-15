@@ -54,6 +54,8 @@ fn build_projects(
                 add_lazy_direct_dep(&mut tree.dependencies_tree, &mut direct, alias, id);
             }
             ImporterPeerInput {
+                declared_direct_dependencies: HashSet::default(),
+                explicitly_requested_direct_dependencies: HashSet::default(),
                 id: index.to_string(),
                 direct,
                 root_dir: format!("/repo/{index}").into(),
@@ -327,4 +329,31 @@ fn cyclic_peer_propagation_does_not_mark_unresolved_own_peer_as_resolved() {
     let first_y = &result.graph[&result.direct_dependencies_by_importer["0"]["y"]];
     assert!(!first_y.edges.resolved_peer_names.contains("w"));
     assert!(!first_y.edges.children.contains_key("w"));
+}
+
+#[test]
+fn peerless_version_of_cycle_member_keeps_its_external_context() {
+    let result = resolve_projects(
+        &[
+            &[("source", "source@1.0.0"), ("middle", "middle@1.0.0"), ("bridge", "bridge@1.0.0")],
+            &[("source", "source@2.0.0"), ("middle", "middle@1.0.0"), ("bridge", "bridge@1.0.0")],
+        ],
+        &[
+            ("source@1.0.0", &[("middle", "^1", false)], &[]),
+            ("source@2.0.0", &[], &[]),
+            ("middle", &[("bridge", "^1", false)], &[]),
+            ("bridge", &[("source", "*", true)], &[]),
+        ],
+        PeerDependentsDedupe::On,
+    );
+    let first = &result.direct_dependencies_by_importer["0"]["middle"];
+    let second = &result.direct_dependencies_by_importer["1"]["middle"];
+    assert_ne!(first, second);
+    for (importer, middle) in [("0", first), ("1", second)] {
+        let bridge = &result.graph[&result.graph[middle].edges.children["bridge"]];
+        assert_eq!(
+            bridge.edges.children["source"],
+            result.direct_dependencies_by_importer[importer]["source"],
+        );
+    }
 }

@@ -70,3 +70,92 @@ test('depends on the Node.js major version', () => {
   expect(createCacheKey({ ...opts, nodeVersion: '22.1.0' })).toBe(createCacheKey({ ...opts, nodeVersion: 'v22.9.0' }))
   expect(createCacheKey({ ...opts, nodeVersion: '22.1.0' })).not.toBe(createCacheKey({ ...opts, nodeVersion: '24.1.0' }))
 })
+
+test('distinguishes and normalizes allowBuild negations', () => {
+  const base = {
+    packages: ['demo-pkg'],
+    registriesByScope: { default: 'https://registry.npmjs.com/' },
+  }
+  const keyDefault = createCacheKey(base)
+  const keyAllowed = createCacheKey({ ...base, allowBuild: ['demo-pkg'] })
+  const keyDenied = createCacheKey({ ...base, allowBuild: ['!demo-pkg'] })
+  expect(keyAllowed).not.toBe(keyDefault)
+  expect(keyDenied).not.toBe(keyDefault)
+  expect(keyDenied).not.toBe(keyAllowed)
+  expect(createCacheKey({ ...base, allowBuild: ['demo-pkg', '!demo-pkg'] })).toBe(keyDenied)
+  expect(createCacheKey({ ...base, allowBuild: ['!demo-pkg', 'demo-pkg'] })).toBe(keyAllowed)
+})
+
+test('changes with active overrides, packageExtensions, and security policies while keeping inactive defaults stable', () => {
+  const base = {
+    packages: ['a@1.0.0'],
+    registriesByScope: { default: 'https://registry.npmjs.com/' },
+  }
+  const defaultKey = createCacheKey(base)
+  expect(createCacheKey({
+    ...base,
+    overrides: {},
+    packageExtensions: {},
+    minimumReleaseAge: 0,
+    minimumReleaseAgeStrict: false,
+    trustPolicy: 'off',
+    trustLockfile: false,
+    blockExoticSubdeps: false,
+  })).toBe(defaultKey)
+
+  const overridesForward = createCacheKey({ ...base, overrides: { 'alpha@^1.0.0': '1.0.0', 'alpha@>=1.0.0': '1.2.0' } })
+  const overridesReversed = createCacheKey({ ...base, overrides: { 'alpha@>=1.0.0': '1.2.0', 'alpha@^1.0.0': '1.0.0' } })
+  expect(overridesForward).not.toBe(defaultKey)
+  expect(overridesForward).not.toBe(overridesReversed)
+
+  const extensionsForward = createCacheKey({
+    ...base,
+    packageExtensions: {
+      alpha: { dependencies: { b: '^2.0.0', a: '^1.0.0' } },
+      'alpha@^1.0.0': { dependencies: { a: '^2.0.0' } },
+    },
+  })
+  const extensionsInnerReordered = createCacheKey({
+    ...base,
+    packageExtensions: {
+      alpha: { dependencies: { a: '^1.0.0', b: '^2.0.0' } },
+      'alpha@^1.0.0': { dependencies: { a: '^2.0.0' } },
+    },
+  })
+  const extensionsSelectorsReversed = createCacheKey({
+    ...base,
+    packageExtensions: {
+      'alpha@^1.0.0': { dependencies: { a: '^2.0.0' } },
+      alpha: { dependencies: { a: '^1.0.0', b: '^2.0.0' } },
+    },
+  })
+  const extensionsChanged = createCacheKey({
+    ...base,
+    packageExtensions: {
+      alpha: { dependencies: { a: '^1.0.0', b: '^3.0.0' } },
+      'alpha@^1.0.0': { dependencies: { a: '^2.0.0' } },
+    },
+  })
+  expect(extensionsForward).not.toBe(defaultKey)
+  expect(extensionsForward).toBe(extensionsInnerReordered)
+  expect(extensionsForward).not.toBe(extensionsSelectorsReversed)
+  expect(extensionsForward).not.toBe(extensionsChanged)
+
+  const ageStrict = createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeStrict: true })
+  const ageNonStrict = createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeStrict: false })
+  const ageDefaultLoose = createCacheKey({ ...base, minimumReleaseAge: 1440 })
+  const ageExcluded = createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeExclude: ['b', 'a'] })
+  expect(ageStrict).not.toBe(defaultKey)
+  expect(ageStrict).not.toBe(ageNonStrict)
+  expect(ageDefaultLoose).toBe(ageNonStrict)
+  expect(ageExcluded).not.toBe(ageNonStrict)
+  expect(ageExcluded).toBe(createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeExclude: ['a', 'b'] }))
+
+  const trust = createCacheKey({ ...base, trustPolicy: 'no-downgrade' })
+  const trustIgnoreAfter = createCacheKey({ ...base, trustPolicy: 'no-downgrade', trustPolicyIgnoreAfter: 60 })
+  expect(trust).not.toBe(defaultKey)
+  expect(trustIgnoreAfter).not.toBe(trust)
+  expect(createCacheKey({ ...base, trustLockfile: true })).not.toBe(defaultKey)
+  expect(createCacheKey({ ...base, blockExoticSubdeps: false })).toBe(defaultKey)
+  expect(createCacheKey({ ...base, blockExoticSubdeps: true })).not.toBe(defaultKey)
+})

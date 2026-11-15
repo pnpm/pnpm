@@ -17,7 +17,7 @@ import semver from 'semver'
 
 import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
 import { getNodeMirror } from './getNodeMirror.js'
-import { parseNodeSpecifier } from './parseNodeSpecifier.js'
+import { parseNodeSpecifier, RELEASE_CHANNELS, stripLeadingV } from './parseNodeSpecifier.js'
 import {
   createAuthenticatedFetch,
   getSecureAuthHeader,
@@ -37,8 +37,10 @@ export {
   normalizeNodeVersionFetchOptions,
   normalizeRuntimeSpec,
   parseNodeSpecifier,
+  RELEASE_CHANNELS,
   resolveNodeVersion,
   resolveNodeVersions,
+  stripLeadingV,
 }
 
 export const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
@@ -137,7 +139,7 @@ function createNodeRuntimeVersionSpec (
   resolvedVersion: string,
   wantedDependency: WantedDependency
 ): string {
-  if (resolvedVersion === versionSpec || semver.parse(resolvedVersion)?.prerelease.length) {
+  if (resolvedVersion === stripLeadingV(versionSpec) || semver.parse(resolvedVersion)?.prerelease.length) {
     return resolvedVersion
   }
   const source = wantedDependency.prevSpecifier?.startsWith('runtime:')

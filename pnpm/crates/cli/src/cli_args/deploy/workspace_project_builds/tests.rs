@@ -1,8 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Write as _,
-    path::PathBuf,
-};
+use std::{collections::HashMap, fmt::Write as _, path::PathBuf};
 
 use pnpm_lockfile::Lockfile;
 use pretty_assertions::assert_eq;
@@ -33,9 +29,7 @@ impl Workspace {
                 linked_publish_dir: None,
                 name: Some(name.to_string()),
                 has_bin: false,
-                peer_dependencies: Vec::new(),
-                peer_blocks: (None, None),
-                declared_dependencies: HashSet::default(),
+                peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
             },
         );
         let deploy_dir = root.join("deploy");
@@ -108,6 +102,7 @@ impl Workspace {
             deploy_dir: &self.deploy_dir,
             lockfile_dir: &self.root,
             deployed_project_root: &deployed_project_root,
+            references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
         };
         approve_workspace_project_builds(&mut allow_builds, lockfile, &ctx)
             .expect("approve workspace project builds");
@@ -237,9 +232,7 @@ fn does_not_approve_a_directory_whose_name_only_prints_like_a_project_root() {
             linked_publish_dir: None,
             name: Some("lib".to_string()),
             has_bin: false,
-            peer_dependencies: Vec::new(),
-            peer_blocks: (None, None),
-            declared_dependencies: HashSet::default(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
         },
     );
     let workspace = Workspace { projects_by_path, ..workspace };

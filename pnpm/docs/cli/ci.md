@@ -5,7 +5,7 @@ title: pnpm ci
 
 Aliases: `clean-install`, `ic`, `install-clean`
 
-Perform a clean install. This command runs [`pnpm clean`](./clean.md) followed by [`pnpm install --frozen-lockfile`](./install.md).
+Perform a clean install. `pnpm ci` validates that `pnpm-lock.yaml` exists and is up to date before removing `node_modules`, then runs [`pnpm clean`](./clean.md) followed by [`pnpm install --frozen-lockfile`](./install.md).
 
 Designed for CI/CD environments where reproducible builds are critical.
 

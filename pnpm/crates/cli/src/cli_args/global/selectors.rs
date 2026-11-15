@@ -1,9 +1,9 @@
 use super::{
-    AddRequest, Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf,
-    fs, is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize, local_file_path,
-    parse_wanted_dependency, rust_toolchain_request, safe_read_package_json_from_dir,
-    tool_install_selector,
+    AddRequest, Context, GlobalError, GlobalPackageInfo, IntoDiagnostic, Path, PathBuf, fs,
+    is_valid_old_npm_package_name, lexical_normalize, parse_wanted_dependency,
+    rust_toolchain_request, safe_read_package_json_from_dir, tool_install_selector,
 };
+use pnpm_semver_include_prerelease::is_valid_semver_range;
 
 /// The packages one global install request asks for: the tokens a
 /// comma-separated request splits into, and whether they may name a tool
@@ -101,46 +101,6 @@ pub(super) fn groups_matching_params(
     Some(filtered)
 }
 
-/// The selectors that reinstall a group. With `--latest`, a plain version spec
-/// uses the latest dist-tag so the seeded manifest range cannot hold it back;
-/// `pins` holds back aliases that would otherwise move backwards.
-pub(super) fn update_selectors(
-    dependencies: &[(String, String)],
-    latest: bool,
-    pins: &HashMap<String, String>,
-) -> Vec<String> {
-    dependencies
-        .iter()
-        .map(|(alias, spec)| {
-            if let Some(pin) = pins.get(alias) {
-                format!("{alias}@{pin}")
-            } else if latest && is_plain_version_spec(spec) {
-                format!("{alias}@latest")
-            } else {
-                format!("{alias}@{spec}")
-            }
-        })
-        .collect()
-}
-
-/// The warning `update -g` prints for a group it skips because the `file:`
-/// source one of its dependencies was installed from is gone. Reinstalling the
-/// group would fail with `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, and the group
-/// still works from what it installed, so the other groups are updated instead.
-pub(super) fn missing_file_source_warning(pkg: &GlobalPackageInfo) -> Option<String> {
-    let (alias, source) = pkg.dependencies
-        .iter()
-        .find_map(|(alias, spec)| {
-            let source = local_file_path(spec, &pkg.install_dir)?;
-            matches!(source.try_exists(), Ok(false)).then_some((alias, source))
-        })?;
-    Some(format!(
-        r#"Skipped updating {} because "{}" no longer exists. Reinstall {alias} from an existing location, or remove it with "pnpm remove -g {alias}"."#,
-        pkg.aliases().join(", "),
-        source.display(),
-    ))
-}
-
 pub(super) fn replacement_aliases(aliases: &[String]) -> Vec<String> {
     const PNPM_CLI_PACKAGE_ALIASES: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
@@ -220,9 +180,29 @@ fn is_pnpm_cli_package_name(name: &str) -> bool {
     matches!(name, "pnpm" | "@pnpm/exe")
 }
 
+pub(super) struct NpmSpecBody {
+    pub(super) alias: Option<String>,
+    pub(super) version_spec: Option<String>,
+}
+
+pub(super) fn parse_npm_spec_body(rest: &str) -> Option<NpmSpecBody> {
+    if rest.is_empty() {
+        return None;
+    }
+    if is_valid_semver_range(rest) {
+        return Some(NpmSpecBody { alias: None, version_spec: Some(rest.to_string()) });
+    }
+    let parsed = parse_wanted_dependency(rest);
+    if parsed.alias.is_some() {
+        return Some(NpmSpecBody { alias: parsed.alias, version_spec: parsed.bare_specifier });
+    }
+    let inner = parsed.bare_specifier?;
+    (!inner.is_empty()).then_some(NpmSpecBody { alias: None, version_spec: Some(inner) })
+}
+
 /// The package an `npm:` alias points at, or `None` for any other spec.
 fn npm_alias_target(spec: Option<&str>) -> Option<String> {
-    parse_wanted_dependency(spec?.strip_prefix("npm:")?).alias
+    parse_npm_spec_body(spec?.strip_prefix("npm:")?)?.alias
 }
 
 // --- param grouping (split/resolve helpers) -------------------------------

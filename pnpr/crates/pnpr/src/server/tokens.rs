@@ -107,22 +107,58 @@ async fn create_verified_token(
     body: &[u8],
 ) -> Result<Response, RegistryError> {
     let username = caller.identity.username().expect("authenticated caller");
+    let user_id = caller.identity.user_id().expect("authenticated caller");
     let mut request = payload::parse_and_validate_token_request(body, pnpr_auth::unix_millis())?;
-    let verified_hash =
-        verify_caller_password(state, client_ip, username, request.password()).await?;
-    if verified_hash == pnpr_auth::NO_PASSWORD_HASH {
+    let expected_revision = state.inner.identity.auth
+        .active_account_revision(user_id)
+        .await?
+        .ok_or_else(|| RegistryError::Unauthenticated { resource: format!("user {username:?}") })?;
+    let verified_credential =
+        verify_caller_password(state, client_ip, caller.identity, request.password()).await?;
+    let now = pnpr_auth::unix_millis();
+    request = request
+        .expiring_by_default(default_token_expiry(state, now))
+        .expiring_by(latest_token_expiry(state, now));
+    if matches!(verified_credential, pnpr_auth::AccountCredential::None) {
         request = request.within(credential_limits(state, caller.credential).await?)?;
     }
     let new_token = request.into_new_token(pnpr_auth::unix_millis())?;
-    let user_id = caller.identity.user_id().expect("authenticated caller");
     let (raw, record) = state.inner.identity.auth.issue_token_if_credential_current(
         username,
         user_id,
-        &verified_hash,
+        &verified_credential,
+        expected_revision,
         new_token,
     )
     .await?;
-    Ok(json_response(StatusCode::OK, &create_token_response(&raw, &record)))
+    let key = super::ecosystem::sha256_hex(raw.as_bytes());
+    let actor = crate::audit::Actor::of(caller.identity);
+    crate::audit!(
+        actor,
+        "token.create",
+        token_key = %key,
+        readonly = record.readonly,
+        "token created",
+    );
+    Ok(json_response(StatusCode::OK, &create_token_response(&raw, &key, &record)))
+}
+
+/// When a token issued at `now` without a requested expiry expires: after
+/// `auth.tokens.defaultLifetime`, but no later than `auth.tokens.maxLifetime`.
+pub(super) fn unrequested_token_expiry(state: &AppState, now: u64) -> u64 {
+    let default = default_token_expiry(state, now);
+    latest_token_expiry(state, now).map_or(default, |latest| latest.min(default))
+}
+
+fn default_token_expiry(state: &AppState, now: u64) -> u64 {
+    payload::expiry_after(state.inner.config.identity.auth.tokens.default_lifetime, now)
+}
+
+/// When a token issued at `now` expires at the latest under
+/// `auth.tokens.maxLifetime`. `None` when no maximum is configured.
+fn latest_token_expiry(state: &AppState, now: u64) -> Option<u64> {
+    let max_lifetime = state.inner.config.identity.auth.tokens.max_lifetime?;
+    Some(payload::expiry_after(max_lifetime, now))
 }
 
 /// The limits of the browser session or token that `credential` carries.
@@ -150,31 +186,33 @@ async fn credential_limits(
 pub(super) async fn verify_caller_password(
     state: &AppState,
     client_ip: Option<IpAddr>,
-    username: &str,
+    identity: &Identity,
     password: Option<&str>,
-) -> Result<String, RegistryError> {
-    let hash = state.inner.identity.auth.users
-        .password_hash(username)
+) -> Result<pnpr_auth::AccountCredential, RegistryError> {
+    let username = identity.username().expect("authenticated caller");
+    let credential = state.inner.identity.auth.users
+        .credential(username)
         .await?
         .ok_or_else(|| RegistryError::Unauthenticated {
             resource: "password verification".to_string(),
         })?;
-    if let Err(error) = verify_password_hash(username, password, &hash).await {
+    if let Err(error) = verify_account_credential(username, password, &credential).await {
         if matches!(error, RegistryError::Unauthenticated { .. }) {
-            state.inner.identity.login_rate_limiter.record_failure(client_ip, username);
+            let actor = crate::audit::Actor::of(identity);
+            super::user_accounts::record_login_failure(state, client_ip, actor, username);
         }
         return Err(error);
     }
     state.inner.identity.login_rate_limiter.record_success(client_ip, username);
-    Ok(hash)
+    Ok(credential)
 }
 
-async fn verify_password_hash(
+async fn verify_account_credential(
     username: &str,
     password: Option<&str>,
-    hash: &str,
+    credential: &pnpr_auth::AccountCredential,
 ) -> Result<(), RegistryError> {
-    if hash == pnpr_auth::NO_PASSWORD_HASH {
+    if matches!(credential, pnpr_auth::AccountCredential::None) {
         return Ok(());
     }
     let password = password.ok_or_else(|| RegistryError::Unauthenticated {
@@ -183,7 +221,7 @@ async fn verify_password_hash(
     match pnpr_auth::verify_returning_user(
         username,
         password,
-        hash.to_string(),
+        credential,
         pnpr_auth::DEFAULT_BCRYPT_COST,
     )
     .await
@@ -196,8 +234,7 @@ async fn verify_password_hash(
     }
 }
 
-fn create_token_response(raw_token: &str, record: &TokenRecord) -> Value {
-    let key = super::ecosystem::sha256_hex(raw_token.as_bytes());
+fn create_token_response(raw_token: &str, key: &str, record: &TokenRecord) -> Value {
     let mut obj = json!({
         "token": raw_token,
         "key": key,
@@ -213,11 +250,8 @@ fn create_token_response(raw_token: &str, record: &TokenRecord) -> Value {
     if let Some(ref name) = record.name {
         obj["name"] = json!(name);
     }
-    if let Some(ref scopes) = record.scopes {
-        obj["scopes"] = json!(scopes);
-    }
-    if let Some(ref kind) = record.kind {
-        obj["kind"] = json!(kind);
+    if let Some(kind) = record.kind {
+        obj["kind"] = json!(kind.as_str());
     }
     obj
 }
@@ -260,7 +294,10 @@ pub(super) async fn revoke_token_by_key(
             .into_response()
         }
         Ok(Some(_)) => match state.inner.identity.auth.tokens.revoke_by_key(key).await {
-            Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
+            Ok(Some(_)) => {
+                audit_token_revoke(identity, key);
+                json_response(StatusCode::OK, &json!({ "ok": "token revoked" }))
+            }
             Ok(None) => not_found(),
             Err(err) => err.into_response(),
         },
@@ -319,10 +356,23 @@ async fn logout_bearer_token(state: &AppState, identity: &Identity, raw_token: &
         .into_response();
     }
     match state.inner.identity.auth.tokens.revoke_by_raw(raw_token).await {
-        Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": true })),
+        Ok(Some(_)) => {
+            audit_token_revoke(identity, &super::ecosystem::sha256_hex(raw_token.as_bytes()));
+            json_response(StatusCode::OK, &json!({ "ok": true }))
+        }
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
     }
+}
+
+fn audit_token_revoke(identity: &Identity, key: &str) {
+    let actor = crate::audit::Actor::of(identity);
+    crate::audit!(
+        actor,
+        "token.revoke",
+        token_key = %key,
+        "token revoked",
+    );
 }
 
 pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) -> Value {
@@ -344,11 +394,8 @@ pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) 
     if let Some(ref name) = record.name {
         obj["name"] = json!(name);
     }
-    if let Some(ref scopes) = record.scopes {
-        obj["scopes"] = json!(scopes);
-    }
-    if let Some(ref kind) = record.kind {
-        obj["kind"] = json!(kind);
+    if let Some(kind) = record.kind {
+        obj["kind"] = json!(kind.as_str());
     }
     obj
 }

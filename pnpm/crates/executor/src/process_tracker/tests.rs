@@ -98,6 +98,26 @@ fn starting_replaces_a_watchdog_that_died() {
     assert_ne!(replacements[0], dead);
 }
 
+/// Under an ignored `SIGCHLD` the kernel reaps a child itself, and its pid
+/// is free for another process. Waiting through a pidfd reports such a
+/// child as exited, and never waits on whatever got its pid.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_pidfd_reports_a_child_exited_once_reaped_anywhere() {
+    use pnpm_ffi_signal::{Pin, PinnedTarget, Reaping, Waiting};
+
+    let mut running = spawn_group_leader();
+    let Pin::Target(pinned) = PinnedTarget::pin(running.id()) else { panic!("pin the child") };
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Leave), Some(false));
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Take), Some(false));
+
+    assert!(pinned.signal(libc::SIGKILL).is_ok(), "a running child takes a signal");
+    assert_eq!(pinned.exited(Waiting::UntilExit, Reaping::Leave), Some(true));
+    let _ = running.wait();
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Take), Some(true), "reaped elsewhere");
+    assert!(pinned.signal(libc::SIGKILL).is_err(), "a reaped child takes no signal");
+}
+
 /// Dropping the watch closes the watchdog's pipe the way pnpm's death does.
 /// Every group still watched is killed, past one that has exited already,
 /// and a released group is left alone.

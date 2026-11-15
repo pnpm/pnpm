@@ -14,6 +14,16 @@ pub(super) struct VersionTgz {
     pub(super) version_route: Option<String>,
     pub(super) dist: DistBlock,
     pub(super) integrity_key: Option<String>,
+    pub(super) manifest_generation: Option<u64>,
+    pub(super) packument_generation: Option<u64>,
+}
+
+impl VersionTgz {
+    pub(super) fn is_current(&self, generation: u64) -> bool {
+        self.manifest_generation
+            .or(self.packument_generation)
+            .is_none_or(|bound| bound == generation)
+    }
 }
 
 pub(super) fn version_tgz(
@@ -66,7 +76,14 @@ fn dist_tgz(name: &CanonicalPackageName, dist: DistBlock) -> Option<VersionTgz> 
     if let Some(shasum) = &dist.shasum {
         fields.insert("shasum".to_string(), Value::String(shasum.clone()));
     }
-    Some(VersionTgz { filename, version_route, integrity_key: tgz_integrity_key(&fields), dist })
+    Some(VersionTgz {
+        filename,
+        version_route,
+        integrity_key: tgz_integrity_key(&fields),
+        dist,
+        manifest_generation: None,
+        packument_generation: None,
+    })
 }
 
 /// Versions kept before the cache drops some.
@@ -97,17 +114,6 @@ struct CachedVersionTgz {
 }
 
 impl VersionTgzCache {
-    pub(super) fn get_bound(
-        &self,
-        namespace: &str,
-        name: &CanonicalPackageName,
-        version: &str,
-    ) -> Option<Arc<VersionTgz>> {
-        let entries = self.entries.lock().expect("version dist cache lock poisoned");
-        let key = (namespace.to_string(), name.as_str().to_string(), version.to_string());
-        entries.get(&key).map(|cached| Arc::clone(&cached.tgz))
-    }
-
     pub(super) fn get(
         &self,
         namespace: &str,

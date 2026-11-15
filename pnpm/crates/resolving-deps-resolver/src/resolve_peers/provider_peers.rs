@@ -4,12 +4,16 @@
 
 use super::context;
 use crate::{
-    parent_pkg_aliases::declared_peer_dependencies, resolve_dependency_tree::WorkspaceTreeCtx,
-    resolved_tree::ResolvedPackage,
+    peer_provider::peer_shadowed_dependency_names,
+    resolve_dependency_tree::WorkspaceTreeCtx,
+    resolved_tree::{PeerDep, PeerSet, ResolvedPackage},
 };
 use pnpm_resolving_resolver_base::get_peer_version_range;
-use rustc_hash::FxHashMap as HashMap;
-use std::cell::{OnceCell, RefCell};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{
+    cell::{OnceCell, RefCell},
+    collections::BTreeMap,
+};
 
 /// The package's real name and installed version.
 pub(crate) fn resolved_name_and_version(package: &ResolvedPackage) -> (String, String) {
@@ -17,24 +21,22 @@ pub(crate) fn resolved_name_and_version(package: &ResolvedPackage) -> (String, S
 }
 
 /// One peer a package declares.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CandidatePeer {
     pub(crate) name: String,
     pub(crate) range: String,
     pub(crate) optional: bool,
+    has_fallback_child: bool,
 }
 
 impl CandidatePeer {
     /// The peers `manifest` declares.
-    pub(crate) fn from_manifest(manifest: &serde_json::Value) -> Vec<CandidatePeer> {
-        declared_peer_dependencies(manifest)
-            .into_iter()
-            .map(|(name, peer)| CandidatePeer {
-                name,
-                range: peer.version,
-                optional: peer.optional,
-            })
-            .collect()
+    pub(crate) fn from_manifest(
+        manifest: &serde_json::Value,
+        auto_install_peers: bool,
+    ) -> Vec<CandidatePeer> {
+        let peers = candidate_peer_set(manifest, auto_install_peers);
+        candidate_peers(peers.declared(), Some(&peers))
     }
 }
 
@@ -48,29 +50,38 @@ impl CandidatePeer {
 /// selection.
 pub(crate) struct CandidatePeers<'workspace> {
     workspace: &'workspace WorkspaceTreeCtx,
-    detached: RefCell<HashMap<String, Vec<CandidatePeer>>>,
+    auto_install_peers: bool,
+    by_id: RefCell<HashMap<String, Vec<CandidatePeer>>>,
     by_name_version: OnceCell<HashMap<String, Vec<CandidatePeer>>>,
 }
 
 impl<'workspace> CandidatePeers<'workspace> {
-    pub(crate) fn new(workspace: &'workspace WorkspaceTreeCtx) -> Self {
-        CandidatePeers { workspace, detached: RefCell::default(), by_name_version: OnceCell::new() }
+    pub(crate) fn new(workspace: &'workspace WorkspaceTreeCtx, auto_install_peers: bool) -> Self {
+        CandidatePeers {
+            workspace,
+            auto_install_peers,
+            by_id: RefCell::default(),
+            by_name_version: OnceCell::new(),
+        }
     }
 
     /// Records the peers of `pkg_id`, a `name@version` resolved without
     /// being added to the tree.
     pub(crate) fn insert_detached(&self, pkg_id: String, peers: Vec<CandidatePeer>) {
-        self.detached.borrow_mut().insert(pkg_id, peers);
+        self.by_id.borrow_mut().insert(pkg_id, peers);
     }
 
     /// The peers `name@version` declares, or `None` when nothing describes
     /// it.
     pub(crate) fn get(&self, name: &str, version: &str) -> Option<Vec<CandidatePeer>> {
         let pkg_id = format!("{name}@{version}");
-        if let Some(peers) = self.detached.borrow().get(&pkg_id) {
+        if let Some(peers) = self.by_id.borrow().get(&pkg_id) {
             return Some(peers.clone());
         }
-        if let Some(peers) = self.workspace.inspect_package(&pkg_id, peers_of) {
+        if let Some(peers) = self.workspace.inspect_package(&pkg_id, |package| {
+            peers_of(package, self.auto_install_peers)
+        }) {
+            self.by_id.borrow_mut().insert(pkg_id, peers.clone());
             return Some(peers);
         }
         self.by_name_version()
@@ -81,7 +92,7 @@ impl<'workspace> CandidatePeers<'workspace> {
     /// Whether [`Self::get`] knows the peers of `name@version`.
     pub(crate) fn contains(&self, name: &str, version: &str) -> bool {
         let pkg_id = format!("{name}@{version}");
-        self.detached.borrow().contains_key(&pkg_id)
+        self.by_id.borrow().contains_key(&pkg_id)
             || self.workspace
                 .inspect_package(&pkg_id, |_| ())
                 .is_some()
@@ -103,7 +114,7 @@ impl<'workspace> CandidatePeers<'workspace> {
             self.workspace.for_each_package(|package| {
                 index.insert(
                     format!("{}@{}", package.name(), package.version()),
-                    peers_of(package),
+                    peers_of(package, self.auto_install_peers),
                 );
             });
             index
@@ -132,6 +143,7 @@ fn lockfile_peers(metadata: &pnpm_lockfile::PackageMetadata) -> Vec<CandidatePee
         .map(|(peer_name, range)| CandidatePeer {
             name: peer_name.clone(),
             range: range.clone(),
+            has_fallback_child: false,
             optional: metadata.peer_dependencies_meta
                 .as_ref()
                 .and_then(|meta| meta.get(peer_name))
@@ -140,14 +152,38 @@ fn lockfile_peers(metadata: &pnpm_lockfile::PackageMetadata) -> Vec<CandidatePee
         .collect()
 }
 
-fn peers_of(package: &ResolvedPackage) -> Vec<CandidatePeer> {
-    package.peer_set
-        .declared()
+fn peers_of(package: &ResolvedPackage, auto_install_peers: bool) -> Vec<CandidatePeer> {
+    if package.peer_set.declared().is_empty() {
+        return Vec::new();
+    }
+    let peers = package
+        .result()
+        .package
+        .manifest
+        .as_deref()
+        .map(|manifest| candidate_peer_set(manifest, auto_install_peers));
+    candidate_peers(package.peer_set.declared(), peers.as_ref())
+}
+
+fn candidate_peer_set(manifest: &serde_json::Value, auto_install_peers: bool) -> PeerSet {
+    let shadowed: HashSet<_> =
+        peer_shadowed_dependency_names(Some(manifest), |_| false, auto_install_peers).collect();
+    PeerSet::from_manifest(manifest, |name| shadowed.contains(name))
+}
+
+fn candidate_peers(
+    declared: &BTreeMap<String, PeerDep>,
+    classification: Option<&PeerSet>,
+) -> Vec<CandidatePeer> {
+    declared
         .iter()
-        .map(|(peer_name, peer)| CandidatePeer {
-            name: peer_name.clone(),
+        .map(|(name, peer)| CandidatePeer {
+            name: name.clone(),
             range: peer.version.clone(),
             optional: peer.optional,
+            has_fallback_child: classification.is_some_and(|peers| {
+                peers.declared().contains_key(name) && !peers.taken().contains_key(name)
+            }),
         })
         .collect()
 }
@@ -177,15 +213,15 @@ pub(crate) fn accepts_optional_peer_candidate(
     let mut peers_of_hoisted = Vec::new();
     let mut wave = vec![(name.to_string(), version.to_string())];
     while !wave.is_empty() {
-        let peers_of_wave: Vec<Vec<CandidatePeer>> = wave
-            .iter()
-            .filter_map(|(name, version)| candidate_peers.get(name, version))
-            .collect();
         let version_of = |name: &str| {
             hoisted
                 .get(name)
                 .or_else(|| provided_versions.get(name))
         };
+        let peers_of_wave: Vec<Vec<CandidatePeer>> = wave
+            .iter()
+            .filter_map(|(name, version)| candidate_peers.get(name, version))
+            .collect();
         if !peers_of_wave.iter().all(|peers| peers_accept_versions(peers, &version_of)) {
             return false;
         }
@@ -212,7 +248,7 @@ fn missing_peers<'a>(
 ) -> Vec<CandidatePeer> {
     peers
         .iter()
-        .filter(|peer| version_of(&peer.name).is_none())
+        .filter(|peer| !peer.has_fallback_child && version_of(&peer.name).is_none())
         .cloned()
         .collect()
 }
@@ -235,3 +271,6 @@ fn peers_accept_versions<'a>(
                 })
         })
 }
+
+#[cfg(test)]
+mod tests;

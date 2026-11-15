@@ -1,5 +1,5 @@
 //! Reclaiming a namespace's archives while replicas keep publishing (see
-//! [`crate::metadata::BlobRow`]).
+//! [`crate::database::BlobRow`]).
 //!
 //! A reclaim moves a live incarnation nothing maps to `reclaiming`, removes
 //! exactly its key, and records it `gone`. An incarnation never committed,
@@ -10,7 +10,7 @@
 
 use crate::{
     BlobId, Storage, StoredArchive,
-    metadata::{BlobRef, BlobRow, Uncommitted, Unmapping},
+    database::{BlobRef, BlobRow, Uncommitted, Unmapping},
     parse_blob_key,
 };
 use futures_util::TryStreamExt as _;
@@ -64,7 +64,7 @@ impl Storage {
     /// Remove the keys of `stored`, incarnations stored in this namespace
     /// that no commit made the live one, when they can never be committed;
     /// one that may still be, by a publish on its way, is first fenced off
-    /// when its flag says so (see [`crate::metadata::SqlMetadata::settle_stored`]).
+    /// when its flag says so (see [`crate::database::SqlDatabase::settle_stored`]).
     /// Returns the incarnations removed.
     pub async fn remove_uncommitted(&self, stored: Vec<Uncommitted>) -> Result<Vec<BlobRef>> {
         let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
@@ -167,7 +167,7 @@ impl Storage {
     pub async fn package_mappings(
         &self,
         name: &pnpr_package_name::CanonicalPackageName,
-    ) -> Result<(Option<u64>, Vec<crate::metadata::Mapping>)> {
+    ) -> Result<(Option<u64>, Vec<crate::database::Mapping>)> {
         let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
         self.database.package_mappings(namespace, ecosystem, name.as_str()).await
     }

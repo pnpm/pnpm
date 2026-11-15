@@ -16,8 +16,12 @@ mod behavior;
 #[path = "server/surfaces.rs"]
 mod surfaces;
 
+#[path = "server/integrity_backfill.rs"]
+mod integrity_backfill;
 #[path = "server/tarball_verification.rs"]
 mod tarball_verification;
+#[path = "server/upstream_refresh.rs"]
+mod upstream_refresh;
 
 #[path = "server/revision_tarballs.rs"]
 mod revision_tarballs;
@@ -54,6 +58,9 @@ mod packument_caching;
 
 #[path = "server/resolver_access.rs"]
 mod resolver_access;
+
+#[path = "server/resolver_bounds.rs"]
+mod resolver_bounds;
 
 #[path = "server/web_ui.rs"]
 mod web_ui;

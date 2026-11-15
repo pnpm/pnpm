@@ -114,6 +114,30 @@ test('start: run "node server.js" by default', async () => {
   expect((result.stdout as Buffer).toString('utf8')).toMatch(/Hello world!/)
 })
 
+test('start and restart respect --if-present when neither start script nor server.js exists', () => {
+  prepare({})
+
+  for (const args of [
+    ['--if-present', 'start'],
+    ['run', '--if-present', 'start'],
+    ['restart', '--if-present'],
+    ['--if-present', 'restart'],
+  ]) {
+    const result = execPnpmSync(args)
+    expect(result.status).toBe(0)
+  }
+
+  fs.writeFileSync('server.js', 'console.log("server fallback")', 'utf8')
+  for (const args of [
+    ['--if-present', 'start'],
+    ['restart', '--if-present'],
+  ]) {
+    const result = execPnpmSync(args)
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString()).toContain('server fallback')
+  }
+})
+
 test('install-test: install dependencies and runs tests', async () => {
   prepare({
     scripts: {

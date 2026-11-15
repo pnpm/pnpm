@@ -16,7 +16,8 @@ const result = await esbuild.build({
 })
 
 const output = result.outputFiles[0]
-if (process.argv.includes('--check')) {
+const check = process.argv.includes('--check') && process.env.PNPM_ESM_LOADER_REFRESH_BUNDLE !== 'true'
+if (check) {
   if (!fs.readFileSync(output.path).equals(output.contents)) {
     throw new Error('The embedded loader is stale. Run pnpm --filter @pnpm/esm-loader build:runtime and commit the generated file.')
   }

@@ -1,13 +1,13 @@
 [package]
 name = "pnpr"
 description = "pnpm-compatible npm registry server"
-version = "0.1.0-alpha.19"
+version = "0.1.0-alpha.20"
 publish = false
 authors = ["pnpm contributors"]
 edition.workspace = true
 license-file = "../../LICENSE.md"
-homepage = "https://pnpm.io"
-repository = "https://github.com/pnpm/pnpm"
+homepage.workspace = true
+repository.workspace = true
 keywords = ["npm", "registry", "pnpm", "verdaccio"]
 categories = ["development-tools", "web-programming::http-server"]
 readme = "README.md"
@@ -27,7 +27,8 @@ name = "suite"
 path = "tests/suite.rs"
 
 [features]
-default = ["backend-libsql", "backend-mysql", "backend-postgres"]
+default = ["backend-libsql", "backend-mysql", "backend-postgres", "runtime-provisioning"]
+runtime-provisioning = ["pnpm-package-manager/runtime-provisioning"]
 backend-libsql = [
   "dep:pnpr-libsql",
   "dep:libsql",
@@ -153,3 +154,6 @@ tokio = { workspace = true, features = ["net", "signal"] }
 
 [lints]
 workspace = true
+
+[target.'cfg(unix)'.dev-dependencies]
+pnpm-ffi-process = { workspace = true }

@@ -19,11 +19,13 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, MacosBackupSettings,
-    WORKSPACE_MANIFEST_FILENAME, config_types, naming_cases, property_path, property_path::Segment,
-    protected_settings, refused_keys,
+    Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME,
+    YamlConfigTarget, config_types, naming_cases, property_path, property_path::Segment,
+    protected_settings, refused_keys, validate_structured_setting,
 };
-use pnpm_workspace_manifest_writer::{update_manifest_field, update_workspace_setting};
+use pnpm_workspace_manifest_writer::{
+    update_manifest_field, update_private_manifest_field, update_workspace_setting,
+};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 use values::{
@@ -169,11 +171,8 @@ pub enum ConfigError {
     SetUnsupportedWorkspaceKey { key: String, camel: String },
 
     #[display("The key {key:?} isn't supported by the global config.yaml file")]
-    #[diagnostic(
-        code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY),
-        help("Try setting them instead to the local pnpm-workspace.yaml file")
-    )]
-    SetUnsupportedYamlConfigKey { key: String },
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY), help("{hint}"))]
+    SetUnsupportedYamlConfigKey { key: String, hint: String },
 
     /// A project's `pnpm-workspace.yaml` carries no machine-level state, so
     /// writing such a key there would only leave behind one pnpm ignores.
@@ -328,38 +327,62 @@ fn set_yaml_setting(
     key: &str,
     value: Value,
 ) -> miette::Result<()> {
+    let target = if config_file_name == WORKSPACE_MANIFEST_FILENAME {
+        YamlConfigTarget::Project
+    } else {
+        YamlConfigTarget::Global
+    };
     let write = |key: &str, value: &Value| {
-        if config_file_name == WORKSPACE_MANIFEST_FILENAME {
-            update_workspace_setting(config_dir, key, value)
-        } else {
-            update_manifest_field(&config_dir.join(config_file_name), key, value)
+        match target {
+            YamlConfigTarget::Project => update_workspace_setting(config_dir, key, value),
+            YamlConfigTarget::Global if carries_global_credentials(key, value) => {
+                update_private_manifest_field(&config_dir.join(config_file_name), key, value)
+            }
+            YamlConfigTarget::Global => {
+                update_manifest_field(&config_dir.join(config_file_name), key, value)
+            }
         }
         .map_err(miette::Report::new)
     };
     let given_key = key;
-    let key = if config_file_name == GLOBAL_CONFIG_YAML_FILENAME {
-        validate_yaml_config_key(key)?
-    } else {
-        key.to_string()
-    };
-    let key = validate_workspace_key(&key)?;
-    let cast = cast_field(value, &naming_cases::to_kebab_case(&key));
-    if config_file_name == WORKSPACE_MANIFEST_FILENAME
-        && !cast.is_null()
-        && refused_keys::is_refused_by_a_project_manifest(&key)
-    {
-        return Err(ConfigError::SetNotAProjectSetting {
-            belongs: refused_keys::where_refused_key_belongs(&key),
-            key,
-        }
-        .into());
-    }
-    validate_macos_backup_value(&key, &cast)?;
-    write(&key, &cast)?;
+    let cast = cast_field(value, &naming_cases::to_kebab_case(key));
     if cast.is_null() {
-        clear_other_spellings(&key, given_key, write)?;
+        let camel_key = naming_cases::to_camel_case(key);
+        write(&camel_key, &Value::Null)?;
+        return clear_other_spellings(&camel_key, given_key, write);
     }
-    Ok(())
+    let key = validate_yaml_target_key(key, target)?;
+    validate_structured_setting(&key, &cast, target)
+        .map_err(|reason| ConfigError::SetStructuredValue { key: key.clone(), reason })?;
+    write(&key, &cast)
+}
+
+fn carries_global_credentials(camel_key: &str, value: &Value) -> bool {
+    !value.is_null()
+        && (matches!(camel_key, "remoteCache" | "remoteSideEffectsCache")
+            || (camel_key == "sideEffectsCache"
+                && value
+                    .as_object()
+                    .is_some_and(|object| object.contains_key("remote"))))
+}
+
+fn validate_yaml_target_key(key: &str, target: YamlConfigTarget) -> Result<String, ConfigError> {
+    match target {
+        YamlConfigTarget::Project => {
+            let key = validate_workspace_key(key)?;
+            if refused_keys::is_refused_by_a_project_manifest(&key) {
+                return Err(ConfigError::SetNotAProjectSetting {
+                    belongs: refused_keys::where_refused_key_belongs(&key),
+                    key,
+                });
+            }
+            Ok(key)
+        }
+        YamlConfigTarget::Global => {
+            let kebab = validate_yaml_config_key(key)?;
+            validate_workspace_key(&kebab)
+        }
+    }
 }
 
 /// A hand-edited file may carry a spelling pnpm did not write, and that is the
@@ -377,31 +400,6 @@ fn clear_other_spellings(
         }
     }
     Ok(())
-}
-
-fn validate_macos_backup_value(key: &str, value: &Value) -> Result<(), ConfigError> {
-    if key != "macosBackup" || value.is_null() {
-        return Ok(());
-    }
-    if let Some(unknown) = value
-        .as_object()
-        .and_then(|object| {
-            object
-                .keys()
-                .find(|field| !matches!(field.as_str(), "excludeModulesDir" | "excludeStoreDir"))
-        })
-    {
-        return Err(ConfigError::SetStructuredValue {
-            key: key.to_string(),
-            reason: format!("unknown field {unknown:?}"),
-        });
-    }
-    serde_json::from_value::<MacosBackupSettings>(value.clone())
-        .map(|_| ())
-        .map_err(|error| ConfigError::SetStructuredValue {
-            key: key.to_string(),
-            reason: error.to_string(),
-        })
 }
 
 /// Write an auth setting to the global `auth.ini` or the directory's

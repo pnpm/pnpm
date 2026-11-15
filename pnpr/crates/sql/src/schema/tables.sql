@@ -21,6 +21,17 @@ CREATE TABLE IF NOT EXISTS packages (
     PRIMARY KEY (namespace, ecosystem, name)
 ) STRICT;
 
+-- The account IDs of a package's owners (`maintainers[*].userId` on npm,
+-- `owners` on Cargo, PyPI, and OCI), kept in sync with `packages.state` so
+-- owner checks never read or parse the package document.
+CREATE TABLE IF NOT EXISTS package_owners (
+    namespace TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    PRIMARY KEY (namespace, ecosystem, name, user_id)
+) STRICT, WITHOUT ROWID;
+
 -- Published versions of a Cargo crate, ordered by `position` as the sparse
 -- index serves them. `entry` holds the immutable sparse-index fields; `yanked`
 -- flips in place.
@@ -455,8 +466,12 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT NOT NULL PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
     username_skeleton_hash TEXT UNIQUE,
-    bcrypt_hash TEXT NOT NULL,
-    name_revision INTEGER NOT NULL DEFAULT 0
+    status TEXT NOT NULL,
+    credential_kind TEXT NOT NULL,
+    password_hash TEXT,
+    created_at INTEGER NOT NULL,
+    name_revision INTEGER NOT NULL DEFAULT 0,
+    status_revision INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
 -- Bearer tokens for SQL-backed and local SQLite auth.
@@ -469,10 +484,11 @@ CREATE TABLE IF NOT EXISTS tokens (
     cidr_whitelist TEXT NOT NULL DEFAULT '[]',
     name TEXT,
     expires_at INTEGER,
-    scopes TEXT,
     kind TEXT
 ) STRICT;
 CREATE INDEX IF NOT EXISTS tokens_user_id ON tokens (user_id);
+CREATE INDEX IF NOT EXISTS tokens_expires_at ON tokens (expires_at)
+    WHERE expires_at IS NOT NULL;
 
 -- Monotonic and reconciled counters for SQL-backed auth.
 CREATE TABLE IF NOT EXISTS auth_counters (

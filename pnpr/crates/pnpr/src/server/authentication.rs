@@ -1,15 +1,16 @@
-pub(super) use accounts::require_active_account;
-pub(super) use credentials::{bearer_credentials, token_credentials};
+pub(super) use accounts::active_account_name;
+pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
-    Ownership, authorize, authorize_against_packument, authorize_continuation, authorize_package,
-    authorize_with_ownership,
+    AuthorizationDecision, Ownership, allows_with_ownership, authorize,
+    authorize_against_packument, authorize_continuation, authorize_package,
+    authorize_with_ownership, authorize_without_owners, needs_package_owners,
 };
 
 mod accounts;
 mod credentials;
 mod package_access;
 
-use accounts::{account_identity, active_account_name};
+use accounts::account_identity;
 
 use std::net::IpAddr;
 
@@ -115,7 +116,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
 /// the handlers; an unknown or revoked bearer token resolves to anonymous.
 pub(super) async fn authenticate(
     State(state): State<AppState>,
-    mut request: Request,
+    request: Request,
     next: Next,
 ) -> Response {
     // Copy what resolution needs out of the request before mutating its
@@ -128,7 +129,26 @@ pub(super) async fn authenticate(
     if let Err(error) = check_request_schema(&state, request.uri().path()).await {
         return error.into_response();
     }
-    super::managed_state::refresh_managed_state(&state).await;
+    let path = request.uri().path().to_owned();
+    let patience = if super::registry_graph::serves_without_graph(&path) {
+        super::managed_state::Patience::None
+    } else {
+        super::managed_state::Patience::Bounded
+    };
+    super::managed_state::refresh_managed_state(&state, patience).await;
+    let authenticated = authenticate_caller(state.clone(), header, request, next);
+    super::registry_graph::with_pinned_routing(&state, &path, authenticated).await
+}
+
+/// Resolve the caller of `request` and run the rest of the stack for it.
+/// Runs with the request's routing snapshot pinned, so the identity and the
+/// handler see one graph.
+async fn authenticate_caller(
+    state: AppState,
+    header: Option<String>,
+    mut request: Request,
+    next: Next,
+) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_owned();
     let client_ip = resolve_and_attach_client_ip(&mut request, &state);
@@ -173,7 +193,7 @@ async fn check_request_schema(state: &AppState, path: &str) -> Result<(), Regist
     {
         return Ok(());
     }
-    state.inner.storage.sql_metadata().check_schema().await
+    state.inner.storage.sql_database().check_schema().await
 }
 
 fn token_failure_response(mut response: Response, header: Option<&str>) -> Response {
@@ -300,7 +320,7 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
     if record.expires_at.is_some_and(|exp| exp <= now) {
         return Ok(None);
     }
-    let owned = auth.users.account_name(&record.user_id).await?.is_some();
+    let owned = auth.users.active_account_name(&record.user_id).await?.is_some();
     Ok(owned.then_some(record))
 }
 
@@ -326,10 +346,7 @@ async fn resolve_caller(
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
             let name = active_account_name(state, &user.user_id).await?;
-            return Ok((
-                super::oidc_groups::session_identity(&state.inner.config, user, name),
-                None,
-            ));
+            return Ok((super::oidc_groups::session_identity(&state.routing(), user, name), None));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc
@@ -339,8 +356,17 @@ async fn resolve_caller(
                     resource: "OIDC workload credentials".to_string(),
                 })?;
             super::oidc::check_workload_request(&workload, method, path)?;
-            let scope = WorkloadScope::new(&state.inner.config, &workload);
-            return Ok((account_identity(state, &workload.identity.user_id).await?, Some(scope)));
+            let scope = WorkloadScope::new(&state.routing(), &workload);
+            let identity = account_identity(state, &workload.identity.user_id).await?;
+            let actor = crate::audit::Actor::of(&identity);
+            crate::audit!(
+                actor,
+                "auth.workload_use",
+                subject = %workload.identity.subject,
+                registry = %workload.registry,
+                "workload credentials used",
+            );
+            return Ok((identity, Some(scope)));
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, client_ip)?;

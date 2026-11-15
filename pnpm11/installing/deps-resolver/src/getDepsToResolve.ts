@@ -121,11 +121,11 @@ function chooseLockedReference (
   const { alias } = wantedDependency
   if (!alias || lookup.staleOverrideTargets?.has(alias)) return {}
   const satisfiesWanted = lookup.satisfiesWantedSpec.bind(null, { alias, bareSpecifier: wantedDependency.bareSpecifier })
-  const pinnedRef = lookup.resolvedDependencies[alias]
+  const pinnedRef = getOwnReference(lookup.resolvedDependencies, alias)
   if (pinnedRef && (satisfiesWanted(pinnedRef) || pinnedRef.startsWith('file:'))) {
     return proceedUnlessKeyIsCurrent({ alias, bareSpecifier: wantedDependency.bareSpecifier }, reuseOrRaisePinnedReference(wantedDependency, pinnedRef, lookup), lookup)
   }
-  const preferredRef = lookup.preferredDependencies[alias]
+  const preferredRef = getOwnReference(lookup.preferredDependencies, alias)
   // If dependencies that were used by the previous version of the package
   // satisfy the newer version's requirements, then pnpm tries to keep
   // the previous dependency.
@@ -135,11 +135,15 @@ function chooseLockedReference (
   if (semver.validRange(wantedDependency.bareSpecifier) !== null && preferredRef && satisfiesWanted(preferredRef)) {
     return { proceed: true, reference: preferredRef }
   }
-  const lockedRef = lookup.lockedDependencies[alias]
+  const lockedRef = getOwnReference(lookup.lockedDependencies, alias)
   if (lockedRef && satisfiesWanted(lockedRef)) {
     return preferLockedReference(lockedRef, alias, lookup)
   }
   return {}
+}
+
+function getOwnReference (references: Record<string, string>, alias: string): string | undefined {
+  return Object.hasOwn(references, alias) ? references[alias] : undefined
 }
 
 function preferLockedReference (lockedRef: string, alias: string, lookup: LockedReferenceLookup): LockedReferenceChoice {

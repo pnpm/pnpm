@@ -24,9 +24,7 @@ use pnpm_catalogs_resolver::{
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
-use pnpm_crypto_hash::create_short_hash;
 use pnpm_fs::{force_symlink_dir, remove_dirent};
-use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{
     DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias,
     package_manager_spec::{is_version_request, split_spec},
@@ -70,7 +68,8 @@ pub struct DlxArgs {
     pub package: Vec<String>,
 
     /// Package names allowed to run lifecycle (build) scripts during
-    /// the dlx install. May be repeated.
+    /// the dlx install. Prefix a name with `!` to deny its scripts
+    /// instead. May be repeated.
     #[clap(long = "allow-build")]
     pub allow_build: Vec<String>,
 

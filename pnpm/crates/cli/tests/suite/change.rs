@@ -645,3 +645,61 @@ fn change_check_rejects_an_intent_naming_a_package_outside_the_workspace() {
     assert_diagnostic_contains(&stderr, "ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE");
     assert_diagnostic_contains(&stderr, "names ghost, which is not a package in this workspace");
 }
+
+#[test]
+fn lane_rejects_partial_move_of_a_fixed_group_without_writing_workspace_yaml() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    let initial_yaml = "packages:\n  - packages/*\nversioning:\n  fixed:\n    - [pkg-a, pkg-b]\n";
+    fs::write(workspace.join("pnpm-workspace.yaml"), initial_yaml)
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+    add_pkg(&workspace, "pkg-a", "1.0.0", "{}");
+    add_pkg(&workspace, "pkg-b", "1.0.0", "{}");
+
+    let partial_assign = pnpm(&workspace)
+        .with_args(["lane", "beta", "--filter", "pkg-a"])
+        .output()
+        .expect("run pnpm lane");
+    assert!(!partial_assign.status.success(), "partial fixed-group lane move must fail");
+    let assign_stderr = String::from_utf8_lossy(&partial_assign.stderr);
+    assert_diagnostic_contains(&assign_stderr, "ERR_PNPM_VERSIONING_CONFLICTING_CONFIG");
+    assert_diagnostic_contains(&assign_stderr, "A fixed group must move between lanes together.");
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        initial_yaml,
+    );
+
+    let status_after_reject = stdout_of(pnpm(&workspace).with_args(["change", "status"]));
+    assert!(
+        status_after_reject.contains("No pending changes."),
+        "unexpected: {status_after_reject}",
+    );
+
+    let moved_both = stdout_of(
+        pnpm(&workspace).with_args(["lane", "beta", "--filter", "pkg-a", "--filter", "pkg-b"]),
+    );
+    assert!(moved_both.contains(r#"Moved to the "beta" lane:"#), "unexpected: {moved_both}");
+    let yaml_on_lane =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml on lane");
+    assert!(yaml_on_lane.contains("pkg-a: beta") && yaml_on_lane.contains("pkg-b: beta"));
+
+    let partial_graduate = pnpm(&workspace)
+        .with_args(["lane", "main", "--filter", "pkg-a"])
+        .output()
+        .expect("run pnpm lane main");
+    assert!(!partial_graduate.status.success(), "partial fixed-group graduation must fail");
+    let grad_stderr = String::from_utf8_lossy(&partial_graduate.stderr);
+    assert_diagnostic_contains(&grad_stderr, "ERR_PNPM_VERSIONING_CONFLICTING_CONFIG");
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        yaml_on_lane,
+    );
+
+    let graduated_both = stdout_of(
+        pnpm(&workspace).with_args(["lane", "main", "--filter", "pkg-a", "--filter", "pkg-b"]),
+    );
+    assert!(graduated_both.contains("Moved to the main lane:"), "unexpected: {graduated_both}");
+    let final_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+    assert!(!final_yaml.contains("beta"), "unexpected yaml: {final_yaml}");
+}

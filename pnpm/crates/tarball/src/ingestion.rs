@@ -87,7 +87,7 @@ impl ArchiveIngestion<'_> {
         }
         if let Some(cached) = load_cached_cas_paths::<Reporter>(
             self.store.index.clone(),
-            self.store.dir,
+            &self.store.dir,
             cache_key.clone(),
             self.store.verify_integrity,
             self.store_projection.package_content_check(self.store.strict_pkg_content_check),
@@ -121,7 +121,7 @@ impl ArchiveIngestion<'_> {
             ignore_file_pattern: self.ignore_file_pattern.clone(),
             limits: self.fetching.tar_limits,
         }
-        .run(self.store.dir)
+        .run(&self.store.dir)
         .await?;
         self.project_files(&mut paths, &mut index)?;
         if let Some(index_key) = self.cache_key() {
@@ -141,7 +141,7 @@ impl ArchiveIngestion<'_> {
         {
             let cached = load_legacy_synthesized_cas_paths::<Reporter>(
                 self.store.index.clone(),
-                self.store.dir,
+                &self.store.dir,
                 &package_integrity.to_string(),
                 self.package.id,
                 self.store.verify_integrity,
@@ -206,7 +206,7 @@ impl ArchiveIngestion<'_> {
             self.fetching.tar_limits,
             self.package.url,
             self.package.id,
-            self.store.dir,
+            &self.store.dir,
             self.ignore_file_pattern.clone(),
         )
         .await?;
@@ -288,7 +288,7 @@ impl ArchiveIngestion<'_> {
                     download_priority(unpacked_size, file_count),
                     self.package.id,
                     self.requester,
-                    self.store.dir,
+                    &self.store.dir,
                     self.fetching.retry_opts,
                     self.fetching.auth_headers,
                     self.ignore_file_pattern.clone(),
@@ -317,7 +317,7 @@ impl ArchiveIngestion<'_> {
             integrity,
             self.package.id,
             self.requester,
-            self.store.dir,
+            &self.store.dir,
             self.fetching.retry_opts,
             self.fetching.auth_headers,
             prefix,
@@ -338,13 +338,13 @@ impl ArchiveIngestion<'_> {
             ArchiveStoreProjection::Package { append_manifest } => {
                 if let Some(manifest_bytes) = append_manifest {
                     apply_append_manifest(
-                        self.store.dir,
+                        &self.store.dir,
                         manifest_bytes,
                         cas_paths,
                         pkg_files_idx,
                     )?;
                 }
-                apply_placeholder_manifest(self.store.dir, cas_paths, pkg_files_idx)
+                apply_placeholder_manifest(&self.store.dir, cas_paths, pkg_files_idx)
             }
             ArchiveStoreProjection::RawArchive => Ok(()),
         }

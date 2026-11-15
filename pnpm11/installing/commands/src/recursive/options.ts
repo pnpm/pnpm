@@ -1,7 +1,7 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import type { DryRunInstallResult, UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
+import type { DryRunInstallResult, InstallOptions, PreparedFrozenMutation, UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import type { PreferredVersions, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
@@ -96,6 +96,10 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   runPacquet?: {
     supportsResolution: boolean
     run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>
+  }
+  _preparedCi?: {
+    preparedByLockfileDir: Map<string, PreparedFrozenMutation>
+    projectHooksByRootDir: Map<ProjectRootDir, InstallOptions['hooks']>
   }
 } & Partial<
   Pick<Config,

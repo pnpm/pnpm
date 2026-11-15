@@ -1311,3 +1311,5 @@ fn global_flag_and_global_location_are_the_same_scope() {
     assert!(!flags(true, Some(ConfigLocation::Project), false).is_global());
     assert!(!flags(false, None, false).is_global());
 }
+
+mod scope_routing;

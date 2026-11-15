@@ -33,7 +33,7 @@ impl EnvironmentNetwork {
             registry_options_by_url: config.registry_options_by_url.clone(),
             retry_opts: config.retry_opts(),
             offline: config.offline,
-            tar_limits: config.tar_limits(),
+            tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),
         }
     }
 

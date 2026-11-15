@@ -63,7 +63,7 @@ impl Request {
         let ttl = if Digest::parse(reference).is_ok() {
             Duration::MAX
         } else {
-            upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl)
+            upstream.packument_ttl().unwrap_or(self.state.inner.config.http.packument_ttl)
         };
         if upstream.caches()
             && let Some(bytes) = storage.read_upstream_document(&namespace, key, ttl).await?
@@ -71,7 +71,7 @@ impl Request {
             return manifest_response(bytes, ResponseBody::for_method(&self.method)).map(Some);
         }
         if self.method == Method::HEAD
-            && let Some(answered) = head_proxy_manifest(upstream, key, reference).await?
+            && let Some(answered) = head_proxy_manifest(&upstream, key, reference).await?
         {
             return Ok(answered);
         }
@@ -123,7 +123,7 @@ impl Request {
             Err(err) => return registry_error(err),
         };
         let result =
-            self.proxied_blob(upstream, &format!("{namespace}-oci-blobs"), key, digest).await;
+            self.proxied_blob(&upstream, &format!("{namespace}-oci-blobs"), key, digest).await;
         let mut response = result.unwrap_or_else(IntoResponse::into_response);
         if response.status().is_success() {
             super::insert_header(&mut response, DOCKER_CONTENT_DIGEST, &digest.to_string());

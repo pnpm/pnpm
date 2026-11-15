@@ -10,6 +10,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
+import { matchReplacedLockfileEntries } from '../../src/install/installPredicates.js'
 import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
 import { testDefaults } from '../utils/index.js'
 
@@ -730,4 +731,155 @@ test('registry-qualified entries are verified separately, each with its own regi
   expect(seen.every((entry) => entry.name === 'foo' && entry.version === '1.0.0')).toBe(true)
   expect(new Set(seen.map((entry) => entry.registryName)))
     .toStrictEqual(new Set([undefined, 'work', 'gh']))
+})
+
+test('isReplaced distinguishes plain semver keys from registry-qualified keys', async () => {
+  const lockfile = makeLockfile({
+    '@corp/foo@1.0.0': { resolution: tarballResolution() },
+    '@corp/foo@legacy:1.0.0': { resolution: tarballResolution() },
+  }, LOCKFILE_VERSION)
+
+  const seen: Array<{ name: string, registryName?: string }> = []
+  const recordingVerifier = wrap(async (_resolution, ctx) => {
+    seen.push({ name: ctx.name, registryName: ctx.registryName })
+    return { ok: true }
+  })
+
+  await expect(verifyLockfileResolutions(lockfile, [recordingVerifier], {
+    isReplaced: (name, _version, candidate) => name === '@corp/foo' && candidate?.registryName == null,
+  })).resolves.toBeUndefined()
+
+  expect(seen).toStrictEqual([{ name: '@corp/foo', registryName: 'legacy' }])
+})
+
+test('matchReplacedLockfileEntries covers uninstallSome without pre-uninstall scripts and keeps verification when pre-uninstall scripts run', () => {
+  const rootDir = '/workspace' as import('@pnpm/types').ProjectRootDir
+  const makeCtx = (scripts?: Record<string, string>) => ({
+    existsNonEmptyWantedLockfile: true,
+    projects: {
+      [rootDir]: {
+        id: '.' as import('@pnpm/types').ProjectId,
+        manifest: {
+          dependencies: { bar: '1.0.0' },
+          scripts,
+        },
+      },
+    } as never,
+    wantedLockfile: {
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: { '.': {} },
+    } as unknown as LockfileObject,
+  })
+  const baseOpts = {
+    depth: 0,
+    fixLockfile: false,
+    frozenLockfile: false,
+    frozenLockfileIfExists: false,
+    ignorePackageManifest: false,
+    registriesByPrefix: { legacy: 'https://old.example/' },
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+      '@corp': 'https://new.example/',
+    },
+    useLockfile: true,
+  }
+  const uninstallMutation = [{
+    mutation: 'uninstallSome' as const,
+    dependencyNames: ['bar'],
+    rootDir,
+  }]
+
+  expect(matchReplacedLockfileEntries(uninstallMutation, makeCtx(), {
+    ...baseOpts,
+    lockedRegistriesByScope: { '@corp': 'https://new.example/' },
+  })).toBeUndefined()
+
+  const isReplaced = matchReplacedLockfileEntries(uninstallMutation, makeCtx(), {
+    ...baseOpts,
+    lockedRegistriesByScope: { '@corp': 'https://old.example/' },
+  })
+  expect(isReplaced).toBeDefined()
+  expect(isReplaced!('@corp/foo', '1.0.0')).toBe(true)
+  expect(isReplaced!('@corp/foo', '1.0.0', { registryName: 'legacy' })).toBe(false)
+
+  expect(matchReplacedLockfileEntries(uninstallMutation, makeCtx({ preuninstall: 'node check.js' }), {
+    ...baseOpts,
+    lockedRegistriesByScope: { '@corp': 'https://old.example/' },
+  })).toBeUndefined()
+
+  expect(matchReplacedLockfileEntries(uninstallMutation, makeCtx({ uninstall: 'node check.js' }), {
+    ...baseOpts,
+    lockedRegistriesByScope: { '@corp': 'https://old.example/' },
+  })).toBeUndefined()
+
+  expect(matchReplacedLockfileEntries(uninstallMutation, makeCtx({ preuninstall: 'node check.js' }), {
+    ...baseOpts,
+    ignoreScripts: true,
+    lockedRegistriesByScope: { '@corp': 'https://old.example/' },
+  })).toBeDefined()
+})
+
+test('invalidates lockfile-verified.jsonl when default or scoped registry changes', async () => {
+  prepareEmpty()
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-reg-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+
+    const mockRegistry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
+    const integrity = getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+    const lockfile = makeLockfile({
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
+        resolution: {
+          integrity,
+          tarball: `${mockRegistry}@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0`,
+        },
+      },
+    })
+
+    const initialVerifiers = testDefaults({
+      registriesByScope: { default: mockRegistry },
+    }).resolutionVerifiers
+    await verifyLockfileResolutions(lockfile, initialVerifiers, { cacheDir, lockfilePath })
+
+    // Repeat run with equivalent registry URL spelling hits the cache without touching the network.
+    const sameRegistryVerifiers = testDefaults({
+      registriesByScope: { default: mockRegistry.replace(/\/$/, '') },
+    }).resolutionVerifiers
+    const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug')
+    try {
+      await verifyLockfileResolutions(lockfile, sameRegistryVerifiers, { cacheDir, lockfilePath })
+      expect(debugSpy).toHaveBeenCalledWith(expect.objectContaining({ status: 'cached', lockfilePath }))
+    } finally {
+      debugSpy.mockRestore()
+    }
+
+    // Changing default registry must miss the cache and attempt verification against the new registry.
+    const changedDefaultVerifiers = testDefaults(
+      { registriesByScope: { default: 'http://127.0.0.1:1/' } },
+      undefined,
+      { retry: { retries: 0 } }
+    ).resolutionVerifiers
+    await expect(
+      verifyLockfileResolutions(lockfile, changedDefaultVerifiers, { cacheDir, lockfilePath })
+    ).rejects.toThrow()
+
+    // Changing @pnpm.e2e scope registry must also miss the cache and re-verify against the scoped registry.
+    const changedScopeVerifiers = testDefaults(
+      {
+        registriesByScope: {
+          default: mockRegistry,
+          '@pnpm.e2e': 'http://127.0.0.1:1/',
+        },
+      },
+      undefined,
+      { retry: { retries: 0 } }
+    ).resolutionVerifiers
+    await expect(
+      verifyLockfileResolutions(lockfile, changedScopeVerifiers, { cacheDir, lockfilePath })
+    ).rejects.toThrow()
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
 })

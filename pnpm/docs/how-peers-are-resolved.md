@@ -129,4 +129,6 @@ pnpm cuts every cycle at a fixed place. The packages that form a cycle are order
 
 Because the cut no longer depends on the path the installation takes, the lockfile is a function of the dependency graph alone. Repeated installs, reordered `packages` globs in `pnpm-workspace.yaml`, and reordered entries in `package.json` all produce a byte-identical lockfile. Projects with cycle-heavy dependency graphs also end up with a smaller lockfile, since packages inside a cycle no longer get a separate peer variant per path that reaches them.
 
+Packages inside a peer cycle keep separate instances when their peer providers differ, including when the providers share a package name.
+
 Existing lockfiles keep working: [`--frozen-lockfile`](./cli/install.md#--frozen-lockfile) installs consume them unchanged, and installs that skip resolution leave them untouched. The first install that re-resolves (after a dependency change, for instance) re-keys the peer variants of cyclic packages once, which shows up as a one-time lockfile diff.

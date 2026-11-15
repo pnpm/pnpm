@@ -7,10 +7,10 @@ exclude = ["vendor/tar"]
 authors = ["Yagiz Nizipli <yagiz@nizipli.com"]
 description = "Pacquet"
 edition = "2024"
-homepage = "https://github.com/pnpm/pacquet"
+homepage = "https://pnpm.io"
 keywords = ["nodejs", "package", "manager", "pnpm", "npm"]
 license = "MIT"
-repository = "https://github.com/pnpm/pacquet"
+repository = "https://github.com/pnpm/pnpm"
 
 [workspace.dependencies]
 # Crates
@@ -27,7 +27,6 @@ pnpm-catalogs-config = { path = "pnpm/crates/catalogs-config" }
 pnpm-catalogs-protocol-parser = { path = "pnpm/crates/catalogs-protocol-parser" }
 pnpm-catalogs-resolver = { path = "pnpm/crates/catalogs-resolver" }
 pnpm-catalogs-types = { path = "pnpm/crates/catalogs-types" }
-pnpm-cli = { path = "pnpm/crates/cli" }
 pnpm-cmd-shim = { path = "pnpm/crates/cmd-shim" }
 pnpm-crypto-hash = { path = "pnpm/crates/crypto-hash" }
 pnpm-crypto-shasums-file = { path = "pnpm/crates/crypto-shasums-file" }
@@ -64,7 +63,7 @@ pnpm-rust-toolchain = { path = "pnpm/crates/rust-toolchain" }
 pnpm-python-resolver = { path = "pnpm/crates/python-resolver" }
 pnpm-package-name = { path = "pnpm/crates/package-name" }
 pnpm-package-manifest = { path = "pnpm/crates/package-manifest" }
-pnpm-package-manager = { path = "pnpm/crates/package-manager" }
+pnpm-package-manager = { path = "pnpm/crates/package-manager", default-features = false }
 pnpm-package-is-installable = { path = "pnpm/crates/package-is-installable" }
 pnpm-local-spec = { path = "pnpm/crates/local-spec" }
 pnpm-lockfile = { path = "pnpm/crates/lockfile" }
@@ -73,22 +72,21 @@ pnpm-lockfile-preferred-versions = { path = "pnpm/crates/lockfile-preferred-vers
 pnpm-lockfile-verification = { path = "pnpm/crates/lockfile-verification" }
 pnpm-modules-yaml = { path = "pnpm/crates/modules-yaml" }
 pnpm-network = { path = "pnpm/crates/network" }
-pnpm-napi = { path = "pnpm/crates/napi" }
 pnpm-network-web-auth = { path = "pnpm/crates/network-web-auth" }
 pnpm-network-web-auth-testing = { path = "pnpm/crates/network-web-auth-testing" }
 pnpm-config = { path = "pnpm/crates/config" }
 pnpm-config-dir = { path = "pnpm/crates/config-dir" }
 pnpm-config-parse-overrides = { path = "pnpm/crates/config-parse-overrides" }
 pnpm-default-reporter = { path = "pnpm/crates/default-reporter" }
-pnpm-executor = { path = "pnpm/crates/executor" }
+pnpm-executor = { path = "pnpm/crates/executor", default-features = false }
 pnpm-exportable-manifest = { path = "pnpm/crates/exportable-manifest" }
 pnpm-directory-fetcher = { path = "pnpm/crates/directory-fetcher" }
-pnpm-git-fetcher = { path = "pnpm/crates/git-fetcher" }
+pnpm-git-fetcher = { path = "pnpm/crates/git-fetcher", default-features = false }
 pnpm-global = { path = "pnpm/crates/global" }
 pnpm-deps-inspection = { path = "pnpm/crates/deps-inspection" }
 pnpm-deps-inspection-peers = { path = "pnpm/crates/deps-inspection-peers" }
 pnpm-deps-path = { path = "pnpm/crates/deps-path" }
-pnpm-deps-restorer = { path = "pnpm/crates/deps-restorer" }
+pnpm-deps-restorer = { path = "pnpm/crates/deps-restorer", default-features = false }
 pnpm-detect-libc = { path = "pnpm/crates/detect-libc" }
 pnpm-diagnostics = { path = "pnpm/crates/diagnostics" }
 pnpm-graph-hasher = { path = "pnpm/crates/graph-hasher" }
@@ -101,9 +99,9 @@ pnpm-store-dir = { path = "pnpm/crates/store-dir" }
 pnpm-reporter = { path = "pnpm/crates/reporter" }
 pnpm-patching = { path = "pnpm/crates/patching" }
 pnpm-real-hoist = { path = "pnpm/crates/real-hoist" }
-pnpm-resolving-default-resolver = { path = "pnpm/crates/resolving-default-resolver" }
+pnpm-resolving-default-resolver = { path = "pnpm/crates/resolving-default-resolver", default-features = false }
 pnpm-resolving-deps-resolver = { path = "pnpm/crates/resolving-deps-resolver" }
-pnpm-resolving-git-resolver = { path = "pnpm/crates/resolving-git-resolver" }
+pnpm-resolving-git-resolver = { path = "pnpm/crates/resolving-git-resolver", default-features = false }
 pnpm-resolving-jsr-specifier-parser = { path = "pnpm/crates/resolving-jsr-specifier-parser" }
 pnpm-resolving-local-resolver = { path = "pnpm/crates/resolving-local-resolver" }
 pnpm-resolving-npm-resolver = { path = "pnpm/crates/resolving-npm-resolver" }
@@ -217,7 +215,7 @@ object_store = { version = "0.14.2", features = ["aws"] }
 open = { version = "5.4.5" }
 os_display = { version = "0.1.4" }
 owo-colors = { version = "4.4.0", features = ["supports-colors"] }
-reflink-copy = { version = "0.1.32" }
+reflink-copy = { version = "0.1.33" }
 junction = { version = "2.1.0" }
 libc = { version = "0.2.191" }
 reqwest = { version = "0.13.5", default-features = false, features = [
@@ -236,7 +234,7 @@ pipe-trait = { version = "0.4.0" }
 pubgrub = { version = "0.4.0" }
 pep440_rs = { version = "0.7.3" }
 pep508_rs = { version = "0.9.2" }
-pgp = { version = "0.21.0", default-features = false }
+pgp = { version = "0.21.1", default-features = false }
 qrcode = { version = "0.14.1", default-features = false }
 rayon = { version = "1.12.0" }
 regex = { version = "1.13.1" }
@@ -269,7 +267,7 @@ spdx = { version = "0.13.6" }
 split-first-char = { version = "2.0.1" }
 ssri = { version = "9.2.0" }
 strum = { version = "0.28.0", features = ["derive"] }
-sysinfo = { version = "0.40.1" }
+sysinfo = { version = "0.40.3" }
 tabled = { version = "0.22.0", features = ["ansi"] }
 tar = { version = "0.4.46" }
 text-block-macros = { version = "0.2.0" }
@@ -300,7 +298,7 @@ wax = { version = "0.7.0" }
 which = { version = "8.0.6" }
 zeroize = { version = "1.9.1" }
 zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
-zstd = { version = "0.14.3", default-features = false }
+zstd = { version = "0.14.4", default-features = false }
 zune-inflate = { version = "0.2.54" }
 
 # Dev dependencies
@@ -353,6 +351,11 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 # Crates that may hold `unsafe` opt out at their crate root.
 # UNSAFE_POLICY.md says which, and what a `// SAFETY:` comment there has to discharge.
 unsafe_code = "warn"
+
+[workspace.lints.cargo]
+redundant_homepage = "deny"
+unused_dependencies = "deny"
+unused_workspace_dependencies = "deny"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

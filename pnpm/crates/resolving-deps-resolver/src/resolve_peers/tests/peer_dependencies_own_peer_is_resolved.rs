@@ -1055,3 +1055,30 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
         }
     }
 }
+
+#[test]
+fn single_importer_retains_hashed_peer_bindings() {
+    let (mut tree, _) = named_registry_peer_tree("*");
+    let result = resolve_peers(
+        &mut tree,
+        ResolvePeersOptions { peers_suffix_max_length: 3, ..Default::default() },
+    );
+    let dep_path = &result.direct_dependencies_by_alias["consumer"];
+    let key: pnpm_lockfile::PackageKey = dep_path.as_str().parse().unwrap();
+    let snapshots = [(
+        key.clone(),
+        pnpm_lockfile::SnapshotEntry {
+            recorded_peer_bindings: result.graph[dep_path]
+                .recorded_peer_bindings
+                .clone(),
+            ..Default::default()
+        },
+    )]
+    .into();
+    let providers = pnpm_lockfile::BoundProviders::of_snapshot(
+        pnpm_lockfile::LockfileEntries { snapshots: Some(&snapshots), packages: None },
+        &key,
+    );
+    assert!(!providers.is_hashed());
+    assert!(providers.binds(&"types@1.0.0".parse().unwrap()));
+}

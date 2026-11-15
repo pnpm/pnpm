@@ -69,7 +69,11 @@ pub(super) enum RegistrySource {
 /// bare host has no registry and every request is a not-found, so clients must
 /// address a `/~<name>/`.
 pub(super) fn default_registry_target(state: &AppState, ecosystem: Ecosystem) -> Option<String> {
-    state.inner.config.routing.registries.default_for(ecosystem).map(str::to_string)
+    state
+        .routing()
+        .registries
+        .default_for(ecosystem)
+        .map(str::to_string)
 }
 
 /// Resolve an npm request; see [`resolve_ecosystem_source`].
@@ -89,7 +93,7 @@ pub(super) fn resolve_ecosystem_source(
     ecosystem: Ecosystem,
     package: &str,
 ) -> RegistrySource {
-    match state.inner.config.routing.registries.resolve(registry, ecosystem, package) {
+    match state.routing().registries.resolve(registry, ecosystem, package) {
         Resolved::Concrete {
             registry,
             kind: ConcreteKind::Upstream,
@@ -121,7 +125,9 @@ pub(super) fn resolves_to_private_source(
     package: &str,
 ) -> bool {
     match resolve_ecosystem_source(state, registry, ecosystem, package) {
-        RegistrySource::Hosted(source) => state.inner.config.routing.hosted
+        RegistrySource::Hosted(source) => state
+            .routing()
+            .hosted
             .get(&source)
             .is_some_and(|hosted| {
                 !hosted.rules
@@ -138,7 +144,9 @@ pub(super) fn resolves_to_private_source(
         // alone already means the response varies by caller. A public
         // upstream can still gate individual names through a per-package
         // `access` rule.
-        RegistrySource::Upstream(source) => state.inner.config.routing.upstreams
+        RegistrySource::Upstream(source) => state
+            .routing()
+            .upstreams
             .get(&source)
             .is_some_and(|upstream| {
                 upstream.access.is_some()
@@ -171,7 +179,8 @@ pub(super) async fn serve_registry_packument(
     // client's lockfile drops them — persisting the resolved source path would
     // bake the registry name in and break lockfile portability.
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let view = dist_view(state, registry, &resolved_source, None);
+    let routing = state.routing();
+    let view = dist_view(state, &routing, registry, &resolved_source, None);
     match &resolved_source {
         RegistrySource::Upstream(source) => {
             // The upstream registry's per-package rules gate every served
@@ -268,7 +277,8 @@ pub(super) fn hosted_gate(
     source: &str,
     package: &str,
 ) -> HostedGate {
-    let Some(hosted) = state.inner.config.routing.hosted.get(source) else {
+    let routing = state.routing();
+    let Some(hosted) = routing.hosted.get(source) else {
         return HostedGate::MaskNotFound;
     };
     let rules = hosted.rules.snapshot();

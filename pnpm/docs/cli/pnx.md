@@ -99,6 +99,12 @@ pnx --allow-build=esbuild my-bundler bundle
 
 The actual packages executed by `pnx` are allowed to run build scripts by default. So if in the above example `my-bundler` has to be built before execution, it will be built.
 
+Prefixing a name with `!` denies its build scripts, including for the executed package itself:
+
+```sh
+pnx --allow-build=!my-bundler my-bundler bundle
+```
+
 When a dependency's build scripts are skipped, `pnx` prompts you to approve them in an interactive terminal. This also applies when reusing a cached install that still has builds awaiting approval. Approved scripts run before the requested command.
 
 Approval decisions are saved in the isolated `pnx` cache. They do not change the calling project's build settings.

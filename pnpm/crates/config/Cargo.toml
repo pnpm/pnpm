@@ -11,8 +11,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-pnpm-ffi-process = { workspace = true }
-pnpr-registry = { workspace = true }
 pnpm-matcher = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-config-dir = { workspace = true }
@@ -24,10 +22,10 @@ pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-package-manifest = { workspace = true }
-pnpm-patching = { workspace = true }
+pnpm-package-name = { workspace = true }
+pnpm-patching-config = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }
-pnpm-tarball = { workspace = true }
 pnpm-versioning = { workspace = true }
 pnpm-version-policy = { workspace = true }
 pnpm-workspace = { workspace = true }
@@ -43,11 +41,14 @@ pipe-trait = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
+same-file = { workspace = true }
 smart-default = { workspace = true }
 tracing = { workspace = true }
 url = { workspace = true }
+yaml_serde = { workspace = true }
 
 [target.'cfg(all(unix, not(target_os = "cygwin")))'.dependencies]
+pnpm-ffi-process = { workspace = true }
 libc = { workspace = true }
 
 [dev-dependencies]

@@ -11,9 +11,18 @@ fn specified_scripts_exact_match() {
 
 #[test]
 fn specified_scripts_start_fallback() {
+    let tmp = tempfile::TempDir::new().expect("tmp dir");
     let manifest = json!({ "scripts": { "build": "tsc" } });
+    assert!(
+        ScriptSelector::new("start")
+            .unwrap()
+            .select_with_start(&manifest, tmp.path())
+            .is_empty(),
+        "without server.js, start is not selected",
+    );
+    std::fs::write(tmp.path().join("server.js"), "// server").expect("write server.js");
     assert_eq!(
-        ScriptSelector::new("start").unwrap().select_with_start(&manifest),
+        ScriptSelector::new("start").unwrap().select_with_start(&manifest, tmp.path()),
         vec!["start".to_string()],
     );
     assert!(

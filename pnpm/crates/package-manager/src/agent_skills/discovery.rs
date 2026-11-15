@@ -1,15 +1,26 @@
+pub(super) mod local_identity;
+mod locator;
+
 use super::SyncAgentSkills;
 use crate::{
-    allow_build_key_from_ignored_build, importer_root_dir, is_git_hosted_dep_path,
-    normalize_build_dep_path, selected_groups,
+    allow_build_key_from_ignored_build, is_git_hosted_dep_path, normalize_build_dep_path,
+    selected_groups, skill_approval_key,
 };
-use pnpm_config::NodeLinker;
-use pnpm_deps_restorer::parse_name_version_from_key;
+use local_identity::{is_registry_dep_path, registry_version};
+use locator::{Locator, is_package_name, link_dep_path, resolved_dep_path};
+use pnpm_lockfile::{ImporterDepVersion, PkgName, ProjectSnapshot};
+use pnpm_package_manifest::DependencyGroup;
 use std::{
+    cmp::Ordering,
     collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
+
+/// How many levels of directories below `skills` are searched for skills.
+/// Category directories let a package group its skills, as
+/// `skills/engineering/implement/SKILL.md` does.
+pub(super) const MAX_SKILL_DIR_DEPTH: usize = 3;
 
 /// A skill directory a package ships.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,116 +55,109 @@ pub(super) struct SkillSource {
 /// older one ships skills.
 pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSource> {
     let groups = selected_groups(input.included);
-    let mut by_key: BTreeMap<String, SkillSource> = BTreeMap::new();
-    let mut shipped: HashMap<String, ShippedSkills> = HashMap::new();
-    for (importer_id, snapshot) in &input.lockfile.importers {
-        let Some(locator) = Locator::new(input, importer_id) else { continue };
-        for (alias, spec) in snapshot.dependencies_by_groups(groups.iter().copied()) {
-            let Some(resolved) = spec.version.resolved_key(alias) else { continue };
-            let alias = alias.to_string();
-            let resolved = resolved.to_string();
-            let Some(skills) = locator
-                .package_dir(input, &alias, &resolved)
-                .and_then(|dir| {
-                    cached_skills(&mut shipped, probe_key(importer_id, &resolved), &dir)
-                })
-            else {
-                continue;
-            };
-            keep_highest(&mut by_key, skill_source(skills, &resolved, &alias));
-        }
+    let mut importers: Vec<_> = input.lockfile.importers.iter().collect();
+    importers.sort_by(|left, right| left.0.cmp(right.0));
+    let mut discovery = Discovery::new(input);
+    for (importer_id, snapshot) in importers {
+        discovery.visit_importer(importer_id, snapshot, &groups);
     }
-    by_key
+    discovery.by_key
         .into_values()
         .filter(|source| !source.skills.is_empty())
         .collect()
 }
 
-/// Where one importer's direct dependencies are installed.
-enum Locator<'a> {
-    /// The importer's own `node_modules`, where the isolated linker links
-    /// every direct dependency.
-    Isolated(PathBuf),
-    /// What the hoisted linker recorded: the directories, relative to the
-    /// workspace root, each dep path was placed in.
-    Hoisted { importer_id: &'a str, locations: &'a BTreeMap<String, Vec<String>> },
+struct Discovery<'a, 'b> {
+    input: &'a SyncAgentSkills<'b>,
+    locator: Locator,
+    by_key: BTreeMap<String, SkillSource>,
+    shipped: HashMap<String, ShippedSkills>,
 }
 
-impl<'a> Locator<'a> {
-    /// `None` when nothing of the importer is installed, as for one a
-    /// filtered install left out.
-    fn new(input: &SyncAgentSkills<'a>, importer_id: &'a str) -> Option<Self> {
-        if input.config.node_linker == NodeLinker::Hoisted {
-            return input.hoisted_locations.map(|locations| Self::Hoisted {
-                importer_id,
-                locations,
-            });
+impl<'a, 'b> Discovery<'a, 'b> {
+    fn new(input: &'a SyncAgentSkills<'b>) -> Self {
+        Self {
+            input,
+            locator: Locator::new(input),
+            by_key: BTreeMap::new(),
+            shipped: HashMap::new(),
         }
-        let dir = importer_root_dir(input.workspace_root, importer_id)
-            .join(input.config.modules_dir_name());
-        dir.is_dir()
-            .then_some(Self::Isolated(dir))
     }
 
-    /// The directory of the direct dependency `alias`, which resolves to
-    /// `dep_path`. Under the hoisted linker it is the location recorded for
-    /// `dep_path` nearest to the importer on its way up to the root, which
-    /// is the copy Node.js resolves. `None` when there is none, or when
-    /// `alias` is not a package name.
-    fn package_dir(
-        &self,
-        input: &SyncAgentSkills<'_>,
+    fn visit_importer(
+        &mut self,
+        importer_id: &str,
+        snapshot: &ProjectSnapshot,
+        groups: &[DependencyGroup],
+    ) {
+        if !self.locator.importer_ready(self.input, importer_id) {
+            return;
+        }
+        for (alias, spec) in snapshot.dependencies_by_groups(groups.iter().copied()) {
+            if let Some(source) = self.discover_dep(importer_id, alias, &spec.version) {
+                keep_highest(&mut self.by_key, source);
+            }
+        }
+    }
+
+    fn discover_dep(
+        &mut self,
+        importer_id: &str,
+        alias: &PkgName,
+        version: &ImporterDepVersion,
+    ) -> Option<SkillSource> {
+        let alias_str = alias.to_string();
+        if let ImporterDepVersion::Link(target) = version {
+            return self.discover_link_dep(importer_id, &alias_str, target);
+        }
+        let resolved = version.resolved_key(alias)?;
+        self.discover_resolved_dep(importer_id, &alias_str, &resolved.to_string())
+    }
+
+    fn discover_link_dep(
+        &mut self,
+        importer_id: &str,
         alias: &str,
-        dep_path: &str,
-    ) -> Option<PathBuf> {
-        if !is_package_name(alias) {
+        target: &str,
+    ) -> Option<SkillSource> {
+        let (installed_dir, expected_dir) =
+            self.locator.link_dirs(self.input, importer_id, alias, target)?;
+        let key = format!("link\0{}", expected_dir.to_string_lossy());
+        let (skills, package_dir) = cached_skills(&mut self.shipped, key, &expected_dir)?;
+        if skills.is_empty() {
             return None;
         }
-        let (importer_id, locations) = match self {
-            Self::Isolated(modules_dir) => return Some(modules_dir.join(alias)),
-            Self::Hoisted { importer_id, locations } => (importer_id, locations),
-        };
-        let recorded = locations.get(dep_path)?;
-        // Only the root's modules directory is the configured one: the
-        // hoisted linker keeps `node_modules` in workspace projects.
-        let root_modules_dir = input.config.modules_dir
-            .strip_prefix(input.workspace_root)
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|_| input.config.modules_dir_name().into())
-            .to_string_lossy()
-            .replace('\\', "/");
-        Path::new(importer_id)
-            .ancestors()
-            .map(|dir| dir.to_string_lossy().replace('\\', "/"))
-            .map(|dir| match dir.as_str() {
-                "" | "." => format!("{root_modules_dir}/{alias}"),
-                dir => format!("{dir}/node_modules/{alias}"),
-            })
-            .find(|location| recorded.contains(location))
-            .map(|location| input.workspace_root.join(location))
+        if fs::canonicalize(&installed_dir).ok().as_ref() != Some(&package_dir) {
+            return None;
+        }
+        let dep_path = link_dep_path(self.input.workspace_root, &expected_dir, &package_dir, alias);
+        Some(skill_source((skills, package_dir), &dep_path, alias))
     }
-}
 
-/// Whether `alias` names a package, `name` or `@scope/name`, and so stays
-/// inside the `node_modules` directory it is joined to.
-fn is_package_name(alias: &str) -> bool {
-    let segments: Vec<&str> = alias.split('/').collect();
-    let plain = |segment: &&str| {
-        !segment.is_empty() && *segment != "." && *segment != ".." && !segment.contains('\\')
-    };
-    match segments.as_slice() {
-        [name] => plain(name),
-        [scope, name] => scope.starts_with('@') && plain(scope) && plain(name),
-        _ => false,
+    fn discover_resolved_dep(
+        &mut self,
+        importer_id: &str,
+        alias: &str,
+        resolved: &str,
+    ) -> Option<SkillSource> {
+        let dir = self.locator.resolved_package_dir(self.input, importer_id, alias, resolved)?;
+        let (skills, package_dir) =
+            cached_skills(&mut self.shipped, probe_key(importer_id, resolved), &dir)?;
+        let dep_path = if skills.is_empty() {
+            resolved.to_string()
+        } else {
+            resolved_dep_path(resolved, &package_dir, alias)
+        };
+        Some(skill_source((skills, package_dir), &dep_path, alias))
     }
 }
 
 /// A registry package is one directory per peer variant however many
-/// importers depend on it. Any other key, such as `link:../lib`, can be
-/// relative to its importer.
+/// importers depend on it. Any other key, such as `file:../lib`, can be
+/// relative to its importer or lockfile.
 fn probe_key(importer_id: &str, resolved: &str) -> String {
     let dep_path = normalize_build_dep_path(resolved);
-    if node_semver::Version::parse(parse_name_version_from_key(&dep_path).1).is_ok() {
+    if is_registry_dep_path(&dep_path) {
         resolved.to_string()
     } else {
         format!("{importer_id}\0{resolved}")
@@ -226,20 +230,23 @@ fn skill_source(
     alias: &str,
 ) -> SkillSource {
     let dep_path = normalize_build_dep_path(dep_path);
-    let approval_key = allow_build_key_from_ignored_build(&dep_path);
+    let approval_key = skill_approval_key(&dep_path);
     // The name ends at the first `@` past a scope: a git URL such as
     // `git+ssh://git@host/...` holds another one.
-    let name = dep_path
-        .get(1..)
-        .and_then(|rest| rest.find('@'))
-        .map_or(dep_path.as_str(), |at| &dep_path[..=at]);
-    // A registry or git package has a unique name. A tarball or a local
-    // directory does not, so it takes the name the project gave it.
-    let link_segment = if approval_key == name || is_git_hosted_dep_path(&dep_path) {
-        name.to_string()
-    } else {
-        alias.to_string()
+    let name = match pnpm_deps_path::version_separator_index(&dep_path) {
+        Some(at) => &dep_path[..at],
+        None => dep_path.as_str(),
     };
+    let is_registry = is_registry_dep_path(&dep_path);
+    // A registry or git package has a unique name. A tarball, a local
+    // directory, or a lockfile key whose prefix is not a package name takes
+    // the alias the project gave it.
+    let link_segment =
+        if (is_registry || is_git_hosted_dep_path(&dep_path)) && is_package_name(name) {
+            name.to_string()
+        } else {
+            alias.to_string()
+        };
     SkillSource {
         skills,
         dep_path,
@@ -249,39 +256,35 @@ fn skill_source(
     }
 }
 
-/// Record `source` under its approval key unless a source already kept
-/// there [`supersedes`] it.
+/// Record `source` under its `allowBuilds` key unless a source already kept
+/// there [`supersedes`] it. Registry versions of a package share their bare
+/// package name so the highest version wins; other sources keep their distinct
+/// source key while collapsing peer variants.
 fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource) {
-    match by_key.get(&source.approval_key) {
+    let source_key = allow_build_key_from_ignored_build(&source.dep_path);
+    match by_key.get(&source_key) {
         Some(kept) if !supersedes(&source, kept) => {}
         _ => {
-            by_key.insert(source.approval_key.clone(), source);
+            by_key.insert(source_key, source);
         }
     }
 }
 
-/// Whether `candidate` replaces `kept` for the same approval key. Only
-/// registry versions compare: any other key names one source already. Of
-/// two peer variants of one version, one that ships skills wins, then the
-/// lower package directory, so the choice does not depend on importer order.
+/// Whether `candidate` replaces `kept` for the same source key. Registry
+/// versions compare by semver; peer variants of the same `dep_path` pick one
+/// that ships skills, then the lower package directory, so the choice does not
+/// depend on importer order.
 fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
-    let version = |source: &SkillSource| {
-        node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
+    let ordering = match (registry_version(&candidate.dep_path), registry_version(&kept.dep_path)) {
+        (Some(candidate_version), Some(kept_version)) => candidate_version.cmp(&kept_version),
+        _ if candidate.dep_path == kept.dep_path => Ordering::Equal,
+        _ => return false,
     };
-    let (Some(candidate_version), Some(kept_version)) = (version(candidate), version(kept)) else {
-        return false;
-    };
-    candidate_version
-        .cmp(&kept_version)
+    ordering
         .then_with(|| (!candidate.skills.is_empty()).cmp(&!kept.skills.is_empty()))
         .then_with(|| kept.package_dir.cmp(&candidate.package_dir))
         .is_gt()
 }
-
-/// How many levels of directories below `skills` are searched for skills.
-/// Category directories let a package group its skills, as
-/// `skills/engineering/implement/SKILL.md` does.
-const MAX_SKILL_DIR_DEPTH: usize = 3;
 
 /// [`find_skills`] over the package's `skills` directory, sorted by
 /// directory.

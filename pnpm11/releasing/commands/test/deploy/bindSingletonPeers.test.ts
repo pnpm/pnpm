@@ -115,3 +115,19 @@ test('bindSingletonPeers walks through a non-linked ancestor that resolved a dec
   }]]))
   expect(packages[LIB].dependencies?.peer).toBe('1.0.1')
 })
+
+test.each(['peer', 'constructor', 'toString'])('bindSingletonPeers binds metadata-only peer %s', (peerName) => {
+  const importer: ProjectSnapshot = {
+    specifiers: {},
+    dependencies: { lib: 'file:lib', [peerName]: '1.0.0' },
+  }
+  const packages: PackageSnapshots = {
+    [LIB]: snapshot(),
+    [`${peerName}@1.0.0` as DepPath]: snapshot(),
+  }
+  bindSingletonPeers(importer, packages, new Map([[LIB, {
+    manifest: { name: 'lib', version: '1.0.0', peerDependenciesMeta: { [peerName]: { optional: true } } },
+    dedupedPeerResolutions: undefined,
+  }]]))
+  expect(packages[LIB].dependencies?.[peerName]).toBe('1.0.0')
+})

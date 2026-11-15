@@ -39,13 +39,20 @@ vm_ssh() {
 }
 
 download() {
-  curl --fail --silent --show-error --location --retry 3 --output "$2" "$1"
+  # --retry alone does not retry a connection dropped mid-body (curl exit 18).
+  curl --fail --silent --show-error --location \
+    --retry 5 --retry-all-errors --retry-delay 5 --output "$2" "$1"
 }
 
 install_netbsd() {
   local release_dir="$vm_dir/release"
-  local path
-  while read -r _ path; do
+  local hash path
+  # The release directory may be restored from the actions cache; a file
+  # already there is downloaded again only if its hash does not match.
+  while read -r hash path; do
+    if (cd "$release_dir" 2>/dev/null && echo "$hash  $path" | sha512sum --check --status 2>/dev/null); then
+      continue
+    fi
     mkdir -p "$release_dir/$(dirname "$path")"
     download "https://cdn.netbsd.org/pub/NetBSD/NetBSD-$NETBSD_RELEASE/$path" "$release_dir/$path"
   done < "$script_dir/release.sha512"

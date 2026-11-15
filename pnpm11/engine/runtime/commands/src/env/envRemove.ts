@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { parseNodeSpecifier, RELEASE_CHANNELS, stripLeadingV } from '@pnpm/engine.runtime.node-resolver'
 import { isError, PnpmError } from '@pnpm/error'
 import { removeGlobalGroups } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
@@ -12,7 +13,25 @@ import type { NvmNodeCommandOptions } from './node.js'
 const realpathJs = util.promisify(fs.realpath)
 
 function matchesNodeVersion (actualVersion: string, requestedVersion: string): boolean {
-  return actualVersion === requestedVersion || actualVersion.startsWith(`${requestedVersion}.`)
+  let explicitChannel: string | undefined
+  let rawVersion = requestedVersion
+  if (requestedVersion.includes('/')) {
+    const slashIndex = requestedVersion.indexOf('/')
+    const channel = requestedVersion.slice(0, slashIndex)
+    if (!RELEASE_CHANNELS.includes(channel)) return false
+    explicitChannel = channel
+    rawVersion = requestedVersion.slice(slashIndex + 1)
+  }
+  const normalized = stripLeadingV(rawVersion)
+  if (!normalized) return false
+  if (explicitChannel != null) {
+    try {
+      if (parseNodeSpecifier(actualVersion).releaseChannel !== explicitChannel) return false
+    } catch {
+      return false
+    }
+  }
+  return actualVersion === normalized || actualVersion.startsWith(`${normalized}.`)
 }
 
 function isRecord (value: unknown): value is Record<string, unknown> {

@@ -69,7 +69,7 @@ fn patch_file_path(patch_path: &str, yarn_root: &Path, project_dir: &Path) -> Pa
 
 /// Split a `name@range` descriptor whose name may be scoped.
 fn split_descriptor(descriptor: &str) -> Option<(&str, &str)> {
-    let at = descriptor.get(1..)?.find('@')? + 1;
+    let at = pnpm_deps_path::version_separator_index(descriptor)?;
     Some((&descriptor[..at], &descriptor[at + 1..]))
 }
 

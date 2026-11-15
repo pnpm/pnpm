@@ -96,7 +96,7 @@ pub(crate) async fn get_user(
 }
 
 async fn active_account_id(state: &AppState, name: &str) -> Result<Option<String>, RegistryError> {
-    let Some(id) = state.inner.identity.auth.users.account_id(name).await? else {
+    let Some(id) = state.inner.identity.auth.users.active_account_id(name).await? else {
         return Ok(None);
     };
     Ok((!super::scim::is_deprovisioned(state, &id)?).then_some(id))
@@ -167,21 +167,41 @@ pub(super) async fn add_user(
                 err,
                 RegistryError::Unauthenticated { .. } | RegistryError::Forbidden { .. },
             ) {
-                state.inner.identity.login_rate_limiter.record_failure(client_ip, name);
+                record_login_failure(state, client_ip, crate::audit::Actor::NONE, name);
             }
             return err.into_response();
         }
     };
+    let actor = crate::audit::Actor { id: &id, name: &username };
     if matches!(outcome, UpsertOutcome::Created) {
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "user.register",
-            actor = %username,
+        crate::audit!(
+            actor,
+            "user.register",
             user = %username,
+            user_id = %id,
             "user account registered",
         );
     }
+    crate::audit!(actor, "auth.sign_in", method = "password", "signed in");
     user_upsert_response(outcome, &username, &id, &token)
+}
+
+/// Count a refused password login of `user` against the login rate limit, and
+/// audit it.
+pub(super) fn record_login_failure(
+    state: &AppState,
+    client_ip: Option<std::net::IpAddr>,
+    actor: crate::audit::Actor<'_>,
+    user: &str,
+) {
+    state.inner.identity.login_rate_limiter.record_failure(client_ip, user);
+    crate::audit!(
+        actor,
+        "auth.login_failed",
+        user = %user,
+        method = "password",
+        "login failed",
+    );
 }
 
 fn user_upsert_response(outcome: UpsertOutcome, username: &str, id: &str, token: &str) -> Response {
@@ -212,19 +232,21 @@ async fn log_in(
     {
         return Err(deprovisioned(name));
     }
-    let (outcome, id, token) = match state.inner.identity.auth.password_login(name, password).await
-    {
-        Err(RegistryError::TooManyUsers { .. }) => {
-            pnpr_auth::dummy_verify(password, pnpr_auth::DEFAULT_BCRYPT_COST).await;
-            return Err(RegistryError::Unauthenticated { resource: format!("user {name:?}") });
-        }
-        result => result?,
-    };
+    let expires_at = super::tokens::unrequested_token_expiry(state, pnpr_auth::unix_millis());
+    let new_token = pnpr_auth::NewToken::new().with_expires_at(Some(expires_at));
+    let (outcome, id, token) =
+        match state.inner.identity.auth.password_login(name, password, new_token).await {
+            Err(RegistryError::TooManyUsers { .. }) => {
+                pnpr_auth::dummy_verify(password, pnpr_auth::DEFAULT_BCRYPT_COST).await;
+                return Err(RegistryError::Unauthenticated { resource: format!("user {name:?}") });
+            }
+            result => result?,
+        };
     if super::scim::is_deprovisioned(state, &id)? {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(deprovisioned(name));
     }
-    let Some(current_name) = users.account_name(&id).await? else {
+    let Some(current_name) = users.active_account_name(&id).await? else {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(RegistryError::Unauthenticated { resource: format!("account {id:?}") });
     };

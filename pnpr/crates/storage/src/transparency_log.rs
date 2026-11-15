@@ -154,7 +154,7 @@ impl Storage {
     ) -> Result<(TreeHead, Option<StoredCheckpoint>)> {
         let signer = log.signer(key)?;
         let origin = signer.verifier_key().name().to_string();
-        let database = self.sql_metadata();
+        let database = self.sql_database();
         loop {
             let state = database.log_head_and_size(log).await?;
             let sequenced = state.sequenced;
@@ -215,7 +215,7 @@ impl Storage {
         stored_size: u64,
     ) -> Result<Option<StoredCheckpoint>> {
         let verified = self.reconcile_log(log, Some(key)).await?;
-        let sequenced = self.sql_metadata().log_size(log).await?;
+        let sequenced = self.sql_database().log_size(log).await?;
         if sequenced < stored_size {
             return Err(RegistryError::Internal {
                 reason: format!(
@@ -269,7 +269,7 @@ impl Storage {
         new: &[Vec<u8>],
         ranges: &[BundleRange],
     ) -> Result<Vec<(TilePath, Vec<u8>)>> {
-        let database = self.sql_metadata();
+        let database = self.sql_database();
         let mut bundles = Vec::with_capacity(ranges.len());
         for range in ranges {
             let mut entries = Vec::new();

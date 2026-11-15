@@ -18,18 +18,18 @@ pub mod archive_gc;
 pub mod cache_maintenance;
 pub mod cli_commands;
 pub mod config_check;
-pub mod export;
 pub mod htpasswd_import;
 pub mod logging;
 pub mod migrate_storage;
 pub mod verify;
 
 pub use cli_commands::{
-    Command, ConfigSubcommand, FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval, run_command,
+    Command, ConfigSubcommand, FeatureArgs, OsvArgs, RegistriesSubcommand, ServerArgs,
+    parse_cli_interval, run_command,
 };
 pub use pnpr_auth::{
-    AuthState, OwnedTokens, PasswordChange, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
-    UserBackend, UserCreation, UserRemoval, UserStore, identify,
+    AuthState, PasswordChange, SqliteAuth, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
+    UserCreation, UserRemoval, identify,
 };
 pub use pnpr_config::{
     AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource, CorsConfig,
@@ -48,6 +48,9 @@ pub use server::{
     try_router, try_router_with_auth,
 };
 
+mod audit;
 mod config_validation;
+mod hosted_storage;
+mod registries_command;
 mod resolver;
 mod server;

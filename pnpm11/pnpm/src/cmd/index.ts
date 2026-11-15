@@ -282,9 +282,18 @@ export const pnpmCmds = handlerByCommandName
 
 export const skipPackageManagerCheckForCommand = new Set(skipPackageManagerCheckForCommandArray)
 
+const cachedCliOptionsTypes = new Map<string, Record<string, unknown>>()
+
 export function getCliOptionsTypes (commandName: string): Record<string, unknown> {
-  if (!Object.hasOwn(cliOptionsTypesByCommandName, commandName)) return {}
-  return cliOptionsTypesByCommandName[commandName]?.() || {}
+  const canonical = aliasToFullName.get(commandName) ??
+    (Object.hasOwn(cliOptionsTypesByCommandName, commandName) ? commandName : null)
+  if (canonical == null) return {}
+  let cached = cachedCliOptionsTypes.get(canonical)
+  if (cached === undefined) {
+    cached = cliOptionsTypesByCommandName[canonical]?.() || {}
+    cachedCliOptionsTypes.set(canonical, cached)
+  }
+  return cached
 }
 
 export function getCommandFullName (commandName: string): string | null {

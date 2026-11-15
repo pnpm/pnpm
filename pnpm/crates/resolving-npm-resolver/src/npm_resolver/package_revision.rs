@@ -15,7 +15,7 @@ pub(super) fn tarball_revision(
     integrity: Option<&Integrity>,
     registry: &str,
 ) -> Result<Option<TarballRevision>, ResolveError> {
-    let revision = parse_dist_revision(picked)?;
+    let revision = parse_dist_revision(picked, tarball)?;
     let revision_addressed = revision
         .zip(integrity)
         .is_some_and(|(revision, integrity)| {
@@ -37,7 +37,10 @@ pub(super) fn tarball_revision(
     }
 }
 
-fn parse_dist_revision(picked: &PackageVersion) -> Result<Option<TarballRevision>, ResolveError> {
+fn parse_dist_revision(
+    picked: &PackageVersion,
+    tarball: &str,
+) -> Result<Option<TarballRevision>, ResolveError> {
     picked.dist.revision
         .as_ref()
         .map(|revision| {
@@ -50,8 +53,7 @@ fn parse_dist_revision(picked: &PackageVersion) -> Result<Option<TarballRevision
         })
         .transpose()
         .map_err(|reason| {
-            Box::new(InvalidTarballRevisionMetadataError::new(&picked.dist.tarball, reason))
-                as ResolveError
+            Box::new(InvalidTarballRevisionMetadataError::new(tarball, reason)) as ResolveError
         })
 }
 

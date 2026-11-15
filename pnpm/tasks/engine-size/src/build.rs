@@ -34,9 +34,15 @@ pub fn build_probe(
 ) -> Result<ProbeBinaries, String> {
     let BuildSite { target_dir, target, out_dir } = *site;
     eprintln!("info: building {PROBE_BIN} with lto = {}", lto.as_str());
-    let status = cargo()
+    let mut command = cargo();
+    command
         .current_dir(workspace_root())
-        .args(["build", "--locked", "--release", "--package", PROBE_PACKAGE, "--target", target])
+        .args(["build", "--locked", "--release"]);
+    if args.report.no_default_features {
+        command.arg("--no-default-features");
+    }
+    let status = command
+        .args(["--package", PROBE_PACKAGE, "--target", target])
         .arg("--target-dir")
         .arg(target_dir)
         .env("CARGO_PROFILE_RELEASE_LTO", lto.as_str())

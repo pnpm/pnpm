@@ -1,4 +1,4 @@
-use super::{locked_peers::importer_locked_peer_versions, missing_peers::merge_ranges};
+use super::{locked_peers::test_utils::importer_locked_peer_versions, missing_peers::merge_ranges};
 mod workspace_links;
 
 mod resolution_order;
@@ -11,7 +11,10 @@ mod overrides;
 
 mod optional_peers;
 
+mod hoist_preferences;
+mod locked_peer_cycles;
 mod locked_peers;
+mod manifest_peer_pins;
 
 mod hashed_peer_suffix;
 
@@ -137,7 +140,9 @@ fn link_dependency(target: &str) -> pnpm_lockfile::SnapshotDepRef {
 /// list — the union `importer_locked_peer_context` folds over every
 /// snapshot.
 fn locked_peer_names(wanted_lockfile: Option<&pnpm_lockfile::Lockfile>) -> HashSet<String> {
-    importer_locked_peer_versions(wanted_lockfile, "missing-importer").into_keys().collect()
+    importer_locked_peer_versions(wanted_lockfile, "missing-importer", |_| true)
+        .into_keys()
+        .collect()
 }
 
 struct StubResolver {
@@ -230,6 +235,7 @@ fn default_opts() -> ResolveImporterOptions {
         base_opts: ResolveOptions::default(),
         peers_suffix_max_length: 1000,
         peers: crate::ImporterPeerOptions {
+            explicitly_requested_direct_dependencies: HashSet::default(),
             auto_install_peers: true,
             auto_install_peers_from_highest_match: false,
             resolve_peers_from_workspace_root: false,

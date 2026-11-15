@@ -194,6 +194,20 @@ async fn remove_if_present(path: &Path) -> bool {
     }
 }
 
+/// Whether `path`'s filename ends with a [`unique_tmp_path`] suffix.
+#[must_use]
+pub fn is_atomic_write_temp_path(path: &Path) -> bool {
+    let Some(name) = path.file_name().map(std::ffi::OsStr::as_encoded_bytes) else {
+        return false;
+    };
+    let marker = TMP_MARKER.as_bytes();
+    name.windows(marker.len())
+        .enumerate()
+        .any(|(idx, window)| {
+            idx > 0 && window == marker && is_atomic_write_temp_suffix(&name[idx + marker.len()..])
+        })
+}
+
 pub(super) fn is_atomic_write_temp_suffix(suffix: &[u8]) -> bool {
     let mut parts = suffix.split(|byte| *byte == b'.');
     let (Some(pid), Some(counter), Some(random), None) =

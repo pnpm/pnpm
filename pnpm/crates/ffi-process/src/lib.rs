@@ -21,6 +21,8 @@ pub use credentials::real_user_id;
 #[cfg(target_vendor = "apple")]
 pub use descriptors::inherit_only_stdio;
 pub use environment::SingleThreaded;
+#[cfg(unix)]
+pub use group_announcement::spawn_announcing_group;
 #[cfg(windows)]
 pub use handle::{ProcessHandle, Wait};
 #[cfg(unix)]
@@ -46,6 +48,8 @@ mod credentials;
 #[cfg(target_vendor = "apple")]
 mod descriptors;
 mod environment;
+#[cfg(unix)]
+mod group_announcement;
 #[cfg(windows)]
 mod handle;
 #[cfg(unix)]

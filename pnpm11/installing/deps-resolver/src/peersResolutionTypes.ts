@@ -6,6 +6,7 @@ import type {
 } from '@pnpm/types'
 import type { DeferredPromise } from 'p-defer'
 
+import type { PeerNodeRecord } from './finalizePeerContexts.js'
 import type { NodeId } from './nextNodeId.js'
 import type {
   DependenciesTree,
@@ -120,6 +121,7 @@ export interface ResolvePeersContext {
 }
 
 export interface ResolveNodePeersContext<Pkg extends PartialResolvedPackage> extends ResolvePeersContext {
+  peerNodes: Map<NodeId, PeerNodeRecord<Pkg>>
   allPeerDepNames: Set<string>
   parentPkgsOfNode: ParentPkgsOfNode
   parentNodeIds: NodeId[]

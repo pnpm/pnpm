@@ -9,8 +9,8 @@
 //! into its package, and only the principal that uploaded it can claim it.
 //!
 //! Each archive is stored under its principal and the [`BlobId`] of its bytes,
-//! as `<blob_id>.<incarnation>`, and the metadata database keeps its record
-//! (see [`crate::metadata::StagedRecord`]): when it was last uploaded, and
+//! as `<blob_id>.<incarnation>`, and the database keeps its record
+//! (see [`crate::database::StagedRecord`]): when it was last uploaded, and
 //! whether its bytes are all there. An upload records its archive as
 //! incomplete before the bytes arrive, which reserves them against the
 //! principal's limits, and as complete once they are stored; only a complete
@@ -31,7 +31,7 @@ mod sweep;
 
 use crate::{
     BlobId,
-    metadata::{StagedEntry, StagedId, StagedRecord, StagedState},
+    database::{StagedEntry, StagedId, StagedRecord, StagedState},
 };
 use std::time::Duration;
 

@@ -629,3 +629,42 @@ fn a_negated_flag_clears_a_configured_value() {
         assert_eq!(config.offline, expected, "offline {offline:?} over a configured {configured}");
     }
 }
+
+#[test]
+fn lockfile_dir_flag_shares_one_lockfile_across_dedicated_projects() {
+    let workspace = Path::new("/workspace");
+    let mut config = Config {
+        dir: workspace.to_path_buf(),
+        workspace_dir: Some(workspace.to_path_buf()),
+        shared_workspace_lockfile: false,
+        ..Config::default()
+    };
+    let invocation =
+        Invocation { lockfile_dir: Some(PathBuf::from(".")), ..pre_command_input(workspace) };
+
+    apply_cli_layers(&mut config, &invocation, &ConfigOverrides::default(), workspace)
+        .expect("apply cli layers");
+
+    assert_eq!(config.lockfile_dir.as_deref(), Some(workspace));
+    assert!(config.shares_one_lockfile());
+}
+
+#[test]
+fn create_stops_scanning_bootstrap_flags_after_starter_name() {
+    let argv = [
+        "pnpm",
+        "--dir",
+        "/tmp/project",
+        "create",
+        "vite",
+        "my-app",
+        "--dir",
+        "/tmp/forwarded-to-starter",
+        "--global",
+    ]
+    .map(OsString::from);
+    let invocation = Invocation::from_argv(&argv, EntryPoint::Command);
+    assert_eq!(invocation.command.as_deref(), Some("create"));
+    assert_eq!(invocation.paths.dir, PathBuf::from("/tmp/project"));
+    assert!(!invocation.global);
+}

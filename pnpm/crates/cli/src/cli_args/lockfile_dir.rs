@@ -37,7 +37,7 @@ impl LockfileDirArg {
     /// resolves its own `lockfileDir` against.
     pub(crate) fn apply_to(&self, config: &mut Config, dir: &Path) {
         if let Some(lockfile_dir) = self.lockfile_dir.as_deref() {
-            config.pin_lockfile_dir(&dir.join(lockfile_dir));
+            config.pin_lockfile_dir(&dir.join(lockfile_dir), dir);
         }
     }
 
@@ -49,6 +49,7 @@ impl LockfileDirArg {
         if self.lockfile_dir.is_some() {
             return Err(LockfileDirWithGlobal);
         }
+        config.configured_lockfile_dir = None;
         config.lockfile_dir = None;
         Ok(())
     }

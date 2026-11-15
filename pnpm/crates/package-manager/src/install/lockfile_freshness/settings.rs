@@ -55,6 +55,21 @@ pub(super) async fn check_settings(
     Ok(parsed_overrides)
 }
 
+pub(super) fn freshness_overrider(
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+    parsed_overrides: Option<&[VersionOverride]>,
+) -> Option<std::sync::Arc<crate::VersionsOverrider>> {
+    parsed_overrides.map(|parsed| {
+        std::sync::Arc::new(
+            crate::VersionsOverrider::new(
+                parsed,
+                inputs.config.root_project_manifest_dir(inputs.lockfile_dir),
+            )
+            .with_catalogs(inputs.catalogs),
+        )
+    })
+}
+
 /// The lockfile's `patchedDependencies` must match the configured patch
 /// hashes, and its `(patch_hash=...)` depPath suffixes must match them.
 fn check_lockfile_patches(lockfile: &Lockfile, config: &Config) -> Result<(), FreshnessCheckError> {

@@ -6,7 +6,7 @@ use std::{
 #[cfg(unix)]
 use std::{path::Path, time::Duration};
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
 use tokio::sync::watch;
 
 use crate::process::{Child, Command};
@@ -58,7 +58,7 @@ enum RunningExecution {
     /// keeps its id from being reused.
     #[cfg(unix)]
     Group { leader: u32 },
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
     Emulated(watch::Sender<bool>),
 }
 
@@ -86,7 +86,7 @@ impl RunningExecution {
             }
             #[cfg(unix)]
             Self::Group { leader } => signal::signal_group(*leader, stop),
-            #[cfg(not(target_family = "wasm"))]
+            #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
             Self::Emulated(sender) => {
                 let _ = sender.send(true);
             }
@@ -103,7 +103,7 @@ impl RunningExecution {
             }
             #[cfg(unix)]
             Self::Group { leader } => format!("group {leader}"),
-            #[cfg(not(target_family = "wasm"))]
+            #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
             Self::Emulated(_) => "emulated".to_owned(),
         }
     }
@@ -169,7 +169,7 @@ impl ProcessTracker {
         self.state.lock().expect("process tracker lock is not poisoned").cancelled
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
     pub(crate) fn track_emulated(&self) -> EmulatedCancellation<'_> {
         let (sender, receiver) = watch::channel(false);
         let registration = self.register(RunningExecution::Emulated(sender));
@@ -228,17 +228,18 @@ pub fn spawn_child<'tracker>(
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
     #[cfg(unix)]
-    if own_process_group {
-        group_watchdog::start()?;
-    }
+    let group_watchdog::ChildWatch { child, watched } = if own_process_group {
+        group_watchdog::spawn(command)?
+    } else {
+        group_watchdog::ChildWatch { child: command.spawn()?, watched: false }
+    };
+    #[cfg(not(unix))]
     let child = command.spawn()?;
     crate::job_control::assign_child(&child);
     // A task a bail may cancel gets a job of its own, so the cancellation
     // reaches everything the task started.
     #[cfg(windows)]
     let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
-    #[cfg(unix)]
-    let (child, watched) = watch_process_group(child, own_process_group)?;
     let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
@@ -256,27 +257,6 @@ pub fn spawn_child<'tracker>(
         #[cfg(unix)]
         watched,
     })
-}
-
-/// Have the watchdog watch `child`'s group when the child leads one.
-/// Returns whether the group is watched.
-///
-/// A child left unwatched would be the very orphan the watchdog exists to
-/// prevent, so if the watch cannot be set up the child's group is killed
-/// before the failure is returned.
-#[cfg(unix)]
-fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<(Child, bool)> {
-    if !own_process_group {
-        return Ok((child, false));
-    }
-    match group_watchdog::watch(child.id()) {
-        Ok(watched) => Ok((child, watched)),
-        Err(error) => {
-            terminate_process(child.id(), true, Stop::Forced);
-            let _ = child.wait();
-            Err(error)
-        }
-    }
 }
 
 #[cfg(unix)]
@@ -364,13 +344,13 @@ fn group_is_running(leader: i32, table: Option<&Path>) -> bool {
         && table.is_none_or(|table| process_table::has_running_member(table, leader))
 }
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
 pub(crate) struct EmulatedCancellation<'tracker> {
     receiver: watch::Receiver<bool>,
     _registration: Registration<'tracker>,
 }
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
 impl EmulatedCancellation<'_> {
     pub(crate) fn to_receiver(&self) -> watch::Receiver<bool> {
         self.receiver.clone()

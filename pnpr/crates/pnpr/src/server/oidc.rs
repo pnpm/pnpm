@@ -100,10 +100,11 @@ async fn callback(
             &query.state,
             secret,
             query.code.as_deref().unwrap_or(""),
+            |subject| super::scim::resolve_subject(&state, subject),
         )
         .await
         {
-            Ok(session) => finish_sign_in(&state, &query.state, session).await,
+            Ok(session) => finish_sign_in(&state, (&provider, &query.state), session).await,
             Err(err) => err.into_response(),
         }
     } else {
@@ -259,18 +260,21 @@ pub(super) fn protect(response: Response) -> Response {
     response
 }
 
-pub(super) fn validate_workloads(config: &pnpr_config::Config) -> Result<(), RegistryError> {
+pub(super) fn validate_workloads(
+    config: &pnpr_config::Config,
+    routing: &pnpr_config::RoutingConfig,
+) -> Result<(), RegistryError> {
     for workload in config.identity.auth.oidc.iter().flat_map(|provider| &provider.workloads) {
-        validate_single_workload(config, workload)?;
+        validate_single_workload(routing, workload)?;
     }
     Ok(())
 }
 
 fn validate_single_workload(
-    config: &pnpr_config::Config,
+    routing: &pnpr_config::RoutingConfig,
     workload: &pnpr_config::oidc::OidcWorkload,
 ) -> Result<(), RegistryError> {
-    if !is_hosted_npm_registry(config, &workload.registry) || workload.packages.is_empty() {
+    if !is_hosted_npm_registry(routing, &workload.registry) || workload.packages.is_empty() {
         return Err(RegistryError::InvalidConfig {
             reason: "OIDC workloads require a hosted npm registry and explicit packages".to_string(
             ),
@@ -279,13 +283,12 @@ fn validate_single_workload(
     validate_workload_packages(&workload.packages)
 }
 
-fn is_hosted_npm_registry(config: &pnpr_config::Config, registry: &str) -> bool {
-    let Some(key) = config.routing.registries.addressed(registry, pnpr_registry::Ecosystem::Npm)
-    else {
+fn is_hosted_npm_registry(routing: &pnpr_config::RoutingConfig, registry: &str) -> bool {
+    let Some(key) = routing.registries.addressed(registry, pnpr_registry::Ecosystem::Npm) else {
         return false;
     };
-    matches!(config.routing.registries.get(key), Some(pnpr_registry::Registry::Hosted { .. }))
-        && config.routing.registries.ecosystem(key) == Some(pnpr_registry::Ecosystem::Npm)
+    matches!(routing.registries.get(key), Some(pnpr_registry::Registry::Hosted { .. }))
+        && routing.registries.ecosystem(key) == Some(pnpr_registry::Ecosystem::Npm)
 }
 
 fn validate_workload_packages(packages: &[String]) -> Result<(), RegistryError> {
@@ -368,10 +371,10 @@ pub(super) struct WorkloadScope {
 
 impl WorkloadScope {
     pub(super) fn new(
-        config: &pnpr_config::Config,
+        routing: &pnpr_config::RoutingConfig,
         workload: &pnpr_config::oidc::OidcWorkload,
     ) -> Self {
-        let registry = config.routing.registries
+        let registry = routing.registries
             .addressed(&workload.registry, pnpr_registry::Ecosystem::Npm)
             .unwrap_or(&workload.registry)
             .to_string();
@@ -422,25 +425,40 @@ impl WorkloadScope {
 #[cfg(test)]
 mod tests;
 
-async fn finish_sign_in(state: &AppState, flow: &str, session: LoginSession) -> Response {
+async fn finish_sign_in(
+    state: &AppState,
+    (provider, flow): (&str, &str),
+    session: LoginSession,
+) -> Response {
     let verified = async {
         let user = state.inner.identity.oidc
             .session(&session.token)?
             .ok_or_else(|| RegistryError::Unauthenticated {
                 resource: "OIDC browser session".to_string(),
             })?;
-        super::authentication::require_active_account(state, &user.user_id).await?;
+        let name = super::authentication::active_account_name(state, &user.user_id).await?;
         if super::scim::is_deprovisioned(state, &user.user_id)? {
             return Err(RegistryError::Unauthenticated {
                 resource: "an inactive account".to_string(),
             });
         }
-        Ok(())
+        Ok((user.user_id, name))
     }
     .await;
-    if let Err(err) = verified {
-        state.inner.identity.oidc.revoke_session(&session.token);
-        return err.into_response();
-    }
+    let (id, name) = match verified {
+        Ok(account) => account,
+        Err(err) => {
+            state.inner.identity.oidc.revoke_session(&session.token);
+            return err.into_response();
+        }
+    };
+    let actor = crate::audit::Actor { id: &id, name: &name };
+    crate::audit!(
+        actor,
+        "auth.sign_in",
+        method = "oidc",
+        provider = %provider,
+        "signed in",
+    );
     signed_in(&state.inner.identity.oidc, flow, session)
 }

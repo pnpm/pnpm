@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { confirm } from '@inquirer/prompts'
@@ -17,6 +18,7 @@ import { renderHelp } from 'render-help'
 import { extractPublishManifestFromPacked, isTarballPath, type TarballPath } from './extractManifestFromPacked.js'
 import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
+import { resolveRelativeTarget } from './packOutput.js'
 import { publishPackedPkg, type PublishSummary } from './publishPackedPkg.js'
 import { type PublishRecursiveOpts, recursivePublish, type RecursivePublishedPackage } from './recursivePublish.js'
 
@@ -183,37 +185,65 @@ export async function publish (
       hint: 'Run "pnpm publish -r --batch" to publish all workspace packages in a single request.',
     })
   }
-  await runGitChecks(opts)
+  const baseDir = opts.dir ? resolveRelativeTarget(process.cwd(), opts.dir) : process.cwd()
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
+    const workspaceDir = opts.workspaceDir ?? baseDir
+    await runGitChecks(opts, workspaceDir)
     const { exitCode, publishedPackages } = await recursivePublish({
       ...opts,
       selectedProjectsGraph: opts.selectedProjectsGraph,
-      workspaceDir: opts.workspaceDir ?? process.cwd(),
+      workspaceDir,
     })
     return { exitCode, publishedPackages }
   }
 
+  const { gitChecksCwd, isTarball, target } = await resolveSinglePublishTarget(baseDir, params)
+  await runGitChecks(opts, gitChecksCwd)
+
   opts = optionsWithOtpEnv(opts, process.env)
 
-  const dirInParams = (params.length > 0) ? params[0] : undefined
-
-  if (dirInParams != null && isTarballPath(dirInParams)) {
-    return publishTarball(dirInParams, opts)
+  if (isTarball) {
+    return publishTarball(target as TarballPath, opts)
   }
 
-  return publishDir(dirInParams ?? opts.dir ?? process.cwd(), opts)
+  return publishDir(target, opts)
 }
 
-async function runGitChecks (opts: Pick<PublishCommandOptions, 'ci' | 'gitChecks' | 'publishBranch'>): Promise<void> {
-  if (opts.gitChecks === false || !(await isGitRepo())) return
-  if (!(await isWorkingTreeClean())) {
+const PARENT_SEGMENT_RE = process.platform === 'win32'
+  ? /(?:^|[/\\])\.\.(?:[/\\]|$)/
+  : /(?:^|\/)\.\.(?:\/|$)/
+
+async function resolveSinglePublishTarget (
+  baseDir: string,
+  params: string[]
+): Promise<{ gitChecksCwd: string, isTarball: boolean, target: string }> {
+  const dirInParams = params.length > 0 ? params[0] : undefined
+  const rawTarget = dirInParams != null ? resolveRelativeTarget(baseDir, dirInParams) : baseDir
+  const target = PARENT_SEGMENT_RE.test(rawTarget) ? await realpathMissing(rawTarget) : rawTarget
+  const isTarball = dirInParams != null && isTarballPath(dirInParams)
+  const gitChecksCwd = !isTarball && isExistingDirectory(target) ? target : baseDir
+  return { gitChecksCwd, isTarball, target }
+}
+
+function isExistingDirectory (dirPath: string): boolean {
+  try {
+    return fs.statSync(dirPath).isDirectory()
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    throw err
+  }
+}
+
+async function runGitChecks (opts: Pick<PublishCommandOptions, 'ci' | 'gitChecks' | 'publishBranch'>, cwd: string): Promise<void> {
+  if (opts.gitChecks === false || !(await isGitRepo({ cwd }))) return
+  if (!(await isWorkingTreeClean({ cwd }))) {
     throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
       hint: GIT_CHECKS_HINT,
     })
   }
-  const currentBranch = await getCurrentBranch()
-  await checkPublishBranch(currentBranch, opts)
-  if (currentBranch !== null && !(await isRemoteHistoryClean())) {
+  const currentBranch = await getCurrentBranch({ cwd })
+  await checkPublishBranch(currentBranch, opts, cwd)
+  if (currentBranch !== null && !(await isRemoteHistoryClean({ cwd }))) {
     throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.', {
       hint: GIT_CHECKS_HINT,
     })
@@ -222,10 +252,11 @@ async function runGitChecks (opts: Pick<PublishCommandOptions, 'ci' | 'gitChecks
 
 async function checkPublishBranch (
   currentBranch: string | null,
-  opts: Pick<PublishCommandOptions, 'ci' | 'publishBranch'>
+  opts: Pick<PublishCommandOptions, 'ci' | 'publishBranch'>,
+  cwd: string
 ): Promise<void> {
   const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
-  if (currentBranch === null && !(opts.ci && await isHeadDetached())) {
+  if (currentBranch === null && !(opts.ci && await isHeadDetached({ cwd }))) {
     throw new PnpmError(
       'GIT_UNKNOWN_BRANCH',
       `The Git HEAD may not attached to any branch, but your "publish-branch" is set to "${branches.join('|')}".`,

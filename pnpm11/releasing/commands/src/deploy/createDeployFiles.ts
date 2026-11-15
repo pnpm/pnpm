@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import * as dp from '@pnpm/deps.path'
-import { getAppliedPatchKeys, getLockfilePeerDependencies, groupPatchedDependencies } from '@pnpm/installing.deps-resolver'
+import { getAppliedPatchKeys, getLockfilePeerDependencies, getPeerSet, groupPatchedDependencies } from '@pnpm/installing.deps-resolver'
 import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
@@ -176,7 +176,8 @@ function convertWorkspaceImporters (
       ...(manifest == null ? {} : getLockfilePeerDependencies(manifest)),
     }
     const depPaths = addLinkedWorkspaceSnapshots(ctx.targetPackageSnapshots, { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot })
-    if (manifest?.peerDependencies == null) continue
+    // Own dependencies declared as peers still need manifest-based edge classification.
+    if (manifest == null || Object.keys(getPeerSet(manifest).declared).length === 0) continue
     const linkedWorkspaceProject = createLinkedWorkspaceProject(manifest, { convertOptions, injectedWorkspace, projectSnapshot })
     for (const depPath of depPaths) linkedWorkspaceProjects.set(depPath, linkedWorkspaceProject)
   }
@@ -191,7 +192,7 @@ function createLinkedWorkspaceProject (
     manifest,
     dedupedPeerResolutions: importer.injectedWorkspace
       ? convertResolvedDependencies(
-        pickOwn(Object.keys(manifest.peerDependencies ?? {}), importer.projectSnapshot.devDependencies ?? {}),
+        pickOwn(Object.keys(getPeerSet(manifest).taken), importer.projectSnapshot.devDependencies ?? {}),
         importer.convertOptions
       )
       : undefined,
@@ -254,7 +255,7 @@ function createDeployImporterSnapshot (opts: CreateDeployFilesOptions, deployedP
   }
   const directDependencyNames = dependencyNames(opts.selectedProjectManifest)
   const peerOnlyDependencies = new Set(
-    Object.keys(opts.selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
+    Object.keys(getPeerSet(opts.selectedProjectManifest).taken).filter(name => !directDependencyNames.has(name))
   )
   for (const field of DEPENDENCIES_FIELD) {
     // An excluded group's direct dependencies are left out of both the

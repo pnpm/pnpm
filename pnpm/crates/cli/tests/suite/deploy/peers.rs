@@ -9,6 +9,21 @@ use assert_cmd::assert::OutputAssertExt;
 /// resolution of that peer, so the synthesized snapshot can bind it.
 #[test]
 fn shared_lockfile_deploy_binds_a_singleton_peer_of_a_linked_workspace_package() {
+    check_linked_workspace_peer(PeerDeclaration::Explicit);
+}
+
+#[test]
+fn shared_lockfile_deploy_binds_a_metadata_only_optional_peer() {
+    check_linked_workspace_peer(PeerDeclaration::MetadataOnly);
+}
+
+#[derive(Clone, Copy)]
+enum PeerDeclaration {
+    Explicit,
+    MetadataOnly,
+}
+
+fn check_linked_workspace_peer(declaration: PeerDeclaration) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -18,6 +33,19 @@ fn shared_lockfile_deploy_binds_a_singleton_peer_of_a_linked_workspace_package()
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_peer_workspace(&workspace);
+    if matches!(declaration, PeerDeclaration::MetadataOnly) {
+        let manifest_path = workspace.join("packages/lib/package.json");
+        let mut manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        manifest
+            .as_object_mut()
+            .unwrap()
+            .remove("peerDependencies");
+        manifest["peerDependenciesMeta"] = serde_json::json!({
+            "@pnpm.e2e/peer-a": { "optional": true },
+        });
+        write_project(&workspace, "lib", &manifest);
+    }
 
     pacquet
         .with_arg("install")

@@ -292,6 +292,7 @@ fn check_directory_dep_in_scope(
         importer_id: ".",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -303,7 +304,7 @@ fn check_directory_dep_in_scope(
             ignored: &ignored,
             frozen_lockfile: case.frozen_lockfile,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let dep = LocalDepContext {
         name: "lib",
@@ -823,6 +824,7 @@ snapshots:
         importer_id: "packages/c",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -834,7 +836,7 @@ snapshots:
             ignored: &ignored,
             frozen_lockfile: false,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let importer_c = lockfile.importers.get("packages/c").expect("packages/c importer");
     let err = super::check_directory_dependencies_freshness(&check, importer_c)
@@ -885,6 +887,7 @@ fn check_root_with_directories(
         importer_id: ".",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -896,7 +899,7 @@ fn check_root_with_directories(
             ignored: &ignored,
             frozen_lockfile: false,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let importer = lockfile.importers.get(".").expect("root importer");
     super::check_directory_dependencies_freshness(&check, importer)
@@ -1227,6 +1230,7 @@ snapshots:
         importer_id: "packages/c",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -1238,7 +1242,7 @@ snapshots:
             ignored: &ignored,
             frozen_lockfile: false,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let importer_c = lockfile.importers.get("packages/c").expect("packages/c importer");
     super::check_directory_dependencies_freshness(&check, importer_c)
@@ -1372,6 +1376,7 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
         importer_id: ".",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -1383,7 +1388,7 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
             ignored: &ignored,
             frozen_lockfile: false,
         },
-        parsed_overrides: None,
+        overrider: None,
     };
     let dep = LocalDepContext {
         name: "lib",

@@ -468,3 +468,335 @@ fn a_project_outside_a_work_tree_runs_its_tasks_without_the_cache() {
     run(&["pipeline", "--full"], "xxx");
     assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "built");
 }
+
+fn run_pipeline_cmd(
+    workspace: &std::path::Path,
+    storage: &std::path::Path,
+    extra_env: &[(&str, &str)],
+    args: &[&str],
+) -> String {
+    let mut cmd = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
+    cmd.current_dir(workspace)
+        .env("XDG_CACHE_HOME", storage.join("cache"))
+        .env("XDG_CONFIG_HOME", storage.join("config"));
+    for (key, val) in extra_env {
+        cmd.env(key, val);
+    }
+    let result = cmd.args(args).assert().success();
+    String::from_utf8_lossy(&result.get_output().stdout).into_owned()
+}
+
+#[test]
+fn additive_empty_and_excluded_inputs_control_cache_invalidation() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let workspace = root.path().join("ws-src");
+    let storage = root.path().join("storage");
+    repo.write_file("package.json", r#"{"private":true}"#);
+    repo.write_file(".gitignore", "node_modules/\n**/dist/\n**/*-runs\n**/.env.local\n");
+    repo.write_file(
+        "pnpm-workspace.yaml",
+        "packages: ['packages/*']\npipelines:\n  default: [build, stamp]\ntasks:\n  build:\n    dependsOn: []\n    inputs: ['+.env.local', '+../shared.txt', '!README.md']\n    outputs: ['dist/out.txt']\n  stamp:\n    dependsOn: []\n    inputs: []\n    outputs: ['dist/stamp.txt']\n",
+    );
+    let app_script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});const env=fs.existsSync('.env.local')?fs.readFileSync('.env.local','utf8'):'none';const shared=fs.readFileSync('../shared.txt','utf8');const src=fs.readFileSync('src.txt','utf8');fs.writeFileSync('dist/out.txt',[src,env,shared].join(':'));fs.appendFileSync('build-runs','x')""#;
+    let stamp_script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/stamp.txt','ok');fs.appendFileSync('stamp-runs','s')""#;
+    repo.write_file(
+        "packages/app/package.json",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "scripts": { "build": app_script, "stamp": stamp_script }
+        })
+        .to_string(),
+    );
+    repo.write_file("packages/app/src.txt", "src1");
+    repo.write_file("packages/app/README.md", "doc1");
+    repo.write_file("packages/shared.txt", "shared1");
+    let _ = repo.commit("initial workspace");
+
+    run_pipeline_cmd(&workspace, &storage, &[], &["install"]);
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/build-runs")).unwrap(), "x");
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/stamp-runs")).unwrap(), "s");
+    assert_eq!(
+        fs::read_to_string(workspace.join("packages/app/dist/out.txt")).unwrap(),
+        "src1:none:shared1",
+    );
+
+    repo.write_file("packages/app/README.md", "doc2");
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/build-runs")).unwrap(), "x");
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/stamp-runs")).unwrap(), "s");
+
+    fs::write(workspace.join("packages/app/.env.local"), "env1").unwrap();
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/build-runs")).unwrap(), "xx");
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/stamp-runs")).unwrap(), "s");
+    assert_eq!(
+        fs::read_to_string(workspace.join("packages/app/dist/out.txt")).unwrap(),
+        "src1:env1:shared1",
+    );
+
+    repo.write_file("packages/shared.txt", "shared2");
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/build-runs")).unwrap(), "xxx");
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/stamp-runs")).unwrap(), "s");
+    assert_eq!(
+        fs::read_to_string(workspace.join("packages/app/dist/out.txt")).unwrap(),
+        "src1:env1:shared2",
+    );
+
+    repo.write_file("packages/app/src.txt", "src2");
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/build-runs")).unwrap(), "xxxx");
+    assert_eq!(fs::read_to_string(workspace.join("packages/app/stamp-runs")).unwrap(), "s");
+    assert_eq!(
+        fs::read_to_string(workspace.join("packages/app/dist/out.txt")).unwrap(),
+        "src2:env1:shared2",
+    );
+}
+
+#[test]
+fn uncacheable_depends_on_tasks_force_dependents_to_rerun_while_passthrough_caches() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let workspace = root.path().join("ws-src");
+    let storage = root.path().join("storage");
+    repo.write_file("package.json", r#"{"private":true}"#);
+    repo.write_file(".gitignore", "node_modules/\n**/dist/\n**/runs\n**/generated.tmp\n");
+    repo.write_file(
+        "pnpm-workspace.yaml",
+        "packages: ['packages/*']\npipelines:\n  default: [bundle, chain]\ntasks:\n  codegen:\n    dependsOn: []\n    cache: false\n    outputs: ['dist/**']\n  bundle:\n    dependsOn: ['codegen']\n    inputs: []\n    outputs: ['dist/**']\n  chain:\n    dependsOn: ['^chain']\n    outputs: ['dist/**']\n",
+    );
+    let codegen_script =
+        r#"node -e "require('fs').writeFileSync('generated.tmp',process.env.GEN_VAL)""#;
+    let bundle_script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/out.txt',fs.readFileSync('generated.tmp','utf8'));fs.appendFileSync('runs','b')""#;
+    let leaf_script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/leaf.txt',fs.readFileSync('input.txt','utf8'));fs.appendFileSync('runs','l')""#;
+    let top_script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/top.txt',fs.readFileSync('../leaf/dist/leaf.txt','utf8'));fs.appendFileSync('runs','t')""#;
+    repo.write_file(
+        "packages/leaf/package.json",
+        &serde_json::json!({
+            "name": "leaf",
+            "version": "1.0.0",
+            "scripts": { "codegen": codegen_script, "bundle": bundle_script, "chain": leaf_script }
+        })
+        .to_string(),
+    );
+    repo.write_file("packages/leaf/input.txt", "v1");
+    repo.write_file(
+        "packages/middle/package.json",
+        &serde_json::json!({
+            "name": "middle",
+            "version": "1.0.0",
+            "dependencies": { "leaf": "workspace:*" }
+        })
+        .to_string(),
+    );
+    repo.write_file(
+        "packages/top/package.json",
+        &serde_json::json!({
+            "name": "top",
+            "version": "1.0.0",
+            "dependencies": { "middle": "workspace:*" },
+            "scripts": { "chain": top_script }
+        })
+        .to_string(),
+    );
+    let _ = repo.commit("pipeline graph");
+
+    run_pipeline_cmd(&workspace, &storage, &[("GEN_VAL", "one")], &["install"]);
+    run_pipeline_cmd(&workspace, &storage, &[("GEN_VAL", "one")], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/leaf/dist/out.txt")).unwrap(), "one");
+    assert_eq!(fs::read_to_string(workspace.join("packages/top/runs")).unwrap(), "t");
+
+    run_pipeline_cmd(&workspace, &storage, &[("GEN_VAL", "two")], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/leaf/dist/out.txt")).unwrap(), "two");
+    assert_eq!(fs::read_to_string(workspace.join("packages/top/runs")).unwrap(), "t");
+
+    repo.write_file("packages/leaf/input.txt", "v2");
+    run_pipeline_cmd(&workspace, &storage, &[("GEN_VAL", "three")], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/leaf/dist/out.txt")).unwrap(), "three");
+    assert_eq!(fs::read_to_string(workspace.join("packages/top/dist/top.txt")).unwrap(), "v2");
+    assert_eq!(fs::read_to_string(workspace.join("packages/top/runs")).unwrap(), "tt");
+}
+
+#[test]
+fn readonly_outputs_restore_from_cache_without_permission_errors() {
+    let project = tempfile::tempdir().unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
+    fs::write(project.path().join(".gitignore"), "node_modules/\ndist/\nruns\n").unwrap();
+    let script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.rmSync('dist/out.txt',{force:true});fs.writeFileSync('dist/out.txt',process.env.MODE);fs.chmodSync('dist/out.txt',0o444);fs.appendFileSync('runs','x')""#;
+    fs::write(
+        project.path().join("package.json"),
+        serde_json::json!({
+            "name": "readonly-probe",
+            "version": "1.0.0",
+            "scripts": { "build": script }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: ['dist/**']\n    env: [MODE]\n",
+    )
+    .unwrap();
+
+    run_pipeline_cmd(project.path(), storage.path(), &[("MODE", "one")], &["install"]);
+    let first = run_pipeline_cmd(
+        project.path(),
+        storage.path(),
+        &[("MODE", "one")],
+        &["pipeline", "--full"],
+    );
+    assert!(!first.contains("restored from cache"), "{first}");
+    let second = run_pipeline_cmd(
+        project.path(),
+        storage.path(),
+        &[("MODE", "two")],
+        &["pipeline", "--full"],
+    );
+    assert!(!second.contains("restored from cache"), "{second}");
+    let restored = run_pipeline_cmd(
+        project.path(),
+        storage.path(),
+        &[("MODE", "one")],
+        &["pipeline", "--full"],
+    );
+    assert!(restored.contains("restored from cache"), "{restored}");
+    assert!(!restored.contains("not restoring from cache"), "{restored}");
+    assert_eq!(fs::read_to_string(project.path().join("dist/out.txt")).unwrap(), "one");
+    assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), "xx");
+}
+
+#[test]
+fn per_project_lockfile_and_lockfile_dir_invalidate_task_cache() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let workspace = root.path().join("ws-src");
+    let storage = root.path().join("storage");
+    repo.write_file("package.json", r#"{"private":true}"#);
+    repo.write_file(".gitignore", "node_modules/\n**/dist/\n**/runs\n");
+    repo.write_file(
+        "pnpm-workspace.yaml",
+        "packages: ['packages/*']\nsharedWorkspaceLockfile: false\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: ['dist/**']\n",
+    );
+    let script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/out.txt','built');fs.appendFileSync('runs','x')""#;
+    for name in ["alpha", "beta"] {
+        repo.write_file(
+            &format!("packages/{name}/package.json"),
+            &serde_json::json!({ "name": name, "version": "1.0.0", "scripts": { "build": script } })
+                .to_string(),
+        );
+    }
+    let _ = repo.commit("per-project lockfiles");
+
+    run_pipeline_cmd(&workspace, &storage, &[], &["install"]);
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/alpha/runs")).unwrap(), "x");
+    assert_eq!(fs::read_to_string(workspace.join("packages/beta/runs")).unwrap(), "x");
+
+    let alpha_lock = workspace.join("packages/alpha/pnpm-lock.yaml");
+    let mut lock_text = fs::read_to_string(&alpha_lock).unwrap();
+    lock_text.push_str("# invalidate alpha\n");
+    fs::write(&alpha_lock, lock_text).unwrap();
+
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("packages/alpha/runs")).unwrap(), "xx");
+    assert_eq!(fs::read_to_string(workspace.join("packages/beta/runs")).unwrap(), "x");
+
+    let custom = tempfile::tempdir().unwrap();
+    pnpm_testing_utils::git_repo::init_isolated_repo(custom.path());
+    fs::write(custom.path().join(".gitignore"), "node_modules/\ndist/\nruns\ncustom-locks/\n")
+        .unwrap();
+    fs::write(
+        custom.path().join("package.json"),
+        serde_json::json!({ "name": "lockdir-probe", "version": "1.0.0", "scripts": { "build": script } })
+            .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        custom.path().join("pnpm-workspace.yaml"),
+        "packages: []\nincludeWorkspaceRoot: true\nlockfileDir: custom-locks\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: ['dist/**']\n",
+    )
+    .unwrap();
+    run_pipeline_cmd(custom.path(), &storage, &[], &["install"]);
+    run_pipeline_cmd(custom.path(), &storage, &[], &["pipeline", "--full"]);
+    run_pipeline_cmd(custom.path(), &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(custom.path().join("runs")).unwrap(), "x");
+
+    let custom_lock = custom.path().join("custom-locks/pnpm-lock.yaml");
+    let mut custom_lock_text = fs::read_to_string(&custom_lock).unwrap();
+    custom_lock_text.push_str("# invalidate lockfileDir\n");
+    fs::write(&custom_lock, custom_lock_text).unwrap();
+    run_pipeline_cmd(custom.path(), &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(custom.path().join("runs")).unwrap(), "xx");
+}
+
+#[test]
+fn git_branch_lockfile_fallback_and_detached_head_invalidate_task_cache() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let workspace = root.path().join("ws-src");
+    let storage = root.path().join("storage");
+    let script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/out.txt','built');fs.appendFileSync('runs','x')""#;
+    repo.write_file(".gitignore", "node_modules/\ndist/\nruns\n");
+    repo.write_file(
+        "package.json",
+        &serde_json::json!({
+            "name": "branch-lock-probe",
+            "version": "1.0.0",
+            "scripts": { "build": script }
+        })
+        .to_string(),
+    );
+    repo.write_file(
+        "pnpm-workspace.yaml",
+        "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: ['dist/**']\n",
+    );
+    run_pipeline_cmd(&workspace, &storage, &[], &["install"]);
+    repo.write_file(
+        "pnpm-workspace.yaml",
+        "packages: []\nincludeWorkspaceRoot: true\ngitBranchLockfile: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: ['dist/**']\n",
+    );
+    let _ = repo.commit("shared lockfile before branch checkout");
+
+    Command::new("git")
+        .current_dir(&workspace)
+        .args(["checkout", "-b", "feat/new-branch"])
+        .assert()
+        .success();
+    assert!(!workspace.join("pnpm-lock.feat!new-branch.yaml").exists());
+
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "x");
+
+    let shared_lock = workspace.join("pnpm-lock.yaml");
+    let mut shared_text = fs::read_to_string(&shared_lock).unwrap();
+    shared_text.push_str("# invalidate shared fallback\n");
+    fs::write(&shared_lock, &shared_text).unwrap();
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "xx");
+
+    fs::rename(&shared_lock, workspace.join("pnpm-lock.feat!new-branch.yaml")).unwrap();
+    let _ = repo.commit("branch lockfile committed");
+    Command::new("git")
+        .current_dir(&workspace)
+        .args(["checkout", "--detach", "HEAD"])
+        .assert()
+        .success();
+
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "xx");
+
+    let branch_lock = workspace.join("pnpm-lock.feat!new-branch.yaml");
+    let mut branch_text = fs::read_to_string(&branch_lock).unwrap();
+    branch_text.push_str("# invalidate detached candidate\n");
+    fs::write(&branch_lock, branch_text).unwrap();
+    run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
+    assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "xxx");
+}

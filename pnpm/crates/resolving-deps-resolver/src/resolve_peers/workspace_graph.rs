@@ -37,20 +37,21 @@ impl FinishedWorkspaceGraph {
             return;
         }
         let unbound_optional_peers = self.unbound_optional_peers(importers);
-        dedupe_peer_dependents(
+        let remapped = dedupe_peer_dependents(
             &mut self.graph,
             &mut self.direct_dependencies_by_importer,
             &PeerSuffixes { peer_ids: &self.peer_ids, max_length: peers_suffix_max_length },
             dedupe,
             unbound_optional_peers,
         );
+        for path in self.paths_by_node_id.values_mut() {
+            if let Some(replacement) = remapped.get(path) {
+                *path = replacement.clone();
+            }
+        }
     }
 
-    pub(super) fn dedupe_injected_deps(
-        &mut self,
-        importers: &[&ImporterPeerInput],
-        lockfile_dir: &Path,
-    ) {
+    pub(super) fn dedupe_injected_deps(&mut self, importers: &[&ImporterPeerInput]) {
         // Collected again: the peer-dependent dedupe renamed variants.
         let unbound_optional_peers = self.unbound_optional_peers(importers);
         dedupe_injected_deps(
@@ -60,7 +61,6 @@ impl FinishedWorkspaceGraph {
                 .iter()
                 .map(|importer| (importer.id.clone(), importer.root_dir.clone()))
                 .collect(),
-            lockfile_dir,
             &unbound_optional_peers,
         );
     }
@@ -86,11 +86,14 @@ pub(super) fn finish_workspace_graph(
     dedupe: PeerDependentsDedupe,
 ) -> FinishedWorkspaceGraph {
     let recording = if dedupe.dedupes() { PeerIdRecording::Record } else { PeerIdRecording::Skip };
+    let paths = walker.build_final_dep_paths(recording);
+    let mut graph = walker.build_final_graph(&paths.by_node_id);
+    paths.record_bindings(&mut graph);
     let FinalDepPaths {
         by_node_id: final_dep_paths,
         peer_ids,
         ..
-    } = walker.build_final_dep_paths(recording);
+    } = paths;
     let direct_dependencies_by_importer = importers
         .iter()
         .map(|importer| {
@@ -111,7 +114,7 @@ pub(super) fn finish_workspace_graph(
         })
         .collect();
     FinishedWorkspaceGraph {
-        graph: walker.build_final_graph(&final_dep_paths),
+        graph,
         direct_dependencies_by_importer,
         paths_by_node_id: walker.final_paths_by_node_id(&final_dep_paths),
         peer_ids,

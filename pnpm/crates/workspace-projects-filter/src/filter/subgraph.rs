@@ -1,5 +1,6 @@
-use super::{HashMap, IndexSet, Path, PathBuf, ProjectGraph};
+use super::{HashMap, Path, PathBuf, ProjectGraph};
 use crate::parse_project_selector::DependencyTraversal;
+use indexmap::IndexSet;
 
 /// Accumulates the projects the selectors of one [`filter_graph`](crate::filter::filter_graph) run
 /// pick, in the buckets whose union (dependencies, dependents,

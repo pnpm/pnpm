@@ -408,7 +408,7 @@ fn archive_destination(
         .unwrap_or_default();
     let tarball_name =
         archive_file_name(&any_name, package, entry).map_err(PackError::VariantArchive)?;
-    Ok((tarball_name, resolve_dest_dir(&source.dir, pack_destination.as_deref())))
+    Ok((tarball_name, resolve_dest_dir(&source.dir, &opts.output, pack_destination.as_deref())))
 }
 
 /// Project a [`PackedArchive`] into its JSON shape, with the tag and

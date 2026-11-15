@@ -9,6 +9,7 @@ mod installation;
 mod workspace;
 
 mod peer_edges;
+mod runtime_dependencies;
 
 use std::collections::{BTreeMap, HashMap};
 

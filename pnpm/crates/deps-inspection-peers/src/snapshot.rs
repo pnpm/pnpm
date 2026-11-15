@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
+use std::collections::{HashMap, HashSet};
 
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
@@ -11,7 +8,7 @@ use pnpm_resolving_resolver_base::get_peer_version_range;
 
 use crate::{
     ParentPkg, PeerIssues,
-    linked::{record_bad_peer, record_missing_peer, resolve_link_version},
+    linked::{LinkRoots, record_bad_peer, record_missing_peer, resolve_link_version},
     ranges::{parse_range_to_intervals, preprocess_hyphen_ranges},
 };
 
@@ -19,7 +16,7 @@ pub(super) fn walk_snapshot(
     initial_keys: Vec<PkgNameVerPeer>,
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
-    lockfile_dir: &Path,
+    roots: &LinkRoots<'_>,
     visited: &mut HashSet<PkgNameVerPeer>,
     issues: &mut PeerIssues,
 ) {
@@ -43,7 +40,7 @@ pub(super) fn walk_snapshot(
             key: &key,
             snapshot,
             packages,
-            lockfile_dir,
+            roots,
             parents: &current_parents,
             issues,
         });
@@ -58,7 +55,7 @@ struct SnapshotPeers<'a> {
     key: &'a PkgNameVerPeer,
     snapshot: Option<&'a SnapshotEntry>,
     packages: &'a HashMap<PkgNameVerPeer, PackageMetadata>,
-    lockfile_dir: &'a Path,
+    roots: &'a LinkRoots<'a>,
     parents: &'a [ParentPkg],
     issues: &'a mut PeerIssues,
 }
@@ -84,12 +81,9 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
             continue;
         };
 
-        let Some(found_version) = resolved_snapshot_version(
-            dep_ref,
-            &peer_pkg_name,
-            inputs.packages,
-            inputs.lockfile_dir,
-        ) else {
+        let Some(found_version) =
+            resolved_snapshot_version(dep_ref, &peer_pkg_name, inputs.packages, inputs.roots)
+        else {
             continue;
         };
         record_bad_peer(issues, peer_name, inputs.parents, optional, &peer_range, found_version);
@@ -115,14 +109,14 @@ pub(crate) fn resolved_snapshot_version(
     dep_ref: &SnapshotDepRef,
     peer_name: &PkgName,
     packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
-    lockfile_dir: &Path,
+    roots: &LinkRoots<'_>,
 ) -> Option<String> {
     if let Some(key) = dep_ref.resolve(peer_name) {
         return Some(get_pkg_version(&key, packages));
     }
     let link_target = dep_ref.as_link_target()?;
     Some(
-        resolve_link_version(lockfile_dir, lockfile_dir, link_target)
+        resolve_link_version(roots.lockfile, roots, link_target)
             .unwrap_or_else(|| format!("link:{link_target}")),
     )
 }

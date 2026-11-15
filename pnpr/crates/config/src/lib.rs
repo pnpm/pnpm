@@ -14,26 +14,35 @@ pub use backend_config::{
 pub use byte_size::{ByteSize, parse_byte_size};
 pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
-pub use hosted::{HostedConfig, Management};
+pub use graph_document::{
+    HostedStorage, PackageLists, RegistryGraphChanges, RegistryGraphDocument, RoutingOptions,
+    RuleLists,
+};
+pub use hosted::{GraphSource, HostedConfig};
 pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
+pub use oci::OciConfig;
 pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_error::redact_connection_url;
 pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
-pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
+pub use secret::Secret;
+pub use secrets::{
+    CACHE_SECRET_MARKER, MIN_SECRET_LEN, cache_secret_fingerprint, derive_subkey, random_secret,
+};
 pub use storage_config::{
-    CacheConfig, MetadataBackend, StorageConfig, default_cache_dir, default_metadata_path,
+    CacheConfig, DatabaseBackend, StorageConfig, default_cache_dir, default_database_path,
+    default_osv_path,
 };
 pub use trusted_proxy_header::TrustedProxyHeader;
 pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};
 pub use web_ui::UiConfig;
 
 pub(crate) use secrets::resolve_secrets;
-pub(crate) use storage_config::{default_storage_string, resolve_relative, resolve_storage_paths};
+pub(crate) use storage_config::{resolve_relative, resolve_storage_paths};
 
 mod access;
 use access::{build_admins, build_teams};
@@ -50,15 +59,17 @@ mod cdn;
 mod config_file;
 use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RemovedGroupsBlock, RemovedPackagesBlock, RemovedUplinksBlock, RemovedUpstreamsBlock,
-    RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile,
+    PublicRouteFile, RegistryFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
 };
 
 mod gc;
 use gc::{GcFile, build_gc_config};
 
+mod graph_document;
+
 mod hosted;
+mod http_config;
 mod ip_network;
 mod loading;
 mod logging;
@@ -67,6 +78,9 @@ use logging::build_log_config;
 mod metrics;
 mod null_default;
 
+mod oci;
+use oci::{OciFile, build_oci_config};
+
 mod package_documents;
 use package_documents::{PackageDocumentsFile, build_package_documents_config};
 mod release_records;
@@ -74,12 +88,13 @@ use release_records::{ReleaseRecordsFile, build_release_records_config};
 
 mod registry_graph;
 use registry_graph::{
-    ResolvedFileRegistries, namespace_collision_error, registry_err, resolve_file_registries,
-    validate_namespace, validate_registry_key, validate_registry_name,
+    namespace_collision_error, registry_err, resolve_file_registries, validate_artifact_owner_name,
+    validate_namespace, validate_registry_key,
 };
 
 mod s3;
 mod scim;
+mod secret;
 mod secrets;
 mod storage_config;
 mod trusted_proxy_header;
@@ -97,11 +112,11 @@ use object_store::{
     ObjectStore,
     aws::{AmazonS3Builder, AmazonS3ConfigKey},
 };
-use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
+use pnpm_env_replace::{EnvVar, SystemEnv};
 use pnpr_error::{RegistryError, redact_url_credentials};
 use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
     fmt,
@@ -117,6 +132,10 @@ use std::{
 /// e.g. test mocks that want to run with the standard `**` -> `npmjs`
 /// routing applied.
 pub const DEFAULT_CONFIG_YAML: &str = include_str!("../config.yaml");
+
+/// The registry graph the server stores on first start, when the metadata
+/// database holds none.
+pub const DEFAULT_REGISTRIES_YAML: &str = include_str!("../registries.yaml");
 
 /// Where the live [`Config`] came from. Returned alongside
 /// [`Config::resolve`] so the binary can log the resolved source
@@ -164,13 +183,20 @@ pub struct Config {
     pub cache_secret: Arc<[u8]>,
     /// Secret keying OCI token signing.
     pub oci_secret: Arc<[u8]>,
-    /// Whether `secret:` or `secrets:` was explicitly provided in configuration rather than generated randomly.
+    /// Whether `secret:` configures the cache key, rather than a per-process
+    /// random root.
     pub has_configured_secret: bool,
     pub http: HttpConfig,
     pub storage: StorageConfig,
     pub identity: IdentityConfig,
     pub features: Features,
     pub routing: RoutingConfig,
+    /// Where the server takes [`Self::routing`] from. A loaded config file
+    /// starts with the empty graph and the server loads the stored one.
+    pub graph_source: GraphSource,
+    /// The environment variables a stored registry graph may reference
+    /// (`registryEnv`).
+    pub registry_env: Vec<String>,
     /// How the release records of hosted versions are logged.
     pub release_records: ReleaseRecordsConfig,
     /// How `pnpr gc` reclaims unreferenced archives. Sourced from the YAML
@@ -192,6 +218,8 @@ impl std::fmt::Debug for Config {
             .field("identity", &self.identity)
             .field("features", &self.features)
             .field("routing", &self.routing)
+            .field("graph_source", &self.graph_source)
+            .field("registry_env", &self.registry_env)
             .field("release_records", &self.release_records)
             .field("gc", &self.gc)
             .finish()
@@ -237,6 +265,10 @@ pub struct HttpConfig {
     /// this duration to process, it is aborted and returns 504 Gateway Timeout.
     /// `None` or 0 disables request timeouts.
     pub request_timeout: Option<Duration>,
+    /// Maximum duration to wait for in-flight requests to drain after a
+    /// shutdown signal (`SIGINT` or `SIGTERM`) before exiting. Defaults to
+    /// [`Self::DEFAULT_SHUTDOWN_TIMEOUT`].
+    pub shutdown_timeout: Duration,
     /// Who may scrape Prometheus metrics. `None` serves none.
     pub metrics: Option<MetricsConfig>,
     /// How pnpr's own package document is served.
@@ -246,6 +278,9 @@ pub struct HttpConfig {
 
 impl HttpConfig {
     pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
+    /// 25 seconds, leaving headroom inside Kubernetes' default 30-second
+    /// `terminationGracePeriodSeconds` so `SIGKILL` does not land mid-drain.
+    pub const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(25);
     /// 100 MiB, the size npm itself caps a published package at.
     pub const DEFAULT_MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 
@@ -259,7 +294,7 @@ impl HttpConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct RoutingConfig {
     /// Upstream-registry backends, keyed by registry id. Built from the `registries:`
     /// `upstream` entries and consumed by the `/~<name>/` serving and route
@@ -288,7 +323,7 @@ pub struct RoutingConfig {
 }
 
 /// The format a registry serves tarballs in at its own URL.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TarballFormat {
     /// The published `.tgz`, as npm serves it.
@@ -296,28 +331,6 @@ pub enum TarballFormat {
     Tgz,
     /// The gzip-decoded `.tgz`, encoded per request with HTTP content coding.
     Tar,
-}
-
-/// Authentication and byte limits for the OCI distribution surface.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
-pub struct OciConfig {
-    pub bearer_auth: bool,
-    pub max_blob_bytes: u64,
-    /// Optional upload chunk size hint in bytes; omitted by default.
-    pub chunk_max_bytes: Option<std::num::NonZeroU64>,
-    pub max_manifest_bytes: usize,
-}
-
-impl Default for OciConfig {
-    fn default() -> Self {
-        Self {
-            bearer_auth: false,
-            max_blob_bytes: 10 * 1024 * 1024 * 1024,
-            chunk_max_bytes: None,
-            max_manifest_bytes: 4 * 1024 * 1024,
-        }
-    }
 }
 
 /// Exact browser origins allowed to call pnpr across origins.
@@ -458,7 +471,6 @@ pub struct Features {
 /// Folding the `--disable-registry` override in here lets the registry-only
 /// work below (upstream credential resolution) key off effective enablement.
 fn build_features(
-    registry_declared: bool,
     resolver: Option<FeatureFile>,
     artifacts: Option<ArtifactsFeatureFile>,
     pipeline: Option<PipelineFeatureFile>,
@@ -468,7 +480,7 @@ fn build_features(
     let artifacts_file = artifacts.unwrap_or_default();
     let pipeline_file = pipeline.unwrap_or_default();
     Ok(Features {
-        registry: RegistryFeature { enabled: registry_declared && !overrides.disable_registry },
+        registry: RegistryFeature { enabled: !overrides.disable_registry },
         resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
@@ -504,18 +516,11 @@ fn normalize_cors_origin(raw: &str) -> Result<String, RegistryError> {
     Ok(parsed.origin().ascii_serialization())
 }
 
-fn build_route_policy(file: Option<RoutesFile>) -> Result<RoutePolicy, RegistryError> {
-    let Some(file) = file else { return Ok(RoutePolicy::default()) };
-    Ok(RoutePolicy {
-        public: file.public
-            .into_iter()
-            .map(|route| PublicRoute { registry: route.registry, package: route.package })
-            .collect(),
-        allowed_private_networks: file.allowed_private_networks
-            .iter()
-            .map(|network| IpNetwork::parse(network))
-            .collect::<Result<_, _>>()?,
-    })
+fn parse_allowed_private_networks(networks: &[String]) -> Result<Vec<IpNetwork>, RegistryError> {
+    networks
+        .iter()
+        .map(|network| IpNetwork::parse(network))
+        .collect()
 }
 
 fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {
@@ -531,17 +536,6 @@ fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {
 fn config_file_in(dir: Option<PathBuf>) -> Option<PathBuf> {
     let path = dir?.join("config.yaml");
     path.is_file().then_some(path)
-}
-
-/// `tokens.db` next to the htpasswd file. The sibling layout lets an
-/// operator lock the auth directory down with a single chmod and
-/// stops the tokens file from leaking into a `storage` directory
-/// that may be served over HTTP through an unrelated misconfig.
-fn default_tokens_path_sibling_of(htpasswd: &Path) -> PathBuf {
-    htpasswd
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("tokens.db")
 }
 
 #[cfg(test)]

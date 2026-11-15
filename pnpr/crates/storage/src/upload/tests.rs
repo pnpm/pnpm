@@ -9,7 +9,7 @@ fn storage_in(tmp: &TempDir) -> Storage {
         &HostedStoreConfig::Fs,
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci)
@@ -312,7 +312,7 @@ fn two_namespaces_of_one_bucket(tmp: &TempDir) -> (Storage, Storage) {
         &hosted,
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap();
     (root.for_hosted("first", Ecosystem::Oci), root.for_hosted("second", Ecosystem::Oci))
@@ -362,9 +362,9 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
     let second = TempDir::new().unwrap();
     let objects: std::sync::Arc<dyn object_store::ObjectStore> =
         std::sync::Arc::new(object_store::memory::InMemory::new());
-    // Replicas share the bucket and the metadata database, which outlives
+    // Replicas share the bucket and the database, which outlives
     // the first replica's disk.
-    let database = crate::metadata::open(&pnpr_config::MetadataBackend::Sqlite(
+    let database = crate::database::open(&pnpr_config::DatabaseBackend::Sqlite(
         second.path().join("metadata.sqlite"),
     ))
     .unwrap();

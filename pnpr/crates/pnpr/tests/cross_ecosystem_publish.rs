@@ -606,8 +606,8 @@ fn staged_files(root: &std::path::Path) -> Vec<PathBuf> {
 async fn another_file_of_a_published_python_version_takes_no_publish_time_note() {
     let tmp = TempDir::new().unwrap();
     let mut config = tri_ecosystem_config(tmp.path().to_path_buf());
-    config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    config.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     let app = router_with_auth(config, AuthState::in_memory());
     let token = token_for(&app, "alice").await;
     let first = json!({ "packages": [pypi_entry("demo-pkg", "1.0.0", WHEEL, &crate::ecosystem::python_wheel("demo-pkg", "1.0.0"))] });
@@ -663,8 +663,8 @@ async fn an_unsynced_libsql_replica_serves_cargo_and_pypi_archives_from_the_prim
         let mut config = tri_ecosystem_config(tmp.path().join(name));
         config.storage.hosted_backend =
             HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
-        config.storage.metadata =
-            pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+        config.storage.database =
+            pnpr_config::DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
                 url: format!("http://{address}"),
                 auth_token: None,
                 replica_path: Some(tmp.path().join(name).join("replica.db")),

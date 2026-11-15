@@ -22,10 +22,16 @@
 pub use pnpm_resolving_local_resolver::LocalTarballResolution;
 
 use crate::DefaultResolver;
-use pnpm_config::{Config, Tool};
+use pnpm_config::Config;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_config::Tool;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_bun_resolver::BunResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
@@ -82,7 +88,7 @@ pub fn build_standalone_chain(
         ..Default::default()
     };
 
-    Ok(DefaultResolver::new(vec![
+    let mut chain: Vec<Box<dyn Resolver>> = vec![
         Box::new(Arc::clone(&npm_resolver)),
         Box::new(GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(http_client))),
@@ -90,16 +96,25 @@ pub fn build_standalone_chain(
         )),
         Box::new(TarballResolver { http_client: Arc::clone(http_client), fetch_context: None }),
         Box::new(LocalSchemeResolver::new(local_ctx)),
-        Box::new(build_node_resolver(config, http_client)),
-        Box::new(DenoResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))),
-        Box::new(
+    ];
+    #[cfg(feature = "runtime-provisioning")]
+    {
+        chain.push(Box::new(build_node_resolver(config, http_client)));
+        chain.push(Box::new(DenoResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))));
+        chain.push(Box::new(
             BunResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))
                 .with_mirror(config.tool_mirror(Tool::Bun)),
-        ),
-        Box::new(YarnResolver::new(Arc::clone(http_client), config.tls.strict_ssl.unwrap_or(true))),
-        Box::new(build_named_registry_resolver(opts, retry_opts)?),
-        Box::new(LocalPathResolver::new(local_ctx)),
-    ]))
+        ));
+        chain.push(Box::new(YarnResolver::new(
+            Arc::clone(http_client),
+            config.tls.strict_ssl.unwrap_or(true),
+        )));
+    }
+    #[cfg(not(feature = "runtime-provisioning"))]
+    chain.push(Box::new(crate::UnavailableToolResolver));
+    chain.push(Box::new(build_named_registry_resolver(opts, retry_opts)?));
+    chain.push(Box::new(LocalPathResolver::new(local_ctx)));
+    Ok(DefaultResolver::new(chain))
 }
 
 fn build_npm_resolver(
@@ -151,6 +166,7 @@ fn offline_store_view(config: &Config) -> Option<OfflineStoreView> {
     OfflineStoreView::open_for_offline(config.offline, &config.store_dir, config.frozen_store)
 }
 
+#[cfg(feature = "runtime-provisioning")]
 fn build_node_resolver(config: &Config, http_client: &Arc<ThrottledClient>) -> NodeResolver {
     let mut node_resolver =
         NodeResolver::new_with_auth(Arc::clone(http_client), Arc::clone(&config.auth_headers));

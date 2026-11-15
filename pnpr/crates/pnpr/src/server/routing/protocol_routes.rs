@@ -7,11 +7,11 @@ use axum::{
 
 use crate::server::{
     AppState, MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES,
-    MAX_PIPELINE_RUN_BODY_BYTES, compiler_cache, require_artifact_caller, require_pipeline_caller,
-    require_resolver_caller, serve_artifact_blob, serve_artifact_blob_size, serve_get_pipeline_run,
-    serve_list_pipeline_runs, serve_pipeline_ui, serve_publish_artifact,
-    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_upload_artifact_blob,
-    serve_verify_lockfile,
+    MAX_PIPELINE_RUN_BODY_BYTES, MAX_RESOLVE_BODY_BYTES, compiler_cache, require_artifact_caller,
+    require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
+    serve_artifact_blob_size, serve_get_pipeline_run, serve_list_pipeline_runs, serve_pipeline_ui,
+    serve_publish_artifact, serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts,
+    serve_upload_artifact_blob, serve_verify_lockfile,
     staged_archives::{serve_stage_archive, serve_staged_archive_size},
 };
 
@@ -20,6 +20,7 @@ pub(super) fn resolver_routes(state: &AppState, router: Router<AppState>) -> Rou
         .route(
             "/-/pnpr/v0/resolve",
             post(serve_resolve)
+                .route_layer(DefaultBodyLimit::max(MAX_RESOLVE_BODY_BYTES))
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),
                     require_resolver_caller,
@@ -28,6 +29,7 @@ pub(super) fn resolver_routes(state: &AppState, router: Router<AppState>) -> Rou
         .route(
             "/-/pnpr/v0/verify-lockfile",
             post(serve_verify_lockfile)
+                .route_layer(DefaultBodyLimit::max(MAX_RESOLVE_BODY_BYTES))
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),
                     require_resolver_caller,

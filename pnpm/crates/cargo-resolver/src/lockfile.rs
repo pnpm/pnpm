@@ -1,7 +1,10 @@
 use crate::{
     features::{indexed_version, locked_dependencies},
     metadata::{locked_metadata_dependencies, root_dependencies},
-    model::{CargoMetadata, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
+    model::{
+        CargoMetadata, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion,
+        accepts_declared_version,
+    },
     packages::selected_package,
     registry::{CRATES_IO_SOURCE, Registry, is_crates_io_source},
 };
@@ -219,7 +222,9 @@ fn locked_workspace_dependency(
     let package = metadata.packages
         .iter()
         .filter(|package| metadata.workspace_members.contains(&package.id))
-        .find(|package| package.name == name && requirement.matches(&package.version))
+        .find(|package| {
+            package.name == name && accepts_declared_version(requirement, None, &package.version)
+        })
         .ok_or_else(|| miette::miette!("workspace dependency {name} is not a workspace member"))?;
     Ok(Dependency {
         name: Name::from_str(&package.name).into_diagnostic()?,

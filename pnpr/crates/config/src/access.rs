@@ -1,5 +1,6 @@
 use super::{
-    AccessList, AccessToken, BTreeSet, Deserialize, IndexMap, RegistryError, TeamDirectory, Teams,
+    AccessList, AccessToken, BTreeSet, Deserialize, IndexMap, RegistryError, Serialize,
+    TeamDirectory, Teams,
 };
 
 /// One `packages:` map value: `access` / `publish` / `unpublish` are
@@ -9,11 +10,14 @@ use super::{
 /// [`pnpr_policy::PackageRules`]. An omitted field falls back to the registry-level
 /// default. The map key set doubles as the registry's claimed package patterns, so
 /// one declaration routes, filters, and authorizes.
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PackageAccess {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub access: Option<AccessSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub publish: Option<AccessSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub unpublish: Option<AccessSpec>,
 }
 
@@ -23,7 +27,7 @@ pub struct PackageAccess {
 /// must be a YAML sequence (`access: [$authenticated, admin]`). Verdaccio's
 /// space-separated form (`access: $authenticated admin`) is rejected with a
 /// pointer at the sequence syntax rather than silently misread as one token.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AccessSpec {
     One(String),
@@ -47,23 +51,31 @@ impl AccessSpec {
     /// become a grant to nobody. The returned error is the reason only; the
     /// caller prefixes the registry/field context it alone knows.
     pub(super) fn to_access_list(&self, teams: &TeamDirectory) -> Result<AccessList, String> {
-        let declared = teams.snapshot();
+        self.to_access_list_resolving(|team| Ok((team.to_string(), teams.clone())))
+    }
+
+    pub(super) fn to_access_list_resolving(
+        &self,
+        resolve: impl Fn(&str) -> Result<(String, TeamDirectory), String>,
+    ) -> Result<AccessList, String> {
         let mut tokens = Vec::with_capacity(self.entries().len());
         for entry in self.entries() {
-            validate_access_token(entry)?;
-            tokens.push(match entry.strip_prefix("team:") {
-                Some(team) if declared.contains_key(team) => {
-                    AccessToken::Team { id: team.to_string(), directory: teams.clone() }
-                }
-                Some(_) => {
+            let token = if let Some(reference) = entry.strip_prefix("team:") {
+                let (id, directory) = resolve(reference)?;
+                validate_access_token(&format!("team:{id}"))?;
+                let declared = directory.snapshot();
+                if !declared.contains_key(&id) {
                     return Err(format!(
-                        "access token {entry:?} references a team this registry does not \
-                         declare{}",
+                        "access token {entry:?} references a team this registry does not declare{}",
                         declared_teams(&declared),
                     ));
                 }
-                None => AccessToken::from(entry.as_str()),
-            });
+                AccessToken::Team { id, directory }
+            } else {
+                validate_access_token(entry)?;
+                AccessToken::from(entry.as_str())
+            };
+            tokens.push(token);
         }
         Ok(AccessList::new(tokens))
     }
@@ -144,14 +156,18 @@ pub fn compile_access_list(
 }
 
 /// Compile `auth.admins`, rejecting any entry that is not one account ID.
-pub(super) fn build_admins(names: &[String]) -> Result<BTreeSet<String>, RegistryError> {
+/// The account IDs of an `auth` admin list; `field` names the list in errors.
+pub(super) fn build_admins(
+    field: &str,
+    names: &[String],
+) -> Result<BTreeSet<String>, RegistryError> {
     names
         .iter()
         .map(|name| {
             validate_member_name(name)
                 .map(|()| name.clone())
                 .map_err(|reason| RegistryError::InvalidConfig {
-                    reason: format!("`auth.admins` has an invalid entry: {reason}"),
+                    reason: format!("`{field}` has an invalid entry: {reason}"),
                 })
         })
         .collect()
@@ -244,7 +260,7 @@ pub(super) fn validate_single_token(token: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct TeamFile {
     pub(super) name: String,

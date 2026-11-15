@@ -113,7 +113,7 @@ fn moving_a_scope_re_resolves_its_plain_keyed_packages_from_the_new_registry() {
 fn a_frozen_install_keeps_the_moved_packages_and_the_recorded_routes() {
     let (root, workspace, anchor) = setup();
     let old = anchor.mock_instance.url().to_string();
-    let new = TestRegistry::start_with_own_storage(root.path());
+    let new = TestRegistry::start_with_public_url(anchor.mock_instance.server_url());
     route_scope(&workspace, &old);
     fs::write(
         workspace.join("package.json"),

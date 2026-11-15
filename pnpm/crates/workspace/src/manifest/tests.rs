@@ -126,3 +126,16 @@ fn empty_package_entry_rejected() {
         "unexpected error: {err}",
     );
 }
+
+#[test]
+fn flow_manifest_with_placeholders_preserves_packages_and_catalogs() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(
+        tmp.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "{packages: [packages/${SUB}/*], catalog: {foo: ^1.0.0}, userAgent: agent/${MISSING}}\n",
+    )
+    .unwrap();
+    let manifest = read_workspace_manifest(tmp.path()).unwrap().unwrap();
+    assert_eq!(manifest.packages, Some(vec!["packages/${SUB}/*".to_string()]));
+    assert_eq!(manifest.catalog, Some(Catalog::from([("foo".to_string(), "^1.0.0".to_string())])));
+}

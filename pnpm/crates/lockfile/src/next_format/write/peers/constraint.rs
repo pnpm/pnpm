@@ -34,3 +34,6 @@ impl ProviderConstraint {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

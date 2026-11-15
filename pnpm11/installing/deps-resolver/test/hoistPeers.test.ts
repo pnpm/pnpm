@@ -645,3 +645,32 @@ test('getHoistableOptionalPeers prefers a version this run resolved over a stale
 test('getHoistableOptionalPeers prefers a version this run resolved over one only the lockfile holds, with nothing locked', () => {
   expect(pickOptionalPeer(['1.0.0', '1.0.1'], { lockfileOnly: ['1.0.1'] })).toBe('1.0.0')
 })
+
+test.each([
+  [[], '*', '1.0.0', false],
+  [['2.0.0'], '*', '2.0.0', false],
+  [['1.0.0', '2.0.0'], '*', '2.0.0', false],
+  [[], '^2.0.0', '2.0.0', false],
+  [[], '*', '2.0.0', true],
+] as Array<[string[], string, string, boolean]>)('required peer pins are fallbacks for current providers %j %s', (resolved, range, expected, updateTarget) => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    isUpdateTarget: () => updateTarget,
+    allPreferredVersions: { peer: { '1.0.0': 'version', '2.0.0': 'version' } },
+    lockfileOnlyVersions: new Map([['peer', new Set(['1.0.0', '2.0.0'].filter(version => !resolved.includes(version)))]]),
+    lockedVersions: new Map([['peer', new Set(['1.0.0'])]]),
+    workspaceRootDeps: [],
+  }, [['peer', { range }]])).toEqual({ peer: expected })
+})
+
+test('required peers do not read importer pins when a current provider satisfies the range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: { peer: { '1.0.0': 'version', latest: 'tag' } },
+    lockfileOnlyVersions: new Map(),
+    get lockedVersions (): never {
+      throw new Error('unexpected importer pin lookup')
+    },
+    workspaceRootDeps: [],
+  }, [['peer', { range: '*' }]])).toEqual({ peer: '1.0.0 || latest' })
+})

@@ -6,7 +6,7 @@ use indexmap::IndexSet;
 use miette::IntoDiagnostic;
 use pnpm_config::SkillsPermission;
 use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::allow_build_key_from_ignored_build;
+use pnpm_package_manager::{allow_build_key_from_ignored_build, skill_approval_key};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::{PermissionValue, set_permissions};
 use std::{
@@ -177,23 +177,35 @@ pub(super) fn decisions_by_approval(
         .collect()
 }
 
+fn is_decided(decisions: &Decisions, dep_path: &str, capability: PermissionCapability) -> bool {
+    match capability {
+        PermissionCapability::Build => decisions
+            .get(&allow_build_key_from_ignored_build(dep_path))
+            .is_some_and(|decided| decided.build.is_some()),
+        PermissionCapability::Skills => {
+            decisions
+                .get(&skill_approval_key(dep_path))
+                .is_some_and(|decided| decided.skills.is_some())
+                || decisions
+                    .get(&allow_build_key_from_ignored_build(dep_path))
+                    .is_some_and(|decided| decided.skills.is_some())
+        }
+    }
+}
+
 /// Drop the decided entries from `.modules.yaml`'s pending build scripts
 /// and agent skills.
 pub(super) fn clear_decided(scan: IgnoredBuildsScan, decisions: &Decisions) -> miette::Result<()> {
     let Some(mut modules) = scan.modules_manifest else { return Ok(()) };
-    let decided = |dep_path: &str, capability: PermissionCapability| {
-        decisions
-            .get(&allow_build_key_from_ignored_build(dep_path))
-            .is_some_and(|decided| match capability {
-                PermissionCapability::Build => decided.build.is_some(),
-                PermissionCapability::Skills => decided.skills.is_some(),
-            })
-    };
     if let Some(ignored) = modules.ignored_builds.as_mut() {
-        ignored.retain(|dep_path| !decided(dep_path.as_str(), PermissionCapability::Build));
+        ignored.retain(|dep_path| {
+            !is_decided(decisions, dep_path.as_str(), PermissionCapability::Build)
+        });
     }
     if let Some(pending) = modules.pending_skills.as_mut() {
-        pending.retain(|dep_path| !decided(dep_path.as_str(), PermissionCapability::Skills));
+        pending.retain(|dep_path| {
+            !is_decided(decisions, dep_path.as_str(), PermissionCapability::Skills)
+        });
     }
     if modules.ignored_builds.as_ref().is_some_and(IndexSet::is_empty) {
         modules.ignored_builds = None;

@@ -42,13 +42,13 @@ pub(crate) struct PendingProjectScripts<'a, 'selection> {
     pub(crate) root_preinstall_ran: bool,
 }
 
-pub(crate) struct ApplyCompletionContext {
+pub(crate) struct ApplyCompletionContext<'a> {
     pub(crate) prefix: String,
     pub(crate) workspace_manifest_dir: PathBuf,
     pub(crate) catalogs: Catalogs,
     pub(crate) catalog_context_present: bool,
     pub(crate) verified_file_integrity_baseline: VerifiedFileIntegrity,
-    pub(crate) config: &'static Config,
+    pub(crate) config: &'a Config,
     /// Whether the run may write the workspace state. See
     /// `InstallSaveOptions::workspace_state`.
     pub(crate) save_workspace_state: bool,
@@ -74,7 +74,7 @@ pub(crate) struct ApplyResolutionState<'a> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ModulesTreeContext<'a> {
-    pub(crate) config: &'static Config,
+    pub(crate) config: &'a Config,
     pub(crate) workspace_root: &'a Path,
     pub(crate) node_linker: NodeLinker,
     pub(crate) included: IncludedDependencies,
@@ -126,7 +126,7 @@ pub(crate) struct ProjectScriptSelection<'a, 'selection> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct CompletionWorkspace<'a> {
-    pub(crate) config: &'static Config,
+    pub(crate) config: &'a Config,
     pub(crate) catalogs: Option<&'a Catalogs>,
     pub(crate) workspace_root: &'a Path,
     pub(crate) workspace_manifest_dir: &'a Path,

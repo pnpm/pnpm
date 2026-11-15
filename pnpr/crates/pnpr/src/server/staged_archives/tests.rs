@@ -1,4 +1,5 @@
-use super::{PrincipalUploads, StagedReferences, archive_blob_id};
+use super::{MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL, StagedReferences, archive_blob_id};
+use crate::server::KeyedSemaphores;
 use pnpr_config::HostedStoreConfig;
 use pnpr_storage::{StagedArchiveKey, Storage};
 use std::time::Duration;
@@ -13,7 +14,7 @@ fn only_a_sha512_integrity_addresses_a_staged_archive() {
 
 #[tokio::test]
 async fn one_principal_holds_at_most_two_upload_permits() {
-    let uploads = PrincipalUploads::default();
+    let uploads = KeyedSemaphores::new(MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL);
     let first = uploads.acquire("alice").await;
     let _second = uploads.acquire("alice").await;
     let _other = uploads.acquire("bob").await;
@@ -27,9 +28,9 @@ async fn one_principal_holds_at_most_two_upload_permits() {
 
 #[tokio::test]
 async fn a_principal_without_uploads_leaves_no_entry() {
-    let uploads = PrincipalUploads::default();
+    let uploads = KeyedSemaphores::new(MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL);
     drop(uploads.acquire("alice").await);
-    assert!(uploads.0.lock().unwrap().is_empty());
+    assert_eq!(uploads.tracked_keys(), 0);
 }
 
 #[tokio::test]
@@ -39,7 +40,7 @@ async fn every_reference_to_a_staged_archive_counts_against_one_request() {
         &HostedStoreConfig::Fs,
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap();
     let integrity = format!("sha512-{}==", "A".repeat(86));

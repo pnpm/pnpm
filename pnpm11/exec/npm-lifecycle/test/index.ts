@@ -268,6 +268,23 @@ skipOnWindows('a command missing inside an existing scriptShell is not blamed on
   await expect(running).rejects.toHaveProperty('code', 'ELIFECYCLE')
 })
 
+test('shellEmulator captures stdout and stderr when stdio is [inherit, pipe, pipe]', async () => {
+  const log = makeLog()
+  await lifecycle(
+    { scripts: { postinstall: 'echo emulated-out && echo emulated-err >&2' } },
+    'postinstall',
+    countTo10,
+    {
+      stdio: ['inherit', 'pipe', 'pipe'],
+      shellEmulator: true,
+      log,
+      dir: countTo10,
+    }
+  )
+  expect(log.verbose).toHaveBeenCalledWith('lifecycle', expect.any(String), 'stdout', 'emulated-out')
+  expect(log.verbose).toHaveBeenCalledWith('lifecycle', expect.any(String), 'stderr', 'emulated-err')
+})
+
 test('makeEnv', () => {
   const pkg = {
     name: 'myPackage',

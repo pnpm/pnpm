@@ -6,15 +6,23 @@ use super::{
 };
 use crate::{
     DEFAULT_PEERS_SUFFIX_MAX_LENGTH, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer,
-    name_version_from_package_key, patch_groups_from_hashes,
+    RecordedPeerBindings, name_version_from_package_key, patch_groups_from_hashes,
 };
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
 use pnpm_patching_config::{PatchGroupRecord, get_patch_info};
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
+
+pub(super) struct RestoredKey {
+    pub(super) key: PkgNameVerPeer,
+    pub(super) bindings: Option<Arc<RecordedPeerBindings>>,
+}
 
 impl Graph<'_> {
-    pub(super) fn keys(&self, context: RestoreContext<'_>) -> Vec<PkgNameVerPeer> {
+    pub(super) fn keys(&self, context: RestoreContext<'_>) -> Vec<RestoredKey> {
         let rules = SuffixRules::of(context);
         let patches = Patches::of(context);
         if rules.dedupe {
@@ -39,16 +47,16 @@ impl Graph<'_> {
 
     /// The keys when a provider's group nests its own key, computed level by
     /// level so that every provider's key is ready before its dependents'.
-    fn nested_keys(&self, rules: &SuffixRules, patches: &Patches<'_>) -> Vec<PkgNameVerPeer> {
+    fn nested_keys(&self, rules: &SuffixRules, patches: &Patches<'_>) -> Vec<RestoredKey> {
         let nesting =
             Nesting { order: self.providers_first(), cyclic_names: self.cyclic_peer_names() };
         // A snapshot without bindings has the package's key, and every other
         // snapshot may need it.
-        let mut keys: Vec<Option<PkgNameVerPeer>> = (0..self.keys.len())
+        let mut keys: Vec<Option<RestoredKey>> = (0..self.keys.len())
             .map(|sid| {
                 self.providers[sid]
                     .is_empty()
-                    .then(|| self.base_key(sid, patches))
+                    .then(|| RestoredKey { key: self.base_key(sid, patches), bindings: None })
             })
             .collect();
         for level in self.levels(&nesting.order) {
@@ -65,10 +73,10 @@ impl Graph<'_> {
         &self,
         level: &[usize],
         nesting: &Nesting,
-        keys: &[Option<PkgNameVerPeer>],
+        keys: &[Option<RestoredKey>],
         rules: &SuffixRules,
         patches: &Patches<'_>,
-    ) -> Vec<(Sid, PkgNameVerPeer)> {
+    ) -> Vec<(Sid, RestoredKey)> {
         level
             .par_iter()
             .flat_map_iter(|&component| nesting.order.components[component].iter().copied())
@@ -77,7 +85,7 @@ impl Graph<'_> {
                 let key = self.key_of(sid, rules, patches, |name, provider| {
                     match keys[provider].as_ref() {
                         Some(provider_key) if !nesting.collapses(sid, provider, name) => {
-                            PeerId::DepPath(DepPath::from(provider_key.to_string()))
+                            PeerId::DepPath(DepPath::from(provider_key.key.to_string()))
                         }
                         _ => pair_of(self.keys[provider]),
                     }
@@ -95,10 +103,10 @@ impl Graph<'_> {
         rules: &SuffixRules,
         patches: &Patches<'_>,
         segment: impl Fn(&PkgName, Sid) -> PeerId,
-    ) -> PkgNameVerPeer {
+    ) -> RestoredKey {
         let base = self.keys[sid];
         if self.providers[sid].is_empty() {
-            return self.base_key(sid, patches);
+            return RestoredKey { key: self.base_key(sid, patches), bindings: None };
         }
         let peer_ids: Vec<PeerId> = self.providers[sid]
             .iter()
@@ -113,7 +121,9 @@ impl Graph<'_> {
             .collect();
         let mut peer = patches.group(self, sid);
         peer.push_str(&create_peer_dep_graph_hash(&peer_ids, rules.max_length));
-        PkgNameVerPeer::new(base.name.clone(), base.suffix.with_peer(peer))
+        let key = PkgNameVerPeer::new(base.name.clone(), base.suffix.with_peer(peer));
+        let bindings = RecordedPeerBindings::for_key(&key, &peer_ids);
+        RestoredKey { key, bindings }
     }
 
     /// The components of `order` grouped so that every provider of a group's

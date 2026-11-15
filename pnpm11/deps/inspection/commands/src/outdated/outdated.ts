@@ -7,7 +7,13 @@ import {
 } from '@pnpm/cli.utils'
 import { createMatcher } from '@pnpm/config.matcher'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions } from '@pnpm/deps.github-actions'
+import {
+  expandGitHubActionSelectors,
+  findOutdatedGitHubActions,
+  hasPositiveGitHubActionSelector,
+  isGitHubActionSelector,
+  shouldCheckGitHubActions,
+} from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
@@ -257,7 +263,7 @@ async function findOutdatedItems (
   { opts, params, packageParams, include }: FindOutdatedItemsContext
 ): Promise<OutdatedItem[]> {
   const [outdatedPerProject, outdatedActions] = await Promise.all([
-    params.length === 0 || packageParams.length > 0
+    packageParams.length > 0 || !hasPositiveGitHubActionSelector(params)
       ? outdatedDepsOfProjects(packages, packageParams, {
         ...opts,
         fullMetadata: opts.long,
@@ -279,7 +285,7 @@ async function findOutdatedItems (
       : findOutdatedGitHubActions({
         compatible: opts.compatible,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+        match: params.length > 0 ? createMatcher(expandGitHubActionSelectors(params)) : undefined,
         minimumReleaseAge: opts.minimumReleaseAge,
         minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
         serverUrl: opts.updateConfig?.githubActionsServer,

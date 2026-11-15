@@ -9,7 +9,7 @@ pub(super) async fn open_stores(
     install: FreshInputs<'_>,
     owned: &OwnedInputs,
     progress_reported: Option<pnpm_tarball::SharedReportedProgressKeys>,
-    store_dir: &'static pnpm_store_dir::StoreDir,
+    store_dir: &pnpm_store_dir::StoreDir,
 ) -> resolver_setup::StoreIndexHandles {
     let stores = resolver_setup::open_store_index_handles(
         install.drivers.config,

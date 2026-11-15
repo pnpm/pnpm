@@ -3,7 +3,7 @@ use std::{fmt, time::Duration};
 use indexmap::IndexMap;
 use pnpm_env_replace::EnvVar;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use pnpr_error::RegistryError;
 use pnpr_policy::{AccessList, PackageRules};
@@ -12,7 +12,7 @@ use super::{AccessSpec, TeamDirectory};
 
 /// Runtime upstream declaration: the upstream `url`, the request headers
 /// pnpr attaches to every fetch it makes to that upstream, and the
-/// verdaccio per-upstream tuning knobs (`maxage`, `timeout`, `max_fails`,
+/// verdaccio per-upstream tuning knobs (`packument_ttl`, `timeout`, `max_fails`,
 /// `fail_timeout`, `cache`).
 ///
 /// [`Self::headers`] is resolved once, at config load, from the YAML
@@ -27,12 +27,12 @@ pub struct UpstreamConfig {
     /// Auth + custom headers, fully resolved and ready to attach to
     /// every request pnpr makes to this upstream.
     pub headers: HeaderMap,
-    /// Per-upstream packument freshness window (`maxAge`).
+    /// Per-upstream packument freshness window (`packumentTtl`).
     /// `None` when the YAML omits it — the proxy then falls back to the
     /// global [`super::HttpConfig::packument_ttl`], so the existing
     /// `--packument-ttl` flag still governs upstreams that don't set
     /// their own.
-    pub maxage: Option<Duration>,
+    pub packument_ttl: Option<Duration>,
     /// Whether tarballs fetched from this upstream are written to the local
     /// mirror (verdaccio's `cache`). `false` streams them through
     /// uncached. Defaults to `true`.
@@ -61,6 +61,9 @@ pub struct UpstreamRequestPolicy {
     /// pnpr buffers must arrive whole within it. Defaults to
     /// [`UpstreamConfig::DEFAULT_TIMEOUT`].
     pub timeout: Duration,
+    /// Maximum upstream packument body size in bytes.
+    /// Defaults to [`UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE`].
+    pub max_packument_size: usize,
     /// Consecutive failures before the upstream is treated as down
     /// (verdaccio's `max_fails`). Defaults to [`UpstreamConfig::DEFAULT_MAX_FAILS`].
     pub max_fails: u32,
@@ -71,6 +74,7 @@ pub struct UpstreamRequestPolicy {
 }
 
 impl UpstreamConfig {
+    pub const DEFAULT_MAX_PACKUMENT_SIZE: usize = 64 * 1024 * 1024;
     /// Verdaccio's `timeout` default (`30s`).
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
     /// Verdaccio's `max_fails` default (`2`).
@@ -86,9 +90,10 @@ impl UpstreamConfig {
         Self {
             url,
             headers,
-            maxage: None,
+            packument_ttl: None,
             requests: UpstreamRequestPolicy {
                 timeout: Self::DEFAULT_TIMEOUT,
+                max_packument_size: Self::DEFAULT_MAX_PACKUMENT_SIZE,
                 max_fails: Self::DEFAULT_MAX_FAILS,
                 fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
             },
@@ -105,7 +110,7 @@ impl fmt::Debug for UpstreamConfig {
         f.debug_struct("UpstreamConfig")
             .field("url", &self.url)
             .field("headers", &RedactedHeaders(&self.headers))
-            .field("maxage", &self.maxage)
+            .field("packument_ttl", &self.packument_ttl)
             .field("timeout", &self.requests.timeout)
             .field("max_fails", &self.requests.max_fails)
             .field("fail_timeout", &self.requests.fail_timeout)
@@ -151,13 +156,14 @@ impl fmt::Debug for RedactedHeaders<'_> {
 pub(super) struct UpstreamConfigFile {
     pub(super) url: String,
     pub(super) auth: Option<UpstreamAuthFile>,
-    pub(super) headers: IndexMap<String, String>,
+    pub(super) headers: IndexMap<String, crate::Secret>,
     /// Interval strings (`"2m"`, `"30s"`, `"1h30m"`) or a bare
     /// number of seconds; parsed by [`parse_interval`] in
     /// [`resolve_upstream_config`]. Kept as raw strings here so an unparsable
     /// value surfaces as a config error rather than a serde failure.
-    pub(super) maxage: Option<Interval>,
+    pub(super) packument_ttl: Option<Interval>,
     pub(super) timeout: Option<Interval>,
+    pub(super) max_packument_size: Option<super::ByteSize>,
     pub(super) max_fails: Option<u32>,
     pub(super) fail_timeout: Option<Interval>,
     pub(super) cache: Option<bool>,
@@ -175,6 +181,15 @@ pub(super) struct UpstreamConfigFile {
 /// unparsable value surfaces as a precise config error.
 #[derive(Debug, Clone)]
 pub(super) struct Interval(pub(super) String);
+
+impl Serialize for Interval {
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+    where
+        Ser: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
 
 impl<'de> Deserialize<'de> for Interval {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
@@ -207,13 +222,13 @@ impl<'de> Deserialize<'de> for Interval {
 /// The YAML `auth:` block on an upstream. `token` takes priority over
 /// `tokenEnv`; either resolves to the credential placed in the
 /// `Authorization` header, encoded per [`UpstreamAuthType`].
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct UpstreamAuthFile {
     pub(super) r#type: UpstreamAuthType,
-    #[serde(default)]
-    pub(super) token: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) token: Option<crate::Secret>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) token_env: Option<TokenEnv>,
 }
 
@@ -221,7 +236,7 @@ pub(super) struct UpstreamAuthFile {
 /// `bearer` → `Bearer <token>`, `basic` → `Basic <token>` (the token
 /// is used verbatim, matching verdaccio's assumption that a `basic`
 /// token is already a base64 `user:pass`).
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub(super) enum UpstreamAuthType {
     Bearer,
@@ -231,7 +246,7 @@ pub(super) enum UpstreamAuthType {
 /// Verdaccio's `token_env`: either the boolean `true` (read the
 /// default `NPM_TOKEN` env var) or a string naming the env var to
 /// read. `false` reads nothing.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub(super) enum TokenEnv {
     Flag(bool),
@@ -243,7 +258,7 @@ impl TokenEnv {
     const DEFAULT_VAR: &'static str = "NPM_TOKEN";
 
     /// The env var name to read, or `None` for `token_env: false`.
-    fn var_name(&self) -> Option<&str> {
+    pub(super) fn var_name(&self) -> Option<&str> {
         match self {
             TokenEnv::Flag(true) => Some(Self::DEFAULT_VAR),
             TokenEnv::Flag(false) => None,
@@ -304,7 +319,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
                 })
                 .transpose()
         };
-    let maxage = parse_field("maxAge", &file.maxage)?;
+    let packument_ttl = parse_field("packumentTtl", &file.packument_ttl)?;
     let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("failTimeout", &file.fail_timeout)?
         .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
@@ -313,9 +328,10 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     Ok(UpstreamConfig {
         url: file.url,
         headers,
-        maxage,
+        packument_ttl,
         requests: UpstreamRequestPolicy {
             timeout,
+            max_packument_size: resolve_packument_limit(name, file.max_packument_size.as_ref())?,
             max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
             fail_timeout,
         },
@@ -443,4 +459,19 @@ fn resolve_upstream_token<Sys: EnvVar>(auth: &UpstreamAuthFile) -> Option<String
 
 fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
+}
+
+fn resolve_packument_limit(
+    name: &str,
+    value: Option<&super::ByteSize>,
+) -> Result<usize, RegistryError> {
+    let Some(value) = value else {
+        return Ok(UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE);
+    };
+    super::parse_byte_size(&value.0)
+        .and_then(|size| usize::try_from(size).ok())
+        .filter(|size| *size > 0)
+        .ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("upstream {name:?} maxPackumentSize must be a positive byte size"),
+        })
 }

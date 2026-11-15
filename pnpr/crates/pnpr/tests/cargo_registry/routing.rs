@@ -4,7 +4,6 @@ use super::{
     publish_request, router_with_auth, sha256_hex,
 };
 use crate::tokens::issue_token;
-use pnpr::Config;
 use pnpr_storage::layout::blob_segment;
 
 #[tokio::test]
@@ -567,8 +566,11 @@ defaultRegistry: main
         );
         let config_path = tmp.path().join("pnpr.yaml");
         std::fs::write(&config_path, format!("storage: storage\n{yaml}")).unwrap();
-        let config =
-            Config::from_yaml(&config_path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
+        let config = pnpr_fixtures::load_seeded_config(
+            &config_path,
+            "127.0.0.1:4873".parse().unwrap(),
+            None,
+        );
         let app = router_with_auth(config, auth);
         for name in aliases {
             let response = app

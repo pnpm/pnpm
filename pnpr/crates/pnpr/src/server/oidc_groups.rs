@@ -2,7 +2,7 @@
 
 use indexmap::IndexMap;
 use pnpr_auth::oidc::SessionUser;
-use pnpr_config::{Config, HostedConfig, Management, validate_team_name};
+use pnpr_config::{Config, HostedConfig, RoutingConfig, validate_team_name};
 use pnpr_error::RegistryError;
 use pnpr_policy::{Identity, Membership};
 
@@ -26,20 +26,26 @@ fn find_hosted<'a>(
 
 /// The identity of a browser session: its account ID, and a membership for
 /// every team its groups claim earned.
-pub(super) fn session_identity(config: &Config, user: SessionUser, username: String) -> Identity {
+pub(super) fn session_identity(
+    routing: &RoutingConfig,
+    user: SessionUser,
+    username: String,
+) -> Identity {
     let memberships = user.teams
         .into_iter()
         .filter_map(|grant| {
-            let hosted = find_hosted(&config.routing.hosted, &grant.registry)?;
+            let hosted = find_hosted(&routing.hosted, &grant.registry)?;
             Some(Membership { directory: hosted.teams.clone(), team_id: grant.team_id })
         })
         .collect();
     Identity::account_member(user.user_id, username, memberships)
 }
 
-/// Every group grant names a hosted registry and a team it can hold: on a
-/// registry whose roster is the YAML, a team the YAML declares.
-pub(super) fn validate_group_grants(config: &Config) -> Result<(), RegistryError> {
+/// Every group grant names a hosted registry and a team it declares.
+pub(super) fn validate_group_grants(
+    config: &Config,
+    routing: &RoutingConfig,
+) -> Result<(), RegistryError> {
     let grants = config.identity.auth.oidc
         .iter()
         .filter_map(|provider| provider.login.as_ref()?.groups.as_ref())
@@ -48,12 +54,10 @@ pub(super) fn validate_group_grants(config: &Config) -> Result<(), RegistryError
         let invalid = |reason: String| RegistryError::InvalidConfig {
             reason: format!("OIDC group {:?}: {reason}", grant.group),
         };
-        let hosted = find_hosted(&config.routing.hosted, &grant.registry)
+        let hosted = find_hosted(&routing.hosted, &grant.registry)
             .ok_or_else(|| invalid(format!("{:?} is not a hosted registry", grant.registry)))?;
         validate_team_name(&grant.team_id).map_err(invalid)?;
-        if hosted.teams_managed_by == Management::Config
-            && !hosted.teams.snapshot().contains_key(&grant.team_id)
-        {
+        if !hosted.teams.snapshot().contains_key(&grant.team_id) {
             return Err(invalid(format!(
                 "registry {:?} does not declare the team {:?}",
                 grant.registry, grant.team_id,

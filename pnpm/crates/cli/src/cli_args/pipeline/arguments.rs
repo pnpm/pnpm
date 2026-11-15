@@ -68,6 +68,12 @@ pub struct PipelineArgs {
     pub reporting: PipelineReportArgs,
 }
 
+impl PipelineArgs {
+    pub(crate) fn prints_json_plan(&self) -> bool {
+        self.install_args.materialization.dry_run && self.json
+    }
+}
+
 /// The pipeline-specific inputs of one invocation, split off
 /// [`PipelineArgs`] once the install half has been consumed.
 pub struct PipelineInvocation {

@@ -371,10 +371,11 @@ fn exact_release_versions_are_their_own_resolution() {
         exact_release_version(&parse_node_specifier(specifier).expect("valid specifier"))
     };
     assert_eq!(exact("22.11.0").as_deref(), Some("22.11.0"));
+    assert_eq!(exact("v22.11.0").as_deref(), Some("22.11.0"));
     assert_eq!(exact("release/22.11.0").as_deref(), Some("22.11.0"));
+    assert_eq!(exact("release/v22.11.0").as_deref(), Some("22.11.0"));
     assert_eq!(exact("^22.11.0"), None);
     assert_eq!(exact("22.11"), None);
-    assert_eq!(exact("v22.11.0"), None);
     assert_eq!(exact("22.11.0-rc.1"), None);
     assert_eq!(exact("rc/22.11.0"), None);
     assert_eq!(exact("latest"), None);

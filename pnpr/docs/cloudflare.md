@@ -17,7 +17,7 @@ survive lives somewhere else:
 - Published packages go to an R2 bucket. pnpr talks to it through its
   [S3 backend](storage.md), and R2 charges nothing for egress.
 - Package metadata, users, and tokens go to a [Turso](https://turso.tech)
-  database, through [libSQL metadata](storage.md#libsql-metadata) and the
+  database, through [libSQL](storage.md#libsql-database) and the
   [libsql auth backend](auth-backends.md). Cloudflare's own databases do not
   speak a protocol pnpr can use, so Turso is the simplest option.
 - The upstream cache stays on the container's disk. Losing it only means
@@ -54,31 +54,36 @@ The pnpr config points the hosted store at your bucket and auth at Turso. The
 credentials arrive as environment variables, which the Worker below sets:
 
 ```yaml title="pnpr.yaml"
-storage: /pnpr/storage
-
-s3:
-  bucket: my-pnpr-packages
-  region: auto
-  endpoint: https://<account-id>.r2.cloudflarestorage.com
-  # Credentials come from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
-
-database:
-  url: ${PNPR_LIBSQL_URL}
-  authToken: ${PNPR_LIBSQL_TOKEN}
-  # Package views are read from a local replica, rebuilt on each start.
-  replicaPath: /pnpr/cache/metadata-replica.db
-  syncInterval: 10s
+storage:
+  path: /pnpr/storage
+  s3:
+    bucket: my-pnpr-packages
+    region: auto
+    endpoint: https://<account-id>.r2.cloudflarestorage.com
+    # Credentials come from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+  database:
+    url: ${PNPR_LIBSQL_URL}
+    authToken: ${PNPR_LIBSQL_TOKEN}
+    # Package views are read from a local replica, rebuilt on each start.
+    replicaPath: /pnpr/cache/metadata-replica.db
+    syncInterval: 10s
 
 secret: ${PNPR_SECRET}
 
 # The Worker below passes the client's address in X-Real-IP.
-trustedProxies: [10.0.0.0/8]
-trustedProxyHeader: x-real-ip
+trustedProxies:
+  networks: [10.0.0.0/8]
+  header: x-real-ip
 
 auth:
   users:
     maxUsers: 3
+```
 
+The registries live in the database, not in the image. Describe them in a file
+that stays outside the image:
+
+```yaml title="registries.yaml"
 registries:
   local:
     type: hosted
@@ -97,6 +102,18 @@ registries:
 
 defaultRegistry: main
 ```
+
+Store them once from any machine that can reach the database, with the same
+config and environment variables, using
+[`pnpr registries import`](cli.md#registries). Leave `replicaPath` out of that
+config unless its directory exists on that machine:
+
+```sh
+pnpr -c ./pnpr.yaml registries import ./registries.yaml
+```
+
+Without this step, the first start stores the
+[default registries](configuration.md#registries-in-the-database).
 
 The Wrangler config declares the container, the Durable Object that owns it,
 and the public URL pnpr writes into tarball links:
@@ -319,7 +336,8 @@ A login answers with a new token and is marked only `no-cache`. With
 [CORS](configuration.md#cors) on, pnpr's answer depends on the request's
 `Origin`, so keep requests with an `Origin` header out of a cache that does
 not key on it. A cache also outlives
-[rule changes](configuration.md#changing-rules-through-the-api).
+[rule changes](configuration.md#changing-rules-through-the-api) and other
+[changes to the stored registries](configuration.md#registries-in-the-database).
 
 Metadata at one URL has several representations, selected by `Accept`. Keep
 full JSON and `application/vnd.npm.install-v1+json` in separate cache entries.
@@ -346,14 +364,14 @@ remains available when every read must check access and freshness at the registr
 **Publishes go through the Worker**, so your plan's request body limit caps
 the size of a package you can publish. It also caps each OCI blob upload
 request. A layer larger than that limit fails with HTTP `413` when the client
-sends it in one `PATCH` or `PUT`, even if it fits `oci.maxBlobBytes`.
+sends it in one `PATCH` or `PUT`, even if it fits `oci.maxBlobSize`.
 
 For clients that honor the proposed `OCI-Chunk-Max-Length` header, configure
 [the upload hint](configuration.md#oci) below your plan's request body limit:
 
 ```yaml title="pnpr.yaml"
 oci:
-  chunkMaxBytes: 50000000
+  maxChunkSize: 50MiB
 ```
 
 This hint cannot force a client to split requests. Docker and Podman uploads
@@ -363,7 +381,7 @@ outside Cloudflare Containers behind your own
 accommodates the largest layer. The Container in this guide is
 [only reachable through its Worker](https://developers.cloudflare.com/containers/concepts/architecture/).
 Adding a custom domain to that Worker does not bypass its limit. Raising
-`oci.maxBlobBytes` alone cannot raise Cloudflare's limit.
+`oci.maxBlobSize` alone cannot raise Cloudflare's limit.
 
 **Container logs are in the dashboard**, under the Worker's logs.
 `wrangler tail` shows only the Worker's own events.

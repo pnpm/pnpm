@@ -1,10 +1,13 @@
 use super::{
     AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, ServerMetrics,
-    Singleflight, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace,
-    package_responses::processing::PackumentProcessing, publishing::retry::ReplayStorage,
+    Singleflight, Storage, StripedLocks,
+    package_responses::processing::PackumentProcessing,
+    publishing::retry::ReplayStorage,
+    registry_graph::{RoutingSnapshot, UpstreamGuardContext, build_snapshot},
 };
-use indexmap::IndexMap;
-use std::sync::Arc;
+use pnpr_config::{GraphSource, RoutingConfig};
+use pnpr_route::RouteContext;
+use std::sync::{Arc, RwLock};
 
 #[cfg_attr(
     dylint_lib = "perfectionist",
@@ -15,10 +18,20 @@ use std::sync::Arc;
 )]
 pub(crate) struct AppInner {
     pub(super) storage: Storage,
-    pub(super) config: Config,
-    /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
-    /// first such request so servers that never receive one pay nothing.
-    pub(super) resolver: std::sync::OnceLock<crate::resolver::Resolver>,
+    /// The server configuration. Its `routing` holds only
+    /// `routes.allowedPrivateNetworks`: the registry graph lives in
+    /// [`Self::routing`].
+    pub(crate) config: Config,
+    /// The registry graph requests route by. Read it through
+    /// [`super::AppState::routing`].
+    pub(super) routing: RwLock<Arc<RoutingSnapshot>>,
+    /// How many snapshots [`Self::routing`] has replaced. See
+    /// [`RoutingSnapshot::epoch`].
+    pub(super) routing_epochs: std::sync::atomic::AtomicU64,
+    pub(super) upstream_guard_context: UpstreamGuardContext,
+    /// The resolver state every routing snapshot's engine shares. Built on the
+    /// first resolve, so servers that never receive one pay nothing.
+    pub(super) resolver_shared: std::sync::OnceLock<crate::resolver::ResolverShared>,
     /// Local OSV index, loaded before the server accepts requests when
     /// `osv.enabled` is set and a mounted surface consults it.
     pub(super) osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
@@ -28,6 +41,7 @@ pub(crate) struct AppInner {
     pub(super) locks: MutationLocks,
     pub(super) identity: IdentityServices,
     pub(crate) metrics: Arc<ServerMetrics>,
+    pub(super) shutting_down: std::sync::atomic::AtomicBool,
 }
 
 type PackumentSingleflight = Singleflight<
@@ -41,22 +55,13 @@ pub(super) struct BuildServices {
 }
 
 pub(super) struct ProxyState {
-    /// One [`Upstream`] per declared upstream, keyed by the same name
-    /// used in [`pnpr_config::RoutingConfig::upstreams`]. Built once at router construction
-    /// time so each request avoids re-allocating a `ThrottledClient`.
-    pub(super) upstreams: IndexMap<String, Upstream>,
-    /// The disposable cache namespace of each upstream, keyed like
-    /// [`Self::upstreams`]. A pure function of the config (see
-    /// [`compute_upstream_cache_namespace`]), precomputed here so the
-    /// per-request path doesn't re-sort and re-hash the upstream's headers on
-    /// every packument and tarball served through an upstream registry.
-    pub(super) cache_namespaces: IndexMap<String, String>,
     pub(super) packument_singleflight: PackumentSingleflight,
     pub(super) tar_variants: super::TarVariantQueue,
     /// Permits for tar responses and publishes that decode a `.tgz`. See
     /// [`super::MAX_CONCURRENT_TAR_DECODES`].
     pub(super) tar_decodes: Arc<tokio::sync::Semaphore>,
     pub(super) background_tar_scans: Arc<super::BackgroundTarScans>,
+    pub(super) integrity_backfill: super::upstream_integrity::BackgroundIntegrity,
     pub(super) version_tgzs: super::VersionTgzCache,
 }
 
@@ -72,8 +77,8 @@ pub(super) struct MutationLocks {
     /// [`super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS`].
     pub(super) staged_archive_uploads: tokio::sync::Semaphore,
     /// The same, per principal, so one account cannot hold every upload
-    /// permit. See [`super::staged_archives::PrincipalUploads`].
-    pub(super) staged_archive_uploads_by_principal: super::staged_archives::PrincipalUploads,
+    /// permit.
+    pub(super) staged_archive_uploads_by_principal: super::KeyedSemaphores,
     pub(super) logs: super::release_record_logs::LogIntegrationState,
 }
 
@@ -88,22 +93,32 @@ pub(super) struct IdentityServices {
 
 impl AppInner {
     pub(super) fn new(
-        config: Config,
+        mut config: Config,
         auth: AuthState,
         osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
     ) -> pnpr_error::Result<Self> {
         let storage = Storage::from_config(&config.storage)?;
         let builds = BuildServices::new(&config, &storage)?;
-        let proxy = ProxyState::new(&config);
-        let identity = IdentityServices::new(&config, auth)?;
+        let routing = std::mem::take(&mut config.routing);
+        config.routing.route_policy.allowed_private_networks.clone_from(
+            &routing.route_policy.allowed_private_networks,
+        );
+        let identity = IdentityServices::new(&config, &routing, auth)?;
         let publish_replays = ReplayStorage::new(&config.storage.cache_dir);
+        let upstream_guard_context: UpstreamGuardContext = Arc::new(RwLock::new(Arc::new(
+            RouteContext::from_routing(&routing, &config.http.public_url),
+        )));
+        let snapshot = build_snapshot(&config, routing, None, &upstream_guard_context);
         Ok(Self {
             storage,
             config,
-            resolver: std::sync::OnceLock::new(),
+            routing: RwLock::new(Arc::new(snapshot)),
+            routing_epochs: std::sync::atomic::AtomicU64::new(0),
+            upstream_guard_context,
+            resolver_shared: std::sync::OnceLock::new(),
             osv_index,
             builds,
-            proxy,
+            proxy: ProxyState::new(),
             packuments: PackumentProcessing::default(),
             locks: MutationLocks {
                 packages: StripedLocks::new(),
@@ -113,12 +128,14 @@ impl AppInner {
                 staged_archive_uploads: tokio::sync::Semaphore::new(
                     super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS,
                 ),
-                staged_archive_uploads_by_principal:
-                    super::staged_archives::PrincipalUploads::default(),
+                staged_archive_uploads_by_principal: super::KeyedSemaphores::new(
+                    super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL,
+                ),
                 logs: super::release_record_logs::LogIntegrationState::default(),
             },
             identity,
             metrics: Arc::new(ServerMetrics::new()),
+            shutting_down: std::sync::atomic::AtomicBool::new(false),
         })
     }
 }
@@ -136,28 +153,27 @@ impl BuildServices {
 }
 
 impl ProxyState {
-    fn new(config: &Config) -> Self {
-        let upstreams = upstream_clients(config, config.features.registry.enabled);
-        let upstream_cache_namespaces = config.routing.upstreams
-            .keys()
-            .map(|name| (name.clone(), compute_upstream_cache_namespace(config, name)))
-            .collect();
+    fn new() -> Self {
         Self {
-            upstreams,
-            cache_namespaces: upstream_cache_namespaces,
             packument_singleflight: Singleflight::new(),
             tar_variants: super::TarVariantQueue::new(),
             tar_decodes: Arc::new(tokio::sync::Semaphore::new(super::MAX_CONCURRENT_TAR_DECODES)),
             background_tar_scans: super::BackgroundTarScans::new(),
+            integrity_backfill: super::upstream_integrity::BackgroundIntegrity::default(),
             version_tgzs: super::VersionTgzCache::default(),
         }
     }
 }
 
 impl IdentityServices {
-    fn new(config: &Config, auth: AuthState) -> pnpr_error::Result<Self> {
-        super::oidc::validate_workloads(config)?;
-        super::oidc_groups::validate_group_grants(config)?;
+    fn new(config: &Config, routing: &RoutingConfig, auth: AuthState) -> pnpr_error::Result<Self> {
+        super::scim::validate_oidc(config)?;
+        // A stored graph is checked against these when it loads and when it
+        // changes; see `registry_graph::check_file_references`.
+        if config.graph_source == GraphSource::Supplied {
+            super::oidc::validate_workloads(config, routing)?;
+            super::oidc_groups::validate_group_grants(config, routing)?;
+        }
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
         Ok(Self {
@@ -169,23 +185,6 @@ impl IdentityServices {
             login_concurrency: tokio::sync::Semaphore::new(8),
         })
     }
-}
-
-/// Only the registry routes consult the upstreams, so a resolver-only
-/// server builds none, skipping a `ThrottledClient` allocation per
-/// configured upstream.
-fn upstream_clients(config: &Config, registry_enabled: bool) -> IndexMap<String, Upstream> {
-    if !registry_enabled {
-        return IndexMap::new();
-    }
-    config.routing.upstreams
-        .iter()
-        .map(|(name, upstream)| {
-            let client = Upstream::new(name, upstream)
-                .with_fetch_guard(super::ecosystem::upstream_fetch_guard(config, upstream));
-            (name.clone(), client)
-        })
-        .collect()
 }
 
 /// The compression and access-log layers every response passes through.

@@ -7,8 +7,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthState, Config, OwnedTokens, PasswordChange, RegistryError, TokenBackend, TokenRecord,
-    TokenStore, UpsertOutcome, UserBackend, UserCreation, UserRemoval, UserStore,
+    AuthState, Config, PasswordChange, RegistryError, SqliteAuth, TokenBackend, TokenRecord,
+    UpsertOutcome, UserBackend, UserCreation, UserRemoval,
 };
 use serde_json::{Value, json};
 use std::{
@@ -24,13 +24,17 @@ fn load_config(dir: &TempDir) -> Config {
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     let yaml = format!(
-        "storage: {}\nauth:\n  admins: [root]\n  users:\n    file: ./htpasswd\n    maxUsers: 1\n",
+        "storage: {}\nauth:\n  admins: [root]\n  users:\n    maxUsers: 1\n",
         storage.display(),
     );
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+}
+
+fn sqlite_auth() -> Arc<SqliteAuth> {
+    Arc::new(SqliteAuth::in_memory(pnpr::MaxUsers::Unlimited).unwrap())
 }
 
 async fn app_router(config: Config) -> axum::Router {
@@ -45,10 +49,9 @@ async fn send(
     token: Option<&str>,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
-    let path = crate::tokens::admin_path(app, method, path, token).await;
     let mut request = Request::builder()
         .method(method)
-        .uri(&path)
+        .uri(path)
         .header("content-type", "application/json");
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
@@ -82,6 +85,23 @@ async fn whoami(app: &axum::Router, token: &str) -> StatusCode {
     send(app, "GET", "/-/whoami", Some(token), None).await.0
 }
 
+async fn create_admin_user(
+    app: &axum::Router,
+    admin_token: &str,
+    username: &str,
+    password: &str,
+) -> String {
+    let body = json!({ "name": username, "password": password });
+    let (status, payload) =
+        send(app, "POST", "/-/pnpr/v0/admin/users", Some(admin_token), Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(payload["name"], username);
+    payload["id"]
+        .as_str()
+        .expect("account id in response")
+        .to_string()
+}
+
 #[tokio::test]
 async fn admins_create_accounts_past_the_registration_cap() {
     let dir = TempDir::new().unwrap();
@@ -89,10 +109,8 @@ async fn admins_create_accounts_past_the_registration_cap() {
     let root = login(&app, "root", "secret123").await.unwrap();
     assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
 
-    let body = json!({ "password": "first-password" });
-    let (status, _) =
-        send(&app, "PUT", "/-/pnpr/v0/admin/users/bob", Some(&root), Some(body)).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let bob_id = create_admin_user(&app, &root, "bob", "first-password").await;
+    assert_ne!(bob_id, "bob");
     let bob = login(&app, "bob", "first-password").await.unwrap();
     assert_eq!(whoami(&app, &bob).await, StatusCode::OK);
 
@@ -109,20 +127,69 @@ async fn admins_create_accounts_past_the_registration_cap() {
 }
 
 #[tokio::test]
-async fn a_new_password_replaces_the_old_one() {
+async fn creating_a_duplicate_username_conflicts_without_touching_the_account() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret123").await.unwrap();
-    let path = "/-/pnpr/v0/admin/users/bob";
-    send(&app, "PUT", path, Some(&root), Some(json!({ "password": "first-password" }))).await;
+    let bob_id = create_admin_user(&app, &root, "bob", "first-password").await;
+    let bob = login(&app, "bob", "first-password").await.unwrap();
+
+    let (status, _) = send(
+        &app,
+        "POST",
+        "/-/pnpr/v0/admin/users",
+        Some(&root),
+        Some(json!({ "name": "bob", "password": "second-password" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(whoami(&app, &bob).await, StatusCode::OK);
+    assert_eq!(login(&app, "bob", "second-password").await, Err(StatusCode::UNAUTHORIZED));
+    assert_eq!(crate::tokens::account_id(&app, "bob", Some(&root)).await, Some(bob_id));
+}
+
+#[tokio::test]
+async fn a_new_password_replaces_the_old_one_by_account_id() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(&dir)).await;
+    let root = login(&app, "root", "secret123").await.unwrap();
+    let bob_id = create_admin_user(&app, &root, "bob", "first-password").await;
+    let path = format!("/-/pnpr/v0/admin/users/{bob_id}");
 
     let old_token = login(&app, "bob", "first-password").await.unwrap();
-    let (status, _) =
-        send(&app, "PUT", path, Some(&root), Some(json!({ "password": "second-password" }))).await;
+    assert_eq!(
+        send(
+            &app,
+            "PUT",
+            "/-/pnpr/v0/admin/users/bob",
+            Some(&root),
+            Some(json!({ "password": "second-password" })),
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(whoami(&app, &old_token).await, StatusCode::OK);
+
+    let (status, updated) =
+        send(&app, "PUT", &path, Some(&root), Some(json!({ "password": "second-password" }))).await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated, json!({ "id": bob_id, "name": "bob" }));
     assert_eq!(whoami(&app, &old_token).await, StatusCode::UNAUTHORIZED);
     assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
     assert!(login(&app, "bob", "second-password").await.is_ok());
+
+    assert_eq!(
+        send(&app, "PATCH", &path, Some(&root), Some(json!({ "name": "robert" })))
+            .await
+            .0,
+        StatusCode::OK,
+    );
+    let (status, updated) =
+        send(&app, "PUT", &path, Some(&root), Some(json!({ "password": "third-password" }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated, json!({ "id": bob_id, "name": "robert" }));
+    assert!(login(&app, "robert", "third-password").await.is_ok());
 }
 
 #[tokio::test]
@@ -130,14 +197,20 @@ async fn removing_an_account_revokes_its_tokens() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret123").await.unwrap();
-    let path = "/-/pnpr/v0/admin/users/bob";
-    send(&app, "PUT", path, Some(&root), Some(json!({ "password": "first-password" }))).await;
+    let bob_id = create_admin_user(&app, &root, "bob", "first-password").await;
+    let path = format!("/-/pnpr/v0/admin/users/{bob_id}");
     let bob = login(&app, "bob", "first-password").await.unwrap();
 
-    assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(send(&app, "DELETE", &path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
     assert_eq!(whoami(&app, &bob).await, StatusCode::UNAUTHORIZED);
     assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
-    assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(send(&app, "DELETE", &path, Some(&root), None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        send(&app, "PUT", &path, Some(&root), Some(json!({ "password": "revived-password" })))
+            .await
+            .0,
+        StatusCode::NOT_FOUND,
+    );
 }
 
 #[tokio::test]
@@ -145,18 +218,12 @@ async fn admins_revoke_one_token_of_one_user() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret123").await.unwrap();
-    send(
-        &app,
-        "PUT",
-        "/-/pnpr/v0/admin/users/bob",
-        Some(&root),
-        Some(json!({ "password": "password-x" })),
-    )
-    .await;
+    let bob_id = create_admin_user(&app, &root, "bob", "password-x").await;
     let bob = login(&app, "bob", "password-x").await.unwrap();
 
     let (status, tokens) =
-        send(&app, "GET", "/-/pnpr/v0/admin/users/bob/tokens", Some(&root), None).await;
+        send(&app, "GET", &format!("/-/pnpr/v0/admin/users/{bob_id}/tokens"), Some(&root), None)
+            .await;
     assert_eq!(status, StatusCode::OK);
     let key = tokens["objects"][0]["key"]
         .as_str()
@@ -169,7 +236,7 @@ async fn admins_revoke_one_token_of_one_user() {
     );
     assert_eq!(whoami(&app, &bob).await, StatusCode::OK);
 
-    let path = format!("/-/pnpr/v0/admin/users/bob/tokens/{key}");
+    let path = format!("/-/pnpr/v0/admin/users/{bob_id}/tokens/{key}");
     assert_eq!(send(&app, "DELETE", &path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
     assert_eq!(whoami(&app, &bob).await, StatusCode::UNAUTHORIZED);
 }
@@ -179,28 +246,47 @@ async fn only_admins_use_the_user_api() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret123").await.unwrap();
-    send(
+    let bob_id = create_admin_user(&app, &root, "bob", "password-x").await;
+    let bob = login(&app, "bob", "password-x").await.unwrap();
+    let (_, readonly_created) = send(
         &app,
-        "PUT",
-        "/-/pnpr/v0/admin/users/bob",
+        "POST",
+        "/-/npm/v1/tokens",
         Some(&root),
-        Some(json!({ "password": "password-x" })),
+        Some(json!({ "password": "secret123", "readonly": true })),
     )
     .await;
-    let bob = login(&app, "bob", "password-x").await.unwrap();
+    let readonly_root = readonly_created["token"].as_str().unwrap();
 
     let requests = [
-        ("GET", "/-/pnpr/v0/admin/users", None),
-        ("PUT", "/-/pnpr/v0/admin/users/carol", Some(json!({ "password": "password-x" }))),
-        ("DELETE", "/-/pnpr/v0/admin/users/root", None),
-        ("GET", "/-/pnpr/v0/admin/users/root/tokens", None),
+        ("GET", "/-/pnpr/v0/admin/users".to_string(), None),
+        (
+            "POST",
+            "/-/pnpr/v0/admin/users".to_string(),
+            Some(json!({ "name": "carol", "password": "password-x" })),
+        ),
+        (
+            "PUT",
+            format!("/-/pnpr/v0/admin/users/{bob_id}"),
+            Some(json!({ "password": "password-y" })),
+        ),
+        ("PATCH", format!("/-/pnpr/v0/admin/users/{bob_id}"), Some(json!({ "name": "robert" }))),
+        ("DELETE", "/-/pnpr/v0/admin/users/root".to_string(), None),
+        ("GET", "/-/pnpr/v0/admin/users/root/tokens".to_string(), None),
+        ("DELETE", format!("/-/pnpr/v0/admin/users/{bob_id}/tokens/missing"), None),
     ];
     for (method, path, body) in requests {
         assert_eq!(
-            send(&app, method, path, Some(&bob), body.clone()).await.0,
+            send(&app, method, &path, Some(&bob), body.clone()).await.0,
             StatusCode::FORBIDDEN,
         );
-        assert_eq!(send(&app, method, path, None, body).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(send(&app, method, &path, None, body.clone()).await.0, StatusCode::UNAUTHORIZED);
+        if method != "GET" {
+            assert_eq!(
+                send(&app, method, &path, Some(readonly_root), body).await.0,
+                StatusCode::FORBIDDEN,
+            );
+        }
     }
 }
 
@@ -222,7 +308,10 @@ impl UserBackend for RemovedDuringLogin {
         Ok(Vec::new())
     }
 
-    async fn password_hash(&self, _username: &str) -> pnpr::Result<Option<String>> {
+    async fn credential(
+        &self,
+        _username: &str,
+    ) -> pnpr::Result<Option<pnpr_auth::AccountCredential>> {
         Ok(None)
     }
 
@@ -245,7 +334,16 @@ impl UserBackend for RemovedDuringLogin {
     async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
         Ok(None)
     }
+    async fn active_account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
     async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn active_account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn account_status(&self, _id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
         Ok(None)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
@@ -259,7 +357,7 @@ impl UserBackend for RemovedDuringLogin {
 #[tokio::test]
 async fn a_login_racing_a_removal_keeps_no_token() {
     let dir = TempDir::new().unwrap();
-    let tokens = Arc::new(TokenStore::in_memory());
+    let tokens = sqlite_auth();
     let auth = AuthState { users: Arc::new(RemovedDuringLogin), tokens: Arc::clone(&tokens) as _ };
     let app = account_router(load_config(&dir), auth).await;
 
@@ -274,7 +372,7 @@ async fn a_login_racing_a_removal_keeps_no_token() {
 }
 
 /// A token store that cannot revoke.
-struct FailingRevocation(TokenStore);
+struct FailingRevocation(Arc<SqliteAuth>);
 
 #[async_trait::async_trait]
 impl TokenBackend for FailingRevocation {
@@ -305,27 +403,35 @@ impl TokenBackend for FailingRevocation {
     async fn revoke_by_key(&self, _key: &str) -> pnpr::Result<Option<TokenRecord>> {
         Err(RegistryError::Internal { reason: "revocation is down".to_string() })
     }
+
+    async fn delete_expired(&self, now: u64) -> pnpr::Result<usize> {
+        self.0.delete_expired(now).await
+    }
 }
 
 #[tokio::test]
 async fn a_failed_revocation_still_disables_the_account() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
+    let users = sqlite_auth();
     users.create_user("root", "secret123").await.unwrap();
     let auth = AuthState {
         users: Arc::clone(&users) as _,
-        tokens: Arc::new(FailingRevocation(TokenStore::in_memory())),
+        tokens: Arc::new(FailingRevocation(Arc::clone(&users))),
     };
     let app = account_router(load_config(&dir), auth).await;
     let root = login(&app, "root", "secret123").await.unwrap();
-    users.create_user("bob", "password-x").await.unwrap();
+    let UserCreation::Created(bob_id) = users.create_user("bob", "password-x").await.unwrap()
+    else {
+        panic!("expected bob to be created");
+    };
     login(&app, "bob", "password-x").await.unwrap();
 
-    let (status, _) = send(&app, "DELETE", "/-/pnpr/v0/admin/users/bob", Some(&root), None).await;
+    let (status, _) =
+        send(&app, "DELETE", &format!("/-/pnpr/v0/admin/users/{bob_id}"), Some(&root), None).await;
     assert!(status.is_server_error(), "{status}");
     assert!(
         users
-            .password_hash("bob")
+            .credential("bob")
             .await
             .unwrap()
             .is_none(),
@@ -333,13 +439,13 @@ async fn a_failed_revocation_still_disables_the_account() {
 }
 
 /// A user store whose one account is removed and created again between a
-/// login's password check and its token: the hash the login verified is
+/// login's password check and its token: the credential the login verified is
 /// followed by another.
 struct ReplacedDuringLogin {
     outcome: UpsertOutcome,
-    /// Popped by each `password_hash` call: the hash the login sees before
+    /// Popped by each `credential` call: the credential the login sees before
     /// verifying, then the one it sees once its token exists.
-    hashes: std::sync::Mutex<Vec<Option<String>>>,
+    credentials: std::sync::Mutex<Vec<Option<pnpr_auth::AccountCredential>>>,
 }
 
 #[async_trait::async_trait]
@@ -356,8 +462,11 @@ impl UserBackend for ReplacedDuringLogin {
         Ok(Vec::new())
     }
 
-    async fn password_hash(&self, _username: &str) -> pnpr::Result<Option<String>> {
-        Ok(self.hashes
+    async fn credential(
+        &self,
+        _username: &str,
+    ) -> pnpr::Result<Option<pnpr_auth::AccountCredential>> {
+        Ok(self.credentials
             .lock()
             .unwrap()
             .pop()
@@ -383,7 +492,16 @@ impl UserBackend for ReplacedDuringLogin {
     async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
         Ok(None)
     }
+    async fn active_account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
     async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn active_account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn account_status(&self, _id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
         Ok(None)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
@@ -397,13 +515,13 @@ impl UserBackend for ReplacedDuringLogin {
 #[tokio::test]
 async fn an_old_password_gets_no_token_for_a_recreated_account() {
     let dir = TempDir::new().unwrap();
-    let tokens = Arc::new(TokenStore::in_memory());
-    let old = bcrypt::hash("old-password", 4).unwrap();
-    let new = bcrypt::hash("new-password", 4).unwrap();
-    let hashes = vec![Some(new), Some(old)];
+    let tokens = sqlite_auth();
+    let old = pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("old-password", 4).unwrap());
+    let new = pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("new-password", 4).unwrap());
+    let credentials = vec![Some(new), Some(old)];
     let users = ReplacedDuringLogin {
         outcome: UpsertOutcome::LoggedIn,
-        hashes: std::sync::Mutex::new(hashes),
+        credentials: std::sync::Mutex::new(credentials),
     };
     let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
     let app = account_router(load_config(&dir), auth).await;
@@ -421,11 +539,12 @@ async fn an_old_password_gets_no_token_for_a_recreated_account() {
 #[tokio::test]
 async fn a_registration_gets_no_token_for_an_account_recreated_with_another_password() {
     let dir = TempDir::new().unwrap();
-    let tokens = Arc::new(TokenStore::in_memory());
-    let replacement = bcrypt::hash("admin's password", 4).unwrap();
+    let tokens = sqlite_auth();
+    let replacement =
+        pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("admin's password", 4).unwrap());
     let users = ReplacedDuringLogin {
         outcome: UpsertOutcome::Created,
-        hashes: std::sync::Mutex::new(vec![Some(replacement), None]),
+        credentials: std::sync::Mutex::new(vec![Some(replacement), None]),
     };
     let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
     let app = account_router(load_config(&dir), auth).await;
@@ -443,9 +562,8 @@ async fn a_registration_gets_no_token_for_an_account_recreated_with_another_pass
 #[tokio::test]
 async fn a_removed_account_loses_its_tokens_without_any_revocation() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
-    let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
-    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::new(tokens) };
+    let users = sqlite_auth();
+    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&users) as _ };
     let app = account_router(load_config(&dir), auth).await;
     users.create_user("bob", "password-x").await.unwrap();
     let bob = login(&app, "bob", "password-x").await.unwrap();
@@ -467,9 +585,9 @@ async fn a_removed_account_loses_its_tokens_without_any_revocation() {
 #[tokio::test]
 async fn a_recreated_account_does_not_inherit_tokens_left_behind() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(UserStore::in_memory());
+    let users = sqlite_auth();
     users.create_user("root", "secret123").await.unwrap();
-    let tokens = Arc::new(OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users)));
+    let tokens = Arc::clone(&users);
     let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
     let app = account_router(load_config(&dir), auth).await;
     let root = login(&app, "root", "secret123").await.unwrap();
@@ -485,9 +603,8 @@ async fn a_recreated_account_does_not_inherit_tokens_left_behind() {
         users.delete_user(&id).await.unwrap();
     }
 
-    let body = json!({ "password": "new-password" });
-    let (status, _) =
-        send(&app, "PUT", "/-/pnpr/v0/admin/users/bob", Some(&root), Some(body)).await;
+    let body = json!({ "name": "bob", "password": "new-password" });
+    let (status, _) = send(&app, "POST", "/-/pnpr/v0/admin/users", Some(&root), Some(body)).await;
     assert_eq!(status, StatusCode::CREATED);
     let carol = login(&app, "carol", "new-password").await.unwrap();
     for token in &left_behind {
@@ -505,8 +622,11 @@ async fn deleted_names_can_be_reclaimed_without_reviving_tokens() {
     let app = account_router(config, auth).await;
     let root = login(&app, "root", "secret123").await.unwrap();
     let previous = login(&app, "former-member", "old-password").await.unwrap();
-    let path = "/-/pnpr/v0/admin/users/former-member";
-    assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
+    let former_id = crate::tokens::account_id(&app, "former-member", Some(&root))
+        .await
+        .unwrap();
+    let path = format!("/-/pnpr/v0/admin/users/{former_id}");
+    assert_eq!(send(&app, "DELETE", &path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
     assert_eq!(whoami(&app, &previous).await, StatusCode::UNAUTHORIZED);
     assert!(login(&app, "former-member", "new-password").await.is_ok());
     assert_eq!(whoami(&app, &previous).await, StatusCode::UNAUTHORIZED);
@@ -524,7 +644,7 @@ async fn deleting_orphan_tokens_does_not_reserve_a_login_name() {
     let root = login(&app, "root", "secret123").await.unwrap();
     assert!(
         users
-            .password_hash("oidc-member")
+            .credential("oidc-member")
             .await
             .unwrap()
             .is_none(),
@@ -565,24 +685,35 @@ async fn deleting_a_passwordless_oidc_account_frees_its_name_but_not_its_id() {
     let app = account_router(config, auth).await;
     let root = login(&app, "root", "secret123").await.unwrap();
     assert_eq!(
-        send(&app, "DELETE", "/-/pnpr/v0/admin/users/oidc-member", Some(&root), None)
+        send(
+            &app,
+            "PUT",
+            &format!("/-/pnpr/v0/admin/users/{id}"),
+            Some(&root),
+            Some(json!({"password": "enrolled-password"})),
+        )
+        .await
+        .0,
+        StatusCode::OK,
+    );
+    assert!(login(&app, "oidc-member", "enrolled-password").await.is_ok());
+    assert_eq!(
+        send(&app, "DELETE", &format!("/-/pnpr/v0/admin/users/{id}"), Some(&root), None)
             .await
             .0,
         StatusCode::NO_CONTENT,
     );
     assert_eq!(users.account_name(&id).await.unwrap(), None);
-    assert_eq!(
-        send(
-            &app,
-            "PUT",
-            "/-/pnpr/v0/admin/users/oidc-member",
-            Some(&root),
-            Some(json!({"password":"new-password"}))
-        )
-        .await
-        .0,
-        StatusCode::CREATED,
-    );
+    let (status, recreated) = send(
+        &app,
+        "POST",
+        "/-/pnpr/v0/admin/users",
+        Some(&root),
+        Some(json!({"name": "oidc-member", "password": "new-password"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_ne!(recreated["id"].as_str().unwrap(), id);
 }
 
 async fn account_router(mut config: Config, auth: AuthState) -> axum::Router {
@@ -593,7 +724,7 @@ async fn account_router(mut config: Config, auth: AuthState) -> axum::Router {
 }
 
 #[tokio::test]
-async fn invalid_rename_payloads_are_client_errors() {
+async fn invalid_admin_user_payloads_are_client_errors() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret123").await.unwrap();
@@ -602,6 +733,31 @@ async fn invalid_rename_payloads_are_client_errors() {
     for payload in [json!({"name": 42}), json!({"name": "renamed", "extra": true})] {
         assert_eq!(
             send(&app, "PATCH", &path, Some(&root), Some(payload)).await.0,
+            StatusCode::BAD_REQUEST,
+        );
+    }
+    for payload in [
+        json!({"password": "secret123"}),
+        json!({"name": "bob", "password": ""}),
+        json!({"name": "bob", "password": "short"}),
+        json!({"name": "bob:colon", "password": "secret123"}),
+        json!({"name": "bob", "password": "secret123", "extra": true}),
+    ] {
+        assert_eq!(
+            send(&app, "POST", "/-/pnpr/v0/admin/users", Some(&root), Some(payload))
+                .await
+                .0,
+            StatusCode::BAD_REQUEST,
+        );
+    }
+    for payload in [
+        json!({}),
+        json!({"password": ""}),
+        json!({"password": "short"}),
+        json!({"name": "root", "password": "secret123"}),
+    ] {
+        assert_eq!(
+            send(&app, "PUT", &path, Some(&root), Some(payload)).await.0,
             StatusCode::BAD_REQUEST,
         );
     }
@@ -635,14 +791,13 @@ async fn registration_and_rename_reject_lookalike_usernames() {
             StatusCode::BAD_REQUEST,
             "register {decoded:?}",
         );
-        let admin_put_path = format!("/-/pnpr/v0/admin/users/{encoded}");
         assert_eq!(
             send(
                 &app,
-                "PUT",
-                &admin_put_path,
+                "POST",
+                "/-/pnpr/v0/admin/users",
                 Some(&root),
-                Some(json!({ "password": "secret123" }))
+                Some(json!({ "name": decoded, "password": "secret123" }))
             )
             .await
             .0,
@@ -651,16 +806,8 @@ async fn registration_and_rename_reject_lookalike_usernames() {
         );
     }
 
-    let (status, other) = send(
-        &app,
-        "PUT",
-        "/-/pnpr/v0/admin/users/other",
-        Some(&root),
-        Some(json!({ "password": "secret123" })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::CREATED);
-    let other_rename_path = format!("/-/pnpr/v0/admin/users/{}", other["id"].as_str().unwrap());
+    let other_id = create_admin_user(&app, &root, "other", "secret123").await;
+    let other_rename_path = format!("/-/pnpr/v0/admin/users/{other_id}");
     for lookalike in ["CLTEST", "Cltest", "clt\u{00e9}st", "clte\u{0301}st", "cl\u{0442}est"] {
         assert_eq!(
             send(

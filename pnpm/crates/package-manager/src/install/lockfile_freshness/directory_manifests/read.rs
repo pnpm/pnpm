@@ -78,12 +78,7 @@ impl DirectoryWalk<'_, '_> {
             && !self.inputs.config.add_missing_peer_types
             && !recorded
         {
-            let manifest = overridden_unhooked_manifest(
-                &injected,
-                self.parsed_overrides,
-                self.inputs.config.root_project_manifest_dir(self.inputs.lockfile_dir),
-                self.inputs.catalogs,
-            );
+            let manifest = overridden_unhooked_manifest(&injected, self.overrider);
             return Ok(manifest.map(|manifest| (manifest, false)));
         }
         let Some(manifest) = unhooked_manifest(&injected) else { return Ok(None) };

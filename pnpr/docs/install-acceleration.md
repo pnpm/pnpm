@@ -62,6 +62,21 @@ For frozen restores with an already-fresh lockfile, pnpm can use
 `POST /-/pnpr/v0/verify-lockfile` to get only the server-side trust verdict
 instead of resolving again.
 
+pnpr caches client configurations and evicts the least recently used entries
+when the cache is full. Active requests keep their configuration until they
+finish.
+
+Up to 64 resolution and lockfile verification requests can be admitted at once
+per server instance, and up to 8 per caller identity. Further requests return
+`503 Service Unavailable` until admitted work finishes. Up to 16 admitted
+requests run at once per server instance, and up to 4 per caller identity.
+Queued requests wait for a slot up to the request deadline
+(`504 Gateway Timeout`).
+
+Oversized resolver settings return `400 Bad Request`. Lockfile verification
+with `trustLockfile` skips configuration interning while still enforcing
+admission, concurrency, deadline, request body, and dependency graph limits.
+
 ## Cargo and Python
 
 Added in: v0.1.0-alpha.11
@@ -105,7 +120,7 @@ would have answered locally:
 ## Which registries the server will touch {#allowlist}
 
 The resolver only fetches from origins the operator has configured: a
-**default-deny allowlist** made of the configured
+**default-deny allowlist** made of the stored
 [registries](configuration.md#registries-and-defaultregistry), the declared
 [public routes](configuration.md#routes), the built-in official npm registry
 and `npm.jsr.io`, and pnpr's own origin. A request whose `registry`/`registries` (or whose
@@ -114,7 +129,7 @@ point anywhere else is rejected before any server-side fetch, and every
 redirect hop is re-checked against the same allowlist. A caller can't use the
 resolver to make the server fetch from an arbitrary internal address. An
 allowlisted host that resolves to a loopback, private, or link-local address is
-refused too, unless it is the `--public-url` host or
+refused too, unless it is the `--public-url` origin or
 [`routes.allowedPrivateNetworks`](configuration.md#routes) lists it.
 
 ## Private registries {#private-registries}

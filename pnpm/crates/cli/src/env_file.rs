@@ -134,7 +134,7 @@ fn env_key_id(key: &str) -> String {
 /// [`claimable_value`]); a valueless `--env-file` stays in place for clap
 /// to report. The `--env-file=<path>` form always carries its own value.
 fn scan(argv: &[OsString]) -> (Vec<PathBuf>, Vec<OsString>) {
-    let passthrough = child_argv_boundary(argv);
+    let passthrough = passthrough_from(argv);
     let arity = union_arity();
     let mut paths = Vec::new();
     let mut remaining = Vec::with_capacity(argv.len());
@@ -155,21 +155,6 @@ fn scan(argv: &[OsString]) -> (Vec<PathBuf>, Vec<OsString>) {
         }
     }
     (paths, remaining)
-}
-
-/// The first argv index that must reach the child untouched, over an argv
-/// that still carries the program name at index 0.
-///
-/// `pm` forces the built-in command but is not a subcommand of its own, so
-/// the boundary is computed as if the prefix were absent and shifted back
-/// afterwards. Without that, everything after a leading `pm` would look
-/// forwarded and `--env-file` would never be stripped.
-fn child_argv_boundary(argv: &[OsString]) -> Option<usize> {
-    let pm_prefix = usize::from(
-        argv.get(1)
-            .is_some_and(|token| token == "pm"),
-    );
-    passthrough_from(&argv[pm_prefix..]).map(|boundary| boundary + pm_prefix)
 }
 
 /// The `--env-file` path named at `index`, with the number of argv slots

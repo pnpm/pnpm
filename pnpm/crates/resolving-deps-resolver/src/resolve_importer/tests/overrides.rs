@@ -18,7 +18,7 @@ fn competing_ordinary_aliases_do_not_rename_the_segment() {
         )],
     );
 
-    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true);
     assert_eq!(
         versions,
         HashMap::from_iter([(

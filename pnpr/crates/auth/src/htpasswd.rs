@@ -1,4 +1,4 @@
-use super::{AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome};
+use super::{HashMap, RegistryError, Result};
 use crate::validation::validate_username;
 
 // ---------------------------------------------------------------
@@ -91,73 +91,6 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
     diff == 0
 }
 
-/// Hold the shared edit lock before reading, merging, and writing an htpasswd file.
-pub fn lock_htpasswd(path: &Path) -> Result<std::fs::File> {
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    let lock_file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(path.with_extension("htpasswd.lock"))?;
-    lock_file.lock()?;
-    Ok(lock_file)
-}
-
-pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    use std::io::Write as _;
-
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    let tmp = unique_tmp_path(path);
-    {
-        #[cfg(unix)]
-        let mut file = {
-            use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
-            let mode = match std::fs::symlink_metadata(path) {
-                Ok(meta) if !meta.file_type().is_symlink() => meta.permissions().mode(),
-                _ => 0o600,
-            };
-            std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(mode)
-                .open(&tmp)?
-        };
-        #[cfg(not(unix))]
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&tmp)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-    }
-    std::fs::rename(&tmp, path)?;
-    Ok(())
-}
-
-pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
-    let mut name = base
-        .file_name()
-        .map(std::ffi::OsStr::to_os_string)
-        .unwrap_or_default();
-    name.push(format!(".tmp.{pid}.{counter}"));
-    match base.parent() {
-        Some(parent) => parent.join(name),
-        None => PathBuf::from(name),
-    }
-}
-
 // ---------------------------------------------------------------
 // bcrypt helpers
 // ---------------------------------------------------------------
@@ -192,32 +125,4 @@ pub async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
         Err(err) => Err(RegistryError::from(err)),
     })
     .await?
-}
-
-/// Verify `password` against an existing user's `stored` hash,
-/// mapping the result to the login outcome a returning user expects:
-/// `LoggedIn` on a match, `Unauthenticated` otherwise.
-pub async fn verify_returning_user(
-    username: &str,
-    password: &str,
-    stored: String,
-    bcrypt_cost: u32,
-) -> Result<(UpsertOutcome, String)> {
-    let valid = if stored == super::NO_PASSWORD_HASH || stored == super::DELETED_USER_HASH {
-        dummy_verify(password, bcrypt_cost).await;
-        false
-    } else if is_sha_hash(&stored) {
-        let ok = verify_sha1(password, &stored);
-        if !ok {
-            dummy_verify(password, bcrypt_cost).await;
-        }
-        ok
-    } else {
-        verify_bcrypt(password.to_string(), stored).await?
-    };
-    if valid {
-        Ok((UpsertOutcome::LoggedIn, username.to_string()))
-    } else {
-        Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-    }
 }

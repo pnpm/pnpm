@@ -171,7 +171,10 @@ export async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
-    addLinkedDependencyNode(ctx, resolveDependencyResult)
+    const linkedNodeId = addLinkedDependencyNode(ctx, resolveDependencyResult)
+    // The resolver ids a link relative to the declaring package, but a
+    // package's children are keyed by the lockfile-relative node id.
+    if (options.currentDepth > 0) resolveDependencyResult.pkgId = linkedNodeId as unknown as PkgResolutionId
     return { resolveDependencyResult }
   }
   if (!plan.update && extendedWantedDep.infoFromLockfile != null) {
@@ -219,7 +222,7 @@ function replaceCatalogProtocolOfInjectedWorkspaceDep (
   extendedWantedDep.preferredVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
 }
 
-function addLinkedDependencyNode (ctx: ResolutionContext, linkedDependency: LinkedDependency): void {
+function addLinkedDependencyNode (ctx: ResolutionContext, linkedDependency: LinkedDependency): NodeId {
   const linkedNodeId = dp.packageRootLinkTarget(linkedDependency.pkgId) != null
     ? linkedDependency.pkgId as unknown as NodeId
     : createNodeIdForLinkedLocalPkg(ctx.lockfileDir, linkedDependency.resolution.directory)
@@ -232,6 +235,7 @@ function addLinkedDependencyNode (ctx: ResolutionContext, linkedDependency: Link
       version: linkedDependency.version,
     },
   })
+  return linkedNodeId
 }
 
 function createPostponedPeersResolution (pkgAddress: PkgAddress): PostponedPeersResolutionFunction | undefined {

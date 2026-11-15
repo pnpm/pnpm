@@ -1,10 +1,16 @@
-//! Rewriting the POSIX `${...}` parameter expansions that the bundled shell
-//! parser does not recognize into the `$NAME` references it does.
+//! Rewriting the POSIX `${...}` parameter expansions and backslash escapes
+//! that the bundled shell parser does not recognize into forms it does.
 
-use std::{cell::Cell, collections::HashMap};
+mod escape;
+mod scan;
 
-/// Rewrite the POSIX `${...}` parameter expansions that the bundled shell
-/// parser does not recognize into the `$NAME` references it does.
+use escape::DoubleQuoteScope;
+use scan::TokenPosition;
+use std::{cell::Cell, collections::HashMap, ops::ControlFlow};
+
+/// Rewrite the POSIX `${...}` parameter expansions and backslash escapes (`\\`
+/// and unquoted `\'`) that the bundled shell parser does not recognize into
+/// forms it does.
 ///
 /// **A value never reaches the rewritten text.** A parameter that has one
 /// becomes a `$NAME` reference the shell expands after parsing, so shell
@@ -18,80 +24,54 @@ use std::{cell::Cell, collections::HashMap};
 /// reference can stand in for, `${NAME:=word}` and `${#NAME}` among them, are
 /// left verbatim rather than guessed at.
 pub(super) fn expand(script: &str, env: &HashMap<String, String>) -> String {
-    let allowance = Cell::new(script.len().saturating_mul(WASTED_SCAN_ALLOWANCE));
-    expand_braced_parameters(script, Rewrite::of_the_script(env, &allowance))
-}
-
-/// `landing` says where `script` itself ends up. See [`Landing`].
-fn expand_braced_parameters(script: &str, rewrite: Rewrite<'_>) -> String {
-    let bytes = script.as_bytes();
+    let allowance = Cell::new(script.len().saturating_mul(scan::WASTED_SCAN_ALLOWANCE));
     let mut expanded = String::with_capacity(script.len());
-    let mut quote = rewrite.landing.opening_quote();
-    let mut index = 0;
-
-    while index < script.len() {
-        let character = script[index..]
-            .chars()
-            .next()
-            .expect("index sits on a character boundary");
-        let next = bytes.get(index + 1).copied();
-        index += character.len_utf8();
-        // A `word` carries no quoting of its own at this point, so POSIX reads
-        // its operators and backslashes as the text they are rather than as
-        // the syntax the parser would make of them.
-        let is_bare_word_text = rewrite.landing != Landing::Script && quote.is_none();
-
-        match next_step(character, next, quote, is_bare_word_text) {
-            Step::Copy => push_plain(&mut expanded, character, is_bare_word_text),
-            Step::KeepEscapedPair => {
-                let escaped = script[index..]
-                    .chars()
-                    .next()
-                    .expect("a character follows the backslash");
-                push_escaped(&mut expanded, escaped, is_bare_word_text);
-                index += escaped.len_utf8();
-            }
-            Step::Quote(now_inside) => {
-                quote = now_inside;
-                expanded.push(character);
-            }
-            Step::Expand => {
-                let start = index - 1;
-                index = push_braced_parameter(
-                    &mut expanded,
-                    script,
-                    start,
-                    rewrite.of_a_word_at(quote),
-                );
-            }
-        }
-    }
-
+    rewrite_into(
+        &mut expanded,
+        script,
+        Rewrite::of_the_script(env, &allowance),
+        StopAt::EndOfInput,
+    );
     expanded
 }
 
-/// A script is free to nest `${NAME:-${NAME:-…}}` as deeply as it likes, and
-/// the rewrite follows one level per recursion, so a lifecycle script could
-/// otherwise overflow the stack and abort the process. No real script comes
-/// near this; past it an expansion is left verbatim.
+/// A script is free to nest `${NAME:-${NAME:-...}}` or `$(...)` as deeply as it
+/// likes, and the rewrite follows one level per recursion, so a lifecycle
+/// script could otherwise overflow the stack and abort the process. No real
+/// script comes near this; past it an expansion is left verbatim.
 const MAX_EXPANSION_NESTING: u8 = 32;
 
-/// How much fruitless scanning a script is allowed, as a multiple of its own
-/// length. A `${` that never closes is scanned to the end of the script, so a
-/// script of nothing but `${` would otherwise cost the square of its length.
-/// Finding the `}` costs nothing from this, however far away it is.
-const WASTED_SCAN_ALLOWANCE: usize = 2;
+/// Rewrite `script` into `expanded`, stopping at `stop_at`, and return how
+/// many bytes of `script` were consumed.
+fn rewrite_into(
+    expanded: &mut String,
+    script: &str,
+    rewrite: Rewrite<'_>,
+    stop_at: StopAt,
+) -> usize {
+    let mut cursor = Cursor {
+        script,
+        rewrite,
+        stop_at,
+        expanded,
+        index: 0,
+        mode: rewrite.landing.initial_mode(),
+        position: TokenPosition::WordStart,
+    };
+    cursor.run();
+    cursor.index
+}
 
 /// What one piece of text is rewritten against.
 #[derive(Clone, Copy)]
 struct Rewrite<'a> {
     env: &'a HashMap<String, String>,
     landing: Landing,
-    /// How many expansion words enclose this text.
+    /// How many nested expansions or command substitutions enclose this text.
     depth: u8,
-    /// What is left of the allowance, shared by every expansion in the script.
-    /// Only a scan that finds no `}` draws on it; once it runs out, a `${` is
-    /// taken as unclosed without scanning.
+    /// What is left of the allowance, shared by every scan in the script.
+    /// Only a scan that finds no closing delimiter draws on it; once it runs
+    /// out, an unclosed `${` or `` ` `` is left verbatim without scanning.
     wasted_scan_allowance: &'a Cell<usize>,
 }
 
@@ -100,19 +80,21 @@ impl<'a> Rewrite<'a> {
         Rewrite { env, landing: Landing::Script, depth: 0, wasted_scan_allowance: allowance }
     }
 
-    /// The rewrite of the `word` of an expansion sitting at `quote` in this text.
-    fn of_a_word_at(self, quote: Option<char>) -> Self {
-        Rewrite {
-            landing: self.landing.of_a_word_at(quote),
-            depth: self.depth.saturating_add(1),
-            ..self
-        }
+    /// The rewrite of the `word` of an expansion sitting at `mode` in this text.
+    fn of_a_word_at(self, mode: Mode) -> Self {
+        Rewrite { landing: mode.word_landing(), depth: self.depth.saturating_add(1), ..self }
+    }
+
+    /// The rewrite of a command substitution (`$(...)` or `` `...` ``), which
+    /// runs as its own script regardless of surrounding quotes or words.
+    fn nested_script(self) -> Self {
+        Rewrite { landing: Landing::Script, depth: self.depth.saturating_add(1), ..self }
     }
 }
 
 /// Where the text being rewritten ends up in the finished script, which is
 /// what decides whether an operator in it is syntax or word text.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Landing {
     Script,
     /// POSIX makes an operator here part of the word, so it is escaped rather
@@ -124,113 +106,291 @@ enum Landing {
 }
 
 impl Landing {
-    /// The quote this text already sits inside before its first character.
-    /// The `word` of an expansion carries none of its own, so without this a
-    /// quote in it would read as opening one rather than as the literal the
-    /// surrounding double quotes make it.
-    fn opening_quote(self) -> Option<char> {
-        (self == Landing::QuotedWord).then_some('"')
+    fn initial_mode(self) -> Mode {
+        match self {
+            Landing::Script => Mode::Script(Quote::Unquoted),
+            Landing::UnquotedWord => Mode::UnquotedWord(Quote::Unquoted),
+            Landing::QuotedWord => Mode::QuotedWord,
+        }
     }
 
-    /// Where the `word` of an expansion sitting at `quote` in this text lands.
-    fn of_a_word_at(self, quote: Option<char>) -> Self {
-        if self == Landing::QuotedWord || quote == Some('"') {
-            Landing::QuotedWord
-        } else {
-            Landing::UnquotedWord
+    fn parameter_quoting(self) -> scan::ParameterQuoting {
+        match self {
+            Landing::QuotedWord => scan::ParameterQuoting::DoubleQuoted,
+            Landing::Script | Landing::UnquotedWord => scan::ParameterQuoting::Unquoted,
         }
     }
 }
 
-/// Append the character a backslash escaped. In a `word` POSIX makes it the
-/// plain character, and single quotes are the one form the parser reads as
-/// literal whatever it holds; a backslash of its own would be read by the
-/// parser's own rules for a run of them before an operator.
-fn push_escaped(expanded: &mut String, escaped: char, is_bare_word_text: bool) {
-    if !is_bare_word_text {
-        expanded.push('\\');
-        expanded.push(escaped);
-        return;
-    }
-    // The one character single quotes cannot hold is quoted the other way.
-    if escaped == '\'' {
-        expanded.push_str(r#""'""#);
-        return;
-    }
-    expanded.push('\'');
-    expanded.push(escaped);
-    expanded.push('\'');
+#[derive(Clone, Copy)]
+enum Quote {
+    Unquoted,
+    Single,
+    Double,
 }
 
-/// Append a character that carries no meaning of its own, escaping the shell
-/// operators of an unquoted `word` so the parser reads them as the text POSIX
-/// says they are.
-///
-/// Parentheses are not escaped. A `word` is subject to command substitution,
-/// so `${NAME:-$(date)}` has to keep its `$(…)`, and telling those parentheses
-/// from a literal pair would mean tracking the substitution itself. A literal
-/// `(` in a `word` is still read as syntax, which fails loudly rather than
-/// quietly running something.
-fn push_plain(expanded: &mut String, character: char, is_bare_word_text: bool) {
-    if !is_bare_word_text {
-        expanded.push(character);
-        return;
-    }
-    match character {
-        // A newline ends a command, where POSIX only splits the word on it.
-        // The character itself does not survive the split, so a space stands
-        // in for it and leaves the same two fields behind.
-        '\n' => expanded.push(' '),
-        // Double quotes rather than a backslash: the parser reads a run of
-        // backslashes before an operator by its own rules, so an escape here
-        // would depend on what the word happens to put in front of it. `#`
-        // joins them because it opens a comment at the start of a word, and a
-        // carriage return because the parser splits the word on it where POSIX
-        // keeps it as the ordinary character it is.
-        ';' | '&' | '|' | '<' | '>' | '#' | '\r' => {
-            expanded.push('"');
-            expanded.push(character);
-            expanded.push('"');
+/// Active lexical context inside [`Cursor`]. [`Mode::QuotedWord`] stays inside
+/// its enclosing double quotes for the entire `word`, so only [`Mode::Script`]
+/// and [`Mode::UnquotedWord`] transition between quotes.
+#[derive(Clone, Copy)]
+enum Mode {
+    Script(Quote),
+    UnquotedWord(Quote),
+    QuotedWord,
+}
+
+impl Mode {
+    fn word_landing(self) -> Landing {
+        match self {
+            Mode::Script(Quote::Double) | Mode::UnquotedWord(Quote::Double) | Mode::QuotedWord => {
+                Landing::QuotedWord
+            }
+            Mode::Script(Quote::Unquoted | Quote::Single)
+            | Mode::UnquotedWord(Quote::Unquoted | Quote::Single) => Landing::UnquotedWord,
         }
-        _ => expanded.push(character),
+    }
+
+    fn with_quote(self, quote: Quote) -> Self {
+        match self {
+            Mode::Script(Quote::Unquoted | Quote::Single | Quote::Double) => Mode::Script(quote),
+            Mode::UnquotedWord(Quote::Unquoted | Quote::Single | Quote::Double) => {
+                Mode::UnquotedWord(quote)
+            }
+            Mode::QuotedWord => Mode::QuotedWord,
+        }
+    }
+
+    fn double_quote_scope(self) -> DoubleQuoteScope {
+        match self {
+            Mode::QuotedWord => DoubleQuoteScope::ParameterWord,
+            Mode::Script(Quote::Unquoted | Quote::Single | Quote::Double)
+            | Mode::UnquotedWord(Quote::Unquoted | Quote::Single | Quote::Double) => {
+                DoubleQuoteScope::Literal
+            }
+        }
     }
 }
 
-/// What the character at the cursor does to the script being rewritten.
-enum Step {
-    Copy,
-    /// A backslash and the character it escapes, which go through as they are.
-    KeepEscapedPair,
-    /// Carries the quote the rest of the text now sits in, `None` outside one.
-    Quote(Option<char>),
-    Expand,
+enum StopAt {
+    EndOfInput,
+    ClosingParen { nested_parens: usize },
 }
 
-/// Read `character` in the light of the quote it sits in. `next` is the byte
-/// after it.
-fn next_step(
-    character: char,
-    next: Option<u8>,
-    quote: Option<char>,
-    is_bare_word_text: bool,
-) -> Step {
-    // A single-quoted run is literal all the way to its own closing quote.
-    if quote == Some('\'') {
-        return if character == '\'' { Step::Quote(None) } else { Step::Copy };
+struct Cursor<'a, 'out> {
+    script: &'a str,
+    rewrite: Rewrite<'a>,
+    stop_at: StopAt,
+    expanded: &'out mut String,
+    index: usize,
+    mode: Mode,
+    position: TokenPosition,
+}
+
+impl Cursor<'_, '_> {
+    fn run(&mut self) {
+        while self.index < self.script.len() {
+            let character = self.script[self.index..]
+                .chars()
+                .next()
+                .expect("index sits on a character boundary");
+            self.index += character.len_utf8();
+            if self.step(character).is_break() {
+                break;
+            }
+        }
     }
 
-    match (character, next) {
-        // In a word a backslash escapes whatever follows, and the pair has to
-        // stay one escape rather than be escaped a second time below.
-        ('\\', Some(_)) if is_bare_word_text => Step::KeepEscapedPair,
-        // An escaped quote is text, so it must not read as opening a quoted run.
-        ('\\', Some(b'$' | b'"')) => Step::KeepEscapedPair,
-        ('\'', _) if quote.is_none() => Step::Quote(Some('\'')),
-        ('"', _) if quote.is_none() => Step::Quote(Some('"')),
-        ('"', _) => Step::Quote(None),
-        ('$', Some(b'{')) => Step::Expand,
-        _ => Step::Copy,
+    fn step(&mut self, character: char) -> ControlFlow<()> {
+        match self.mode {
+            Mode::Script(Quote::Single) | Mode::UnquotedWord(Quote::Single) => {
+                self.step_single_quoted(character);
+            }
+            Mode::Script(Quote::Double) | Mode::UnquotedWord(Quote::Double) | Mode::QuotedWord => {
+                self.step_double_quoted(character);
+            }
+            Mode::UnquotedWord(Quote::Unquoted) => self.step_unquoted_word(character),
+            Mode::Script(Quote::Unquoted) => return self.step_unquoted_script(character),
+        }
+        ControlFlow::Continue(())
     }
+
+    fn step_single_quoted(&mut self, character: char) {
+        if character == '\'' {
+            self.mode = self.mode.with_quote(Quote::Unquoted);
+            self.position = TokenPosition::MidWord;
+        }
+        self.expanded.push(character);
+    }
+
+    fn step_double_quoted(&mut self, character: char) {
+        match character {
+            '\\' => {
+                self.index += escape::push_double_quoted_backslash(
+                    self.expanded,
+                    &self.script[self.index..],
+                    self.mode.double_quote_scope(),
+                );
+            }
+            // Within `"${NAME:-"word"}"`, nested quotes delimit `word` while
+            // the outer double quotes stay open across the whole expansion.
+            // Splicing `""` closes and reopens the quoted run so `$FOO` in
+            // `"${MISSING:-"$FOO"suffix}"` does not merge with `suffix`.
+            '"' => match self.mode {
+                Mode::QuotedWord => self.expanded.push_str(r#""""#),
+                Mode::Script(Quote::Unquoted | Quote::Single | Quote::Double)
+                | Mode::UnquotedWord(Quote::Unquoted | Quote::Single | Quote::Double) => {
+                    self.mode = self.mode.with_quote(Quote::Unquoted);
+                    self.position = TokenPosition::MidWord;
+                    self.expanded.push('"');
+                }
+            },
+            '$' => self.push_dollar(),
+            '`' => self.push_backticks(),
+            _ => self.expanded.push(character),
+        }
+    }
+
+    fn step_unquoted_word(&mut self, character: char) {
+        match character {
+            '\\' => {
+                self.index +=
+                    escape::push_unquoted_word_backslash(self.expanded, &self.script[self.index..]);
+            }
+            '\'' => {
+                self.mode = Mode::UnquotedWord(Quote::Single);
+                self.expanded.push('\'');
+            }
+            '"' => {
+                self.mode = Mode::UnquotedWord(Quote::Double);
+                self.expanded.push('"');
+            }
+            '$' => self.push_dollar(),
+            '`' => self.push_backticks(),
+            _ => escape::push_bare_word_char(self.expanded, character),
+        }
+    }
+
+    fn step_unquoted_script(&mut self, character: char) -> ControlFlow<()> {
+        match character {
+            '\\' => {
+                self.index += escape::push_unquoted_script_backslash(
+                    self.expanded,
+                    &self.script[self.index..],
+                    &mut self.position,
+                );
+            }
+            '#' => match self.position {
+                TokenPosition::WordStart => self.push_comment(),
+                TokenPosition::MidWord => self.expanded.push('#'),
+            },
+            '\'' => {
+                self.mode = Mode::Script(Quote::Single);
+                self.position = TokenPosition::MidWord;
+                self.expanded.push('\'');
+            }
+            '"' => {
+                self.mode = Mode::Script(Quote::Double);
+                self.position = TokenPosition::MidWord;
+                self.expanded.push('"');
+            }
+            '$' => {
+                self.push_dollar();
+                self.position = TokenPosition::MidWord;
+            }
+            '`' => {
+                self.push_backticks();
+                self.position = TokenPosition::MidWord;
+            }
+            '(' | ')' => return self.step_parenthesis(character),
+            _ => {
+                self.position = token_position_after(character);
+                self.expanded.push(character);
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn push_comment(&mut self) {
+        let end = scan::comment_end(self.script, self.index);
+        self.expanded.push('#');
+        self.expanded.push_str(&self.script[self.index..end]);
+        self.index = end;
+    }
+
+    fn step_parenthesis(&mut self, character: char) -> ControlFlow<()> {
+        self.position = TokenPosition::WordStart;
+        self.expanded.push(character);
+        let nested_parens = match &mut self.stop_at {
+            StopAt::EndOfInput => return ControlFlow::Continue(()),
+            StopAt::ClosingParen { nested_parens } => nested_parens,
+        };
+        if character == '(' {
+            *nested_parens += 1;
+            return ControlFlow::Continue(());
+        }
+        if *nested_parens == 0 {
+            return ControlFlow::Break(());
+        }
+        *nested_parens -= 1;
+        ControlFlow::Continue(())
+    }
+
+    fn push_dollar(&mut self) {
+        match self.script
+            .as_bytes()
+            .get(self.index)
+            .copied()
+        {
+            Some(b'{') => {
+                let start = self.index - 1;
+                self.index = push_braced_parameter(
+                    self.expanded,
+                    self.script,
+                    start,
+                    self.rewrite.of_a_word_at(self.mode),
+                );
+            }
+            Some(b'(') if self.rewrite.depth <= MAX_EXPANSION_NESTING => {
+                self.index += 1;
+                self.expanded.push_str("$(");
+                self.index += rewrite_into(
+                    self.expanded,
+                    &self.script[self.index..],
+                    self.rewrite.nested_script(),
+                    StopAt::ClosingParen { nested_parens: 0 },
+                );
+            }
+            _ => self.expanded.push('$'),
+        }
+    }
+
+    fn push_backticks(&mut self) {
+        if self.rewrite.depth > MAX_EXPANSION_NESTING {
+            self.expanded.push('`');
+            return;
+        }
+        let start = self.index - 1;
+        let allowance = self.rewrite.wasted_scan_allowance;
+        let Some(close) = scan::backtick_end(self.script, start, allowance) else {
+            self.expanded.push('`');
+            return;
+        };
+        self.expanded.push('`');
+        rewrite_into(
+            self.expanded,
+            &self.script[self.index..close],
+            self.rewrite.nested_script(),
+            StopAt::EndOfInput,
+        );
+        self.expanded.push('`');
+        self.index = close + 1;
+    }
+}
+
+fn token_position_after(character: char) -> TokenPosition {
+    let is_boundary = character.is_ascii_whitespace()
+        || matches!(character, ';' | '&' | '|' | '<' | '>' | '(' | ')');
+    if is_boundary { TokenPosition::WordStart } else { TokenPosition::MidWord }
 }
 
 /// Append the replacement for the `${...}` that starts at `start` to
@@ -241,9 +401,9 @@ fn push_braced_parameter(
     start: usize,
     word: Rewrite<'_>,
 ) -> usize {
-    let in_double_quotes = word.landing == Landing::QuotedWord;
+    let quoting = word.landing.parameter_quoting();
     let Some(close) =
-        braced_parameter_end(script, start, in_double_quotes, word.wasted_scan_allowance)
+        scan::braced_parameter_end(script, start, quoting, word.wasted_scan_allowance)
     else {
         expanded.push('$');
         return start + 1;
@@ -261,53 +421,11 @@ fn push_braced_parameter(
         .as_bytes()
         .get(close + 1)
         .copied()
-        .is_some_and(is_name_byte)
+        .is_some_and(scan::is_name_byte)
     {
         expanded.push_str(r#""""#);
     }
     close + 1
-}
-
-/// The index of the `}` closing the `${` at `start`, or `None` when the script
-/// has none. Within a double-quoted word an apostrophe is an ordinary
-/// character, so `"${NAME:-it's fine}"` closes where it looks like it does.
-fn braced_parameter_end(
-    script: &str,
-    start: usize,
-    in_double_quotes: bool,
-    allowance: &Cell<usize>,
-) -> Option<usize> {
-    if allowance.get() == 0 {
-        return None;
-    }
-    let bytes = script.as_bytes();
-    let opens_a_quote = |byte| byte == b'"' || (!in_double_quotes && byte == b'\'');
-    let mut quote = None;
-    let mut depth = 1_usize;
-    let body_start = start + 2;
-    let mut index = body_start;
-
-    while index < bytes.len() {
-        let byte = bytes[index];
-        index += 1;
-        match (quote, byte) {
-            (Some(open), _) if open == byte => quote = None,
-            (Some(_), _) => {}
-            (None, b'\\') => index += 1,
-            (None, _) if opens_a_quote(byte) => quote = Some(byte),
-            (None, b'{') => depth += 1,
-            (None, b'}') if depth == 1 => return Some(index - 1),
-            (None, b'}') => depth -= 1,
-            (None, _) => {}
-        }
-    }
-
-    allowance.set(
-        allowance
-            .get()
-            .saturating_sub(bytes.len() - body_start),
-    );
-    None
 }
 
 /// The replacement text for the body of a `${...}`, or `None` for a body that
@@ -318,7 +436,7 @@ fn expand_parameter(body: &str, rewrite: Rewrite<'_>) -> Option<String> {
     }
     let name_length = body
         .bytes()
-        .take_while(|byte| is_name_byte(*byte))
+        .take_while(|byte| scan::is_name_byte(*byte))
         .count();
     let (name, operator) = body.split_at(name_length);
     if name.is_empty() {
@@ -340,13 +458,12 @@ fn expand_parameter(body: &str, rewrite: Rewrite<'_>) -> Option<String> {
 
     match (operator.as_bytes().first()?, has_value) {
         (b'-', true) => Some(format!("${name}")),
-        (b'-', false) | (b'+', true) => Some(expand_braced_parameters(word, rewrite)),
+        (b'-', false) | (b'+', true) => {
+            let mut expanded = String::with_capacity(word.len());
+            rewrite_into(&mut expanded, word, rewrite, StopAt::EndOfInput);
+            Some(expanded)
+        }
         (b'+', false) => Some(String::new()),
         _ => None,
     }
-}
-
-/// Whether the bundled shell parser reads `byte` as part of a `$NAME`.
-fn is_name_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
 }

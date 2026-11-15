@@ -12,11 +12,13 @@ use std::{
     ffi::{CString, OsStr, OsString},
     fs::File,
     io,
+    mem::MaybeUninit,
     os::{
         fd::{AsRawFd as _, FromRawFd as _, OwnedFd},
         unix::ffi::{OsStrExt as _, OsStringExt as _},
     },
     path::{Path, PathBuf},
+    time::{Duration, SystemTime},
 };
 
 /// Whether a directory handle can be read or only traversed.
@@ -30,6 +32,35 @@ pub enum DirectoryAccess {
     Readable,
     /// The handle can only be traversed: entries are reachable by name.
     SearchOnly,
+}
+
+/// Which kind of entry a name holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntryKind {
+    /// A regular file.
+    File,
+    /// A directory.
+    Directory,
+    /// A symlink, which [`entry_metadata_at`] reports without following.
+    Symlink,
+    /// A socket, FIFO, device, or anything else a mode can name.
+    Other,
+}
+
+/// What an entry's own metadata reports.
+///
+/// The file type arrives as [`EntryKind`] rather than in the mode's high
+/// bits, so a caller never masks one off the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EntryMetadata {
+    /// The length the entry reports, which is meaningful for a file.
+    pub len: u64,
+    /// When the entry was last written.
+    pub modified: SystemTime,
+    /// When the entry was last read.
+    pub accessed: SystemTime,
+    /// What the entry is.
+    pub kind: EntryKind,
 }
 
 const DIRECTORY_FLAGS: libc::c_int =
@@ -47,7 +78,7 @@ pub fn open_directory_at(parent: &File, name: &OsStr) -> io::Result<File> {
 /// `openat` resolves `.` from the directory a descriptor refers to rather
 /// than by walking its path, so the new handle is on the same directory
 /// even once a link stands in that path.
-pub(crate) fn reopen_directory(directory: &File) -> io::Result<File> {
+pub fn reopen_directory(directory: &File) -> io::Result<File> {
     let name = path_argument(OsStr::new("."))?;
     adopt(open_at(directory, &name, DIRECTORY_FLAGS, None))
 }
@@ -237,6 +268,108 @@ pub fn set_mode_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result<()
 /// `openat`'s variadic mode argument is read only for a flag set that
 /// creates, so it is passed only then: supplying it otherwise would read
 /// a register the call does not set.
+/// Link the entry `from` to the new name `to`, both inside `parent`.
+///
+/// The counterpart of [`rename_at`], which moves a name: this one adds a
+/// second name for the same file and fails if `to` is already taken, so a
+/// caller that must not clobber publishes through it.
+pub fn link_at(parent: &File, from: &OsStr, to: &OsStr) -> io::Result<()> {
+    let from = entry_name(from)?;
+    let to = entry_name(to)?;
+    // SAFETY: both names are NUL-terminated and borrowed for the whole
+    // call, and the `&File` keeps the descriptor open across it. Passing
+    // the same descriptor for both directory arguments names one directory
+    // for both halves of the link, and a zero flag word does not follow a
+    // symlink at `from`.
+    let linked = unsafe {
+        libc::linkat(parent.as_raw_fd(), from.as_ptr(), parent.as_raw_fd(), to.as_ptr(), 0)
+    };
+    if linked == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+}
+
+/// What the entry `name` inside `parent` reports about itself, or `None`
+/// when nothing is there.
+///
+/// A symlink is reported as one rather than followed, so the answer
+/// describes the name and not whatever it points at.
+pub fn entry_metadata_at(parent: &File, name: &OsStr) -> io::Result<Option<EntryMetadata>> {
+    let name = entry_name(name)?;
+    let mut stat = MaybeUninit::<libc::stat>::uninit();
+    // SAFETY: `name` is NUL-terminated and borrowed for the whole call, the
+    // `&File` keeps the parent descriptor open across it, and the pointer
+    // is to a stack local of exactly the type the call writes.
+    // `AT_SYMLINK_NOFOLLOW` reports a symlink itself.
+    let reported = unsafe {
+        libc::fstatat(
+            parent.as_raw_fd(),
+            name.as_ptr(),
+            stat.as_mut_ptr(),
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if reported != 0 {
+        let error = io::Error::last_os_error();
+        return if error.kind() == io::ErrorKind::NotFound { Ok(None) } else { Err(error) };
+    }
+    // SAFETY: the call reported success, which it only does after writing
+    // the whole structure.
+    let stat = unsafe { stat.assume_init() };
+    // NetBSD is the only Unix whose `stat` spells these `st_*timensec`.
+    #[cfg(target_os = "netbsd")]
+    let (modified_nanoseconds, accessed_nanoseconds) = (stat.st_mtimensec, stat.st_atimensec);
+    #[cfg(not(target_os = "netbsd"))]
+    let (modified_nanoseconds, accessed_nanoseconds) = (stat.st_mtime_nsec, stat.st_atime_nsec);
+    Ok(Some(EntryMetadata {
+        len: u64::try_from(stat.st_size).unwrap_or(0),
+        modified: entry_time(stat.st_mtime, modified_nanoseconds),
+        accessed: entry_time(stat.st_atime, accessed_nanoseconds),
+        kind: entry_kind(stat.st_mode),
+    }))
+}
+
+fn entry_kind(mode: libc::mode_t) -> EntryKind {
+    match mode & libc::S_IFMT {
+        libc::S_IFREG => EntryKind::File,
+        libc::S_IFDIR => EntryKind::Directory,
+        libc::S_IFLNK => EntryKind::Symlink,
+        _ => EntryKind::Other,
+    }
+}
+
+/// A timestamp as the entry reports it, clamped to what [`SystemTime`] can
+/// name: a time before the epoch, which only a corrupt or hand-written
+/// inode carries, reads as the epoch rather than failing the whole call.
+/// Whether the calling user may write to and search `path`.
+///
+/// Asked of the effective user, which is who a write would be permitted
+/// for, rather than the real one that comparing a `stat` against an id
+/// would describe. A path that does not exist, or that cannot be reached,
+/// answers `false`.
+#[must_use]
+pub fn can_write_and_search(path: &Path) -> bool {
+    let Ok(path) = path_argument(path.as_os_str()) else {
+        return false;
+    };
+    // SAFETY: the string is NUL-terminated and borrowed for the whole call,
+    // which writes no memory. `AT_FDCWD` resolves the path as an ordinary
+    // relative or absolute path, and `AT_EACCESS` asks about the effective
+    // user rather than the real one.
+    let permitted = unsafe {
+        libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::W_OK | libc::X_OK, libc::AT_EACCESS)
+    };
+    permitted == 0
+}
+
+fn entry_time(seconds: libc::time_t, nanoseconds: libc::c_long) -> SystemTime {
+    let Ok(seconds) = u64::try_from(seconds) else {
+        return SystemTime::UNIX_EPOCH;
+    };
+    let nanoseconds = u32::try_from(nanoseconds).unwrap_or(0);
+    SystemTime::UNIX_EPOCH
+        .checked_add(Duration::new(seconds, nanoseconds))
+        .unwrap_or(SystemTime::UNIX_EPOCH)
+}
+
 fn open_at(
     parent: &File,
     name: &CString,

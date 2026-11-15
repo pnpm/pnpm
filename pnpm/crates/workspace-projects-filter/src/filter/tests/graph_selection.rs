@@ -105,3 +105,86 @@ fn filter_projects_follows_catalog_dependencies() {
         assert_eq!(project_dirs(&result), ["/ws/a", "/ws/b"]);
     }
 }
+
+#[test]
+fn filter_prod_inclusion_with_regular_exclusion_does_not_seed_workspace() {
+    let projects = vec![
+        graph_project("/ws", "ws-root", &[]),
+        TestPkg {
+            root_dir: PathBuf::from("/ws/packages/app"),
+            name: Some("app".to_string()),
+            version: Some("1.0.0".to_string()),
+            deps: vec![("lib-a".to_string(), "workspace:*".to_string())],
+            dev_deps: vec![("lib-dev".to_string(), "workspace:*".to_string())],
+        },
+        graph_project("/ws/packages/lib-a", "lib-a", &[]),
+        graph_project("/ws/packages/lib-dev", "lib-dev", &[]),
+        graph_project("/ws/packages/unrelated", "unrelated", &[]),
+    ];
+    let result = filter_projects(
+        projects,
+        &[
+            WorkspaceFilter { filter: "app...".to_string(), follow_prod_deps_only: true },
+            WorkspaceFilter { filter: "!lib-a".to_string(), follow_prod_deps_only: false },
+        ],
+        &filter_projects_options(),
+    )
+    .unwrap();
+    assert_eq!(project_dirs(&result), ["/ws/packages/app"]);
+}
+
+#[test]
+fn regular_inclusion_with_filter_prod_exclusion_subtracts_prod_closure_only() {
+    let projects = vec![
+        graph_project("/ws", "ws-root", &[]),
+        graph_project("/ws/app", "app", &[("lib-a", "workspace:*")]),
+        TestPkg {
+            root_dir: PathBuf::from("/ws/lib-a"),
+            name: Some("lib-a".to_string()),
+            version: Some("1.0.0".to_string()),
+            deps: vec![("prod-leaf".to_string(), "workspace:*".to_string())],
+            dev_deps: vec![("dev-leaf".to_string(), "workspace:*".to_string())],
+        },
+        graph_project("/ws/prod-leaf", "prod-leaf", &[]),
+        graph_project("/ws/dev-leaf", "dev-leaf", &[]),
+        graph_project("/ws/unrelated", "unrelated", &[]),
+    ];
+    let result = filter_projects(
+        projects,
+        &[
+            WorkspaceFilter { filter: "app...".to_string(), follow_prod_deps_only: false },
+            WorkspaceFilter { filter: "!lib-a...".to_string(), follow_prod_deps_only: true },
+        ],
+        &filter_projects_options(),
+    )
+    .unwrap();
+    assert_eq!(project_dirs(&result), ["/ws/app", "/ws/dev-leaf"]);
+}
+
+#[test]
+fn leading_exclusion_followed_by_filter_prod_inclusion_reincludes_prod_closure() {
+    let projects = vec![
+        graph_project("/ws", "ws-root", &[]),
+        TestPkg {
+            root_dir: PathBuf::from("/ws/packages/app"),
+            name: Some("app".to_string()),
+            version: Some("1.0.0".to_string()),
+            deps: vec![("lib-a".to_string(), "workspace:*".to_string())],
+            dev_deps: vec![("lib-dev".to_string(), "workspace:*".to_string())],
+        },
+        graph_project("/ws/packages/lib-a", "lib-a", &[]),
+        graph_project("/ws/packages/lib-dev", "lib-dev", &[]),
+        graph_project("/ws/packages/unrelated", "unrelated", &[]),
+    ];
+    let opts = FilterProjectsOptions { use_glob_dir_filtering: true, ..filter_projects_options() };
+    let result = filter_projects(
+        projects,
+        &[
+            WorkspaceFilter { filter: "!{packages/*}".to_string(), follow_prod_deps_only: false },
+            WorkspaceFilter { filter: "app...".to_string(), follow_prod_deps_only: true },
+        ],
+        &opts,
+    )
+    .unwrap();
+    assert_eq!(project_dirs(&result), ["/ws/packages/app", "/ws/packages/lib-a", "/ws"]);
+}

@@ -727,3 +727,26 @@ fn re_recording_reports_whether_the_child_edges_moved() {
         .collect();
     assert_eq!(standing, ["dep@1.0.0"], "the pinned children are what every occurrence reads");
 }
+
+#[test]
+fn shared_leaf_keeps_provenance_when_another_occurrence_has_no_prior_entry() {
+    for node_id in [NodeId::leaf("peer@1.0.0"), NodeId::next()] {
+        let workspace = WorkspaceTreeCtx::default();
+        lock_recoverable(&workspace.tree.dependencies_tree)
+            .insert(
+                node_id.clone(),
+                DependenciesTreeNode::new(Arc::from("peer@1.0.0"), TreeChildren::empty(), 0),
+            );
+        let locked = crate::resolved_tree::LockedResolution {
+            previous_dep_path: Some("peer@1.0.0".into()),
+            ..Default::default()
+        };
+        workspace.record_locked_resolution(&node_id, Some(Box::new(locked)));
+        workspace.record_locked_resolution(&node_id, None);
+        let nodes = lock_recoverable(&workspace.tree.dependencies_tree);
+        assert_eq!(
+            nodes[&node_id].previous_dep_path().is_some(),
+            matches!(node_id, NodeId::Leaf(_)),
+        );
+    }
+}

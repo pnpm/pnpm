@@ -71,8 +71,11 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     );
     let config_path = dir.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
-    let mut config =
-        Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
+    let mut config = pnpr_fixtures::load_seeded_config(
+        &config_path,
+        listen,
+        Some("http://example.test".to_string()),
+    );
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
     (config, storage)
 }

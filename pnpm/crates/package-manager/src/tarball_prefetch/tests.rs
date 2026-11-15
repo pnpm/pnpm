@@ -91,15 +91,15 @@ fn revision_download(
     TarballDownload {
         mem_cache: Arc::new(MemCache::new()),
         requester: Arc::from(""),
-        store: pnpm_tarball::ArchiveStoreContext {
-            dir: store_dir,
+        store: Arc::new(pnpm_tarball::ArchiveStoreContext {
+            dir: std::borrow::Cow::Borrowed(store_dir),
             index: None,
             index_writer: None,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             verify_integrity: true,
             strict_pkg_content_check: true,
             prefetched_cas_paths: None,
-        },
+        }),
         progress_reported: None,
         fetching: crate::tarball_prefetch::PrefetchHttpClient {
             http_client: Arc::new(ThrottledClient::default()),
@@ -221,7 +221,7 @@ async fn a_row_whose_files_are_gone_is_fetched_again() {
     }
     let store_dir: &'static StoreDir = Box::leak(Box::new(StoreDir::new(store.path())));
     let context = pnpm_tarball::ArchiveStoreContext {
-        dir: store_dir,
+        dir: std::borrow::Cow::Borrowed(store_dir),
         index: StoreIndex::open_readonly(store.path())
             .map(|idx| Arc::new(std::sync::Mutex::new(idx)))
             .ok(),

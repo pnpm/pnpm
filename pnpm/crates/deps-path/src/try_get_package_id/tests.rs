@@ -41,3 +41,24 @@ fn runtime_entries_keep_name_prefix() {
     assert_eq!(try_get_package_id("node@runtime:22.0.0(some@peer)"), "node@runtime:22.0.0");
     assert_eq!(try_get_package_id("node@tool:22.0.0"), "node@tool:22.0.0");
 }
+
+#[test]
+fn multibyte_utf8_and_short_inputs_do_not_panic() {
+    assert_eq!(
+        try_get_package_id("ä@https://example.invalid/a.tgz"),
+        "https://example.invalid/a.tgz",
+    );
+    assert_eq!(
+        try_get_package_id("@ä/ü@https://example.invalid/a.tgz"),
+        "https://example.invalid/a.tgz",
+    );
+    assert_eq!(
+        try_get_package_id("😀@https://example.invalid/a.tgz(peer@1.0.0)"),
+        "https://example.invalid/a.tgz",
+    );
+    assert_eq!(try_get_package_id("ä@1.0.0"), "ä@1.0.0");
+    assert_eq!(try_get_package_id("ä@runtime:22.0.0"), "ä@runtime:22.0.0");
+    assert_eq!(try_get_package_id("ä:1.0.0"), "ä:1.0.0");
+    assert_eq!(try_get_package_id(":"), ":");
+    assert_eq!(try_get_package_id(""), "");
+}

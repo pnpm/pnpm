@@ -1,5 +1,6 @@
 /// A fixed stripe set bounds lock memory while serializing writers for the
-/// same logical resource. Hash collisions only reduce concurrency.
+/// same logical resource. Hash collisions conservatively serialize and
+/// invalidate unrelated resources.
 ///
 /// This guards concurrency **within one instance**. Across replicas sharing
 /// one hosted store the same race is settled by the conditional write every
@@ -7,6 +8,7 @@
 /// makes the lock an optimization there rather than the guarantee.
 pub(crate) struct StripedLocks {
     stripes: Box<[tokio::sync::Mutex<()>]>,
+    generations: Box<[std::sync::atomic::AtomicU64]>,
 }
 
 impl StripedLocks {
@@ -18,7 +20,19 @@ impl StripedLocks {
         let stripes = (0..Self::STRIPES)
             .map(|_| tokio::sync::Mutex::new(()))
             .collect();
-        Self { stripes }
+        let generations =
+            (0..Self::STRIPES).map(|_| std::sync::atomic::AtomicU64::new(0)).collect();
+        Self { stripes, generations }
+    }
+
+    /// A mutation counter for the stripe. Collisions conservatively invalidate other bindings.
+    pub(crate) fn generation(&self, name: &str) -> u64 {
+        self.generations[self.stripe_index(name)].load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Invalidate bindings while holding the resource's lock, before mutating it.
+    pub(crate) fn advance_generation(&self, name: &str) {
+        self.generations[self.stripe_index(name)].fetch_add(1, std::sync::atomic::Ordering::AcqRel);
     }
 
     /// Lock the stripe owning `name`, held until the returned guard is dropped.

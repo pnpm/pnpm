@@ -51,6 +51,7 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
 type CommandConfig = Config & {
   argv: { remain: string[], cooked: string[], original: string[] }
   fallbackCommandUsed: boolean
+  format?: string
   parseable?: boolean
   json?: boolean
 }
@@ -233,7 +234,7 @@ function isGlobalConfigCommand (isConfigCommand: boolean, cliOptions: ParsedCliA
 
 function applyInvocationToConfig (config: CommandConfig, parsedCliArgs: ParsedCliArgsWithBuiltIn): void {
   const { cmd } = parsedCliArgs
-  if (cmd != null && COMMANDS_WITH_STDERR_REPORTER.has(cmd)) {
+  if (cmd != null && (COMMANDS_WITH_STDERR_REPORTER.has(cmd) || (cmd === 'outdated' && config.format === 'json'))) {
     config.useStderr = true
   }
   config.argv = parsedCliArgs.argv
@@ -260,7 +261,7 @@ async function runCommandWithConfig (parsedCliArgs: ParsedCliArgsWithBuiltIn, { 
   checkSudo({ cmd: parsedCliArgs.cmd, cliParams, global: cliOptions.global, location: cliOptions.location, printLogs })
 
   const cmd = await redirectToOverridingScript(parsedCliArgs, { config, context })
-  const invocation: CommandInvocation = { cmd, cliParams, cliOptions, workspaceDir }
+  const invocation: CommandInvocation = { cmd, cliParams, cliOptions, workspaceDir, cookedArgv: parsedCliArgs.argv.cooked }
   enableRecursiveByDefault(invocation, config)
   if (cliOptions['recursive'] && !await selectWorkspaceProjects(invocation, { config, context, printLogs })) {
     return

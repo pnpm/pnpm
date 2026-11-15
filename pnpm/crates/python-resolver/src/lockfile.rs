@@ -1,9 +1,11 @@
 pub use environments::{Metadata, Solved, Target, environment_marker};
 pub use files::{LockedSdist, LockedWheel};
+pub use index::{LockIndex, LockedPin};
 pub use inputs::Inputs;
 
 mod environments;
 mod files;
+mod index;
 mod inputs;
 
 use crate::packages::{Candidate, IndexCandidate, Packages};

@@ -17,7 +17,7 @@ impl WorkspaceTreeCtx {
     /// scope names the same targets.
     pub(in super::super) fn target_distances_for(&self, importer_id: &str) -> Arc<TargetDistances> {
         let scope = self.update_reuse_scope_for(importer_id);
-        let mut cache = lock_recoverable(&self.cache.subtree.target_distances);
+        let mut cache = lock_recoverable(&self.cache.lockfile_reuse.target_distances);
         if let Some(distances) = cache.get(scope) {
             return Arc::clone(distances);
         }

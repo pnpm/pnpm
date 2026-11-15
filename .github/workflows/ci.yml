@@ -103,7 +103,7 @@ jobs:
       with:
         restore-cache: false
     - name: Install pnpm
-      uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         install: false
     - name: Test CI and release publication scripts
@@ -166,7 +166,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.13.0', '24.0.0', '26.13.0']
+        node: ['22.13.0', '24.0.0', '26.13.1']
         test_chunk: ['1', '2', '3']
         include:
           - node: '22.13.0'
@@ -178,7 +178,7 @@ jobs:
           - node: '24.0.0'
             test_chunk: '2'
             garnet: true
-          - node: '26.13.0'
+          - node: '26.13.1'
             node_major: '26'
     uses: $/.github/workflows/test.yml
     with:

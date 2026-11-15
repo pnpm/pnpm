@@ -124,6 +124,18 @@ impl TestRegistry {
         Self::new(instance.server_url, Some(storage.to_path_buf()), None)
     }
 
+    /// Start a registry on its own origin whose metadata names `public_url`
+    /// in tarball URLs, like a mirror of another registry.
+    pub fn start_with_public_url(public_url: &str) -> Self {
+        let instance = TestRegistryInstance::start_with_options(
+            pnpr_fixtures::ensure_storage().to_path_buf(),
+            RegistryMode::Proxy,
+            Some(public_url),
+            None,
+        );
+        Self::new(instance.server_url, None, None)
+    }
+
     fn new(server_url: String, storage: Option<PathBuf>, requests: Option<RequestLog>) -> Self {
         let url = format!("{}{}/", server_url.trim_end_matches('/'), Ecosystem::Npm.base_path());
         Self { server_url, url, storage, requests }
@@ -203,6 +215,15 @@ impl TestRegistryInstance {
     }
 
     fn start_with_log(storage: PathBuf, mode: RegistryMode, requests: Option<RequestLog>) -> Self {
+        Self::start_with_options(storage, mode, None, requests)
+    }
+
+    fn start_with_options(
+        storage: PathBuf,
+        mode: RegistryMode,
+        public_url: Option<&str>,
+        requests: Option<RequestLog>,
+    ) -> Self {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
             .expect("bind test registry to an unused localhost port");
         listener.set_nonblocking(true).expect("set test registry listener to nonblocking");
@@ -220,30 +241,38 @@ impl TestRegistryInstance {
             }
             RegistryMode::Static => Config::static_serve(listen, storage),
         };
-        config.http.public_url = server_url.trim_end_matches('/').to_string();
+        config.http.public_url = public_url
+            .unwrap_or(&server_url)
+            .trim_end_matches('/')
+            .to_string();
         // Registration is opt-in; tests that forward credentials create
         // accounts via adduser against this registry.
         config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
         // A long TTL keeps the fixture packuments (whose `time` values are static)
         // from being treated as stale and refetched from the upstream.
         config.http.packument_ttl = std::time::Duration::from_hours(8760);
+        let tracked_url = server_url.trim_end_matches('/').to_string();
         thread::Builder::new()
             .name("pacquet-test-registry".to_string())
-            .spawn(move || run_registry(config, listener, requests))
+            .spawn(move || run_registry(config, listener, tracked_url, requests))
             .expect("spawn test registry thread");
 
         Self { server_url }
     }
 }
 
-fn run_registry(config: Config, listener: TcpListener, requests: Option<RequestLog>) {
+fn run_registry(
+    config: Config,
+    listener: TcpListener,
+    registry: String,
+    requests: Option<RequestLog>,
+) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("create test registry runtime");
 
     runtime.block_on(async move {
-        let registry = config.http.public_url.clone();
         let listener = tokio::net::TcpListener::from_std(listener).expect("create tokio listener");
         let tracked = |app: axum::Router| {
             app.layer(axum::middleware::from_fn_with_state(registry, registry_activity::track))

@@ -36,8 +36,9 @@ use pnpm_lockfile::{
     is_revision_registry_tarball_url, revision_registry_tarball_url,
 };
 use pnpm_network::{
-    HeadError, RedirectGuard, ThrottledClient, ThrottledClientGuard, ThrottledResponse,
-    UNPRIORITIZED, is_url_secure_for_credentials, read_limited_body,
+    AddressGuard, GuardedDnsResolver, HeadError, RedirectGuard, ThrottledClient,
+    ThrottledClientGuard, ThrottledResponse, UNPRIORITIZED, is_url_secure_for_credentials,
+    native_dns_resolver, read_limited_body,
 };
 use pnpr_config::{RedactedHeaders, UpstreamConfig};
 use pnpr_error::{RegistryError, Result};
@@ -68,9 +69,9 @@ pub struct Upstream {
     /// client-facing errors so an open circuit names the upstream rather
     /// than leaking its upstream URL.
     name: String,
-    /// Per-upstream packument freshness window (verdaccio's `maxage`), or
+    /// Per-upstream packument freshness window (verdaccio's `packument_ttl`), or
     /// `None` to defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
-    maxage: Option<Duration>,
+    packument_ttl: Option<Duration>,
     /// Whether tarballs from this upstream are written to the local mirror
     /// (verdaccio's `cache`).
     cache: bool,
@@ -92,7 +93,7 @@ impl fmt::Debug for Upstream {
             .field("name", &self.name)
             .field("headers", &RedactedHeaders(&self.http.headers))
             .field("timeout", &self.http.timeout)
-            .field("maxage", &self.maxage)
+            .field("packument_ttl", &self.packument_ttl)
             .field("cache", &self.cache)
             .field("breaker", &self.breaker)
             .finish_non_exhaustive()
@@ -150,7 +151,7 @@ pub enum PackumentFetch {
 impl Upstream {
     /// Build an upstream client from its name (the YAML `upstreams:` key) and
     /// resolved [`UpstreamConfig`], baking in the per-upstream
-    /// `timeout`/`maxage`/`cache` knobs and arming the
+    /// `timeout`/`packument_ttl`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
     #[must_use]
     pub fn new(name: &str, config: &UpstreamConfig) -> Self {
@@ -158,7 +159,7 @@ impl Upstream {
             http: UpstreamHttp::new(config),
             base: config.url.clone(),
             name: name.to_string(),
-            maxage: config.maxage,
+            packument_ttl: config.packument_ttl,
             cache: config.cache,
             breaker: Arc::new(CircuitBreaker::new(
                 config.requests.max_fails,
@@ -180,11 +181,34 @@ impl Upstream {
         self
     }
 
-    /// Per-upstream packument freshness window (`maxage`), or `None` to
+    /// Like [`Self::with_fetch_guard`], also checking every address a hostname
+    /// resolves to with `connect_guard` before connecting.
+    #[must_use]
+    pub fn with_fetch_and_connect_guards(
+        mut self,
+        guard: RedirectGuard,
+        connect_guard: AddressGuard,
+    ) -> Self {
+        let redirect_guard = Arc::clone(&guard);
+        self.http.client = Arc::new(ThrottledClient::new_for_installs_with_guards(
+            move |url| redirect_guard(url),
+            Arc::new(GuardedDnsResolver::new(native_dns_resolver(), connect_guard)),
+        ));
+        self.http.fetch_guard = Some(guard);
+        self
+    }
+
+    /// The configured upstream request deadline.
+    #[must_use]
+    pub fn timeout(&self) -> Duration {
+        self.http.timeout
+    }
+
+    /// Per-upstream packument freshness window (`packument_ttl`), or `None` to
     /// defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     #[must_use]
-    pub fn maxage(&self) -> Option<Duration> {
-        self.maxage
+    pub fn packument_ttl(&self) -> Option<Duration> {
+        self.packument_ttl
     }
 
     /// Whether tarballs from this upstream should be written to the local
@@ -239,15 +263,8 @@ impl Upstream {
             return Ok(PackumentFetch::NotModified);
         }
         let response = self.checked(response, &url).await?;
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|source| {
-                self.record_body_failure(&source);
-                RegistryError::Upstream { url: url.clone(), source }
-            })?;
-        self.breaker.record_success();
-        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec() }))
+        let bytes = self.read_document_body(response, &url, self.http.max_packument_size).await?;
+        Ok(PackumentFetch::Modified(FetchedPackument { bytes }))
     }
 
     /// Send the tarball request and return a [`ThrottledResponse`]. Use its
@@ -352,20 +369,29 @@ impl Upstream {
         }
         let response = self.checked(response, url).await?;
         let final_url = response.url().to_string();
+        let bytes = self.read_document_body(response, url, limit).await?;
+        Ok(FetchOutcome::Ok(FetchedDocument { bytes, url: final_url }))
+    }
+
+    async fn read_document_body(
+        &self,
+        response: reqwest::Response,
+        url: &str,
+        limit: usize,
+    ) -> Result<Vec<u8>> {
         let body = read_limited_body(response, limit).await
             .map_err(|err| {
                 self.record_body_failure(&err);
-                RegistryError::UpstreamResponse { url: url.to_string(), reason: err.to_string() }
+                RegistryError::Upstream { url: url.to_string(), source: err }
             })?;
+        self.breaker.record_success();
         if body.truncated {
-            self.breaker.record_success();
             return Err(RegistryError::UpstreamResponse {
                 url: url.to_string(),
                 reason: format!("response body exceeds the {limit}-byte limit"),
             });
         }
-        self.breaker.record_success();
-        Ok(FetchOutcome::Ok(FetchedDocument { bytes: body.bytes, url: final_url }))
+        Ok(body.bytes)
     }
 
     /// Fetch an artifact from the absolute URL an upstream's metadata

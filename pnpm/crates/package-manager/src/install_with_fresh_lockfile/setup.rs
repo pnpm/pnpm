@@ -73,6 +73,8 @@ pub(super) struct ObserverSettings {
         Option<Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
     minimum_release_age_exclude_override: Option<Vec<String>>,
     pub(super) can_fast_update_overrides: bool,
+    pub(super) max_snapshots: Option<usize>,
+    pub(super) cancel: pnpm_resolving_deps_resolver::ResolutionCancel,
 }
 impl ObserverSettings {
     fn of(observer: Option<&Arc<dyn crate::ResolutionObserver>>) -> Self {
@@ -82,6 +84,10 @@ impl ObserverSettings {
                 observer.minimum_release_age_exclude_override()
             }),
             can_fast_update_overrides: observer.is_none(),
+            max_snapshots: observer.and_then(|observer| observer.max_snapshots()),
+            cancel: pnpm_resolving_deps_resolver::ResolutionCancel::from_option(observer.and_then(
+                |observer| observer.cancellation_check(),
+            )),
         }
     }
 }
@@ -117,7 +123,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     let (resolution_observer, observer, progress_reported) =
         take_resolution_observer(&mut owned.resolution.observer);
 
-    let store_dir: &'static _ = &install.drivers.config.store_dir;
+    let store_dir = &install.drivers.config.store_dir;
     // Eagerly create `files/00..ff` under the v11 store root so per-
     // tarball CAFS writes never pay a `create_dir_all` syscall on the
     // hot path.

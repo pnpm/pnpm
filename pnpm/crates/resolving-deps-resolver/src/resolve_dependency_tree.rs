@@ -1,5 +1,5 @@
 pub use catalogs::{ChildCatalogs, local_directory_child_specs};
-pub use failure::DependencyResolutionError;
+pub use failure::{DependencyResolutionError, ResolutionCancel, ResolveDependencyTreeError};
 pub use manifest::{declared_specifiers, manifest_child_specs};
 
 pub use update_scope::{
@@ -18,25 +18,21 @@ pub(crate) use catalogs::resolve_catalog_specifiers;
 pub(crate) use importer::importer_direct_wanted_specs;
 
 pub(crate) use reuse::{
-    preseed_changed_direct_versions, record_changed_direct_deps, resolve_direct_dependency_detached,
+    direct_dep_specifier_unchanged, preseed_changed_direct_versions, record_changed_direct_deps,
+    resolve_direct_dependency_detached,
 };
 
 pub(crate) use workspace_ctx::SyncCursor;
 
 mod update_scope;
 
-use derive_more::{Display, Error};
 use futures_util::future;
-use miette::Diagnostic;
 use pipe_trait::Pipe;
-use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
-use pnpm_resolving_npm_resolver::PickPackageError;
+use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
-    GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveError, ResolveOptions, Resolver, UnsupportedProtocolError, WantedDependency,
+    PreferredVersionsOverlay, ResolveOptions, Resolver, WantedDependency,
 };
 use serde_json::Value;
 use std::{
@@ -53,6 +49,7 @@ mod catalogs;
 mod failure;
 mod finalized;
 mod importer;
+mod locked_resolution;
 mod manifest;
 mod reuse;
 mod tree_ctx;
@@ -235,158 +232,6 @@ pub struct Deprecation {
 /// [`crate::WorkspaceResolveHooks::deprecation_log`].
 pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
 
-/// Error envelope returned by the tree walker.
-#[derive(Debug, Display, Error, Diagnostic)]
-pub enum ResolveDependencyTreeError {
-    #[diagnostic(transparent)]
-    DependencyContext(#[error(source)] DependencyResolutionError),
-
-    /// One of the resolver chain calls failed (network, parse, etc.).
-    /// The inner error is the boxed type the resolver returned.
-    #[display("Failed to resolve dependency: {_0}")]
-    Resolve(#[error(source)] ResolveError),
-
-    #[display("Conflicting registry revisions were requested for \"{name}@{version}\".")]
-    #[diagnostic(
-        code(ERR_PNPM_REVISION_CONFLICT),
-        help(
-            "A single package name and version can resolve to only one registry artifact in an install."
-        )
-    )]
-    RevisionConflict { name: String, version: String },
-
-    /// The registry publishes the package but nothing the request accepts,
-    /// raised with the `ERR_PNPM_NO_MATCHING_VERSION` code.
-    #[diagnostic(transparent)]
-    NoMatchingVersion(#[error(source)] NoMatchingVersionError),
-
-    /// The registry answered the metadata request with a non-2xx status,
-    /// raised with the matching `ERR_PNPM_FETCH_<status>` code.
-    #[diagnostic(transparent)]
-    RegistryResponse(#[error(source)] RegistryResponseError),
-
-    /// A git dependency's `git ls-remote` failed, raised with the
-    /// `ERR_PNPM_GIT_RESOLVE_FAILED` code.
-    #[diagnostic(transparent)]
-    GitResolve(#[error(source)] GitResolveError),
-
-    /// A specifier opens with a protocol no resolver supports, raised with
-    /// the `ERR_PNPM_UNSUPPORTED_PROTOCOL` code.
-    #[diagnostic(transparent)]
-    UnsupportedProtocol(#[error(source)] UnsupportedProtocolError),
-
-    /// The npm resolver's cache/fetch orchestration failed — most often
-    /// `ERR_PNPM_NO_OFFLINE_META`, raised with whatever code and help
-    /// [`PickPackageError`] itself carries.
-    #[diagnostic(transparent)]
-    Pick(#[error(source)] PickPackageError),
-
-    /// An optional dependency failed to resolve while the wanted
-    /// lockfile still holds a package entry satisfying the wanted
-    /// range. Rethrown loudly instead of skipped, because skipping
-    /// would erase the locked entries and make the lockfile differ
-    /// depending on which machine ran the install
-    /// (<https://github.com/pnpm/pnpm/issues/12853>).
-    #[diagnostic(
-        forward(0),
-        help(
-            "This optional dependency is not skipped, because the lockfile contains a resolution for it. Skipping it would remove the locked entries, making the lockfile differ depending on which machine ran the install. If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile."
-        )
-    )]
-    LockedOptionalResolutionFailure(#[error(source)] Box<ResolveDependencyTreeError>),
-
-    /// No resolver in the chain claimed the spec, raised with the
-    /// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.
-    #[display("\"{specifier}\" isn't supported by any available resolver.")]
-    #[diagnostic(code(ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
-    SpecNotSupported {
-        #[error(not(source))]
-        specifier: String,
-    },
-
-    /// A `catalog:` specifier on a direct dependency referenced a
-    /// missing entry, used a forbidden protocol, or was otherwise
-    /// misconfigured. The inner error carries the
-    /// `ERR_PNPM_CATALOG_ENTRY_*` code and message.
-    #[diagnostic(transparent)]
-    CatalogMisconfiguration(#[error(source)] CatalogResolutionError),
-
-    /// `patchedDependencies` configured more than one version range that
-    /// satisfies the same `name@version` and the user did not break the
-    /// tie with an exact-version entry. Propagated verbatim from
-    /// [`pnpm_patching::get_patch_info`].
-    #[diagnostic(transparent)]
-    PatchKeyConflict(#[error(source)] PatchKeyConflictError),
-
-    /// A transitive dependency was resolved through an exotic
-    /// protocol (git, tarball, file, ...) while `block_exotic_subdeps`
-    /// is on, raised with the `ERR_PNPM_EXOTIC_SUBDEP` code.
-    #[display(
-        "Exotic dependency \"{specifier}\" (resolved via {resolved_via}) is not allowed in subdependencies when blockExoticSubdeps is enabled"
-    )]
-    #[diagnostic(code(ERR_PNPM_EXOTIC_SUBDEP))]
-    ExoticSubdep {
-        #[error(not(source))]
-        specifier: String,
-        resolved_via: String,
-    },
-
-    /// A dependency alias contained a path-separator segment that would
-    /// escape the intended `node_modules` directory when joined onto a
-    /// modules path, raised with the `ERR_PNPM_INVALID_DEPENDENCY_NAME` code.
-    #[display(
-        "{parent} contains a dependency with an invalid name: {alias:?}. Dependency names must be a single package name or \"@scope/name\" — they cannot contain path-separator segments such as \"..\"."
-    )]
-    #[diagnostic(code(ERR_PNPM_INVALID_DEPENDENCY_NAME))]
-    InvalidDependencyName {
-        #[error(not(source))]
-        parent: String,
-        alias: String,
-    },
-
-    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
-    PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
-
-    #[diagnostic(code(ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT))]
-    BadReadPackageHookResult(#[error(not(source))] pnpm_hooks::HookError),
-
-    /// An importer's `peerDependencies` entry held a value that is neither a
-    /// peer range nor a scheme-carrying specifier, raised with the
-    /// `ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION` code.
-    #[display(
-        "The peerDependencies field named '{dep_name}' of package '{project_id}' has an invalid value: '{specifier}'"
-    )]
-    #[diagnostic(
-        code(ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION),
-        help(
-            "The values in peerDependencies should be a valid semver range, a `workspace:`/`catalog:` spec, or a dependency specifier such as a named-registry (`<registry>:<version>`), `npm:`, `file:`, or git/URL spec"
-        )
-    )]
-    InvalidPeerDependencySpecification {
-        #[error(not(source))]
-        dep_name: String,
-        project_id: String,
-        specifier: String,
-    },
-}
-
-impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
-    fn from(err: PatchKeyConflictError) -> Self {
-        ResolveDependencyTreeError::PatchKeyConflict(err)
-    }
-}
-
-impl From<pnpm_hooks::HookError> for ResolveDependencyTreeError {
-    fn from(err: pnpm_hooks::HookError) -> Self {
-        match err {
-            pnpm_hooks::HookError::BadReadPackageResult { .. } => {
-                Self::BadReadPackageHookResult(err)
-            }
-            _ => Self::PnpmfileHook(err),
-        }
-    }
-}
-
 /// Walk `manifest` plus the entries in `dependency_groups`, dispatch
 /// each direct dep through `resolver`, recurse on each picked
 /// package's own `dependencies`, and return a [`ResolvedTree`] that
@@ -438,7 +283,7 @@ where
         &ctx,
         resolver,
         wanted,
-        pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        Some(pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY),
         &parent_pkg_aliases,
     )
     .await?;
@@ -543,24 +388,24 @@ pub(crate) fn wanted_from_spec(spec: DependencySpec) -> WantedDependency {
 /// may still return `None` for any spec the cycle break gated out;
 /// those are filtered here.
 ///
+/// `reuse_importer_id` reads manifest dependencies from that importer. Pass `None`
+/// for hoisted peers, which must not inherit a removed direct dependency's resolution.
+///
 /// [`ResolvedPackage`]: crate::ResolvedPackage
 pub async fn extend_tree<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: Vec<DependencySpec>,
-    importer_id: &str,
+    reuse_importer_id: Option<&str>,
     parent_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
     ctx.workspace.tree.bump_revision();
-    // Direct deps reuse via the importer's recorded resolution when a
-    // prior lockfile exists; without one the gate is a no-op.
-    let reuse = if ctx.workspace.reuse.lockfile.is_some() {
-        ReuseSource::Importer { importer_id: importer_id.to_string() }
-    } else {
-        ReuseSource::Off
+    let reuse = match reuse_importer_id.filter(|_| ctx.workspace.reuse.lockfile.is_some()) {
+        Some(importer_id) => ReuseSource::Importer { importer_id: importer_id.to_string() },
+        None => ReuseSource::Off,
     };
     // Phase 1: resolve every direct dep before any subtree walk, so
     // the level's resolved versions seed the children's
@@ -583,7 +428,7 @@ where
     let direct_versions = level_versions(ctx, &seeds);
     // Recorded only now the level barrier has passed, so the subtree walk
     // sees the resolved direct-dep versions.
-    record_direct_dep_versions(ctx, importer_id, &direct_versions);
+    record_direct_dep_versions(ctx, &ctx.importer.id, &direct_versions);
     let children_overlay = PreferredVersionsOverlay::layer_direct(
         ctx.options.base.version.preferred_versions_overlay.clone(),
         direct_versions,

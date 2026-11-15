@@ -289,3 +289,64 @@ async fn deleting_every_image_keeps_the_repository_owned() {
     );
     push_image(&app, &alice, "acme/app", "1.0").await;
 }
+
+#[tokio::test]
+async fn the_owner_shares_a_repository_through_the_owners_endpoint() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let alice = crate::tokens::issue_token(&auth, "alice").await;
+    let bob = crate::tokens::issue_token(&auth, "bob").await;
+    let app = router_with_auth(oci_config(tmp.path().to_path_buf(), "$all"), auth);
+    let alice = format!("Basic {}", STANDARD.encode(format!("alice:{alice}")));
+    let bob = format!("Basic {}", STANDARD.encode(format!("bob:{bob}")));
+    push_image(&app, &alice, "acme/app", "1.0").await;
+
+    let change = |method: &str, caller: &str| {
+        Request::builder()
+            .method(method)
+            .uri("/oci/owners/acme/app")
+            .header(header::AUTHORIZATION, caller)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(r#"{"users":["bob"]}"#))
+            .unwrap()
+    };
+    let status = |request: Request<Body>| {
+        let app = app.clone();
+        async move {
+            app.oneshot(request).await
+                .unwrap()
+                .status()
+        }
+    };
+    assert_eq!(status(change("PUT", &bob)).await, StatusCode::FORBIDDEN);
+    assert_eq!(status(change("PUT", &alice)).await, StatusCode::OK);
+    push_image(&app, &bob, "acme/app", "2.0").await;
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/oci/owners/acme/app")
+                .header(header::AUTHORIZATION, &alice)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let logins: Vec<_> = body["users"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|user| user["login"].as_str().unwrap())
+        .collect();
+    assert_eq!(logins, ["alice", "bob"]);
+    assert_eq!(status(change("DELETE", &alice)).await, StatusCode::OK);
+    let blob = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &bob)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(status(blob).await, StatusCode::FORBIDDEN);
+}

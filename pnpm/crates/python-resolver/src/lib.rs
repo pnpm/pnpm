@@ -21,8 +21,8 @@ pub use candidates::{
     wheel_identity,
 };
 pub use lockfile::{
-    Inputs, LockedDirectory, LockedPackage, LockedSdist, LockedVcs, LockedWheel, Lockfile,
-    Metadata, Solved, Target, ToolMetadata, environment_marker,
+    Inputs, LockIndex, LockedDirectory, LockedPackage, LockedPin, LockedSdist, LockedVcs,
+    LockedWheel, Lockfile, Metadata, Solved, Target, ToolMetadata, environment_marker,
 };
 pub use metadata::{WheelMetadata, matches_published_digest, metadata_url};
 pub use packages::{

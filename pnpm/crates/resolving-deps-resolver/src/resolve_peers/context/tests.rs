@@ -118,6 +118,12 @@ fn parses_peer_suffix_after_patch_hash() {
 }
 
 #[test]
+fn named_registry_handles_multibyte_utf8_package_names() {
+    let dep = linked_package("ä", "ä@work:1.0.0", ".");
+    assert_eq!(super::peer_specifier::named_registry_of(dep.result()), Some("work"));
+}
+
+#[test]
 fn satisfies_handles_basic_ranges() {
     assert!(satisfies_with_prereleases("1.2.3", "^1.0.0"));
     assert!(!satisfies_with_prereleases("2.0.0", "^1.0.0"));

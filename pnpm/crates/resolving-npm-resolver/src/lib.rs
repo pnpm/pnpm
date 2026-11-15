@@ -72,6 +72,7 @@ pub use pick_package_from_meta::{
     pick_package_from_meta, pick_version_by_version_range,
 };
 pub use pnpm_lockfile::pick_registry_for_package;
+pub use preferred_overlay::preferred_selectors;
 pub use registry_url::to_registry_url;
 pub use resolve_from_workspace::{
     ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,

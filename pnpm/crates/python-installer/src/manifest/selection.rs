@@ -1,6 +1,6 @@
-use super::{DependencySelection, Manifest};
+use super::{DependencySelection, Manifest, SourceDeclaration};
 use miette::{IntoDiagnostic, Result, bail};
-use pep508_rs::{ExtraName, Requirement};
+use pep508_rs::{ExtraName, PackageName, Requirement};
 use pnpm_config::Config;
 use pnpm_python_resolver::parse_requirement;
 use serde::Deserialize;
@@ -29,6 +29,22 @@ impl Manifest {
     /// environment shared by every member.
     pub(in super::super) fn shares_environment(&self) -> bool {
         self.tool.pnpm.python.shared_environment
+    }
+
+    pub(crate) fn non_index_sources(&self, inherited: Option<&Self>) -> BTreeSet<PackageName> {
+        let mut names = self.tool.uv.sources
+            .iter()
+            .filter(|(_, decl)| is_non_index_source(decl))
+            .map(|(name, _)| name.clone())
+            .collect::<BTreeSet<_>>();
+        if let Some(inherited) = inherited {
+            for (name, decl) in &inherited.tool.uv.sources {
+                if !self.tool.uv.sources.contains_key(name) && is_non_index_source(decl) {
+                    names.insert(name.clone());
+                }
+            }
+        }
+        names
     }
 
     pub(in super::super) fn requirements(
@@ -165,6 +181,17 @@ impl SelectedRequirements {
         }
         self.all
     }
+}
+
+fn is_non_index_source(decl: &SourceDeclaration) -> bool {
+    decl.sources()
+        .iter()
+        .any(|source| {
+            source.workspace
+                || source.path.is_some()
+                || source.git.is_some()
+                || source.url.is_some()
+        })
 }
 
 #[cfg(test)]

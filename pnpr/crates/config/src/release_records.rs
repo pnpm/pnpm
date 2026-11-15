@@ -43,10 +43,10 @@ pub(super) struct ReleaseRecordsFile {
     /// A signed-note private key, `PRIVATE+KEY+<name>+<key hash>+<key>`, as
     /// Go's `note.GenerateKey` writes one.
     #[serde(default)]
-    log_signing_key: Option<String>,
+    log_signing_key: Option<crate::Secret>,
     /// A signed-note private key, as for `log_signing_key`.
     #[serde(default)]
-    statement_signing_key: Option<String>,
+    statement_signing_key: Option<crate::Secret>,
 }
 
 pub(super) fn build_release_records_config(
@@ -59,7 +59,10 @@ pub(super) fn build_release_records_config(
     })
 }
 
-fn signer(field: &str, key: Option<String>) -> Result<Option<Arc<NoteSigner>>, RegistryError> {
+fn signer(
+    field: &str,
+    key: Option<crate::Secret>,
+) -> Result<Option<Arc<NoteSigner>>, RegistryError> {
     let Some(key) = key else { return Ok(None) };
     let signer = NoteSigner::from_private_key(key.trim()).map_err(|err| {
         RegistryError::InvalidConfig {

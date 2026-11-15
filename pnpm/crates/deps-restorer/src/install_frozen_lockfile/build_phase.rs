@@ -142,12 +142,18 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         crate::shared_side_effects::shared_side_effects_publisher(config, inputs.graph.importers);
 
     let bin_state = crate::build_options::BuildBinState::default();
-    let build_output = build_or_defer::<Reporter>(
-        inputs,
-        patches.as_ref(),
-        shared_side_effects_publisher.as_ref(),
-        &bin_state,
-    )?;
+    // `nodeLinker: hoisted` has no virtual store, so `virtual_store_only`
+    // materialized no package directories to patch or build.
+    let build_output = if inputs.directories.is_hoisted && config.virtual_store_only {
+        crate::BuildModulesOutput::default()
+    } else {
+        build_or_defer::<Reporter>(
+            inputs,
+            patches.as_ref(),
+            shared_side_effects_publisher.as_ref(),
+            &bin_state,
+        )?
+    };
 
     // Always emit the `pnpm:ignored-scripts` event with the package
     // names, unconditionally, so structured / NDJSON consumers always

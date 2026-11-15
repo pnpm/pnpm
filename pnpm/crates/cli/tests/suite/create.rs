@@ -145,6 +145,55 @@ fn create_options_after_name_are_forwarded() {
     drop(root);
 }
 
+/// `--env-file` placed after `<name>` belongs to the starter CLI, so pnpm
+/// neither reads a missing `.env` nor loads or strips the flag from the
+/// starter's argv.
+#[cfg(unix)]
+#[test]
+fn create_forwards_env_file_after_name_to_starter() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    // Node 26's own dotenv scanner rejects a nonexistent `--env-file` even
+    // after `cli.js`, so prove missing-file passthrough before node runs and
+    // existing-file non-loading + argv forwarding through `cli.js`.
+    let missing = std::process::Command::cargo_bin("pnpm")
+        .expect("pnpm bin")
+        .with_current_dir(&workspace)
+        .with_env("PNPM_CONFIG_OFFLINE", "true")
+        .with_args([
+            "create",
+            "nonexistent-starter-pkg",
+            "my-app",
+            "--env-file",
+            "missing-starter.env",
+        ])
+        .output()
+        .expect("run create with missing starter and missing env-file");
+    let missing_stderr = String::from_utf8_lossy(&missing.stderr);
+    assert!(
+        !missing_stderr.contains("missing-starter.env"),
+        "pnpm must not read starter's --env-file: {missing_stderr}",
+    );
+
+    std::fs::write(
+        workspace.join("starter.env"),
+        "PNPM_CONFIG_REGISTRY=https://broken-if-loaded-by-pnpm.invalid/\n",
+    )
+    .expect("write starter.env");
+
+    pacquet
+        .with_args(["create", "touch-file-one-bin", "my-app", "--env-file", "starter.env"])
+        .assert()
+        .success();
+
+    let touch_txt = workspace.join("touch.txt");
+    let content = std::fs::read_to_string(&touch_txt).expect("read touch.txt");
+    assert_eq!(content, r#"["my-app","--env-file","starter.env"]"#);
+
+    drop(root);
+}
+
 /// `pacquet create` with `-c` (shell mode) flag works.
 #[cfg(unix)]
 #[test]

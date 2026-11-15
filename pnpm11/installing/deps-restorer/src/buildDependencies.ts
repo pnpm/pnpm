@@ -32,6 +32,13 @@ export async function buildDependencies (
   const { opts } = ctx
   const buildsOrPatchesApply = buildsDependenciesDuringInstall(opts) || Object.keys(opts.patchedDependencies ?? {}).length > 0
   if (!buildsOrPatchesApply || opts.enableModulesDir === false) return {}
+  // `nodeLinker: hoisted` has no virtual store, so `skipPostImportLinking`
+  // materialized no package directories to patch or build.
+  if (opts.nodeLinker === 'hoisted' && ctx.skipPostImportLinking) {
+    return {
+      ignoredBuilds: addPreviouslyIgnoredBuilds(undefined, ctx, depGraph),
+    }
+  }
   const directNodes = collectDirectNodes(depGraph)
   const extraBinPaths = [...opts.extraBinPaths ?? []]
   if (opts.hoistPattern != null) {
@@ -78,6 +85,7 @@ async function relinkBuiltVirtualStoreBins (
   if (affectedNodes.length === 0) return
   await linkAllBins(depGraph.graph, {
     depNodes: affectedNodes,
+    enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
     extraNodePaths: opts.extraNodePaths,
     forceForPackages: builtPackageDirs,
     optional: opts.include.optionalDependencies,
@@ -176,7 +184,10 @@ function addPreviouslyIgnoredBuilds (
 ): IgnoredBuilds | undefined {
   const { opts } = ctx
   if (!opts.modulesFile?.ignoredBuilds?.size) return ignoredBuilds
-  const currentPackages = mergeIntoCurrentLockfile(ctx, depGraph).packages
+  const skippedHoistedTree = ctx.skipPostImportLinking && opts.nodeLinker === 'hoisted'
+  const currentPackages = (skippedHoistedTree && ctx.currentLockfile != null
+    ? ctx.currentLockfile
+    : mergeIntoCurrentLockfile(ctx, depGraph)).packages
   const allIgnoredBuilds = ignoredBuilds ?? new Set()
   for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
     if (currentPackages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, depGraph.allowBuild)) {

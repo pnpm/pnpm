@@ -135,9 +135,9 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "annotate-snippets"
-version = "0.12.17"
+version = "0.12.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2a5b0a5ab8561c603f16c3b78c24a386b1f70e7fc1b1b1e8c15738828e4a176"
+checksum = "0258346f92c78dbc5b336b9a5b27c64447aa10643bc64e651db2edb145361564"
 dependencies = [
  "anstyle",
  "memchr",
@@ -726,9 +726,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.20.3"
+version = "3.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+checksum = "87a0cf66fd1eb2fb7b822cb78370d82303750809bc6ba855f3f58e517d3238db"
 
 [[package]]
 name = "bytecount"
@@ -834,9 +834,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.11.1"
+version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ff2a8126fff0f8c839080d619675a585e61720bb12d2baceae45769fd66f155"
+checksum = "33ef9e3e8154a45c7a95cff4c1299702106ad94062d7bb85fdc5d3a5afd91d45"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -1398,9 +1398,12 @@ dependencies = [
 
 [[package]]
 name = "ctor"
-version = "1.0.13"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "914a755b7c2d4af2bdcff7ce1739e2db9a1b81a9b07123d8015786ae03c0980d"
+checksum = "ea691ed9f36489d087419b8b2ba3ef27d89621380b4178c73e2445a379e4e0f4"
+dependencies = [
+ "link-section",
+]
 
 [[package]]
 name = "ctr"
@@ -2070,9 +2073,9 @@ dependencies = [
 
 [[package]]
 name = "errno"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+checksum = "e35d6e78f4cebb90e51d543db8fe41528851d6deeef6ef21ebd4bfdc1e784776"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
@@ -3205,9 +3208,9 @@ checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 
 [[package]]
 name = "jiff"
-version = "0.2.42"
+version = "0.2.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fefca06093eeaed707a905795e68206da0edca4edef23d2a3997a3ddbee462aa"
+checksum = "34e6d07feb763c647199bd9072192b9639da3b5ffde49afd73c08b1d5ceb1469"
 dependencies = [
  "jiff-core",
  "jiff-static",
@@ -3221,18 +3224,18 @@ dependencies = [
 
 [[package]]
 name = "jiff-core"
-version = "0.1.4"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77a24020db0ee88d1c681d677681bd31f9f4ea189a455425223d52ce4f1508aa"
+checksum = "3c0dfb57e3485bee979b355302992ea9c38331a94f6ccce72c2bf0077d6c9310"
 dependencies = [
  "log",
 ]
 
 [[package]]
 name = "jiff-static"
-version = "0.2.42"
+version = "0.2.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41d3213549742662eea1a18e6c5af9be5dfbabeb7611ab71356a54928ec398f0"
+checksum = "d93b8289f811027d18f228ae410cbadc766419d50b79185fa0084b10cc172d03"
 dependencies = [
  "jiff-core",
  "proc-macro2",
@@ -3242,9 +3245,9 @@ dependencies = [
 
 [[package]]
 name = "jiff-tzdb"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa8377070c6bae868759445e5a77f66d84f0b72f3a054bfb00e6d038b8282da7"
+checksum = "0980fca2cc272465bd60e82397607ba9f33add9e48defd77923301bbd03808f2"
 
 [[package]]
 name = "jiff-tzdb-platform"
@@ -3426,9 +3429,9 @@ dependencies = [
 
 [[package]]
 name = "libloading"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
+checksum = "a1832accd5a4ca2795ace4d05d15c4039be15b62d3b950eff99746a990e3cc10"
 dependencies = [
  "cfg-if",
  "windows-link",
@@ -3614,6 +3617,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "link-section"
+version = "0.19.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d9aae57673c1a235149777a74d152f3210ebd3e3b13346d2cdb6809e566bd3c"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3797,9 +3806,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.2.4"
+version = "1.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1788edb87fdc09c7e26304471e2f5be8cdefb1b6930d6e3985fc02ff53bf86ee"
+checksum = "20521a903f02b0a573cd6840e9d0a5a0cc043d361fe924092cd70f8556cc9c4a"
 dependencies = [
  "libc",
  "log",
@@ -3903,7 +3912,7 @@ version = "3.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d153beb7d5c973f4b9395be8a83054a28968b61188f1dd1a2cc2321af22daea2"
 dependencies = [
- "libloading 0.9.0",
+ "libloading 0.9.1",
 ]
 
 [[package]]
@@ -4542,9 +4551,9 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "pgp"
-version = "0.21.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae70f4d9325a391db30d115d6191a7bb67cec856aa0bba131290f0c4e09a532a"
+checksum = "c7275cbf21850789239e1be05d9a887e6bba6aa8085a81be09ca021c8379baef"
 dependencies = [
  "aead",
  "aes",
@@ -5027,18 +5036,18 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
- "pnpm-patching",
+ "pnpm-package-name",
+ "pnpm-patching-config",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
- "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-version-policy",
  "pnpm-versioning",
  "pnpm-workspace",
  "pnpm-workspace-state",
  "pnpm-workspace-task-scheduler",
- "pnpr-registry",
  "pretty_assertions",
+ "same-file",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -5047,6 +5056,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "yaml_serde",
 ]
 
 [[package]]
@@ -5072,6 +5082,7 @@ dependencies = [
  "clap",
  "pretty_assertions",
  "serde",
+ "tempfile",
  "toml",
 ]
 
@@ -5284,7 +5295,6 @@ dependencies = [
  "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-package-manifest",
- "pnpm-store-dir",
  "pnpm-testing-utils",
  "pretty_assertions",
  "serde_json",
@@ -6025,7 +6035,6 @@ dependencies = [
  "futures-util",
  "miette 7.6.0",
  "mockito",
- "pipe-trait",
  "pnpm-ffi-security",
  "pnpm-http",
  "pnpm-process",
@@ -6254,6 +6263,10 @@ dependencies = [
 [[package]]
 name = "pnpm-package-name"
 version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pep508_rs",
+]
 
 [[package]]
 name = "pnpm-patching"
@@ -6271,7 +6284,6 @@ dependencies = [
  "pnpm-process",
  "pretty_assertions",
  "serde_json",
- "sha2 0.10.9",
  "tempfile",
  "text-block-macros",
 ]
@@ -6281,9 +6293,12 @@ name = "pnpm-patching-config"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "indexmap 2.14.2",
  "miette 7.6.0",
  "node-semver",
  "pretty_assertions",
+ "sha2 0.10.9",
+ "tempfile",
 ]
 
 [[package]]
@@ -6310,7 +6325,6 @@ dependencies = [
  "mockito",
  "p256 0.14.0",
  "pnpm-catalogs-types",
- "pnpm-config",
  "pnpm-crypto-hash",
  "pnpm-graph-hasher",
  "pnpm-http",
@@ -6318,6 +6332,7 @@ dependencies = [
  "pnpm-lockfile-verification",
  "pnpm-network",
  "pnpm-python-resolver",
+ "pnpm-resolving-resolver-base",
  "pnpm-shared-artifact-protocol",
  "pnpm-testing-utils",
  "pnpr",
@@ -6359,13 +6374,11 @@ dependencies = [
  "node-semver",
  "pipe-trait",
  "pnpm-diagnostics",
- "pnpm-executor",
  "pnpm-git-utils",
  "pnpm-http",
  "pnpm-network",
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
- "pnpm-pack",
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-release-record",
@@ -6487,7 +6500,6 @@ dependencies = [
 name = "pnpm-registry-mock"
 version = "0.0.0"
 dependencies = [
- "assert_cmd",
  "clap",
  "home",
  "pipe-trait",
@@ -6498,6 +6510,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "sysinfo",
+ "tempfile",
  "tokio",
  "walkdir",
 ]
@@ -6565,6 +6578,7 @@ dependencies = [
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
  "pnpm-resolving-tarball-resolver",
+ "pnpm-tool-protocol",
  "ssri",
  "tokio",
 ]
@@ -7028,6 +7042,7 @@ dependencies = [
  "miette 7.6.0",
  "pathdiff",
  "pnpm-catalogs-types",
+ "pnpm-env-replace",
  "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-local-spec",
@@ -7056,6 +7071,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-config-parse-overrides",
+ "pnpm-deps-path",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-workspace",
@@ -7163,7 +7179,7 @@ dependencies = [
 
 [[package]]
 name = "pnpr"
-version = "0.1.0-alpha.19"
+version = "0.1.0-alpha.20"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
@@ -7198,6 +7214,7 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-diagnostics",
  "pnpm-env-replace",
+ "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
@@ -7314,11 +7331,13 @@ dependencies = [
 name = "pnpr-config"
 version = "0.0.1"
 dependencies = [
+ "derive_more",
  "getrandom 0.4.3",
  "home",
  "indexmap 2.14.2",
  "object_store",
  "pnpm-config-dir",
+ "pnpm-deps-path",
  "pnpm-env-replace",
  "pnpm-testing-utils",
  "pnpm-transparency-log",
@@ -7371,6 +7390,7 @@ dependencies = [
  "pnpr-registry",
  "pnpr-storage",
  "reqwest",
+ "serde-saphyr",
  "serde_json",
  "sha2 0.10.9",
  "tar",
@@ -7407,7 +7427,6 @@ name = "pnpr-oci"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "pnpr-package-name",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -7437,7 +7456,6 @@ name = "pnpr-package-name"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "pep508_rs",
  "pnpm-package-name",
  "pnpr-error",
  "serde",
@@ -7489,7 +7507,6 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.2",
  "pnpr-package-name",
- "wax",
 ]
 
 [[package]]
@@ -8095,14 +8112,14 @@ dependencies = [
 
 [[package]]
 name = "reflink-copy"
-version = "0.1.32"
+version = "0.1.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ad64f61357bcf16105a0f353f9783733409c8bd889bc326ad857959605ea927"
+checksum = "20d23b61573e4e96a48e3196327eedc4d50e30ba1ea1eae3f08187b44542e642"
 dependencies = [
  "cfg-if",
  "libc",
  "rustix 1.1.6",
- "windows",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8426,9 +8443,9 @@ checksum = "eec689c0bc40ff2458a5977b6619cb718087084a18e02a131c599b62d05e1a5f"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.16"
+version = "0.103.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
+checksum = "e3a0760a887c14823fca5a1c970b01d47c328c696c0c64829d1df50e8f853fd5"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -9621,9 +9638,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.40.1"
+version = "0.40.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e8a3edbe0394ce115f3917a00349dd242be09eb5a091ed509eaf67b55cfb8a8"
+checksum = "a86bac2f7d06e6384984118ad727f5694110f0ec44d924d05c8fdec3d030bee6"
 dependencies = [
  "libc",
  "memchr",
@@ -11333,27 +11350,27 @@ dependencies = [
 
 [[package]]
 name = "zstd"
-version = "0.14.3"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db3ae9bf90af6e40197bef767eeefc46ad6397420fe873830bd85e5fbbfb3c70"
+checksum = "ad5020ab8f27bfc0024ad0a07aed6bf022a16208f479686fbed4fdd0c85eb0b3"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "8.2.0"
+version = "8.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ded520f16b29e1a9b771c722221b2b0a0398c2316d9bb3c42b458a5414d7434b"
+checksum = "5a9ea9cc2576c2fcc104e9cec04f46e3ede564f4fbc206831e4ef7e859a4140d"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.1.2+zstd.1.5.7"
+version = "2.1.3+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
+checksum = "f729a06d0257428fd9d997ac8db7e1407bd0262ab016b085b36bc52957c0052d"
 dependencies = [
  "cc",
  "pkg-config",

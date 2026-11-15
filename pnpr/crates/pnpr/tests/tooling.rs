@@ -7,7 +7,6 @@ use pnpr::{
     Config,
     archive_gc::{GcOptions, GcReport, collect_archives},
     config_check::{check_config, format_report},
-    export::{export_storage, format_export_report},
     htpasswd_import::{HtpasswdImportOptions, import_htpasswd},
     migrate_storage::{MigrateStorageOptions, format_migrate_report, migrate_local_to_s3},
     verify::{VerifyOptions, format_verify_report, verify_storage},
@@ -53,29 +52,41 @@ fn create_hosting_test_config(dir: &Path) -> (Config, tempfile::NamedTempFile) {
 fn create_test_config_with(dir: &Path, registries: &str) -> (Config, tempfile::NamedTempFile) {
     let storage_dir = dir.join("storage");
     let cache_dir = dir.join("cache");
-    let users_file = dir.join("users.json");
     std::fs::create_dir_all(&storage_dir).unwrap();
     std::fs::create_dir_all(&cache_dir).unwrap();
-    std::fs::write(&users_file, "{}").unwrap();
 
     let yaml = format!(
         r"
 storage: '{}'
 cache: '{}'
-auth:
-  users:
-    file: '{}'
 {registries}",
         storage_dir.display(),
         cache_dir.display(),
-        users_file.display(),
     );
 
     let config_file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(config_file.path(), yaml).unwrap();
-    let config =
-        Config::from_yaml(config_file.path(), "127.0.0.1:7677".parse().unwrap(), None).unwrap();
+    let listen = "127.0.0.1:7677".parse().unwrap();
+    let config = if registries.is_empty() {
+        Config::from_yaml(config_file.path(), listen, None).unwrap()
+    } else {
+        pnpr_fixtures::load_seeded_config(config_file.path(), listen, None)
+    };
     (config, config_file)
+}
+
+/// The config check report for the config file `yaml` serving the registries
+/// document `registries` without storing it, since the config may name a
+/// database the test cannot reach.
+fn check_with_registries(dir: &Path, yaml: &str, registries: &str) -> String {
+    let config_file = dir.join("pnpr.yaml");
+    std::fs::write(&config_file, yaml).unwrap();
+    let mut config =
+        Config::from_yaml(&config_file, "127.0.0.1:7677".parse().unwrap(), None).unwrap();
+    config.routing = pnpr_fixtures::registries_routing(&config, registries);
+    let source = pnpr::ConfigSource::Cli(config_file);
+    let report = pnpr::config_check::check_resolved_config(&mut config, &source).unwrap();
+    pnpr::config_check::format_report(&report)
 }
 
 #[tokio::test]
@@ -83,7 +94,6 @@ async fn test_config_check_success() {
     let report = check_config(None).expect("bundled config check should succeed");
     let formatted = format_report(&report);
     assert!(formatted.contains("Configuration check: OK"));
-    assert!(!report.registries.is_empty());
 }
 
 #[tokio::test]
@@ -92,93 +102,59 @@ async fn test_config_check_nonexistent() {
     assert!(err.to_string().contains("does not exist"));
 }
 
+/// The login names and password hashes stored in the database of
+/// `config`.
+fn stored_accounts(config: &Config) -> Vec<(String, String)> {
+    let pnpr::BackendConfig::Sqlite(path) = &config.identity.backend else {
+        panic!("test configs keep accounts in their SQLite database");
+    };
+    if !path.exists() {
+        return Vec::new();
+    }
+    let connection = rusqlite::Connection::open(path).unwrap();
+    let mut statement =
+        connection.prepare("SELECT username, password_hash FROM users ORDER BY username").unwrap();
+    statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
 #[tokio::test]
 async fn test_htpasswd_import() {
     let dir = TempDir::new().unwrap();
+    let (config, _config_file) = create_test_config(dir.path());
     let source = dir.path().join("source-htpasswd");
-    let target = dir.path().join("target-htpasswd");
 
     let source_content =
         "user1:{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=\nuser2:$2y$10$abcdefghijklmnopqrstuu\n";
     std::fs::write(&source, source_content).unwrap();
 
     // 1. Dry run
-    let dry_run_opts = HtpasswdImportOptions {
-        source: source.clone(),
-        target: Some(target.clone()),
-        dry_run: true,
-        overwrite: false,
-    };
-    let dry_rep = import_htpasswd(&dry_run_opts).unwrap();
+    let dry_run_opts =
+        HtpasswdImportOptions { source: source.clone(), dry_run: true, overwrite: false };
+    let dry_rep = import_htpasswd(&config, &dry_run_opts).await.unwrap();
     assert_eq!(dry_rep.merged, 2);
     assert_eq!(dry_rep.sha_count, 1);
     assert_eq!(dry_rep.bcrypt_count, 1);
-    assert!(!target.exists());
+    assert!(stored_accounts(&config).is_empty());
 
     // 2. Real import
-    let real_opts = HtpasswdImportOptions {
-        source,
-        target: Some(target.clone()),
-        dry_run: false,
-        overwrite: false,
-    };
-    let real_rep = import_htpasswd(&real_opts).unwrap();
+    let real_opts = HtpasswdImportOptions { source, dry_run: false, overwrite: false };
+    let real_rep = import_htpasswd(&config, &real_opts).await.unwrap();
     assert_eq!(real_rep.merged, 2);
-    assert!(target.exists());
-
-    let target_content = std::fs::read_to_string(&target).unwrap();
-    assert!(target_content.contains("{SHA}"));
-    assert!(target_content.contains("$2y$"));
+    assert_eq!(
+        stored_accounts(&config),
+        [
+            ("user1".to_string(), "{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=".to_string()),
+            ("user2".to_string(), "$2y$10$abcdefghijklmnopqrstuu".to_string()),
+        ],
+    );
 }
 
 #[tokio::test]
-async fn test_export_storage() {
-    let dir = TempDir::new().unwrap();
-    let (config, _cfg_file) = create_test_config(dir.path());
-    let export_out = dir.path().join("exported");
-
-    // Seed a package in storage
-    let pkg = "demo-pkg";
-    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
-    let doc = serde_json::json!({
-        "name": "demo-pkg",
-        "versions": {
-            "1.0.0": {
-                "name": "demo-pkg",
-                "version": "1.0.0",
-                "dist": {
-                    "tarball": "http://localhost:7677/demo-pkg/-/demo-pkg-1.0.0.tgz"
-                }
-            }
-        }
-    });
-    seed_document(
-        &config.storage.hosted_dir,
-        Ecosystem::Npm,
-        pkg,
-        &serde_json::to_vec(&doc).unwrap(),
-    );
-    seed_archive(
-        &config.storage.hosted_dir,
-        Ecosystem::Npm,
-        pkg,
-        "demo-pkg-1.0.0.tgz",
-        b"fake tarball bytes",
-    );
-
-    let report = export_storage(&config, &export_out, true).await.unwrap();
-    assert_eq!(report.packages_exported, 1);
-    assert_eq!(report.versions_exported, 1);
-    assert_eq!(report.blobs_exported, 1);
-
-    let formatted = format_export_report(&report);
-    assert!(formatted.contains("Export completed successfully"));
-    assert!(export_out.join("demo-pkg/package.json").exists());
-    assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tgz").exists());
-}
-
-#[tokio::test]
-async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
+async fn verify_keeps_the_stored_tar_of_a_hosted_tar_registry() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());
     let pkg = "demo-pkg";
@@ -212,11 +188,6 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
     assert_eq!(stored_tar.as_deref(), Some(b"zstd tar bytes".as_slice()));
     assert_eq!(report.corrupted_blobs.len(), 1, "{:?}", report.corrupted_blobs);
     assert!(report.corrupted_blobs[0].contains("no recorded tar integrity"));
-
-    let export_out = dir.path().join("exported");
-    let exported = export_storage(&config, &export_out, true).await.unwrap();
-    assert_eq!(exported.blobs_exported, 1);
-    assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tar.zst").exists());
 }
 
 #[tokio::test]
@@ -516,11 +487,11 @@ async fn test_migrate_storage_refuses_metadata_an_s3_deployment_cannot_read() {
         ..MigrateStorageOptions::default()
     };
     let err = migrate_local_to_s3(&config, &options).await.unwrap_err();
-    assert!(err.to_string().contains("shared database.url"), "{err}");
+    assert!(err.to_string().contains("shared storage.database.url"), "{err}");
 }
 
 #[tokio::test]
-async fn test_verify_and_export_attestations() {
+async fn test_verify_attestations() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());
 
@@ -572,46 +543,39 @@ async fn test_verify_and_export_attestations() {
     assert_eq!(rep.missing_blobs.len(), 0);
     assert_eq!(rep.corrupted_blobs.len(), 0);
     assert_eq!(rep.orphaned_blobs.len(), 0);
-
-    let export_out = dir.path().join("export-signed");
-    let exp_rep = export_storage(&config, &export_out, false).await.unwrap();
-    assert_eq!(exp_rep.packages_exported, 1);
-    assert_eq!(exp_rep.blobs_exported, 2);
-    assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.tgz").exists());
-    assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.sigstore").exists());
-    assert!(!export_out.join("users.json").exists());
 }
 
-#[test]
-fn test_config_check_upstream_url_sanitized() {
+#[tokio::test]
+async fn test_config_check_upstream_url_sanitized() {
     let dir = TempDir::new().unwrap();
-    let storage_dir = dir.path().join("hosted");
-    let cache_dir = dir.path().join("cache");
     let yaml = format!(
-        r"
-storage: '{}'
-cache: '{}'
-registries:
-  private:
-    type: upstream
-    url: 'https://secretuser:secretpass@registry.example.com/?auth_token=supersecret&sig=secretsig&X-Amz-Signature=amazonsig'
-    public: true
-",
-        storage_dir.display(),
-        cache_dir.display(),
+        "storage: '{}'\ncache: '{}'\n",
+        dir.path().join("hosted").display(),
+        dir.path().join("cache").display(),
     );
+    let mut config = crate::managed_registries::managed_config(
+        &dir.path().join("pnpr.yaml"),
+        &yaml,
+        "127.0.0.1:7677".parse().unwrap(),
+        None,
+    )
+    .await;
+    let url = "https://secretuser:secretpass@registry.example.com/?auth_token=supersecret&sig=secretsig&X-Amz-Signature=amazonsig";
+    let graph = serde_json::json!({
+        "registries": { "private": { "type": "upstream", "url": url, "public": true } },
+    });
+    crate::managed_registries::store_graph(&config, &graph).await;
 
-    let config_file = dir.path().join("pnpr.yaml");
-    std::fs::write(&config_file, yaml).unwrap();
-
-    let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
-    let output = pnpr::config_check::format_report(&report);
-    assert!(!output.contains("secretuser"));
-    assert!(!output.contains("secretpass"));
-    assert!(!output.contains("supersecret"));
-    assert!(!output.contains("secretsig"));
-    assert!(!output.contains("amazonsig"));
-    assert!(output.contains("REDACTED"));
+    let output = pnpr::config_check::check_config_and_stored_registries(
+        &mut config,
+        &pnpr::ConfigSource::Bundled,
+    )
+    .await
+    .expect_err("a stored upstream URL with credentials is refused")
+    .to_string();
+    for secret in ["secretuser", "secretpass", "supersecret", "secretsig", "amazonsig"] {
+        assert!(!output.contains(secret), "{output}");
+    }
 }
 
 #[cfg(feature = "backend-libsql")]
@@ -620,15 +584,23 @@ fn test_config_check_reports_the_auth_backend_and_every_default_registry() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         r"
-storage: '{}'
+storage:
+  path: '{}'
+  database:
+    url: 'libsql://db.example.turso.io'
+    authToken: 'secret-database-token'
+    replicaPath: '{}'
 cache: '{}'
-database:
-  url: 'libsql://db.example.turso.io'
-  authToken: 'secret-database-token'
-  replicaPath: '{}'
+secret: 'test-secret-key-32-chars-long-12'
 auth:
   users:
     maxUsers: 3
+",
+        dir.path().join("hosted").display(),
+        dir.path().join("replica.db").display(),
+        dir.path().join("cache").display(),
+    );
+    let registries = "
 registries:
   local:
     type: hosted
@@ -645,16 +617,8 @@ registries:
 defaultRegistry:
   npm: local
   cargo: crates
-",
-        dir.path().join("hosted").display(),
-        dir.path().join("cache").display(),
-        dir.path().join("replica.db").display(),
-    );
-    let config_file = dir.path().join("pnpr.yaml");
-    std::fs::write(&config_file, yaml).unwrap();
-
-    let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
-    let output = pnpr::config_check::format_report(&report);
+";
+    let output = check_with_registries(dir.path(), &yaml, registries);
     let replica = dir.path().join("replica.db.auth");
     assert!(
         output.contains(&format!(
@@ -674,21 +638,17 @@ fn test_config_check_reports_the_s3_key_prefix() {
     let report = |prefix: &str| {
         let yaml = format!(
             r"
-storage: '{}'
-cache: '{}'
-s3:
-  bucket: packages
-  region: auto
-  endpoint: https://storage.example.com
+storage:
+  path: '{}'
+  s3:
+    bucket: packages
+    region: auto
+    endpoint: https://storage.example.com
 {prefix}
-database:
-  url: libsql://db.example.turso.io
-registries:
-  local:
-    type: hosted
-    packages:
-      '@acme/*':
-        publish: $authenticated
+  database:
+    url: libsql://db.example.turso.io
+cache: '{}'
+secret: 'test-secret-key-32-chars-long-12'
 ",
             dir.path().join("hosted").display(),
             dir.path().join("cache").display(),
@@ -699,11 +659,11 @@ registries:
         pnpr::config_check::format_report(&report)
     };
 
-    let output = report("  prefix: /pnpr");
+    let output = report("    prefix: /pnpr");
     assert!(output.contains("Storage: S3 (bucket: packages, prefix: pnpr/)\n"), "{output}");
     let output = report("");
     assert!(output.contains("Storage: S3 (bucket: packages)\n"), "{output}");
-    let output = report(r#"  prefix: "pn\npr""#);
+    let output = report(r#"    prefix: "pn\npr""#);
     assert!(output.contains(r"Storage: S3 (bucket: packages, prefix: pn\npr/)"), "{output}");
 }
 
@@ -712,16 +672,11 @@ fn test_config_check_hides_an_unparsable_database_url() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         r"
-storage: '{}'
+storage:
+  path: '{}'
+  database:
+    url: 'postgres://admin:hunter2@[::1'
 cache: '{}'
-database:
-  url: 'postgres://admin:hunter2@[::1'
-registries:
-  local:
-    type: hosted
-    packages:
-      '@acme/*':
-        publish: $authenticated
 ",
         dir.path().join("hosted").display(),
         dir.path().join("cache").display(),
@@ -739,16 +694,12 @@ fn test_config_check_redacts_the_database_user_query_parameter() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         r"
-storage: '{}'
+storage:
+  path: '{}'
+  database:
+    url: 'libsql://db.example.com/pnpr?user=registry-admin'
 cache: '{}'
-database:
-  url: 'libsql://db.example.com/pnpr?user=registry-admin'
-registries:
-  local:
-    type: hosted
-    packages:
-      '@acme/*':
-        publish: $authenticated
+secret: 'test-secret-key-32-chars-long-12'
 ",
         dir.path().join("hosted").display(),
         dir.path().join("cache").display(),
@@ -762,32 +713,20 @@ registries:
     assert!(output.contains("user=REDACTED"), "{output}");
 }
 
-#[test]
-fn test_htpasswd_import_malformed_and_collisions() {
+#[tokio::test]
+async fn test_htpasswd_import_malformed_and_collisions() {
     let dir = TempDir::new().unwrap();
+    let (config, _config_file) = create_test_config(dir.path());
     let source = dir.path().join("source-malformed");
-    let target = dir.path().join("target-users");
 
     // 1. Malformed SHA hash is rejected
     std::fs::write(&source, "baduser:{SHA}not-valid-base64\n").unwrap();
-    let opts = HtpasswdImportOptions {
-        source: source.clone(),
-        target: Some(target.clone()),
-        dry_run: false,
-        overwrite: false,
-    };
-    assert!(import_htpasswd(&opts).is_err());
+    let opts = HtpasswdImportOptions { source: source.clone(), dry_run: false, overwrite: false };
+    assert!(import_htpasswd(&config, &opts).await.is_err());
 
     // 2. Existing user collision handling without and with overwrite
-    pnpr_auth::UserStore::import_password_hashes(
-        &target,
-        [("alice".to_string(), "$2y$10$abcdefghijklmnopqrstuu".to_string())].into(),
-        pnpr_auth::PasswordImport {
-            collisions: pnpr_auth::PasswordCollisions::Keep,
-            mode: pnpr_auth::ImportMode::Persist,
-        },
-    )
-    .unwrap();
+    std::fs::write(&source, "alice:$2y$10$abcdefghijklmnopqrstuu\n").unwrap();
+    import_htpasswd(&config, &opts).await.unwrap();
     // Incoming source has alice with a different hash
     std::fs::write(
         &source,
@@ -795,34 +734,17 @@ fn test_htpasswd_import_malformed_and_collisions() {
     )
     .unwrap();
 
-    let no_ow_opts = HtpasswdImportOptions {
-        source: source.clone(),
-        target: Some(target.clone()),
-        dry_run: false,
-        overwrite: false,
-    };
-    let rep = import_htpasswd(&no_ow_opts).unwrap();
+    let rep = import_htpasswd(&config, &opts).await.unwrap();
     assert_eq!(rep.merged, 1); // bob was merged
-    assert_eq!(rep.collisions.len(), 1); // alice collided
-    assert!(rep.collisions[0].contains("alice"));
-
-    // Check alice was NOT overwritten
-    let content = std::fs::read_to_string(&target).unwrap();
-    assert!(content.contains("$2y$10$abcdefghijklmnopqrstuu"));
+    assert_eq!(rep.collisions, ["alice"]);
+    assert_eq!(stored_accounts(&config)[0].1, "$2y$10$abcdefghijklmnopqrstuu");
 
     // 3. With overwrite: true, alice gets replaced (bob is already identical)
-    let ow_opts = HtpasswdImportOptions {
-        source,
-        target: Some(target.clone()),
-        dry_run: false,
-        overwrite: true,
-    };
-    let rep2 = import_htpasswd(&ow_opts).unwrap();
+    let ow_opts = HtpasswdImportOptions { source, dry_run: false, overwrite: true };
+    let rep2 = import_htpasswd(&config, &ow_opts).await.unwrap();
     assert_eq!(rep2.merged, 1);
     assert_eq!(rep2.collisions.len(), 0);
-
-    let content2 = std::fs::read_to_string(&target).unwrap();
-    assert!(content2.contains("{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g="));
+    assert_eq!(stored_accounts(&config)[0].1, "{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=");
 }
 
 #[tokio::test]
@@ -877,19 +799,18 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
 
     // Database B pointed at store A (differing store_ids).
     let mut mismatched = config_a.clone();
-    mismatched.storage.metadata = config_b.storage.metadata.clone();
+    mismatched.storage.database = config_b.storage.database.clone();
 
     // Fresh empty database pointed at store A (store has id, database doesn't).
     let mut wiped_db = config_a.clone();
-    wiped_db.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(dir_a.path().join("wiped.sqlite"));
+    wiped_db.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(dir_a.path().join("wiped.sqlite"));
 
     // Database A pointed at an unmarked empty store (database has id, store doesn't).
     let mut wiped_store = config_a.clone();
     wiped_store.storage.hosted_dir = dir_a.path().join("empty-store");
     std::fs::create_dir_all(&wiped_store.storage.hosted_dir).unwrap();
 
-    let export_out = dir_a.path().join("export-out");
     let migrate_opts = MigrateStorageOptions {
         to_bucket: Some("mock-bucket".to_string()),
         to_region: Some("us-east-1".to_string()),
@@ -921,22 +842,8 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
             .is_err(),
         );
         assert!(verify_storage(bad, &verify_opts).await.is_err());
-        assert!(
-            pnpr::run_command(
-                bad,
-                pnpr::Command::Export { out: export_out.clone(), include_auth: false },
-            )
-            .await
-            .is_err(),
-        );
         assert!(migrate_local_to_s3(bad, &migrate_opts).await.is_err());
     }
-
-    // An upstream-only proxy hosts no packages and does not bind the package store,
-    // so replicas with separate local SQLite files can share one store directory.
-    let mut proxy_replica = mismatched.clone();
-    proxy_replica.routing.hosted.clear();
-    pnpr::prepare_storage(&proxy_replica).await.unwrap();
 }
 
 mod startup;

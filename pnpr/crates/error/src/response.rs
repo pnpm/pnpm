@@ -8,6 +8,30 @@ use axum::{
 #[derive(Clone)]
 pub struct PublicErrorMessage(pub String);
 
+/// Stable code attached to a registry error response.
+#[derive(Clone)]
+pub struct PublicErrorCode(pub String);
+
+/// JSON body shared by registry-owned HTTP endpoints and streaming errors.
+#[must_use]
+pub fn error_body(message: &str, code: &str) -> serde_json::Value {
+    serde_json::json!({ "error": message, "reason": message, "code": code })
+}
+
+/// Render an error that has no registry error variant.
+#[must_use]
+pub fn json_error(status: StatusCode, message: &str, code: Option<&str>) -> Response {
+    let fallback = format!(
+        "ERR_PNPR_{}",
+        status
+            .canonical_reason()
+            .unwrap_or("unknown")
+            .replace(' ', "_")
+            .to_ascii_uppercase(),
+    );
+    (status, axum::Json(error_body(message, code.unwrap_or(&fallback)))).into_response()
+}
+
 impl RegistryError {
     /// Whether a failed upstream fetch is a transient *availability* failure —
     /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
@@ -35,6 +59,11 @@ impl RegistryError {
         }
     }
 
+    #[must_use]
+    pub fn code(&self) -> String {
+        format!("ERR_PNPR_{}", self.log_kind().to_ascii_uppercase())
+    }
+
     fn retry_after(&self) -> Option<std::time::Duration> {
         match self {
             RegistryError::UpstreamUnavailable { retry_after, .. } => Some(*retry_after),
@@ -46,7 +75,7 @@ impl RegistryError {
 
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
-        if let Some(kind) = self.package_log_kind() {
+        if let Some(kind) = self.package_log_kind().or_else(|| self.admin_log_kind()) {
             return kind;
         }
         match self {
@@ -64,10 +93,6 @@ impl RegistryError {
             RegistryError::NotFound => "not_found",
             RegistryError::Unauthenticated { .. } => "unauthenticated",
             RegistryError::Forbidden { .. } => "forbidden",
-            RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
-            RegistryError::RulesConfigManaged => "rules_config_managed",
-            RegistryError::PreconditionFailed { .. } => "precondition_failed",
-            RegistryError::AdminConflict { .. } => "admin_conflict",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::PublishRejected { .. } => "publish_rejected",
@@ -84,6 +109,15 @@ impl RegistryError {
             RegistryError::Shared(inner) => inner.log_kind(),
             RegistryError::PasswordChangeCommitted { source, .. } => source.log_kind(),
             _ => self.storage_log_kind(),
+        }
+    }
+
+    fn admin_log_kind(&self) -> Option<&'static str> {
+        match self {
+            RegistryError::RegistriesUnavailable => Some("registries_unavailable"),
+            RegistryError::PreconditionFailed { .. } => Some("precondition_failed"),
+            RegistryError::AdminConflict { .. } => Some("admin_conflict"),
+            _ => None,
         }
     }
 
@@ -107,7 +141,6 @@ impl RegistryError {
             RegistryError::StorageUnavailable { .. } => "storage_unavailable",
             RegistryError::CorruptArchive { .. } => "corrupt_archive",
             RegistryError::Internal { .. } => "internal",
-            RegistryError::InvalidUsersFile { .. } => "invalid_users_file",
             RegistryError::Bcrypt(_) => "bcrypt",
             RegistryError::Sqlite(_) => "sqlite",
             #[cfg(feature = "backend-libsql")]
@@ -135,7 +168,6 @@ impl RegistryError {
             }
             RegistryError::InvalidConfig { .. }
             | RegistryError::Internal { .. }
-            | RegistryError::InvalidUsersFile { .. }
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
             | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -211,7 +243,9 @@ impl RegistryError {
             RegistryError::UpstreamStatus { .. }
             | RegistryError::UpstreamResponse { .. }
             | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
-            RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            RegistryError::UpstreamUnavailable { .. } | RegistryError::RegistriesUnavailable => {
+                StatusCode::SERVICE_UNAVAILABLE
+            }
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
             | RegistryError::ArchiveReclaimed { .. }
@@ -241,8 +275,6 @@ impl RegistryError {
             RegistryError::Unauthenticated { .. } => Some(StatusCode::UNAUTHORIZED),
             RegistryError::Forbidden { .. }
             | RegistryError::PublishRejected { .. }
-            | RegistryError::TeamsConfigManaged { .. }
-            | RegistryError::RulesConfigManaged
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
             | RegistryError::TooManyUsers { .. }
@@ -277,7 +309,11 @@ impl IntoResponse for RegistryError {
             tracing::warn!(err = %self, %error_kind, %status, "request failed");
         }
         let message = self.public_message();
-        let mut response = (status, message.clone()).into_response();
+        let code = self.code();
+        let mut response = json_error(status, &message, Some(&code));
+        response
+            .extensions_mut()
+            .insert(PublicErrorCode(code));
         response
             .extensions_mut()
             .insert(PublicErrorMessage(message));

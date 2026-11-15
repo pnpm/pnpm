@@ -35,7 +35,7 @@ pub use plan::{
     PlannedRelease, ProjectRefIndex, ReleaseCause, ReleasePlan, ReleaseVersion,
     VersioningInvariantCode, VersioningInvariantViolation, WorkspaceProject, assemble_release_plan,
     check_versioning_invariants, index_project_refs, is_dir_ref, materialize_workspace_range,
-    private_project_dirs, to_project_dir,
+    private_project_dirs, to_project_dir, validate_versioning_lanes,
 };
 pub use settings::{
     ChangelogSettings, ChangelogStorage, EpicSettings, ReleaseBumpType, VersioningSettings,

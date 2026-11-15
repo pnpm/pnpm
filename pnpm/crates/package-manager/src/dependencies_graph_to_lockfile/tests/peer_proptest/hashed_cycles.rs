@@ -128,3 +128,42 @@ fn assert_round_trip(workspace: &model::Workspace) {
     assert_eq!(lockfile.importers, restored.importers);
     assert_eq!(lockfile.snapshots, restored.snapshots);
 }
+
+#[test]
+fn fresh_hashed_bindings_do_not_require_subset_recovery() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Workspace};
+    let leaf = PackageVersion { dependencies: vec![], peers: vec![] };
+    let consumer = PackageVersion {
+        dependencies: vec![],
+        peers: (1..=14)
+            .map(|target| Peer {
+                target,
+                range: PeerRange::Any,
+                optional: false,
+                also_dependency: true,
+            })
+            .collect(),
+    };
+    let mut packages = vec![vec![consumer, leaf.clone()]];
+    packages.extend((1..=14).map(|_| vec![leaf.clone(), leaf.clone()]));
+    for bound_count in 0..=14 {
+        let workspace = Workspace {
+            packages: packages.clone(),
+            importers: vec![
+                (0..=bound_count)
+                    .map(|target| Edge { target, major: 1 })
+                    .collect(),
+            ],
+        };
+        let settings = model::Settings {
+            auto_install_peers: false,
+            peers_suffix_max_length: 3,
+            format: LockfileFormat::V13,
+            ..Default::default()
+        };
+        let resolved =
+            resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+        let lockfile = model::lockfile_with_settings(&resolved, &workspace, settings);
+        model::round_trip(&lockfile);
+    }
+}

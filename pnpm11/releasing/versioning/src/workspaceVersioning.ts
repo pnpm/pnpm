@@ -33,6 +33,18 @@ export function resolveWorkspaceVersioning (opts: ResolveWorkspaceVersioningOpti
   return { refs, participants, lanesByDir, fixedGroups, epics }
 }
 
+/**
+ * Validates `versioning.lanes` against `versioning.fixed` so a lane edit can
+ * reject a split fixed group before writing `pnpm-workspace.yaml`.
+ */
+export function validateVersioningLanes (opts: ResolveWorkspaceVersioningOptions): void {
+  const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
+  const participants = collectParticipants(opts.projects, refs, opts)
+  const lanesByDir = resolveLanes(refs, participants, opts.versioning)
+  const fixedGroups = resolveFixedGroups(refs, participants, opts.versioning)
+  validateFixedGroupLanes(fixedGroups, lanesByDir, opts.versioning)
+}
+
 function resolveLanes (
   refs: ProjectRefIndex,
   participants: Map<string, Participant>,

@@ -19,7 +19,7 @@ pub(super) fn recover_hashed_providers(
     let snapshot = snapshots.get(key)?;
     let package = entries.packages?.get(&key.without_peer())?;
 
-    let candidates = peer_candidates_by_name(snapshots, snapshot, package, &key.name)?;
+    let candidates = peer_candidates_by_name(snapshots, snapshot, package, key)?;
     match_candidates(&candidates, &hash_hex)
 }
 
@@ -36,9 +36,10 @@ fn peer_candidates_by_name(
     snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
     snapshot: &SnapshotEntry,
     package: &PackageMetadata,
-    self_name: &PkgName,
+    self_key: &PkgNameVerPeer,
 ) -> Option<Vec<Vec<PkgNameVerPeer>>> {
-    let peers = peer_names_of_snapshot(snapshot, package, self_name);
+    let peers = peer_names_of_snapshot(snapshot, package);
+    let self_identity = self_key.without_peer();
     let transitive_peers: Vec<(PkgName, &str)> = peers
         .iter()
         .filter(|(_, name)| lists_transitive_peer(snapshot, name))
@@ -53,7 +54,15 @@ fn peer_candidates_by_name(
         peers
             .into_iter()
             .map(|(peer, _)| {
-                targets_for_peer(snapshot, &peer, descendant_targets.get(&peer).map(Vec::as_slice))
+                let mut targets = targets_for_peer(
+                    snapshot,
+                    &peer,
+                    descendant_targets.get(&peer).map(Vec::as_slice),
+                );
+                if peer == self_key.name {
+                    targets.retain(|target| target.without_peer() != self_identity);
+                }
+                targets
             })
             .filter(|targets| !targets.is_empty())
             .collect(),
@@ -63,7 +72,6 @@ fn peer_candidates_by_name(
 fn peer_names_of_snapshot<'a>(
     snapshot: &'a SnapshotEntry,
     package: &'a PackageMetadata,
-    self_name: &PkgName,
 ) -> Vec<(PkgName, &'a str)> {
     let mut names: Vec<&str> = package.peer_dependencies
         .iter()
@@ -88,7 +96,7 @@ fn peer_names_of_snapshot<'a>(
         .into_iter()
         .filter_map(|name| {
             let peer = name.parse::<PkgName>().ok()?;
-            (peer != *self_name).then_some((peer, name))
+            Some((peer, name))
         })
         .collect()
 }
@@ -216,9 +224,6 @@ fn match_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
     hash_hex: &str,
 ) -> Option<HashSet<PkgNameVerPeer>> {
-    if !within_combination_limit(candidates) {
-        return None;
-    }
     for mode in [PeerGroups::Full, PeerGroups::Bare] {
         if let Some(matched) = CombinationSearch::new(mode, hash_hex).find(candidates) {
             return Some(matched);
@@ -237,13 +242,6 @@ fn match_candidates(
         return None;
     }
     CombinationSearch::new(PeerGroups::Full, hash_hex).find(&mixed)
-}
-
-fn within_combination_limit(candidates: &[Vec<PkgNameVerPeer>]) -> bool {
-    candidates
-        .iter()
-        .try_fold(1_usize, |count, targets| count.checked_mul(targets.len() + 1))
-        .is_some_and(|count| count <= MAX_COMBINATIONS)
 }
 
 fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<PkgNameVerPeer>> {
@@ -293,6 +291,9 @@ impl<'hash> CombinationSearch<'hash> {
         let mut chosen = Vec::with_capacity(candidates.len());
         // Prefer complete provider sets before spending the budget on omissions.
         for omitted in 0..=candidates.len() {
+            if self.remaining == 0 {
+                break;
+            }
             if let Some(matched) = self.with_omissions(candidates, &mut chosen, omitted) {
                 return Some(matched);
             }
@@ -306,21 +307,25 @@ impl<'hash> CombinationSearch<'hash> {
         chosen: &mut Vec<&'a PkgNameVerPeer>,
         omitted: usize,
     ) -> Option<HashSet<PkgNameVerPeer>> {
-        if self.remaining == 0 || omitted > candidates.len() {
-            return None;
-        }
-        let Some((targets, rest)) = candidates.split_first() else {
-            return self.match_chosen(chosen);
-        };
-        for target in targets.iter().take(self.remaining) {
-            chosen.push(target);
-            let matched = self.with_omissions(rest, chosen, omitted);
-            chosen.pop();
-            if matched.is_some() {
-                return matched;
+        let mut frames = vec![SearchFrame { next_target: 0, omitted, chosen_len: 0 }];
+        while self.remaining > 0 && !frames.is_empty() {
+            let depth = frames.len() - 1;
+            let frame = frames.last_mut().unwrap();
+            chosen.truncate(frame.chosen_len);
+            if frame.omitted > candidates.len() - depth {
+                frames.pop();
+            } else if depth == candidates.len() {
+                frames.pop();
+                if let Some(matched) = self.match_chosen(chosen) {
+                    return Some(matched);
+                }
+            } else if let Some(next) = frame.next(&candidates[depth], chosen) {
+                frames.push(next);
+            } else {
+                frames.pop();
             }
         }
-        if omitted == 0 { None } else { self.with_omissions(rest, chosen, omitted - 1) }
+        None
     }
 
     fn match_chosen(&mut self, chosen: &[&PkgNameVerPeer]) -> Option<HashSet<PkgNameVerPeer>> {
@@ -332,6 +337,31 @@ impl<'hash> CombinationSearch<'hash> {
                     .map(|target| self.mode.provider(target).into_owned())
                     .collect()
             })
+    }
+}
+
+struct SearchFrame {
+    next_target: usize,
+    omitted: usize,
+    chosen_len: usize,
+}
+
+impl SearchFrame {
+    fn next<'a>(
+        &mut self,
+        targets: &'a [PkgNameVerPeer],
+        chosen: &mut Vec<&'a PkgNameVerPeer>,
+    ) -> Option<Self> {
+        let omitted = if let Some(target) = targets.get(self.next_target) {
+            chosen.push(target);
+            self.omitted
+        } else if self.next_target == targets.len() && self.omitted > 0 {
+            self.omitted - 1
+        } else {
+            return None;
+        };
+        self.next_target += 1;
+        Some(Self { next_target: 0, omitted, chosen_len: chosen.len() })
     }
 }
 
@@ -348,11 +378,11 @@ fn subset_matches_hash(chosen: &[&PkgNameVerPeer], mode: PeerGroups, hash_hex: &
 }
 
 impl BoundProviders {
-    /// The providers `key`'s peer suffix names, recovering them from `entries`
-    /// when `key` carries a hashed suffix.
+    /// The providers recorded for `key`, falling back to hashed recovery
+    /// when the snapshot has no recorded bindings for that key.
     #[must_use]
     pub fn of_snapshot(entries: LockfileEntries<'_>, key: &PkgNameVerPeer) -> Self {
-        let providers = Self::from_key(key);
+        let providers = Self::from_recorded_snapshot(entries, key);
         if !providers.is_hashed() {
             return providers;
         }

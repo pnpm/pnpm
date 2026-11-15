@@ -50,12 +50,10 @@ pub(super) fn modules_consistent_with(
     node_linker: NodeLinker,
     included: IncludedDependencies,
 ) -> bool {
-    // A `virtualStoreOnly` install populates the virtual store and stops,
-    // so the modules directory it leaves behind has no importer symlinks,
-    // bins, or hoisted packages. It can never satisfy an ordinary
-    // install, however well its recorded settings line up — the no-op
-    // short-circuit would leave the linking permanently undone.
-    if modules.virtual_store_only == Some(true) && !config.virtual_store_only {
+    // A `virtualStoreOnly` install populates the store and stops, so the
+    // modules directory it leaves behind cannot satisfy an ordinary install,
+    // and an existing modules directory cannot short-circuit `pnpm fetch`.
+    if config.virtual_store_only || modules.virtual_store_only == Some(true) {
         return false;
     }
     modules.included == included && modules_layout_consistent_with(modules, config, node_linker)
@@ -191,17 +189,17 @@ pub(crate) fn modules_layout_consistent_with(
     config: &Config,
     node_linker: NodeLinker,
 ) -> bool {
-    // A `virtualStoreOnly` install (`pnpm fetch`) records empty hoist
-    // patterns because it deliberately did no hoisting. Diffing those
-    // against the follow-up install's real patterns would read as drift
-    // and purge the directory the fetch just populated, so the
-    // comparison is skipped and the follow-up completes the linking
-    // instead.
+    // A `virtualStoreOnly` install (`pnpm fetch`) forces empty hoist
+    // patterns; neither the follow-up install nor a hoisted `fetch`
+    // (which leaves `node_modules` untouched) must read that forced
+    // difference as layout drift and purge `node_modules`.
     // Patterns compare normalized (upstream's `?? []`): `None` and an
     // empty list are the same disabled state, so the pair must not read
     // as layout drift — a purge every install for `hoistPattern: []`
     // projects, and a spurious `*_DIFF` error for `add` / `remove`.
+    let skips_hoisted_tree = config.virtual_store_only && node_linker == NodeLinker::Hoisted;
     let hoist_patterns_match = modules.virtual_store_only == Some(true)
+        || skips_hoisted_tree
         || (normalized_pattern(modules.hoist_pattern.as_deref())
             == normalized_pattern(config.hoist_pattern.as_deref())
             && normalized_pattern(modules.public_hoist_pattern.as_deref())

@@ -13,12 +13,12 @@
 
 use super::AppState;
 use pnpm_transparency_log::NoteSigner;
-use pnpr_config::Config;
+use pnpr_config::{Config, RoutingConfig};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_storage::{
     Storage,
-    metadata::SqlMetadata,
+    database::SqlDatabase,
     transparency_log::{LogId, StoredCheckpoint},
 };
 use std::{
@@ -81,7 +81,7 @@ pub(super) async fn reconcile_configured_logs(storage: &Storage, config: &Config
     if key.is_none() && !storage.has_any_stored_log().await? {
         return Ok(());
     }
-    let logs = candidate_logs(storage.sql_metadata(), config).await?;
+    let logs = candidate_logs(storage.sql_database(), &config.routing).await?;
     for log in logs {
         storage.reconcile_log(&log, key).await?;
     }
@@ -173,8 +173,9 @@ impl Drop for RetryRecovery {
 }
 
 async fn integrate_every_log(state: &AppState, key: &NoteSigner) -> bool {
-    let database = state.inner.storage.sql_metadata();
-    let logs = match candidate_logs(database, &state.inner.config).await {
+    let database = state.inner.storage.sql_database();
+    let routing = state.routing();
+    let logs = match candidate_logs(database, &routing).await {
         Ok(logs) => logs,
         Err(error) => {
             tracing::warn!(%error, "listing the transparency logs to integrate failed");
@@ -208,11 +209,14 @@ async fn integrate_one_log(state: &AppState, log: &LogId, key: &NoteSigner) -> b
     true
 }
 
-async fn candidate_logs(database: &Arc<SqlMetadata>, config: &Config) -> Result<Vec<LogId>> {
-    let mut logs: Vec<LogId> = config.routing.hosted
+async fn candidate_logs(
+    database: &Arc<SqlDatabase>,
+    routing: &RoutingConfig,
+) -> Result<Vec<LogId>> {
+    let mut logs: Vec<LogId> = routing.hosted
         .iter()
         .filter_map(|(name, hosted)| {
-            let ecosystem = config.routing.registries.ecosystem(name)?;
+            let ecosystem = routing.registries.ecosystem(name)?;
             Some(LogId { namespace: hosted.namespace.clone(), ecosystem })
         })
         .collect();

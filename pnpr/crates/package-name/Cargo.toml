@@ -14,7 +14,6 @@ repository.workspace = true
 pnpm-package-name = { workspace = true }
 pnpr-error = { workspace = true }
 derive_more = { workspace = true }
-pep508_rs = { workspace = true }
 serde = { workspace = true }
 strum = { workspace = true }
 

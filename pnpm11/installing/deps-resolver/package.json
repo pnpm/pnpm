@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-resolver",
-  "version": "1102.2.12",
+  "version": "1102.2.13",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -58,6 +58,7 @@
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

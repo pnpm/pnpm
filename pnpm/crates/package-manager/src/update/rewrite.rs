@@ -4,11 +4,11 @@ use super::{
     selectors::{ParsedSelector, insert_update_target, matcher_one, update_target_name},
     tag_version,
 };
-use crate::{
-    manifest_spec_bumps::split_registry_alias, package_manifest_prefix,
-    runtime_specifier::node_runtime_version_spec,
-};
+#[cfg(feature = "runtime-provisioning")]
+use crate::runtime_specifier::node_runtime_version_spec;
+use crate::{manifest_spec_bumps::split_registry_alias, package_manifest_prefix};
 use node_semver::Version;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::{
     normalize_node_runtime_version_specifier, parse_node_specifier,
 };
@@ -258,33 +258,50 @@ pub(super) fn requested_version_rewrite(
 /// `devEngines.runtime`. A version the node resolver answers is recorded
 /// through that resolver's own rule.
 fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> String {
-    // The selector may name the protocol itself (`pnpm update node@tool:22`).
-    let requested = strip_tool_protocol(requested).unwrap_or(requested);
-    let as_requested = || format!("{RUNTIME_PROTOCOL}{requested}");
-    let Some(selector) = node_runtime_version_spec(alias, previous) else {
-        if let Ok(version) = Version::parse(requested)
-            && let Some(declared_range) = strip_tool_protocol(previous)
-        {
-            let range = match infer_range_spec_style(declared_range) {
-                Some(style) => format!("{}{version}", style.range_prefix()),
-                None => requested.to_string(),
-            };
-            return format!("{RUNTIME_PROTOCOL}{range}");
-        }
-        return as_requested();
-    };
-    // A selector naming a release channel the resolver does not know keeps its
-    // text, so the rejection still names the declaration that was written.
-    if parse_node_specifier(selector).is_err() {
-        return previous.to_string();
+    #[cfg(not(feature = "runtime-provisioning"))]
+    {
+        let _ = (alias, previous);
+        format!("{RUNTIME_PROTOCOL}{}", strip_tool_protocol(requested).unwrap_or(requested))
     }
-    let Ok(version) = Version::parse(requested) else {
-        return as_requested();
-    };
-    format!(
-        "{RUNTIME_PROTOCOL}{}",
-        normalize_node_runtime_version_specifier(selector, &version.to_string(), Some(previous)),
-    )
+    #[cfg(feature = "runtime-provisioning")]
+    {
+        // The selector may name the protocol itself (`pnpm update node@tool:22`).
+        let requested = strip_tool_protocol(requested).unwrap_or(requested);
+        let Some(selector) = node_runtime_version_spec(alias, previous) else {
+            return rewrite_runtime_without_node_resolver(requested, previous);
+        };
+        // A selector naming a release channel the resolver does not know keeps its
+        // text, so the rejection still names the declaration that was written.
+        if parse_node_specifier(selector).is_err() {
+            return previous.to_string();
+        }
+        let Ok(version) = Version::parse(requested) else {
+            return format!("{RUNTIME_PROTOCOL}{requested}");
+        };
+        format!(
+            "{RUNTIME_PROTOCOL}{}",
+            normalize_node_runtime_version_specifier(
+                selector,
+                &version.to_string(),
+                Some(previous)
+            ),
+        )
+    }
+}
+
+#[cfg(feature = "runtime-provisioning")]
+fn rewrite_runtime_without_node_resolver(requested: &str, previous: &str) -> String {
+    if let Ok(version) = Version::parse(requested)
+        && let Some(declared_range) = strip_tool_protocol(previous)
+    {
+        let range = match infer_range_spec_style(declared_range) {
+            Some(style) => format!("{}{version}", style.range_prefix()),
+            None => requested.to_string(),
+        };
+        format!("{RUNTIME_PROTOCOL}{range}")
+    } else {
+        format!("{RUNTIME_PROTOCOL}{requested}")
+    }
 }
 /// The declaration an update that does not save may write: only a version the
 /// kept range already admits.
@@ -383,6 +400,13 @@ pub(super) fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRange
     };
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
+#[cfg_attr(
+    not(feature = "runtime-provisioning"),
+    expect(
+        clippy::needless_pass_by_ref_mut,
+        reason = "the runtime channel bump pushes onto `plan`"
+    )
+)]
 pub(super) fn apply_channel_bump_target(
     plan: &mut UpdatePlan,
     name: &str,
@@ -390,16 +414,25 @@ pub(super) fn apply_channel_bump_target(
     previous: &str,
     specifier: String,
 ) -> String {
-    if let Some((channel, _)) =
-        node_runtime_version_spec(name, previous).and_then(|selector| selector.split_once('/'))
-        && let Some(next_selector) = node_runtime_version_spec(name, &specifier)
-        && parse_node_specifier(next_selector).is_ok_and(|parsed| parsed.release_channel != channel)
+    #[cfg(feature = "runtime-provisioning")]
     {
-        let channel_specifier = format!("{RUNTIME_PROTOCOL}{channel}/{next_selector}");
-        plan.bump_targets.push((name.to_string(), group, channel_specifier.clone()));
-        return channel_specifier;
+        if let Some((channel, _)) =
+            node_runtime_version_spec(name, previous).and_then(|selector| selector.split_once('/'))
+            && let Some(next_selector) = node_runtime_version_spec(name, &specifier)
+            && parse_node_specifier(next_selector)
+                .is_ok_and(|parsed| parsed.release_channel != channel)
+        {
+            let channel_specifier = format!("{RUNTIME_PROTOCOL}{channel}/{next_selector}");
+            plan.bump_targets.push((name.to_string(), group, channel_specifier.clone()));
+            return channel_specifier;
+        }
+        specifier
     }
-    specifier
+    #[cfg(not(feature = "runtime-provisioning"))]
+    {
+        let _ = (plan, name, group, previous);
+        specifier
+    }
 }
 
 async fn latest_direct_rewrite(

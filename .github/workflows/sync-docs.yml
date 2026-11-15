@@ -81,7 +81,7 @@ jobs:
         id: website
         working-directory: website
         run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         if: steps.source.outputs.publish == 'true'
         with:
           runtime: node@22

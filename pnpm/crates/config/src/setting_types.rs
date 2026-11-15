@@ -1,6 +1,8 @@
-pub use workspace::{CatalogMode, PackageImportMethod, ResolutionMode};
+pub use workspace::{CatalogMode, PackageImportMethod};
 
-pub use pnpm_resolving_resolver_base::{LinkWorkspacePackages, SaveWorkspaceProtocol, TrustPolicy};
+pub use pnpm_resolving_resolver_base::{
+    LinkWorkspacePackages, ResolutionMode, SaveWorkspaceProtocol, TrustPolicy,
+};
 pub use pnpm_workspace_state::RuntimeOnFail;
 
 use super::{Deserialize, Serialize};
@@ -34,6 +36,15 @@ pub enum ReporterType {
     AppendOnly,
     Ndjson,
     Silent,
+}
+
+/// Which CLI flag one entry in [`Config::filter_order`](crate::Config::filter_order)
+/// came from, preserving the relative order of interleaved `--filter` and
+/// `--filter-prod` flags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterSource {
+    Filter,
+    FilterProd,
 }
 
 impl<'de> Deserialize<'de> for ColorMode {

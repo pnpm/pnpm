@@ -407,7 +407,7 @@ fn registry_delegated_custom_resolution(
     config.store_dir = dir.join("store").into();
     config.fetch_retries = 0;
     config.registry = registry.to_owned();
-    ctx.config = Box::leak(Box::new(config));
+    ctx.config = Arc::new(config);
     ctx.policy.custom_session = Some(Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(
         vec![Arc::new(RegistryDelegatingFetcher { integrity })],
     )));

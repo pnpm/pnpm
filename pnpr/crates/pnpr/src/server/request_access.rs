@@ -1,8 +1,9 @@
 use super::{
-    AppState, Config, HeaderMap, Identity, Next, RegistryError, Request, Response, State, Upstream,
-    authentication, header, identify,
+    AppState, AuthedCaller, HeaderMap, Identity, Next, RegistryError, Request, Response, Upstream,
+    header,
 };
 use axum::response::IntoResponse;
+use pnpr_config::RoutingConfig;
 
 /// Resolve the upstream behind an authorized `/~<name>/` endpoint request.
 ///
@@ -12,12 +13,13 @@ use axum::response::IntoResponse;
 /// `/~<name>/` requests never read or write the shared proxy mirror, so a
 /// private upstream's packuments and tarballs can never leak across the public
 /// path or another upstream.
-pub(super) fn authorized_upstream<'a>(
-    state: &'a AppState,
+pub(super) fn authorized_upstream(
+    state: &AppState,
     identity: &Identity,
     upstream: &str,
-) -> Result<&'a Upstream, RegistryError> {
-    let Some(config) = state.inner.config.routing.upstreams.get(upstream) else {
+) -> Result<Upstream, RegistryError> {
+    let routing = state.routing();
+    let Some(config) = routing.upstreams.get(upstream) else {
         return Err(RegistryError::NotFound);
     };
     // A private upstream registry gates by its `access:` list; a public registry
@@ -34,22 +36,36 @@ pub(super) fn authorized_upstream<'a>(
             resource: format!("upstream {upstream:?}"),
         });
     }
-    state.inner.proxy.upstreams.get(upstream).ok_or_else(|| RegistryError::NotFound)
+    routing.upstream_clients
+        .get(upstream)
+        .cloned()
+        .ok_or_else(|| RegistryError::NotFound)
 }
 
-pub(super) fn revision_source_registry<'a>(state: &'a AppState, source: &str) -> Option<&'a str> {
-    state.inner.config.routing.upstreams.get(source).map(|config| config.url.as_str())
+pub(super) fn revision_source_registry(state: &AppState, source: &str) -> Option<String> {
+    state
+        .routing()
+        .upstreams
+        .get(source)
+        .map(|config| config.url.clone())
 }
 
 /// The disposable cache namespace for an upstream registry's `/~<name>/` route —
-/// the entry precomputed in [`ProxyState::cache_namespaces`](super::state::ProxyState::cache_namespaces), falling back
+/// the entry precomputed in [`RoutingSnapshot::upstream_cache_namespaces`](super::registry_graph::RoutingSnapshot::upstream_cache_namespaces), falling back
 /// to a fresh computation only for a name outside [`pnpr_config::RoutingConfig::upstreams`] (which
 /// the registry dispatch never produces).
 pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> String {
-    state.inner.proxy.cache_namespaces
+    let routing = state.routing();
+    routing.upstream_cache_namespaces
         .get(upstream)
         .cloned()
-        .unwrap_or_else(|| compute_upstream_cache_namespace(&state.inner.config, upstream))
+        .unwrap_or_else(|| {
+            compute_upstream_cache_namespace(
+                &routing,
+                &state.inner.config.resolution_cache_secret,
+                upstream,
+            )
+        })
 }
 
 /// Compute an upstream registry's disposable cache namespace, so its packuments
@@ -73,14 +89,18 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// is integrity-verified, so it uses a *stable* namespace
 /// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
 /// restarts.
-pub(crate) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
-    let ecosystem = config.routing.registries.ecosystem(upstream).unwrap_or_default();
+pub(crate) fn compute_upstream_cache_namespace(
+    routing: &RoutingConfig,
+    cache_secret: &[u8],
+    upstream: &str,
+) -> String {
+    let ecosystem = routing.registries.ecosystem(upstream).unwrap_or_default();
     let local_name = pnpr_registry::Registries::local_name(upstream);
     let canonical = format!("{ecosystem}/{local_name}");
-    let url = config.routing.upstreams
+    let url = routing.upstreams
         .get(upstream)
         .map_or("", |upstream_config| upstream_config.url.as_str());
-    if let Some(upstream_config) = config.routing.upstreams.get(upstream)
+    if let Some(upstream_config) = routing.upstreams.get(upstream)
         && upstream_config.access.is_some()
     {
         // The credential epoch covers the origin URL and every header the
@@ -92,8 +112,7 @@ pub(crate) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) 
             "{url}\0{}",
             pnpr_route::headers_credential_digest(&upstream_config.headers),
         ));
-        let digest =
-            pnpr_route::upstream_cache_digest(&canonical, epoch, &config.resolution_cache_secret);
+        let digest = pnpr_route::upstream_cache_digest(&canonical, epoch, cache_secret);
         return format!("~upstreams/{digest}");
     }
     // Public registry: a stable, secret-free namespace keyed by the registry name
@@ -136,60 +155,52 @@ pub(super) fn require_admin(
     }
 }
 
-pub(super) async fn caller_user_id(
+/// Like [`require_admin`], also admitting the `auth.registryAdmins`: the
+/// callers who may change teams and access lists.
+pub(super) fn require_access_admin(
     state: &AppState,
-    headers: &HeaderMap,
-) -> Result<Option<String>, RegistryError> {
-    let authorization = single_authorization_header(headers)?;
-    let username = match authorization.and_then(authentication::bearer_credentials) {
-        Some(raw) if let Some(user) = state.inner.identity.oidc.session(raw)? => Some(user.user_id),
-        _ => identify(authorization, state.inner.identity.auth.tokens.as_ref()).await?,
-    };
-    if let Some(username) = &username
-        && super::scim::is_deprovisioned(state, username)?
-    {
-        return Err(RegistryError::Unauthenticated {
-            resource: "a deprovisioned account".to_string(),
-        });
+    identity: &Identity,
+    action: &'static str,
+    resource: String,
+) -> Result<(), RegistryError> {
+    if state.inner.config.identity.is_registry_admin(identity) {
+        return Ok(());
     }
-    Ok(username)
+    require_admin(state, identity, action, resource)
 }
 
 pub(super) async fn require_resolver_caller(
-    State(state): State<AppState>,
+    caller: AuthedCaller,
     request: Request,
     next: Next,
 ) -> Response {
-    require_protocol_caller(&state, request, next, "dependency resolution").await
+    require_protocol_caller(caller, request, next, "dependency resolution").await
 }
 
 pub(super) async fn require_artifact_caller(
-    State(state): State<AppState>,
+    caller: AuthedCaller,
     request: Request,
     next: Next,
 ) -> Response {
-    require_protocol_caller(&state, request, next, "shared artifacts").await
+    require_protocol_caller(caller, request, next, "shared artifacts").await
 }
 
 pub(super) async fn require_pipeline_caller(
-    State(state): State<AppState>,
+    caller: AuthedCaller,
     request: Request,
     next: Next,
 ) -> Response {
-    require_protocol_caller(&state, request, next, "pipeline runs").await
+    require_protocol_caller(caller, request, next, "pipeline runs").await
 }
 
 pub(super) async fn require_protocol_caller(
-    state: &AppState,
+    AuthedCaller(identity): AuthedCaller,
     request: Request,
     next: Next,
     resource: &str,
 ) -> Response {
-    match caller_user_id(state, request.headers()).await {
-        Ok(Some(_username)) => next.run(request).await,
-        Ok(None) => {
-            RegistryError::Unauthenticated { resource: resource.to_string() }.into_response()
-        }
+    match require_caller(&identity, resource) {
+        Ok(_) => next.run(request).await,
         Err(error) => error.into_response(),
     }
 }

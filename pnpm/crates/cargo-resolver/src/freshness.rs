@@ -1,10 +1,10 @@
 use crate::{
     metadata::parse_metadata,
-    model::{MetadataDependency, MetadataPackage},
+    model::{MetadataDependency, MetadataPackage, accepts_declared_version},
 };
 use cargo_lock::{Dependency, Lockfile, Package};
 use miette::{IntoDiagnostic, Report, Result, WrapErr};
-use semver::{Version, VersionReq};
+use semver::Version;
 use std::str::FromStr;
 
 /// Check that, for every registry or git dependency a workspace member
@@ -106,16 +106,8 @@ fn accounts_for(declaration: &MetadataDependency, edge: &Dependency) -> bool {
         }
 }
 
-/// A path or git dependency declared without a version appears in the
-/// metadata as `*`. Cargo accepts any version for it, prereleases included,
-/// while semver's `*` rejects prereleases. A registry `*` is a requirement
-/// the manifest spells out, so it keeps semver's rule.
 fn accepts_version(declaration: &MetadataDependency, version: &Version) -> bool {
-    let unversioned = declaration.req == VersionReq::STAR
-        && declaration.source
-            .as_deref()
-            .is_none_or(|source| source.starts_with("git+"));
-    unversioned || declaration.req.matches(version)
+    accepts_declared_version(&declaration.req, declaration.source.as_deref(), version)
 }
 
 fn verify_edge(

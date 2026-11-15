@@ -21,3 +21,30 @@ pub(crate) fn stdin_is_terminal() -> std::io::Result<bool> {
 
 #[cfg(target_family = "wasm")]
 pub(crate) use pnpm_wasm_host::stdin_is_terminal;
+
+/// Whether the process may open an interactive prompt on the terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PromptAvailability {
+    Available,
+    Unavailable,
+}
+
+impl PromptAvailability {
+    pub(crate) fn detect(ci: bool) -> Self {
+        if !ci && !pnpm_config::is_ci() && stdin_is_terminal().unwrap_or(false) {
+            Self::Available
+        } else {
+            Self::Unavailable
+        }
+    }
+
+    pub(crate) fn is_available(self) -> bool {
+        match self {
+            Self::Available => true,
+            Self::Unavailable => false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

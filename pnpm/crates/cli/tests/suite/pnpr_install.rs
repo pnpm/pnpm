@@ -56,18 +56,16 @@ fn start_pnpr_for(registry_urls: &[&str]) -> (String, String) {
         .map(ToString::to_string)
         .collect();
     let server = PnprServer::bind("pnpr");
-    let tokens_path = server.storage.join("tokens.db");
-    let htpasswd_path = server.storage.join("htpasswd");
+    let auth_path = server.storage.join("auth.sqlite");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("token setup runtime");
     let token = runtime.block_on(async {
-        let users = pnpr::UserStore::open(htpasswd_path.clone(), pnpr::MaxUsers::Disabled)
-            .expect("open user store");
+        let users = pnpr::SqliteAuth::open(&auth_path, pnpr::MaxUsers::Disabled)
+            .expect("open pnpr auth database");
         users.create_user("pacquet-test", "password").await.expect("store pnpr test account");
-        let tokens = pnpr::TokenStore::open(tokens_path.clone()).expect("open token store");
-        tokens
+        users
             .issue(
                 &users
                     .account_id("pacquet-test")
@@ -80,8 +78,7 @@ fn start_pnpr_for(registry_urls: &[&str]) -> (String, String) {
     });
 
     let addr = server.serve(move |config| {
-        config.identity.auth.users.file = Some(htpasswd_path);
-        config.identity.auth.tokens.file = Some(tokens_path);
+        config.identity.backend = pnpr::BackendConfig::Sqlite(auth_path);
         config.routing.route_policy.public.extend(
             registry_urls
                 .into_iter()
@@ -170,7 +167,10 @@ impl PnprServer {
                     .expect("pnpr runtime");
                 runtime.block_on(async move {
                     let mut config = pnpr::Config::proxy(addr, storage);
-                    config.http.public_url = format!("http://{addr}");
+                    // The registries it resolves from listen on other ports of
+                    // 127.0.0.1, which pnpr refuses as other services of its own
+                    // host when its public URL names that host too.
+                    config.http.public_url = format!("http://localhost:{}", addr.port());
                     config.routing.route_policy.allowed_private_networks = loopback_networks();
                     configure(&mut config);
                     let listener =
@@ -783,5 +783,6 @@ fn pnpr_done_frame(request: &mockito::Request, mut frame: serde_json::Value) -> 
         policies["trustPolicy"] = Value::Null;
     }
     frame["appliedPolicies"] = policies;
+    frame["lockfileFormat"] = json!("pnpm-lock/9.0");
     format!("{frame}\n").into_bytes()
 }

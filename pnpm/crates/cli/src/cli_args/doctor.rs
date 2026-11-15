@@ -7,10 +7,15 @@
 //! pipeline runs this same command against a freshly published version before
 //! moving its dist-tags, so what gates a release is what ships to users.
 
-use crate::{cli_args::ping::PingArgs, process::Command};
+mod filesystem;
+mod probe_path;
 
+use crate::{cli_args::ping::PingArgs, process::Command};
 use clap::Args;
+use filesystem::check_filesystem_capabilities;
 use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_fs::Host;
+use probe_path::{can_write_to_dir, check_writable_dir, dir_is_in_path, prefetch_config_paths};
 use serde::Serialize;
 use std::{
     fmt::Write as _,
@@ -123,11 +128,15 @@ impl DoctorArgs {
     /// print alongside the outcome, leaving printing and the exit status to
     /// the caller.
     pub async fn run(&self, config: &Config) -> miette::Result<DoctorResult> {
-        let mut checks = vec![check_versions(), check_install_method()];
-        checks.push(check_global_bin_dir(config));
+        prefetch_config_paths(config);
+        let mut checks =
+            vec![check_versions(), check_install_method(), check_global_bin_dir(config)];
         checks.push(check_writable_dir("Cache directory", &config.cache_dir));
         checks.push(check_writable_dir("Store directory", config.store_dir.root()));
-        checks.push(check_filesystem_capabilities(config, self.benchmark));
+        let fs_started = Instant::now();
+        checks.push(
+            check_filesystem_capabilities::<Host>(config).timed(self.benchmark, fs_started),
+        );
         checks.push(self.check_connectivity(config).await);
         checks.push(check_install_smoke_test(self.benchmark));
 
@@ -256,99 +265,6 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
     CheckResult::pass(title, bin_dir.display().to_string())
 }
 
-fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
-    let canonical = dir.canonicalize();
-    path_dirs
-        .iter()
-        .any(|entry| {
-            entry == dir
-                || match (&canonical, entry.canonicalize()) {
-                    (Ok(dir), Ok(entry)) => dir == &entry,
-                    _ => false,
-                }
-        })
-}
-
-fn check_writable_dir(title: &str, dir: &Path) -> CheckResult {
-    if !can_write_to_dir(dir) {
-        return CheckResult::fail(
-            title,
-            format!("no write access to {}", dir.display()),
-            "Fix the directory permissions or point the setting at a writable path.",
-        );
-    }
-    CheckResult::pass(title, dir.display().to_string())
-}
-
-/// Probe which link strategies work from the store's volume, since that is what
-/// determines how packages land in `node_modules` and how fast an install is: a
-/// reflink (copy-on-write) or hardlink is near-free, a plain copy is not.
-fn check_filesystem_capabilities(config: &Config, benchmark: bool) -> CheckResult {
-    let title = "Filesystem";
-    let started = Instant::now();
-    let probe_dir = tempfile::tempdir_in(config.store_dir.root()).or_else(|_| tempfile::tempdir());
-    let Ok(probe_dir) = probe_dir else {
-        return CheckResult::warn(
-            title,
-            "could not create a probe directory",
-            "Check that the store directory and the system temp directory are writable.",
-        );
-    };
-
-    let Ok(capabilities) = probe_link_capabilities(probe_dir.path()) else {
-        return CheckResult::warn(
-            title,
-            "could not write a probe file",
-            "Check that the store directory is writable.",
-        );
-    };
-
-    let available: Vec<&str> = capabilities
-        .iter()
-        .filter(|(_, supported)| *supported)
-        .map(|(name, _)| *name)
-        .collect();
-    let has_cheap_link = capabilities
-        .iter()
-        .any(|(name, supported)| *supported && matches!(*name, "reflink" | "hardlink"));
-
-    let result = if has_cheap_link {
-        CheckResult::pass(title, format!("available: {}", available.join(", ")))
-    } else {
-        CheckResult::warn(
-            title,
-            "only copying is available",
-            "Neither reflink nor hardlink works between the store and this project; installs will copy files and be slower. Put the store on the same filesystem as your projects.",
-        )
-    };
-    result.timed(benchmark, started)
-}
-
-fn probe_link_capabilities(dir: &Path) -> std::io::Result<[(&'static str, bool); 3]> {
-    let source = dir.join("source");
-    fs::write(&source, "pnpm-doctor")?;
-    Ok([
-        ("reflink", reflink_copy::reflink(&source, dir.join("reflink")).is_ok()),
-        ("hardlink", fs::hard_link(&source, dir.join("hardlink")).is_ok()),
-        ("symlink", symlink_file(&source, &dir.join("symlink")).is_ok()),
-    ])
-}
-
-#[cfg(unix)]
-fn symlink_file(source: &Path, link: &Path) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(source, link)
-}
-
-#[cfg(target_os = "wasi")]
-fn symlink_file(source: &Path, link: &Path) -> std::io::Result<()> {
-    pnpm_fs::create_symlink(source, link, false)
-}
-
-#[cfg(windows)]
-fn symlink_file(source: &Path, link: &Path) -> std::io::Result<()> {
-    std::os::windows::fs::symlink_file(source, link)
-}
-
 /// Install a throwaway package as a `file:` dependency, entirely offline, to
 /// confirm this binary can resolve, fetch into the store, and link a dependency
 /// end to end. Catches both classes of broken release the release gate exists
@@ -374,10 +290,9 @@ fn check_install_smoke_test(benchmark: bool) -> CheckResult {
     }
 }
 
-fn run_install_smoke_test(base: &Path) -> Result<(), String> {
+fn write_smoke_test_projects(base: &Path) -> Result<PathBuf, String> {
     let provider = base.join("provider");
     let consumer = base.join("consumer");
-    let store = base.join("store");
     fs::create_dir_all(&provider).map_err(|error| error.to_string())?;
     fs::create_dir_all(&consumer).map_err(|error| error.to_string())?;
     fs::write(provider.join("package.json"), r#"{"name":"pnpm-doctor-fixture","version":"0.0.0"}"#)
@@ -387,15 +302,27 @@ fn run_install_smoke_test(base: &Path) -> Result<(), String> {
         r#"{"name":"pnpm-doctor-consumer","version":"0.0.0","private":true,"dependencies":{"pnpm-doctor-fixture":"file:../provider"}}"#,
     )
     .map_err(|error| error.to_string())?;
+    Ok(consumer)
+}
 
-    // A throwaway store keeps the probe from writing into the real one. The
-    // fixture is a temp directory with no lockfile and no workspace above it,
-    // so nothing here depends on the lockfile or workspace flags.
+fn run_install_smoke_test(base: &Path) -> Result<(), String> {
+    let consumer = write_smoke_test_projects(base)?;
+
+    // Throwaway store and cache directories keep the probe from creating or
+    // mutating the real ones. `--ignore-workspace` and `--no-frozen-lockfile`
+    // isolate the fixture from any `CI=true` environment or ancestor workspace.
     let pnpm = pnpm_executor::current_pnpm_exe().map_err(|error| error.to_string())?;
     let output = Command::new(pnpm)
         .current_dir(&consumer)
-        .args(["install", "--offline", "--ignore-scripts"])
-        .arg(format!("--store-dir={}", store.display()))
+        .args([
+            "install",
+            "--offline",
+            "--ignore-scripts",
+            "--ignore-workspace",
+            "--no-frozen-lockfile",
+        ])
+        .arg(format!("--store-dir={}", base.join("store").display()))
+        .arg(format!("--cache-dir={}", base.join("cache").display()))
         .output()
         .map_err(|error| error.to_string())?;
 
@@ -418,13 +345,6 @@ fn last_line(text: &str) -> String {
         .rfind(|line| !line.trim().is_empty())
         .unwrap_or_default()
         .to_owned()
-}
-
-fn can_write_to_dir(dir: &Path) -> bool {
-    let probe = dir.join(format!(".pnpm-doctor-write-{}", pnpm_fs::process_id()));
-    let written = fs::write(&probe, b"").is_ok();
-    let _ = fs::remove_file(&probe);
-    written
 }
 
 fn render_report(report: &DoctorReport) -> String {

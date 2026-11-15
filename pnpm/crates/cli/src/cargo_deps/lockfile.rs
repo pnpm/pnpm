@@ -209,9 +209,10 @@ pub(super) async fn read_or_resolve_lockfile(
 /// index server-side instead of making this client fetch one index file
 /// per crate in the graph.
 ///
-/// `None` when there is no server to ask, or when the one configured
-/// resolves npm alone: a server that does not serve Cargo resolution
-/// means a local resolve, not a failed install.
+/// `None` when there is no server to ask, when the one configured
+/// resolves npm alone, or when it refuses the request as one it cannot
+/// handle: a server that does not serve this Cargo resolution means a
+/// local resolve, not a failed install.
 pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<String>> {
     let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !config.offline) else {
         return Ok(None);
@@ -227,16 +228,19 @@ pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<
     // use for.
     let metadata = pnpm_cargo_resolver::resolve_inputs(metadata)
         .wrap_err("reduce cargo metadata for the pnpr server")?;
-    client
-        .resolve_cargo(CargoResolveOptions {
-            metadata,
-            registry: config.cargo_index_url().to_string(),
-            authorization: config.auth_headers.for_url(pnpr_server),
-        })
-        .await
-        .into_diagnostic()
-        .wrap_err("resolve Cargo dependencies through the pnpr server")
-        .map(Some)
+    let resolved = client.resolve_cargo(CargoResolveOptions {
+        metadata,
+        registry: config.cargo_index_url().to_string(),
+        authorization: config.auth_headers.for_url(pnpr_server),
+    })
+    .await;
+    match resolved {
+        Err(error) if error.is_unsupported_request() => Ok(None),
+        resolved => resolved
+            .into_diagnostic()
+            .wrap_err("resolve Cargo dependencies through the pnpr server")
+            .map(Some),
+    }
 }
 
 async fn read_cargo_metadata(root_dir: &Path, checkout: Option<&Path>) -> Result<String> {

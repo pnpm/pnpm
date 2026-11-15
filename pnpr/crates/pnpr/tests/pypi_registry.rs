@@ -726,5 +726,71 @@ async fn only_the_owner_uploads_to_a_claimed_project() {
     assert_eq!(upload(alice, "1.1.0").await, StatusCode::OK);
 }
 
+fn owner_request(method: &str, path: &str, token: &str, users: &[&str]) -> Request<Body> {
+    let credentials = BASE64_STANDARD.encode(format!("__token__:{token}"));
+    Request::builder()
+        .method(method)
+        .uri(path)
+        .header(header::AUTHORIZATION, format!("Basic {credentials}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(json!({ "users": users }).to_string()))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn owners_and_admins_change_the_owners_of_a_project() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let alice = issue_token(&auth, "alice").await;
+    let bob = issue_token(&auth, "bob").await;
+    let admin = issue_token(&auth, "administrator").await;
+    let mut config = pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/");
+    config.identity.admins.insert(
+        auth.users
+            .account_id("administrator")
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    let app = router_with_auth(config, auth);
+    let upload = |token: String, version: &'static str| {
+        let app = app.clone();
+        async move {
+            let wheel = common::python_wheel("demo-pkg", version);
+            let filename = format!("demo_pkg-{version}-py3-none-any.whl");
+            let body = wheel_upload("demo-pkg", version, &filename, &wheel);
+            app.oneshot(upload_request(Some(&token), body)).await
+                .unwrap()
+                .status()
+        }
+    };
+    let send = |request: Request<Body>| {
+        let app = app.clone();
+        async move {
+            let response = app.oneshot(request).await.unwrap();
+            let status = response.status();
+            let body = body_bytes(response.into_body()).await;
+            (status, String::from_utf8(body).unwrap())
+        }
+    };
+    assert_eq!(upload(alice.clone(), "1.0.0").await, StatusCode::OK);
+    let owners = "/pypi/owners/demo-pkg";
+
+    let (status, _) = send(owner_request("PUT", owners, &bob, &["bob"])).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, body) = send(owner_request("PUT", owners, &admin, &["bob"])).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(upload(bob.clone(), "1.1.0").await, StatusCode::OK);
+
+    let renamed = "/pypi/~internal/owners/Demo_Pkg";
+    let (status, body) = send(owner_request("DELETE", renamed, &bob, &["alice"])).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(upload(alice, "1.2.0").await, StatusCode::FORBIDDEN);
+    let (status, body) = send(owner_request("GET", owners, &bob, &[])).await;
+    assert_eq!(status, StatusCode::OK);
+    let body: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(body["users"], json!([{ "id": 1, "login": "bob", "name": "bob" }]));
+}
+
 mod metadata;
 mod recovery;

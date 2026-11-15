@@ -1,6 +1,7 @@
 use super::{
-    FsGlobalRemoval, GlobalPackageBinSnapshot, activation::FsRename, check_virtual_shim_conflicts,
-    global_group_config, infer_local_package_alias, replacement_aliases,
+    FsGlobalRemoval, GlobalPackageBinSnapshot, GlobalUpdateMode, RangeSpecStyle, Version,
+    activation::FsRename, apply_runtime_range_bumps, check_virtual_shim_conflicts,
+    global_group_config, has_pnpm_cli_dependency, infer_local_package_alias, replacement_aliases,
     should_replace_existing_package, snapshot_global_package, update_selectors,
 };
 use crate::{
@@ -204,36 +205,57 @@ fn detects_windows_drive_paths() {
 }
 
 #[test]
-fn latest_update_uses_the_latest_tag_only_for_plain_version_dependencies() {
+fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencies() {
     let dependencies = vec![
         ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
         ("local-tarball-pkg".to_string(), "file:/home/user/local-tarball-pkg.tgz".to_string()),
         ("git-pkg".to_string(), "github:user/git-pkg".to_string()),
         ("remote-tarball-pkg".to_string(), "https://example.com/pkg.tgz".to_string()),
         ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("scoped-alias".to_string(), "npm:@scope/pkg@1.0.0".to_string()),
+        ("same-name-npm".to_string(), "npm:^1.0.0".to_string()),
+        ("same-name-exact".to_string(), "npm:1.0.0".to_string()),
         ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
+        ("node".to_string(), "runtime:^20.0.0".to_string()),
+        ("deno".to_string(), "runtime:^1.40.0".to_string()),
+        ("bun".to_string(), "runtime:1.1.0".to_string()),
         ("foo".to_string(), "^1.0.0".to_string()),
         ("bar".to_string(), "next".to_string()),
     ];
     assert_eq!(
-        update_selectors(&dependencies, true, &HashMap::new()),
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &HashMap::new()),
         vec![
             "private-linked-pkg@link:/home/user/private-linked-pkg",
             "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
             "git-pkg@github:user/git-pkg",
             "remote-tarball-pkg@https://example.com/pkg.tgz",
-            "aliased-pkg@npm:other-pkg@^2.0.0",
+            "aliased-pkg@npm:other-pkg@latest",
+            "scoped-alias@npm:@scope/pkg@latest",
+            "same-name-npm@npm:same-name-npm@latest",
+            "same-name-exact@npm:same-name-exact@latest",
             "named-registry-pkg@gh:^3.0.0",
+            "node@runtime:latest",
+            "deno@runtime:latest",
+            "bun@runtime:latest",
             "foo@latest",
             "bar@latest",
         ],
     );
     assert_eq!(
-        update_selectors(&dependencies, false, &HashMap::new()),
+        update_selectors(&dependencies, GlobalUpdateMode::DeclaredRange, &HashMap::new()),
         dependencies
             .iter()
             .map(|(alias, spec)| format!("{alias}@{spec}"))
             .collect::<Vec<String>>(),
+    );
+}
+
+#[test]
+fn latest_update_preserves_node_prerelease_channels() {
+    let dependencies = vec![("node".to_string(), "runtime:22.0.0-rc.1".to_string())];
+    assert_eq!(
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &HashMap::new()),
+        vec!["node@runtime:rc/latest"],
     );
 }
 
@@ -243,13 +265,27 @@ fn latest_update_uses_the_latest_tag_only_for_plain_version_dependencies() {
 fn a_pinned_dependency_is_held_at_its_installed_version() {
     let dependencies = vec![
         ("prerelease".to_string(), "^2.0.0".to_string()),
+        ("aliased".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("same-name-exact".to_string(), "npm:1.0.0".to_string()),
+        ("node".to_string(), "runtime:^22.0.0".to_string()),
         ("stable".to_string(), "^1.0.0".to_string()),
     ];
-    let pins = HashMap::from([("prerelease".to_string(), "2.0.0".to_string())]);
+    let pins = HashMap::from([
+        ("prerelease".to_string(), "2.0.0".to_string()),
+        ("aliased".to_string(), "2.5.0".to_string()),
+        ("same-name-exact".to_string(), "1.5.0".to_string()),
+        ("node".to_string(), "22.4.0".to_string()),
+    ]);
 
     assert_eq!(
-        update_selectors(&dependencies, true, &pins),
-        vec!["prerelease@2.0.0", "stable@latest"],
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &pins),
+        vec![
+            "prerelease@2.0.0",
+            "aliased@npm:other-pkg@2.5.0",
+            "same-name-exact@npm:same-name-exact@1.5.0",
+            "node@runtime:22.4.0",
+            "stable@latest",
+        ],
     );
 }
 
@@ -625,4 +661,78 @@ fn a_group_config_resolves_hoisted_dependencies_from_its_own_install_dir() {
         ),
         "{node_path}",
     );
+}
+
+#[test]
+fn update_selectors_preserve_deno_bun_ranges_and_ignore_non_runtime_tools() {
+    let deps = vec![
+        ("node".to_string(), "runtime:rc/^20.0.0".to_string()),
+        ("deno".to_string(), "runtime:^1.40.0".to_string()),
+        ("bun".to_string(), "runtime:1.1.0".to_string()),
+        ("custom".to_string(), "tool:1.0.0".to_string()),
+    ];
+    let initial = update_selectors(&deps, GlobalUpdateMode::Latest, &HashMap::new());
+    assert_eq!(
+        initial,
+        vec![
+            "node@runtime:rc/latest",
+            "deno@runtime:latest",
+            "bun@runtime:latest",
+            "custom@tool:1.0.0",
+        ],
+    );
+
+    let resolved = HashMap::from([
+        ("node".to_string(), Version::parse("24.0.0-rc.4").expect("semver")),
+        ("deno".to_string(), Version::parse("2.4.2").expect("semver")),
+        ("bun".to_string(), Version::parse("1.2.19").expect("semver")),
+    ]);
+    let bumped = apply_runtime_range_bumps(
+        &deps,
+        &initial,
+        &HashMap::new(),
+        &resolved,
+        RangeSpecStyle::Major,
+    );
+    assert_eq!(
+        bumped,
+        vec![
+            "node@runtime:rc/latest",
+            "deno@runtime:^2.4.2",
+            "bun@runtime:1.2.19",
+            "custom@tool:1.0.0",
+        ],
+    );
+
+    let pins = HashMap::from([
+        ("node".to_string(), "24.0.0".to_string()),
+        ("deno".to_string(), "2.5.0".to_string()),
+    ]);
+    let pinned = update_selectors(&deps, GlobalUpdateMode::Latest, &pins);
+    assert_eq!(
+        pinned,
+        vec![
+            "node@runtime:rc/24.0.0",
+            "deno@runtime:2.5.0",
+            "bun@runtime:latest",
+            "custom@tool:1.0.0",
+        ],
+    );
+}
+
+#[test]
+fn has_pnpm_cli_dependency_detects_exact_npm_spec_and_malformed_union() {
+    let pnpm_exact_npm = GlobalPackageInfo {
+        install_dir: PathBuf::from("/global/v11/pnpm-group"),
+        hash: "hash-pnpm".to_string(),
+        dependencies: vec![("pnpm".to_string(), "npm:12.0.0".to_string())],
+    };
+    assert!(has_pnpm_cli_dependency(&pnpm_exact_npm));
+
+    let aliased_malformed_union = GlobalPackageInfo {
+        install_dir: PathBuf::from("/global/v11/pnpm-union"),
+        hash: "hash-pnpm-union".to_string(),
+        dependencies: vec![("foo".to_string(), "npm:pnpm@9||".to_string())],
+    };
+    assert!(has_pnpm_cli_dependency(&aliased_malformed_union));
 }

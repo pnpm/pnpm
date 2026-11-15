@@ -18,6 +18,9 @@ pub use sections::{
     decided_allow_builds,
 };
 pub use settings::{MacosBackupSettings, NodePackageMapSettings, WorkspaceSettings};
+pub use structured_validation::{
+    YamlConfigTarget, render_yaml_top_level_field, validate_structured_setting,
+};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
@@ -36,7 +39,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use package_configs::PackageConfigsSetting;
-use pnpm_env_replace::{SystemEnv, env_replace_lossy, placeholder_ranges};
+use pnpm_env_replace::{SentinelPlaceholders, SystemEnv, env_replace_lossy};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::{StoreDir, StoreIndexFormat};
@@ -421,6 +424,8 @@ mod tests;
 
 mod sections;
 
+mod structured_validation;
+
 mod validation;
 
 mod permissions;
@@ -432,9 +437,9 @@ use env::expand_home_prefix;
 
 mod environment_values;
 use environment_values::{
-    Placeholder, drop_placeholders, has_env_placeholder, no_proxy_scalar, resolvable_placeholders,
-    resolve_placeholders, substitute_json_string, substitute_optional_inner_string,
-    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
+    DocumentPlaceholders, Placeholder, document_placeholders, has_env_placeholder, no_proxy_scalar,
+    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
+    substitute_optional_string_map, substitute_registry_entries,
 };
 
 mod apply;

@@ -1,31 +1,23 @@
 use super::{
     IgnoredAny, IndexMap, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_SETTINGS, Path,
-    RemoteSideEffectsCacheSettings, SCHEMA_DIRECTIVE_KEY, SideEffectsCacheSetting, TaskSettings,
-    UnrecognizedSettings, WorkspaceKeyIssues, WorkspaceSettings, is_camel_case,
-    is_known_setting_key, is_refused_by_a_project_manifest, registries,
+    RemoteSideEffectsCacheSettings, SCHEMA_DIRECTIVE_KEY, SentinelPlaceholders,
+    SideEffectsCacheSetting, TaskSettings, UnrecognizedSettings, WorkspaceKeyIssues,
+    WorkspaceSettings, is_camel_case, is_known_setting_key, is_refused_by_a_project_manifest,
+    registries,
 };
 
 impl WorkspaceSettings {
-    /// Reject a `registries` map pnpm would read as something other than what
-    /// it says. See [`registries::validate`] for the rules.
-    ///
-    /// Checked after parsing rather than in a `Deserialize` impl on purpose:
-    /// `serde_saphyr` renders the offending source line verbatim under its
-    /// errors, so rejecting at parse time would print the very credential
-    /// being rejected into the terminal and any CI log.
-    /// Validate the sections the checks below cover. With `skip_invalid`, a
-    /// section that fails is left out instead, so one this pnpm rejects does
-    /// not take the file's other settings with it (see
-    /// [`crate::Config::settings_read`]).
-    pub(super) fn validate_sections(
-        &mut self,
-        skip_invalid: bool,
-    ) -> Result<(), LoadWorkspaceYamlError> {
-        if !skip_invalid {
-            self.validate_registries()?;
-            self.validate_tasks()?;
-            return self.validate_pipelines();
-        }
+    /// Validate every post-parse section (`registries`, `tasks`, `pipelines`).
+    pub(super) fn validate_all_sections(&self) -> Result<(), LoadWorkspaceYamlError> {
+        self.validate_registries()?;
+        self.validate_tasks()?;
+        self.validate_pipelines()
+    }
+
+    /// Clear any section [`Self::validate_all_sections`] rejects so one
+    /// unreadable section does not take the file's other settings with it
+    /// (see [`crate::Config::settings_read`]).
+    pub(super) fn drop_invalid_sections(&mut self) {
         if self.validate_registries().is_err() {
             self.registries = None;
         }
@@ -35,9 +27,15 @@ impl WorkspaceSettings {
         if self.validate_pipelines().is_err() {
             self.pipelines = None;
         }
-        Ok(())
     }
 
+    /// Reject a `registries` map pnpm would read as something other than what
+    /// it says. See [`registries::validate`] for the rules.
+    ///
+    /// Checked after parsing rather than in a `Deserialize` impl on purpose:
+    /// `serde_saphyr` renders the offending source line verbatim under its
+    /// errors, so rejecting at parse time would print the very credential
+    /// being rejected into the terminal and any CI log.
     pub(super) fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
@@ -237,24 +235,19 @@ impl WorkspaceSettings {
         if !Self::may_have_key_issues(text) {
             return issues;
         }
-        let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
-        else {
+        let Some(keys) = parse_present_top_level_keys(text) else {
             return issues;
         };
-        for key in document
-            .iter()
-            .filter(|(_, value)| value.is_some())
-            .map(|(key, _)| key)
-        {
+        for key in keys {
             if key == SCHEMA_DIRECTIVE_KEY {
                 continue;
             }
-            if is_refused_by_a_project_manifest(key) {
-                issues.refused.push(key.clone());
-            } else if !is_known_setting_key(key) {
-                issues.unrecognized.push(key.clone());
-            } else if !is_camel_case(key) {
-                issues.non_camel_case.push(key.clone());
+            if is_refused_by_a_project_manifest(&key) {
+                issues.refused.push(key);
+            } else if !is_known_setting_key(&key) {
+                issues.unrecognized.push(key);
+            } else if !is_camel_case(&key) {
+                issues.non_camel_case.push(key);
             }
         }
         issues
@@ -322,7 +315,7 @@ fn invalid_task_concurrency(task: &str, settings: &TaskSettings) -> Option<LoadW
 /// state directory, so it is held to a portable file name that cannot
 /// leave that directory: the Windows device names are refused whatever
 /// follows their first dot, and a trailing dot would be dropped there.
-fn is_valid_concurrency_group_name(group: &str) -> bool {
+pub(super) fn is_valid_concurrency_group_name(group: &str) -> bool {
     !group.is_empty()
         && !group.ends_with('.')
         && group
@@ -342,4 +335,28 @@ fn is_windows_device_name(stem: &str) -> bool {
         || (stem.len() == 4
             && (stem.starts_with("COM") || stem.starts_with("LPT"))
             && stem.ends_with(|char: char| char.is_ascii_digit() && char != '0'))
+}
+
+fn parse_present_top_level_keys(text: &str) -> Option<Vec<String>> {
+    if let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text) {
+        return Some(
+            document
+                .into_iter()
+                .filter_map(|(key, value)| value.map(|_| key))
+                .collect(),
+        );
+    }
+    let sentinels = SentinelPlaceholders::new(text)?;
+    let replaced = sentinels.replace_all(text);
+    let document = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(&replaced).ok()?;
+    let mut keys = Vec::new();
+    for (mut key, value) in document {
+        if !sentinels.try_restore_in_place(text, &mut key) {
+            return None;
+        }
+        if value.is_some() {
+            keys.push(key);
+        }
+    }
+    Some(keys)
 }

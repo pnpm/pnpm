@@ -19,7 +19,7 @@ export function logId (pkg: LifecyclePackage, stage: string): string {
 export function runEmulated (run: ScriptRun, cb: Callback): void {
   const { cmd, pkg, stage, wd, env, opts } = run
   const execOpts: Parameters<typeof execute>[2] = { cwd: npath.toPortablePath(wd), env }
-  if (opts.stdio === 'pipe') {
+  if (capturesOutput(opts.stdio)) {
     Object.assign(execOpts, createLoggedOutput(run))
   }
   const procError = createProcError(run, cb)
@@ -37,6 +37,11 @@ export function runEmulated (run: ScriptRun, cb: Callback): void {
       opts.log.silly('lifecycle', logId(pkg, stage), 'Returned: code:', code)
       return finish(createExitStatusError(code))
     }, (err: LifecycleError) => finish(err))
+}
+
+function capturesOutput (stdio: ScriptRun['opts']['stdio']): boolean {
+  if (stdio === 'pipe') return true
+  return Array.isArray(stdio) && stdio[1] === 'pipe' && stdio[2] === 'pipe'
 }
 
 function createLoggedOutput (run: ScriptRun): { stdout: PassThrough, stderr: PassThrough } {

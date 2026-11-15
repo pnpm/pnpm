@@ -413,7 +413,15 @@ fn drop_only(names: &[&str]) -> pnpm_resolving_deps_resolver::UpdateTargets {
 
 fn replaces(policy: &UpdateSeedPolicy, lockfile: &Lockfile, name: &str) -> Option<bool> {
     let name: pnpm_lockfile::PkgName = name.parse().expect("parse the package name");
-    policy.replaced_update_targets(lockfile, None).map(|is_replaced| is_replaced(&name, "1.0.0"))
+    policy
+        .replaced_update_targets(lockfile, None)
+        .map(|is_replaced| {
+            is_replaced(pnpm_lockfile_verification::ReplacedCandidate {
+                name: &name,
+                version: "1.0.0",
+                registry_name: None,
+            })
+        })
 }
 
 #[test]
@@ -464,6 +472,67 @@ fn replaced_update_targets_are_none_when_a_locked_version_may_survive() {
     );
 
     assert_eq!(replaces(&UpdateSeedPolicy::KeepAll, &lockfile, "foo"), None);
+}
+
+#[test]
+fn replaced_fresh_lockfile_entries_match_moved_plain_keys_when_all_importers_resolve() {
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+importers:
+  .: {}
+  project-b: {}
+packages:
+  '@corp/moved@1.0.0':
+    resolution: {integrity: sha512-deadbeef}
+  '@corp/moved@legacy:1.0.0':
+    resolution: {integrity: sha512-beefdead}
+  '@other/kept@1.0.0':
+    resolution: {integrity: sha512-cafebabe}
+",
+    )
+    .expect("parse lockfile");
+    let mut config = pnpm_config::Config::new();
+    config.registries_by_scope.insert("@corp".to_string(), "https://new.corp.example/".to_string());
+    config.registries_by_scope.insert("@other".to_string(), "https://other.example/".to_string());
+    let locked_registries = std::collections::BTreeMap::from([
+        ("@corp".to_string(), "https://old.corp.example/".to_string()),
+        ("@other".to_string(), "https://other.example/".to_string()),
+    ]);
+
+    let partial = std::collections::HashSet::from([".".to_string()]);
+    assert!(
+        UpdateSeedPolicy::KeepAll
+            .replaced_fresh_lockfile_entries(
+                &lockfile,
+                Some(&partial),
+                &config,
+                Some(&locked_registries),
+            )
+            .is_none(),
+        "a filtered install leaves untouched importers' entries in place",
+    );
+
+    let is_replaced = UpdateSeedPolicy::KeepAll
+        .replaced_fresh_lockfile_entries(&lockfile, None, &config, Some(&locked_registries))
+        .expect("moved scope route produces a replacement predicate");
+    let moved_name: pnpm_lockfile::PkgName = "@corp/moved".parse().unwrap();
+    let kept_name: pnpm_lockfile::PkgName = "@other/kept".parse().unwrap();
+
+    assert!(is_replaced(pnpm_lockfile_verification::ReplacedCandidate {
+        name: &moved_name,
+        version: "1.0.0",
+        registry_name: None,
+    }));
+    assert!(!is_replaced(pnpm_lockfile_verification::ReplacedCandidate {
+        name: &moved_name,
+        version: "1.0.0",
+        registry_name: Some("legacy"),
+    }));
+    assert!(!is_replaced(pnpm_lockfile_verification::ReplacedCandidate {
+        name: &kept_name,
+        version: "1.0.0",
+        registry_name: None,
+    }));
 }
 
 #[test]

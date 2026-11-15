@@ -998,3 +998,35 @@ test('overrides with leading or trailing whitespace on selectors are trimmed and
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
   })
 })
+
+test.each([
+  [
+    'broad before exact',
+    {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0': '100.1.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': '100.0.0',
+    },
+  ],
+  [
+    'exact before broad',
+    {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0': '100.1.0',
+    },
+  ],
+])('narrower version override wins regardless of declaration order (%s)', async (_label, overrides) => {
+  const project = prepareEmpty()
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+      },
+    },
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ overrides }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+})

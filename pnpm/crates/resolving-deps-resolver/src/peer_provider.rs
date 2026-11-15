@@ -20,10 +20,10 @@
 //! Both pickers go through [`highest_provider_version`]. They differ only
 //! in their tiers and range check:
 //!
-//! | Peer     | Tiers                          | Range check                    |
-//! | -------- | ------------------------------ | ------------------------------ |
-//! | required | the versions this run resolved | `includePrerelease`, one range |
-//! | optional | [`ProviderTiers::optional`]    | strict, every recorded range   |
+//! | Peer | Tiers | Range check |
+//! | --- | --- | --- |
+//! | required | current providers, then importer pins | `includePrerelease`, one range |
+//! | optional | [`ProviderTiers::optional`] | strict, every recorded range |
 
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, path::Path};
@@ -84,6 +84,8 @@ pub struct HoistPeersOptions<'a> {
     /// The versions of each peer that this run has resolved. A satisfying
     /// one wins over a version that only the wanted lockfile holds.
     pub resolved_versions: &'a HashMap<String, HashSet<String>>,
+    /// Peer versions recorded for retained dependencies of this importer.
+    pub locked_versions: &'a HashMap<String, HashSet<String>>,
 }
 
 /// Pick a specifier for each missing required peer. Returns a map of
@@ -131,7 +133,8 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
     if !is_registry_peer_specifier(range) {
         return opts.auto_install_peers.then(|| range.to_string());
     }
-    preferred_version_specifier(opts, selectors, opts.resolved_versions.get(peer_name), range)
+    let tiers = [opts.resolved_versions.get(peer_name), opts.locked_versions.get(peer_name)];
+    preferred_version_specifier(opts, selectors, &tiers, range)
 }
 
 /// `false` for a path or a protocol-prefixed locator. `node_semver` parses
@@ -149,7 +152,7 @@ pub(crate) fn is_registry_peer_specifier(range: &str) -> bool {
 fn preferred_version_specifier(
     opts: &HoistPeersOptions<'_>,
     selectors: &VersionSelectors,
-    resolved_versions: Option<&HashSet<String>>,
+    tiers: &[Option<&HashSet<String>>],
     range: &str,
 ) -> Option<String> {
     let non_versions = non_version_selectors(selectors);
@@ -159,9 +162,10 @@ fn preferred_version_specifier(
         let parsed_range = IncludePrereleaseRange::parse(&range_for_match);
         // A version only the wanted lockfile holds is a weight whose
         // provider has moved on, so it must not outrank one this run resolved.
-        let satisfying = highest_provider_version(selectors, resolved_versions, |_, version| {
-            parsed_range.satisfies(version)
-        });
+        let satisfying =
+            highest_provider_version(selectors, tiers.iter().copied().flatten(), |_, version| {
+                parsed_range.satisfies(version)
+            });
         if let Some((satisfying, _)) = satisfying {
             let mut parts: Vec<&str> = vec![satisfying];
             parts.extend(non_versions.iter().copied());

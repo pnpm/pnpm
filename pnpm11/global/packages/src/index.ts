@@ -14,5 +14,6 @@ export {
   type GlobalPackageInfo,
   type InstalledGlobalPackage,
   isValidGlobalDependencyAlias,
+  readGlobalGroupDependencies,
   scanGlobalPackages,
 } from './scanGlobalPackages.js'

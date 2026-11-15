@@ -94,6 +94,7 @@ impl LegacyDeploySource {
             deploy_dir,
             lockfile_dir: source_dir,
             deployed_project_root: &selected.project.root_dir,
+            references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
         };
         self.rebase_packages(&ctx, selected)?;
         let mut importers = HashMap::new();
@@ -155,7 +156,7 @@ impl LegacyDeploySource {
                 continue;
             }
             let snapshot = workspace_snapshot(importer, ctx, &root)?;
-            for directory in importer_package_dirs(&root, importer) {
+            for directory in importer_package_dirs(&root, importer, ctx.projects_by_path) {
                 let key = relative_file_key(
                     &create_file_url_key(&directory, "", ctx.projects_by_path, None)?,
                     ctx,

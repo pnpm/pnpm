@@ -15,7 +15,6 @@ pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-fs-packlist = { workspace = true }
 pnpm-package-manifest = { workspace = true }
-pnpm-store-dir = { workspace = true }
 
 derive_more = { workspace = true }
 miette = { workspace = true }

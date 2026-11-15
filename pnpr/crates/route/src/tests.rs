@@ -314,6 +314,25 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
     assert!(!context.allows_registry("https://npm.corp.example/@secret/pkg"));
 }
 
+#[test]
+fn validation_refuses_a_public_route_with_an_invalid_field() {
+    for (registry, package) in [("not a url", "@public/*"), ("https://npm.corp.example/", "[")] {
+        let mut config = base_config();
+        config.routing.route_policy.public.push(PublicRoute {
+            registry: Some(registry.to_string()),
+            package: Some(package.to_string()),
+        });
+        let err = super::validate_public_routes(&config.routing.route_policy).unwrap_err();
+        assert!(err.contains("routes.public"), "{err}");
+    }
+    let mut config = base_config();
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some("https://npm.corp.example/".to_string()),
+        package: Some("@public/*".to_string()),
+    });
+    super::validate_public_routes(&config.routing.route_policy).unwrap();
+}
+
 /// The standard bearer token every test upstream uses, and the credential digest
 /// it produces — what a `RouteClass::Proxied` / `PrivateAccessDescriptor::Alias`
 /// for such an upstream carries.

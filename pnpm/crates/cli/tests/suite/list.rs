@@ -585,6 +585,47 @@ fn ls_with_unknown_finder_fails() {
     assert!(stderr.contains("No finder with name no-such-finder is found"), "stderr: {stderr}");
 }
 
+#[test]
+fn finder_returning_empty_string_does_not_match() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "dependencies": { HELLO: "1.0.0", "@pnpm.e2e/abc": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  finders: {
+    emptyForHello: (ctx) => ctx.name === '@pnpm.e2e/abc' ? 'matched abc' : '',
+  },
+};
+",
+    )
+    .expect("write .pnpmfile.cjs");
+    run_ok(&workspace, &["install"]);
+
+    let list_out = run_ok(&workspace, &["list", "--find-by=emptyForHello"]);
+    assert!(list_out.contains("@pnpm.e2e/abc@1.0.0"), "expected abc match: {list_out}");
+    assert!(list_out.contains("matched abc"), "expected finder message: {list_out}");
+    assert!(
+        !list_out.contains(&format!("{HELLO}@1.0.0")),
+        "empty string return must not match: {list_out}",
+    );
+
+    let why_out = run_ok(&workspace, &["why", "--find-by=emptyForHello"]);
+    assert!(why_out.contains("@pnpm.e2e/abc@1.0.0"), "expected abc match in why: {why_out}");
+    assert!(
+        !why_out.contains(&format!("{HELLO}@1.0.0")),
+        "empty string return must not match in why: {why_out}",
+    );
+}
+
 /// Port of upstream's `pnpm list returns correct paths with global
 /// virtual store` (`pnpm/test/list.ts`).
 #[test]
@@ -737,4 +778,5 @@ fn list_accepts_the_global_loglevel_flag() {
     drop(root);
 }
 
+mod local_refs;
 mod workspace;

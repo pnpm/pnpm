@@ -103,6 +103,7 @@ pub fn build_package_snapshot(
     };
 
     let snapshot = SnapshotEntry {
+        recorded_peer_bindings: None,
         id: None,
         dependencies: (!dependencies.is_empty()).then_some(dependencies),
         optional_dependencies: None,

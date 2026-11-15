@@ -11,12 +11,14 @@ use super::{
     paths::{check_ancestors, check_input_directories, validate_relative_path},
 };
 use crate::process::Command;
+use fs_ops::{remove_output_file, replace_output_file};
 use inputs::{HashedFile, compile_globs};
 use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{
     create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file, create_short_hash,
 };
+use pnpm_lockfile::{Lockfile, WantedLockfileSelection};
 use pnpm_workspace_task_scheduler::TaskNode;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -59,17 +61,18 @@ pub struct TaskCache {
     tasks_dir: PathBuf,
     state_dir: PathBuf,
     workspace_root: PathBuf,
-    lockfile_hash: String,
+    lockfile_hashes: Mutex<HashMap<(PathBuf, WantedLockfileSelection), String>>,
     runtime_fingerprint: String,
-    /// Per-project tracked-file hashes, shared by every task of the
-    /// project: enumeration and hashing run once, per-task input specs
-    /// filter the shared list.
+    /// Per-project tracked-file paths from `git ls-files`, shared by every
+    /// task of the project; per-file content hashes live in `file_hashes` so
+    /// excluded or unselected files are never read.
     project_files: Mutex<HashMap<PathBuf, ProjectFiles>>,
+    file_hashes: Mutex<HashMap<PathBuf, Option<String>>>,
 }
 
-/// A project's file set, or why it has none.
+/// A project's tracked-file path list, or why it has none.
 enum ProjectFiles {
-    Hashed(Arc<Vec<HashedFile>>),
+    Tracked(Arc<Vec<String>>),
     Unavailable(InputsUnavailable),
 }
 
@@ -91,16 +94,7 @@ pub enum InputsUnavailable {
     NoGit,
 }
 
-impl ProjectFiles {
-    fn hashes(&self) -> ProjectInputHashes {
-        match self {
-            Self::Hashed(files) => Some(Arc::clone(files)),
-            Self::Unavailable(_) => None,
-        }
-    }
-}
-
-/// The project's tracked-file hashes, or `None` when it has no file set.
+/// Selected input-file hashes, or `None` when the project has no file set.
 type ProjectInputHashes = Option<Arc<Vec<HashedFile>>>;
 
 /// One entry of a task's last-outputs record: a file the previous run or
@@ -114,6 +108,9 @@ struct RecordedFile {
 pub struct TaskKeyInputs<'a> {
     pub node: &'a TaskNode,
     pub settings: Option<&'a TaskSettings>,
+    /// The lockfile directory and wanted-lockfile selection governing this project.
+    pub lockfile_dir: &'a Path,
+    pub lockfile_selection: &'a WantedLockfileSelection,
     /// The cache keys of the tasks this task depends on, sorted.
     pub dependency_keys: &'a [&'a str],
     /// `(stage, body)` of every script the task runs, in run order.
@@ -128,8 +125,6 @@ impl TaskCache {
         fs::create_dir_all(&tasks_dir)
             .and_then(|()| fs::create_dir_all(&state_dir))
             .map_err(|error| miette::miette!("creating the pipeline cache directories: {error}"))?;
-        let lockfile_hash = create_hex_hash_from_file(&workspace_root.join("pnpm-lock.yaml"))
-            .unwrap_or_else(|_| "no-lockfile".to_string());
         // Resolved from the workspace, not the invoking process: with
         // context-aware toolchains (pnpm's own shims included) the
         // runtime is a function of the directory, and a `--dir`
@@ -148,9 +143,10 @@ impl TaskCache {
             tasks_dir,
             state_dir,
             workspace_root: workspace_root.to_path_buf(),
-            lockfile_hash,
+            lockfile_hashes: Mutex::new(HashMap::new()),
             runtime_fingerprint,
             project_files: Mutex::new(HashMap::new()),
+            file_hashes: Mutex::new(HashMap::new()),
         })
     }
 
@@ -380,7 +376,7 @@ fn remove_stale_outputs(
     }
     for recorded in stale {
         validate_output_path(project_dir, &recorded.path)?;
-        fs::remove_file(project_dir.join(&recorded.path)).map_err(|error| error.to_string())?;
+        remove_output_file(&project_dir.join(&recorded.path)).map_err(|error| error.to_string())?;
     }
     Ok(())
 }
@@ -396,16 +392,13 @@ fn copy_cached_outputs(
         let source = stored.entry_dir.join("outputs").join(rel_path);
         let target = project_dir.join(rel_path);
         validate_output_path(project_dir, rel_path)?;
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-        }
-        if let Err(error) = fs::copy(&source, &target) {
-            return Err(format!("copying {rel_path}: {error}"));
-        }
-        record.push(RecordedFile {
-            path: rel_path.clone(),
-            hash: create_hex_hash_from_file(&source).unwrap_or_default(),
-        });
+        replace_output_file(&source, &target)
+            .map_err(|error| format!("copying {rel_path}: {error}"))?;
+        let hash = stored.hashes
+            .get(rel_path)
+            .cloned()
+            .unwrap_or_else(|| create_hex_hash_from_file(&source).unwrap_or_default());
+        record.push(RecordedFile { path: rel_path.clone(), hash });
     }
     Ok(record)
 }
@@ -468,4 +461,5 @@ fn stage_output_files(
     Ok(record)
 }
 
+mod fs_ops;
 mod inputs;

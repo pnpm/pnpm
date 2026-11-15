@@ -182,14 +182,17 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       '.github/workflows/ci.yml': (content: string | null) => syncNodeVersionInWorkflow(content, nodeRuntimeVersion),
       '.github/workflows/release.yml': (content: string | null) => syncNodeVersionInWorkflow(content, nodeRuntimeVersion),
       '.github/workflows/benchmark.yml': (content: string | null) => syncNodeVersionInWorkflow(content, nodeRuntimeVersion),
+      // The standalone `@pnpm/exe` artifacts embed this Node.js version.
+      'scripts/build-artifacts.ts': (content: string | null) =>
+        nodeRuntimeVersion ? replaceVersionLiteral(content, /(const EMBEDDED_RUNTIME = )'node@[^']*'/, `$1'node@${nodeRuntimeVersion}'`) : content,
       // Mirror the bumped npm wrapper versions into the Rust sources their
       // release builds report and verify (see rustCliVersion / pnprVersion).
       'pnpm/crates/config/src/defaults.rs': (content: string | null) =>
-        replaceRustVersion(content, /(pub const PNPM_VERSION: &str = )"[^"]*"/, `$1"${rustCliVersion}"`),
+        replaceVersionLiteral(content, /(pub const PNPM_VERSION: &str = )"[^"]*"/, `$1"${rustCliVersion}"`),
       'pnpr/crates/pnpr/Cargo.toml': (content: string | null) =>
-        replaceRustVersion(content, /^(version\s*=\s*)"[^"]*"/m, `$1"${pnprVersion}"`),
+        replaceVersionLiteral(content, /^(version\s*=\s*)"[^"]*"/m, `$1"${pnprVersion}"`),
       'Cargo.lock': (content: string | null) =>
-        replaceRustVersion(content, /(\[\[package\]\]\nname = "pnpr"\nversion = )"[^"]*"/, `$1"${pnprVersion}"`),
+        replaceVersionLiteral(content, /(\[\[package\]\]\nname = "pnpr"\nversion = )"[^"]*"/, `$1"${pnprVersion}"`),
       // The npm signing keys each product pins, from the one committed list.
       // pnpm keeps trusting the keys npm withdrew; get-pnpm, an installer of
       // current releases only, does not.
@@ -372,12 +375,11 @@ function syncNodeVersionInWorkflow (content: string | null, version: string | un
   return content.replace(new RegExp(`\\b${major}\\.\\d+\\.\\d+\\b`, 'g'), version)
 }
 
-// Rewrites a version literal in a Rust source file to match the npm wrapper.
-// `meta-updater` passes `null` for the packages that don't have the file (only
-// the workspace root does), which are left untouched; a present file that has
-// lost the expected pattern is a hard error so a renamed constant can't
-// silently stop being synced.
-function replaceRustVersion (content: string | null, pattern: RegExp, replacement: string): string | null {
+// Rewrites a version literal in a source file. `meta-updater` passes `null` for
+// the packages that don't have the file, which are left untouched; a present
+// file that has lost the expected pattern is a hard error so a renamed constant
+// can't silently stop being synced.
+function replaceVersionLiteral (content: string | null, pattern: RegExp, replacement: string): string | null {
   if (content == null) return content
   if (!pattern.test(content)) {
     throw new Error(`Pattern ${pattern} not found`)

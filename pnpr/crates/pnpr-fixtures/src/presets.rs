@@ -3,7 +3,7 @@ use pnpr_config::{
     ArtifactsFeature, AuthConfig, BackendConfig, Config, CorsConfig, HostedConfig,
     HostedStoreConfig, LogConfig, OciConfig, OsvConfig, PipelineFeature, RegistryFeature,
     ResolverFeature, RoutePolicy, TrustedProxyHeader, UiConfig, UpstreamConfig, default_cache_dir,
-    default_metadata_path, random_secret,
+    default_database_path,
 };
 use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
@@ -193,6 +193,7 @@ fn http_config(listen: SocketAddr) -> pnpr_config::HttpConfig {
         trusted_proxies: Vec::new(),
         trusted_proxy_header: TrustedProxyHeader::default(),
         request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
+        shutdown_timeout: pnpr_config::HttpConfig::DEFAULT_SHUTDOWN_TIMEOUT,
         metrics: None,
         package_documents: pnpr_config::PackageDocumentsConfig::default(),
     }
@@ -204,32 +205,36 @@ fn local_storage(storage: PathBuf) -> pnpr_config::StorageConfig {
     pnpr_config::StorageConfig {
         cache_dir: default_cache_dir(&storage),
         cache: pnpr_config::CacheConfig::default(),
-        metadata: pnpr_config::MetadataBackend::Sqlite(default_metadata_path(&storage)),
+        database: pnpr_config::DatabaseBackend::Sqlite(default_database_path(&storage)),
         hosted_dir: storage,
         hosted_backend: HostedStoreConfig::Fs,
     }
 }
+
+const MOCK_SECRET: &[u8] = b"pnpm-registry-mock-secret-key-32";
 
 fn with_routing(
     listen: SocketAddr,
     storage: PathBuf,
     routing: pnpr_config::RoutingConfig,
 ) -> Config {
-    let cache_secret = random_secret();
+    let cache_secret: Arc<[u8]> = Arc::from(MOCK_SECRET);
     let oci_secret = pnpr_config::derive_subkey(&cache_secret, b"pnpr OCI token signing v1");
+    let metadata = default_database_path(&storage);
     Config {
         logs: LogConfig::default(),
         osv: OsvConfig::default(),
         resolution_cache_secret: Arc::clone(&cache_secret),
         cache_secret,
         oci_secret,
-        has_configured_secret: false,
+        has_configured_secret: true,
         http: http_config(listen),
         storage: local_storage(storage),
         identity: pnpr_config::IdentityConfig {
             auth: AuthConfig::default(),
-            backend: BackendConfig::Local,
+            backend: BackendConfig::Sqlite(metadata),
             admins: std::collections::BTreeSet::new(),
+            registry_admins: std::collections::BTreeSet::new(),
         },
         features: pnpr_config::Features {
             registry: RegistryFeature::default(),
@@ -238,6 +243,8 @@ fn with_routing(
             pipeline: PipelineFeature::default(),
         },
         routing,
+        graph_source: pnpr_config::GraphSource::Supplied,
+        registry_env: Vec::new(),
         release_records: pnpr_config::ReleaseRecordsConfig::default(),
         gc: pnpr_config::GcConfig::default(),
     }

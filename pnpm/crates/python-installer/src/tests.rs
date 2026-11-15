@@ -84,7 +84,7 @@ async fn python_resolution_is_offloaded_to_the_pnpr_server() {
         .with_header("content-type", "application/x-ndjson")
         .with_body(format!(
             "{}\n",
-            serde_json::json!({ "type": "done", "lockfile": server_lockfile(index) }),
+            serde_json::json!({ "type": "done", "lockfileFormat": "pylock", "lockfile": server_lockfile(index) }),
         ))
         .expect(1)
         .create_async()

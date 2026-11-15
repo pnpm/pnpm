@@ -1,27 +1,28 @@
-use super::{EcosystemUpdateStepOptions, selectors::PythonUpdateSelector};
-use crate::{
-    cli_args::outdated::{
-        OutdatedPackage, OutdatedQuery, TargetVersion,
-        query::{OutdatedDisplayVersions, OutdatedMetadata},
-    },
-    ecosystem_install::{EcosystemWorkspaceInventory, InstallContext, python as eco_python},
+pub(crate) use update::{
+    PythonUpdateTargets, resolve_python_update_targets, update_python_projects,
+    validate_explicit_python_requests,
 };
-use miette::{Result, bail};
+
+mod update;
+
+use super::{EcosystemUpdateStepOptions, selectors::PythonUpdateSelector};
+use crate::cli_args::outdated::{
+    OutdatedPackage, OutdatedQuery, TargetVersion,
+    query::{OutdatedDisplayVersions, OutdatedMetadata},
+};
+use miette::Result;
 use pep440_rs::Version as Pep440Version;
 use pnpm_config::Config;
-use pnpm_install_coordinator::InstallPlan;
 use pnpm_matcher::Matcher;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_python_installer::{
-    DeclaredPythonDep, PackageName, PythonDependencyGroup, UpdateOptions, declared_dependencies,
-    locked_versions, lockfile_dir_for, plan_update, project_name, resolve_target_version,
+    DeclaredPythonDep, LockedPythonPackages, PackageName, PythonDependencyGroup, PythonIndexCache,
+    declared_dependencies, lockfile_dir_for, project_name,
 };
-use pnpm_reporter::Reporter;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
-    str::FromStr,
+    path::Path,
 };
 
 pub(crate) struct PythonUpdateOptions<'a> {
@@ -39,13 +40,14 @@ pub(crate) fn python_project_name(project_dir: &Path) -> Option<String> {
 
 pub(crate) fn has_matching_python_deps(
     project_dir: &Path,
+    workspace_root: Option<&Path>,
     query: &OutdatedQuery<'_>,
 ) -> Result<bool> {
     let pyproject = project_dir.join("pyproject.toml");
     if !pyproject.is_file() {
         return Ok(false);
     }
-    Ok(declared_dependencies(&pyproject)?
+    Ok(declared_dependencies(&pyproject, workspace_root)?
         .into_iter()
         .any(|dep| {
             query.include_direct.contains(&map_python_group(dep.group))
@@ -59,13 +61,16 @@ pub(crate) fn has_python_lockfile(project_dir: &Path, workspace_root: Option<&Pa
 
 pub(crate) fn declared_python_dep_names(
     project_dir: &Path,
+    workspace_root: Option<&Path>,
     include: &[DependencyGroup],
 ) -> Result<Vec<String>> {
-    Ok(declared_dependencies(&project_dir.join("pyproject.toml"))?
-        .into_iter()
-        .filter(|dep| include.contains(&map_python_group(dep.group)))
-        .map(|dep| dep.name.to_string())
-        .collect())
+    let unique: BTreeSet<String> =
+        declared_dependencies(&project_dir.join("pyproject.toml"), workspace_root)?
+            .into_iter()
+            .filter(|dep| include.contains(&map_python_group(dep.group)))
+            .map(|dep| dep.name.to_string())
+            .collect();
+    Ok(unique.into_iter().collect())
 }
 
 pub(crate) async fn collect_python_outdated(
@@ -74,46 +79,82 @@ pub(crate) async fn collect_python_outdated(
     query: &OutdatedQuery<'_>,
     config: &Config,
     http_client: &ThrottledClient,
+    index_cache: &PythonIndexCache,
 ) -> Result<Vec<OutdatedPackage>> {
     if !config.python.enabled {
         return Ok(Vec::new());
     }
+    let workspace_root = config.workspace_dir.as_deref();
     let pyproject_path = project_dir.join("pyproject.toml");
-    let declared = declared_dependencies(&pyproject_path)?;
+    let declared = declared_dependencies(&pyproject_path, workspace_root)?;
     if declared.is_empty() {
         return Ok(Vec::new());
     }
-    let pylock_path =
-        lockfile_dir_for(config.workspace_dir.as_deref(), project_dir).join("pylock.toml");
+    let pylock_path = lockfile_dir_for(workspace_root, project_dir).join("pylock.toml");
     if !pylock_path.is_file() {
         return Ok(Vec::new());
     }
-    let locked = locked_versions(&pylock_path)?;
-    let mut outdated = Vec::new();
+    let locked = LockedPythonPackages::read(&pylock_path)?;
+    let ctx = OutdatedPythonContext { locked: &locked, query, config, http_client, index_cache };
+    let mut indices = BTreeMap::new();
+    let mut merged = Vec::new();
     for dep in declared {
         let group = map_python_group(dep.group);
-        let name_str = dep.name.to_string();
-        if !query.include_direct.contains(&group) || !query.matches_name(&name_str) {
+        if !query.include_direct.contains(&group) || !query.matches_name(dep.name.as_ref()) {
             continue;
         }
-        if let Some(pkg) = resolve_outdated_python_dep(
-            &dep,
-            group,
-            &locked,
-            workspace_name.as_deref(),
-            query,
-            config,
-            http_client,
-        )
-        .await?
-        {
-            outdated.push(pkg);
-        }
+        collect_outdated_for_dep(&dep, group, &ctx, &mut indices, &mut merged).await?;
     }
-    Ok(outdated)
+    Ok(merged
+        .into_iter()
+        .map(|entry| into_outdated_package(&entry, workspace_name.as_deref()))
+        .collect())
 }
 
-fn map_python_group(group: PythonDependencyGroup) -> DependencyGroup {
+struct OutdatedPythonContext<'a> {
+    locked: &'a LockedPythonPackages,
+    query: &'a OutdatedQuery<'a>,
+    config: &'a Config,
+    http_client: &'a ThrottledClient,
+    index_cache: &'a PythonIndexCache,
+}
+
+struct ResolvedDepTargets {
+    wanted: Option<Pep440Version>,
+    latest: Option<Pep440Version>,
+}
+
+type MergedOutdatedKey = (PythonDependencyGroup, PackageName, Pep440Version);
+
+struct MergedPythonOutdated {
+    name: PackageName,
+    group: DependencyGroup,
+    current: Pep440Version,
+    wanted: Pep440Version,
+    target: Pep440Version,
+}
+
+async fn collect_outdated_for_dep(
+    dep: &DeclaredPythonDep,
+    group: DependencyGroup,
+    ctx: &OutdatedPythonContext<'_>,
+    indices: &mut BTreeMap<MergedOutdatedKey, usize>,
+    merged: &mut Vec<MergedPythonOutdated>,
+) -> Result<()> {
+    let matching = ctx.locked.matching_versions(&dep.requirement);
+    if matching.is_empty() {
+        return Ok(());
+    }
+    let Some(targets) = resolve_dep_targets(dep, ctx).await? else {
+        return Ok(());
+    };
+    for current in matching {
+        record_merged_outdated(dep, group, current, &targets, indices, merged);
+    }
+    Ok(())
+}
+
+pub(super) fn map_python_group(group: PythonDependencyGroup) -> DependencyGroup {
     match group {
         PythonDependencyGroup::Prod => DependencyGroup::Prod,
         PythonDependencyGroup::Optional => DependencyGroup::Optional,
@@ -121,55 +162,90 @@ fn map_python_group(group: PythonDependencyGroup) -> DependencyGroup {
     }
 }
 
-async fn resolve_outdated_python_dep(
+async fn resolve_dep_targets(
     dep: &DeclaredPythonDep,
-    group: DependencyGroup,
-    locked: &BTreeMap<PackageName, Pep440Version>,
-    workspace_name: Option<&str>,
-    query: &OutdatedQuery<'_>,
-    config: &Config,
-    http_client: &ThrottledClient,
-) -> Result<Option<OutdatedPackage>> {
-    let Some(current) = locked.get(&dep.name) else {
-        return Ok(None);
-    };
-    let wanted = resolve_target_version(config, http_client, &dep.requirement, true)
-        .await?
-        .unwrap_or_else(|| current.clone());
-    let target = match query.target_version {
-        TargetVersion::WithinRange => wanted.clone(),
+    ctx: &OutdatedPythonContext<'_>,
+) -> Result<Option<ResolvedDepTargets>> {
+    let wanted =
+        ctx.index_cache.resolve_target_version(ctx.config, ctx.http_client, &dep.requirement, true)
+            .await?;
+    let latest = match ctx.query.target_version {
+        TargetVersion::WithinRange => None,
         TargetVersion::Latest => {
-            let Some(latest) =
-                resolve_target_version(config, http_client, &dep.requirement, false).await?
+            let Some(latest) = ctx.index_cache.resolve_target_version(
+                ctx.config,
+                ctx.http_client,
+                &dep.requirement,
+                false,
+            )
+            .await?
             else {
                 return Ok(None);
             };
-            latest
+            Some(latest)
         }
     };
+    Ok(Some(ResolvedDepTargets { wanted, latest }))
+}
+
+fn record_merged_outdated(
+    dep: &DeclaredPythonDep,
+    group: DependencyGroup,
+    current: &Pep440Version,
+    targets: &ResolvedDepTargets,
+    indices: &mut BTreeMap<MergedOutdatedKey, usize>,
+    merged: &mut Vec<MergedPythonOutdated>,
+) {
+    let wanted = targets.wanted.clone().unwrap_or_else(|| current.clone());
+    let target = targets.latest.clone().unwrap_or_else(|| wanted.clone());
     if target <= *current {
-        return Ok(None);
+        return;
     }
-    let name_str = dep.name.to_string();
-    Ok(Some(OutdatedPackage {
+    let key = (dep.group, dep.name.clone(), current.clone());
+    if let Some(&idx) = indices.get(&key) {
+        let existing = &mut merged[idx];
+        if target > existing.target {
+            existing.target = target;
+        }
+        if wanted > existing.wanted {
+            existing.wanted = wanted;
+        }
+        return;
+    }
+    indices.insert(key, merged.len());
+    merged.push(MergedPythonOutdated {
+        name: dep.name.clone(),
+        group,
+        current: current.clone(),
+        wanted,
+        target,
+    });
+}
+
+fn into_outdated_package(
+    entry: &MergedPythonOutdated,
+    workspace_name: Option<&str>,
+) -> OutdatedPackage {
+    let name_str = entry.name.to_string();
+    OutdatedPackage {
         alias: name_str.clone(),
         package_name: name_str.clone(),
-        belongs_to: group,
-        current: pep440_to_node_version(current),
-        target: pep440_to_node_version(&target),
-        wanted: pep440_to_node_version(&wanted),
+        belongs_to: entry.group,
+        current: pep440_to_node_version(&entry.current),
+        target: pep440_to_node_version(&entry.target),
+        wanted: pep440_to_node_version(&entry.wanted),
         github_action: false,
         metadata: OutdatedMetadata {
             deprecated: None,
             homepage: Some(format!("https://pypi.org/project/{name_str}/")),
             workspace: workspace_name.map(str::to_string),
             display_versions: Some(Box::new(OutdatedDisplayVersions {
-                current: current.to_string(),
-                target: target.to_string(),
-                wanted: wanted.to_string(),
+                current: entry.current.to_string(),
+                target: entry.target.to_string(),
+                wanted: entry.wanted.to_string(),
             })),
         },
-    }))
+    }
 }
 
 fn pep440_to_node_version(version: &Pep440Version) -> node_semver::Version {
@@ -188,209 +264,4 @@ fn pep440_to_node_version(version: &Pep440Version) -> node_semver::Version {
         Vec::new()
     };
     node_semver::Version { major, minor, patch, build: Vec::new(), pre_release }
-}
-
-pub(crate) async fn update_python_project<Reporter: self::Reporter + 'static>(
-    project_dir: &Path,
-    context: InstallContext,
-    options: &PythonUpdateOptions<'_>,
-) -> Result<bool> {
-    let config = context.config;
-    if !config.python.enabled {
-        return Ok(false);
-    }
-    let pyproject_path = project_dir.join("pyproject.toml");
-    if !pyproject_path.is_file() {
-        return Ok(false);
-    }
-    let declared = declared_dependencies(&pyproject_path)?;
-    let targets = select_python_targets(&declared, options)?;
-    if options.restrict_to_selectors && targets.is_empty() {
-        return Ok(false);
-    }
-    if !options.restrict_to_selectors && !has_matching_python_group(&declared, options) {
-        return Ok(false);
-    }
-    execute_python_update::<Reporter>(project_dir, context, options, targets).await?;
-    Ok(true)
-}
-
-pub(crate) fn validate_explicit_python_requests(
-    project_dirs: &[PathBuf],
-    requests: &[PythonUpdateSelector],
-) -> Result<()> {
-    let explicit: Vec<&PythonUpdateSelector> = requests
-        .iter()
-        .filter(|req| req.explicit)
-        .collect();
-    if explicit.is_empty() {
-        return Ok(());
-    }
-    let mut all_declared = Vec::new();
-    for dir in project_dirs {
-        let pyproject = dir.join("pyproject.toml");
-        if pyproject.is_file() {
-            all_declared.extend(declared_dependencies(&pyproject)?);
-        }
-    }
-    for req in explicit {
-        let Ok(pkg_name) = PackageName::from_str(&req.name) else {
-            bail!("invalid Python package name `{}`", req.name);
-        };
-        if !all_declared
-            .iter()
-            .any(|dep| dep.name == pkg_name)
-        {
-            bail!("package {} is not a declared dependency in pyproject.toml", req.name);
-        }
-    }
-    Ok(())
-}
-
-fn has_matching_python_group(
-    declared: &[DeclaredPythonDep],
-    options: &PythonUpdateOptions<'_>,
-) -> bool {
-    declared
-        .iter()
-        .any(|dep| {
-            options.step.include_groups.contains(&map_python_group(dep.group))
-                && !options.step.ignore_matcher.is_some_and(|matcher| {
-                    matcher.matches(dep.name.as_ref())
-                })
-        })
-}
-
-fn select_python_targets(
-    declared: &[DeclaredPythonDep],
-    options: &PythonUpdateOptions<'_>,
-) -> Result<BTreeMap<PackageName, Option<String>>> {
-    let mut targets = BTreeMap::new();
-    for dep in declared {
-        if !options.step.include_groups.contains(&map_python_group(dep.group)) {
-            continue;
-        }
-        let dep_name_str = dep.name.to_string();
-        if is_python_dep_excluded(&dep_name_str, options) {
-            continue;
-        }
-        if let Some(req) = find_python_request(&dep.name, options.requests) {
-            let spec = req.version_spec.as_deref().map(normalize_python_spec);
-            targets.insert(dep.name.clone(), spec);
-            continue;
-        }
-        if options.bare_matcher.is_some_and(|matcher| matcher.matches(&dep_name_str))
-            || options.update_all_except_exclusions
-        {
-            targets.insert(dep.name.clone(), None);
-        }
-    }
-    Ok(targets)
-}
-
-fn is_python_dep_excluded(name: &str, options: &PythonUpdateOptions<'_>) -> bool {
-    options.step.ignore_matcher.is_some_and(|matcher| matcher.matches(name))
-        || options.exclusions
-            .iter()
-            .any(|excluded| excluded == name)
-}
-
-fn find_python_request<'a>(
-    name: &PackageName,
-    requests: &'a [PythonUpdateSelector],
-) -> Option<&'a PythonUpdateSelector> {
-    requests
-        .iter()
-        .find(|req| {
-            PackageName::from_str(&req.name).is_ok_and(|request_name| request_name == *name)
-        })
-}
-
-fn normalize_python_spec(spec: &str) -> String {
-    if spec.starts_with(['<', '>', '=', '!', '~']) { spec.to_string() } else { format!("=={spec}") }
-}
-
-async fn execute_python_update<Reporter: self::Reporter + 'static>(
-    project_dir: &Path,
-    context: InstallContext,
-    options: &PythonUpdateOptions<'_>,
-    targets: BTreeMap<PackageName, Option<String>>,
-) -> Result<()> {
-    let config = context.config;
-    let project = pnpm_python_installer::writable_project(project_dir)?;
-    let discovery = discover_python_project(config, &project).await?;
-    let selected = BTreeSet::from([project.clone()]);
-    let update_opts = build_python_update_options(&project, options, targets);
-    let task = plan_update::<Reporter>(context.into(), discovery, selected, update_opts)?;
-    let root = config.workspace_dir.clone().unwrap_or_else(|| project_dir.to_path_buf());
-    InstallPlan::new(root).with_task(task).run().await
-}
-
-async fn discover_python_project(
-    config: &'static Config,
-    project: &Path,
-) -> Result<pnpm_python_installer::Discovery> {
-    match config.workspace_dir.clone() {
-        Some(workspace_root)
-            if pnpm_python_installer::in_declared_workspace(&workspace_root, project) =>
-        {
-            let inventory = EcosystemWorkspaceInventory::new(workspace_root, config);
-            eco_python::discover_around(config, &inventory, project).await
-        }
-        _ => {
-            pnpm_python_installer::discover(config, project, &[project.join("pyproject.toml")])
-                .await
-        }
-    }
-}
-
-fn build_python_update_options(
-    project: &Path,
-    options: &PythonUpdateOptions<'_>,
-    targets: BTreeMap<PackageName, Option<String>>,
-) -> UpdateOptions {
-    let restrict_to_targets =
-        options.restrict_to_selectors || options.step.ignore_matcher.is_some();
-    let targets =
-        if !options.restrict_to_selectors && options.step.ignore_matcher.is_some() {
-            unignored_python_targets(project, options)
-        } else {
-            targets
-        };
-    let groups = [
-        (DependencyGroup::Prod, PythonDependencyGroup::Prod),
-        (DependencyGroup::Optional, PythonDependencyGroup::Optional),
-        (DependencyGroup::Dev, PythonDependencyGroup::Dev),
-    ]
-    .into_iter()
-    .filter_map(|(node_group, py_group)| {
-        options.step.include_groups.contains(&node_group).then_some(py_group)
-    })
-    .collect();
-    UpdateOptions {
-        targets,
-        restrict_to_targets,
-        groups,
-        latest: options.step.latest,
-        no_save: options.step.no_save,
-    }
-}
-
-fn unignored_python_targets(
-    project_dir: &Path,
-    options: &PythonUpdateOptions<'_>,
-) -> BTreeMap<PackageName, Option<String>> {
-    let Ok(declared) = declared_dependencies(&project_dir.join("pyproject.toml")) else {
-        return BTreeMap::new();
-    };
-    declared
-        .into_iter()
-        .filter(|dep| {
-            options.step.include_groups.contains(&map_python_group(dep.group))
-                && !options.step.ignore_matcher.is_some_and(|matcher| {
-                    matcher.matches(dep.name.as_ref())
-                })
-        })
-        .map(|dep| (dep.name, None))
-        .collect()
 }

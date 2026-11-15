@@ -33,7 +33,7 @@ fn an_unknown_executable_name_is_left_untouched() {
 
 fn recursive_from_command_line(parts: &[&str]) -> bool {
     let (command, argv) = prepare_cli_argv(argv(parts));
-    parse_cli_args(command, argv).expect("argv should parse").workspace.recursive_from_command_line
+    parse_cli_args(command, &argv).expect("argv should parse").workspace.recursive_from_command_line
 }
 
 #[test]
@@ -59,6 +59,87 @@ fn rayon_pool_is_the_scaled_parallelism_between_4_and_16_threads() {
 fn a_script_named_help_keeps_its_all_flags() {
     let (_, prepared) = prepare_cli_argv(argv(&["pnpm", "run", "help", "-a", "--all"]));
     assert_eq!(prepared, argv(&["pnpm", "run", "help", "-a", "--all"]));
+}
+
+fn parsed_filter_order(parts: &[&str]) -> Vec<pnpm_config::FilterSource> {
+    let (command, argv) = prepare_cli_argv(argv(parts));
+    parse_cli_args(command, &argv).expect("argv should parse").workspace
+        .selection
+        .filter_order
+}
+
+#[test]
+fn filter_order_preserves_positions_across_subcommand_boundary() {
+    use pnpm_config::FilterSource::{Filter, FilterProd};
+
+    assert_eq!(
+        parsed_filter_order(&[
+            "pnpm",
+            "--filter-prod",
+            "app...",
+            "run",
+            "--filter",
+            "!lib-a",
+            "check"
+        ]),
+        vec![FilterProd, Filter],
+    );
+    assert_eq!(
+        parsed_filter_order(&["pnpm", "--filter-prod=app...", "list", "--filter=!lib"]),
+        vec![FilterProd, Filter],
+    );
+    assert_eq!(
+        parsed_filter_order(&[
+            "pnpm",
+            "-F",
+            "!{packages/*}",
+            "run",
+            "--filter-prod",
+            "app...",
+            "check"
+        ]),
+        vec![Filter, FilterProd],
+    );
+    assert_eq!(
+        parsed_filter_order(&[
+            "pnpm",
+            "--dir=--filter",
+            "--filter-prod",
+            "app...",
+            "run",
+            "-rF",
+            "!lib-a",
+            "check",
+        ]),
+        vec![FilterProd, Filter],
+    );
+    assert_eq!(
+        parsed_filter_order(&["pnpm", "-CF", "--filter-prod", "app...", "list", "-rF!lib-a"]),
+        vec![FilterProd, Filter],
+    );
+    assert_eq!(
+        parsed_filter_order(&[
+            "pnpm",
+            "-rF!{packages/*}",
+            "run",
+            "--filter-prod",
+            "app...",
+            "check"
+        ]),
+        vec![Filter, FilterProd],
+    );
+    assert_eq!(
+        parsed_filter_order(&[
+            "pnpm",
+            "--filter-prod",
+            "app...",
+            "run",
+            "check",
+            "--filter",
+            "!lib-a"
+        ]),
+        vec![FilterProd],
+    );
 }
 
 mod docs_error_codes;

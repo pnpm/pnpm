@@ -164,6 +164,29 @@ test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to
   expect(projectWithoutExtras.entries[0]).toMatch(/\/vendor$/)
 })
 
+test('linkBins() with ownNodePaths writes only the bin\'s own directories to NODE_PATH', async () => {
+  const warn = jest.fn()
+  const modulesDir = path.join(testFixtures.prepare('simple-fixture'), 'node_modules')
+  const binTarget = temporaryDirectory()
+  const binLocation = path.join(binTarget, 'simple')
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths: [path.join(modulesDir, '.pnpm', 'node_modules')] })
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths: [], ownNodePaths: true })
+  const entries = nodePathEntries(fs.readFileSync(binLocation, 'utf8'))
+  expect(entries).toHaveLength(2)
+  expect(entries[0]).toMatch(/\/node_modules\/simple\/node_modules$/)
+  expect(entries[1]).toMatch(/\/node_modules$/)
+
+  fs.appendFileSync(binLocation, '# sentinel\n')
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths: [], ownNodePaths: true })
+  expect(fs.readFileSync(binLocation, 'utf8')).toContain('# sentinel')
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths: [] })
+  expect(nodePathEntries(fs.readFileSync(binLocation, 'utf8'))).toStrictEqual([])
+  await linkBins(modulesDir, binTarget, { warn, ownNodePaths: true })
+  expect(nodePathEntries(fs.readFileSync(binLocation, 'utf8'))).toStrictEqual(entries)
+})
+
 test('linkBins() rewrites a bin whose NODE_PATH lists a former real location of its package', async () => {
   const warn = jest.fn()
   const root = temporaryDirectory()

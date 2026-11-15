@@ -56,7 +56,7 @@ impl StoreVerification {
         &self,
         keys: Vec<String>,
         index: &SharedReadonlyStoreIndex,
-        store_dir: &'static StoreDir,
+        store_dir: &StoreDir,
         verify_integrity: bool,
         files: &SharedVerifiedFilesCache,
     ) {
@@ -68,19 +68,25 @@ impl StoreVerification {
         &self,
         keys: Vec<String>,
         index: &SharedReadonlyStoreIndex,
-        store_dir: &'static StoreDir,
+        store_dir: &StoreDir,
         verify_integrity: bool,
         files: &SharedVerifiedFilesCache,
         batch: usize,
     ) {
-        let task = tokio::spawn(verify_in_batches(
-            Arc::clone(index),
-            store_dir,
-            keys,
-            PrefetchIntegrityCheck::eager_if(verify_integrity),
-            Arc::clone(files),
-            batch,
-        ));
+        let index = Arc::clone(index);
+        let store_dir = store_dir.clone();
+        let task_files = Arc::clone(files);
+        let task = tokio::spawn(async move {
+            verify_in_batches(
+                index,
+                &store_dir,
+                keys,
+                PrefetchIntegrityCheck::eager_if(verify_integrity),
+                task_files,
+                batch,
+            )
+            .await
+        });
         let previous = self.started
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -128,7 +134,7 @@ impl Drop for StoreVerification {
 /// takes effect and where the shared index is unlocked.
 async fn verify_in_batches(
     index: SharedReadonlyStoreIndex,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     keys: Vec<String>,
     check: PrefetchIntegrityCheck,
     files: SharedVerifiedFilesCache,

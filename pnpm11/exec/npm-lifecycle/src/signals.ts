@@ -7,6 +7,7 @@ import type { Writable } from 'node:stream'
 /** A child pnpm relays its signals to. */
 export interface SignalTarget {
   pid?: number
+  watchdog?: ProcessGroupWatchdog
   kill: (signal?: NodeJS.Signals | number) => boolean
 }
 
@@ -94,7 +95,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
     child,
     opts,
     group,
-    watchdog: opts.ownProcessGroup && child.pid != null ? watchProcessGroup(child.pid) : undefined,
+    watchdog: opts.ownProcessGroup && child.pid != null ? child.watchdog ?? watchProcessGroup(child.pid) : undefined,
     interruptedBy: null,
     relayed: false,
     settled: false,
@@ -368,6 +369,64 @@ const watchedLeaders: number[] = []
 let watchdogLifeline: Writable | undefined
 
 /**
+ * The child writes its registration before exec and closes its copy of the
+ * lifeline. Returns `undefined` when no watchdog can be started.
+ */
+export function prepareProcessGroupWatchdog (): PreparedProcessGroupWatchdog | undefined {
+  const lifeline = getWatchdogLifeline()
+  if (lifeline == null) return undefined
+  return {
+    lifeline,
+    watch: (leader) => {
+      watchedLeaders.push(leader)
+      return createProcessGroupWatch(leader)
+    },
+    recover: (leader) => recoverProcessGroupWatchdog(lifeline, leader),
+  }
+}
+
+interface PreparedProcessGroupWatchdog {
+  lifeline: Writable
+  watch: (leader: number) => ProcessGroupWatchdog
+  recover: (leader: number) => Promise<void>
+}
+
+async function recoverProcessGroupWatchdog (lifeline: Writable, leader: number): Promise<void> {
+  if (watchdogLifeline !== lifeline) return flushWatchdogRegistration()
+  try {
+    await writeWatchdogRegistration(lifeline, `+${leader}\n`)
+    return
+  } catch (error: unknown) {
+    const code = errorCode(error)
+    if (code !== 'EPIPE' && code !== 'ERR_STREAM_DESTROYED') throw error
+    if (watchdogLifeline === lifeline) {
+      watchdogLifeline = undefined
+      lifeline.destroy()
+    }
+  }
+  return flushWatchdogRegistration()
+}
+
+async function flushWatchdogRegistration (): Promise<void> {
+  const lifeline = getWatchdogLifeline()
+  if (lifeline != null) await writeWatchdogRegistration(lifeline, '')
+}
+
+function getWatchdogLifeline (): Writable | undefined {
+  if (watchdogLifeline == null || watchdogLifeline.destroyed) startWatchdog()
+  return watchdogLifeline
+}
+
+function writeWatchdogRegistration (lifeline: Writable, line: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    lifeline.write(line, (error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+}
+
+/**
  * Stand watch over the process group led by `leader`.
  *
  * A child in a process group of its own is out of reach of whatever signals
@@ -375,19 +434,19 @@ let watchdogLifeline: Writable | undefined
  * webServer stops the command it started, ends pnpm and leaves the script
  * running, holding the caller's pipes open
  * (https://github.com/pnpm/pnpm/issues/15555). The signal cannot be relayed,
- * so a sh in a group of its own reads a pipe only pnpm writes to, on which
- * pnpm names each group it watches and each group it is done with, and kills
- * the groups still named when the pipe ends. One watchdog serves every group
- * of a pnpm process. Without a sh to run there is no watchdog, and the groups
- * are on their own.
+ * so a sh in a group of its own reads a pipe naming watched and released
+ * groups, and kills the groups still named when the pipe ends. One watchdog
+ * serves every group of a pnpm process. Without a sh to run there is no
+ * watchdog, and the groups are on their own.
  */
 export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
+  const lifeline = getWatchdogLifeline()
   watchedLeaders.push(leader)
-  if (watchdogLifeline == null) {
-    startWatchdog()
-  } else {
-    watchdogLifeline.write(`+${leader}\n`)
-  }
+  lifeline?.write(`+${leader}\n`)
+  return createProcessGroupWatch(leader)
+}
+
+function createProcessGroupWatch (leader: number): ProcessGroupWatchdog {
   let released = false
   return {
     release: () => {
@@ -412,6 +471,12 @@ function startWatchdog (): void {
     detached: true,
     stdio: ['pipe', 'ignore', 'ignore'],
   })
+  // A failed spawn still returns a stdin that cannot be passed to a child.
+  if (watchdog.pid == null) {
+    watchdog.on('error', () => {})
+    watchdogLifeline = undefined
+    return
+  }
   const lifeline = watchdog.stdin!
   watchdogLifeline = lifeline
   const forget = (): void => {

@@ -1,6 +1,6 @@
 use super::{LatencyProxy, LinkProfile, mbps_to_bytes_per_sec};
 use std::{
-    io::{Read as _, Write as _},
+    io::{ErrorKind, Read as _, Write as _},
     net::{TcpListener, TcpStream},
     thread,
     time::{Duration, Instant},
@@ -18,12 +18,22 @@ fn binds_to_requested_listen_addr() {
         socket.write_all(b"pong").expect("write reply");
     });
 
-    let reserved = TcpListener::bind(("127.0.0.1", 0)).expect("reserve listen port");
-    let listen = reserved.local_addr().expect("listen addr");
-    drop(reserved);
-
-    let profile = LinkProfile { one_way: Duration::ZERO, rate_limit: None, slow_start: false };
-    let proxy = LatencyProxy::spawn_on(listen, upstream_addr, profile).expect("spawn proxy");
+    // Another process can claim the port between `drop(reserved)` and the
+    // proxy's bind, so retry that window with a fresh port.
+    let (proxy, listen) = (0..10)
+        .find_map(|_| {
+            let reserved = TcpListener::bind(("127.0.0.1", 0)).expect("reserve listen port");
+            let listen = reserved.local_addr().expect("listen addr");
+            drop(reserved);
+            let profile =
+                LinkProfile { one_way: Duration::ZERO, rate_limit: None, slow_start: false };
+            match LatencyProxy::spawn_on(listen, upstream_addr, profile) {
+                Ok(proxy) => Some((proxy, listen)),
+                Err(error) if error.kind() == ErrorKind::AddrInUse => None,
+                Err(error) => panic!("spawn proxy: {error}"),
+            }
+        })
+        .expect("a free listen port within 10 attempts");
     assert_eq!(proxy.addr, listen);
 
     let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");

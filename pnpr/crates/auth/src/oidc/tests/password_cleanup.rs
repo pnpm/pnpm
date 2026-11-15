@@ -1,11 +1,11 @@
 use super::super::{LoginReturn, OidcState, SessionUser};
-use crate::{AuthState, NewToken, TokenBackend, TokenRecord, TokenStore, UserBackend, UserStore};
+use crate::{AuthState, NewToken, SqliteAuth, TokenBackend, TokenRecord, UserBackend};
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
 use std::sync::Arc;
 
-struct FailedRevocation(TokenStore);
+struct FailedRevocation(Arc<SqliteAuth>);
 
 #[async_trait]
 impl TokenBackend for FailedRevocation {
@@ -27,11 +27,14 @@ impl TokenBackend for FailedRevocation {
     async fn revoke_all_for_user(&self, _id: &str) -> Result<usize> {
         Err(RegistryError::StorageUnavailable { reason: "token store unavailable".to_string() })
     }
+    async fn delete_expired(&self, now: u64) -> Result<usize> {
+        self.0.delete_expired(now).await
+    }
 }
 
 #[tokio::test]
 async fn a_committed_password_error_revokes_browser_sessions_when_token_cleanup_fails() {
-    let users = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let users = Arc::new(SqliteAuth::in_memory(MaxUsers::Unlimited).unwrap().with_bcrypt_cost(4));
     users.create_user("example-user", "old-password").await.unwrap();
     let id = users
         .account_id("example-user")
@@ -39,11 +42,14 @@ async fn a_committed_password_error_revokes_browser_sessions_when_token_cleanup_
         .unwrap()
         .unwrap();
     let hash = users
-        .password_hash("example-user")
+        .credential("example-user")
         .await
         .unwrap()
+        .unwrap()
+        .into_password_hash()
         .unwrap();
-    let auth = AuthState { users, tokens: Arc::new(FailedRevocation(TokenStore::in_memory())) };
+    let tokens = Arc::new(FailedRevocation(Arc::clone(&users)));
+    let auth = AuthState { users, tokens };
     let oidc = OidcState::new(&[], "https://example.test").unwrap();
     let session = oidc
         .issue_session(

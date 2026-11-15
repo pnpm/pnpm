@@ -102,6 +102,42 @@ fn remove_deletes_a_global_node_package_without_a_bin_dir() {
 }
 
 #[test]
+fn remove_matches_leading_v_and_channel_prefixed_global_node_versions() {
+    for (installed, wrong_request, matching_request) in [
+        ("22.14.0", "rc/22", "v22.14.0"),
+        ("22.14.0", "v20", "V22"),
+        ("22.0.0-rc.1", "release/22", "v22.0.0-rc.1"),
+        ("22.0.0-rc.1", "nightly/22.0.0-rc.1", "rc/22.0.0-rc.1"),
+        ("22.0.0-rc.1", "20", "rc/v22.0.0-rc.1"),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let global_pkg_dir = root.path().join("global").join("v11");
+        let install_dir = global_pkg_dir.join("install-node");
+        seed_global_node_package(&install_dir, installed);
+        let hash_link = global_pkg_dir.join("hash-node");
+        pnpm_fs::symlink_dir(&install_dir, &hash_link).unwrap();
+
+        let config: &'static Config = Box::leak(Box::new(Config {
+            global_pkg_dir: Some(global_pkg_dir),
+            global_bin: None,
+            ..Config::default()
+        }));
+
+        let kept =
+            remove_matching_global_node::<SilentReporter>(config, &[wrong_request.to_string()])
+                .unwrap();
+        assert!(!kept, "should not match `{wrong_request}` against `{installed}`");
+        assert!(install_dir.exists());
+
+        let removed =
+            remove_matching_global_node::<SilentReporter>(config, &[matching_request.to_string()])
+                .unwrap();
+        assert!(removed, "expected `{matching_request}` to match `{installed}`");
+        assert!(!install_dir.exists());
+    }
+}
+
+#[test]
 fn listing_node_does_not_need_a_global_bin_dir() {
     let subcommand = args(true, &["list"])
         .subcommand::<SilentReporter>(&Config::default())

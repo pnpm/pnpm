@@ -16,3 +16,19 @@ export function getExtraNodePaths (
   }
   return []
 }
+
+/**
+ * `NODE_PATH` options for bin shims inside a global virtual store slot. Every
+ * project that links the slot shares those shims, so they omit the installing
+ * project's `extraNodePaths` and keep only the bin's own dependency
+ * directories.
+ */
+export function getSlotShimNodePathOptions (
+  { enableGlobalVirtualStore, extraNodePaths }: {
+    enableGlobalVirtualStore?: boolean
+    extraNodePaths?: string[]
+  }
+): { extraNodePaths?: string[], ownNodePaths?: boolean } {
+  if (!enableGlobalVirtualStore) return { extraNodePaths }
+  return { extraNodePaths: [], ownNodePaths: Boolean(extraNodePaths?.length) }
+}

@@ -93,6 +93,7 @@ fn discovery_reuses_nested_providers_with_retained_bindings() {
                 subtree_missing_by_pkg: &None,
                 is_pure: false,
             },
+            &mut Vec::new(),
         );
     }
     assert_eq!(walker.nodes.external_peers.len(), 2);
@@ -109,6 +110,7 @@ fn discovery_reuses_nested_providers_with_retained_bindings() {
             subtree_missing_by_pkg: &None,
             is_pure: false,
         },
+        &mut Vec::new(),
     );
     let refs = HashMap::from_iter([(
         "provider".into(),

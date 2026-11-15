@@ -188,6 +188,7 @@ pub(super) fn check_projects_content(
         wanted,
         linked_ctx: &linked_ctx,
         workspace: crate::install::WorkspaceProjects {
+            peer_children: &crate::install::RecordedPeerChildren::default(),
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
             directory_manifests: &directory_manifests,
@@ -227,7 +228,7 @@ struct ProjectContentCheck<'a> {
     linked_ctx: &'a LinkedPackagesContext<'a>,
     workspace: crate::install::WorkspaceProjects<'a>,
     ignored_optional_matcher: &'a pnpm_matcher::Matcher,
-    transforms: ManifestTransforms<'a>,
+    transforms: ManifestTransforms,
 }
 
 fn project_content_check(
@@ -248,7 +249,7 @@ fn project_content_check(
                 ignored: context.ignored_optional_matcher,
                 frozen_lockfile: false,
             },
-            parsed_overrides: context.transforms.parsed_overrides,
+            overrider: context.transforms.overrider.as_deref(),
         })
     {
         if is_outdated_linked_package(context, (root_dir, manifest), importer, &error) {

@@ -12,7 +12,7 @@ pub(super) struct ResolveOnlyCompletionInputs<'a> {
     pub(crate) mode: crate::install::state_options::CompletionMode,
     pub(crate) peers: crate::install::state_options::PeerIssueLockfiles<'a>,
     pub(super) prefix: &'a str,
-    pub(super) config: &'static Config,
+    pub(super) config: &'a Config,
     pub(super) peer_workspace: PeerReportWorkspace<'a>,
     pub(super) installed_importer_ids: &'a HashSet<String>,
 }
@@ -56,7 +56,7 @@ pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
 #[derive(Clone, Copy)]
 pub(in crate::install) struct MaterializedProjectScriptsInputs<'a, 'selection> {
     pub(crate) request: crate::install::state_options::ProjectScriptSelection<'a, 'selection>,
-    pub(crate) config: &'static Config,
+    pub(crate) config: &'a Config,
     pub(crate) node_linker: NodeLinker,
     pub(crate) workspace_root: &'a Path,
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],

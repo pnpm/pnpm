@@ -374,6 +374,70 @@ describe('shebang with -S', () => {
   })
 })
 
+describe('large bin target', () => {
+  const src = path.resolve(fixtures, 'src.large')
+  const to = path.resolve(fixtures, 'large.shim')
+  /** @type {number} */
+  let bytesReadFromSrc = 0
+  /** @type {Set<number>} */
+  const srcFds = new Set()
+  const countingFs = {
+    ...fs,
+    open (file, ...rest) {
+      const callback = rest.pop()
+      fs.open(file, ...rest, (err, fd) => {
+        if (!err && file === src) srcFds.add(fd)
+        callback(err, fd)
+      })
+    },
+    read (fd, ...rest) {
+      const callback = rest.pop()
+      fs.read(fd, ...rest, (err, bytesRead, buffer) => {
+        if (!err && srcFds.has(fd)) bytesReadFromSrc += bytesRead
+        callback(err, bytesRead, buffer)
+      })
+    },
+    promises: {
+      ...fs.promises,
+      async readFile (file, ...rest) {
+        const content = await fs.promises.readFile(file, ...rest)
+        if (file === src) bytesReadFromSrc += Buffer.byteLength(content)
+        return content
+      },
+    },
+  }
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.writeFile(src, `#!/usr/bin/env node\n${'x'.repeat(4 * 1024 * 1024)}`)
+    return cmdShim(src, to, { createCmdFile: false, fs: countingFs })
+  })
+
+  test('reads only the start of the target to find the shebang', async () => {
+    assert.match(fs.readFileSync(to, 'utf8'), /"\$basedir\/node"/)
+    assert.ok(bytesReadFromSrc <= 1024, `read ${bytesReadFromSrc} bytes of the bin target`)
+  })
+})
+
+describe('bin target returned in short reads', () => {
+  const src = path.resolve(fixtures, 'src.short-reads')
+  const to = path.resolve(fixtures, 'short-reads.shim')
+  const shortReadFs = {
+    ...fs,
+    read (fd, buffer, offset, length, position, callback) {
+      fs.read(fd, buffer, offset, Math.min(length, 3), position, callback)
+    },
+  }
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.writeFile(src, '#!/usr/bin/env node --expose-gc\nconsole.log(1)\n')
+    return cmdShim(src, to, { createCmdFile: false, fs: shortReadFs })
+  })
+
+  test('keeps reading until the shebang line is complete', async () => {
+    assert.match(fs.readFileSync(to, 'utf8'), /exec "\$basedir\/node"  --expose-gc "\$basedir_abs"\/'src\.short-reads'/)
+  })
+})
+
 describe('batch script', () => {
   const src = path.resolve(fixtures, 'src.bat')
   const to = path.resolve(fixtures, 'bat.shim')
@@ -444,6 +508,20 @@ fi
 `
     assert.equal(readShNodePath(shim), "/mnt/c/it's/path")
     assert.equal(isShimNodePath(shim, { first: "/mnt/c/it's/path" }), true)
+  })
+
+  test('matches a NODE_PATH made only of the middle entries', () => {
+    const shim = `
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH='/slot/node_modules/pkg/node_modules:/slot/node_modules'
+else
+  export NODE_PATH='/slot/node_modules/pkg/node_modules:/slot/node_modules':"$NODE_PATH"
+fi
+`
+    const middle = ['/slot/node_modules/pkg/node_modules', '/slot/node_modules']
+    assert.equal(isShimNodePath(shim, { middle, last: [] }), true)
+    assert.equal(isShimNodePath(shim, { middle: ['/other/node_modules'], last: [] }), false)
+    assert.equal(isShimNodePath('#!/bin/sh\n', { middle, last: [] }), false)
   })
 })
 

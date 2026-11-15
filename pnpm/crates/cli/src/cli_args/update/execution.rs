@@ -5,7 +5,10 @@ use super::{
 use crate::{
     cli_args::{
         ecosystem_deps::excludes_only,
-        install::{PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target},
+        install::{
+            PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target,
+            resolves_locally_after,
+        },
     },
     state::command_lockfile,
 };
@@ -32,18 +35,6 @@ fn discovered_workspace_packages(
         .map(Option::flatten)
 }
 
-fn actions_selector_matcher(update_actions: bool, selectors: &[String]) -> Option<Matcher> {
-    update_actions.then(|| github_actions::selector_matcher(selectors)).flatten()
-}
-
-fn filter_package_selectors(packages: &[String], include_github_actions: bool) -> Vec<String> {
-    packages
-        .iter()
-        .filter(|selector| !include_github_actions || !github_actions::is_selector(selector))
-        .cloned()
-        .collect()
-}
-
 struct UpdateInputs {
     include_direct: Vec<DependencyGroup>,
     explicit_groups: pnpm_package_manager::UpdateExplicitGroups,
@@ -51,6 +42,20 @@ struct UpdateInputs {
     lockfile_path: std::path::PathBuf,
     workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
     actions_root: std::path::PathBuf,
+}
+
+impl UpdateInputs {
+    fn action_matcher(&self, selectors: &[String]) -> Option<Matcher> {
+        self.update_actions.then(|| github_actions::selector_matcher(selectors)).flatten()
+    }
+
+    fn package_selectors(&self, selectors: &[String]) -> Vec<String> {
+        if self.update_actions {
+            crate::github_actions::without_action_selectors(selectors)
+        } else {
+            selectors.to_vec()
+        }
+    }
 }
 
 fn update_actions_root(
@@ -80,9 +85,11 @@ impl UpdateArgs {
         let lockfile_path = state.lockfile_path();
         if self.can_delegate_patch_refresh(update_actions, &include_direct) {
             let link = self.pnpr_patch_link(&state, &lockfile_path);
-            if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
-                return run_patch_refresh::<Reporter>(&state, selection.as_ref(), target, link)
-                    .await;
+            if let Some(target) = pnpr_target::<Reporter>(&state, &link).await?
+                && run_patch_refresh::<Reporter>(&state, selection.as_ref(), target, link).await?
+                    == PatchRefresh::Refreshed
+            {
+                return Ok(());
             }
         }
         let workspace_packages = match &selection {
@@ -121,9 +128,9 @@ impl UpdateArgs {
         let action_matcher = if self.selection.interactive {
             github_actions::selector_matcher(&packages)
         } else {
-            actions_selector_matcher(inputs.update_actions, &self.packages)
+            inputs.action_matcher(&self.packages)
         };
-        let packages = filter_package_selectors(&packages, inputs.update_actions);
+        let packages = inputs.package_selectors(&packages);
         let engine_outcome =
             self.run_engine_update_step(&mut state, selection.as_mut(), inputs, &packages).await?;
         let eco_outcome = self.run_ecosystem_update_step::<Reporter>(
@@ -196,14 +203,11 @@ impl UpdateArgs {
         if !updates_all && eco_outcome.remaining_node_selectors.is_empty() {
             return false;
         }
-        if updates_all
-            && eco_outcome.updated_any
-            && selection.is_none()
-            && !state.manifest.path().exists()
-        {
-            return false;
-        }
-        true
+        let has_node_targets = selection.map_or_else(
+            || state.manifest.path().exists(),
+            |selection| !selection.selected_dirs.is_empty(),
+        );
+        !(updates_all && eco_outcome.updated_any && !has_node_targets)
     }
 
     async fn run_ecosystem_update_step<Reporter: self::Reporter + 'static>(
@@ -263,11 +267,14 @@ impl UpdateArgs {
         selection: Option<&InstallFamilySelection>,
         inputs: &UpdateInputs,
     ) -> miette::Result<Option<Vec<String>>> {
-        let packages = filter_package_selectors(&self.packages, inputs.update_actions);
-        if !self.selection.interactive && !self.packages.is_empty() && packages.is_empty() {
+        let packages = inputs.package_selectors(&self.packages);
+        if !self.selection.interactive
+            && inputs.update_actions
+            && crate::github_actions::selects_actions_only(&self.packages, &packages)
+        {
             self.update_github_actions::<Reporter>(
                 inputs,
-                actions_selector_matcher(inputs.update_actions, &self.packages).as_ref(),
+                inputs.action_matcher(&self.packages).as_ref(),
                 state.config,
             )
             .await?;
@@ -369,16 +376,32 @@ impl UpdateArgs {
     }
 }
 
+/// What [`run_patch_refresh`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PatchRefresh {
+    Refreshed,
+    /// The server refused the request, so the update resolves locally.
+    ResolveLocally,
+}
+
+/// Refresh patches through the pnpr server.
 async fn run_patch_refresh<Reporter: self::Reporter + 'static>(
     state: &State,
     selection: Option<&InstallFamilySelection>,
     target: PnprTarget<'_>,
     link: PnprLink<'_>,
-) -> miette::Result<()> {
-    match selection {
+) -> miette::Result<PatchRefresh> {
+    let server = target.server;
+    let refreshed = match selection {
         Some(selection) => {
             install_selected_via_pnpr::<Reporter>(state, target, selection, link).await
         }
         None => install_via_pnpr::<Reporter>(state, target, link).await,
+    };
+    match refreshed {
+        Err(error) if resolves_locally_after::<Reporter>(&error, server) => {
+            Ok(PatchRefresh::ResolveLocally)
+        }
+        refreshed => refreshed.map(|()| PatchRefresh::Refreshed),
     }
 }

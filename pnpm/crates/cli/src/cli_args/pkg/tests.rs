@@ -1,8 +1,10 @@
 use super::{
-    delete_object_value_by_property_path, fix_manifest, get_output,
-    set_object_value_by_property_path,
+    delete_object_value_by_property_path, fix_manifest, get_output, pkg_delete, pkg_fix, pkg_get,
+    pkg_set, set_object_value_by_property_path,
 };
 use serde_json::{Value, json};
+use std::fs;
+use tempfile::tempdir;
 
 #[test]
 fn test_get_single_key() {
@@ -458,4 +460,136 @@ fn test_delete_with_numeric_key_on_object() {
     let mut value = json!({ "123": "number-key" });
     assert!(delete_object_value_by_property_path(&mut value, "[123]").unwrap());
     assert!(value.get("123").is_none());
+}
+
+#[test]
+fn test_pkg_get_does_not_leak_synthetic_runtime_dependencies() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = json!({
+        "name": "test-pkg",
+        "devEngines": {
+            "runtime": {
+                "name": "node",
+                "version": "22.14.0",
+                "onFail": "download",
+            },
+        },
+        "engines": {
+            "runtime": {
+                "name": "node",
+                "version": "22.14.0",
+                "onFail": "download",
+            },
+        },
+    });
+    fs::write(&path, serde_json::to_string_pretty(&raw).unwrap()).unwrap();
+
+    let full: Value = serde_json::from_str(&pkg_get(&path, &[], false).unwrap()).unwrap();
+    assert_eq!(full, raw);
+    assert_eq!(pkg_get(&path, &["devDependencies".to_string()], false).unwrap(), "");
+    assert_eq!(pkg_get(&path, &["dependencies".to_string()], false).unwrap(), "");
+}
+
+#[test]
+fn test_pkg_set_updates_dev_engines_runtime_version() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&json!({
+            "name": "test-pkg",
+            "devEngines": {
+                "runtime": {
+                    "name": "node",
+                    "version": "22.14.0",
+                    "onFail": "download",
+                },
+            },
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    pkg_set(&path, &["devEngines.runtime.version=24.0.0".to_string()], false).unwrap();
+
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(saved["devEngines"]["runtime"]["version"], "24.0.0");
+    assert!(saved.get("devDependencies").is_none());
+}
+
+#[test]
+fn test_pkg_delete_dev_dependencies_preserves_dev_engines_runtime() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let runtime = json!({
+        "name": "node",
+        "version": "22.14.0",
+        "onFail": "download",
+    });
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&json!({
+            "name": "test-pkg",
+            "devDependencies": { "vitest": "^3.0.0" },
+            "devEngines": { "runtime": runtime },
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    pkg_delete(&path, &["devDependencies".to_string()]).unwrap();
+
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert!(saved.get("devDependencies").is_none());
+    assert_eq!(saved["devEngines"]["runtime"], runtime);
+
+    pkg_delete(&path, &["devEngines.runtime".to_string()]).unwrap();
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(saved["devEngines"], json!({}));
+}
+
+#[test]
+fn test_pkg_set_json_preserves_empty_dependency_objects_and_key_order() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    fs::write(
+        &path,
+        "{\n  \"name\": \"test-pkg\",\n  \"devDependencies\": {\n    \"zebra\": \"1.0.0\",\n    \"alpha\": \"1.0.0\"\n  }\n}\n",
+    )
+    .unwrap();
+
+    pkg_set(&path, &["dependencies={}".to_string()], true).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "{\n  \"name\": \"test-pkg\",\n  \"devDependencies\": {\n    \"zebra\": \"1.0.0\",\n    \"alpha\": \"1.0.0\"\n  },\n  \"dependencies\": {}\n}\n",
+    );
+}
+
+#[test]
+fn test_pkg_fix_preserves_dev_engines_runtime_when_removing_invalid_dev_dependencies() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let runtime = json!({
+        "name": "node",
+        "version": "22.14.0",
+        "onFail": "download",
+    });
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&json!({
+            "name": "test-pkg",
+            "devDependencies": "invalid",
+            "devEngines": { "runtime": runtime },
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    pkg_fix(&path).unwrap();
+
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert!(saved.get("devDependencies").is_none());
+    assert_eq!(saved["devEngines"]["runtime"], runtime);
 }
