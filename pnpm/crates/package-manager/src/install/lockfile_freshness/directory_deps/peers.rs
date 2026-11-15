@@ -99,7 +99,7 @@ pub(super) fn check_recorded_peer_specs_match(
         let spec = declared[name.as_str()];
         let recorded_spec = recorded.and_then(|p| p.get(name));
         if recorded_spec.map(String::as_str) == Some(spec)
-            && (!spec.starts_with("catalog:") || dep.catalogs.is_empty())
+            && recorded_catalog_peer_is_unchanged(dep, spec)
         {
             continue;
         }
@@ -117,4 +117,8 @@ pub(super) fn check_recorded_peer_specs_match(
         }
     }
     Ok(())
+}
+
+fn recorded_catalog_peer_is_unchanged(dep: &LocalDepContext<'_>, spec: &str) -> bool {
+    !dep.declared_by_path || !spec.starts_with("catalog:") || dep.catalogs.is_empty()
 }

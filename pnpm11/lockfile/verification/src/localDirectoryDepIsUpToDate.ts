@@ -166,7 +166,7 @@ async function localDirectoryDepIsUpToDateRec (
   // A revisit in the same peer scope is a cycle or a shared dependency that
   // is already being checked.
   if (!markVisited(walk, pkgSnapshot, manifest)) return true
-  if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
+  if (!recordedPeersMatch(ctx, manifest, pkgSnapshot, walk.declaredByPath)) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
     autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
     parentPkgAliases: walk.parentPkgAliases,
@@ -255,14 +255,14 @@ async function applyReadPackageHook (ctx: LocalDirectoryDepContext, declared: De
  * before it recorded every declared peer records only the peers taken without
  * any shadowing, the ones that are not also `dependencies`.
  */
-function recordedPeersMatch (ctx: LocalDirectoryDepContext, manifest: DependencyManifest, pkgSnapshot: PackageSnapshot): boolean {
+function recordedPeersMatch (ctx: LocalDirectoryDepContext, manifest: DependencyManifest, pkgSnapshot: PackageSnapshot, declaredByPath: boolean): boolean {
   const { declared, taken } = getPeerSet(manifest)
   const recorded = pkgSnapshot.peerDependencies ?? {}
   return Object.keys(taken).every((name) => Object.hasOwn(recorded, name)) &&
     Object.keys(recorded).every((name) => {
       const peer = declared[name]
       return peer != null &&
-        peerRangeMatches(ctx, { alias: name, bareSpecifier: peer.version }, recorded[name]) &&
+        peerRangeMatches(ctx, { alias: name, bareSpecifier: peer.version }, recorded[name], declaredByPath) &&
         Boolean(peer.optional) === Boolean(pkgSnapshot.peerDependenciesMeta?.[name]?.optional)
     })
 }
@@ -270,9 +270,11 @@ function recordedPeersMatch (ctx: LocalDirectoryDepContext, manifest: Dependency
 function peerRangeMatches (
   ctx: LocalDirectoryDepContext,
   peer: { alias: string, bareSpecifier: string },
-  recordedRange: string | undefined
+  recordedRange: string | undefined,
+  declaredByPath: boolean
 ): boolean {
   if (recordedRange == null) return false
+  if (!declaredByPath) return recordedRange === peer.bareSpecifier
   return recordedRange === resolveCatalogSpec(ctx, peer)
 }
 
