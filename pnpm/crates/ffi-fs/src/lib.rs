@@ -24,10 +24,10 @@ pub use dir_entries::directory_entry_names;
 pub use dir_handle::set_mode_at;
 #[cfg(unix)]
 pub use dir_handle::{
-    DirectoryAccess, EntryKind, EntryMetadata, create_directory_at, create_file_at,
-    entry_metadata_at, link_at, open_directory_at, open_directory_for_traversal, open_file_at,
-    open_file_at_without_blocking, open_search_directory, read_link_at, remove_directory_at,
-    rename_at, reopen_directory, symlink_at, unlink_at,
+    DirectoryAccess, EntryKind, EntryMetadata, can_write_and_search, create_directory_at,
+    create_file_at, entry_metadata_at, link_at, open_directory_at, open_directory_for_traversal,
+    open_file_at, open_file_at_without_blocking, open_search_directory, read_link_at,
+    remove_directory_at, rename_at, reopen_directory, symlink_at, unlink_at,
 };
 pub use exchange::exchange_dirents;
 #[cfg(unix)]

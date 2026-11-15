@@ -349,6 +349,26 @@ fn entry_time(seconds: libc::time_t, nanoseconds: libc::c_long) -> SystemTime {
         .unwrap_or(SystemTime::UNIX_EPOCH)
 }
 
+/// Whether the calling user may write to and search `path`.
+///
+/// Asked of the effective user, which is who a write would be permitted
+/// for, rather than the real one that comparing a `stat` against an id
+/// would describe. A path that does not exist, or that cannot be reached,
+/// answers `false`.
+pub fn can_write_and_search(path: &Path) -> bool {
+    let Ok(path) = path_argument(path.as_os_str()) else {
+        return false;
+    };
+    // SAFETY: the string is NUL-terminated and borrowed for the whole call,
+    // which writes no memory. `AT_FDCWD` resolves the path as an ordinary
+    // relative or absolute path, and `AT_EACCESS` asks about the effective
+    // user rather than the real one.
+    let permitted = unsafe {
+        libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::W_OK | libc::X_OK, libc::AT_EACCESS)
+    };
+    permitted == 0
+}
+
 fn open_at(
     parent: &File,
     name: &CString,
