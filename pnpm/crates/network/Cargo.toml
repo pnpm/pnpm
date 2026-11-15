@@ -15,7 +15,6 @@ bytes = { workspace = true }
 derive_more = { workspace = true }
 futures-util = { workspace = true }
 miette = { workspace = true }
-pipe-trait = { workspace = true }
 pnpm-process = { path = "../process" }
 rustls = { workspace = true }
 tokio = { workspace = true, features = ["time"] }

@@ -21,7 +21,6 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-assert_cmd = { workspace = true }
 clap = { workspace = true }
 home = { workspace = true }
 pipe-trait = { workspace = true }

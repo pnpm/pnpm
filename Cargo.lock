@@ -5289,7 +5289,6 @@ dependencies = [
  "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-package-manifest",
- "pnpm-store-dir",
  "pnpm-testing-utils",
  "pretty_assertions",
  "serde_json",
@@ -5952,7 +5951,6 @@ dependencies = [
  "futures-util",
  "miette 7.6.0",
  "mockito",
- "pipe-trait",
  "pnpm-http",
  "pnpm-process",
  "pnpm-testing-utils",
@@ -6290,13 +6288,11 @@ dependencies = [
  "node-semver",
  "pipe-trait",
  "pnpm-diagnostics",
- "pnpm-executor",
  "pnpm-git-utils",
  "pnpm-http",
  "pnpm-network",
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
- "pnpm-pack",
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-release-record",
@@ -6418,7 +6414,6 @@ dependencies = [
 name = "pnpm-registry-mock"
 version = "0.0.0"
 dependencies = [
- "assert_cmd",
  "clap",
  "home",
  "pipe-trait",
@@ -7320,7 +7315,6 @@ name = "pnpr-oci"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "pnpr-package-name",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -7401,7 +7395,6 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.2",
  "pnpr-package-name",
- "wax",
 ]
 
 [[package]]
