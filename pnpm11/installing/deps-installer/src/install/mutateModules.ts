@@ -35,6 +35,11 @@ import type {
   MutationRunBase,
 } from './mutationTypes.js'
 import { canUsePnprForMutations, mutateModulesViaPnpr, pnprCanRunPnpmfile } from './pnpr.js'
+import {
+  applyPreparedFrozenProjects,
+  assertProjectManifestsExist,
+  settlePreparedMutationHooksAndVerification,
+} from './preparedFrozen.js'
 import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { runMutations } from './runMutations.js'
 import { validateModules } from './validateModules.js'
@@ -75,6 +80,7 @@ export async function mutateModules (
       throw err
     }
   }
+  applyPreparedFrozenProjects(opts, maybeOpts._preparedFrozen)
 
   const run = await prepareMutationRun({ projects, maybeOpts, opts, detachReporter })
   const result = await settleInstall(runMutations(run), run.verifyLockfilePromise, detachReporter)
@@ -84,7 +90,7 @@ export async function mutateModules (
   return finishMutation(run, result)
 }
 
-async function readMutationProjectOptions (
+export async function readMutationProjectOptions (
   projects: MutatedProject[],
   ignorePackageManifest: boolean
 ): Promise<ProjectOptions[]> {
@@ -106,23 +112,18 @@ function attachReporter (reporter: MutateModulesOptions['reporter'] | undefined)
 }
 
 async function prepareMutationRun (base: MutationRunBase): Promise<MutationRun> {
-  const { opts } = base
+  const { maybeOpts, opts } = base
   const openedRun = await openMutationRun(base)
   const { ctx } = openedRun
-  const { verifyLockfilePromise } = await startLockfileVerification(openedRun)
-
-  await runPreResolutionHooks(opts, ctx)
+  const { verifyLockfilePromise } = await settlePreparedMutationHooksAndVerification(
+    openedRun,
+    maybeOpts._preparedFrozen
+  )
 
   const forceResolutionFromHook = await shouldForceResolutionFromHook(opts, ctx)
   const pruneVirtualStore = shouldPruneVirtualStore(opts, ctx)
 
-  if (!base.maybeOpts.ignorePackageManifest) {
-    for (const { manifest, rootDir } of Object.values(ctx.projects)) {
-      if (!manifest) {
-        throw new Error(`No package.json found in "${rootDir}"`)
-      }
-    }
-  }
+  assertProjectManifestsExist(ctx, Boolean(maybeOpts.ignorePackageManifest))
   return {
     ...openedRun,
     verifyLockfilePromise,
@@ -230,7 +231,7 @@ function readExplicitDependencyGroups (extraOpts: DependencyGroupCliOptions): {
   }
 }
 
-function createScriptsOptions (opts: StrictInstallOptions, ctx: PnpmContext): RunLifecycleHooksConcurrentlyOptions {
+export function createScriptsOptions (opts: StrictInstallOptions, ctx: PnpmContext): RunLifecycleHooksConcurrentlyOptions {
   return {
     extraBinPaths: opts.extraBinPaths,
     extendNodePath: opts.extendNodePath,
@@ -342,11 +343,15 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
  * The pending verdict is returned wrapped in an object, so that awaiting
  * this function does not await the verification.
  */
-async function startLockfileVerification (
-  { ctx, installsOnly, opts, projects }: OpenedMutationRun
+export async function startLockfileVerification (
+  { ctx, installsOnly, opts, projects }: Pick<OpenedMutationRun, 'ctx' | 'installsOnly' | 'opts' | 'projects'>,
+  { skipStatShortcut = false }: { skipStatShortcut?: boolean } = {}
 ): Promise<{ verifyLockfilePromise?: Promise<void> }> {
   if (willDelegateToPacquet(opts, ctx, installsOnly) || opts.trustLockfile) return {}
-  const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
+  const cacheActive = !skipStatShortcut &&
+    !opts.mergeGitBranchLockfiles &&
+    opts.cacheDir != null &&
+    opts.resolutionVerifiers.length > 0
   const wantedLockfilePath = cacheActive
     ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
       useGitBranchLockfile: opts.useGitBranchLockfile,
@@ -381,7 +386,7 @@ async function startLockfileVerification (
  * isn't known here — so verification still runs in that window, the
  * duplicate is bounded to it.
  */
-function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, installsOnly: boolean): boolean {
+export function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, installsOnly: boolean): boolean {
   return opts.runPacquet != null &&
     opts.useLockfile &&
     !opts.useGitBranchLockfile &&
@@ -408,7 +413,7 @@ function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, in
     )
 }
 
-async function runPreResolutionHooks (opts: StrictInstallOptions, ctx: PnpmContext): Promise<void> {
+export async function runPreResolutionHooks (opts: StrictInstallOptions, ctx: PnpmContext): Promise<void> {
   if (!opts.hooks.preResolution) return
   for (const preResolution of opts.hooks.preResolution) {
     // eslint-disable-next-line no-await-in-loop -- preResolution hooks run one after another, in the order they were registered

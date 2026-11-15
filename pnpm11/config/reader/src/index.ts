@@ -28,6 +28,7 @@ import { finalizeConfig } from './getConfig/finalizeConfig.js'
 import { applyGlobalYamlConfig } from './getConfig/globalConfigYaml.js'
 import { applyGlobalInstallSettings } from './getConfig/globalInstall.js'
 import { applyLocalSettings } from './getConfig/localSettings.js'
+import { anchorRawLockfileDir } from './getConfig/rawLockfileDir.js'
 import { resolveInitialRegistries, resolveRegistriesByScope } from './getConfig/registries.js'
 import { applyRuntimeSettings } from './getConfig/runtimeSettings.js'
 import { isProjectManifestSkippedKey, PIN_DECISION_SETTINGS, whereRefusedKeyBelongs } from './getConfig/skippedKeys.js'
@@ -69,6 +70,7 @@ export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export type { CliOptions } from './getConfig/configBuildState.js'
 export { getIgnoredLockfilePnpmFieldKeys } from './getConfig/ignoredPnpmFieldKeys.js'
 export { getWantedPackageManager, type ParsedPackageManager, parsePackageManager, shouldPersistLockfile } from './getConfig/packageManager.js'
+export { anchorRawLockfileDir } from './getConfig/rawLockfileDir.js'
 export { isProjectManifestSkippedKey, PIN_DECISION_SETTINGS, whereRefusedKeyBelongs }
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
@@ -139,6 +141,7 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
   resolveGlobalDirs(state)
   pnpmConfig.dir = cwd
   if (typeof pnpmConfig.lockfileDir === 'string') {
+    pnpmConfig.rawLockfileDir = anchorRawLockfileDir(cwd, pnpmConfig.lockfileDir)
     pnpmConfig.lockfileDir = path.resolve(cwd, pnpmConfig.lockfileDir)
     if (typeof state.configFromCliOpts.lockfileDir === 'string') {
       state.configFromCliOpts.lockfileDir = pnpmConfig.lockfileDir

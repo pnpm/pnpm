@@ -8,6 +8,7 @@ import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reade
 import type { Config, ConfigContext, VerifyDepsBeforeRun } from '../Config.js'
 import { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from '../getOptionsFromRootManifest.js'
 import { CONFIG_CONTEXT_KEY_SET } from './configContext.js'
+import { anchorRawLockfileDir } from './rawLockfileDir.js'
 import { applySideEffectsCacheDeclaration, withCanonicalOrg } from './sideEffectsCache.js'
 import type { SkippableKey } from './skippedKeys.js'
 
@@ -37,7 +38,11 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
 }: WorkspaceManifestSettingsOptions): OptionsFromRootManifest {
   const skipped: ReadonlySet<string> | undefined = skipSettings
   const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource, warnings })
-  resolveLockfileDir(settingsFromManifest as { lockfileDir?: unknown }, workspaceDir)
+  resolveLockfileDir(pnpmConfig, settingsFromManifest as { lockfileDir?: unknown }, {
+    configFromCliOpts,
+    skipped,
+    workspaceDir,
+  })
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
   const newSettings = { ...settingsFromManifest, ...configFromCliOpts }
   for (const [key, value] of Object.entries(newSettings)) {
@@ -97,8 +102,22 @@ function applyWorkspaceSetting (pnpmConfig: Config & ConfigContext, { key, value
 }
 
 /** A relative `lockfileDir` names a directory of the workspace, wherever pnpm runs. */
-function resolveLockfileDir (settings: { lockfileDir?: unknown }, workspaceDir: string | undefined): void {
-  if (workspaceDir != null && typeof settings.lockfileDir === 'string') {
+function resolveLockfileDir (
+  pnpmConfig: Config & ConfigContext,
+  settings: { lockfileDir?: unknown },
+  { configFromCliOpts, skipped, workspaceDir }: {
+    configFromCliOpts: Record<string, unknown>
+    skipped: ReadonlySet<string> | undefined
+    workspaceDir: string | undefined
+  }
+): void {
+  if (typeof settings.lockfileDir !== 'string') return
+  if (typeof configFromCliOpts.lockfileDir !== 'string' && !skipped?.has('lockfileDir')) {
+    pnpmConfig.rawLockfileDir = workspaceDir != null
+      ? anchorRawLockfileDir(workspaceDir, settings.lockfileDir)
+      : settings.lockfileDir
+  }
+  if (workspaceDir != null) {
     settings.lockfileDir = path.resolve(workspaceDir, settings.lockfileDir)
   }
 }

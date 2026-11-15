@@ -97,6 +97,22 @@ The read-only store open requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0. On 
 
 When set to `false`, pnpm won't read or generate a `pnpm-lock.yaml` file.
 
+### lockfileDir
+
+* Default: the workspace root with a [shared lockfile](../workspaces.md#sharedworkspacelockfile), otherwise the project directory
+* Type: **path**
+
+The directory in which `pnpm-lock.yaml` is created. Several projects may share a
+single lockfile.
+
+Setting `lockfileDir` to the workspace root of a workspace with a shared
+lockfile, or to the project directory outside a workspace, has no effect. In a
+workspace with `sharedWorkspaceLockfile: false`, setting `lockfileDir` makes the
+projects share one lockfile in that directory.
+
+The `--lockfile-dir` CLI option sets it for a single command. It cannot be used
+with `--global`.
+
 ### frozenLockfile
 
 * Default:

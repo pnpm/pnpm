@@ -410,3 +410,463 @@ test('pnpm clean keeps project root and rejects symlinked parent for virtual-sto
     expect(fs.existsSync(path.join('pnpm-lock.yaml', 'keep.txt'))).toBe(true)
   }
 })
+
+test('pnpm clean honors --filter, --filter-prod, and -w', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: { name: 'pkg-a', version: '1.0.0' },
+    },
+    {
+      location: 'packages/pkg-b',
+      package: {
+        name: 'pkg-b',
+        version: '1.0.0',
+        dependencies: { 'pkg-a': 'workspace:*' },
+      },
+    },
+  ])
+  writeJsonFile('package.json', { name: 'root-pkg', version: '1.0.0', private: true })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    virtualStoreDir: '.virtual-store',
+  })
+
+  const seedAll = (): void => {
+    fs.mkdirSync(path.join('.virtual-store', 'entry'), { recursive: true })
+    for (const dir of ['.', 'packages/pkg-a', 'packages/pkg-b']) {
+      fs.mkdirSync(path.join(dir, 'node_modules', 'seeded'), { recursive: true })
+    }
+  }
+
+  seedAll()
+  expect(execPnpmSync(['--filter', 'pkg-a', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages/pkg-a', 'node_modules', 'seeded'))).toBe(false)
+  expect(fs.existsSync(path.join('packages/pkg-b', 'node_modules', 'seeded'))).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', 'seeded'))).toBe(true)
+  expect(fs.existsSync(path.join('.virtual-store', 'entry'))).toBe(true)
+
+  seedAll()
+  expect(execPnpmSync(['--filter-prod', '...pkg-a', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages/pkg-a', 'node_modules', 'seeded'))).toBe(false)
+  expect(fs.existsSync(path.join('packages/pkg-b', 'node_modules', 'seeded'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', 'seeded'))).toBe(true)
+
+  seedAll()
+  expect(execPnpmSync(['-w', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', 'seeded'))).toBe(false)
+  expect(fs.existsSync(path.join('packages/pkg-a', 'node_modules', 'seeded'))).toBe(true)
+
+  // Non-CLI filter via environment variable must also narrow `pnpm clean`
+  seedAll()
+  expect(execPnpmSync(['clean'], { env: { pnpm_config_filter: 'pkg-a' } }).status).toBe(0)
+  expect(fs.existsSync(path.join('packages/pkg-a', 'node_modules', 'seeded'))).toBe(false)
+  expect(fs.existsSync(path.join('packages/pkg-b', 'node_modules', 'seeded'))).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', 'seeded'))).toBe(true)
+})
+
+test('pnpm clean cleans root node_modules in workspace without root package.json', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: { name: 'pkg-a', version: '1.0.0' },
+    },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  fs.mkdirSync(path.join('node_modules', '.pnpm'), { recursive: true })
+  fs.mkdirSync(path.join('node_modules', '.cache'), { recursive: true })
+  fs.writeFileSync(path.join('node_modules', '.cache', 'keep'), 'keep')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'node_modules', 'pkg'), { recursive: true })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', '.pnpm'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.cache', 'keep'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'pkg'))).toBe(false)
+})
+
+test('pnpm clean --lockfile respects lockfileDir containment and per-project lockfiles', () => {
+  preparePackages([
+    { location: 'packages/pkg-a', package: { name: 'pkg-a', version: '1.0.0' } },
+    { location: 'packages/pkg-b', package: { name: 'pkg-b', version: '1.0.0' } },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+
+  // 1. Inside-root lockfileDir via pnpm-workspace.yaml and --lockfile-dir
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    lockfileDir: 'config/lock',
+  })
+  fs.mkdirSync(path.join('config', 'lock', 'node_modules', '.pnpm'), { recursive: true })
+  fs.writeFileSync(path.join('config', 'lock', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+
+  expect(execPnpmSync(['clean', '--lockfile']).status).toBe(0)
+  expect(fs.existsSync(path.join('config', 'lock', 'pnpm-lock.yaml'))).toBe(false)
+  expect(fs.existsSync(path.join('config', 'lock', 'node_modules', '.pnpm'))).toBe(false)
+
+  fs.mkdirSync('cli-lock', { recursive: true })
+  fs.writeFileSync(path.join('cli-lock', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+  expect(execPnpmSync(['clean', '--lockfile', '--lockfile-dir', 'cli-lock']).status).toBe(0)
+  expect(fs.existsSync(path.join('cli-lock', 'pnpm-lock.yaml'))).toBe(false)
+
+  // 2. Containment: external lockfileDir and symlinked-parent escape must be left untouched
+  const outsideLock = path.resolve('..', 'outside-lock')
+  fs.mkdirSync(path.join(outsideLock, 'sub'), { recursive: true })
+  fs.writeFileSync(path.join(outsideLock, 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+  fs.writeFileSync(path.join(outsideLock, 'sub', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+  fs.symlinkSync(path.join(outsideLock, 'sub'), 'escape', process.platform === 'win32' ? 'junction' : 'dir')
+  fs.mkdirSync('keep-dir', { recursive: true })
+  fs.writeFileSync(path.join('keep-dir', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+
+  for (const escaped of ['../outside-lock', 'escape', 'escape/../keep-dir']) {
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      packages: ['packages/*'],
+      lockfileDir: escaped,
+    })
+    expect(execPnpmSync(['clean', '--lockfile']).status).toBe(0)
+    expect(fs.existsSync(path.join(outsideLock, 'pnpm-lock.yaml'))).toBe(true)
+    expect(fs.existsSync(path.join(outsideLock, 'sub', 'pnpm-lock.yaml'))).toBe(true)
+    expect(fs.existsSync(path.join('keep-dir', 'pnpm-lock.yaml'))).toBe(true)
+  }
+
+  // `--config.lockfile-dir` and `${ENV}` interpolation in pnpm-workspace.yaml also preserve containment
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    lockfileDir: '${ESCAPE_LOCKFILE_DIR}',
+  })
+  expect(execPnpmSync(['clean', '--lockfile'], { env: { ESCAPE_LOCKFILE_DIR: 'escape/../keep-dir' } }).status).toBe(0)
+  expect(fs.existsSync(path.join('keep-dir', 'pnpm-lock.yaml'))).toBe(true)
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  expect(execPnpmSync(['--config.lockfile-dir=escape/../keep-dir', 'clean', '--lockfile']).status).toBe(0)
+  expect(fs.existsSync(path.join('keep-dir', 'pnpm-lock.yaml'))).toBe(true)
+
+  // `PNPM_CONFIG_LOCKFILE_DIR` preserves symlink-parent containment and resolves relative to cwd
+  expect(execPnpmSync(['clean', '--lockfile'], { env: { PNPM_CONFIG_LOCKFILE_DIR: 'escape/../keep-dir' } }).status).toBe(0)
+  expect(fs.existsSync(path.join('keep-dir', 'pnpm-lock.yaml'))).toBe(true)
+
+  fs.mkdirSync('yaml-lock', { recursive: true })
+  fs.writeFileSync(path.join('yaml-lock', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+  fs.mkdirSync(path.join('packages', 'sub-lock'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'sub-lock', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    lockfileDir: 'yaml-lock',
+  })
+  expect(execPnpmSync(['clean', '--lockfile'], {
+    cwd: path.resolve('packages/pkg-a'),
+    env: { PNPM_CONFIG_LOCKFILE_DIR: '../sub-lock' },
+  }).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'sub-lock', 'pnpm-lock.yaml'))).toBe(false)
+  expect(fs.existsSync(path.join('yaml-lock', 'pnpm-lock.yaml'))).toBe(true)
+
+  // 3. Per-project lockfiles with sharedWorkspaceLockfile: false (filtered and unfiltered)
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+  fs.writeFileSync(path.join('packages/pkg-a', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+  fs.writeFileSync(path.join('packages/pkg-b', 'pnpm-lock.yaml'), 'lockfileVersion: 9')
+
+  expect(execPnpmSync(['--filter', 'pkg-a', 'clean', '--lockfile']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages/pkg-a', 'pnpm-lock.yaml'))).toBe(false)
+  expect(fs.existsSync(path.join('packages/pkg-b', 'pnpm-lock.yaml'))).toBe(true)
+
+  expect(execPnpmSync(['clean', '--lockfile']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages/pkg-b', 'pnpm-lock.yaml'))).toBe(false)
+})
+
+test('pnpm clean preserves shared .pnpm on -w and --no-recursive and honors packageConfigs modulesDir', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+        dependencies: { 'is-negative': '1.0.0' },
+      },
+    },
+  ])
+  writeJsonFile('package.json', {
+    name: 'root-pkg',
+    version: '1.0.0',
+    private: true,
+    dependencies: { 'is-positive': '1.0.0' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(execPnpmSync(['-w', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.pnpm'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative', 'package.json'))).toBe(true)
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(execPnpmSync(['clean', '--no-recursive'], { cwd: path.resolve('packages/pkg-a') }).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', '.pnpm'))).toBe(true)
+
+  // Shared lockfile in `locks` with an absolute `virtualStoreDir` under root `node_modules`
+  // preserves `shared-store` on narrowed `-w clean` while retaining all-mode hidden cleanup on root
+  const absSharedStore = path.resolve('node_modules', 'shared-store')
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  fs.rmSync(path.join('packages', 'pkg-a', 'node_modules'), { recursive: true, force: true })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    lockfileDir: 'locks',
+    virtualStoreDir: absSharedStore,
+  })
+  expect(execPnpmSync(['install']).status).toBe(0)
+  fs.writeFileSync(path.join('node_modules', '.modules.yaml'), 'stale: true\n')
+  fs.writeFileSync(path.join('node_modules', '.gitkeep'), '')
+  expect(execPnpmSync(['-w', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.modules.yaml'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.gitkeep'))).toBe(true)
+  expect(fs.existsSync(absSharedStore)).toBe(true)
+  expect(fs.realpathSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative', 'package.json'))).toContain('shared-store')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+    packageConfigs: {
+      'pkg-a': {
+        modulesDir: 'custom_nm',
+      },
+    },
+  })
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'custom_nm', 'seeded'), { recursive: true })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'custom_nm', 'seeded'))).toBe(false)
+})
+
+test('pnpm clean protects rootless workspace member dirs when modulesDir overlaps and preserves shared .pnpm on --lockfile-dir .', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+      },
+    },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'src'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'src', 'index.js'), 'module.exports = 1\n')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    modulesDir: 'packages',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
+
+  // Shared workspace with explicit `--lockfile-dir .` preserves `.pnpm` and `.modules.yaml` on filtered root clean
+  writeJsonFile('package.json', {
+    name: 'root-pkg',
+    version: '1.0.0',
+    private: true,
+    dependencies: { 'is-positive': '1.0.0' },
+  })
+  writeJsonFile(path.join('packages', 'pkg-a', 'package.json'), {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(execPnpmSync(['--filter', 'root-pkg', '--lockfile-dir', '.', 'clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(false)
+  expect(fs.existsSync(path.join('node_modules', '.pnpm'))).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', '.modules.yaml'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'is-negative', 'package.json'))).toBe(true)
+})
+
+test('pnpm clean skips installed packages under root custom_nm in rootless ** workspace and protects members when root manifest exists', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+      },
+    },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+  fs.mkdirSync(path.join('custom_nm', 'lodash'), { recursive: true })
+  fs.writeFileSync(path.join('custom_nm', 'lodash', 'package.json'), '{"name":"lodash"}')
+  fs.mkdirSync(path.join('custom_nm', 'broken'), { recursive: true })
+  fs.writeFileSync(path.join('custom_nm', 'broken', 'package.json'), '{ invalid json')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'custom_nm', 'member-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'custom_nm', 'member-dep', 'package.json'), '{"name":"member-dep"}')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'custom_nm', 'broken'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'custom_nm', 'broken', 'package.json'), '{ invalid json')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    modulesDir: 'custom_nm',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('custom_nm', 'lodash'))).toBe(false)
+  expect(fs.existsSync(path.join('custom_nm', 'broken'))).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'custom_nm', 'member-dep'))).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+
+  // Workspace WITH root package.json and modulesDir overlapping packages/* preserves workspace members
+  writeJsonFile('package.json', { name: 'root-pkg', version: '1.0.0', private: true })
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'src'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'src', 'index.js'), 'module.exports = 1\n')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    modulesDir: 'packages',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
+})
+
+test('pnpm clean protects members matched via wildcard globs above modulesDir and overlapping virtualStoreDir', () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: { name: 'pkg-a', version: '1.0.0' },
+    },
+  ])
+  if (fs.existsSync('package.json')) {
+    fs.unlinkSync('package.json')
+  }
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'src'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'src', 'index.js'), 'module.exports = 1\n')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'broken'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'broken', 'package.json'), '{ invalid json')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*/*'],
+    modulesDir: 'packages',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'broken'))).toBe(false)
+
+  // Overlapping `virtualStoreDir: packages` preserves member source files
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'node_modules', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'node_modules', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*/*'],
+    virtualStoreDir: 'packages',
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'node_modules', 'seeded-dep'))).toBe(false)
+
+  // Nested `modulesDir: packages/modules` with `packages: ['packages/**']`
+  const nestedPkg = path.join('packages', 'modules', 'pkg-nested')
+  fs.mkdirSync(path.join(nestedPkg, 'src'), { recursive: true })
+  writeJsonFile(path.join(nestedPkg, 'package.json'), { name: 'pkg-nested', version: '1.0.0' })
+  fs.writeFileSync(path.join(nestedPkg, 'src', 'index.js'), 'module.exports = 2\n')
+  fs.mkdirSync(path.join(nestedPkg, 'packages', 'modules', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join(nestedPkg, 'packages', 'modules', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  fs.mkdirSync(path.join(nestedPkg, 'packages', 'modules', 'broken'), { recursive: true })
+  fs.writeFileSync(path.join(nestedPkg, 'packages', 'modules', 'broken', 'package.json'), '{ invalid json')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/**'],
+    modulesDir: 'packages/modules',
+  })
+
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join(nestedPkg, 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join(nestedPkg, 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join(nestedPkg, 'packages', 'modules', 'seeded-dep'))).toBe(false)
+  expect(fs.existsSync(path.join(nestedPkg, 'packages', 'modules', 'broken'))).toBe(false)
+
+  // Hoisted dependency recorded in `.modules.yaml` under `packages/modules` is cleaned when no member is inside
+  fs.rmSync(nestedPkg, { recursive: true, force: true })
+  fs.mkdirSync(path.join('packages', 'modules', 'lodash'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'modules', 'lodash', 'package.json'), '{"name":"lodash"}')
+  writeJsonFile(path.join('packages', 'modules', '.modules.yaml'), {
+    hoistedLocations: { 'lodash@4.17.21': ['packages/modules/lodash'] },
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'modules', 'lodash'))).toBe(false)
+
+  // Extended glob prefix `@(packages|apps)/*` with overlapping `modulesDir: packages` recovers and protects members
+  fs.mkdirSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'), { recursive: true })
+  fs.writeFileSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['@(packages|apps)/*'],
+    modulesDir: 'packages',
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'src', 'index.js'))).toBe(true)
+  expect(fs.existsSync(path.join('packages', 'pkg-a', 'packages', 'seeded-dep'))).toBe(false)
+
+  // Explicitly listed nested member under another member's custom `modulesDir` is preserved
+  const pkgB = path.join('packages', 'pkg-a', 'packages', 'pkg-b')
+  fs.mkdirSync(path.join(pkgB, 'src'), { recursive: true })
+  writeJsonFile(path.join(pkgB, 'package.json'), { name: 'pkg-b', version: '1.0.0' })
+  fs.writeFileSync(path.join(pkgB, 'src', 'index.js'), 'module.exports = 3\n')
+  const pkgC = path.join('packages', 'pkg-c')
+  fs.mkdirSync(path.join(pkgC, 'packages', 'seeded-dep'), { recursive: true })
+  writeJsonFile(path.join(pkgC, 'package.json'), { name: 'pkg-c', version: '1.0.0' })
+  fs.writeFileSync(path.join(pkgC, 'packages', 'seeded-dep', 'package.json'), '{"name":"seeded-dep"}')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/pkg-a', 'packages/pkg-a/packages/pkg-b', 'packages/pkg-c'],
+    modulesDir: 'packages',
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join(pkgC, 'packages', 'seeded-dep'))).toBe(false)
+  expect(fs.existsSync(path.join(pkgB, 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join(pkgB, 'src', 'index.js'))).toBe(true)
+
+  // Configured `virtualStoreDir` or root `modulesDir` inside a workspace member never erases member source,
+  // while nested workspace members still have their own `node_modules` cleaned
+  const subPkg = path.join(pkgC, 'examples', 'sub-pkg')
+  fs.mkdirSync(path.join(subPkg, 'src'), { recursive: true })
+  writeJsonFile(path.join(subPkg, 'package.json'), { name: 'sub-pkg', version: '1.0.0' })
+  fs.writeFileSync(path.join(subPkg, 'src', 'index.js'), 'module.exports = 5\n')
+  writeJsonFile('package.json', { name: 'root-pkg', version: '1.0.0', private: true })
+  for (const extra of [{ virtualStoreDir: 'packages/pkg-c/src' }, { modulesDir: 'packages/pkg-c/src' }]) {
+    fs.mkdirSync(path.join(pkgC, 'src'), { recursive: true })
+    fs.writeFileSync(path.join(pkgC, 'src', 'index.js'), 'module.exports = 4\n')
+    fs.mkdirSync(path.join(subPkg, 'node_modules', 'stale-dep'), { recursive: true })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      packages: ['.', 'packages/*', 'packages/*/examples/*'],
+      ...extra,
+    })
+    expect(execPnpmSync(['clean']).status).toBe(0)
+    expect(fs.existsSync(path.join(pkgC, 'src', 'index.js'))).toBe(true)
+    expect(fs.existsSync(path.join(subPkg, 'src', 'index.js'))).toBe(true)
+    if ('virtualStoreDir' in extra) {
+      expect(fs.existsSync(path.join(subPkg, 'node_modules', 'stale-dep'))).toBe(false)
+    }
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.', 'packages/*', 'packages/*/examples/*'],
+    modulesDir: 'examples/sub-pkg/src',
+  })
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync(path.join(subPkg, 'src', 'index.js'))).toBe(true)
+})

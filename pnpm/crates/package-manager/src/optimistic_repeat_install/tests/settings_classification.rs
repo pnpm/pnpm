@@ -90,6 +90,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("concurrency_groups", NotAnInput(OTHER_COMMAND)),
     ("config_dependencies", Through("compared by the config-dependencies check")),
     ("config_dir", NotAnInput("where the global config is read from")),
+    ("configured_lockfile_dir", Through(LOCKFILE_LOCATION)),
     ("configured_virtual_store_dir", Through("the configured `virtualStoreDir`, recorded as `virtualStoreDir`")),
     ("dangerously_allow_all_builds", Recorded { key: "dangerouslyAllowAllBuilds", change: |config| config.dangerously_allow_all_builds = !config.dangerously_allow_all_builds }),
     ("dedupe_direct_deps", Recorded { key: "dedupeDirectDeps", change: |config| config.dedupe_direct_deps = !config.dedupe_direct_deps }),

@@ -146,7 +146,9 @@ fn apply_lockfile_dir_change(
     let project_dir = config.dir.clone();
     let modules_dir = config.modules_dir.clone();
     let install_state_dir = config.install_state_dir.clone();
-    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
+    if let Some(lockfile_dir) =
+        config.configured_lockfile_dir.clone().or_else(|| config.lockfile_dir.clone())
+    {
         if paths_before_hook.lockfile_dir.is_none() {
             config.lockfile_dir = None;
         }

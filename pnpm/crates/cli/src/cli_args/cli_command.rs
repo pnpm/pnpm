@@ -160,6 +160,8 @@ pub struct CliWorkspaceArgs {
     pub recursive: bool,
     #[clap(skip)]
     pub recursive_from_command_line: bool,
+    #[clap(skip)]
+    pub no_recursive_from_command_line: bool,
     #[clap(flatten)]
     pub selection: WorkspaceSelectionArgs,
     #[clap(flatten)]

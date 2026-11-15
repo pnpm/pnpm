@@ -148,6 +148,7 @@ fn global_update_config(base_config: &Config) -> &'static Config {
     let mut config = base_config.clone();
     config.workspace_dir = None;
     config.shared_workspace_lockfile = false;
+    config.configured_lockfile_dir = None;
     config.lockfile_dir = None;
     // A group's lockfile is written unconditionally (`run_group_install`
     // forces it) because it is where the installed versions are recorded, so
