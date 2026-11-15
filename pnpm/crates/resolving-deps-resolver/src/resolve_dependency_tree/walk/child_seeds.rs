@@ -299,14 +299,16 @@ pub(super) fn overlay_lookup_names<'edge>(
 }
 
 /// Whether this package's child specifiers pass through the importer's
-/// catalogs, which makes them a property of the resolving importer
+/// catalogs: a `file:` directory package does, however it was declared. That
+/// makes them a property of the resolving importer
 /// rather than of the package id — the one input
 /// [`fn@crate::resolve_dependency_tree::workspace_ctx::recorded_children_match`] cannot compare, since the recorded
 /// context does not carry the catalogs the recording importer used.
 pub(super) fn resolves_children_through_catalogs(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> bool {
-    result.resolved_via == "workspace" && result.id.as_str().starts_with("file:")
+    result.id.as_str().starts_with("file:")
+        && matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
 }
 
 pub(super) fn catalogs_for_children(

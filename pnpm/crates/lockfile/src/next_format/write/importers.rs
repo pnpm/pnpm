@@ -16,12 +16,17 @@ pub(super) fn next_importer(
     explicit: &Explicit,
     snapshots: &Snapshots<'_>,
 ) -> NextImporter {
+    let injected = importer.injected_dependencies_meta(importer.dependencies_meta.as_ref());
     let convert = |map: &Option<ResolvedDependencyMap>| -> Option<NextImporterDeps> {
         map.as_ref()
             .map(|map| {
                 map.iter()
                     .map(|(alias, spec)| {
-                        (alias.clone(), next_dep(id, alias, spec, explicit, snapshots))
+                        let dep = NextResolvedDep {
+                            injected: is_injected(injected.as_ref(), alias),
+                            ..next_dep(id, alias, spec, explicit, snapshots)
+                        };
+                        (alias.clone(), NextImporterDep::Resolved(Box::new(dep)))
                     })
                     .collect()
             })
@@ -31,10 +36,13 @@ pub(super) fn next_importer(
         dependencies: convert(&importer.dependencies),
         dev_dependencies: convert(&importer.dev_dependencies),
         optional_dependencies: convert(&importer.optional_dependencies),
-        dependencies_meta: importer.dependencies_meta.clone(),
         publish_directory: importer.publish_directory.clone(),
         link_directory: importer.link_directory,
     }
+}
+
+fn is_injected(injected: Option<&serde_json::Value>, alias: &PkgName) -> bool {
+    injected.is_some_and(|injected| injected.get(alias.to_string()).is_some())
 }
 
 fn next_dep(
@@ -43,17 +51,18 @@ fn next_dep(
     spec: &ResolvedDependencySpec,
     explicit: &Explicit,
     snapshots: &Snapshots<'_>,
-) -> NextImporterDep {
+) -> NextResolvedDep {
     let peers = explicit
         .has_importer_reference(id, alias)
         .then(|| spec.version.resolved_key(alias))
         .flatten()
         .and_then(|target| snapshots.naming_bindings(&target));
-    NextImporterDep::Resolved(Box::new(NextResolvedDep {
+    NextResolvedDep {
         specifier: spec.specifier.clone(),
         version: importer_version_without_groups(&spec.version),
         peers,
-    }))
+        injected: false,
+    }
 }
 
 pub(in crate::next_format) fn importer_dependencies(

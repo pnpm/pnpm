@@ -2,8 +2,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use std::collections::HashSet;
 
 /// The snapshots already checked. What a package and its descendants must
-/// record depends on the peers its ancestors supply, and its children's
-/// specs on how it was declared.
+/// record depends on the peers its ancestors supply.
 #[derive(Clone)]
 pub(super) struct Visited {
     checked: HashSet<Visit>,
@@ -24,11 +23,10 @@ impl Visited {
     }
 
     /// Records the snapshot in `scope`. `false` when it was already checked
-    /// there under the same declaration: a cycle or a shared dependency.
+    /// there: a cycle or a shared dependency.
     pub(super) fn first_visit(
         &mut self,
         pkg_key: &pnpm_lockfile::PackageKey,
-        dep: &super::LocalDepContext<'_>,
         manifest: &PackageManifest,
         scope: &AliasScope,
     ) -> bool {
@@ -39,12 +37,7 @@ impl Visited {
             .collect();
         peers.sort_unstable();
         peers.dedup();
-        self.checked.insert(Visit {
-            pkg_key: pkg_key.clone(),
-            peers,
-            declared_by_path: dep.declared_by_path,
-            declaration_assumed: dep.declaration_assumed,
-        })
+        self.checked.insert(Visit { pkg_key: pkg_key.clone(), peers })
     }
 }
 
@@ -53,10 +46,6 @@ struct Visit {
     pkg_key: pnpm_lockfile::PackageKey,
     /// The peers the ancestors supply.
     peers: Vec<String>,
-    /// See [`super::is_declared_by_path`].
-    declared_by_path: bool,
-    /// See [`super::LocalDepContext::declaration_assumed`].
-    declaration_assumed: bool,
 }
 
 /// The aliases of every ancestor of a package, which supply its peers.

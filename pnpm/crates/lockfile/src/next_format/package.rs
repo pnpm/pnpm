@@ -2,19 +2,24 @@
 //! resolved dependencies, and its peer bindings, with a `snapshots` list for a
 //! package installed with several sets of peers.
 
+pub use dependencies::{NextPackageDep, NextPackageDepMap, PackageDeps};
 pub(super) use peers::{BindingOut, Bindings};
 pub use peers::{PeerDetails, PeerEntry};
 
-use super::{NextFormatError, NextRef, NextSnapshotEntry};
+use super::{NextFormatError, NextSnapshotEntry};
 use crate::{
-    BundledDependencies, DirectoryResolution, LockfileResolution, PackageMetadata, PkgName,
+    BundledDependencies, DirectoryResolution, LockfileResolution, PackageMetadata,
     RegistryResolution, StringOrList, TarballResolution,
 };
+use dependencies::Declarations;
+use hoist::hoist;
 use peers::{merge_peer_dependencies, split_peer_dependencies};
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
 use std::collections::{BTreeMap, HashMap};
 
+mod dependencies;
+mod hoist;
 mod peers;
 
 /// The metadata fields mirror [`PackageMetadata`], the graph fields
@@ -30,8 +35,6 @@ mod peers;
     )
 )]
 pub struct NextPackage {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub specifiers: Option<crate::DeclaredSpecifiers>,
     /// The resolution without its integrity, and absent where it follows
     /// from the entry: a registry package without a revision, the common
     /// case, whose resolution is the integrity alone, and a directory
@@ -76,18 +79,19 @@ pub struct NextPackage {
     // shares, or the one snapshot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    /// See [`PackageDeps`].
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub dependencies: Option<HashMap<PkgName, NextRef>>,
+    pub dependencies: Option<PackageDeps>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
+    pub optional_dependencies: Option<PackageDeps>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -111,8 +115,6 @@ pub struct NextPackage {
     )
 )]
 pub struct NextPackageOut<'a> {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub specifiers: Option<&'a crate::DeclaredSpecifiers>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolution: Option<std::borrow::Cow<'a, LockfileResolution>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -142,12 +144,12 @@ pub struct NextPackageOut<'a> {
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub dependencies: Option<HashMap<PkgName, NextRef>>,
+    pub dependencies: Option<PackageDeps>,
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
+    pub optional_dependencies: Option<PackageDeps>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -183,8 +185,13 @@ impl<'a> NextPackageOut<'a> {
             None => (None, None),
         };
         let (shared, snapshots) = hoist(snapshots);
+        let declarations = Declarations::of(
+            metadata.is_some_and(|metadata| {
+                matches!(metadata.resolution, LockfileResolution::Directory(_))
+            }),
+            metadata.and_then(|metadata| metadata.specifiers.as_ref()),
+        );
         NextPackageOut {
-            specifiers: metadata.and_then(|metadata| metadata.specifiers.as_ref()),
             resolution,
             integrity,
             version: metadata.and_then(|metadata| metadata.version.as_ref()),
@@ -203,53 +210,13 @@ impl<'a> NextPackageOut<'a> {
                 &shared,
             ),
             id: shared.id,
-            dependencies: shared.dependencies,
-            optional_dependencies: shared.optional_dependencies,
+            dependencies: declarations.written(shared.dependencies, false),
+            optional_dependencies: declarations.written(shared.optional_dependencies, true),
             optional: shared.optional,
             unbound_peer_dependencies: shared.unbound_peer_dependencies,
             snapshots,
         }
     }
-}
-
-/// What `snapshots` share, and what each adds, when there are several.
-fn hoist(
-    mut snapshots: Vec<NextSnapshotEntry>,
-) -> (NextSnapshotEntry, Option<Vec<NextSnapshotEntry>>) {
-    if snapshots.len() <= 1 {
-        return (snapshots.pop().unwrap_or_default(), None);
-    }
-    let shared = {
-        let (first, rest) = snapshots.split_first_mut().expect("several snapshots");
-        NextSnapshotEntry {
-            id: common_value(first.id.as_ref(), rest.iter().map(|snapshot| snapshot.id.as_ref())),
-            dependencies: common_entries(first.dependencies.as_ref(), rest, |snapshot| {
-                &snapshot.dependencies
-            }),
-            optional_dependencies: common_entries(
-                first.optional_dependencies.as_ref(),
-                rest,
-                |snapshot| &snapshot.optional_dependencies,
-            ),
-            peer_dependencies: common_entries(first.peer_dependencies.as_ref(), rest, |snapshot| {
-                &snapshot.peer_dependencies
-            }),
-            transitive_peer_dependencies: common_entries(
-                first.transitive_peer_dependencies.as_ref(),
-                rest,
-                |snapshot| &snapshot.transitive_peer_dependencies,
-            ),
-            unbound_peer_dependencies: common_value(
-                first.unbound_peer_dependencies.as_ref(),
-                rest.iter().map(|snapshot| snapshot.unbound_peer_dependencies.as_ref()),
-            ),
-            optional: first.optional && rest.iter().all(|snapshot| snapshot.optional),
-        }
-    };
-    for snapshot in &mut snapshots {
-        snapshot.subtract(&shared);
-    }
-    (shared, Some(snapshots))
 }
 
 impl NextPackage {
@@ -260,17 +227,24 @@ impl NextPackage {
         key: &crate::PackageKey,
     ) -> Result<(PackageMetadata, Vec<NextSnapshotEntry>), NextFormatError> {
         let peers = split_peer_dependencies(key, self.peer_dependencies.take())?;
+        let written = (self.dependencies.take(), self.optional_dependencies.take());
+        let id = self.id.take();
+        let unbound_peer_dependencies = self.unbound_peer_dependencies.take();
+        let optional = self.optional;
+        let snapshots = self.snapshots.take();
+        let mut metadata = self.into_metadata(key, peers.ranges, peers.meta)?;
+        let directory = matches!(metadata.resolution, LockfileResolution::Directory(_));
+        let deps = dependencies::read(key, directory, written)?;
+        metadata.specifiers = deps.specifiers;
         let shared = NextSnapshotEntry {
-            id: self.id.take(),
-            dependencies: self.dependencies.take(),
-            optional_dependencies: self.optional_dependencies.take(),
+            id,
+            dependencies: deps.dependencies,
+            optional_dependencies: deps.optional_dependencies,
             peer_dependencies: peers.bindings.own,
             transitive_peer_dependencies: peers.bindings.below,
-            unbound_peer_dependencies: self.unbound_peer_dependencies.take(),
-            optional: self.optional,
+            unbound_peer_dependencies,
+            optional,
         };
-        let snapshots = self.snapshots.take();
-        let metadata = self.into_metadata(key, peers.ranges, peers.meta)?;
         let snapshots = match snapshots {
             Some(snapshots) if !snapshots.is_empty() => snapshots
                 .into_iter()
@@ -309,7 +283,7 @@ impl NextPackage {
             (Some(resolution), _) => resolution,
         };
         Ok(PackageMetadata {
-            specifiers: self.specifiers,
+            specifiers: None,
             resolution,
             version: self.version,
             engines: self.engines,
@@ -410,40 +384,4 @@ impl NextSnapshotEntry {
         self.optional |= shared.optional;
         self
     }
-}
-
-/// `first` when every other snapshot has the same value.
-fn common_value<'a, Value: PartialEq + Clone + 'a>(
-    first: Option<&Value>,
-    others: impl Iterator<Item = Option<&'a Value>>,
-) -> Option<Value> {
-    let first = first?;
-    let mut others = others;
-    others
-        .all(|other| other == Some(first))
-        .then(|| first.clone())
-}
-
-/// The entries of `first` that every other snapshot has with the same value.
-fn common_entries(
-    first: Option<&HashMap<PkgName, NextRef>>,
-    others: &[NextSnapshotEntry],
-    map: impl Fn(&NextSnapshotEntry) -> &Option<HashMap<PkgName, NextRef>>,
-) -> Option<HashMap<PkgName, NextRef>> {
-    let common: HashMap<PkgName, NextRef> = first
-        .into_iter()
-        .flatten()
-        .filter(|(name, reference)| {
-            others
-                .iter()
-                .all(|other| {
-                    map(other)
-                        .as_ref()
-                        .and_then(|entries| entries.get(*name))
-                        == Some(*reference)
-                })
-        })
-        .map(|(name, reference)| (name.clone(), reference.clone()))
-        .collect();
-    (!common.is_empty()).then_some(common)
 }

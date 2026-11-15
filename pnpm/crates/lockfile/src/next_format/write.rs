@@ -187,10 +187,17 @@ pub(super) fn children(entry: &SnapshotEntry) -> impl Iterator<Item = (&PkgName,
 
 /// Whether `restored` is `original` as the file holds it.
 fn same_as_written(original: &ProjectSnapshot, restored: Option<&ProjectSnapshot>) -> bool {
-    restored.is_some_and(|restored| {
-        let written = ProjectSnapshot { specifiers: None, ..original.clone() };
-        written == *restored
-    })
+    restored.is_some_and(|restored| as_written(original) == *restored)
+}
+
+/// `importer` as the file holds it: without `specifiers`, and with only the
+/// `injected` flags of its `dependenciesMeta`.
+fn as_written(importer: &ProjectSnapshot) -> ProjectSnapshot {
+    ProjectSnapshot {
+        specifiers: None,
+        dependencies_meta: importer.injected_dependencies_meta(importer.dependencies_meta.as_ref()),
+        ..importer.clone()
+    }
 }
 
 /// The names of the importer fields `restored` differs from `original`
@@ -200,6 +207,7 @@ fn differing_importer_fields(
     restored: Option<&ProjectSnapshot>,
 ) -> String {
     let Some(restored) = restored else { return "missing".to_string() };
+    let original = &as_written(original);
     let differing: Vec<&str> = [
         ("dependencies", original.dependencies != restored.dependencies),
         ("devDependencies", original.dev_dependencies != restored.dev_dependencies),

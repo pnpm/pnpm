@@ -76,8 +76,6 @@ fn check_peer_spec(
 ) -> Result<(), FreshnessCheckError> {
     let dep = LocalDepContext {
         name: "lib",
-        declared_by_path: false,
-        declaration_assumed: false,
         rel_path: "lib",
         dir: Path::new("lib"),
         dirs: SpecDirs {
@@ -202,7 +200,6 @@ fn check_local_dep_peers(
 ) -> Result<(), FreshnessCheckError> {
     check_directory_dep_in_scope(
         &DirectoryDepCase {
-            declaration: Declaration::default(),
             manifest,
             metadata: serde_json::json!({
                 "resolution": { "type": "directory", "directory": "lib" },
@@ -242,16 +239,6 @@ struct DirectoryDepCase {
     /// `false` for an install without optional dependencies.
     include_optional: bool,
     catalogs: Catalogs,
-    declaration: Declaration,
-}
-
-/// How the dependency a [`DirectoryDepCase`] checks was declared.
-#[derive(Default)]
-struct Declaration {
-    /// See [`super::is_declared_by_path`].
-    by_path: bool,
-    /// See `LocalDepContext::declaration_assumed`.
-    assumed: bool,
 }
 
 fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckError> {
@@ -308,8 +295,6 @@ fn check_directory_dep_in_scope(
     };
     let dep = LocalDepContext {
         name: "lib",
-        declared_by_path: case.declaration.by_path,
-        declaration_assumed: case.declaration.assumed,
         rel_path: "lib",
         dir: &dep_dir,
         dirs: SpecDirs {
@@ -437,7 +422,6 @@ fn check_dep_with_an_unresolved_entry(
     let mut manifest = serde_json::json!({ "name": "lib" });
     manifest[manifest_key] = serde_json::json!({ "is-positive": "1.0.0" });
     check_directory_dep(&DirectoryDepCase {
-        declaration: Declaration::default(),
         manifest,
         metadata: serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } }),
         snapshot: serde_json::json!({}),
@@ -482,7 +466,6 @@ fn directory_metadata() -> serde_json::Value {
 #[test]
 fn a_dependency_that_became_optional_is_outdated() {
     let result = check_directory_dep(&DirectoryDepCase {
-        declaration: Declaration::default(),
         manifest: serde_json::json!({
             "name": "lib",
             "optionalDependencies": { "is-positive": "1.0.0" },
@@ -500,7 +483,6 @@ fn a_dependency_that_became_optional_is_outdated() {
 #[test]
 fn an_install_without_optional_dependencies_ignores_the_recorded_optional_children() {
     let result = check_directory_dep(&DirectoryDepCase {
-        declaration: Declaration::default(),
         manifest: serde_json::json!({ "name": "lib" }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "optionalDependencies": { "is-positive": "1.0.0" } }),
@@ -515,7 +497,6 @@ fn an_install_without_optional_dependencies_ignores_the_recorded_optional_childr
 #[test]
 fn a_misconfigured_catalog_child_keeps_the_catalog_error() {
     let error = check_directory_dep(&DirectoryDepCase {
-        declaration: Declaration::default(),
         manifest: serde_json::json!({
             "name": "lib",
             "dependencies": { "is-positive": "catalog:missing" },
@@ -543,7 +524,6 @@ fn a_misconfigured_catalog_child_keeps_the_catalog_error() {
 #[test]
 fn a_peer_shadowed_dependency_is_not_resolved_through_the_catalogs() {
     let result = check_directory_dep(&DirectoryDepCase {
-        declaration: Declaration::default(),
         manifest: serde_json::json!({
             "name": "lib",
             "dependencies": { "react": "catalog:missing" },
@@ -570,7 +550,6 @@ fn a_peer_shadowed_dependency_is_not_resolved_through_the_catalogs() {
 #[test]
 fn a_dependency_that_became_optional_is_outdated_without_optional_dependencies() {
     let result = check_directory_dep(&DirectoryDepCase {
-        declaration: Declaration::default(),
         manifest: serde_json::json!({
             "name": "lib",
             "optionalDependencies": { "is-positive": "1.0.0" },
@@ -590,7 +569,6 @@ fn a_dependency_that_became_optional_is_outdated_without_optional_dependencies()
 #[test]
 fn a_dependency_that_became_optional_is_outdated_on_a_frozen_install() {
     let result = check_directory_dep(&DirectoryDepCase {
-        declaration: Declaration::default(),
         manifest: serde_json::json!({
             "name": "lib",
             "optionalDependencies": { "is-positive": "1.0.0" },
@@ -659,7 +637,6 @@ fn a_pinned_source_child_is_resolved_again_unless_frozen_on_the_same_source() {
     for (locked_spec, other_spec, locked_ref) in cases {
         let check = |spec: &str, frozen_lockfile| {
             check_directory_dep(&DirectoryDepCase {
-                declaration: Declaration::default(),
                 manifest: serde_json::json!({
                     "name": "lib",
                     "dependencies": { "is-positive": spec },
@@ -692,8 +669,6 @@ fn only_a_directory_without_a_manifest_is_described_by_its_name() {
     let describe = || {
         super::unhooked_manifest(&super::InjectedDirectory {
             dir: &dir,
-            declared_by_path: true,
-            workspace_root: tmp.path(),
             manifests_by_dir: &manifests_by_dir,
         })
     };
@@ -704,7 +679,7 @@ fn only_a_directory_without_a_manifest_is_described_by_its_name() {
 }
 
 #[test]
-fn publish_config_directory_manifest_follows_declaration_kind() {
+fn a_publish_directory_is_described_by_its_project_however_it_was_declared() {
     let tmp = tempfile::tempdir().expect("create a temporary directory");
     let workspace_root = tmp.path().join("ws");
     let ws_pkg = workspace_root.join("packages/lib");
@@ -728,23 +703,15 @@ fn publish_config_directory_manifest_follows_declaration_kind() {
     .expect("write outside project manifest");
 
     let manifests_by_dir = HashMap::new();
-    let ws_injected = super::unhooked_manifest(&super::InjectedDirectory {
-        dir: &ws_dist,
-        declared_by_path: false,
-        workspace_root: &workspace_root,
-        manifests_by_dir: &manifests_by_dir,
-    })
-    .expect("workspace publish directory resolves to parent project manifest");
-    assert_eq!(ws_injected.value()["dependencies"]["foo"], "1.0.0");
-
-    let outside_file = super::unhooked_manifest(&super::InjectedDirectory {
-        dir: &outside_dist,
-        declared_by_path: true,
-        workspace_root: &workspace_root,
-        manifests_by_dir: &manifests_by_dir,
-    })
-    .expect("file: dependency outside workspace resolves to parent publish manifest");
-    assert_eq!(outside_file.value()["version"], "2.0.0");
+    let describe = |dir: &Path| {
+        super::unhooked_manifest(&super::InjectedDirectory {
+            dir,
+            manifests_by_dir: &manifests_by_dir,
+        })
+        .expect("a publish directory is described by its project")
+    };
+    assert_eq!(describe(&ws_dist).value()["dependencies"]["foo"], "1.0.0");
+    assert_eq!(describe(&outside_dist).value()["version"], "2.0.0");
 }
 
 #[test]
@@ -1249,47 +1216,27 @@ snapshots:
         .expect("workspace:1 is satisfied by the project at version 1");
 }
 
-fn check_catalog_child_of_a_path_declared_dep(
-    manifest_key: &str,
-    snapshot: serde_json::Value,
-    declaration_assumed: bool,
-) -> Result<(), FreshnessCheckError> {
-    let mut manifest = serde_json::json!({ "name": "lib" });
-    manifest[manifest_key] = serde_json::json!({ "is-positive": "catalog:" });
-    check_directory_dep(&DirectoryDepCase {
-        declaration: Declaration { by_path: true, assumed: declaration_assumed },
-        manifest,
-        metadata: serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } }),
-        snapshot,
-        frozen_lockfile: true,
-        auto_install_peers: true,
-        include_optional: true,
-        catalogs: Catalogs::new(),
-    })
-}
-
 #[test]
-fn a_recorded_catalog_child_of_a_path_declared_dependency_is_outdated_even_when_frozen() {
-    let snapshot = serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } });
-    let result = check_catalog_child_of_a_path_declared_dep("dependencies", snapshot, false);
-    assert!(result.is_err(), "no resolver accepts the spec: {result:?}");
-}
-
-#[test]
-fn a_catalog_child_is_left_to_the_workspace_check_when_the_declaration_is_assumed() {
-    let snapshot = serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } });
-    let result = check_catalog_child_of_a_path_declared_dep("dependencies", snapshot, true);
-    assert!(result.is_ok(), "a workspace declaration resolves the spec: {result:?}");
-}
-
-#[test]
-fn an_omitted_optional_catalog_child_of_a_path_declared_dependency_is_fresh() {
-    let result = check_catalog_child_of_a_path_declared_dep(
-        "optionalDependencies",
-        serde_json::json!({}),
-        false,
-    );
-    assert!(result.is_ok(), "resolution drops the optional child: {result:?}");
+fn a_catalog_child_of_a_directory_dependency_resolves_through_the_catalogs() {
+    let check = |range: &str| {
+        check_directory_dep(&DirectoryDepCase {
+            manifest: serde_json::json!({
+                "name": "lib",
+                "dependencies": { "is-positive": "catalog:" },
+            }),
+            metadata: serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } }),
+            snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+            frozen_lockfile: true,
+            auto_install_peers: true,
+            include_optional: true,
+            catalogs: Catalogs::from([(
+                "default".to_string(),
+                std::collections::BTreeMap::from([("is-positive".to_string(), range.to_string())]),
+            )]),
+        })
+    };
+    assert!(check("1.0.0").is_ok(), "the catalog range accepts the locked version");
+    assert!(check("2.0.0").is_err(), "the catalog range rejects the locked version");
 }
 
 fn recorded_case(manifest: serde_json::Value, record: serde_json::Value) -> DirectoryDepCase {
@@ -1299,7 +1246,6 @@ fn recorded_case(manifest: serde_json::Value, record: serde_json::Value) -> Dire
         manifest,
         metadata,
         snapshot: serde_json::json!({ "dependencies": { "child": "1.0.0" } }),
-        declaration: Declaration::default(),
         frozen_lockfile: true,
         auto_install_peers: true,
         include_optional: true,
@@ -1333,7 +1279,6 @@ fn recorded_workspace_catalog_children_reject_catalog_range_changes() {
         "default".to_string(),
         std::collections::BTreeMap::from([("child".to_string(), "2.0.0".to_string())]),
     )]);
-    case.declaration = Declaration { by_path: false, assumed: true };
     let result = check_directory_dep(&case);
     assert!(result.is_err(), "the changed catalog range must invalidate the snapshot: {result:?}");
 }
@@ -1392,8 +1337,6 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
     };
     let dep = LocalDepContext {
         name: "lib",
-        declared_by_path: false,
-        declaration_assumed: false,
         rel_path: "packages/lib",
         dir: &local_dir,
         dirs: SpecDirs {

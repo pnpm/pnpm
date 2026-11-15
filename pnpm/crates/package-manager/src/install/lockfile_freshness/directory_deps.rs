@@ -35,12 +35,6 @@ use std::path::Path;
 #[derive(Clone, Copy)]
 struct LocalDepContext<'a> {
     name: &'a str,
-    /// See [`is_declared_by_path`].
-    declared_by_path: bool,
-    /// The lockfile does not record which spec declared the package, so it
-    /// is checked under both declarations. Only the workspace one judges its
-    /// `catalog:` children then.
-    declaration_assumed: bool,
     rel_path: &'a str,
     dir: &'a Path,
     dirs: SpecDirs<'a>,
@@ -52,16 +46,8 @@ impl<'a> LocalDepContext<'a> {
         local_dependency_outdated(self.name, self.rel_path)
     }
 
-    fn child(&self, name: &'a str, spec: &str, rel_path: &'a str, dir: &'a Path) -> Self {
-        Self {
-            name,
-            declared_by_path: is_declared_by_path(spec),
-            declaration_assumed: false,
-            rel_path,
-            dir,
-            dirs: self.dirs,
-            catalogs: self.catalogs,
-        }
+    fn child(&self, name: &'a str, rel_path: &'a str, dir: &'a Path) -> Self {
+        Self { name, rel_path, dir, dirs: self.dirs, catalogs: self.catalogs }
     }
 }
 
@@ -73,9 +59,8 @@ fn local_dependency_outdated(name: &str, path: &str) -> FreshnessCheckError {
 }
 
 /// Whether the local resolver claims `spec` as a filesystem path, a `file:`
-/// spec or a bare one such as `../lib`. It resolves such a directory as
-/// `local-filesystem`, not through the workspace: the directory's children
-/// skip the catalogs, and its manifest is read from the directory itself.
+/// spec or a bare one such as `../lib`, and resolves it relative to the
+/// declaring directory, not through the workspace.
 pub(crate) fn is_declared_by_path(spec: &str) -> bool {
     pnpm_local_spec::is_local_filesystem_specifier(spec)
 }

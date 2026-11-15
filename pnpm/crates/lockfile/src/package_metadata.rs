@@ -1,6 +1,9 @@
 use crate::LockfileResolution;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, ops::Deref};
+use std::{
+    collections::{BTreeSet, HashMap},
+    ops::Deref,
+};
 
 /// Metadata for one resolved package version, as stored in the v9
 /// `packages:` map. This is the per-version data that does not vary by
@@ -59,11 +62,11 @@ pub struct PackageMetadata {
     pub specifiers: Option<DeclaredSpecifiers>,
 }
 
+/// The dependencies a directory package's manifest declares, after the
+/// manifest hooks and before peer shadowing and catalog resolution.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeclaredSpecifiers {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub manifest_source: Option<DirectoryManifestSource>,
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
@@ -74,18 +77,9 @@ pub struct DeclaredSpecifiers {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub optional_dependencies: Option<HashMap<String, String>>,
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
-    pub dependencies_meta: Option<HashMap<String, serde_json::Value>>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DirectoryManifestSource {
-    Path,
-    Workspace,
+    /// The declared dependencies `dependenciesMeta` marks `injected`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub injected: Option<BTreeSet<String>>,
 }
 
 /// What a package bundles inside its own tarball, as pnpm records it: the

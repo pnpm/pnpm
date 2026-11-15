@@ -275,10 +275,13 @@ async fn resolve_spec(
         }));
     }
 
-    let manifest = match safe_read_package_json_from_dir(&spec.fetch_spec) {
-        Ok(Some(manifest)) => manifest,
-        Ok(None) => synthesize_fallback_manifest(&spec, opts, path_shaped_specifier)?,
-        Err(err) => return Err(handle_manifest_read_failure(err, &spec)),
+    let manifest = match publishing_project_manifest(&spec)? {
+        Some(manifest) => manifest,
+        None => match safe_read_package_json_from_dir(&spec.fetch_spec) {
+            Ok(Some(manifest)) => manifest,
+            Ok(None) => synthesize_fallback_manifest(&spec, opts, path_shaped_specifier)?,
+            Err(err) => return Err(handle_manifest_read_failure(err, &spec)),
+        },
     };
 
     Ok(Some(LocalResolveResult {
@@ -290,6 +293,20 @@ async fn resolve_spec(
         }),
         resolved_via: spec.resolved_via,
     }))
+}
+
+/// The manifest of the project whose `publishConfig.directory` a `file:`
+/// directory is. It describes the directory however the directory was
+/// declared, as it does for a `workspace:` range, so a `package.json` a build
+/// writes there does not change the resolution. A `link:` directory keeps its
+/// own `package.json`.
+fn publishing_project_manifest(
+    spec: &LocalPackageSpec,
+) -> Result<Option<serde_json::Value>, ResolveLocalError> {
+    if !spec.id.as_str().starts_with("file:") {
+        return Ok(None);
+    }
+    find_parent_publish_manifest(&spec.fetch_spec).map_err(ResolveLocalError::ReadManifest)
 }
 
 async fn resolve_file_spec(

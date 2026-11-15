@@ -17,16 +17,11 @@ fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let hooked = check.workspace.directory_manifests.get(dep.rel_path, dep.declared_by_path);
-    if let Some(manifest) = hooked {
+    if let Some(manifest) = check.workspace.directory_manifests.get(dep.rel_path) {
         return Ok(manifest.clone());
     }
-    let injected = InjectedDirectory {
-        dir: dep.dir,
-        declared_by_path: dep.declared_by_path,
-        workspace_root: dep.dirs.workspace_root,
-        manifests_by_dir: check.workspace.manifests_by_dir,
-    };
+    let injected =
+        InjectedDirectory { dir: dep.dir, manifests_by_dir: check.workspace.manifests_by_dir };
     overridden_unhooked_manifest(&injected, check.overrider).ok_or_else(|| dep.outdated())
 }
 
@@ -54,14 +49,13 @@ pub(super) fn check_single_directory_dep_freshness(
     ),
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
-    let dep = &declared_context(dep, pkg_meta);
     let local_manifest = read_and_override_manifest(check, dep)?;
     let Some(snapshot) = snapshot else {
         return Err(dep.outdated());
     };
     // A revisit in the same peer scope is a cycle or a shared dependency
     // already checked.
-    if !visited.first_visit(pkg_key, dep, &local_manifest, scope) {
+    if !visited.first_visit(pkg_key, &local_manifest, scope) {
         return Ok(());
     }
     if pkg_meta.specifiers.is_some() {
@@ -106,17 +100,4 @@ fn check_legacy_directory(
         visited,
     )?;
     peers.check_local_peer_deps_freshness(dep, local_manifest, pkg_meta)
-}
-
-fn declared_context<'a>(
-    dep: &LocalDepContext<'a>,
-    metadata: &pnpm_lockfile::PackageMetadata,
-) -> LocalDepContext<'a> {
-    let declared_by_path =
-        match metadata.specifiers.as_ref().and_then(|recorded| recorded.manifest_source) {
-            Some(pnpm_lockfile::DirectoryManifestSource::Path) => true,
-            Some(pnpm_lockfile::DirectoryManifestSource::Workspace) => false,
-            None => dep.declared_by_path,
-        };
-    LocalDepContext { declared_by_path, ..*dep }
 }

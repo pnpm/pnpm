@@ -246,20 +246,6 @@ impl Scenario {
         assert_success(&output);
     }
 
-    fn assert_install_fails(&self, filter: &[&str], code: &str) {
-        let output = self.fixture.command_at(
-            self.workspace(),
-            ["install", "--no-frozen-lockfile"].iter().chain(filter),
-        );
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            !output.status.success() && (stdout.contains(code) || stderr.contains(code)),
-            "{:?}: expected the install to fail with {code}\nstdout:\n{stdout}\nstderr:\n{stderr}",
-            self.layout,
-        );
-    }
-
     /// Whether `pnpm install --frozen-lockfile` passes from a clean tree.
     /// Any failure other than an outdated lockfile or catalog fails the test.
     fn frozen_install_passes(&mut self, filter: &[&str]) -> bool {
@@ -311,13 +297,6 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
         );
     }
     scenario.edit(edit);
-    if matches!(
-        (layout.injection, edit),
-        (Injection::FileSpec | Injection::BarePath, Edit::CatalogFileChild),
-    ) {
-        check_unresolvable_child(&mut scenario, filter);
-        return;
-    }
 
     let after = assert_agreement(&mut scenario, edit, filter);
 
@@ -367,17 +346,6 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
             "{layout:?}, {edit:?}: the v12 lockfiles differ from a v11 resolution from scratch",
         );
     }
-}
-
-/// The children of a dependency declared by path keep their `catalog:`
-/// specs, which no resolver accepts, so both installs fail.
-fn check_unresolvable_child(scenario: &mut Scenario, filter: &[&str]) {
-    assert!(
-        !scenario.frozen_install_passes(filter),
-        "{:?}, filter {filter:?}: the frozen install passed",
-        scenario.layout,
-    );
-    scenario.assert_install_fails(filter, "ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER");
 }
 
 /// Asserts that `pnpm install --frozen-lockfile` from a clean tree passes

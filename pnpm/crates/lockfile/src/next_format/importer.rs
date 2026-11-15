@@ -2,7 +2,8 @@
 //! version follows from it, and `{specifier, version}` otherwise. Where the
 //! project's scope does not say which snapshot it links, the dependency
 //! adds `with`, and still leaves out a version that follows from the
-//! specifier.
+//! specifier. A dependency `dependenciesMeta` marks `injected` adds
+//! `injected: true`.
 //!
 //! The version follows from an exact version, from an `npm:` alias of an
 //! exact version, from a `link:` or `file:` path, from a `catalog:`
@@ -32,12 +33,14 @@ pub enum NextImporterDep {
 }
 
 /// A dependency whose version follows from its specifier, with the bindings
-/// that name the snapshot.
+/// that name the snapshot, or marked `injected`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NextNamedDep {
     pub specifier: String,
-    #[serde(rename = "with")]
+    #[serde(default, rename = "with", skip_serializing_if = "NamedBindings::is_empty")]
     pub peers: NamedBindings,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub injected: bool,
 }
 
 /// The map form of a dependency as read. `version` is absent when it
@@ -49,19 +52,26 @@ struct DepWire {
     version: Option<ImporterDepVersion>,
     #[serde(default, rename = "with")]
     peers: Option<NamedBindings>,
+    #[serde(default)]
+    injected: bool,
 }
 
 impl From<DepWire> for NextImporterDep {
     fn from(wire: DepWire) -> Self {
-        let DepWire { specifier, version, peers } = wire;
+        let DepWire { specifier, version, peers, injected } = wire;
         match (version, peers) {
-            (Some(version), peers) => {
-                NextImporterDep::Resolved(Box::new(NextResolvedDep { specifier, version, peers }))
-            }
-            (None, Some(peers)) => {
-                NextImporterDep::Named(Box::new(NextNamedDep { specifier, peers }))
-            }
-            (None, None) => NextImporterDep::Specifier(specifier),
+            (Some(version), peers) => NextImporterDep::Resolved(Box::new(NextResolvedDep {
+                specifier,
+                version,
+                peers,
+                injected,
+            })),
+            (None, None) if !injected => NextImporterDep::Specifier(specifier),
+            (None, peers) => NextImporterDep::Named(Box::new(NextNamedDep {
+                specifier,
+                peers: peers.unwrap_or_default(),
+                injected,
+            })),
         }
     }
 }
@@ -112,6 +122,8 @@ pub struct NextResolvedDep {
     /// not select it.
     #[serde(default, rename = "with", skip_serializing_if = "Option::is_none")]
     pub peers: Option<NamedBindings>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub injected: bool,
 }
 
 pub type NextImporterDeps = HashMap<PkgName, NextImporterDep>;
@@ -143,8 +155,6 @@ pub struct NextImporter {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub optional_dependencies: Option<NextImporterDeps>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dependencies_meta: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub publish_directory: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -214,9 +224,31 @@ impl NextImporter {
             dependencies: map(&self.dependencies),
             dev_dependencies: map(&self.dev_dependencies),
             optional_dependencies: map(&self.optional_dependencies),
-            dependencies_meta: self.dependencies_meta.clone(),
+            dependencies_meta: self.injected_dependencies_meta(),
             publish_directory: self.publish_directory.clone(),
             link_directory: self.link_directory,
+        }
+    }
+
+    /// The `dependenciesMeta` the `injected` dependencies stand for.
+    fn injected_dependencies_meta(&self) -> Option<serde_json::Value> {
+        let injected: serde_json::Map<String, serde_json::Value> = self
+            .groups()
+            .flat_map(HashMap::iter)
+            .filter(|(_, dep)| dep.injected())
+            .map(|(alias, _)| (alias.to_string(), serde_json::json!({ "injected": true })))
+            .collect();
+        (!injected.is_empty()).then_some(serde_json::Value::Object(injected))
+    }
+}
+
+impl NextImporterDep {
+    #[must_use]
+    pub fn injected(&self) -> bool {
+        match self {
+            NextImporterDep::Specifier(_) => false,
+            NextImporterDep::Named(dep) => dep.injected,
+            NextImporterDep::Resolved(dep) => dep.injected,
         }
     }
 }
@@ -272,15 +304,18 @@ fn resolve_map(
     implied: Implied<'_>,
 ) -> Result<(), NextFormatError> {
     for (alias, dep) in map.iter_mut() {
-        let (specifier, peers) = match dep {
-            NextImporterDep::Specifier(specifier) => (std::mem::take(specifier), None),
-            NextImporterDep::Named(named) => {
-                (std::mem::take(&mut named.specifier), Some(std::mem::take(&mut named.peers)))
-            }
+        let (specifier, peers, injected) = match dep {
+            NextImporterDep::Specifier(specifier) => (std::mem::take(specifier), None, false),
+            NextImporterDep::Named(named) => (
+                std::mem::take(&mut named.specifier),
+                Some(std::mem::take(&mut named.peers)).filter(|peers| !peers.is_empty()),
+                named.injected,
+            ),
             NextImporterDep::Resolved(_) => continue,
         };
         let mut resolved = resolved(id, alias, specifier, implied)?;
         resolved.peers = peers;
+        resolved.injected = injected;
         *dep = NextImporterDep::Resolved(Box::new(resolved));
     }
     Ok(())
@@ -302,7 +337,7 @@ fn resolved(
         .ok_or_else(underivable)?
         .parse::<ImporterDepVersion>()
         .map_err(|_| underivable())?;
-    Ok(NextResolvedDep { specifier, version, peers: None })
+    Ok(NextResolvedDep { specifier, version, peers: None, injected: false })
 }
 
 fn collapse(id: &str, alias: &PkgName, dep: &mut NextImporterDep, implied: Implied<'_>) {
@@ -312,8 +347,12 @@ fn collapse(id: &str, alias: &PkgName, dep: &mut NextImporterDep, implied: Impli
         return;
     }
     let specifier = std::mem::take(&mut resolved.specifier);
-    *dep = match resolved.peers.take() {
-        Some(peers) => NextImporterDep::Named(Box::new(NextNamedDep { specifier, peers })),
-        None => NextImporterDep::Specifier(specifier),
+    *dep = match (resolved.peers.take(), resolved.injected) {
+        (None, false) => NextImporterDep::Specifier(specifier),
+        (peers, injected) => NextImporterDep::Named(Box::new(NextNamedDep {
+            specifier,
+            peers: peers.unwrap_or_default(),
+            injected,
+        })),
     };
 }

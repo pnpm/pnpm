@@ -253,9 +253,7 @@ fn assert_skipped_for_local_file_dependency(decision: &Decision) {
 
 #[test]
 fn recorded_injected_inputs_allow_a_dedicated_lockfile_repeat_install() {
-    let lockfile = LOCKFILE.replace("'9.0'", "'13.0'")
-        .replace("resolution: {directory: pkg-a, type: directory}",
-            "resolution: {directory: pkg-a, type: directory}\n    specifiers: {manifestSource: workspace}");
+    let lockfile = LOCKFILE.replace("'9.0'", "'13.0'");
     assert_eq!(
         injected_sibling_decision_with_lockfile(false, Some(&unchanged_sibling()), &lockfile),
         Decision::UpToDate,
@@ -277,7 +275,7 @@ fn recorded_injected_inputs_do_not_vouch_for_a_changed_nested_project() {
         )
         .replace(
             "  pkg-a@file:pkg-a:\n    resolution: {directory: pkg-a, type: directory}\n\nsnapshots:\n\n  pkg-a@file:pkg-a: {}\n",
-            "  bar@1.0.0:\n    resolution: {integrity: sha512-AAAA}\n\n  pkg-a@file:pkg-a:\n    resolution: {directory: pkg-a, type: directory}\n    specifiers: {manifestSource: workspace, dependencies: {bar: 1.0.0}}\n\n  pkg-b@file:pkg-b:\n    resolution: {directory: pkg-b, type: directory}\n    specifiers: {manifestSource: workspace}\n\nsnapshots:\n\n  bar@1.0.0:\n    dependencies:\n      pkg-b: file:pkg-b\n\n  pkg-a@file:pkg-a:\n    dependencies:\n      bar: 1.0.0\n\n  pkg-b@file:pkg-b: {}\n",
+            "  bar@1.0.0:\n    resolution: {integrity: sha512-AAAA}\n    dependencies:\n      pkg-b: file:pkg-b\n\n  pkg-a@file:pkg-a:\n    resolution: {directory: pkg-a, type: directory}\n    dependencies:\n      bar: 1.0.0\n\n  pkg-b@file:pkg-b:\n    resolution: {directory: pkg-b, type: directory}\n",
         );
     assert!(lockfile.contains("\n  pkg-b: {}\n"), "{lockfile}");
     assert!(lockfile.contains("pkg-b: file:pkg-b"), "{lockfile}");

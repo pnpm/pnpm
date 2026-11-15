@@ -926,3 +926,33 @@ fn a_rooted_spec_takes_the_drive_of_the_project() {
     assert_eq!(local_spec_path("file:/vendor", project), rooted);
     assert_eq!(local_spec_path("file:/vendor", project), recorded_local_path("/vendor", project));
 }
+
+/// A `file:` directory a project publishes from is described by the project's
+/// manifest, as a `workspace:` range describes it, even after a build writes a
+/// `package.json` there. A `link:` keeps the directory's own manifest.
+#[tokio::test]
+async fn resolve_publish_directory_with_the_publishing_projects_manifest() {
+    let tmp = TempDir::new().expect("tempdir");
+    let project = tmp.path().join("lib");
+    fs::create_dir_all(project.join("dist")).expect("create publish directory");
+    fs::write(
+        project.join("package.json"),
+        r#"{"name":"lib","version":"1.0.0","publishConfig":{"directory":"dist"},"dependencies":{"foo":"^1"}}"#,
+    )
+    .expect("write project manifest");
+    fs::write(project.join("dist/package.json"), r#"{"name":"lib","version":"1.0.0"}"#)
+        .expect("write built manifest");
+    let consumer = tmp.path().join("app");
+    fs::create_dir_all(&consumer).expect("create consumer");
+    let resolve = async |bare_specifier: &str| {
+        let wd =
+            WantedLocalDependency { bare_specifier: bare_specifier.to_string(), injected: false };
+        resolve_from_local_scheme(&ctx_default(), &wd, &opts(&consumer)).await
+            .expect("resolve")
+            .expect("claims")
+            .manifest
+            .expect("manifest")
+    };
+    assert_eq!(resolve("file:../lib/dist").await["dependencies"]["foo"], "^1");
+    assert!(resolve("link:../lib/dist").await.get("dependencies").is_none());
+}
