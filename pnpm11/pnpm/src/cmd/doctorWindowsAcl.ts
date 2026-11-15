@@ -71,8 +71,7 @@ const POWERSHELL_SECURITY_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
   '$ps7 = $PSVersionTable.PSVersion.Major -ge 6',
   'if ($ps7) {',
-  "  [void][System.Reflection.Assembly]::Load('System.Security.Principal.Windows')",
-  "  [void][System.Reflection.Assembly]::Load('System.IO.FileSystem.AccessControl')",
+  "  foreach ($asm in 'System.Security.Principal.Windows','System.IO.FileSystem.AccessControl','System.Reflection.Primitives','System.Reflection.Emit') { [void][System.Reflection.Assembly]::Load($asm) }",
   '  [void][System.IO.FileSystemAclExtensions]',
   '}',
   '$me = $null; $groups = @(); $admins = @()',
@@ -85,9 +84,9 @@ const POWERSHELL_SECURITY_SCRIPT = [
   '    $ab = if ($ps7) { [System.Reflection.Emit.AssemblyBuilder]::DefineDynamicAssembly($an, $acc) } else { [System.AppDomain]::CurrentDomain.DefineDynamicAssembly($an, $acc) }',
   "    $tb = $ab.DefineDynamicModule('M').DefineType('N', [System.Reflection.TypeAttributes]'Public,Abstract,Sealed')",
   "    $m1 = $tb.DefinePInvokeMethod('NetLocalGroupGetMembers', 'netapi32.dll', [System.Reflection.MethodAttributes]'Public,Static,PinvokeImpl', [System.Reflection.CallingConventions]::Standard, [int], [Type[]]@([IntPtr], [string], [int], [IntPtr].MakeByRefType(), [int], [int].MakeByRefType(), [int].MakeByRefType(), [IntPtr].MakeByRefType()), [System.Runtime.InteropServices.CallingConvention]::Winapi, [System.Runtime.InteropServices.CharSet]::Unicode)",
-  '    $m1.SetImplementationFlags([System.Reflection.MethodImplAttributes]::PreserveSig)',
+  '    $m1.SetImplementationFlags($m1.GetMethodImplementationFlags() -bor [System.Reflection.MethodImplAttributes]::PreserveSig)',
   "    $m2 = $tb.DefinePInvokeMethod('NetApiBufferFree', 'netapi32.dll', [System.Reflection.MethodAttributes]'Public,Static,PinvokeImpl', [System.Reflection.CallingConventions]::Standard, [int], [Type[]]@([IntPtr]), [System.Runtime.InteropServices.CallingConvention]::Winapi, [System.Runtime.InteropServices.CharSet]::Auto)",
-  '    $m2.SetImplementationFlags([System.Reflection.MethodImplAttributes]::PreserveSig)',
+  '    $m2.SetImplementationFlags($m2.GetMethodImplementationFlags() -bor [System.Reflection.MethodImplAttributes]::PreserveSig)',
   '    $sam = $tb.CreateType()',
   "    $grpName = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544').Translate([System.Security.Principal.NTAccount]).Value.Split('\\')[-1]",
   '    $buf = [IntPtr]::Zero; $read = 0; $tot = 0; $res = [IntPtr]::Zero',
@@ -151,6 +150,15 @@ function isTrustedRuleSid (rule: WindowsAccessRule, ctx: TrustedRuleContext): bo
   return isTrustedWindowsPrincipal(sid, ctx.currentUserSid, ctx.adminSids)
 }
 
+function ignoresInheritOnlyRule (role: WindowsPathRole, rule: WindowsAccessRule): boolean {
+  switch (role) {
+    case 'strict-ancestor':
+      return (rule.prop & INHERIT_ONLY_PROPAGATION) !== 0
+    case 'probe-parent':
+      return false
+  }
+}
+
 export function isSafeWindowsDirSecurity (
   security: WindowsDirSecurity,
   identity: WindowsSecurityIdentity,
@@ -165,7 +173,7 @@ export function isSafeWindowsDirSecurity (
   const ctx: TrustedRuleContext = { ...identity, ownerSid: security.owner }
   return security.rules.every((rule) =>
     !rule.allow ||
-    (role === 'strict-ancestor' && (rule.prop & INHERIT_ONLY_PROPAGATION) !== 0) ||
+    ignoresInheritOnlyRule(role, rule) ||
     (rule.mask & UNSAFE_REPLACE_MASK) === 0 ||
     isTrustedRuleSid(rule, ctx)
   )

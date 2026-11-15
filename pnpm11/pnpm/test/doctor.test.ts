@@ -2,12 +2,13 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import os from 'node:os'
 import path from 'node:path'
 
-import { expect, jest, test } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { isError } from '@pnpm/error'
-import { prepare } from '@pnpm/prepare'
+import { prepare as prepareProject } from '@pnpm/prepare'
 
 import { type CheckResult, handler, type LinkOperations } from '../src/cmd/doctor.js'
 import {
@@ -24,6 +25,30 @@ import { execPnpmSync } from './utils/execPnpm.js'
 import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
 const PNPM_BIN = path.resolve(import.meta.dirname, '../bin/pnpm.mjs')
+const INITIAL_CWD = process.cwd()
+const windowsTempRoots: string[] = []
+
+afterEach(() => {
+  if (windowsTempRoots.length === 0) return
+  process.chdir(INITIAL_CWD)
+  for (const tempRoot of windowsTempRoots.splice(0)) {
+    try {
+      fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+    } catch { /* Best-effort temp directory cleanup on Windows. */ }
+  }
+})
+
+function prepare (): void {
+  if (process.platform !== 'win32') {
+    prepareProject()
+    return
+  }
+  // Windows CI checkouts live outside the user profile under a shared runner directory,
+  // whereas OS temp resolves inside the current user's private profile directory.
+  const tempRoot = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), 'pnpm-doctor-test-'))
+  windowsTempRoots.push(tempRoot)
+  prepareProject(undefined, { tempDir: path.join(tempRoot, 'project') })
+}
 
 function simulatedMount (filePath: string): string | undefined {
   const realParent = fs.realpathSync(path.dirname(filePath))

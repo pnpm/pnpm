@@ -109,7 +109,7 @@ fn is_trusted_rule_sid(
     is_trusted_windows_principal(&sid, current_user_sid, admin_sids)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub(in crate::cli_args::doctor) enum WindowsPathRole {
     StrictAncestor,
     ProbeParent,
@@ -134,8 +134,10 @@ pub(in crate::cli_args::doctor) fn is_safe_windows_dir_security(
         .iter()
         .all(|rule| {
             !rule.allow
-                || (role == WindowsPathRole::StrictAncestor
-                    && (rule.prop & INHERIT_ONLY_PROPAGATION) != 0)
+                || match role {
+                    WindowsPathRole::StrictAncestor => (rule.prop & INHERIT_ONLY_PROPAGATION) != 0,
+                    WindowsPathRole::ProbeParent => false,
+                }
                 || (rule.mask.cast_unsigned() & UNSAFE_REPLACE_MASK) == 0
                 || is_trusted_rule_sid(rule, current_user_sid, admin_sids, owner)
         })
