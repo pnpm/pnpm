@@ -16,13 +16,21 @@ import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DependencyManifest, DepPath, Finder, RegistriesByScope } from '@pnpm/types'
 import { realpathMissing } from 'realpath-missing'
-import semver from 'semver'
 
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
+import {
+  compareDependentsTrees,
+  getPackageMergeId,
+  recordPackageNodeMergeId,
+  setDependentNodeImporterId,
+  setDependentsTreeMergeId,
+} from './dependentsTreeIdentity.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
 import type { TreeNodeId } from './TreeNodeId.js'
+
+export { compareDependentsTrees }
 
 interface ReverseEdge {
   parentSerialized: string
@@ -74,16 +82,6 @@ interface WalkContext {
   visited: Set<string>
   /** Tracks nodes already fully expanded, for deduplication across branches. */
   expanded: Set<string>
-}
-
-const dependentNodeImporterIds = new WeakMap<DependentNode, string>()
-
-export function setDependentNodeImporterId (node: DependentNode, importerId: string): void {
-  dependentNodeImporterIds.set(node, importerId)
-}
-
-export function getDependentNodeImporterId (node: DependentNode): string | undefined {
-  return dependentNodeImporterIds.get(node)
 }
 
 type NameFormatter = (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
@@ -229,6 +227,10 @@ function buildTreeIfMatched (
   if (typeof matched === 'string') {
     tree.searchMessage = matched
   }
+  const mergeId = getPackageMergeId(ctx.lockfileDir, depPath, snapshot, version)
+  if (mergeId != null) {
+    setDependentsTreeMergeId(tree, mergeId)
+  }
   return tree
 }
 
@@ -248,16 +250,6 @@ function searchPackage (
     if (aliasMatched) return aliasMatched
   }
   return false
-}
-
-export function compareDependentsTrees (left: DependentsTree, right: DependentsTree): number {
-  const nameCmp = lexCompare(left.name, right.name)
-  if (nameCmp !== 0) return nameCmp
-  const versionCmp = semver.valid(left.version) && semver.valid(right.version)
-    ? semver.compare(left.version, right.version)
-    : lexCompare(left.version, right.version)
-  if (versionCmp !== 0) return versionCmp
-  return lexCompare(left.peersSuffixHash ?? '', right.peersSuffixHash ?? '')
 }
 
 function invertGraph (graph: DependencyGraph): Map<string, ReverseEdge[]> {
@@ -383,11 +375,15 @@ function createCircularDependent (edge: ReverseEdge, ctx: WalkContext): Dependen
     return node
   }
   if (parentNode?.nodeId.type !== 'package') return undefined
-  const snapshot = ctx.currentPackages[parentNode.nodeId.depPath]
+  const depPath = parentNode.nodeId.depPath
+  const snapshot = ctx.currentPackages[depPath]
   if (!snapshot) return undefined
-  const { name, version } = nameVerFromPkgSnapshot(parentNode.nodeId.depPath, snapshot)
+  const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
   const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
-  return { name, displayName, version, circular: true }
+  const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
+  const node: DependentNode = { name, displayName, version, peersSuffixHash, circular: true }
+  recordPackageNodeMergeId(node, ctx.lockfileDir, depPath, snapshot)
+  return node
 }
 
 function createDependent (edge: ReverseEdge, ctx: WalkContext): DependentNode | undefined {
@@ -424,7 +420,9 @@ function createPackageDependent (edge: ReverseEdge, depPath: DepPath, ctx: WalkC
   const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
 
   if (ctx.expanded.has(edge.parentSerialized)) {
-    return { name, displayName, version, peersSuffixHash, deduped: true }
+    const node: DependentNode = { name, displayName, version, peersSuffixHash, deduped: true }
+    recordPackageNodeMergeId(node, ctx.lockfileDir, depPath, snapshot)
+    return node
   }
 
   ctx.visited.add(edge.parentSerialized)
@@ -432,13 +430,15 @@ function createPackageDependent (edge: ReverseEdge, depPath: DepPath, ctx: WalkC
   const childDependents = walkReverse(edge.parentSerialized, ctx)
   ctx.visited.delete(edge.parentSerialized)
 
-  return {
+  const node: DependentNode = {
     name,
     displayName,
     version,
     peersSuffixHash,
     dependents: childDependents.length > 0 ? childDependents : undefined,
   }
+  recordPackageNodeMergeId(node, ctx.lockfileDir, depPath, snapshot)
+  return node
 }
 
 function resolveParentName (edge: ReverseEdge, ctx: WalkContext): string {

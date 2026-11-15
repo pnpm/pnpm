@@ -115,3 +115,90 @@ fn list_and_why_format_aliased_file_and_scoped_link_dependencies() {
 
     drop(root);
 }
+
+#[test]
+fn why_with_dedicated_lockfiles_keeps_distinct_local_file_dirs_separate() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let packages = [
+        (
+            "vendor/foo-v1",
+            json!({ "name": "foo", "version": "1.0.0", "description": "first local copy" }),
+        ),
+        (
+            "vendor/foo-v2",
+            json!({ "name": "foo", "version": "2.0.0", "description": "second local copy" }),
+        ),
+        (
+            "packages/project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "dependencies": { "foo": "file:../../vendor/foo-v1" },
+            }),
+        ),
+        (
+            "packages/project-2",
+            json!({
+                "name": "project-2",
+                "version": "1.0.0",
+                "dependencies": { "foo": "file:../../vendor/foo-v2" },
+            }),
+        ),
+        (
+            "packages/project-3",
+            json!({
+                "name": "project-3",
+                "version": "1.0.0",
+                "dependencies": { "foo": "file:../../vendor/foo-v1" },
+            }),
+        ),
+    ];
+    for (rel_dir, manifest) in &packages {
+        let dir = workspace.join(rel_dir);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+
+    run_ok(&workspace, &["install"]);
+
+    let why_json = run_ok(&workspace, &["why", "-r", "foo", "--json", "--long"]);
+    let trees: Vec<Value> = serde_json::from_str(&why_json).expect("parse why --json");
+    assert_eq!(trees.len(), 2, "distinct local directories should stay separate: {why_json}");
+    assert_eq!(trees[0]["name"], "foo");
+    assert_eq!(trees[0]["version"], "");
+    assert_eq!(trees[0]["description"], "first local copy");
+    assert_eq!(
+        trees[0]["dependents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|dep| dep["name"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["project-1", "project-3"],
+    );
+    assert_eq!(trees[1]["name"], "foo");
+    assert_eq!(trees[1]["version"], "");
+    assert_eq!(trees[1]["description"], "second local copy");
+    assert_eq!(
+        trees[1]["dependents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|dep| dep["name"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["project-2"],
+    );
+
+    let why_long = run_ok(&workspace, &["why", "-r", "foo", "--long"]);
+    assert!(why_long.contains("first local copy"), "{why_long}");
+    assert!(why_long.contains("second local copy"), "{why_long}");
+
+    drop(root);
+}

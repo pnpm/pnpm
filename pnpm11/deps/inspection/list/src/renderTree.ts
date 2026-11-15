@@ -7,7 +7,7 @@ import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import chalk from 'chalk'
 
 import { getPkgInfo } from './getPkgInfo.js'
-import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, hasNamePrefix, nameAtVersion, peerHashSuffix } from './peerVariants.js'
+import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, hasPkgNamePrefix, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import type { PackageDependencyHierarchy } from './types.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
@@ -161,7 +161,7 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
   const color = getPkgColor(node)
   let txt: string
   if (node.alias !== node.name) {
-    if (hasNamePrefix(node.version, node.name)) {
+    if (hasPkgNamePrefix(node.version)) {
       txt = `${color(node.alias)}${chalk.gray(`@${node.version}`)}`
     } else {
       txt = `${color(node.alias)}${chalk.gray(`@npm:${node.name}@${node.version}`)}`

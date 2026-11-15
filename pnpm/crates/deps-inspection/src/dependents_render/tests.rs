@@ -10,13 +10,9 @@ use crate::dependents::{DepField, DependentNode, DependentsTree};
 fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> DependentsTree {
     DependentsTree {
         name: name.to_string(),
-        display_name: None,
         version: version.to_string(),
-        path: None,
-        peers_suffix_hash: None,
         dependents,
-        search_message: None,
-        manifest: None,
+        ..DependentsTree::default()
     }
 }
 

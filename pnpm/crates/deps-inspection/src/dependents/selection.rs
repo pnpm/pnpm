@@ -1,3 +1,8 @@
+use std::path::Path;
+
+use pnpm_fs::lexical_normalize;
+use pnpm_lockfile::LockfileResolution;
+
 use super::{
     BuildDependentsOptions, DepField, DependencyGraph, DependentNode, DependentsTree, EdgeContext,
     HashMap, Lockfile, ManifestSource, PkgInfoEnv, PkgNameVerPeer, ReverseEdge, SearchMatch,
@@ -113,6 +118,32 @@ pub fn name_ver_from_dep_path(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) ->
     (dep_path.name.to_string(), version)
 }
 
+/// Disambiguating merge key for a package whose display `version` is empty.
+/// Directory `file:` resolutions key on the resolved target directory so the
+/// same directory referenced from multiple per-project lockfiles merges while
+/// distinct directories with the same package name stay separate.
+pub(super) fn package_merge_id(
+    lockfile_dir: &Path,
+    lockfile: &Lockfile,
+    dep_path: &PkgNameVerPeer,
+    version: &str,
+) -> Option<String> {
+    if !version.is_empty() {
+        return None;
+    }
+    let without_peer = dep_path.without_peer();
+    let resolution = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&without_peer))
+        .map(|metadata| &metadata.resolution);
+    if let Some(LockfileResolution::Directory(dir_res)) = resolution {
+        let joined = lexical_normalize(&lockfile_dir.join(&dir_res.directory));
+        let canonical = dunce::canonicalize(&joined).unwrap_or(joined);
+        return Some(format!("dir:{}", canonical.to_string_lossy()));
+    }
+    Some(format!("dep:{without_peer}"))
+}
+
 /// `semver.compare` when both versions parse as semver, lexicographic
 /// otherwise — the tree ordering the TypeScript CLI uses.
 #[must_use]
@@ -133,6 +164,12 @@ pub fn sort_trees(trees: &mut [DependentsTree]) {
                     .as_deref()
                     .unwrap_or("")
                     .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
+            })
+            .then_with(|| {
+                a.merge_id
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.merge_id.as_deref().unwrap_or(""))
             })
     });
 }
@@ -174,6 +211,7 @@ fn same_tree_key(left: &DependentsTree, right: &DependentsTree) -> bool {
     left.name == right.name
         && left.version == right.version
         && left.peers_suffix_hash == right.peers_suffix_hash
+        && left.merge_id == right.merge_id
 }
 
 fn merge_into_tree(target: &mut DependentsTree, source: DependentsTree) {
@@ -202,6 +240,12 @@ fn merge_dependent_nodes(target: &mut Vec<DependentNode>, source: Vec<DependentN
                     .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
             })
             .then_with(|| {
+                a.merge_id
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.merge_id.as_deref().unwrap_or(""))
+            })
+            .then_with(|| {
                 a.dep_field
                     .map(DepField::as_str)
                     .unwrap_or("")
@@ -220,6 +264,7 @@ fn same_node_key(left: &DependentNode, right: &DependentNode) -> bool {
     left.name == right.name
         && left.version == right.version
         && left.peers_suffix_hash == right.peers_suffix_hash
+        && left.merge_id == right.merge_id
         && left.dep_field == right.dep_field
         && left.circular == right.circular
         && left.importer_id == right.importer_id

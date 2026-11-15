@@ -1,7 +1,7 @@
 import type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
 import { prop, sortBy } from 'ramda'
 
-import { hasNamePrefix } from './peerVariants.js'
+import { hasPkgNamePrefix } from './peerVariants.js'
 import type { PackageDependencyHierarchy } from './types.js'
 
 const sortPackages = sortBy(prop('name'))
@@ -69,12 +69,12 @@ function renderLongRootLine (pkg: PackageDependencyHierarchy): string {
 
 function renderLongDependencyLine (node: DependencyNode): string {
   if (node.alias !== node.name) {
-    if (hasNamePrefix(node.version, node.name)) {
+    if (hasPkgNamePrefix(node.version)) {
       return `${node.path}:${node.alias} ${node.version}`
     }
     return `${node.path}:${node.alias} npm:${node.name}@${node.version}`
   }
-  if (hasNamePrefix(node.version, node.name)) {
+  if (hasPkgNamePrefix(node.version)) {
     return `${node.path}:${node.version}`
   }
   return `${node.path}:${node.name}@${node.version}`

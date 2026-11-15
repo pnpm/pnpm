@@ -462,4 +462,64 @@ test('list formats aliased file and scoped link dependencies consistently', asyn
   ])
 })
 
+test('why with dedicated lockfiles keeps distinct local file directories separate', async () => {
+  preparePackages([
+    {
+      location: 'vendor/foo-v1',
+      package: { name: 'foo', version: '1.0.0', description: 'first local copy' },
+    },
+    {
+      location: 'vendor/foo-v2',
+      package: { name: 'foo', version: '2.0.0', description: 'second local copy' },
+    },
+    {
+      location: 'packages/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: { foo: 'file:../../vendor/foo-v1' },
+      },
+    },
+    {
+      location: 'packages/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: { foo: 'file:../../vendor/foo-v2' },
+      },
+    },
+    {
+      location: 'packages/project-3',
+      package: {
+        name: 'project-3',
+        version: '1.0.0',
+        dependencies: { foo: 'file:../../vendor/foo-v1' },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+  await execPnpm(['install'])
+
+  const whyJsonOut = execPnpmSync(['why', '-r', 'foo', '--json', '--long'], { expectSuccess: true }).stdout.toString()
+  const trees = JSON.parse(whyJsonOut)
+  expect(trees).toHaveLength(2)
+  expect(trees[0]).toMatchObject({
+    name: 'foo',
+    description: 'first local copy',
+    dependents: [{ name: 'project-1' }, { name: 'project-3' }],
+  })
+  expect(trees[1]).toMatchObject({
+    name: 'foo',
+    description: 'second local copy',
+    dependents: [{ name: 'project-2' }],
+  })
+
+  const whyLongOut = execPnpmSync(['why', '-r', 'foo', '--long'], { expectSuccess: true }).stdout.toString()
+  expect(whyLongOut).toContain('first local copy')
+  expect(whyLongOut).toContain('second local copy')
+})
+
 

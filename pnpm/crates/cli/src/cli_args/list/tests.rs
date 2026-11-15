@@ -464,6 +464,18 @@ fn render_parseable_long_keeps_package_name_when_version_contains_at_in_path_or_
                     "missing-pkg@1.0.0",
                     "/workspace/node_modules/missing-pkg",
                 ),
+                dep(
+                    "missing-alias",
+                    "missing-alias",
+                    "canonical@1.0.0",
+                    "/workspace/node_modules/missing-alias",
+                ),
+                dep(
+                    "missing-scoped-alias",
+                    "missing-scoped-alias",
+                    "@scope/canonical@1.0.0",
+                    "/workspace/node_modules/missing-scoped-alias",
+                ),
             ],
             ..DependenciesHierarchy::default()
         },
@@ -478,7 +490,9 @@ fn render_parseable_long_keeps_package_name_when_version_contains_at_in_path_or_
             "/workspace/packages/@example/lib:@example/lib@link:../@example/lib",
             "/workspace/@scoped-dir/local:@example/local@file:@scoped-dir/local",
             "/workspace/@scoped-dir/local-aliased:scoped-alias @example/local-aliased@file:@scoped-dir/local-aliased",
+            "/workspace/node_modules/missing-alias:canonical@1.0.0",
             "/workspace/node_modules/missing-pkg:missing-pkg@1.0.0",
+            "/workspace/node_modules/missing-scoped-alias:@scope/canonical@1.0.0",
             "/workspace/local-pkg:my-local-pkg@file:local-pkg(peer-pkg@1.0.0)",
             "/workspace/packages/@example/other:ws-alias@link:../@example/other",
         ],

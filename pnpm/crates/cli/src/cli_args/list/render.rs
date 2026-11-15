@@ -229,12 +229,12 @@ fn print_label(
 }
 
 /// `name@version`, or `alias@npm:name@version` for an aliased package
-/// unless `version` is already prefixed with `name@` (`file:`, `runtime:`, ...).
+/// unless `version` is already prefixed with `<pkg>@` (`file:`, `runtime:`, ...).
 fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
     if node.alias == node.package.name {
         return name_at_version(&node.package.name, &node.package.version, color);
     }
-    if has_name_prefix(&node.package.version, &node.package.name) {
+    if has_pkg_name_prefix(&node.package.version) {
         return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.package.version)));
     }
     format!(
@@ -244,10 +244,30 @@ fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
     )
 }
 
-pub(super) fn has_name_prefix(version: &str, name: &str) -> bool {
-    version
-        .strip_prefix(name)
-        .is_some_and(|rest| rest.starts_with('@'))
+/// Whether `version` already starts with `<pkg-name>@` (unscoped `pkg@...` or
+/// scoped `@scope/pkg@...`), rather than a bare semver or `<scheme>:...`
+/// specifier whose path or peer suffix merely contains `@`.
+pub(super) fn has_pkg_name_prefix(version: &str) -> bool {
+    if let Some(rest) = version.strip_prefix('@') {
+        let Some((scoped_name, after_at)) = rest.split_once('@') else {
+            return false;
+        };
+        let Some((scope, pkg)) = scoped_name.split_once('/') else {
+            return false;
+        };
+        return !after_at.is_empty() && is_pkg_name_segment(scope) && is_pkg_name_segment(pkg);
+    }
+    let Some((pkg, after_at)) = version.split_once('@') else {
+        return false;
+    };
+    !after_at.is_empty() && is_pkg_name_segment(pkg)
+}
+
+fn is_pkg_name_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && !segment
+            .chars()
+            .any(|ch| matches!(ch, ':' | '/' | '\\' | '(' | ')' | ' ' | '\t'))
 }
 
 fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, usize> {

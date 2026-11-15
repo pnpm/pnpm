@@ -1,5 +1,5 @@
 use super::{
-    DependencyNode, HashSet, LongPkgInfo, Map, Path, ProjectHierarchy, Value, has_name_prefix,
+    DependencyNode, HashSet, LongPkgInfo, Map, Path, ProjectHierarchy, Value, has_pkg_name_prefix,
     json, plain, read_long_pkg_info,
 };
 
@@ -83,13 +83,13 @@ fn parseable_node_line(node: &DependencyNode, long: bool) -> String {
     let name = plain(&node.package.name);
     let version = plain(&node.package.version);
     if alias == name {
-        return if has_name_prefix(&version, &name) {
+        return if has_pkg_name_prefix(&version) {
             format!("{path}:{version}")
         } else {
             format!("{path}:{name}@{version}")
         };
     }
-    if has_name_prefix(&version, &name) {
+    if has_pkg_name_prefix(&version) {
         format!("{path}:{alias} {version}")
     } else {
         format!("{path}:{alias} npm:{name}@{version}")

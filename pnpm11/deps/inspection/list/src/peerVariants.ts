@@ -6,8 +6,30 @@ export function nameAtVersion (name: string, version: string, colorName?: (s: st
   return `${styledName}${chalk.gray(`@${version}`)}`
 }
 
-export function hasNamePrefix (version: string, name: string): boolean {
-  return version.startsWith(`${name}@`)
+const INVALID_PKG_SEGMENT_CHAR_RE = /[:/\\() \t]/
+
+function isPkgNameSegment (segment: string): boolean {
+  return segment.length > 0 && !INVALID_PKG_SEGMENT_CHAR_RE.test(segment)
+}
+
+export function hasPkgNamePrefix (version: string): boolean {
+  if (version.startsWith('@')) {
+    const rest = version.slice(1)
+    const atIndex = rest.indexOf('@')
+    if (atIndex === -1) return false
+    const scopedName = rest.slice(0, atIndex)
+    const afterAt = rest.slice(atIndex + 1)
+    const slashIndex = scopedName.indexOf('/')
+    if (slashIndex === -1) return false
+    const scope = scopedName.slice(0, slashIndex)
+    const pkg = scopedName.slice(slashIndex + 1)
+    return afterAt.length > 0 && isPkgNameSegment(scope) && isPkgNameSegment(pkg)
+  }
+  const atIndex = version.indexOf('@')
+  if (atIndex === -1) return false
+  const pkg = version.slice(0, atIndex)
+  const afterAt = version.slice(atIndex + 1)
+  return afterAt.length > 0 && isPkgNameSegment(pkg)
 }
 
 export function peerHashSuffix (pkg: {
