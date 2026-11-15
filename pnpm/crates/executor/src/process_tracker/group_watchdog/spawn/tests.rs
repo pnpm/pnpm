@@ -88,11 +88,7 @@ fn releasing_a_group_does_not_wait_for_another_child_to_exec() {
         command.process_group(0);
         let ready = ready_writer.as_raw_fd();
         let gate = gate_reader.as_raw_fd();
-        // SAFETY: both descriptors stay open through spawn. The callback uses
-        // only async-signal-safe read/write calls with stack buffers.
-        unsafe {
-            command.pre_exec(move || wait_for_gate(ready, gate));
-        }
+        pnpm_testing_utils::spawn::pause_before_exec(command.as_std_mut(), ready, gate);
         let mut child = spawn(&mut command).unwrap();
         assert!(child.child.wait().unwrap().success());
         release(child.child.id());
@@ -112,16 +108,6 @@ fn releasing_a_group_does_not_wait_for_another_child_to_exec() {
     first.child.kill().unwrap();
     first.child.wait().unwrap();
     completed.expect("release should not wait for the pending exec");
-}
-
-fn wait_for_gate(ready: std::os::fd::RawFd, gate: std::os::fd::RawFd) -> std::io::Result<()> {
-    let mut byte = 1u8;
-    // SAFETY: the stack buffers are valid for these async-signal-safe calls.
-    let succeeded = unsafe {
-        libc::write(ready, (&raw const byte).cast(), 1) == 1
-            && libc::read(gate, (&raw mut byte).cast(), 1) == 1
-    };
-    if succeeded { Ok(()) } else { Err(std::io::Error::last_os_error()) }
 }
 
 #[test]

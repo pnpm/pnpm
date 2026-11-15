@@ -6,14 +6,15 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+# Reaching the command itself, for a test arranging what no passthrough covers.
+test = []
+
 [dependencies]
 tokio = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "process", "signal"] }
-
-[target.'cfg(target_vendor = "apple")'.dependencies]
-pnpm-ffi-process = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-wasm-host = { path = "../wasm-host" }
@@ -22,3 +23,6 @@ serde_json = { workspace = true }
 
 [lints]
 workspace = true
+
+[target.'cfg(unix)'.dependencies]
+pnpm-ffi-process = { workspace = true }

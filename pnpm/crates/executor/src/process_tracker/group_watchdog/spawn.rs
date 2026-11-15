@@ -1,96 +1,23 @@
 use super::{Command, GroupWatchdog};
-use std::{
-    io::{self, Read},
-    os::fd::{AsRawFd, RawFd},
-    process::Child,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::{io, os::fd::AsFd as _, process::Child};
 
 pub(super) fn registered(command: &mut Command, watchdog: &GroupWatchdog) -> io::Result<Child> {
     // Platforms without `pipe2` mark pipes `FD_CLOEXEC` after creation, and
-    // `pre_exec` forces `Command::spawn` onto `fork` rather than `posix_spawn`,
-    // so hold the exclusive spawn guard across both pipe creation and `fork`
-    // to keep concurrent spawns from inheriting an unclosed exec-error pipe.
+    // the announcement's hook forces `Command::spawn` onto `fork` rather than
+    // `posix_spawn`, so hold the exclusive spawn guard across both the pipe
+    // the announcement opens and the `fork`, to keep concurrent spawns from
+    // inheriting an unclosed exec-error pipe.
     #[cfg(not(any(target_os = "linux", target_os = "android")))]
     let spawning = pnpm_process::watchdog_spawning();
-    let (mut reader, writer) = io::pipe()?;
-    let active = Arc::new(AtomicBool::new(true));
-    let hook_active = Arc::clone(&active);
-    let lifeline = watchdog.lifeline.as_raw_fd();
-    let receipt = writer.as_raw_fd();
-    // SAFETY: the hook uses only atomic loads, stack arithmetic and async-signal-safe
-    // getpid/write calls. Both descriptors stay open until spawn returns. The hook
-    // is disabled before they close, including when the Command is reused.
-    unsafe {
-        command.pre_exec(move || {
-            if hook_active.load(Ordering::SeqCst) {
-                register(lifeline, receipt)?;
-            }
-            Ok(())
-        });
-    }
+    let (spawned, announced) = command.spawn_announcing_group(watchdog.lifeline.as_fd());
     #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    let spawned = {
-        let spawned = spawning.spawn(command);
-        drop(spawning);
-        spawned
-    };
-    #[cfg(any(target_os = "linux", target_os = "android"))]
-    let spawned = command.spawn();
-    active.store(false, Ordering::SeqCst);
-    drop(writer);
-    if spawned.is_err() {
-        let mut bytes = [0; size_of::<u32>()];
-        match reader.read_exact(&mut bytes) {
-            Ok(()) => watchdog.release(u32::from_ne_bytes(bytes))?,
-            Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {}
-            Err(error) => return Err(error),
-        }
+    drop(spawning);
+    // A spawn that failed after the child announced its group leaves the
+    // watchdog holding a group that will never exist.
+    if let Some(group) = announced {
+        watchdog.release(group)?;
     }
     spawned
-}
-
-fn register(lifeline: RawFd, receipt: RawFd) -> io::Result<()> {
-    // `std::process::id` is a bare `getpid`, which is what keeps this
-    // async-signal-safe: it allocates nothing and takes no lock.
-    let leader = std::process::id();
-    write(receipt, &leader.to_ne_bytes())?;
-    let mut line = [0; 12];
-    line[11] = b'\n';
-    let mut offset = 11;
-    let mut digits = leader;
-    loop {
-        offset -= 1;
-        line[offset] = b'0' + (digits % 10) as u8;
-        digits /= 10;
-        if digits == 0 {
-            break;
-        }
-    }
-    offset -= 1;
-    line[offset] = b'+';
-    write(lifeline, &line[offset..])
-}
-
-fn write(descriptor: RawFd, bytes: &[u8]) -> io::Result<()> {
-    loop {
-        // SAFETY: the descriptor is open and bytes stays valid for the write.
-        // The message fits PIPE_BUF, so a successful pipe write is atomic.
-        let written = unsafe { libc::write(descriptor, bytes.as_ptr().cast(), bytes.len()) };
-        if written == bytes.len() as isize {
-            return Ok(());
-        }
-        if written >= 0 {
-            return Err(io::Error::from(io::ErrorKind::WriteZero));
-        }
-        let error = io::Error::last_os_error();
-        if error.kind() != io::ErrorKind::Interrupted {
-            return Err(error);
-        }
-    }
 }
 
 #[cfg(test)]

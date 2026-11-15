@@ -100,3 +100,41 @@ pub fn enable_core_dumps(command: &mut std::process::Command) {
         });
     }
 }
+
+/// Hold a forked child between `fork` and `exec` until it is let go.
+///
+/// The child writes one byte to `ready`, then blocks reading `gate`, so a
+/// test can see a spawn in flight and decide when it finishes. For a test
+/// about what happens while a spawn is in progress, which is a state a
+/// caller cannot otherwise hold still.
+#[cfg(unix)]
+pub fn pause_before_exec(
+    command: &mut std::process::Command,
+    ready: std::os::fd::RawFd,
+    gate: std::os::fd::RawFd,
+) {
+    use std::os::unix::process::CommandExt as _;
+
+    // SAFETY: the hook runs in the forked child, between the fork and the
+    // `exec`, where only the calling thread exists and so only
+    // async-signal-safe work is allowed. It calls `write` and `read` and
+    // nothing else, over stack buffers that outlive both, and allocates
+    // nothing and takes no lock. The caller keeps both descriptors open
+    // across the spawn.
+    unsafe {
+        command.pre_exec(move || wait_for_gate(ready, gate));
+    }
+}
+
+/// Report being between `fork` and `exec`, then wait to be let go.
+#[cfg(unix)]
+fn wait_for_gate(ready: std::os::fd::RawFd, gate: std::os::fd::RawFd) -> std::io::Result<()> {
+    let mut byte = 1u8;
+    // SAFETY: both descriptors are open for the calls, and the buffer is a
+    // stack local that outlives them. Each call moves one byte.
+    let succeeded = unsafe {
+        libc::write(ready, (&raw const byte).cast(), 1) == 1
+            && libc::read(gate, (&raw mut byte).cast(), 1) == 1
+    };
+    if succeeded { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+}
