@@ -18,6 +18,13 @@ on:
 
 permissions: {}
 
+# Runs write the npm dist-tags and then the GitHub "Latest" release. Overlapping
+# runs could interleave those writes and leave the two pointing at different
+# versions, and cancelling a run could stop it between them.
+concurrency:
+  group: update-latest
+  cancel-in-progress: false
+
 env:
   # Passed to each command as `--registry`, which is the only form pnpm reads;
   # it ignores `npm_config_registry`.
@@ -244,12 +251,12 @@ jobs:
 
   # The badge follows the npm `latest` dist-tag, so it moves here, after the
   # dist-tag, rather than when the release is published: a published release
-  # has not passed verify-upgrade yet. Older lines tagged latest-<major> never
-  # take it (https://github.com/pnpm/pnpm/issues/18134).
+  # has not passed verify-upgrade yet. It is set from the registry, not from the
+  # inputs, so every dispatch also corrects a badge that a manually published
+  # release took (https://github.com/pnpm/pnpm/issues/18134).
   mark-latest-release:
-    name: Mark v${{ github.event.inputs.version }} as the latest GitHub release
+    name: Mark the npm latest version as the latest GitHub release
     needs: tag-in-registry
-    if: ${{ inputs.tag == 'latest' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write  # to set the "Latest" release
@@ -259,12 +266,30 @@ jobs:
         GH_TOKEN: ${{ github.token }}
         GH_REPO: ${{ github.repository }}
         VERSION: ${{ github.event.inputs.version }}
+        TAG: ${{ github.event.inputs.tag }}
       run: |
         set -euo pipefail
-        gh release edit "v${VERSION}" --latest
+        # The registry can serve the dist-tags from before tag-in-registry for
+        # a short while, and marking that version would pass the check below.
+        for _ in 1 2 3 4 5 6; do
+          latest="$(curl -fsS "${REGISTRY}-/package/pnpm/dist-tags" | jq -r .latest)"
+          if [ "$TAG" != latest ] || [ "$latest" = "$VERSION" ]; then
+            break
+          fi
+          sleep 10
+        done
+        if [ "$TAG" = latest ] && [ "$latest" != "$VERSION" ]; then
+          echo "::error::The registry still reports ${latest} as latest, expected ${VERSION}."
+          exit 1
+        fi
+        if ! printf '%s\n' "$latest" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "::error::Could not read the latest version of pnpm from the registry. Got: ${latest}"
+          exit 1
+        fi
+        gh release edit "v${latest}" --latest
         actual="$(gh api "repos/${GH_REPO}/releases/latest" --jq .tag_name)"
-        if [ "$actual" != "v${VERSION}" ]; then
-          echo "::error::The latest GitHub release is ${actual}, expected v${VERSION}."
+        if [ "$actual" != "v${latest}" ]; then
+          echo "::error::The latest GitHub release is ${actual}, expected v${latest}."
           exit 1
         fi
 
