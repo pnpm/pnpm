@@ -1,6 +1,6 @@
-import { getPeerBindingProviders, parse, parsePeerBindings } from '@pnpm/deps.path'
+import { getPeerBindingProviders, parse, parsePeerBindings, refToRelative } from '@pnpm/deps.path'
 import { getPeerSet } from '@pnpm/installing.deps-resolver'
-import type { PackageSnapshot } from '@pnpm/lockfile.types'
+import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import type { DependencyManifest, DepPath } from '@pnpm/types'
 import semver from 'semver'
 
@@ -12,12 +12,14 @@ export function recordedPeersMatch (
     pkgSnapshot,
     declaredByPath,
     depPathsBySnapshot,
+    lockfilePackages,
     resolveCatalogSpec,
   }: {
     manifest: DependencyManifest
     pkgSnapshot: PackageSnapshot
     declaredByPath: boolean
     depPathsBySnapshot: Map<PackageSnapshot, DepPath>
+    lockfilePackages: PackageSnapshots | undefined
     resolveCatalogSpec: (peer: { alias: string, bareSpecifier: string }) => string | undefined
   }
 ): boolean {
@@ -33,6 +35,7 @@ export function recordedPeersMatch (
           declaredByPath,
           pkgSnapshot,
           depPathsBySnapshot,
+          lockfilePackages,
           resolveCatalogSpec,
         }) &&
         Boolean(peer.optional) === Boolean(pkgSnapshot.peerDependenciesMeta?.[name]?.optional)
@@ -46,6 +49,7 @@ function peerRangeMatches (
     declaredByPath,
     pkgSnapshot,
     depPathsBySnapshot,
+    lockfilePackages,
     resolveCatalogSpec,
   }: {
     peer: { alias: string, bareSpecifier: string }
@@ -53,6 +57,7 @@ function peerRangeMatches (
     declaredByPath: boolean
     pkgSnapshot: PackageSnapshot
     depPathsBySnapshot: Map<PackageSnapshot, DepPath>
+    lockfilePackages: PackageSnapshots | undefined
     resolveCatalogSpec: (peer: { alias: string, bareSpecifier: string }) => string | undefined
   }
 ): boolean {
@@ -66,6 +71,7 @@ function peerRangeMatches (
     range: catalogRange,
     pkgSnapshot,
     depPathsBySnapshot,
+    lockfilePackages,
   }) ?? (recordedRange === peer.bareSpecifier)
 }
 
@@ -75,21 +81,34 @@ function catalogPeerVersionSatisfies (
     range,
     pkgSnapshot,
     depPathsBySnapshot,
+    lockfilePackages,
   }: {
     alias: string
     range: string
     pkgSnapshot: PackageSnapshot
     depPathsBySnapshot: Map<PackageSnapshot, DepPath>
+    lockfilePackages: PackageSnapshots | undefined
   }
 ): boolean | undefined {
   const depPath = depPathsBySnapshot.get(pkgSnapshot)
   if (depPath == null) return undefined
   const bindings = parsePeerBindings(depPath)
-  if (bindings?.kind !== 'explicit') return undefined
-  const provider = getPeerBindingProviders(bindings).find((providerPath) => parse(providerPath).name === alias)
+  const provider = bindings?.kind === 'explicit'
+    ? getPeerBindingProviders(bindings).find((providerPath) => parse(providerPath).name === alias)
+    : dependencyProviderPath(pkgSnapshot, alias, lockfilePackages)
   if (provider == null) return undefined
   const providerVersion = parse(provider).version
   if (providerVersion === range) return true
   if (providerVersion == null || semver.validRange(range) == null) return undefined
   return versionSatisfies(providerVersion, range)
+}
+
+function dependencyProviderPath (
+  pkgSnapshot: PackageSnapshot,
+  alias: string,
+  lockfilePackages: PackageSnapshots | undefined
+): string | undefined {
+  const ref = pkgSnapshot.dependencies?.[alias] ?? pkgSnapshot.optionalDependencies?.[alias]
+  const depPath = ref == null ? null : refToRelative(ref, alias)
+  return depPath == null || lockfilePackages?.[depPath] == null ? undefined : depPath
 }

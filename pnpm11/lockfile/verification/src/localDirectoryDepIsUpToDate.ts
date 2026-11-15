@@ -188,6 +188,7 @@ async function localDirectoryDepIsUpToDateRec (
     pkgSnapshot,
     declaredByPath: walk.declaredByPath && !walk.declarationAssumed,
     depPathsBySnapshot: walk.depPathsBySnapshot,
+    lockfilePackages: ctx.lockfilePackages,
     resolveCatalogSpec: (peer) => resolveCatalogSpec(ctx, peer),
   })) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
