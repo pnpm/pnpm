@@ -1,4 +1,5 @@
 use crate::LockfileResolution;
+use pnpm_package_manifest::DependencyGroup;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -80,6 +81,18 @@ pub struct DeclaredSpecifiers {
     /// The declared dependencies `dependenciesMeta` marks `injected`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub injected: Option<BTreeSet<String>>,
+}
+
+impl DeclaredSpecifiers {
+    /// The declarations of `group`. A package records no dev or peer group.
+    #[must_use]
+    pub fn group(&self, group: DependencyGroup) -> Option<&HashMap<String, String>> {
+        match group {
+            DependencyGroup::Prod => self.dependencies.as_ref(),
+            DependencyGroup::Optional => self.optional_dependencies.as_ref(),
+            DependencyGroup::Dev | DependencyGroup::Peer => None,
+        }
+    }
 }
 
 /// What a package bundles inside its own tarball, as pnpm records it: the

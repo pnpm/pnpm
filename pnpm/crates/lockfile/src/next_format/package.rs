@@ -14,6 +14,7 @@ use crate::{
 use dependencies::Declarations;
 use hoist::hoist;
 use peers::{merge_peer_dependencies, split_peer_dependencies};
+use pnpm_package_manifest::DependencyGroup;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
 use std::collections::{BTreeMap, HashMap};
@@ -210,8 +211,11 @@ impl<'a> NextPackageOut<'a> {
                 &shared,
             ),
             id: shared.id,
-            dependencies: declarations.written(shared.dependencies, false),
-            optional_dependencies: declarations.written(shared.optional_dependencies, true),
+            dependencies: declarations.written(shared.dependencies, DependencyGroup::Prod),
+            optional_dependencies: declarations.written(
+                shared.optional_dependencies,
+                DependencyGroup::Optional,
+            ),
             optional: shared.optional,
             unbound_peer_dependencies: shared.unbound_peer_dependencies,
             snapshots,

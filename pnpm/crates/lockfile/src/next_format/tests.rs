@@ -349,6 +349,61 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
     );
 }
 
+/// An empty `with` on a project's dependency names the copy that binds no
+/// peers, where the project's scope would pick the copy that binds one, and
+/// it survives a round trip.
+#[test]
+fn importer_dependency_on_the_unbound_copy_keeps_an_empty_with() {
+    let lockfile = parse(text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      child:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "      react:"
+        "        specifier: 18.0.0"
+        "        version: 18.0.0"
+        ""
+        "  packages/a:"
+        "    dependencies:"
+        "      child:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0(react@18.0.0)"
+        "      react:"
+        "        specifier: 18.0.0"
+        "        version: 18.0.0"
+        ""
+        "packages:"
+        ""
+        "  child@1.0.0:"
+        "    resolution: {integrity: sha512-AAAA}"
+        "    peerDependencies:"
+        "      react: '*'"
+        "    peerDependenciesMeta:"
+        "      react:"
+        "        optional: true"
+        ""
+        "  react@18.0.0:"
+        "    resolution: {integrity: sha512-DDDD}"
+        ""
+        "snapshots:"
+        ""
+        "  child@1.0.0: {}"
+        ""
+        "  child@1.0.0(react@18.0.0):"
+        "    optionalDependencies:"
+        "      react: 18.0.0"
+        ""
+        "  react@18.0.0: {}"
+    });
+    let (yaml, _) = written_and_read(&lockfile);
+    assert!(yaml.contains(r#""with": {}"#), "the unbound copy is named:\n{yaml}");
+}
+
 /// A patched package's key and references carry no patch hash: the hash is
 /// in `patchedDependencies`, which the reader applies to the package.
 #[test]

@@ -210,7 +210,7 @@ pub fn declared_specifiers(
     };
     let injected: std::collections::BTreeSet<String> = children
         .iter()
-        .filter(|child| dependency_is_injected(manifest, &child.alias))
+        .filter(|child| child.injected)
         .map(|child| child.alias.clone())
         .collect();
     Ok(pnpm_lockfile::DeclaredSpecifiers {

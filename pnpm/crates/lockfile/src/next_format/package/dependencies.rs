@@ -14,6 +14,7 @@
 
 use super::super::{NamedBindings, NextFormatError, NextRef};
 use crate::{DeclaredSpecifiers, PkgName, SnapshotDepRef};
+use pnpm_package_manifest::DependencyGroup;
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{self, MapAccess, Visitor},
@@ -110,19 +111,21 @@ impl<'a> Declarations<'a> {
         }
     }
 
-    /// The written map of one group: `references`, with the group's
+    /// The written map of `group`: `references`, with the group's
     /// declarations folded in.
     pub(super) fn written(
         self,
         references: Option<HashMap<PkgName, NextRef>>,
-        optional: bool,
+        group: DependencyGroup,
     ) -> Option<PackageDeps> {
         let mut references = references.unwrap_or_default();
         let mut written = PackageDeps::new();
         if let Declarations::Recorded(record) = self {
-            let declared =
-                if optional { &record.optional_dependencies } else { &record.dependencies };
-            for (alias, specifier) in declared.iter().flatten() {
+            for (alias, specifier) in record
+                .group(group)
+                .into_iter()
+                .flatten()
+            {
                 let reference = PkgName::parse(alias.as_str())
                     .ok()
                     .and_then(|name| references.remove(&name));
@@ -140,7 +143,8 @@ impl<'a> Declarations<'a> {
                     (alias.to_string(), reference_dep(reference, bare_string))
                 }),
         );
-        let marks_unrecorded = matches!(self, Declarations::Unrecorded) && !optional;
+        let marks_unrecorded =
+            matches!(self, Declarations::Unrecorded) && group == DependencyGroup::Prod;
         (marks_unrecorded || !written.is_empty()).then_some(written)
     }
 }

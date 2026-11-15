@@ -20,8 +20,11 @@ fn read_and_override_manifest(
     if let Some(manifest) = check.workspace.directory_manifests.get(dep.rel_path) {
         return Ok(manifest.clone());
     }
-    let injected =
-        InjectedDirectory { dir: dep.dir, manifests_by_dir: check.workspace.manifests_by_dir };
+    let injected = InjectedDirectory {
+        dir: dep.dir,
+        workspace_root: dep.dirs.workspace_root,
+        manifests_by_dir: check.workspace.manifests_by_dir,
+    };
     overridden_unhooked_manifest(&injected, check.overrider).ok_or_else(|| dep.outdated())
 }
 

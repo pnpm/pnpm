@@ -78,6 +78,7 @@ pub(super) async fn resolve_aliasless_local(
         // The name and the normalized specifier are all this resolve is
         // after, and neither is measured from the lockfile root.
         lockfile_dir: None,
+        workspace_dir: None,
         current_pkg: None,
         update: LocalResolverUpdate::On,
         // `is_local_filesystem_specifier` above never claims a `workspace:`

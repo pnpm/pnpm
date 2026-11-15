@@ -669,6 +669,7 @@ fn only_a_directory_without_a_manifest_is_described_by_its_name() {
     let describe = || {
         super::unhooked_manifest(&super::InjectedDirectory {
             dir: &dir,
+            workspace_root: tmp.path(),
             manifests_by_dir: &manifests_by_dir,
         })
     };
@@ -678,6 +679,10 @@ fn only_a_directory_without_a_manifest_is_described_by_its_name() {
     assert!(describe().is_none(), "a malformed manifest is not a missing one");
 }
 
+/// The resolver's order: a publishing project inside the workspace, even over
+/// a workspace project at the directory itself, then the directory's own
+/// manifest, and a publishing project outside the workspace only for a
+/// directory without one.
 #[test]
 fn a_publish_directory_is_described_by_its_project_however_it_was_declared() {
     let tmp = tempfile::tempdir().expect("create a temporary directory");
@@ -702,16 +707,25 @@ fn a_publish_directory_is_described_by_its_project_however_it_was_declared() {
     )
     .expect("write outside project manifest");
 
-    let manifests_by_dir = HashMap::new();
+    let dist_project = PackageManifest::from_value(
+        ws_dist.join("package.json"),
+        serde_json::json!({ "name": "lib-dist", "version": "3.0.0" }),
+    );
+    let manifests_by_dir: crate::install_state::ProjectManifestsByDir<'_> =
+        HashMap::from([(pnpm_fs::lexical_normalize(&ws_dist), &dist_project)]);
     let describe = |dir: &Path| {
         super::unhooked_manifest(&super::InjectedDirectory {
             dir,
+            workspace_root: &workspace_root,
             manifests_by_dir: &manifests_by_dir,
         })
-        .expect("a publish directory is described by its project")
+        .expect("a publish directory is described")
     };
     assert_eq!(describe(&ws_dist).value()["dependencies"]["foo"], "1.0.0");
     assert_eq!(describe(&outside_dist).value()["version"], "2.0.0");
+    std::fs::write(outside_dist.join("package.json"), r#"{"name":"built","version":"2.0.0"}"#)
+        .expect("write built outside manifest");
+    assert_eq!(describe(&outside_dist).value()["name"], "built");
 }
 
 #[test]

@@ -37,8 +37,8 @@ pub enum NextImporterDep {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NextNamedDep {
     pub specifier: String,
-    #[serde(default, rename = "with", skip_serializing_if = "NamedBindings::is_empty")]
-    pub peers: NamedBindings,
+    #[serde(default, rename = "with", skip_serializing_if = "Option::is_none")]
+    pub peers: Option<NamedBindings>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub injected: bool,
 }
@@ -67,11 +67,9 @@ impl From<DepWire> for NextImporterDep {
                 injected,
             })),
             (None, None) if !injected => NextImporterDep::Specifier(specifier),
-            (None, peers) => NextImporterDep::Named(Box::new(NextNamedDep {
-                specifier,
-                peers: peers.unwrap_or_default(),
-                injected,
-            })),
+            (None, peers) => {
+                NextImporterDep::Named(Box::new(NextNamedDep { specifier, peers, injected }))
+            }
         }
     }
 }
@@ -306,11 +304,9 @@ fn resolve_map(
     for (alias, dep) in map.iter_mut() {
         let (specifier, peers, injected) = match dep {
             NextImporterDep::Specifier(specifier) => (std::mem::take(specifier), None, false),
-            NextImporterDep::Named(named) => (
-                std::mem::take(&mut named.specifier),
-                Some(std::mem::take(&mut named.peers)).filter(|peers| !peers.is_empty()),
-                named.injected,
-            ),
+            NextImporterDep::Named(named) => {
+                (std::mem::take(&mut named.specifier), named.peers.take(), named.injected)
+            }
             NextImporterDep::Resolved(_) => continue,
         };
         let mut resolved = resolved(id, alias, specifier, implied)?;
@@ -349,10 +345,8 @@ fn collapse(id: &str, alias: &PkgName, dep: &mut NextImporterDep, implied: Impli
     let specifier = std::mem::take(&mut resolved.specifier);
     *dep = match (resolved.peers.take(), resolved.injected) {
         (None, false) => NextImporterDep::Specifier(specifier),
-        (peers, injected) => NextImporterDep::Named(Box::new(NextNamedDep {
-            specifier,
-            peers: peers.unwrap_or_default(),
-            injected,
-        })),
+        (peers, injected) => {
+            NextImporterDep::Named(Box::new(NextNamedDep { specifier, peers, injected }))
+        }
     };
 }

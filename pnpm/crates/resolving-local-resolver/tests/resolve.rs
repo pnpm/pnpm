@@ -34,6 +34,7 @@ fn opts(project_dir: &Path) -> LocalResolverOptions {
     LocalResolverOptions {
         project_dir: project_dir.to_path_buf(),
         lockfile_dir: None,
+        workspace_dir: None,
         current_pkg: None,
         update: LocalResolverUpdate::Off,
         inject_workspace_packages: false,
@@ -929,11 +930,13 @@ fn a_rooted_spec_takes_the_drive_of_the_project() {
 
 /// A `file:` directory a project publishes from is described by the project's
 /// manifest, as a `workspace:` range describes it, even after a build writes a
-/// `package.json` there. A `link:` keeps the directory's own manifest.
+/// `package.json` there. A `link:` keeps the directory's own manifest, and so
+/// does a directory whose publishing project is outside the workspace.
 #[tokio::test]
 async fn resolve_publish_directory_with_the_publishing_projects_manifest() {
     let tmp = TempDir::new().expect("tempdir");
-    let project = tmp.path().join("lib");
+    let workspace = tmp.path().join("ws");
+    let project = workspace.join("lib");
     fs::create_dir_all(project.join("dist")).expect("create publish directory");
     fs::write(
         project.join("package.json"),
@@ -942,17 +945,49 @@ async fn resolve_publish_directory_with_the_publishing_projects_manifest() {
     .expect("write project manifest");
     fs::write(project.join("dist/package.json"), r#"{"name":"lib","version":"1.0.0"}"#)
         .expect("write built manifest");
-    let consumer = tmp.path().join("app");
+    let consumer = workspace.join("app");
     fs::create_dir_all(&consumer).expect("create consumer");
-    let resolve = async |bare_specifier: &str| {
+    let resolve = async |bare_specifier: &str, workspace_dir: &Path| {
         let wd =
             WantedLocalDependency { bare_specifier: bare_specifier.to_string(), injected: false };
-        resolve_from_local_scheme(&ctx_default(), &wd, &opts(&consumer)).await
+        let opts = LocalResolverOptions {
+            workspace_dir: Some(workspace_dir.to_path_buf()),
+            ..opts(&consumer)
+        };
+        resolve_from_local_scheme(&ctx_default(), &wd, &opts).await
             .expect("resolve")
             .expect("claims")
             .manifest
             .expect("manifest")
     };
-    assert_eq!(resolve("file:../lib/dist").await["dependencies"]["foo"], "^1");
-    assert!(resolve("link:../lib/dist").await.get("dependencies").is_none());
+    assert_eq!(resolve("file:../lib/dist", &workspace).await["dependencies"]["foo"], "^1");
+    assert!(resolve("link:../lib/dist", &workspace).await.get("dependencies").is_none());
+    assert!(
+        resolve("file:../lib/dist", &consumer).await.get("dependencies").is_none(),
+        "a publishing project outside the workspace does not describe the directory",
+    );
+}
+
+/// An ancestor manifest that fails to read is not a publishing project, so it
+/// does not stop a `file:` directory from resolving with its own manifest.
+#[tokio::test]
+async fn resolve_file_directory_beneath_a_malformed_ancestor_manifest() {
+    let tmp = TempDir::new().expect("tempdir");
+    fs::write(tmp.path().join("package.json"), "{").expect("write malformed ancestor manifest");
+    let dep = tmp.path().join("vendor/dep");
+    fs::create_dir_all(&dep).expect("create dependency");
+    fs::write(dep.join("package.json"), r#"{"name":"dep","version":"1.0.0"}"#)
+        .expect("write dependency manifest");
+    let consumer = tmp.path().join("app");
+    fs::create_dir_all(&consumer).expect("create consumer");
+    let wd =
+        WantedLocalDependency { bare_specifier: "file:../vendor/dep".to_string(), injected: false };
+    let opts =
+        LocalResolverOptions { workspace_dir: Some(tmp.path().to_path_buf()), ..opts(&consumer) };
+    let manifest = resolve_from_local_scheme(&ctx_default(), &wd, &opts).await
+        .expect("resolve")
+        .expect("claims")
+        .manifest
+        .expect("manifest");
+    assert_eq!(manifest["name"], "dep");
 }

@@ -52,7 +52,13 @@ impl DirectoryWalk<'_, '_> {
         } else {
             &self.manifests_by_dir
         };
-        let injected = InjectedDirectory { dir: &dir, manifests_by_dir };
+        let injected = InjectedDirectory {
+            dir: &dir,
+            workspace_root: self.inputs.config.workspace_dir
+                .as_deref()
+                .unwrap_or(self.inputs.lockfile_dir),
+            manifests_by_dir,
+        };
         if manifests_by_dir.contains_key(&dir)
             && !self.inputs.config.add_missing_peer_types
             && !recorded

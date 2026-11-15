@@ -94,7 +94,11 @@ fn relocate_importer(
                     relocate_named(peers, ctx)?;
                 }
             }
-            NextImporterDep::Named(dependency) => relocate_named(&mut dependency.peers, ctx)?,
+            NextImporterDep::Named(dependency) => {
+                if let Some(peers) = &mut dependency.peers {
+                    relocate_named(peers, ctx)?;
+                }
+            }
             NextImporterDep::Specifier(_) => {}
         }
     }
