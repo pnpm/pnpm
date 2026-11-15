@@ -7,7 +7,7 @@ on:
       - '**.rs'
       - '**.ts'
       - '.vale.ini'
-      - '.vale/**'
+      - '.config/vale/**'
       - '.github/scripts/lint-prose.mjs'
       - '.github/workflows/prose.yml'
   push:
