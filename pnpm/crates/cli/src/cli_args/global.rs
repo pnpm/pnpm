@@ -43,8 +43,7 @@ use crate::{
 use cleanup::discard_install_dir_on_error;
 use derive_more::{Display, Error};
 use install::{
-    GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, pins_for_downgrades,
-    run_group_install,
+    GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, run_group_install,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
@@ -74,9 +73,10 @@ use remove::{
     collect_existing_global_installs, snapshot_global_package,
 };
 use selectors::{
-    SelectorGroup, can_update_to_latest, groups_matching_params, infer_local_package_alias,
-    missing_file_source_warning, replacement_aliases, should_replace_existing_package,
-    split_into_groups, take_rust_toolchains, tool_install_selectors, update_selectors,
+    SelectorGroup, apply_runtime_range_bumps, can_update_to_latest, groups_matching_params,
+    infer_local_package_alias, missing_file_source_warning, replacement_aliases,
+    should_replace_existing_package, split_into_groups, take_rust_toolchains,
+    tool_install_selectors, update_selectors,
 };
 
 use shims::{

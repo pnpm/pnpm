@@ -2,8 +2,8 @@ use super::{
     AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
     GlobalPackageInfo, HashMap, HashSet, Lockfile, PackageBinSource, Path, PathBuf, RangeSpecStyle,
     Reporter, State, SupportedArchitectures, Version, WorkspaceSettings, add_packages,
-    apply_allow_build, can_update_to_latest, infer_local_package_alias, installed_versions,
-    prompt_approve_install_builds, update_selectors,
+    apply_allow_build, apply_runtime_range_bumps, can_update_to_latest, infer_local_package_alias,
+    installed_versions, prompt_approve_install_builds, update_selectors,
 };
 use pnpm_config::Host;
 
@@ -17,6 +17,100 @@ pub(super) struct GlobalInstallTarget<'a> {
 pub(super) struct DowngradeCheck {
     pub(super) candidate_resolved: bool,
     pub(super) pins: HashMap<String, String>,
+}
+
+impl GlobalInstallTarget<'_> {
+    pub(super) async fn resolve_candidate_selectors<Reporter: self::Reporter + 'static>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        install_dir: &Path,
+        latest: bool,
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<Vec<String>> {
+        let downgrade_check = Box::pin(pins_for_downgrades::<Reporter>(
+            self.base_config,
+            self.global_pkg_dir,
+            install_dir,
+            pkg,
+            latest,
+            range_spec_style,
+            supported_architectures.clone(),
+        ))
+        .await?;
+        let mut selectors = update_selectors(&pkg.dependencies, latest, &downgrade_check.pins);
+        if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
+            self.run_lockfile_only_install::<Reporter>(
+                install_dir,
+                &selectors,
+                range_spec_style,
+                supported_architectures.clone(),
+            )
+            .await?;
+        }
+        if latest {
+            selectors = self.finalize_latest_runtime_selectors::<Reporter>(
+                pkg,
+                install_dir,
+                selectors,
+                &downgrade_check.pins,
+                range_spec_style,
+                supported_architectures,
+            )
+            .await?;
+        }
+        Ok(selectors)
+    }
+
+    async fn finalize_latest_runtime_selectors<Reporter: self::Reporter + 'static>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        install_dir: &Path,
+        selectors: Vec<String>,
+        pins: &HashMap<String, String>,
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<Vec<String>> {
+        let resolved = resolved_direct_versions(install_dir);
+        let bumped = apply_runtime_range_bumps(
+            &pkg.dependencies,
+            &selectors,
+            pins,
+            &resolved,
+            range_spec_style,
+        );
+        if bumped != selectors {
+            self.run_lockfile_only_install::<Reporter>(
+                install_dir,
+                &bumped,
+                range_spec_style,
+                supported_architectures,
+            )
+            .await?;
+        }
+        Ok(bumped)
+    }
+
+    async fn run_lockfile_only_install<Reporter: self::Reporter + 'static>(
+        &self,
+        install_dir: &Path,
+        selectors: &[String],
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<()> {
+        Box::pin(run_group_install::<Reporter>(GroupInstall {
+            base_config: self.base_config,
+            global_pkg_dir: self.global_pkg_dir,
+            install_dir,
+            selectors,
+            range_spec_style,
+            supported_architectures,
+            allow_build: &[],
+            lockfile_only: true,
+        }))
+        .await?;
+        Ok(())
+    }
 }
 
 /// A freshly installed group, ready to take over the global bins of the

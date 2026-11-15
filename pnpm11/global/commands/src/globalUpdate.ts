@@ -15,8 +15,8 @@ import {
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn, logger } from '@pnpm/logger'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { localFilePath } from '@pnpm/resolving.local-resolver'
-import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
@@ -25,6 +25,7 @@ import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames, type GlobalNodePathOptions } from './globalActivation.js'
+import { applyRuntimeRangeBumps, depSpecsForUpdate, latestDepSpec } from './globalUpdateSelectors.js'
 import {
   installGlobalPackages,
   type InstallGlobalPackagesResult,
@@ -201,7 +202,25 @@ async function resolveGroupUpdate (
       installDir,
       depSpecs
     )
-  return { depSpecs, comparison }
+  if (groupOpts.latest !== true) {
+    return { depSpecs, comparison }
+  }
+  const bumpedSpecs = applyRuntimeRangeBumps(
+    pkg.dependencies,
+    depSpecs,
+    downgradeCheck.pins,
+    comparison.resolvedVersions,
+    getRangeSpecStyle(groupOpts)
+  )
+  if (isDeepStrictEqual(bumpedSpecs, depSpecs)) {
+    return { depSpecs, comparison }
+  }
+  const bumpedComparison = await installGroup(
+    { ...groupOpts, lockfileOnly: true, groupDependencies: pkg.dependencies },
+    installDir,
+    bumpedSpecs
+  )
+  return { depSpecs: bumpedSpecs, comparison: bumpedComparison }
 }
 
 async function activateUpdatedGroup (
@@ -327,27 +346,6 @@ async function installGroup (
 }
 
 /**
- * The selectors that reinstall a group. With `--latest`, plain version specs,
- * `npm:` aliases, and `runtime:` dependencies target the latest release; `pins`
- * holds back aliases that would otherwise move backwards.
- */
-function depSpecsForUpdate (
-  dependencies: Record<string, string>,
-  latest?: boolean,
-  pins: ReadonlyMap<string, string> = new Map()
-): string[] {
-  return Object.entries(dependencies).map(([alias, spec]) => {
-    const pin = pins.get(alias)
-    if (pin != null) return pinnedDepSpec(alias, spec, pin)
-    if (latest) {
-      const latestSpec = latestDepSpec(alias, spec)
-      if (latestSpec != null) return latestSpec
-    }
-    return `${alias}@${spec}`
-  })
-}
-
-/**
  * The version to hold each dependency of `pkg` at, for the ones an update would
  * otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
  * points at an older release than the one installed whenever that came from
@@ -399,77 +397,4 @@ async function lockfilesAreEqual (activeDir: string, candidateDir: string): Prom
   } catch {
     return false
   }
-}
-
-const NODE_RELEASE_CHANNELS = new Set(['nightly', 'rc', 'test', 'v8-canary', 'release'])
-
-function parseNodeRuntimeChannel (runtimeSpec: string): string | undefined {
-  if (runtimeSpec.includes('/')) {
-    const channel = runtimeSpec.slice(0, runtimeSpec.indexOf('/'))
-    return NODE_RELEASE_CHANNELS.has(channel) ? channel : undefined
-  }
-  const normalized = runtimeSpec.slice(0, 9).toLowerCase() === 'v8-canary'
-    ? runtimeSpec
-    : (/^v(?=\d)/i.test(runtimeSpec) ? runtimeSpec.slice(1) : runtimeSpec)
-  const prereleaseChannelMatch = normalized.match(/^\d+\.\d+\.\d+-(nightly|rc|test|v8-canary)/)
-  if (prereleaseChannelMatch != null) {
-    return prereleaseChannelMatch[1]
-  }
-  if (NODE_RELEASE_CHANNELS.has(normalized)) {
-    return normalized
-  }
-  return 'release'
-}
-
-function latestDepSpec (alias: string, spec: string): string | undefined {
-  if (!spec.includes(':')) return alias
-  if (spec.startsWith('npm:')) {
-    return latestNpmAliasSpec(alias, spec.slice('npm:'.length))
-  }
-  if (spec.startsWith('runtime:') || spec.startsWith('tool:')) {
-    return latestRuntimeSpec(alias, spec.slice(spec.indexOf(':') + 1))
-  }
-  return undefined
-}
-
-function latestNpmAliasSpec (alias: string, npmTarget: string): string | undefined {
-  const parsed = parseWantedDependency(npmTarget)
-  if (parsed.alias != null) {
-    return parsed.bareSpecifier == null || !parsed.bareSpecifier.includes(':')
-      ? `${alias}@npm:${parsed.alias}@latest`
-      : undefined
-  }
-  if (parsed.bareSpecifier != null && parsed.bareSpecifier !== '' && !parsed.bareSpecifier.includes(':')) {
-    return `${alias}@npm:${alias}@latest`
-  }
-  return undefined
-}
-
-function latestRuntimeSpec (alias: string, runtimeSpec: string): string | undefined {
-  if (alias !== 'node') return `${alias}@runtime:latest`
-  const channel = parseNodeRuntimeChannel(runtimeSpec)
-  if (channel == null) return undefined
-  return channel === 'release' ? 'node@runtime:latest' : `node@runtime:${channel}/latest`
-}
-
-function pinnedDepSpec (alias: string, spec: string, pin: string): string {
-  if (!spec.includes(':')) return `${alias}@${pin}`
-  if (spec.startsWith('npm:')) {
-    const parsed = parseWantedDependency(spec.slice('npm:'.length))
-    return `${alias}@npm:${parsed.alias ?? alias}@${pin}`
-  }
-  if (spec.startsWith('runtime:') || spec.startsWith('tool:')) {
-    return pinnedRuntimeSpec(alias, spec.slice(spec.indexOf(':') + 1), pin)
-  }
-  return `${alias}@${pin}`
-}
-
-function pinnedRuntimeSpec (alias: string, runtimeSpec: string, pin: string): string {
-  if (alias === 'node') {
-    const channel = parseNodeRuntimeChannel(runtimeSpec)
-    if (channel != null && channel !== 'release' && parseNodeRuntimeChannel(pin) === 'release') {
-      return `node@runtime:${channel}/${pin}`
-    }
-  }
-  return `${alias}@runtime:${pin}`
 }

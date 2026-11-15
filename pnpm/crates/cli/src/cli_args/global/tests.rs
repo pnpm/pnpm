@@ -1,7 +1,8 @@
 use super::{
-    FsGlobalRemoval, GlobalPackageBinSnapshot, activation::FsRename, check_virtual_shim_conflicts,
-    global_group_config, infer_local_package_alias, replacement_aliases,
-    should_replace_existing_package, snapshot_global_package, update_selectors,
+    FsGlobalRemoval, GlobalPackageBinSnapshot, RangeSpecStyle, Version, activation::FsRename,
+    apply_runtime_range_bumps, check_virtual_shim_conflicts, global_group_config,
+    infer_local_package_alias, replacement_aliases, should_replace_existing_package,
+    snapshot_global_package, update_selectors,
 };
 use crate::{
     cli_args::{
@@ -654,5 +655,62 @@ fn a_group_config_resolves_hoisted_dependencies_from_its_own_install_dir() {
                 .to_string()
         ),
         "{node_path}",
+    );
+}
+
+#[test]
+fn update_selectors_preserve_deno_bun_ranges_and_ignore_non_runtime_tools() {
+    let deps = vec![
+        ("node".to_string(), "runtime:rc/^20.0.0".to_string()),
+        ("deno".to_string(), "runtime:^1.40.0".to_string()),
+        ("bun".to_string(), "runtime:1.1.0".to_string()),
+        ("custom".to_string(), "tool:1.0.0".to_string()),
+    ];
+    let initial = update_selectors(&deps, true, &HashMap::new());
+    assert_eq!(
+        initial,
+        vec![
+            "node@runtime:rc/latest",
+            "deno@runtime:latest",
+            "bun@runtime:latest",
+            "custom@tool:1.0.0",
+        ],
+    );
+
+    let resolved = HashMap::from([
+        ("node".to_string(), Version::parse("24.0.0-rc.4").expect("semver")),
+        ("deno".to_string(), Version::parse("2.4.2").expect("semver")),
+        ("bun".to_string(), Version::parse("1.2.19").expect("semver")),
+    ]);
+    let bumped = apply_runtime_range_bumps(
+        &deps,
+        &initial,
+        &HashMap::new(),
+        &resolved,
+        RangeSpecStyle::Major,
+    );
+    assert_eq!(
+        bumped,
+        vec![
+            "node@runtime:rc/latest",
+            "deno@runtime:^2.4.2",
+            "bun@runtime:1.2.19",
+            "custom@tool:1.0.0",
+        ],
+    );
+
+    let pins = HashMap::from([
+        ("node".to_string(), "24.0.0".to_string()),
+        ("deno".to_string(), "2.5.0".to_string()),
+    ]);
+    let pinned = update_selectors(&deps, true, &pins);
+    assert_eq!(
+        pinned,
+        vec![
+            "node@runtime:rc/24.0.0",
+            "deno@runtime:2.5.0",
+            "bun@runtime:latest",
+            "custom@tool:1.0.0",
+        ],
     );
 }

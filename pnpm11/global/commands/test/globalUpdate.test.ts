@@ -920,3 +920,51 @@ test('global update aborts without installing when the immature version is not a
   )
   expect(activateGlobalInstall).not.toHaveBeenCalled()
 })
+
+test('global update --latest preserves deno and bun declared range styles and ignores non-runtime tools', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-runtimes')
+  getHashLink.mockReturnValueOnce('/global/v11/hash-runtimes')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: {
+        node: 'runtime:rc/^20.0.0',
+        deno: 'runtime:^1.40.0',
+        bun: 'runtime:1.1.0',
+        custom: 'tool:1.0.0',
+      },
+      hash: 'hash-runtimes',
+      installDir: '/global/v11/old-runtimes',
+    },
+  ])
+  installGlobalPackages.mockResolvedValue({
+    ignoredBuilds: undefined,
+    resolutionPolicyViolations: [],
+    resolvedVersions: {
+      node: '24.0.0-rc.4',
+      deno: '2.4.2',
+      bun: '1.2.19',
+    },
+  })
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({ lockfileOnly: true }),
+    ['node@runtime:rc/latest', 'deno@runtime:latest', 'bun@runtime:latest', 'custom@tool:1.0.0']
+  )
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({ lockfileOnly: true }),
+    ['node@runtime:rc/latest', 'deno@runtime:^2.4.2', 'bun@runtime:1.2.19', 'custom@tool:1.0.0']
+  )
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    3,
+    expect.objectContaining({ lockfileOnly: false }),
+    ['node@runtime:rc/latest', 'deno@runtime:^2.4.2', 'bun@runtime:1.2.19', 'custom@tool:1.0.0']
+  )
+})

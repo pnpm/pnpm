@@ -229,6 +229,24 @@ test('afterAllResolved throws BAD_AFTER_ALL_RESOLVED_RETURN if it returns or res
         message: 'The afterAllResolved hook did not return a lockfile object',
       })
     )
+
+    const badConfigNull = path.join(tempDir, 'config-null.cjs')
+    fs.writeFileSync(badConfigNull, 'module.exports = { hooks: { updateConfig () { return null } } }')
+    const { hooks: configNullHooks } = await requireHooks(tempDir, { pnpmfiles: [badConfigNull] })
+    expect(() => configNullHooks.updateConfig![0]!({} as never)).toThrow(
+      expect.objectContaining({
+        code: 'ERR_PNPM_CONFIG_IS_UNDEFINED',
+        message: 'The updateConfig hook returned undefined',
+      })
+    )
+
+    const badConfigArr = path.join(tempDir, 'config-arr.cjs')
+    fs.writeFileSync(badConfigArr, 'module.exports = { hooks: { async updateConfig () { return [] } } }')
+    const { hooks: configArrHooks } = await requireHooks(tempDir, { pnpmfiles: [badConfigArr] })
+    await expect(configArrHooks.updateConfig![0]!({} as never)).rejects.toMatchObject({
+      code: 'ERR_PNPM_CONFIG_IS_UNDEFINED',
+      message: 'The updateConfig hook did not return a config object',
+    })
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true })
   }

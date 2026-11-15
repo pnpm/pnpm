@@ -1,8 +1,12 @@
 use super::{
     AddRequest, Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf,
-    fs, is_valid_old_npm_package_name, lexical_normalize, local_file_path, parse_wanted_dependency,
-    rust_toolchain_request, safe_read_package_json_from_dir, tool_install_selector,
+    RangeSpecStyle, Version, fs, is_valid_old_npm_package_name, lexical_normalize, local_file_path,
+    parse_wanted_dependency, rust_toolchain_request, safe_read_package_json_from_dir,
+    tool_install_selector,
 };
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
+use pnpm_resolving_npm_resolver::calc_version_range;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 
 /// The packages one global install request asks for: the tokens a
 /// comma-separated request splits into, and whether they may name a tool
@@ -129,6 +133,9 @@ fn latest_npm_alias_selector(alias: &str, rest: &str) -> Option<String> {
 }
 
 fn latest_runtime_selector(alias: &str, runtime_spec: &str) -> Option<String> {
+    if !pnpm_package_manifest::is_runtime_alias(alias) {
+        return None;
+    }
     if alias != "node" {
         return Some(format!("{alias}@runtime:latest"));
     }
@@ -138,6 +145,47 @@ fn latest_runtime_selector(alias: &str, runtime_spec: &str) -> Option<String> {
     } else {
         format!("node@runtime:{}/latest", parsed.release_channel)
     })
+}
+
+pub(super) fn bumped_runtime_latest_selector(
+    alias: &str,
+    spec: &str,
+    resolved: &Version,
+    range_spec_style: RangeSpecStyle,
+) -> Option<String> {
+    if alias == "node" || !pnpm_package_manifest::is_runtime_alias(alias) {
+        return None;
+    }
+    let declared_range = pnpm_tool_protocol::strip_tool_protocol(spec)?.trim();
+    if declared_range.is_empty()
+        || get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag)
+    {
+        return None;
+    }
+    let range = calc_version_range(resolved, Some(declared_range), None, range_spec_style);
+    Some(format!("{alias}@runtime:{range}"))
+}
+
+pub(super) fn apply_runtime_range_bumps(
+    dependencies: &[(String, String)],
+    selectors: &[String],
+    pins: &HashMap<String, String>,
+    resolved: &HashMap<String, Version>,
+    range_spec_style: RangeSpecStyle,
+) -> Vec<String> {
+    dependencies
+        .iter()
+        .zip(selectors)
+        .map(|((alias, spec), selector)| {
+            if pins.contains_key(alias) {
+                return selector.clone();
+            }
+            resolved
+                .get(alias)
+                .and_then(|ver| bumped_runtime_latest_selector(alias, spec, ver, range_spec_style))
+                .unwrap_or_else(|| selector.clone())
+        })
+        .collect()
 }
 
 fn pinned_selector(alias: &str, spec: &str, pin: &str) -> String {

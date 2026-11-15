@@ -46,6 +46,9 @@
       "path": "../../deps/inspection/list"
     },
     {
+      "path": "../../engine/runtime/node-resolver"
+    },
+    {
       "path": "../../installing/deps-installer"
     },
     {
