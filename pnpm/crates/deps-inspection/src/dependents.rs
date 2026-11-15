@@ -492,9 +492,8 @@ fn importer_dependency_info(alias: &str, importer: &ProjectSnapshot) -> Option<(
     let find = |group: Option<&pnpm_lockfile::ResolvedDependencyMap>| {
         group.and_then(|deps| {
             deps.iter()
-                .find_map(|(key, spec)| {
-                    (key.to_string() == alias).then(|| spec.specifier.clone())
-                })
+                .find(|(key, _)| key.to_string() == alias)
+                .map(|(_, spec)| spec.specifier.clone())
         })
     };
     if let Some(specifier) = find(importer.dev_dependencies.as_ref()) {

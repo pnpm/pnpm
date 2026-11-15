@@ -199,8 +199,7 @@ fn dependent_label(dep: &DependentNode, multi_peer_pkgs: &HashMap<String, usize>
         ),
     };
     if let Some(requires) = &dep.requires {
-        label.push(' ');
-        label.push_str(&plain(&format!("(requires {requires})")));
+        label.push_str(&plain(&format!(" (requires {requires})")));
     }
     if dep.circular {
         label.push_str(&circular_label());
