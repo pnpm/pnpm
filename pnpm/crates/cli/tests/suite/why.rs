@@ -619,38 +619,6 @@ fn why_displays_finder_message_in_json_output() {
     assert_eq!(matched["searchMessage"], "custom message");
 }
 
-#[test]
-fn why_json_output_includes_requires() {
-    let (_root, workspace, _anchor) = setup();
-    fs::write(
-        workspace.join("package.json"),
-        format!(
-            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "{PKG}": "100.0.0" }} }}"#,
-        ),
-    )
-    .expect("write package.json");
-    pacquet(&workspace, ["install"]).assert().success();
-
-    let output =
-        pacquet(&workspace, ["why", "--json", "--prod", DEP]).output().expect("run pacquet why");
-    assert!(output.status.success(), "why should succeed: {output:?}");
-    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout).expect("parse why JSON");
-    let matched = parsed
-        .as_array()
-        .expect("array output")
-        .iter()
-        .find(|result| result["name"] == DEP)
-        .expect("the queried package is present");
-    let dependents = matched["dependents"].as_array().expect("dependents array");
-    let pkg_node = dependents
-        .iter()
-        .find(|node| node["name"] == PKG)
-        .expect("package dependent is present");
-    assert_eq!(pkg_node["requires"], "^100.0.0");
-    let importer_node = pkg_node["dependents"][0].as_object().expect("importer dependent object");
-    assert_eq!(importer_node.get("requires").and_then(serde_json::Value::as_str), Some("100.0.0"),);
-}
-
 /// Port of upstream's `"why" finder can read manifest from store`.
 #[test]
 fn why_finder_can_read_manifest_from_store() {
@@ -799,3 +767,5 @@ module.exports = {{ finders: {{ 'test-finder': (ctx) => {{
     )
     .expect("write .pnpmfile.cjs");
 }
+
+mod constraints;

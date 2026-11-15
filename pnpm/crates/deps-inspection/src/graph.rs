@@ -9,7 +9,7 @@ use pnpm_lockfile::{
 };
 use pnpm_modules_yaml::IncludedDependencies;
 
-use super::TreeNodeId;
+use super::{TreeNodeId, dependents::DepField};
 
 /// One outgoing dependency edge of a graph node.
 #[derive(Debug, Clone)]
@@ -28,6 +28,14 @@ pub struct GraphEdge {
     /// be traversed (links outside the workspace, links from external
     /// packages).
     pub target: Option<TreeNodeId>,
+    /// The selected importer declaration, retained after group filtering.
+    pub importer_dependency: Option<ImporterDependency>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImporterDependency {
+    pub field: DepField,
+    pub specifier: String,
 }
 
 impl GraphEdge {
@@ -153,16 +161,8 @@ fn importer_edges(
     publish_dirs: &HashMap<String, String>,
 ) -> Vec<GraphEdge> {
     let mut edges = Vec::new();
-    let groups: [(bool, Option<&pnpm_lockfile::ResolvedDependencyMap>); 3] = [
-        (opts.include.dependencies, importer.dependencies.as_ref()),
-        (opts.include.dev_dependencies, importer.dev_dependencies.as_ref()),
-        (opts.include.optional_dependencies, importer.optional_dependencies.as_ref()),
-    ];
-    for (included, group) in groups {
-        if !included {
-            continue;
-        }
-        for (alias, spec) in group.into_iter().flatten() {
+    for (field, group) in importer_dependency_groups(importer, &opts.include) {
+        for (alias, spec) in group {
             let dep_path = spec.version.resolved_key(alias);
             let link_target = spec.version.as_link_target().map(str::to_string);
             let target = edge_target(
@@ -177,6 +177,10 @@ fn importer_edges(
                 dep_path,
                 link_target,
                 target,
+                importer_dependency: Some(ImporterDependency {
+                    field,
+                    specifier: spec.specifier.clone(),
+                }),
             };
             if opts.only_projects
                 && !edge.leads_to_project(&TreeNodeId::Importer(importer_id.to_string()))
@@ -187,6 +191,25 @@ fn importer_edges(
         }
     }
     edges
+}
+
+fn importer_dependency_groups<'a>(
+    importer: &'a ProjectSnapshot,
+    include: &IncludedDependencies,
+) -> impl Iterator<Item = (DepField, &'a pnpm_lockfile::ResolvedDependencyMap)> {
+    [
+        (include.dependencies, DepField::Dependencies, importer.dependencies.as_ref()),
+        (include.dev_dependencies, DepField::DevDependencies, importer.dev_dependencies.as_ref()),
+        (
+            include.optional_dependencies,
+            DepField::OptionalDependencies,
+            importer.optional_dependencies.as_ref(),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(included, field, dependencies)| {
+        if included { dependencies.map(|dependencies| (field, dependencies)) } else { None }
+    })
 }
 
 fn package_edges(
@@ -214,6 +237,7 @@ fn package_edges(
             dep_path,
             link_target,
             target,
+            importer_dependency: None,
         });
     }
     edges

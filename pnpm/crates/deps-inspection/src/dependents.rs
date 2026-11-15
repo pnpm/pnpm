@@ -5,17 +5,13 @@ pub use selection::{
     compare_versions, merge_trees, name_ver_from_dep_path, resolve_package_nodes, sort_trees,
 };
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-};
+use std::collections::{HashMap, HashSet};
 
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer, ProjectSnapshot};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, parse_manifest_bytes};
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 
 use super::{
     TreeNodeId,
-    graph::DependencyGraph,
+    graph::{DependencyGraph, ImporterDependency},
     peers_suffix_hash,
     pkg_info::{EdgeContext, ManifestSource, PkgInfoEnv, get_pkg_info},
     search::{SearchMatch, Searcher},
@@ -168,8 +164,8 @@ pub struct BuildDependentsOptions<'a> {
     pub search: &'a Searcher,
     pub importer_info: &'a HashMap<String, ImporterInfo>,
     /// `package.json` fields to project onto every package node of the
-    /// tree, in `manifest`. Empty (the CLI's case) reads no manifests at
-    /// all; the reverse walk otherwise works purely off the lockfile.
+    /// tree, in `manifest`. An empty slice omits this projection;
+    /// dependency specifiers are read independently.
     ///
     /// This is what the TypeScript tree-builder's `nameFormatter` callback
     /// is for: an embedder that renames nodes after a manifest field —
@@ -179,66 +175,17 @@ pub struct BuildDependentsOptions<'a> {
     pub manifest_fields: &'a [String],
 }
 
+#[derive(Clone, Copy)]
+enum DependencyKind {
+    Dependency,
+    Peer,
+}
+
 struct ReverseEdge {
     parent: TreeNodeId,
     alias: String,
-    is_peer: bool,
-}
-
-/// Reads the requested `package.json` fields of a resolved package node.
-/// Each call re-reads the file; a `why` tree names a handful of packages,
-/// and caching would keep manifests alive for the whole walk.
-struct ManifestProjector<'a> {
-    fields: &'a [String],
-    resolved: &'a HashMap<TreeNodeId, ManifestSource>,
-}
-
-impl ManifestProjector<'_> {
-    fn read_manifest_value(&self, node_id: &TreeNodeId) -> Option<(PathBuf, serde_json::Value)> {
-        let source = self.resolved.get(node_id)?;
-        let path = source.path.join("package.json");
-        let bytes = std::fs::read(&path).ok()?;
-        let manifest = parse_manifest_bytes(&bytes).ok()?;
-        Some((path, manifest))
-    }
-
-    /// The projection for `node_id`, or `None` when no fields were
-    /// requested, the node is a workspace project, or its manifest is
-    /// unreadable — an absent manifest is never an error here, it just
-    /// leaves the node un-annotated.
-    fn project(&self, node_id: &TreeNodeId) -> Option<serde_json::Map<String, serde_json::Value>> {
-        if self.fields.is_empty() {
-            return None;
-        }
-        let (_, manifest) = self.read_manifest_value(node_id)?;
-        let mut projected = serde_json::Map::new();
-        for field in self.fields {
-            if let Some(value) = manifest.get(field) {
-                projected.insert(field.clone(), value.clone());
-            }
-        }
-        (!projected.is_empty()).then_some(projected)
-    }
-
-    fn dependency_specifier(
-        &self,
-        node_id: &TreeNodeId,
-        alias: &str,
-        prefer_peer: bool,
-    ) -> Option<String> {
-        const PEER_FIRST_GROUPS: [DependencyGroup; 3] =
-            [DependencyGroup::Peer, DependencyGroup::Optional, DependencyGroup::Prod];
-        const NON_PEER_FIRST_GROUPS: [DependencyGroup; 3] =
-            [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Peer];
-
-        let (path, manifest) = self.read_manifest_value(node_id)?;
-        let manifest = PackageManifest::from_value(path, manifest);
-        let groups = if prefer_peer { PEER_FIRST_GROUPS } else { NON_PEER_FIRST_GROUPS };
-        manifest
-            .dependencies(groups)
-            .find(|(name, _)| *name == alias)
-            .map(|(_, specifier)| specifier.to_string())
-    }
+    kind: DependencyKind,
+    importer_dependency: Option<ImporterDependency>,
 }
 
 struct WalkCtx<'a> {
@@ -246,9 +193,7 @@ struct WalkCtx<'a> {
     reverse_map: &'a HashMap<TreeNodeId, Vec<ReverseEdge>>,
     lockfile: &'a Lockfile,
     importer_info: &'a HashMap<String, ImporterInfo>,
-    /// Where each package node's manifest lives, for the
-    /// `manifest_fields` projection. Empty when no fields were asked for.
-    manifest_reader: ManifestProjector<'a>,
+    manifest_reader: &'a ManifestProjector<'a>,
     /// Nodes on the current path, for cycle detection.
     visited: HashSet<TreeNodeId>,
     /// Nodes already fully expanded, for deduplication across branches.
@@ -262,6 +207,7 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
     let lockfile = opts.env.current_lockfile;
     let reverse_map = invert_graph(opts.graph);
     let resolved_nodes = resolve_package_nodes(opts.env, opts.graph);
+    let manifest_reader = ManifestProjector::new(opts.manifest_fields, &resolved_nodes);
 
     let mut trees: Vec<DependentsTree> = Vec::new();
     for node_id in opts.graph.nodes.keys() {
@@ -291,10 +237,9 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
             version,
             path: Some(resolved.path.to_string_lossy().into_owned()),
             peers_suffix_hash: peers_suffix_hash(dep_path),
-            dependents: walk_dependents_of(opts, &reverse_map, &resolved_nodes, node_id),
+            dependents: walk_dependents_of(opts, &reverse_map, &manifest_reader, node_id),
             search_message: matched.message().map(str::to_string),
-            manifest: ManifestProjector { fields: opts.manifest_fields, resolved: &resolved_nodes }
-                .project(node_id),
+            manifest: manifest_reader.project(node_id),
             merge_id,
         });
     }
@@ -306,7 +251,7 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
 fn walk_dependents_of(
     opts: &BuildDependentsOptions<'_>,
     reverse_map: &HashMap<TreeNodeId, Vec<ReverseEdge>>,
-    resolved_nodes: &HashMap<TreeNodeId, ManifestSource>,
+    manifest_reader: &ManifestProjector<'_>,
     node_id: &TreeNodeId,
 ) -> Vec<DependentNode> {
     let mut ctx = WalkCtx {
@@ -314,10 +259,7 @@ fn walk_dependents_of(
         reverse_map,
         lockfile: opts.env.current_lockfile,
         importer_info: opts.importer_info,
-        manifest_reader: ManifestProjector {
-            fields: opts.manifest_fields,
-            resolved: resolved_nodes,
-        },
+        manifest_reader,
         visited: HashSet::from([node_id.clone()]),
         expanded: HashSet::new(),
     };
@@ -337,7 +279,12 @@ fn invert_graph(graph: &DependencyGraph) -> HashMap<TreeNodeId, Vec<ReverseEdge>
                 .push(ReverseEdge {
                     parent: parent_id.clone(),
                     alias: edge.alias.clone(),
-                    is_peer: node.peers.contains(&edge.alias),
+                    kind: if node.peers.contains(&edge.alias) {
+                        DependencyKind::Peer
+                    } else {
+                        DependencyKind::Dependency
+                    },
+                    importer_dependency: edge.importer_dependency.clone(),
                 });
         }
     }
@@ -385,11 +332,9 @@ fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<DependentNode>
         TreeNodeId::Importer(importer_id) => {
             let info = ctx.importer_info.get(importer_id)?;
             let mut node = DependentNode::leaf(info.name.clone(), info.version.clone());
-            if let Some(importer) = ctx.lockfile.importers.get(importer_id.as_str())
-                && let Some((_, specifier)) = importer_dependency_info(&edge.alias, importer)
-            {
-                node.requires = Some(specifier);
-            }
+            node.requires = edge.importer_dependency
+                .as_ref()
+                .map(|dependency| dependency.specifier.clone());
             node.circular = true;
             node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
             Some(node)
@@ -402,7 +347,7 @@ fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<DependentNode>
             let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
             let mut node = DependentNode::leaf(name, version);
             node.requires =
-                ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.is_peer);
+                ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.kind);
             node.circular = true;
             node.peers_suffix_hash = peers_suffix_hash(dep_path);
             node.merge_id = merge_id;
@@ -425,8 +370,7 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
     let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
     let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
     let mut node = DependentNode::leaf(name, version);
-    node.requires =
-        ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.is_peer);
+    node.requires = ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.kind);
     node.peers_suffix_hash = peers_suffix_hash(dep_path);
     node.merge_id = merge_id;
     node.manifest = ctx.manifest_reader.project(&edge.parent);
@@ -454,11 +398,9 @@ fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> De
         None => (importer_id.to_string(), String::new()),
     };
     let mut node = DependentNode::leaf(name, version);
-    if let Some(importer) = ctx.lockfile.importers.get(importer_id)
-        && let Some((dep_field, specifier)) = importer_dependency_info(&edge.alias, importer)
-    {
-        node.dep_field = Some(dep_field);
-        node.requires = Some(specifier);
+    if let Some(dependency) = &edge.importer_dependency {
+        node.dep_field = Some(dependency.field);
+        node.requires = Some(dependency.specifier.clone());
     }
     node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
     node
@@ -488,26 +430,11 @@ fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
     }
 }
 
-fn importer_dependency_info(alias: &str, importer: &ProjectSnapshot) -> Option<(DepField, String)> {
-    let find = |group: Option<&pnpm_lockfile::ResolvedDependencyMap>| {
-        group.and_then(|deps| {
-            deps.iter()
-                .find(|(key, _)| key.to_string() == alias)
-                .map(|(_, spec)| spec.specifier.clone())
-        })
-    };
-    if let Some(specifier) = find(importer.dev_dependencies.as_ref()) {
-        return Some((DepField::DevDependencies, specifier));
-    }
-    if let Some(specifier) = find(importer.optional_dependencies.as_ref()) {
-        return Some((DepField::OptionalDependencies, specifier));
-    }
-    if let Some(specifier) = find(importer.dependencies.as_ref()) {
-        return Some((DepField::Dependencies, specifier));
-    }
-    None
-}
-
+mod manifest;
 mod selection;
 
+use manifest::ManifestProjector;
 use selection::{has_snapshot, match_package, package_merge_id};
+
+#[cfg(test)]
+mod tests;

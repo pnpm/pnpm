@@ -54,6 +54,7 @@ fn get_pkg_info_handles_missing_pkg_snapshot_without_crashing() {
         dep_path: Some("missing-pkg@1.0.0".parse().unwrap()),
         link_target: None,
         target: None,
+        importer_dependency: None,
     };
     let ctx = EdgeContext {
         peers: None,
@@ -412,6 +413,7 @@ snapshots:
             dep_path: Some(dep_path.parse().unwrap()),
             link_target: None,
             target: None,
+            importer_dependency: None,
         };
         get_pkg_info(&env, &edge, &ctx).0
     };

@@ -563,3 +563,28 @@ fn merged_parseable_long_preserves_format_with_requires() {
         "mid@2.0.0 > /workspace/app/node_modules/target:target@1.0.0\nmid@2.0.0 > /workspace/lib/node_modules/target:target@1.0.0",
     );
 }
+
+#[test]
+fn merged_trees_keep_distinct_declared_constraints() {
+    let trees = [("app", "^1.0.0"), ("lib", "~1.0.0")].map(|(name, requires)| DependentsTree {
+        path: Some(format!("/workspace/{name}/node_modules/target")),
+        ..tree(
+            "target",
+            "1.0.0",
+            vec![package_with_requires("parent", "2.0.0", Some(requires), vec![])],
+        )
+    });
+    let merged = merge_trees(trees.into());
+    assert_eq!(merged.len(), 1);
+    assert_eq!(merged[0].dependents.len(), 2);
+    assert_eq!(merged[0].dependents[0].requires.as_deref(), Some("^1.0.0"));
+    assert_eq!(merged[0].dependents[1].requires.as_deref(), Some("~1.0.0"));
+    assert_eq!(merged[0].dependents[0].root_paths, ["/workspace/app/node_modules/target"]);
+    assert_eq!(merged[0].dependents[1].root_paths, ["/workspace/lib/node_modules/target"]);
+    let output = render_dependents_tree(&merged, &opts(None));
+    assert!(output.contains("requires ^1.0.0"), "{output}");
+    assert!(output.contains("requires ~1.0.0"), "{output}");
+    let json: Value = serde_json::from_str(&render_dependents_json(&merged, &opts(None))).unwrap();
+    assert_eq!(json[0]["dependents"][0]["requires"], "^1.0.0");
+    assert_eq!(json[0]["dependents"][1]["requires"], "~1.0.0");
+}
