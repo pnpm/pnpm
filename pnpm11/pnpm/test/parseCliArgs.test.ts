@@ -60,6 +60,9 @@ test('pm prefix is recognized after pre-command flags and with current, but not 
   const forcedCases = await Promise.all([
     ['pm', 'clean'],
     ['--dir', '/tmp/pkg', 'pm', 'clean'],
+    ['--config.dir', '/tmp/pkg', 'pm', 'clean'],
+    ['--config.dir=/tmp/pkg', 'pm', 'clean'],
+    ['--config.lockfile', 'pm', 'clean'],
     ['-rC', '/tmp/pkg', 'pm', 'clean'],
     ['--lockfile', 'pm', 'clean'],
     ['with', 'current', 'pm', 'clean'],
@@ -74,11 +77,13 @@ test('pm prefix is recognized after pre-command flags and with current, but not 
 
   const unforcedExpectations = [
     [['--dir', 'pm', 'clean'], 'clean'],
+    [['--config.dir', 'pm', 'clean'], 'clean'],
     [['-C', 'pm', 'clean'], 'clean'],
     [['run', 'pm'], 'run'],
     [['exec', 'pm', 'clean'], 'exec'],
     [['with', '10', 'pm', 'clean'], 'with'],
     [['--', 'pm', 'clean'], 'run'],
+    [['---', 'pm', 'clean'], 'run'],
   ] as const
   const unforcedCases = await Promise.all(
     unforcedExpectations.map(async ([argv, expectedCmd]) => ({
@@ -101,8 +106,16 @@ test('with current works after subcommand boolean flags and rejects missing inne
   expect(recursiveWithCurrent.cmd).toBe('list')
   expect(recursiveWithCurrent.options.recursive).toBe(true)
 
+  const configDirWithCurrent = await parseCliArgs(['--config.dir', '/tmp/pkg', 'with', 'current', 'list'])
+  expect(configDirWithCurrent.cmd).toBe('list')
+  expect(configDirWithCurrent.options.dir).toBe('/tmp/pkg')
+
   const notWithCurrent = await parseCliArgs(['-C', 'with', 'current', 'install'])
   expect(notWithCurrent.cmd).toBe('run')
+
+  const separatorWithCurrent = await parseCliArgs(['---', 'with', 'current', 'install'])
+  expect(separatorWithCurrent.cmd).toBe('with')
+  expect(separatorWithCurrent.params).toStrictEqual(['current', 'install'])
 
   await Promise.all([
     ['with', 'current'],

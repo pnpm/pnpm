@@ -159,11 +159,33 @@ fn pm_prefix_still_loads_env_file() {
             "--env-file",
             env_path.to_str().expect("UTF-8 env path"),
             "pm",
+            "run",
+            "print-env",
+        ])
+        .output()
+        .expect("run pacquet --dir --env-file pm run print-env");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
+    assert!(
+        stdout.contains("from-env-file|"),
+        "script must see the layered variables; stdout: {stdout:?}",
+    );
+
+    let list_output = pacquet_in(root.path())
+        .with_args([
+            "--dir",
+            workspace.to_str().expect("UTF-8 workspace path"),
+            "--env-file",
+            env_path.to_str().expect("UTF-8 env path"),
+            "pm",
             "list",
         ])
         .output()
         .expect("run pacquet --dir --env-file pm list");
-    assert!(output.status.success(), "pm list after --dir and --env-file must exit 0: {output:?}");
+    assert!(
+        list_output.status.success(),
+        "pm list after --dir and --env-file must exit 0: {list_output:?}",
+    );
 
     drop(root);
 }

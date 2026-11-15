@@ -19,9 +19,11 @@ const RENAMED_OPTIONS = {
 
 type FlagTypeMap = Parameters<typeof nopt>[0]
 
-const PRE_COMMAND_SHORTHANDS = { r: '--recursive', ...universalShorthands }
+const OPTION_SEPARATOR_RE = /^-{2,}$/
+const CUSTOM_OPTION_PREFIX = '--config.'
 const RECURSIVE_PREFIXES = new Set(['recursive', 'multi', 'm'])
-let preCommandTypes: FlagTypeMap | undefined
+let basePreCommandTypes: FlagTypeMap | undefined
+let fullPreCommandTypes: FlagTypeMap | undefined
 
 export type ParsedCliArgsWithBuiltIn = ParsedCliArgs & { builtInCommandForced: boolean }
 
@@ -113,11 +115,15 @@ function matchWithCurrentAt (argv: string[], pos: number): number {
   return currentPos >= 0 && argv[currentPos] === 'current' ? currentPos : -1
 }
 
+function isOptionSeparator (token: string): boolean {
+  return OPTION_SEPARATOR_RE.test(token)
+}
+
 function nextPositionalBeforeSeparator (argv: string[], from: number): number {
   let index = from
   while (index < argv.length) {
     const token = argv[index]
-    if (token === '--') return -1
+    if (isOptionSeparator(token)) return -1
     if (!token.startsWith('-') || token === '-') return index
     index += optionConsumesNext(token, argv[index + 1]) ? 2 : 1
   }
@@ -125,26 +131,68 @@ function nextPositionalBeforeSeparator (argv: string[], from: number): number {
 }
 
 function optionConsumesNext (token: string, next: string | undefined): boolean {
-  if (next === undefined || next === '--' || token.startsWith('--config.')) return false
-  const types = getPreCommandTypes()
+  if (next === undefined || isOptionSeparator(next) || token.includes('=')) return false
+  const normalized = normalizePreCommandOption(token)
+  if (normalized == null) return false
+  const { probeToken, shorthands, types } = normalized
   if (!next.startsWith('-') || next === '-') {
-    return nopt(types, PRE_COMMAND_SHORTHANDS, [token, next], 0).argv.remain.length === 0
+    return nopt(types, shorthands, [probeToken, next], 0).argv.remain.length === 0
   }
-  if (nopt(types, PRE_COMMAND_SHORTHANDS, [token, 'value'], 0).argv.remain.length > 0) {
+  if (nopt(types, shorthands, [probeToken, 'value'], 0).argv.remain.length > 0) {
     return false
   }
-  return !('__probe__' in nopt(types, PRE_COMMAND_SHORTHANDS, [token, '--__probe__'], 0))
+  return !('__probe__' in nopt(types, shorthands, [probeToken, '--__probe__'], 0))
 }
 
-function getPreCommandTypes (): FlagTypeMap {
-  if (preCommandTypes != null) return preCommandTypes
+interface NormalizedPreCommandOption {
+  probeToken: string
+  shorthands: Record<string, string>
+  types: FlagTypeMap
+}
+
+function normalizePreCommandOption (token: string): NormalizedPreCommandOption | undefined {
+  if (token.startsWith(CUSTOM_OPTION_PREFIX)) {
+    const key = token.slice(CUSTOM_OPTION_PREFIX.length)
+    if (key === '') return undefined
+    const probeToken = `--${key}`
+    return { probeToken, shorthands: {}, types: getPreCommandTypesFor(probeToken, false) }
+  }
+  return {
+    probeToken: token,
+    shorthands: universalShorthands,
+    types: getPreCommandTypesFor(token, true),
+  }
+}
+
+function getPreCommandTypesFor (probeToken: string, allowShorthands: boolean): FlagTypeMap {
+  const base = getBasePreCommandTypes()
+  if (!probeToken.startsWith('--')) return base
+  const rawName = probeToken.slice(2)
+  const name = rawName.startsWith('no-') ? rawName.slice(3) : rawName
+  if (Object.hasOwn(base, name) || (allowShorthands && Object.hasOwn(universalShorthands, rawName))) {
+    return base
+  }
+  return getFullPreCommandTypes()
+}
+
+function getBasePreCommandTypes (): FlagTypeMap {
+  basePreCommandTypes ??= { ...allTypes, ...GLOBAL_OPTIONS } as FlagTypeMap
+  return basePreCommandTypes
+}
+
+function getFullPreCommandTypes (): FlagTypeMap {
+  if (fullPreCommandTypes != null) return fullPreCommandTypes
   const merged: Record<string, unknown> = { ...allTypes }
+  const seenCommands = new Set<string>()
   for (const commandName of Object.keys(pnpmCmds)) {
-    mergeCommandOptionTypes(merged, getCliOptionsTypes(commandName))
+    const canonical = getCommandFullName(commandName) ?? commandName
+    if (seenCommands.has(canonical)) continue
+    seenCommands.add(canonical)
+    mergeCommandOptionTypes(merged, getCliOptionsTypes(canonical))
   }
   Object.assign(merged, GLOBAL_OPTIONS)
-  preCommandTypes = merged as FlagTypeMap
-  return preCommandTypes
+  fullPreCommandTypes = merged as FlagTypeMap
+  return fullPreCommandTypes
 }
 
 function mergeCommandOptionTypes (
@@ -152,7 +200,7 @@ function mergeCommandOptionTypes (
   commandTypes: Record<string, unknown>
 ): void {
   for (const [key, type] of Object.entries(commandTypes)) {
-    merged[key] = key in merged && isBooleanType(merged[key]) !== isBooleanType(type)
+    merged[key] = Object.hasOwn(merged, key) && isBooleanType(merged[key]) !== isBooleanType(type)
       ? Boolean
       : (merged[key] ?? type)
   }
