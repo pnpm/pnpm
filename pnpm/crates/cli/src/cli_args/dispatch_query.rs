@@ -329,6 +329,12 @@ pub(super) fn stage<'a>(
         }
         Ok(())
     }
+    if args.flags.output.json {
+        return Ok(Box::pin(async move {
+            let _quiet = EventFilter::All.apply();
+            print_output::<CliReporter>(args, dir, config, recursive).await
+        }));
+    }
     Ok(Box::pin(print_output::<CliReporter>(args, dir, config, recursive)))
 }
 
