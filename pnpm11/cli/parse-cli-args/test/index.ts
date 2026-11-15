@@ -642,3 +642,24 @@ test('dlx stops parsing after "--"', async () => {
     'argument',
   ])
 })
+
+test('command-specific value options before the command name do not hide the command', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    fallbackCommand: 'run',
+    getCommandLongName: (name: string) => name === 'init' ? 'init' : null,
+    getTypesByCommandName: (name: string) => name === 'init'
+      ? { 'init-type': ['commonjs', 'module'] }
+      : {},
+  }
+
+  const direct = await parseCliArgs(opts, ['--init-type', 'commonjs', 'init'])
+  expect(direct.cmd).toBe('init')
+  expect(direct.params).toStrictEqual([])
+  expect(direct.options['init-type']).toBe('commonjs')
+
+  const configDot = await parseCliArgs(opts, ['--config.init-type', 'commonjs', 'init'])
+  expect(configDot.cmd).toBe('init')
+  expect(configDot.params).toStrictEqual([])
+  expect(configDot.options['init-type']).toBe('commonjs')
+})

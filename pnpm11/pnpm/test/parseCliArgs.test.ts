@@ -7,6 +7,7 @@ test('the "issues" alias resolves to the "bugs" command', async () => {
   expect(getCommandFullName('issues')).toBe('bugs')
   expect(pnpmCmds.issues).toBe(pnpmCmds.bugs)
   expect(getCliOptionsTypes('issues')).toHaveProperty(['registry'])
+  expect(getCliOptionsTypes('issues')).toBe(getCliOptionsTypes('bugs'))
 
   const { cmd } = await parseCliArgs(['issues', 'is-positive'])
   expect(cmd).toBe('bugs')
@@ -127,4 +128,21 @@ test('with current works after subcommand boolean flags and rejects missing inne
       code: 'ERR_PNPM_MISSING_WITH_CURRENT_CMD',
     })
   ))
+})
+
+test('command-specific value options before with current and pm resolve the target command', async () => {
+  const configInitType = await parseCliArgs(['--config.init-type', 'commonjs', 'with', 'current', 'init'])
+  expect(configInitType.cmd).toBe('init')
+  expect(configInitType.params).toStrictEqual([])
+  expect(configInitType.options['init-type']).toBe('commonjs')
+
+  const directInitType = await parseCliArgs(['--init-type', 'commonjs', 'with', 'current', 'init'])
+  expect(directInitType.cmd).toBe('init')
+  expect(directInitType.params).toStrictEqual([])
+  expect(directInitType.options['init-type']).toBe('commonjs')
+
+  const forcedInitType = await parseCliArgs(['--init-type', 'commonjs', 'pm', 'init'])
+  expect(forcedInitType.cmd).toBe('init')
+  expect(forcedInitType.builtInCommandForced).toBe(true)
+  expect(forcedInitType.options['init-type']).toBe('commonjs')
 })

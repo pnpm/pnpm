@@ -1,4 +1,5 @@
 ---
+"@pnpm/cli.parse-cli-args": patch
 "pnpm": patch
 "pacquet": patch
 ---

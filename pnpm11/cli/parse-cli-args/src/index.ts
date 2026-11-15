@@ -3,6 +3,14 @@ import nopt from '@pnpm/nopt'
 import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
+import {
+  BASE_EXPLORATORY_TYPES,
+  buildExploratoryTypes,
+  VERSION_BOOTSTRAP_KEYS,
+} from './exploratory.js'
+
+export { BASE_EXPLORATORY_TYPES, buildExploratoryTypes }
+
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx', 'with'])
 const CUSTOM_OPTION_PREFIX = 'config.'
@@ -79,15 +87,7 @@ export async function parseCliArgs (
 }
 
 function parseExploratory (opts: ParseCliArgsOptions, inputArgv: string[]): ReturnType<typeof nopt> {
-  const exploratoryTypes = {
-    filter: [String],
-    help: Boolean,
-    recursive: Boolean,
-    ...VERSION_BOOTSTRAP_TYPES,
-    ...opts.universalOptionsTypes,
-    ...opts.getTypesByCommandName('add'),
-    ...opts.getTypesByCommandName('install'),
-  }
+  const exploratoryTypes = buildExploratoryTypes(opts, inputArgv)
   return nopt(
     { ...exploratoryTypes, ...configDotTypes(exploratoryTypes) },
     { r: '--recursive', ...opts.universalShorthands },
@@ -180,22 +180,6 @@ function buildHelpResult (
     workspaceDir,
   }
 }
-
-const VERSION_BOOTSTRAP_TYPES = {
-  'frozen-lockfile': Boolean,
-  global: Boolean,
-  'global-dir': String,
-  lockfile: Boolean,
-  'lockfile-dir': String,
-  'npmrc-auth-file': String,
-  offline: Boolean,
-  'prefer-offline': Boolean,
-  registry: String,
-  'state-dir': String,
-  'store-dir': String,
-}
-
-const VERSION_BOOTSTRAP_KEYS = Object.keys(VERSION_BOOTSTRAP_TYPES)
 
 function pickEarlyExitOptions (
   opts: ParseCliArgsOptions,

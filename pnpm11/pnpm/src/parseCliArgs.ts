@@ -1,5 +1,10 @@
-import { parseCliArgs as parseCliArgsLib, type ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
-import { types as allTypes } from '@pnpm/config.reader'
+import {
+  BASE_EXPLORATORY_TYPES,
+  buildExploratoryTypes,
+  parseCliArgs as parseCliArgsLib,
+  type ParseCliArgsOptions,
+  type ParsedCliArgs,
+} from '@pnpm/cli.parse-cli-args'
 import { PnpmError } from '@pnpm/error'
 import nopt from '@pnpm/nopt'
 
@@ -7,7 +12,6 @@ import {
   getCliOptionsTypes,
   getCommandFullName,
   GLOBAL_OPTIONS,
-  pnpmCmds,
   shorthandsByCommandName,
 } from './cmd/index.js'
 import { shorthands as universalShorthands } from './shorthands.js'
@@ -22,8 +26,9 @@ type FlagTypeMap = Parameters<typeof nopt>[0]
 const OPTION_SEPARATOR_RE = /^-{2,}$/
 const CUSTOM_OPTION_PREFIX = '--config.'
 const RECURSIVE_PREFIXES = new Set(['recursive', 'multi', 'm'])
+const EXPLORATORY_SHORTHANDS = { r: '--recursive', ...universalShorthands }
+let libOpts: ParseCliArgsOptions | undefined
 let basePreCommandTypes: FlagTypeMap | undefined
-let fullPreCommandTypes: FlagTypeMap | undefined
 
 export type ParsedCliArgsWithBuiltIn = ParsedCliArgs & { builtInCommandForced: boolean }
 
@@ -32,7 +37,12 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
   if (withCurrent) {
     process.env.pnpm_config_pm_on_fail = 'ignore'
   }
-  const result = await parseCliArgsLib({
+  const result = await parseCliArgsLib(getLibOpts(), argv)
+  return { ...result, builtInCommandForced }
+}
+
+function getLibOpts (): ParseCliArgsOptions {
+  libOpts ??= {
     fallbackCommand: 'run',
     escapeArgs: ['create', 'exec', 'test'],
     getCommandLongName: getCommandFullName,
@@ -41,8 +51,8 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
     shorthandsByCommandName,
     universalOptionsTypes: GLOBAL_OPTIONS,
     universalShorthands,
-  }, argv)
-  return { ...result, builtInCommandForced }
+  }
+  return libOpts
 }
 
 interface ScannedPrefixes {
@@ -82,36 +92,71 @@ function stripPreCommandPrefixes (inputArgv: string[]): StrippedPrefixes {
 
 function scanPreCommandPrefixes (argv: string[]): ScannedPrefixes {
   const scanned: ScannedPrefixes = {}
+  let exploratoryTypes: FlagTypeMap | undefined
+  const getExploratoryTypes = (): FlagTypeMap => {
+    exploratoryTypes ??= buildExploratoryTypes(getLibOpts(), argv)
+    return exploratoryTypes
+  }
   let resumeAt = 0
   while (true) {
-    const pos = nextPositionalBeforeSeparator(argv, resumeAt)
-    const nextResume = pos >= 0 ? consumePrefixAt(argv, pos, scanned) : -1
+    const pos = nextPositionalBeforeSeparator(argv, resumeAt, getExploratoryTypes)
+    const nextResume = pos >= 0 ? consumePrefixAt(argv, pos, scanned, getExploratoryTypes) : -1
     if (nextResume < 0) break
     resumeAt = nextResume
   }
   return scanned
 }
 
-function consumePrefixAt (argv: string[], pos: number, scanned: ScannedPrefixes): number {
+function nextPositionalBeforeSeparator (
+  argv: string[],
+  from: number,
+  getExploratoryTypes: () => FlagTypeMap
+): number {
+  let index = from
+  while (index < argv.length) {
+    const token = argv[index]
+    if (isOptionSeparator(token)) return -1
+    if (!token.startsWith('-') || token === '-') return index
+    index += optionConsumesNext(token, argv[index + 1], getExploratoryTypes) ? 2 : 1
+  }
+  return -1
+}
+
+function consumePrefixAt (
+  argv: string[],
+  pos: number,
+  scanned: ScannedPrefixes,
+  getExploratoryTypes: () => FlagTypeMap
+): number {
   if (scanned.pmIndex === undefined && argv[pos] === 'pm') {
     scanned.pmIndex = pos
     return pos + 1
   }
-  const currentPos = scanned.withCurrentIndices === undefined ? matchWithCurrentAt(argv, pos) : -1
+  const currentPos = scanned.withCurrentIndices === undefined
+    ? matchWithCurrentAt(argv, pos, getExploratoryTypes)
+    : -1
   if (currentPos >= 0) {
     scanned.withCurrentIndices = [pos, currentPos]
     return currentPos + 1
   }
-  if (!scanned.recursiveSeen && RECURSIVE_PREFIXES.has(argv[pos]) && nextPositionalBeforeSeparator(argv, pos + 1) >= 0) {
+  if (
+    !scanned.recursiveSeen &&
+    RECURSIVE_PREFIXES.has(argv[pos]) &&
+    nextPositionalBeforeSeparator(argv, pos + 1, getExploratoryTypes) >= 0
+  ) {
     scanned.recursiveSeen = true
     return pos + 1
   }
   return -1
 }
 
-function matchWithCurrentAt (argv: string[], pos: number): number {
+function matchWithCurrentAt (
+  argv: string[],
+  pos: number,
+  getExploratoryTypes: () => FlagTypeMap
+): number {
   if (argv[pos] !== 'with') return -1
-  const currentPos = nextPositionalBeforeSeparator(argv, pos + 1)
+  const currentPos = nextPositionalBeforeSeparator(argv, pos + 1, getExploratoryTypes)
   return currentPos >= 0 && argv[currentPos] === 'current' ? currentPos : -1
 }
 
@@ -119,20 +164,13 @@ function isOptionSeparator (token: string): boolean {
   return OPTION_SEPARATOR_RE.test(token)
 }
 
-function nextPositionalBeforeSeparator (argv: string[], from: number): number {
-  let index = from
-  while (index < argv.length) {
-    const token = argv[index]
-    if (isOptionSeparator(token)) return -1
-    if (!token.startsWith('-') || token === '-') return index
-    index += optionConsumesNext(token, argv[index + 1]) ? 2 : 1
-  }
-  return -1
-}
-
-function optionConsumesNext (token: string, next: string | undefined): boolean {
+function optionConsumesNext (
+  token: string,
+  next: string | undefined,
+  getExploratoryTypes: () => FlagTypeMap
+): boolean {
   if (next === undefined || isOptionSeparator(next) || token.includes('=')) return false
-  const normalized = normalizePreCommandOption(token)
+  const normalized = normalizePreCommandOption(token, getExploratoryTypes)
   if (normalized == null) return false
   const { probeToken, shorthands, types } = normalized
   if (!next.startsWith('-') || next === '-') {
@@ -150,62 +188,46 @@ interface NormalizedPreCommandOption {
   types: FlagTypeMap
 }
 
-function normalizePreCommandOption (token: string): NormalizedPreCommandOption | undefined {
+function normalizePreCommandOption (
+  token: string,
+  getExploratoryTypes: () => FlagTypeMap
+): NormalizedPreCommandOption | undefined {
   if (token.startsWith(CUSTOM_OPTION_PREFIX)) {
     const key = token.slice(CUSTOM_OPTION_PREFIX.length)
     if (key === '') return undefined
     const probeToken = `--${key}`
-    return { probeToken, shorthands: {}, types: getPreCommandTypesFor(probeToken, false) }
+    return {
+      probeToken,
+      shorthands: {},
+      types: resolvePreCommandTypes(probeToken, false, getExploratoryTypes),
+    }
   }
   return {
     probeToken: token,
-    shorthands: universalShorthands,
-    types: getPreCommandTypesFor(token, true),
+    shorthands: EXPLORATORY_SHORTHANDS,
+    types: resolvePreCommandTypes(token, true, getExploratoryTypes),
   }
 }
 
-function getPreCommandTypesFor (probeToken: string, allowShorthands: boolean): FlagTypeMap {
+function resolvePreCommandTypes (
+  probeToken: string,
+  allowShorthands: boolean,
+  getExploratoryTypes: () => FlagTypeMap
+): FlagTypeMap {
   const base = getBasePreCommandTypes()
-  if (!probeToken.startsWith('--')) return base
-  const rawName = probeToken.slice(2)
-  const name = rawName.startsWith('no-') ? rawName.slice(3) : rawName
-  if (Object.hasOwn(base, name) || (allowShorthands && Object.hasOwn(universalShorthands, rawName))) {
-    return base
-  }
-  return getFullPreCommandTypes()
+  return isKnownBaseOption(probeToken, base, allowShorthands) ? base : getExploratoryTypes()
 }
 
 function getBasePreCommandTypes (): FlagTypeMap {
-  basePreCommandTypes ??= { ...allTypes, ...GLOBAL_OPTIONS } as FlagTypeMap
+  basePreCommandTypes ??= { ...BASE_EXPLORATORY_TYPES, ...GLOBAL_OPTIONS } as FlagTypeMap
   return basePreCommandTypes
 }
 
-function getFullPreCommandTypes (): FlagTypeMap {
-  if (fullPreCommandTypes != null) return fullPreCommandTypes
-  const merged: Record<string, unknown> = { ...allTypes }
-  const seenCommands = new Set<string>()
-  for (const commandName of Object.keys(pnpmCmds)) {
-    const canonical = getCommandFullName(commandName) ?? commandName
-    if (seenCommands.has(canonical)) continue
-    seenCommands.add(canonical)
-    mergeCommandOptionTypes(merged, getCliOptionsTypes(canonical))
+function isKnownBaseOption (probeToken: string, base: FlagTypeMap, allowShorthands: boolean): boolean {
+  if (!probeToken.startsWith('--')) {
+    return allowShorthands && probeToken.length === 2 && Object.hasOwn(EXPLORATORY_SHORTHANDS, probeToken[1])
   }
-  Object.assign(merged, GLOBAL_OPTIONS)
-  fullPreCommandTypes = merged as FlagTypeMap
-  return fullPreCommandTypes
-}
-
-function mergeCommandOptionTypes (
-  merged: Record<string, unknown>,
-  commandTypes: Record<string, unknown>
-): void {
-  for (const [key, type] of Object.entries(commandTypes)) {
-    merged[key] = Object.hasOwn(merged, key) && isBooleanType(merged[key]) !== isBooleanType(type)
-      ? Boolean
-      : (merged[key] ?? type)
-  }
-}
-
-function isBooleanType (type: unknown): boolean {
-  return type === Boolean || (Array.isArray(type) && type.includes(Boolean))
+  const rawName = probeToken.slice(2)
+  const name = rawName.startsWith('no-') ? rawName.slice(3) : rawName
+  return Object.hasOwn(base, name) || (allowShorthands && Object.hasOwn(EXPLORATORY_SHORTHANDS, rawName))
 }
