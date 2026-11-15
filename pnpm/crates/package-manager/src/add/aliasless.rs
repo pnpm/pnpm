@@ -50,7 +50,23 @@ pub(super) async fn resolve_aliasless_specifier(
         .await
         .map(Some);
     }
-    resolve_aliasless_local(specifier, manifest).await
+    let search_root = publish_search_root(inputs.add.config, manifest);
+    resolve_aliasless_local(specifier, manifest, Some(search_root)).await
+}
+
+/// The root the install stops at when it looks for a project publishing
+/// from a `file:` directory: the workspace root, else the lockfile root.
+pub(super) fn publish_search_root<'a>(
+    config: &'a Config,
+    manifest: &'a PackageManifest,
+) -> &'a std::path::Path {
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
+    config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| config.lockfile_dir_for(manifest_dir))
 }
 /// Resolve a local directory or tarball selector by reading the package's
 /// own manifest — off disk for a directory, out of the archive for a
@@ -61,6 +77,7 @@ pub(super) async fn resolve_aliasless_specifier(
 pub(super) async fn resolve_aliasless_local(
     specifier: &str,
     manifest: &PackageManifest,
+    publish_search_root: Option<&std::path::Path>,
 ) -> Result<Option<AliaslessDependency>, AddError> {
     if !is_local_filesystem_specifier(specifier) {
         return Ok(None);
@@ -78,6 +95,10 @@ pub(super) async fn resolve_aliasless_local(
         // The name and the normalized specifier are all this resolve is
         // after, and neither is measured from the lockfile root.
         lockfile_dir: None,
+        // The install bounds a `file:` directory's publishing project by
+        // the workspace root, else the lockfile root, so the name read here
+        // uses the same bound.
+        workspace_dir: publish_search_root.map(std::path::Path::to_path_buf),
         current_pkg: None,
         update: LocalResolverUpdate::On,
         // `is_local_filesystem_specifier` above never claims a `workspace:`

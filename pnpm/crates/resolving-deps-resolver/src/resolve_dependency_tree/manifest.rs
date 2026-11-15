@@ -208,20 +208,15 @@ pub fn declared_specifiers(
             .collect();
         (!specifiers.is_empty()).then_some(specifiers)
     };
-    let dependencies_meta = manifest
-        .get("dependenciesMeta")
-        .and_then(Value::as_object)
-        .filter(|meta| !meta.is_empty())
-        .map(|meta| {
-            meta.iter()
-                .map(|(name, value)| (name.clone(), value.clone()))
-                .collect()
-        });
+    let injected: std::collections::BTreeSet<String> = children
+        .iter()
+        .filter(|child| child.injected)
+        .map(|child| child.alias.clone())
+        .collect();
     Ok(pnpm_lockfile::DeclaredSpecifiers {
-        manifest_source: None,
         dependencies: group(DependencyGroup::Prod),
         optional_dependencies: group(DependencyGroup::Optional),
-        dependencies_meta,
+        injected: (!injected.is_empty()).then_some(injected),
     })
 }
 

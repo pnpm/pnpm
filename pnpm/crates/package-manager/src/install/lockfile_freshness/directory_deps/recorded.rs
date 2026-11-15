@@ -46,8 +46,7 @@ fn check_inputs(
     metadata: &PackageMetadata,
 ) -> Result<(), FreshnessCheckError> {
     let recorded = metadata.specifiers.as_ref().expect("the caller selected recorded inputs");
-    let mut declared = declared_specifiers(manifest.value(), dep.name).map_err(|_| dep.outdated())?;
-    declared.manifest_source = recorded.manifest_source;
+    let declared = declared_specifiers(manifest.value(), dep.name).map_err(|_| dep.outdated())?;
     let (peers, meta) = lockfile_peer_blocks(&declared_peer_dependencies(manifest.value()));
     if declared != *recorded
         || peers != metadata.peer_dependencies
@@ -87,7 +86,7 @@ fn check_snapshot_directories(
             &resolution.directory,
         );
         let alias = alias.to_string();
-        let child = dep.child(&alias, "workspace:*", &resolution.directory, &directory);
+        let child = dep.child(&alias, &resolution.directory, &directory);
         let child_snapshot = check.lockfile.snapshots
             .as_ref()
             .and_then(|snapshots| snapshots.get(&key));

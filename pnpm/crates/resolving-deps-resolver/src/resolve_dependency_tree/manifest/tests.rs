@@ -268,7 +268,7 @@ fn directory_specifiers_record_the_resolvers_effective_groups() {
         serde_json::json!({
             "dependencies": { "regular": "catalog:" },
             "optionalDependencies": { "both": "^1", "optional": "file:../optional" },
-            "dependenciesMeta": { "regular": { "injected": true } }
+            "injected": ["regular"]
         }),
     );
 }
@@ -281,18 +281,44 @@ fn directory_specifiers_distinguish_empty_records_and_manifest_changes() {
         serde_json::to_value(&empty).expect("serialize empty specifiers"),
         serde_json::json!({}),
     );
-    for field in ["dependencies", "optionalDependencies", "dependenciesMeta"] {
-        let value = if field == "dependenciesMeta" {
-            serde_json::json!({ "child": { "injected": true } })
-        } else {
-            serde_json::json!({ "child": "workspace:../child" })
-        };
-        let manifest = serde_json::json!({ field: value });
+    for field in ["dependencies", "optionalDependencies"] {
+        let manifest = serde_json::json!({ field: { "child": "workspace:../child" } });
         assert_ne!(
             super::declared_specifiers(&manifest, "directory").expect("read changed specifiers"),
             empty,
         );
     }
+    let declared = serde_json::json!({ "dependencies": { "child": "workspace:../child" } });
+    let mut injected = declared.clone();
+    injected["dependenciesMeta"] = serde_json::json!({ "child": { "injected": true } });
+    assert_ne!(
+        super::declared_specifiers(&injected, "directory").expect("read injected specifiers"),
+        super::declared_specifiers(&declared, "directory").expect("read declared specifiers"),
+    );
+    let undeclared = serde_json::json!({ "dependenciesMeta": { "child": { "injected": true } } });
+    assert_eq!(
+        super::declared_specifiers(&undeclared, "directory").expect("read undeclared meta"),
+        empty,
+        "metadata for an undeclared dependency changes nothing the resolver reads",
+    );
+}
+
+/// A child only a platform variant declares is injected by the variant's own
+/// `dependenciesMeta`, as the resolver injects it.
+#[test]
+fn directory_specifiers_record_a_variant_child_the_variant_injects() {
+    let manifest = serde_json::json!({
+        "dependencies": { "base": "^1.0.0" },
+        "dist": { "pnpr": { "variants": [{
+            "platforms": [{ "os": "linux", "cpu": "x64", "libc": "glibc" }],
+            "manifest": {
+                "dependencies": { "base": "^1.0.0", "native": "file:../native" },
+                "dependenciesMeta": { "native": { "injected": true } },
+            },
+        }] } },
+    });
+    let record = super::declared_specifiers(&manifest, "directory").expect("extract inputs");
+    assert_eq!(record.injected, Some(std::collections::BTreeSet::from(["native".to_string()])));
 }
 
 #[test]

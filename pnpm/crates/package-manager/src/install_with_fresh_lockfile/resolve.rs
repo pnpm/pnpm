@@ -51,6 +51,7 @@ impl SharedResolveOptions<'_> {
             project: pnpm_resolving_resolver_base::ResolverProjectOptions {
                 project_dir,
                 lockfile_dir: self.lockfile_dir.to_path_buf(),
+                workspace_dir: self.config.workspace_dir.clone(),
                 workspace_packages: self.workspace_packages.clone(),
                 link_workspace_packages: self.config.link_workspace_packages,
                 inject_workspace_packages: self.config.inject_workspace_packages,

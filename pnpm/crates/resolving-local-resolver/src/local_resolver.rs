@@ -9,7 +9,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_lockfile::{DirectoryResolution, IntegrityTarget, LockfileResolution, TarballResolution};
 use pnpm_package_manifest::{
-    PackageManifestError, find_parent_publish_manifest, safe_read_package_json_from_dir,
+    PackageManifestError, find_parent_publish_manifest, publishes_from_directory,
+    safe_read_package_json_from_dir, safe_read_project_manifest_from_dir,
 };
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{
@@ -52,6 +53,9 @@ pub struct LocalResolverOptions {
     pub project_dir: PathBuf,
     /// Lockfile root. Defaults to `project_dir` when `None`.
     pub lockfile_dir: Option<PathBuf>,
+    /// The workspace root, which bounds the search for a `file:` directory's
+    /// publishing project. Defaults to the lockfile root when `None`.
+    pub workspace_dir: Option<PathBuf>,
     /// Previously resolved entry from the lockfile, threaded so the
     /// resolver can short-circuit directory resolution when the
     /// install isn't asking for an update.
@@ -275,10 +279,13 @@ async fn resolve_spec(
         }));
     }
 
-    let manifest = match safe_read_package_json_from_dir(&spec.fetch_spec) {
-        Ok(Some(manifest)) => manifest,
-        Ok(None) => synthesize_fallback_manifest(&spec, opts, path_shaped_specifier)?,
-        Err(err) => return Err(handle_manifest_read_failure(err, &spec)),
+    let manifest = match publishing_project_manifest(&spec, opts) {
+        Some(manifest) => manifest,
+        None => match safe_read_package_json_from_dir(&spec.fetch_spec) {
+            Ok(Some(manifest)) => manifest,
+            Ok(None) => synthesize_fallback_manifest(&spec, opts, path_shaped_specifier)?,
+            Err(err) => return Err(handle_manifest_read_failure(err, &spec)),
+        },
     };
 
     Ok(Some(LocalResolveResult {
@@ -290,6 +297,38 @@ async fn resolve_spec(
         }),
         resolved_via: spec.resolved_via,
     }))
+}
+
+/// The manifest of the project whose `publishConfig.directory` a `file:`
+/// directory is. It describes the directory however the directory was
+/// declared, as it does for a `workspace:` range, so a `package.json` a build
+/// writes there does not change the resolution. A `link:` directory keeps its
+/// own `package.json`.
+///
+/// Only projects inside the workspace root count, and a manifest that fails
+/// to read is no such project, as the lockfile freshness check reads them.
+/// A directory that does not exist gets none, so it fails as missing.
+fn publishing_project_manifest(
+    spec: &LocalPackageSpec,
+    opts: &LocalResolverOptions,
+) -> Option<serde_json::Value> {
+    if !spec.id.as_str().starts_with("file:") || !spec.fetch_spec.is_dir() {
+        return None;
+    }
+    let root = opts.workspace_dir
+        .as_deref()
+        .or(opts.lockfile_dir.as_deref())
+        .unwrap_or(&opts.project_dir);
+    let root = pnpm_fs::lexical_normalize(root);
+    let target = pnpm_fs::lexical_normalize(&spec.fetch_spec);
+    target
+        .ancestors()
+        .skip(1)
+        .take_while(|dir| dir.starts_with(&root))
+        .find_map(|dir| {
+            let manifest = safe_read_project_manifest_from_dir(dir).ok().flatten()?;
+            publishes_from_directory(dir, &manifest, &target).then_some(manifest)
+        })
 }
 
 async fn resolve_file_spec(

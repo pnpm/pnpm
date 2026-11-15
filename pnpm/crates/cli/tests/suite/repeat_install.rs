@@ -1588,13 +1588,12 @@ fn an_edited_directory_beneath_an_excluded_optional_dependency_passes_frozen_ins
     _utils::assert_success(&install(&["--frozen-lockfile"]));
 }
 
-/// A workspace project that publishes from `dist` reads differently through
-/// `file:` (its `dist/package.json`) and `workspace:` (the project
-/// manifest). The lockfile does not record which one the override used, so
-/// an edit to `dist/package.json` alone makes the frozen install reject the
-/// lockfile.
+/// A `file:` directory a workspace project publishes from is described by the
+/// project's manifest, whichever spec reaches it. Beneath a registry package,
+/// an edit to the built `dist/package.json` leaves the lockfile current, and
+/// an edit to the project's manifest makes it stale.
 #[test]
-fn an_edited_publish_directory_beneath_a_registry_package_fails_frozen_install() {
+fn a_publish_directory_beneath_a_registry_package_follows_its_project_manifest() {
     let fixture = _utils::WorkspaceFixture::new();
     fixture.append_workspace_yaml(
         "overrides:\n  \
@@ -1630,6 +1629,9 @@ fn an_edited_publish_directory_beneath_a_registry_package_fails_frozen_install()
 
     fs::write(lib.join("dist/package.json"), manifest("100.1.0"))
         .expect("edit the published manifest");
+    _utils::assert_success(&install(&["--frozen-lockfile"]));
+
+    fs::write(lib.join("package.json"), manifest("100.1.0")).expect("edit the project manifest");
     let frozen = install(&["--frozen-lockfile"]);
     let stderr = String::from_utf8_lossy(&frozen.stderr);
     assert!(

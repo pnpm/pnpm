@@ -56,6 +56,8 @@ You may use the `catalog:` protocol in the next fields:
     * `overrides`
 * [`pnx`](./cli/pnx.md) specifiers, such as `pnx shx@catalog:`
 
+The dependencies of a local directory installed as a copy, such as a `file:` dependency or an [injected](./package_json.md#dependenciesmetainjected) workspace package, can use the `catalog:` protocol too. They resolve against the catalogs of the workspace that installs the directory.
+
 The `catalog:` protocol allows an optional name after the colon (ex: `catalog:name`) to specify which catalog should be used. When a name is omitted, the default catalog is used.
 
 Depending on the scenario, the `catalog:` protocol offers a few [advantages](#advantages) compared to writing version ranges directly that are detailed next.

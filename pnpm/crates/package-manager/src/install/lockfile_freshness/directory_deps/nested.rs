@@ -10,8 +10,7 @@ use super::{
     spec_dirs,
 };
 use pnpm_lockfile::{
-    DirectoryManifestSource, Lockfile, LockfileResolution, PackageKey, PkgName, SnapshotDepRef,
-    SnapshotEntry,
+    Lockfile, LockfileResolution, PackageKey, PkgName, SnapshotDepRef, SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
 use std::collections::{HashMap, HashSet};
@@ -214,28 +213,19 @@ pub(crate) fn check_nested_directory_package(
     let dir =
         pnpm_resolving_deps_resolver::directory_package_dir(check.lockfile_dir, &nested.directory);
     let scope = nested_scope(check, nested);
-    let visited = Visited::new(check.lockfile);
-    let check_declared = |source| {
-        let dep = LocalDepContext {
-            name: &nested.alias,
-            declared_by_path: matches!(source, DirectoryManifestSource::Path),
-            declaration_assumed: true,
-            rel_path: &nested.directory,
-            dir: &dir,
-            dirs: spec_dirs(check),
-            catalogs: check.workspace.catalogs,
-        };
-        check_single_directory_dep_freshness(
-            check,
-            &scope,
-            &dep,
-            (&nested.key, snapshot, pkg_meta),
-            &mut visited.clone(),
-        )
+    let dep = LocalDepContext {
+        name: &nested.alias,
+        rel_path: &nested.directory,
+        dir: &dir,
+        dirs: spec_dirs(check),
+        catalogs: check.workspace.catalogs,
     };
-    check_directory_declarations(
-        pkg_meta.specifiers.as_ref().and_then(|recorded| recorded.manifest_source),
-        check_declared,
+    check_single_directory_dep_freshness(
+        check,
+        &scope,
+        &dep,
+        (&nested.key, snapshot, pkg_meta),
+        &mut Visited::new(check.lockfile),
     )
 }
 
@@ -251,21 +241,6 @@ fn nested_scope(
             .flat_map(importer_aliases),
     );
     scope
-}
-
-/// Without a recorded source, the `file:` and `workspace:` declarations can
-/// read different manifests (see [`super::unhooked_manifest`]), so the
-/// snapshot must match both. Where they differ, a lockfile the resolver just
-/// wrote fails the check.
-fn check_directory_declarations(
-    source: Option<DirectoryManifestSource>,
-    check: impl Fn(DirectoryManifestSource) -> Result<(), FreshnessCheckError>,
-) -> Result<(), FreshnessCheckError> {
-    match source {
-        Some(source) => check(source),
-        None => check(DirectoryManifestSource::Workspace)
-            .and_then(|()| check(DirectoryManifestSource::Path)),
-    }
 }
 
 fn snapshot_dependencies(
