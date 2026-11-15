@@ -1,8 +1,8 @@
 use super::{
-    FsGlobalRemoval, GlobalPackageBinSnapshot, RangeSpecStyle, Version, activation::FsRename,
-    apply_runtime_range_bumps, check_virtual_shim_conflicts, global_group_config,
-    infer_local_package_alias, replacement_aliases, should_replace_existing_package,
-    snapshot_global_package, update_selectors,
+    FsGlobalRemoval, GlobalPackageBinSnapshot, GlobalUpdateMode, RangeSpecStyle, Version,
+    activation::FsRename, apply_runtime_range_bumps, check_virtual_shim_conflicts,
+    global_group_config, has_pnpm_cli_dependency, infer_local_package_alias, replacement_aliases,
+    should_replace_existing_package, snapshot_global_package, update_selectors,
 };
 use crate::{
     cli_args::{
@@ -214,6 +214,7 @@ fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencie
         ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
         ("scoped-alias".to_string(), "npm:@scope/pkg@1.0.0".to_string()),
         ("same-name-npm".to_string(), "npm:^1.0.0".to_string()),
+        ("same-name-exact".to_string(), "npm:1.0.0".to_string()),
         ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
         ("node".to_string(), "runtime:^20.0.0".to_string()),
         ("deno".to_string(), "runtime:^1.40.0".to_string()),
@@ -222,7 +223,7 @@ fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencie
         ("bar".to_string(), "next".to_string()),
     ];
     assert_eq!(
-        update_selectors(&dependencies, true, &HashMap::new()),
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &HashMap::new()),
         vec![
             "private-linked-pkg@link:/home/user/private-linked-pkg",
             "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
@@ -231,6 +232,7 @@ fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencie
             "aliased-pkg@npm:other-pkg@latest",
             "scoped-alias@npm:@scope/pkg@latest",
             "same-name-npm@npm:same-name-npm@latest",
+            "same-name-exact@npm:same-name-exact@latest",
             "named-registry-pkg@gh:^3.0.0",
             "node@runtime:latest",
             "deno@runtime:latest",
@@ -240,7 +242,7 @@ fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencie
         ],
     );
     assert_eq!(
-        update_selectors(&dependencies, false, &HashMap::new()),
+        update_selectors(&dependencies, GlobalUpdateMode::DeclaredRange, &HashMap::new()),
         dependencies
             .iter()
             .map(|(alias, spec)| format!("{alias}@{spec}"))
@@ -252,7 +254,7 @@ fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencie
 fn latest_update_preserves_node_prerelease_channels() {
     let dependencies = vec![("node".to_string(), "runtime:22.0.0-rc.1".to_string())];
     assert_eq!(
-        update_selectors(&dependencies, true, &HashMap::new()),
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &HashMap::new()),
         vec!["node@runtime:rc/latest"],
     );
 }
@@ -264,20 +266,23 @@ fn a_pinned_dependency_is_held_at_its_installed_version() {
     let dependencies = vec![
         ("prerelease".to_string(), "^2.0.0".to_string()),
         ("aliased".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("same-name-exact".to_string(), "npm:1.0.0".to_string()),
         ("node".to_string(), "runtime:^22.0.0".to_string()),
         ("stable".to_string(), "^1.0.0".to_string()),
     ];
     let pins = HashMap::from([
         ("prerelease".to_string(), "2.0.0".to_string()),
         ("aliased".to_string(), "2.5.0".to_string()),
+        ("same-name-exact".to_string(), "1.5.0".to_string()),
         ("node".to_string(), "22.4.0".to_string()),
     ]);
 
     assert_eq!(
-        update_selectors(&dependencies, true, &pins),
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &pins),
         vec![
             "prerelease@2.0.0",
             "aliased@npm:other-pkg@2.5.0",
+            "same-name-exact@npm:same-name-exact@1.5.0",
             "node@runtime:22.4.0",
             "stable@latest",
         ],
@@ -666,7 +671,7 @@ fn update_selectors_preserve_deno_bun_ranges_and_ignore_non_runtime_tools() {
         ("bun".to_string(), "runtime:1.1.0".to_string()),
         ("custom".to_string(), "tool:1.0.0".to_string()),
     ];
-    let initial = update_selectors(&deps, true, &HashMap::new());
+    let initial = update_selectors(&deps, GlobalUpdateMode::Latest, &HashMap::new());
     assert_eq!(
         initial,
         vec![
@@ -703,7 +708,7 @@ fn update_selectors_preserve_deno_bun_ranges_and_ignore_non_runtime_tools() {
         ("node".to_string(), "24.0.0".to_string()),
         ("deno".to_string(), "2.5.0".to_string()),
     ]);
-    let pinned = update_selectors(&deps, true, &pins);
+    let pinned = update_selectors(&deps, GlobalUpdateMode::Latest, &pins);
     assert_eq!(
         pinned,
         vec![
@@ -713,4 +718,11 @@ fn update_selectors_preserve_deno_bun_ranges_and_ignore_non_runtime_tools() {
             "custom@tool:1.0.0",
         ],
     );
+
+    let pnpm_exact_npm = GlobalPackageInfo {
+        install_dir: PathBuf::from("/global/v11/pnpm-group"),
+        hash: "hash-pnpm".to_string(),
+        dependencies: vec![("pnpm".to_string(), "npm:12.0.0".to_string())],
+    };
+    assert!(has_pnpm_cli_dependency(&pnpm_exact_npm));
 }

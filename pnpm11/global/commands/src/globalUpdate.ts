@@ -25,7 +25,7 @@ import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames, type GlobalNodePathOptions } from './globalActivation.js'
-import { applyRuntimeRangeBumps, depSpecsForUpdate, latestDepSpec } from './globalUpdateSelectors.js'
+import { applyRuntimeRangeBumps, depSpecsForUpdate, latestDepSpec, needsRuntimeRangeBump } from './globalUpdateSelectors.js'
 import {
   installGlobalPackages,
   type InstallGlobalPackagesResult,
@@ -202,16 +202,16 @@ async function resolveGroupUpdate (
       installDir,
       depSpecs
     )
-  if (groupOpts.latest !== true) {
+  if (groupOpts.latest !== true || !needsRuntimeRangeBump(pkg.dependencies, downgradeCheck.pins)) {
     return { depSpecs, comparison }
   }
-  const bumpedSpecs = applyRuntimeRangeBumps(
-    pkg.dependencies,
+  const bumpedSpecs = applyRuntimeRangeBumps({
+    dependencies: pkg.dependencies,
     depSpecs,
-    downgradeCheck.pins,
-    comparison.resolvedVersions,
-    getRangeSpecStyle(groupOpts)
-  )
+    pins: downgradeCheck.pins,
+    resolvedVersions: comparison.resolvedVersions,
+    rangeSpecStyle: getRangeSpecStyle(groupOpts),
+  })
   if (isDeepStrictEqual(bumpedSpecs, depSpecs)) {
     return { depSpecs, comparison }
   }

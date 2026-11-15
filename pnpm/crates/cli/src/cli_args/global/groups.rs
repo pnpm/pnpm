@@ -93,7 +93,7 @@ impl GlobalInstallTarget<'_> {
     pub(super) async fn update_groups<Reporter: self::Reporter + 'static>(
         &self,
         groups: &[GlobalPackageInfo],
-        latest: bool,
+        mode: super::GlobalUpdateMode,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
@@ -107,7 +107,7 @@ impl GlobalInstallTarget<'_> {
             checked = true;
             changed |= self.update_group::<Reporter>(
                 pkg,
-                latest,
+                mode,
                 range_spec_style,
                 supported_architectures.clone(),
             )
@@ -121,13 +121,13 @@ impl GlobalInstallTarget<'_> {
     async fn update_group<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        latest: bool,
+        mode: super::GlobalUpdateMode,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
         let (install_dir, selectors) = self.prepare_update_candidate::<Reporter>(
             pkg,
-            latest,
+            mode,
             range_spec_style,
             supported_architectures.clone(),
         )
@@ -157,7 +157,7 @@ impl GlobalInstallTarget<'_> {
     async fn prepare_update_candidate<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        latest: bool,
+        mode: super::GlobalUpdateMode,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<(PathBuf, Vec<String>)> {
@@ -167,7 +167,7 @@ impl GlobalInstallTarget<'_> {
         let resolved = Box::pin(self.resolve_update_candidate::<Reporter>(
             pkg,
             &install_dir,
-            latest,
+            mode,
             range_spec_style,
             supported_architectures,
         ))
@@ -183,7 +183,7 @@ impl GlobalInstallTarget<'_> {
         &self,
         pkg: &GlobalPackageInfo,
         install_dir: &Path,
-        latest: bool,
+        mode: super::GlobalUpdateMode,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<Vec<String>> {
@@ -194,7 +194,7 @@ impl GlobalInstallTarget<'_> {
         self.resolve_candidate_selectors::<Reporter>(
             pkg,
             install_dir,
-            latest,
+            mode,
             range_spec_style,
             supported_architectures,
         )

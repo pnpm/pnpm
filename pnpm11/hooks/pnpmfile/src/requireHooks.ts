@@ -248,7 +248,7 @@ function applyEntryHooks (
 function createCookedUpdateConfig (updateConfig: NonNullable<Hooks['updateConfig']>): Cook<Required<Hooks>['updateConfig']> {
   return (config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any -- the config object comes from a user pnpmfile and has no fixed shape
     const updated = updateConfig(config)
-    return updated instanceof Promise ? updated.then(assertConfigIsDefined) : assertConfigIsDefined(updated)
+    return isPromiseLike(updated) ? Promise.resolve(updated).then(assertConfigIsDefined) : assertConfigIsDefined(updated)
   }
 }
 
@@ -258,8 +258,12 @@ function createCookedAfterAllResolved (
 ): Cook<Required<Hooks>['afterAllResolved']> {
   return (lockfile) => {
     const updated = afterAllResolved(lockfile, context)
-    return updated instanceof Promise ? updated.then(assertAfterAllResolvedReturn) : assertAfterAllResolvedReturn(updated)
+    return isPromiseLike<LockfileObject>(updated) ? Promise.resolve(updated).then(assertAfterAllResolvedReturn) : assertAfterAllResolvedReturn(updated)
   }
+}
+
+function isPromiseLike<Value> (value: unknown): value is PromiseLike<Value> {
+  return value != null && (typeof value === 'object' || typeof value === 'function') && typeof (value as PromiseLike<Value>).then === 'function'
 }
 
 function applyImportPackageHook (

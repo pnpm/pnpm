@@ -545,6 +545,8 @@ test('global update --latest targets latest for plain, npm: alias, and runtime d
         'git-pkg': 'github:user/git-pkg',
         'remote-tarball-pkg': 'https://example.com/pkg.tgz',
         'aliased-pkg': 'npm:other-pkg@^2.0.0',
+        'same-name-exact': 'npm:1.0.0',
+        'same-name-range': 'npm:^1.0.0',
         'named-registry-pkg': 'gh:^3.0.0',
         node: 'runtime:^20.0.0',
         deno: 'runtime:^1.40.0',
@@ -582,6 +584,8 @@ test('global update --latest targets latest for plain, npm: alias, and runtime d
       'git-pkg@github:user/git-pkg',
       'remote-tarball-pkg@https://example.com/pkg.tgz',
       'aliased-pkg@npm:other-pkg@latest',
+      'same-name-exact@npm:same-name-exact@latest',
+      'same-name-range@npm:same-name-range@latest',
       'named-registry-pkg@gh:^3.0.0',
       'node@runtime:latest',
       'deno@runtime:latest',
@@ -599,6 +603,7 @@ test('global update --latest holds npm: aliases and runtimes when latest would d
     {
       dependencies: {
         aliased: 'npm:other-pkg@^2.0.0',
+        'same-name-exact': 'npm:1.0.0',
         node: 'runtime:^22.0.0',
       },
       hash: 'hash-pin',
@@ -607,18 +612,19 @@ test('global update --latest holds npm: aliases and runtimes when latest would d
   ])
   getGlobalPackageDetails.mockResolvedValue([
     { alias: 'aliased', version: '2.5.0' },
+    { alias: 'same-name-exact', version: '1.5.0' },
     { alias: 'node', version: '22.4.0' },
   ])
   installGlobalPackages
     .mockResolvedValueOnce({
       ignoredBuilds: undefined,
       resolutionPolicyViolations: [],
-      resolvedVersions: { aliased: '1.9.0', node: '20.11.0' },
+      resolvedVersions: { aliased: '1.9.0', 'same-name-exact': '1.2.0', node: '20.11.0' },
     })
     .mockResolvedValue({
       ignoredBuilds: undefined,
       resolutionPolicyViolations: [],
-      resolvedVersions: { aliased: '2.5.0', node: '22.4.0' },
+      resolvedVersions: { aliased: '2.5.0', 'same-name-exact': '1.5.0', node: '22.4.0' },
     })
 
   await handleGlobalUpdate({
@@ -630,12 +636,12 @@ test('global update --latest holds npm: aliases and runtimes when latest would d
   expect(installGlobalPackages).toHaveBeenNthCalledWith(
     1,
     expect.objectContaining({ lockfileOnly: true }),
-    ['aliased@npm:other-pkg@latest', 'node@runtime:latest']
+    ['aliased@npm:other-pkg@latest', 'same-name-exact@npm:same-name-exact@latest', 'node@runtime:latest']
   )
   expect(installGlobalPackages).toHaveBeenNthCalledWith(
     2,
     expect.objectContaining({ lockfileOnly: true }),
-    ['aliased@npm:other-pkg@2.5.0', 'node@runtime:22.4.0']
+    ['aliased@npm:other-pkg@2.5.0', 'same-name-exact@npm:same-name-exact@1.5.0', 'node@runtime:22.4.0']
   )
 })
 

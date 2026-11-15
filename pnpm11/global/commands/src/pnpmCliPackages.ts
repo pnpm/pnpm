@@ -1,5 +1,6 @@
 import type { GlobalPackageInfo } from '@pnpm/global.packages'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
+import semver from 'semver'
 
 /**
  * The wrapper packages that ship the pnpm CLI itself: the unscoped `pnpm` and
@@ -53,5 +54,7 @@ export function isPnpmCliDependency (alias: string, spec?: string): boolean {
 /** The package an `npm:` alias points at, or `undefined` for any other spec. */
 function npmAliasTarget (spec?: string): string | undefined {
   if (spec?.startsWith('npm:') !== true) return undefined
-  return parseWantedDependency(spec.slice('npm:'.length)).alias
+  const body = spec.slice('npm:'.length)
+  if (body === '' || semver.validRange(body) != null) return undefined
+  return parseWantedDependency(body).alias
 }

@@ -6,6 +6,14 @@ import semver from 'semver'
 
 const RUNTIME_ALIASES = new Set(['node', 'deno', 'bun'])
 
+export interface ApplyRuntimeRangeBumpsOptions {
+  dependencies: Record<string, string>
+  depSpecs: string[]
+  pins: ReadonlyMap<string, string>
+  resolvedVersions: Record<string, string>
+  rangeSpecStyle: RangeSpecStyle
+}
+
 /**
  * The selectors that reinstall a group. With `--latest`, plain version specs,
  * `npm:` aliases, and `runtime:` dependencies target the latest release; `pins`
@@ -38,73 +46,33 @@ export function latestDepSpec (alias: string, spec: string): string | undefined 
   return undefined
 }
 
-export function applyRuntimeRangeBumps (
+export function needsRuntimeRangeBump (
   dependencies: Record<string, string>,
-  depSpecs: string[],
-  pins: ReadonlyMap<string, string>,
-  resolvedVersions: Record<string, string>,
-  rangeSpecStyle: RangeSpecStyle
-): string[] {
+  pins: ReadonlyMap<string, string>
+): boolean {
+  return Object.entries(dependencies).some(
+    ([alias, spec]) => !pins.has(alias) && declaredRuntimeRange(alias, spec) != null
+  )
+}
+
+export function applyRuntimeRangeBumps (opts: ApplyRuntimeRangeBumpsOptions): string[] {
+  const { dependencies, depSpecs, pins, resolvedVersions, rangeSpecStyle } = opts
   return Object.entries(dependencies).map(([alias, spec], index) => {
     if (pins.has(alias)) return depSpecs[index]
-    return bumpedRuntimeLatestSpec(alias, spec, resolvedVersions[alias], rangeSpecStyle) ?? depSpecs[index]
+    return bumpedRuntimeLatestSpec({
+      alias,
+      spec,
+      resolvedVersion: resolvedVersions[alias],
+      rangeSpecStyle,
+    }) ?? depSpecs[index]
   })
-}
-
-function parseNodeRuntimeChannel (runtimeSpec: string): string | undefined {
-  try {
-    return parseNodeSpecifier(runtimeSpec).releaseChannel
-  } catch {
-    return undefined
-  }
-}
-
-function latestNpmAliasSpec (alias: string, npmTarget: string): string | undefined {
-  const parsed = parseWantedDependency(npmTarget)
-  if (parsed.alias != null) {
-    return parsed.bareSpecifier == null || !parsed.bareSpecifier.includes(':')
-      ? `${alias}@npm:${parsed.alias}@latest`
-      : undefined
-  }
-  if (parsed.bareSpecifier != null && parsed.bareSpecifier !== '' && !parsed.bareSpecifier.includes(':')) {
-    return `${alias}@npm:${alias}@latest`
-  }
-  return undefined
-}
-
-function latestRuntimeSpec (alias: string, runtimeSpec: string): string | undefined {
-  if (!RUNTIME_ALIASES.has(alias)) return undefined
-  if (alias !== 'node') return `${alias}@runtime:latest`
-  const channel = parseNodeRuntimeChannel(runtimeSpec)
-  if (channel == null) return undefined
-  return channel === 'release' ? 'node@runtime:latest' : `node@runtime:${channel}/latest`
-}
-
-function bumpedRuntimeLatestSpec (
-  alias: string,
-  spec: string,
-  resolvedVersion: string | undefined,
-  rangeSpecStyle: RangeSpecStyle
-): string | undefined {
-  if (alias === 'node' || !RUNTIME_ALIASES.has(alias) || resolvedVersion == null || semver.valid(resolvedVersion) == null) {
-    return undefined
-  }
-  if (!spec.startsWith('runtime:') && !spec.startsWith('tool:')) return undefined
-  const declaredRange = spec.slice(spec.indexOf(':') + 1).trim()
-  if (declaredRange === '' || semver.validRange(declaredRange) == null) return undefined
-  const range = calcVersionRange(resolvedVersion, {
-    prevSpecifier: declaredRange,
-    defaultRangeSpecStyle: rangeSpecStyle,
-    isUpdate: true,
-  })
-  return `${alias}@runtime:${range}`
 }
 
 function pinnedDepSpec (alias: string, spec: string, pin: string): string {
   if (!spec.includes(':')) return `${alias}@${pin}`
   if (spec.startsWith('npm:')) {
-    const parsed = parseWantedDependency(spec.slice('npm:'.length))
-    return `${alias}@npm:${parsed.alias ?? alias}@${pin}`
+    const target = parseNpmTarget(alias, spec.slice('npm:'.length))
+    return `${alias}@npm:${target?.targetPkg ?? alias}@${pin}`
   }
   if (spec.startsWith('runtime:') || spec.startsWith('tool:')) {
     return pinnedRuntimeSpec(alias, spec.slice(spec.indexOf(':') + 1), pin)
@@ -120,4 +88,71 @@ function pinnedRuntimeSpec (alias: string, runtimeSpec: string, pin: string): st
     }
   }
   return `${alias}@runtime:${pin}`
+}
+
+function latestNpmAliasSpec (alias: string, npmBody: string): string | undefined {
+  const target = parseNpmTarget(alias, npmBody)
+  if (target == null) return undefined
+  if (target.versionSpec != null && target.versionSpec.includes(':')) return undefined
+  return `${alias}@npm:${target.targetPkg}@latest`
+}
+
+function parseNpmTarget (
+  alias: string,
+  npmBody: string
+): { targetPkg: string, versionSpec?: string } | undefined {
+  if (npmBody === '') return undefined
+  if (semver.validRange(npmBody) != null) {
+    return { targetPkg: alias, versionSpec: npmBody }
+  }
+  const parsed = parseWantedDependency(npmBody)
+  if (parsed.alias != null) {
+    return { targetPkg: parsed.alias, versionSpec: parsed.bareSpecifier }
+  }
+  if (parsed.bareSpecifier != null && parsed.bareSpecifier !== '') {
+    return { targetPkg: alias, versionSpec: parsed.bareSpecifier }
+  }
+  return undefined
+}
+
+function latestRuntimeSpec (alias: string, runtimeSpec: string): string | undefined {
+  if (!RUNTIME_ALIASES.has(alias)) return undefined
+  if (alias !== 'node') return `${alias}@runtime:latest`
+  const channel = parseNodeRuntimeChannel(runtimeSpec)
+  if (channel == null) return undefined
+  return channel === 'release' ? 'node@runtime:latest' : `node@runtime:${channel}/latest`
+}
+
+function parseNodeRuntimeChannel (runtimeSpec: string): string | undefined {
+  try {
+    return parseNodeSpecifier(runtimeSpec).releaseChannel
+  } catch {
+    return undefined
+  }
+}
+
+function bumpedRuntimeLatestSpec (opts: {
+  alias: string
+  spec: string
+  resolvedVersion: string | undefined
+  rangeSpecStyle: RangeSpecStyle
+}): string | undefined {
+  const { alias, spec, resolvedVersion, rangeSpecStyle } = opts
+  if (resolvedVersion == null || semver.valid(resolvedVersion) == null) return undefined
+  const declaredRange = declaredRuntimeRange(alias, spec)
+  if (declaredRange == null) return undefined
+  const range = calcVersionRange(resolvedVersion, {
+    prevSpecifier: declaredRange,
+    defaultRangeSpecStyle: rangeSpecStyle,
+    isUpdate: true,
+  })
+  return `${alias}@runtime:${range}`
+}
+
+function declaredRuntimeRange (alias: string, spec: string): string | undefined {
+  if (alias === 'node' || !RUNTIME_ALIASES.has(alias)) return undefined
+  if (!spec.startsWith('runtime:') && !spec.startsWith('tool:')) return undefined
+  const declaredRange = spec.slice(spec.indexOf(':') + 1).trim()
+  if (declaredRange === '' || semver.validRange(declaredRange) == null) return undefined
+  return declaredRange
 }

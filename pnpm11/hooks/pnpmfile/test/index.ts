@@ -247,6 +247,28 @@ test('afterAllResolved throws BAD_AFTER_ALL_RESOLVED_RETURN if it returns or res
       code: 'ERR_PNPM_CONFIG_IS_UNDEFINED',
       message: 'The updateConfig hook did not return a config object',
     })
+
+    const foreignRealmPromise = path.join(tempDir, 'foreign-promise.cjs')
+    fs.writeFileSync(
+      foreignRealmPromise,
+      "const vm = require('node:vm'); module.exports = { hooks: { afterAllResolved () { return vm.runInNewContext('Promise.resolve(undefined)') } } }"
+    )
+    const { hooks: foreignPromiseHooks } = await requireHooks(tempDir, { pnpmfiles: [foreignRealmPromise] })
+    await expect(foreignPromiseHooks.afterAllResolved![0]!(lockfile)).rejects.toMatchObject({
+      code: 'ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN',
+      message: 'The afterAllResolved hook returned undefined',
+    })
+
+    const thenableConfig = path.join(tempDir, 'thenable-config.cjs')
+    fs.writeFileSync(
+      thenableConfig,
+      'module.exports = { hooks: { updateConfig () { return { then (resolve) { resolve(undefined) } } } } }'
+    )
+    const { hooks: thenableConfigHooks } = await requireHooks(tempDir, { pnpmfiles: [thenableConfig] })
+    await expect(thenableConfigHooks.updateConfig![0]!({} as never)).rejects.toMatchObject({
+      code: 'ERR_PNPM_CONFIG_IS_UNDEFINED',
+      message: 'The updateConfig hook returned undefined',
+    })
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true })
   }

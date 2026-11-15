@@ -405,11 +405,18 @@ fn env_list_use_and_remove_support_leading_v_and_prerelease_channels() {
         "node global package should be removed",
     );
 
-    // Reinstall and remove via `rc/22.0.0-rc.1`, then verify `v22.14.0` removes legacy `22.14.0`.
     let reinstall_out = run(&["env", "use", "-g", "v22.0.0-rc.1"]);
     assert!(reinstall_out.status.success());
+    assert!(
+        pnpm_global::find_global_package(&pnpm_home.join("global/v11"), "node").unwrap().is_some(),
+        "node global package should be reinstalled",
+    );
     let remove_rc = run(&["env", "remove", "-g", "rc/22.0.0-rc.1"]);
     assert!(remove_rc.status.success(), "stderr={}", String::from_utf8_lossy(&remove_rc.stderr));
+    assert!(
+        pnpm_global::find_global_package(&pnpm_home.join("global/v11"), "node").unwrap().is_none(),
+        "node global package should be removed by rc/22.0.0-rc.1",
+    );
 
     let legacy_dir = pnpm_home.join("nodejs/22.14.0");
     std::fs::create_dir_all(&legacy_dir).unwrap();

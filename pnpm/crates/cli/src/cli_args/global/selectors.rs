@@ -1,11 +1,9 @@
 use super::{
-    AddRequest, Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf,
-    RangeSpecStyle, Version, fs, is_valid_old_npm_package_name, lexical_normalize, local_file_path,
-    parse_wanted_dependency, rust_toolchain_request, safe_read_package_json_from_dir,
-    tool_install_selector,
+    AddRequest, Context, GlobalError, GlobalPackageInfo, IntoDiagnostic, Path, PathBuf, fs,
+    is_valid_old_npm_package_name, lexical_normalize, parse_wanted_dependency,
+    rust_toolchain_request, safe_read_package_json_from_dir, tool_install_selector,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::VersionSelectorType;
 
 /// The packages one global install request asks for: the tokens a
@@ -104,158 +102,6 @@ pub(super) fn groups_matching_params(
     Some(filtered)
 }
 
-/// Whether `--latest` rewrites `(alias, spec)` to a latest selector.
-pub(super) fn can_update_to_latest(alias: &str, spec: &str) -> bool {
-    latest_selector(alias, spec).is_some()
-}
-
-fn latest_selector(alias: &str, spec: &str) -> Option<String> {
-    if !spec.contains(':') {
-        return Some(format!("{alias}@latest"));
-    }
-    if let Some(rest) = spec.strip_prefix("npm:") {
-        return latest_npm_alias_selector(alias, rest);
-    }
-    pnpm_tool_protocol::strip_tool_protocol(spec)
-        .and_then(|runtime_spec| latest_runtime_selector(alias, runtime_spec))
-}
-
-fn latest_npm_alias_selector(alias: &str, rest: &str) -> Option<String> {
-    let parsed = parse_wanted_dependency(rest);
-    if let Some(target_pkg) = parsed.alias.as_deref() {
-        return parsed.bare_specifier
-            .as_deref()
-            .is_none_or(|inner| !inner.contains(':'))
-            .then(|| format!("{alias}@npm:{target_pkg}@latest"));
-    }
-    let inner = parsed.bare_specifier.as_deref()?;
-    (!inner.is_empty() && !inner.contains(':')).then(|| format!("{alias}@npm:{alias}@latest"))
-}
-
-fn latest_runtime_selector(alias: &str, runtime_spec: &str) -> Option<String> {
-    if !pnpm_package_manifest::is_runtime_alias(alias) {
-        return None;
-    }
-    if alias != "node" {
-        return Some(format!("{alias}@runtime:latest"));
-    }
-    let parsed = pnpm_engine_runtime_node_resolver::parse_node_specifier(runtime_spec).ok()?;
-    Some(if parsed.release_channel == "release" {
-        "node@runtime:latest".to_string()
-    } else {
-        format!("node@runtime:{}/latest", parsed.release_channel)
-    })
-}
-
-pub(super) fn bumped_runtime_latest_selector(
-    alias: &str,
-    spec: &str,
-    resolved: &Version,
-    range_spec_style: RangeSpecStyle,
-) -> Option<String> {
-    if alias == "node" || !pnpm_package_manifest::is_runtime_alias(alias) {
-        return None;
-    }
-    let declared_range = pnpm_tool_protocol::strip_tool_protocol(spec)?.trim();
-    if declared_range.is_empty()
-        || get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag)
-    {
-        return None;
-    }
-    let range = calc_version_range(resolved, Some(declared_range), None, range_spec_style);
-    Some(format!("{alias}@runtime:{range}"))
-}
-
-pub(super) fn apply_runtime_range_bumps(
-    dependencies: &[(String, String)],
-    selectors: &[String],
-    pins: &HashMap<String, String>,
-    resolved: &HashMap<String, Version>,
-    range_spec_style: RangeSpecStyle,
-) -> Vec<String> {
-    dependencies
-        .iter()
-        .zip(selectors)
-        .map(|((alias, spec), selector)| {
-            if pins.contains_key(alias) {
-                return selector.clone();
-            }
-            resolved
-                .get(alias)
-                .and_then(|ver| bumped_runtime_latest_selector(alias, spec, ver, range_spec_style))
-                .unwrap_or_else(|| selector.clone())
-        })
-        .collect()
-}
-
-fn pinned_selector(alias: &str, spec: &str, pin: &str) -> String {
-    if !spec.contains(':') {
-        return format!("{alias}@{pin}");
-    }
-    if let Some(rest) = spec.strip_prefix("npm:") {
-        let parsed = parse_wanted_dependency(rest);
-        let target_pkg = parsed.alias.as_deref().unwrap_or(alias);
-        return format!("{alias}@npm:{target_pkg}@{pin}");
-    }
-    if let Some(runtime_spec) = pnpm_tool_protocol::strip_tool_protocol(spec) {
-        return pinned_runtime_selector(alias, runtime_spec, pin);
-    }
-    format!("{alias}@{pin}")
-}
-
-fn pinned_runtime_selector(alias: &str, runtime_spec: &str, pin: &str) -> String {
-    if alias == "node"
-        && let Ok(parsed) = pnpm_engine_runtime_node_resolver::parse_node_specifier(runtime_spec)
-        && parsed.release_channel != "release"
-        && pnpm_engine_runtime_node_resolver::parse_node_specifier(pin)
-            .is_ok_and(|pin_parsed| pin_parsed.release_channel == "release")
-    {
-        return format!("node@runtime:{}/{pin}", parsed.release_channel);
-    }
-    format!("{alias}@runtime:{pin}")
-}
-
-/// The selectors that reinstall a group. With `--latest`, plain version specs,
-/// `npm:` aliases, and `runtime:` dependencies use `latest` so the seeded
-/// manifest range cannot hold them back; `pins` holds back aliases that would
-/// otherwise move backwards.
-pub(super) fn update_selectors(
-    dependencies: &[(String, String)],
-    latest: bool,
-    pins: &HashMap<String, String>,
-) -> Vec<String> {
-    dependencies
-        .iter()
-        .map(|(alias, spec)| {
-            if let Some(pin) = pins.get(alias) {
-                pinned_selector(alias, spec, pin)
-            } else if latest && let Some(selector) = latest_selector(alias, spec) {
-                selector
-            } else {
-                format!("{alias}@{spec}")
-            }
-        })
-        .collect()
-}
-
-/// The warning `update -g` prints for a group it skips because the `file:`
-/// source one of its dependencies was installed from is gone. Reinstalling the
-/// group would fail with `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, and the group
-/// still works from what it installed, so the other groups are updated instead.
-pub(super) fn missing_file_source_warning(pkg: &GlobalPackageInfo) -> Option<String> {
-    let (alias, source) = pkg.dependencies
-        .iter()
-        .find_map(|(alias, spec)| {
-            let source = local_file_path(spec, &pkg.install_dir)?;
-            matches!(source.try_exists(), Ok(false)).then_some((alias, source))
-        })?;
-    Some(format!(
-        r#"Skipped updating {} because "{}" no longer exists. Reinstall {alias} from an existing location, or remove it with "pnpm remove -g {alias}"."#,
-        pkg.aliases().join(", "),
-        source.display(),
-    ))
-}
-
 pub(super) fn replacement_aliases(aliases: &[String]) -> Vec<String> {
     const PNPM_CLI_PACKAGE_ALIASES: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
@@ -335,9 +181,20 @@ fn is_pnpm_cli_package_name(name: &str) -> bool {
     matches!(name, "pnpm" | "@pnpm/exe")
 }
 
+pub(super) fn is_npm_semver_spec(rest: &str) -> bool {
+    matches!(
+        get_version_selector_type(rest),
+        Some(VersionSelectorType::Version | VersionSelectorType::Range),
+    )
+}
+
 /// The package an `npm:` alias points at, or `None` for any other spec.
 fn npm_alias_target(spec: Option<&str>) -> Option<String> {
-    parse_wanted_dependency(spec?.strip_prefix("npm:")?).alias
+    let rest = spec?.strip_prefix("npm:")?;
+    if rest.is_empty() || is_npm_semver_spec(rest) {
+        return None;
+    }
+    parse_wanted_dependency(rest).alias
 }
 
 // --- param grouping (split/resolve helpers) -------------------------------
