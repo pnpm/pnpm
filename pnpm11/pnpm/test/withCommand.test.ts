@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -80,6 +81,30 @@ test('pnpm with current dispatches the inner command after a global boolean flag
     expect(status).toBe(0)
     expect(stdout.toString().trim()).toMatch(/^\d+\.\d+\.\d+/)
   }
+})
+
+test('pnpm with current composes with pm prefix and subcommand boolean flags', () => {
+  prepare()
+  writeJsonFileSync('package.json', {
+    name: 'project',
+    version: '1.0.0',
+    packageManager: 'yarn@4.0.0',
+    scripts: {
+      clean: 'echo script-clean-ran',
+    },
+  })
+
+  const listResult = execPnpmSync(['--dir', '.', 'with', 'current', 'pm', 'list'])
+  expect(listResult.status).toBe(0)
+
+  const newPkgDir = path.resolve('new-pkg')
+  fs.mkdirSync(newPkgDir, { recursive: true })
+  const initResult = execPnpmSync(['--dir', newPkgDir, '--bare', 'with', 'current', 'init'])
+  expect(initResult.status).toBe(0)
+  const created = JSON.parse(fs.readFileSync(path.join(newPkgDir, 'package.json'), 'utf8'))
+  expect(created.name).toBeUndefined()
+  expect(created.version).toBeUndefined()
+  expect(created.type).toBe('module')
 })
 
 test('pnpm with fails when no spec is provided', () => {

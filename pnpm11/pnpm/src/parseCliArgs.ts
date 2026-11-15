@@ -1,5 +1,19 @@
-import { parseCliArgs as parseCliArgsLib, type ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
+import {
+  buildBaseExploratoryTypes,
+  buildExploratoryShorthands,
+  type CandidateCommand,
+  chooseMarkerPrefix,
+  collectCandidateCommands,
+  configDotTypes,
+  extendExploratoryTypes,
+  OPTION_SEPARATOR_RE,
+  parseCliArgs as parseCliArgsLib,
+  type ParseCliArgsOptions,
+  type ParsedCliArgs,
+  RECURSIVE_CMDS,
+} from '@pnpm/cli.parse-cli-args'
 import { PnpmError } from '@pnpm/error'
+import nopt from '@pnpm/nopt'
 
 import {
   getCliOptionsTypes,
@@ -14,14 +28,67 @@ const RENAMED_OPTIONS = {
   store: 'store-dir',
 }
 
+type FlagTypeMap = Parameters<typeof nopt>[0]
+
+const PREFIX_WORDS = new Set(['pm', 'with', 'current', ...RECURSIVE_CMDS])
+const BASE_SCAN_SHORTHANDS = buildExploratoryShorthands(universalShorthands)
+
+interface BaseScanTypes {
+  rawBase: FlagTypeMap
+  baseWithConfigDot: FlagTypeMap
+}
+
+let libOpts: ParseCliArgsOptions | undefined
+let cachedBaseScanTypes: BaseScanTypes | undefined
+
 export type ParsedCliArgsWithBuiltIn = ParsedCliArgs & { builtInCommandForced: boolean }
 
 export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsWithBuiltIn> {
-  const builtInCommandForced = inputArgv[0] === 'pm'
-  if (builtInCommandForced) {
-    inputArgv.splice(0, 1)
+  const { argv, builtInCommandForced, withCurrent } = stripPreCommandPrefixes(inputArgv)
+  if (withCurrent) {
+    process.env.pnpm_config_pm_on_fail = 'ignore'
   }
-  const libOpts = {
+  const result = await parseCliArgsLib(getLibOpts(), argv)
+  return { ...result, builtInCommandForced }
+}
+
+interface ScannedPrefixes {
+  pmIndex?: number
+  withCurrentIndices?: [number, number]
+  recursiveSeen?: boolean
+}
+
+interface StrippedPrefixes {
+  argv: string[]
+  builtInCommandForced: boolean
+  withCurrent: boolean
+}
+
+function stripPreCommandPrefixes (inputArgv: string[]): StrippedPrefixes {
+  if (!inputArgv.includes('pm') && !inputArgv.includes('with')) {
+    return { argv: [...inputArgv], builtInCommandForced: false, withCurrent: false }
+  }
+  const { pmIndex, withCurrentIndices } = scanPreCommandPrefixes(inputArgv)
+  const removed = new Set<number>([
+    ...(pmIndex === undefined ? [] : [pmIndex]),
+    ...(withCurrentIndices ?? []),
+  ])
+  if (withCurrentIndices != null) {
+    const hasTrailingArg = inputArgv.some((_, idx) => idx > withCurrentIndices[1] && !removed.has(idx))
+    if (!hasTrailingArg) {
+      throw new PnpmError('MISSING_WITH_CURRENT_CMD',
+        'Missing command after "current". Usage: pnpm with current <command> [args...]')
+    }
+  }
+  return {
+    argv: inputArgv.filter((_, idx) => !removed.has(idx)),
+    builtInCommandForced: pmIndex !== undefined,
+    withCurrent: withCurrentIndices !== undefined,
+  }
+}
+
+function getLibOpts (): ParseCliArgsOptions {
+  libOpts ??= {
     fallbackCommand: 'run',
     escapeArgs: ['create', 'exec', 'test'],
     getCommandLongName: getCommandFullName,
@@ -31,58 +98,170 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
     universalOptionsTypes: GLOBAL_OPTIONS,
     universalShorthands,
   }
-  let result = await parseCliArgsLib(libOpts, inputArgv)
-  // `pnpm [global-opts] with current <cmd> [args]` is sugar for
-  // `pnpm [global-opts] --pm-on-fail=ignore <cmd> [args]` — re-parse so the
-  // inner command is dispatched directly, in-process. The override is
-  // propagated via env var (not --pm-on-fail=ignore in argv) so it survives
-  // parseCliArgsLib's special short-circuits like the -v/--version
-  // interceptor, which discards other parsed options.
-  //
-  // We rebuild argv by removing the `with current` tokens in place so that
-  // any global flags the user put BEFORE `with` (e.g. `--dir`, `--filter`)
-  // are preserved.
-  if (result.cmd === 'with' && result.params[0] === 'current') {
-    const withIdx = findWithCurrentIndex(inputArgv, GLOBAL_OPTIONS)
-    if (withIdx < 0 || inputArgv.length - withIdx - 2 === 0) {
-      throw new PnpmError('MISSING_WITH_CURRENT_CMD',
-        'Missing command after "current". Usage: pnpm with current <command> [args...]')
-    }
-    process.env.pnpm_config_pm_on_fail = 'ignore'
-    result = await parseCliArgsLib(libOpts, [
-      ...inputArgv.slice(0, withIdx),
-      ...inputArgv.slice(withIdx + 2),
-    ])
-  }
-  return { ...result, builtInCommandForced }
+  return libOpts
 }
 
-/**
- * Locate the `with current` token pair in argv. We assume the first
- * occurrence that's plausibly the command (not the value of a preceding flag)
- * is the one. Good enough for realistic CLI usage — no pnpm option is
- * expected to take the literal value `with`.
- */
-function findWithCurrentIndex (argv: string[], optionTypes: Record<string, unknown>): number {
-  for (let tokenIndex = 0; tokenIndex < argv.length - 1; tokenIndex++) {
-    if (argv[tokenIndex] !== 'with' || argv[tokenIndex + 1] !== 'current') continue
-    const prev = argv[tokenIndex - 1]
-    // A preceding long option that takes a value would consume `with` as its
-    // value, so this `with current` pair isn't the command — skip it. Boolean
-    // flags (e.g. `--color`) and `--no-` negations don't consume a value.
-    if (prev != null && longOptionConsumesValue(prev, optionTypes)) continue
-    return tokenIndex
+function scanPreCommandPrefixes (argv: string[]): ScannedPrefixes {
+  const positionals = extractRemainingPositionals(argv)
+  return consumeLeadingPrefixes(argv, positionals)
+}
+
+function extractRemainingPositionals (argv: string[]): Array<number | undefined> {
+  const sepIndex = argv.findIndex((token) => OPTION_SEPARATOR_RE.test(token))
+  const head = sepIndex >= 0 ? argv.slice(0, sepIndex) : argv
+  if (!head.some((token) => token.startsWith('-') && token.length > 1)) {
+    return head.map((token, idx) => (PREFIX_WORDS.has(token) ? idx : undefined))
+  }
+  const tagged = tagPrefixCandidates(head)
+  const baseRemain = nopt(
+    getBaseScanTypes().baseWithConfigDot,
+    { ...BASE_SCAN_SHORTHANDS },
+    tagged.taggedArgs,
+    0
+  ).argv.remain
+  const finalRemain = retryScanIfPrefixBlocked(baseRemain, tagged)
+  return finalRemain.map((token) => tagged.tagToIndex.get(token))
+}
+
+interface PrefixCursor {
+  argv: string[]
+  positionals: Array<number | undefined>
+  scanned: ScannedPrefixes
+}
+
+function consumeLeadingPrefixes (
+  argv: string[],
+  positionals: Array<number | undefined>
+): ScannedPrefixes {
+  const state: PrefixCursor = { argv, positionals, scanned: {} }
+  let cursor = 0
+  while (cursor < positionals.length) {
+    const nextCursor = advancePrefixCursor(state, cursor)
+    if (nextCursor < 0) break
+    cursor = nextCursor
+  }
+  return state.scanned
+}
+
+function advancePrefixCursor (state: PrefixCursor, cursor: number): number {
+  const { argv, positionals, scanned } = state
+  const index = positionals[cursor]
+  if (index === undefined) return -1
+  const word = argv[index]
+  if (scanned.pmIndex === undefined && word === 'pm') {
+    scanned.pmIndex = index
+    return cursor + 1
+  }
+  if (scanned.withCurrentIndices === undefined && word === 'with') {
+    const nextIndex = positionals[cursor + 1]
+    if (nextIndex !== undefined && argv[nextIndex] === 'current') {
+      scanned.withCurrentIndices = [index, nextIndex]
+      return cursor + 2
+    }
+    return -1
+  }
+  if (!scanned.recursiveSeen && RECURSIVE_CMDS.has(word) && cursor + 1 < positionals.length) {
+    scanned.recursiveSeen = true
+    return cursor + 1
   }
   return -1
 }
 
-function longOptionConsumesValue (token: string, optionTypes: Record<string, unknown>): boolean {
-  if (!token.startsWith('--') || token.includes('=')) return false
-  const name = token.slice(2)
-  if (name.startsWith('no-')) return false
-  return !isBooleanType(optionTypes[name])
+interface TaggedCandidates {
+  taggedArgs: string[]
+  tagToIndex: Map<string, number>
 }
 
-function isBooleanType (type: unknown): boolean {
-  return type === Boolean || (Array.isArray(type) && type.includes(Boolean))
+function tagPrefixCandidates (head: string[]): TaggedCandidates {
+  const prefix = chooseMarkerPrefix(head)
+  const tagToIndex = new Map<string, number>()
+  const taggedArgs = head.map((token, idx) => {
+    if (!PREFIX_WORDS.has(token)) return token
+    const tag = `${prefix}${idx}__`
+    tagToIndex.set(tag, idx)
+    return tag
+  })
+  return { taggedArgs, tagToIndex }
+}
+
+function getBaseScanTypes (): BaseScanTypes {
+  if (cachedBaseScanTypes == null) {
+    const rawBase = buildBaseExploratoryTypes(getLibOpts())
+    cachedBaseScanTypes = {
+      rawBase,
+      baseWithConfigDot: { ...rawBase, ...configDotTypes(rawBase) },
+    }
+  }
+  return cachedBaseScanTypes
+}
+
+interface BlockedPrefixScan {
+  blockedTag: string
+  candidates: CandidateCommand[]
+}
+
+function retryScanIfPrefixBlocked (baseRemain: string[], tagged: TaggedCandidates): string[] {
+  const blocked = findBlockedPrefixCommands(baseRemain, tagged.tagToIndex)
+  if (blocked == null) return baseRemain
+  for (const candidate of blocked.candidates) {
+    const matched = tryCandidatePrefixScan(tagged, blocked.blockedTag, candidate)
+    if (matched != null) return matched
+  }
+  return baseRemain
+}
+
+function findBlockedPrefixCommands (
+  remain: string[],
+  tagToIndex: Map<string, number>
+): BlockedPrefixScan | undefined {
+  const firstNonTagIdx = remain.findIndex((token) => !tagToIndex.has(token))
+  if (firstNonTagIdx < 0 || getCommandFullName(remain[firstNonTagIdx]) != null) {
+    return undefined
+  }
+  const tail = remain.slice(firstNonTagIdx + 1)
+  const firstBlockedTagIdx = tail.findIndex((token) => tagToIndex.has(token))
+  if (firstBlockedTagIdx < 0) {
+    return undefined
+  }
+  const candidates = collectCandidateCommands(
+    getLibOpts(),
+    tail.slice(firstBlockedTagIdx + 1).filter((token) => !tagToIndex.has(token))
+  )
+  return candidates.length > 0
+    ? { blockedTag: tail[firstBlockedTagIdx], candidates }
+    : undefined
+}
+
+function tryCandidatePrefixScan (
+  tagged: TaggedCandidates,
+  blockedTag: string,
+  candidate: CandidateCommand
+): string[] | undefined {
+  const extended = extendExploratoryTypes(getBaseScanTypes().rawBase, getLibOpts(), [candidate.cmd])
+  const shorthands = buildExploratoryShorthands(
+    universalShorthands,
+    shorthandsByCommandName[candidate.commandName] ?? shorthandsByCommandName[candidate.cmd]
+  )
+  const retryRemain = nopt(
+    { ...extended, ...configDotTypes(extended) },
+    shorthands,
+    tagged.taggedArgs,
+    0
+  ).argv.remain
+  return isUnblockedCandidateMatch(retryRemain, tagged.tagToIndex, { blockedTag, candidate })
+    ? retryRemain
+    : undefined
+}
+
+function isUnblockedCandidateMatch (
+  retryRemain: string[],
+  tagToIndex: Map<string, number>,
+  target: { blockedTag: string, candidate: CandidateCommand }
+): boolean {
+  const firstNonTagIdx = retryRemain.findIndex((token) => !tagToIndex.has(token))
+  if (firstNonTagIdx <= 0) return false
+  const blockedPos = retryRemain.indexOf(target.blockedTag)
+  if (blockedPos < 0 || blockedPos > firstNonTagIdx) return false
+  const resolvedCmd = getCommandFullName(retryRemain[firstNonTagIdx])
+  return resolvedCmd === target.candidate.cmd || (target.candidate.isFallback && resolvedCmd == null)
 }

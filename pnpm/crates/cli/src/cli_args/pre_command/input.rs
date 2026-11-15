@@ -11,6 +11,7 @@ use crate::{
         cli_command::{CliPathArgs, PresentationArgs, options::find_workspace_root_dir},
         config_warnings::ConfigWarnings,
     },
+    parse_boundary::{COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE, SCRIPT_SHORTCUTS},
 };
 use bootstrap_argv::{
     BootstrapTokens, canonical_command_name, cluster_options, command_options, consumes_next_token,
@@ -165,14 +166,16 @@ impl InvocationScan {
     ) -> bool {
         if let Some(command) = self.command.as_deref().filter(|_| !named_command) {
             *options = command_options(cli, command);
-            if matches!(command, "test" | "start" | "stop")
+            if SCRIPT_SHORTCUTS.contains(&command)
                 || (entry_point != EntryPoint::UnknownFlag
                     && cli.find_subcommand(command).is_none())
             {
                 return true;
             }
         }
-        matches!(self.command.as_deref(), Some("run" | "exec" | "dlx"))
+        self.command
+            .as_deref()
+            .is_some_and(|command| COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.contains(&command))
             && !self.positionals.is_empty()
     }
 

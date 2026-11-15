@@ -176,9 +176,9 @@ fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Res
         .into_iter()
         .skip(1)
         .collect();
-    let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv);
-    let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
+    let (argv, builtin_command_forced) = pm_prefix::strip_prefix(argv);
     let argv = with_current::rewrite(argv)?;
+    let (config_overrides, argv) = ConfigOverrides::extract(argv);
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
     let (command, argv) = prepare_cli_argv(argv);
     let Some(mut args) = parse_or_answer(command, &argv, &child_argv, &config_overrides)? else {

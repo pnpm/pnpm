@@ -131,8 +131,8 @@ fn existing_environment_wins_over_env_file() {
     drop(root);
 }
 
-/// A `pm` prefix still loads `--env-file`: the flag after `pm` is pnpm's own
-/// option, not a forwarded script argument.
+/// A `pm` prefix still loads `--env-file` whether `pm` comes before or after
+/// top-level options such as `--dir` and `--env-file`.
 #[test]
 fn pm_prefix_still_loads_env_file() {
     let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
@@ -149,6 +149,42 @@ fn pm_prefix_still_loads_env_file() {
     assert!(
         stdout.contains("from-env-file|"),
         "script must see the layered variables; stdout: {stdout:?}",
+    );
+
+    let env_path = workspace.join(".env");
+    let output = pacquet_in(root.path())
+        .with_args([
+            "--dir",
+            workspace.to_str().expect("UTF-8 workspace path"),
+            "--env-file",
+            env_path.to_str().expect("UTF-8 env path"),
+            "pm",
+            "run",
+            "print-env",
+        ])
+        .output()
+        .expect("run pacquet --dir --env-file pm run print-env");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
+    assert!(
+        stdout.contains("from-env-file|"),
+        "script must see the layered variables; stdout: {stdout:?}",
+    );
+
+    let list_output = pacquet_in(root.path())
+        .with_args([
+            "--dir",
+            workspace.to_str().expect("UTF-8 workspace path"),
+            "--env-file",
+            env_path.to_str().expect("UTF-8 env path"),
+            "pm",
+            "list",
+        ])
+        .output()
+        .expect("run pacquet --dir --env-file pm list");
+    assert!(
+        list_output.status.success(),
+        "pm list after --dir and --env-file must exit 0: {list_output:?}",
     );
 
     drop(root);
