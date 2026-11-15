@@ -19,10 +19,15 @@ process.stdout.write = (chunk, encoding, callback) => {
   if (typeof done === 'function') done();
   return true;
 };
-class BadReadPackageResultError extends Error {
+class HookReturnError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
+class BadReadPackageResultError extends HookReturnError {
   constructor(message) {
-    super(message + " Hook imported via " + pnpmfilePath);
-    this.code = "ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT";
+    super("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT", message + " Hook imported via " + pnpmfilePath);
   }
 }
 async function ensureLoaded() {
@@ -225,6 +230,24 @@ async function handle(req) {
       if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
       const newPkg = await fn(req.payload, req.dir, context);
       send({ ok: newPkg == null ? req.payload : newPkg });
+    } else if (req.hook === 'updateConfig') {
+      if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
+      const updated = await fn(req.payload, context);
+      const response = serializeHookObjectResult(id, updated, {
+        code: 'ERR_PNPM_CONFIG_IS_UNDEFINED',
+        hook: 'updateConfig',
+        noun: 'config',
+      });
+      writeProtocol(response + '\n');
+    } else if (req.hook === 'afterAllResolved') {
+      if (typeof fn !== 'function') { send({ ok: null }); return; }
+      const updated = await fn(req.payload, context);
+      const response = serializeHookObjectResult(id, updated, {
+        code: 'ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN',
+        hook: 'afterAllResolved',
+        noun: 'lockfile',
+      });
+      writeProtocol(response + '\n');
     } else if (req.hook === 'filterLog') {
       const res = (typeof fn === 'function') ? await fn(req.payload, context) : true;
       send({ ok: res });
@@ -233,7 +256,7 @@ async function handle(req) {
       send({ ok: res === undefined ? null : res });
     }
   } catch (err) {
-    if (err instanceof BadReadPackageResultError) {
+    if (err instanceof HookReturnError) {
       send({ err: err.message, code: err.code });
     } else {
       send({ err: err && err.stack ? err.stack : String(err) });
@@ -258,4 +281,24 @@ function validatePackageDependencies(pkg) {
       }
     }
   }
+}
+
+function serializeHookObjectResult(id, updated, spec) {
+  if (updated == null) {
+    throw new HookReturnError(spec.code, `The ${spec.hook} hook returned undefined`);
+  }
+  if (typeof updated !== 'object' || Array.isArray(updated)) {
+    throw new HookReturnError(spec.code, `The ${spec.hook} hook did not return a ${spec.noun} object`);
+  }
+  let response;
+  try {
+    response = JSON.stringify({ id, ok: updated });
+  } catch {
+    throw new HookReturnError(spec.code, `The ${spec.hook} hook did not return a serializable ${spec.noun} object`);
+  }
+  const prefix = `{"id":${JSON.stringify(id)},"ok":{`;
+  if (!response.startsWith(prefix)) {
+    throw new HookReturnError(spec.code, `The ${spec.hook} hook did not return a ${spec.noun} object`);
+  }
+  return response;
 }

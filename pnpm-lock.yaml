@@ -528,8 +528,8 @@ snapshots:
 					"version": "5.0.0",
 				},
 				"eslint": {
-					"specifier": "^10.14.0",
-					"version": "10.14.0",
+					"specifier": "^10.15.0",
+					"version": "10.15.0",
 				},
 				"eslint-plugin-import-x": {
 					"specifier": "^4.18.1",
@@ -752,8 +752,8 @@ snapshots:
 					"version": "1.0.0",
 				},
 				"playwright-core": {
-					"specifier": "^1.65.0",
-					"version": "1.65.0",
+					"specifier": "^1.65.1",
+					"version": "1.65.1",
 				},
 				"preferred-pm": {
 					"specifier": "^5.0.1",
@@ -3589,6 +3589,7 @@ snapshots:
 				"@pnpm/config.reader": "workspace:*",
 				"@pnpm/core-loggers": "workspace:*",
 				"@pnpm/deps.inspection.list": "workspace:*",
+				"@pnpm/engine.runtime.node-resolver": "workspace:*",
 				"@pnpm/error": "workspace:*",
 				"@pnpm/global.packages": "workspace:*",
 				"@pnpm/installing.deps-installer": "workspace:*",
@@ -8210,7 +8211,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": "^6.0.0 || ^7.0.0 || >=8.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 			},
 			"dependencies": {
@@ -8223,8 +8224,8 @@ snapshots:
 			"engines": {"node": "^12.0.0 || ^14.0.0 || >=16.0.0"},
 		},
 
-		"@eslint/config-array@0.23.5": {
-			"integrity": "sha512-Y3kKLvC1dvTOT+oGlqNQ1XLqK6D1HU2YXPc52NmAlJZbMMWDzGYXMiPRJ8TYD39muD/OTjlZmNJ4ib7dvSrMBA==",
+		"@eslint/config-array@0.23.6": {
+			"integrity": "sha512-WrTH7nioI9QPY4NZGnsywmecswJdgeq4BCM76qok9VgjTO29ZgUzUvcuJLVPYVQM4uDbaPBU0M33R9DIxI8X3w==",
 			"engines": {"node": "^20.19.0 || ^22.13.0 || >=24"},
 			"peerDependencies": {
 				"supports-color": {
@@ -8235,7 +8236,7 @@ snapshots:
 			"dependencies": {
 				"@eslint/object-schema": "3.0.5",
 				"debug": "4.4.3",
-				"minimatch": "10.2.6",
+				"minimatch": "11.0.8",
 			},
 		},
 
@@ -8261,7 +8262,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": "^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 					"optional": true,
 				},
 			},
@@ -11639,7 +11640,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": "^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 					"optional": true,
 				},
 				"oxlint": {
@@ -12125,7 +12126,7 @@ snapshots:
 				},
 				"eslint": {
 					"specifier": "^8.57.0 || ^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 				"supports-color": {
 					"version": "10.2.2",
@@ -12154,7 +12155,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": "^8.57.0 || ^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 				"supports-color": {
 					"version": "10.2.2",
@@ -12220,7 +12221,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": "^8.57.0 || ^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 				"supports-color": {
 					"version": "10.2.2",
@@ -12277,7 +12278,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": "^8.57.0 || ^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 				"supports-color": {
 					"version": "10.2.2",
@@ -13357,7 +13358,7 @@ snapshots:
 				"baseline-browser-mapping": "2.11.37",
 				"caniuse-lite": "1.0.30001826",
 				"electron-to-chromium": "1.5.485",
-				"node-releases": "2.0.63",
+				"node-releases": "2.0.64",
 				"update-browserslist-db": "1.3.4",
 			},
 		},
@@ -14496,7 +14497,7 @@ snapshots:
 			"engines": {"node": ">=10.13.0"},
 			"dependencies": {
 				"graceful-fs": "4.2.12",
-				"tapable": "2.3.3",
+				"tapable": "2.3.4",
 			},
 		},
 
@@ -14644,7 +14645,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": ">=6.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 			},
 			"dependencies": {
@@ -14674,7 +14675,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": ">=8",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 			},
 			"dependencies": {
@@ -14695,7 +14696,7 @@ snapshots:
 				},
 				"eslint": {
 					"specifier": "^8.57.0 || ^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 				"eslint-import-resolver-node": {
 					"specifier": "*",
@@ -14732,7 +14733,7 @@ snapshots:
 				},
 				"eslint": {
 					"specifier": "^8.57.0 || ^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 				"jest": {
 					"specifier": "*",
@@ -14760,7 +14761,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": ">=8.57.1",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 				"ts-declaration-location": {
 					"specifier": "^1.0.6",
@@ -14791,7 +14792,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": "^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 			},
 			"dependencies": {
@@ -14805,7 +14806,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": ">=9.38.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 			},
 			"dependencies": {
@@ -14824,7 +14825,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": ">=5.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 			},
 		},
@@ -14850,8 +14851,8 @@ snapshots:
 			"engines": {"node": "^20.19.0 || ^22.13.0 || >=24"},
 		},
 
-		"eslint@10.14.0": {
-			"integrity": "sha512-T0pNsxkb9IKmtQjhpK3d7nWOpFv+YHuMbTJnSVMoQblF0onvXfErrtp4V1jHtsQPan7dKaGVD0q1WCXnzMF31A==",
+		"eslint@10.15.0": {
+			"integrity": "sha512-+5Wg4p+ze3sG1WErYgUO/3H1IQIfFBymVUA0Fo/XTeBOLS6UQIUekpSJ8sdRkn7O7wjh84b55w/roqavH2aScg==",
 			"engines": {"node": "^20.19.0 || ^22.13.0 || >=24"},
 			"hasBin": true,
 			"peerDependencies": {
@@ -14868,7 +14869,7 @@ snapshots:
 			"dependencies": {
 				"@eslint-community/eslint-utils": "4.10.1",
 				"@eslint-community/regexpp": "4.12.3",
-				"@eslint/config-array": "0.23.5",
+				"@eslint/config-array": "0.23.6",
 				"@eslint/config-helpers": "0.7.0",
 				"@eslint/core": "1.2.1",
 				"@eslint/plugin-kit": "0.7.3",
@@ -14893,7 +14894,7 @@ snapshots:
 				"imurmurhash": "0.1.4",
 				"is-glob": "4.0.3",
 				"json-stable-stringify-without-jsonify": "1.0.1",
-				"minimatch": "10.2.6",
+				"minimatch": "11.0.8",
 				"natural-compare": "1.4.0",
 				"optionator": "0.9.4",
 			},
@@ -18333,8 +18334,8 @@ snapshots:
 			"integrity": "sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==",
 		},
 
-		"node-releases@2.0.63": {
-			"integrity": "sha512-6li2QanLsAXpIH2R6j77MzRyvOyrvdTqlKtO4CgBdHGNvN99ZZfyxszHc5o5+IZBWD5u6Hzwg83JoGXmqZNG9Q==",
+		"node-releases@2.0.64": {
+			"integrity": "sha512-zAPCKqMcnqs2nGy6nlkm7JduFseiBJy3EXHGLh+8pFR+TxGCBxxiEN21+UROU5CKwX/f4TlUcYjiM+vs/tsyxw==",
 			"engines": {"node": ">=18"},
 		},
 
@@ -19370,8 +19371,8 @@ snapshots:
 			},
 		},
 
-		"playwright-core@1.65.0": {
-			"integrity": "sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==",
+		"playwright-core@1.65.1": {
+			"integrity": "sha512-hqPpz7blSMPxWVdoeE1yiBSzXsKiVOd2k+kjCvmUywD2GPO2Dd9HfcWnq9NN0GHbNZDFgZ9JfBFr+X5/BLo0qw==",
 			"engines": {"node": ">=20"},
 			"hasBin": true,
 		},
@@ -20845,8 +20846,8 @@ snapshots:
 			"engines": {"node": ">=20"},
 		},
 
-		"tapable@2.3.3": {
-			"integrity": "sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==",
+		"tapable@2.3.4": {
+			"integrity": "sha512-NHFiWnAbMJxNNpBwiO7jJVGDuqMxT9/oV8v57RR+fgBQShkJil5inGD8/xWy0hjLyHQyX1tu27QANhlz3KBqCg==",
 			"engines": {"node": ">=6"},
 		},
 
@@ -21230,7 +21231,7 @@ snapshots:
 			"peerDependencies": {
 				"eslint": {
 					"specifier": "^8.57.0 || ^9.0.0 || ^10.0.0",
-					"version": "10.14.0",
+					"version": "10.15.0",
 				},
 				"supports-color": {
 					"version": "10.2.2",

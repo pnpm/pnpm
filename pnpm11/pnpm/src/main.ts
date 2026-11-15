@@ -51,6 +51,7 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
 type CommandConfig = Config & {
   argv: { remain: string[], cooked: string[], original: string[] }
   fallbackCommandUsed: boolean
+  format?: string
   parseable?: boolean
   json?: boolean
 }
@@ -233,7 +234,7 @@ function isGlobalConfigCommand (isConfigCommand: boolean, cliOptions: ParsedCliA
 
 function applyInvocationToConfig (config: CommandConfig, parsedCliArgs: ParsedCliArgsWithBuiltIn): void {
   const { cmd } = parsedCliArgs
-  if (cmd != null && COMMANDS_WITH_STDERR_REPORTER.has(cmd)) {
+  if (cmd != null && (COMMANDS_WITH_STDERR_REPORTER.has(cmd) || (cmd === 'outdated' && config.format === 'json'))) {
     config.useStderr = true
   }
   config.argv = parsedCliArgs.argv

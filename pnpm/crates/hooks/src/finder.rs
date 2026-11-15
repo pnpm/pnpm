@@ -251,6 +251,13 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
         Ok(if changed { lockfile } else { Value::Null })
     }
 
+    async fn update_config(&self, mut config: Value, ctx: HookContext) -> Result<Value, HookError> {
+        for hook in &self.hooks {
+            config = hook.update_config(config, ctx.clone()).await?;
+        }
+        Ok(config)
+    }
+
     async fn pre_resolution(
         &self,
         mut ctx: PreResolutionHookContext,

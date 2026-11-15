@@ -1382,7 +1382,7 @@ fn mock_node_release_with_auth(
         .expect("one version serves an index, its sums and its archive")
 }
 
-fn mock_node_releases(
+pub(crate) fn mock_node_releases(
     server: &mut mockito::Server,
     versions: &[&str],
     authorization: Option<&str>,

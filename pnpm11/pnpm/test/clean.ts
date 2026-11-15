@@ -269,6 +269,12 @@ test('pnpm pm clean runs the built-in command even when a clean script exists', 
   expect(result.status).toBe(0)
   expect(result.stdout.toString()).not.toContain('script-clean-ran')
   expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
+
+  fs.mkdirSync('node_modules/.pnpm', { recursive: true })
+  const withDirResult = execPnpmSync(['--dir', '.', 'pm', 'clean'])
+  expect(withDirResult.status).toBe(0)
+  expect(withDirResult.stdout.toString()).not.toContain('script-clean-ran')
+  expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
 })
 
 test('pnpm pm clean does not error in workspace subdir when root has clean script', () => {

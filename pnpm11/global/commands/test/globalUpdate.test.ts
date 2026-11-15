@@ -531,7 +531,7 @@ test('global update does not clean up or persist policy when activation fails', 
   expect(updateResolutionPolicyManifest).not.toHaveBeenCalled()
 })
 
-test('global update --latest drops the spec only of plain version dependencies', async () => {
+test('global update --latest targets latest for plain, npm: alias, and runtime dependencies', async () => {
   const tarballsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'global-update-tarballs-'))
   const localTarball = path.join(tarballsDir, 'local-tarball-pkg.tgz')
   fs.writeFileSync(localTarball, '')
@@ -545,7 +545,12 @@ test('global update --latest drops the spec only of plain version dependencies',
         'git-pkg': 'github:user/git-pkg',
         'remote-tarball-pkg': 'https://example.com/pkg.tgz',
         'aliased-pkg': 'npm:other-pkg@^2.0.0',
+        'same-name-exact': 'npm:1.0.0',
+        'same-name-range': 'npm:^1.0.0',
         'named-registry-pkg': 'gh:^3.0.0',
+        node: 'runtime:^20.0.0',
+        deno: 'runtime:^1.40.0',
+        bun: 'runtime:1.1.0',
         foo: '^1.0.0',
         bar: 'next',
       },
@@ -578,11 +583,107 @@ test('global update --latest drops the spec only of plain version dependencies',
       `local-tarball-pkg@file:${localTarball}`,
       'git-pkg@github:user/git-pkg',
       'remote-tarball-pkg@https://example.com/pkg.tgz',
-      'aliased-pkg@npm:other-pkg@^2.0.0',
+      'aliased-pkg@npm:other-pkg@latest',
+      'same-name-exact@npm:same-name-exact@latest',
+      'same-name-range@npm:same-name-range@latest',
       'named-registry-pkg@gh:^3.0.0',
+      'node@runtime:latest',
+      'deno@runtime:latest',
+      'bun@runtime:latest',
       'foo',
       'bar',
     ]
+  )
+})
+
+test('global update --latest holds npm: aliases and runtimes when latest would downgrade them', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-pin')
+  getHashLink.mockReturnValueOnce('/global/v11/hash-pin')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: {
+        aliased: 'npm:other-pkg@^2.0.0',
+        'same-name-exact': 'npm:1.0.0',
+        node: 'runtime:^22.0.0',
+      },
+      hash: 'hash-pin',
+      installDir: '/global/v11/old-pin',
+    },
+  ])
+  getGlobalPackageDetails.mockResolvedValue([
+    { alias: 'aliased', version: '2.5.0' },
+    { alias: 'same-name-exact', version: '1.5.0' },
+    { alias: 'node', version: '22.4.0' },
+  ])
+  installGlobalPackages
+    .mockResolvedValueOnce({
+      ignoredBuilds: undefined,
+      resolutionPolicyViolations: [],
+      resolvedVersions: { aliased: '1.9.0', 'same-name-exact': '1.2.0', node: '20.11.0' },
+    })
+    .mockResolvedValue({
+      ignoredBuilds: undefined,
+      resolutionPolicyViolations: [],
+      resolvedVersions: { aliased: '2.5.0', 'same-name-exact': '1.5.0', node: '22.4.0' },
+    })
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({ lockfileOnly: true }),
+    ['aliased@npm:other-pkg@latest', 'same-name-exact@npm:same-name-exact@latest', 'node@runtime:latest']
+  )
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({ lockfileOnly: true }),
+    ['aliased@npm:other-pkg@2.5.0', 'same-name-exact@npm:same-name-exact@1.5.0', 'node@runtime:22.4.0']
+  )
+})
+
+test('global update --latest runs no extra lockfile-only pass when nothing is pinned or bumped', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-fast')
+  getHashLink.mockReturnValueOnce('/global/v11/hash-fast')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: {
+        foo: '^1.0.0',
+        aliased: 'npm:other-pkg@^2.0.0',
+      },
+      hash: 'hash-fast',
+      installDir: '/global/v11/old-fast',
+    },
+  ])
+  getGlobalPackageDetails.mockResolvedValue([
+    { alias: 'foo', version: '1.0.0' },
+    { alias: 'aliased', version: '2.0.0' },
+  ])
+  installGlobalPackages.mockResolvedValue({
+    ignoredBuilds: undefined,
+    resolutionPolicyViolations: [],
+    resolvedVersions: { foo: '2.0.0', aliased: '3.0.0' },
+  })
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(2)
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({ lockfileOnly: true }),
+    ['foo', 'aliased@npm:other-pkg@latest']
+  )
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    2,
+    expect.not.objectContaining({ lockfileOnly: true }),
+    ['foo', 'aliased@npm:other-pkg@latest']
   )
 })
 
@@ -866,4 +967,52 @@ test('global update aborts without installing when the immature version is not a
     ['foo@^1.0.0']
   )
   expect(activateGlobalInstall).not.toHaveBeenCalled()
+})
+
+test('global update --latest preserves deno and bun declared range styles and ignores non-runtime tools', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-runtimes')
+  getHashLink.mockReturnValueOnce('/global/v11/hash-runtimes')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: {
+        node: 'runtime:rc/^20.0.0',
+        deno: 'runtime:^1.40.0',
+        bun: 'runtime:1.1.0',
+        custom: 'tool:1.0.0',
+      },
+      hash: 'hash-runtimes',
+      installDir: '/global/v11/old-runtimes',
+    },
+  ])
+  installGlobalPackages.mockResolvedValue({
+    ignoredBuilds: undefined,
+    resolutionPolicyViolations: [],
+    resolvedVersions: {
+      node: '24.0.0-rc.4',
+      deno: '2.4.2',
+      bun: '1.2.19',
+    },
+  })
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({ lockfileOnly: true }),
+    ['node@runtime:rc/latest', 'deno@runtime:latest', 'bun@runtime:latest', 'custom@tool:1.0.0']
+  )
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({ lockfileOnly: true }),
+    ['node@runtime:rc/latest', 'deno@runtime:^2.4.2', 'bun@runtime:1.2.19', 'custom@tool:1.0.0']
+  )
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    3,
+    expect.objectContaining({ lockfileOnly: false }),
+    ['node@runtime:rc/latest', 'deno@runtime:^2.4.2', 'bun@runtime:1.2.19', 'custom@tool:1.0.0']
+  )
 })

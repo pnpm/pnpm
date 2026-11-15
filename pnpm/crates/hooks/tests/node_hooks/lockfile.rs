@@ -389,3 +389,43 @@ async fn custom_resolver_should_refresh_resolution_receives_dep_path_and_snapsho
             .expect("shouldRefreshResolution"),
     );
 }
+
+#[tokio::test]
+async fn after_all_resolved_returning_undefined_null_or_non_object_fails() {
+    for (source, expected_msg) in [
+        (
+            "module.exports = { hooks: { afterAllResolved (lockfile) { lockfile.foo = 1; } } }",
+            "The afterAllResolved hook returned undefined",
+        ),
+        (
+            "module.exports = { hooks: { afterAllResolved () { return null; } } }",
+            "The afterAllResolved hook returned undefined",
+        ),
+        (
+            "module.exports = { hooks: { afterAllResolved () { return []; } } }",
+            "The afterAllResolved hook did not return a lockfile object",
+        ),
+    ] {
+        let tmp = TempDir::new().expect("temp dir");
+        let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+        std::fs::write(&pnpmfile_path, source).expect("write pnpmfile");
+
+        let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+        let err = hooks
+            .after_all_resolved(
+                serde_json::json!({ "lockfileVersion": "9.0" }),
+                super::noop_context(),
+            )
+            .await
+            .expect_err("invalid afterAllResolved return must fail");
+
+        assert!(
+            matches!(
+                &err,
+                pnpm_hooks::HookError::BadAfterAllResolvedReturn { message }
+                    if message == expected_msg
+            ),
+            "unexpected error for `{source}`: {err:?}",
+        );
+    }
+}

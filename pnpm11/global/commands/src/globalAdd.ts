@@ -12,8 +12,8 @@ import {
   getHashLink,
   type GlobalPackageBinSnapshot,
   type GlobalPackageInfo,
+  readGlobalGroupDependencies,
 } from '@pnpm/global.packages'
-import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 
 import { getGlobalBinOwnership } from './binOwnership.js'
@@ -107,8 +107,7 @@ export async function installGroup (
     inheritedOpts: opts,
   }, commands)
 
-  const pkgJson = readPackageJsonFromDirRawSync(installDir)
-  const aliases = Object.keys(pkgJson.dependencies ?? {})
+  const aliases = Object.keys(readGlobalGroupDependencies(installDir))
 
   const pkgs = await readInstalledPackages(installDir)
   const plan = await planGroupActivation({ ctx, installDir, aliases, pkgs })

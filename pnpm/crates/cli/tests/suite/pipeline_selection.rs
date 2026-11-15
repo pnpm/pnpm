@@ -154,3 +154,36 @@ fn an_empty_full_selection_reports_no_selected_projects() {
     let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
     assert!(output.contains("No projects are selected — nothing to run."), "{output}");
 }
+
+#[test]
+fn pipeline_dry_run_json_routes_selection_warnings_to_stderr() {
+    let root_change = pipeline_after_root_change(
+        "packages: [pkg]\npipelines:\n  default: [build]\n",
+        &["--dry-run", "--json"],
+    );
+    let root_stderr = String::from_utf8_lossy(&root_change.get_output().stderr);
+    assert!(root_stderr.contains("The diff touches workspace-root files"), "stderr: {root_stderr}");
+    let root_doc: serde_json::Value =
+        serde_json::from_slice(&root_change.get_output().stdout).expect("valid dry-run JSON");
+    assert_eq!(root_doc["tasks"][0]["project"], "pkg");
+
+    let repo_root = tempfile::tempdir().unwrap();
+    let fixture = GitRepoFixture::init(repo_root.path(), "demo");
+    fixture.write_file("package.json", ROOT_MANIFEST);
+    fixture.write_file("pnpm-workspace.yaml", "packages: [pkg]\npipelines:\n  default: [build]\n");
+    fixture.write_file(
+        "pkg/package.json",
+        r#"{"name":"pkg","version":"1.0.0","scripts":{"build":"echo pkg"}}"#,
+    );
+    let _ = fixture.commit("initial");
+    let missing_base = pipeline(
+        &repo_root.path().join("demo-src"),
+        &repo_root.path().join("config"),
+        &["--base", "refs/heads/nonexistent-base", "--dry-run", "--json"],
+    );
+    let base_stderr = String::from_utf8_lossy(&missing_base.get_output().stderr);
+    assert!(base_stderr.contains("Cannot resolve the merge base"), "stderr: {base_stderr}");
+    let base_doc: serde_json::Value =
+        serde_json::from_slice(&missing_base.get_output().stdout).expect("valid dry-run JSON");
+    assert_eq!(base_doc["tasks"][0]["project"], "pkg");
+}

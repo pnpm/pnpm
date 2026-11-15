@@ -54,11 +54,7 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         config: Value,
         ctx: crate::HookContext,
     ) -> Result<Value, HookError> {
-        // The worker returns `null` when the pnpmfile exports no
-        // `updateConfig` hook (the generic `typeof fn === 'function'`
-        // branch); in that case the config is left unchanged.
-        let result = self.worker().await?.call("updateConfig", config.clone(), ctx.log).await?;
-        Ok(if result.is_null() { config } else { result })
+        self.worker().await?.call("updateConfig", config, ctx.log).await
     }
 
     async fn before_packing(

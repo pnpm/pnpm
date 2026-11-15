@@ -719,9 +719,9 @@ fn dry_run_json_emits_the_tasks_and_their_resolved_edges() {
         .output()
         .expect("dry run");
     assert!(output.status.success(), "dry run failed: {output:?}");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let json_start = stdout.find('{').expect("stdout carries a JSON document");
-    let document: Value = serde_json::from_str(&stdout[json_start..]).expect("parse dry-run JSON");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Scope: all 2 workspace projects"), "stderr: {stderr}");
+    let document: Value = serde_json::from_slice(&output.stdout).expect("parse dry-run JSON");
     assert_eq!(
         document,
         json!({

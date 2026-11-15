@@ -1234,3 +1234,141 @@ test('renderParseable search long: shared dep across packages is not duplicated'
   expect(lines).toContain('/workspace/packages/pkg-b:pkg-b@1.0.0')
   expect(lines.filter((l) => l.startsWith('/workspace/packages/shared'))).toHaveLength(1)
 })
+
+test('renderTree displays scoped file: protocol with @ in path for aliased packages', async () => {
+  const output = await renderTree(
+    [
+      {
+        name: 'test-project',
+        path: '/test/path',
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: 'scoped-alias',
+            name: '@example/local',
+            version: '@example/local@file:@scoped-dir/local',
+            path: '/test/path/@scoped-dir/local',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: false,
+      search: false,
+      showExtraneous: false,
+    }
+  )
+
+  expect(output).toContain('scoped-alias')
+  expect(output).toContain('@@example/local@file:@scoped-dir/local')
+  expect(output).not.toContain('npm:')
+})
+
+test('renderParseable keeps package name when link: or file: version contains @ in path or peers', async () => {
+  const output = await renderParseable(
+    [
+      {
+        name: 'my-app',
+        path: '/workspace/packages/app',
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: '@example/lib',
+            name: '@example/lib',
+            version: 'link:../@example/lib',
+            path: '/workspace/packages/@example/lib',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+          {
+            alias: '@example/local',
+            name: '@example/local',
+            version: 'file:@scoped-dir/local',
+            path: '/workspace/@scoped-dir/local',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+          {
+            alias: 'my-local-pkg',
+            name: 'my-local-pkg',
+            version: 'file:local-pkg(peer-pkg@1.0.0)',
+            path: '/workspace/local-pkg',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+          {
+            alias: 'ws-alias',
+            name: 'ws-alias',
+            version: 'link:../@example/other',
+            path: '/workspace/packages/@example/other',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+          {
+            alias: 'scoped-alias',
+            name: '@example/local-aliased',
+            version: '@example/local-aliased@file:@scoped-dir/local-aliased',
+            path: '/workspace/@scoped-dir/local-aliased',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+          {
+            alias: 'missing-pkg',
+            name: 'missing-pkg',
+            version: 'missing-pkg@1.0.0',
+            path: '/workspace/node_modules/missing-pkg',
+            isMissing: true,
+            isPeer: false,
+            isSkipped: false,
+          },
+          {
+            alias: 'missing-alias',
+            name: 'missing-alias',
+            version: 'canonical@1.0.0',
+            path: '/workspace/node_modules/missing-alias',
+            isMissing: true,
+            isPeer: false,
+            isSkipped: false,
+          },
+          {
+            alias: 'missing-scoped-alias',
+            name: 'missing-scoped-alias',
+            version: '@scope/canonical@1.0.0',
+            path: '/workspace/node_modules/missing-scoped-alias',
+            isMissing: true,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: true,
+      search: false,
+    }
+  )
+
+  expect(output.split('\n')).toEqual([
+    '/workspace/packages/app:my-app@1.0.0',
+    '/workspace/packages/@example/lib:@example/lib@link:../@example/lib',
+    '/workspace/@scoped-dir/local:@example/local@file:@scoped-dir/local',
+    '/workspace/@scoped-dir/local-aliased:scoped-alias @example/local-aliased@file:@scoped-dir/local-aliased',
+    '/workspace/node_modules/missing-alias:canonical@1.0.0',
+    '/workspace/node_modules/missing-pkg:missing-pkg@1.0.0',
+    '/workspace/node_modules/missing-scoped-alias:@scope/canonical@1.0.0',
+    '/workspace/local-pkg:my-local-pkg@file:local-pkg(peer-pkg@1.0.0)',
+    '/workspace/packages/@example/other:ws-alias@link:../@example/other',
+  ])
+})

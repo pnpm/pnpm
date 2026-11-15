@@ -91,7 +91,13 @@ function resolvedDirectVersions (
 ): Record<string, string> {
   const versions: Record<string, string> = {}
   for (const [alias, resolution] of Object.entries(dependencies ?? {})) {
-    versions[alias] = resolution.split('(')[0]
+    const withoutPeers = resolution.split('(')[0]
+    if (withoutPeers.startsWith('runtime:')) {
+      versions[alias] = withoutPeers.slice('runtime:'.length)
+      continue
+    }
+    const atIndex = withoutPeers.lastIndexOf('@')
+    versions[alias] = atIndex > 0 ? withoutPeers.slice(atIndex + 1) : withoutPeers
   }
   return versions
 }

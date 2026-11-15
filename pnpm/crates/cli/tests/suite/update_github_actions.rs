@@ -317,3 +317,40 @@ fn outdated_json_reports_all_distinct_workflow_versions_of_same_action() {
 
     drop((root, anchor));
 }
+
+#[test]
+fn outdated_json_routes_github_actions_skip_warning_to_stderr() {
+    let (root, workspace, anchor) = setup();
+    let git_server = LocalGitHttpServer::start();
+
+    write_manifest(&workspace, "{}");
+    let workflows = workspace.join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("mkdir workflows");
+    fs::write(
+        workflows.join("ci.yml"),
+        "jobs:\n  test:\n    steps:\n      - uses: owner/missing@0000000000000000000000000000000000000000 # v1\n",
+    )
+    .expect("write ci.yml");
+
+    for args in [
+        ["outdated", "--include-github-actions", "--json"].as_slice(),
+        ["outdated", "--include-github-actions", "--format", "json"].as_slice(),
+    ] {
+        let output = pacquet(&workspace, &git_server.url(), args).output().expect("run outdated");
+        assert!(
+            output.status.success(),
+            "args={args:?}, stderr={}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains(r#"Skipping the GitHub Actions from "owner/missing""#),
+            "args={args:?}, stderr={stderr}",
+        );
+        let report: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("stdout must be pure JSON");
+        assert_eq!(report, serde_json::json!({}), "args={args:?}");
+    }
+
+    drop((root, anchor));
+}

@@ -48,6 +48,7 @@ fn leaves_script_arguments_alone() {
     for tokens in [
         vec!["run", "build", "--env-file", ".env"],
         vec!["exec", "cmd", "--env-file=.env"],
+        vec!["create", "vite", "my-app", "--env-file", ".env"],
         vec!["install", "--", "--env-file", ".env"],
     ] {
         let argv = argv(&tokens);
@@ -87,6 +88,40 @@ fn strips_the_flag_after_the_pm_prefix() {
     let (paths, remaining) = scan(&argv(&["pm", "install", "--env-file", ".env"]));
     assert_eq!(paths, vec![PathBuf::from(".env")]);
     assert_eq!(strings(&remaining), vec!["pnpm", "pm", "install"]);
+
+    let (paths, remaining) =
+        scan(&argv(&["--dir", "sub", "--env-file", "a.env", "pm", "install", "--env-file=b.env"]));
+    assert_eq!(paths, vec![PathBuf::from("a.env"), PathBuf::from("b.env")]);
+    assert_eq!(strings(&remaining), vec!["pnpm", "--dir", "sub", "pm", "install"]);
+}
+
+#[test]
+fn claims_env_file_before_create_starter_and_forwards_after_it() {
+    let (paths, remaining) = scan(&argv(&[
+        "--env-file",
+        "pnpm.env",
+        "create",
+        "--allow-build",
+        "esbuild",
+        "vite",
+        "my-app",
+        "--env-file",
+        "starter.env",
+    ]));
+    assert_eq!(paths, vec![PathBuf::from("pnpm.env")]);
+    assert_eq!(
+        strings(&remaining),
+        vec![
+            "pnpm",
+            "create",
+            "--allow-build",
+            "esbuild",
+            "vite",
+            "my-app",
+            "--env-file",
+            "starter.env"
+        ],
+    );
 }
 
 #[test]

@@ -228,14 +228,14 @@ fn print_label(
     if node.search.matched { bold_styled(&label) } else { label }
 }
 
-/// `name@version`, or — for an npm: protocol alias —
-/// `alias@npm:name@version`, unless the version already carries an `@`
-/// (`file:`, `link:`, ...).
+/// `name@version`, or `alias@npm:name@version` for an aliased package
+/// unless `version` is already prefixed with `<pkg>@` (such as aliased `file:`
+/// directory references).
 fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
     if node.alias == node.package.name {
         return name_at_version(&node.package.name, &node.package.version, color);
     }
-    if node.package.version.contains('@') {
+    if has_pkg_name_prefix(&node.package.version) {
         return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.package.version)));
     }
     format!(
@@ -243,6 +243,32 @@ fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
         color(&node.alias),
         gray(&format!("@npm:{}@{}", node.package.name, node.package.version)),
     )
+}
+
+/// Whether `version` already starts with `<pkg-name>@` (unscoped `pkg@...` or
+/// scoped `@scope/pkg@...`), rather than a bare semver or `<scheme>:...`
+/// specifier whose path or peer suffix merely contains `@`.
+pub(super) fn has_pkg_name_prefix(version: &str) -> bool {
+    if let Some(rest) = version.strip_prefix('@') {
+        let Some((scoped_name, after_at)) = rest.split_once('@') else {
+            return false;
+        };
+        let Some((scope, pkg)) = scoped_name.split_once('/') else {
+            return false;
+        };
+        return !after_at.is_empty() && is_pkg_name_segment(scope) && is_pkg_name_segment(pkg);
+    }
+    let Some((pkg, after_at)) = version.split_once('@') else {
+        return false;
+    };
+    !after_at.is_empty() && is_pkg_name_segment(pkg)
+}
+
+fn is_pkg_name_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && !segment
+            .chars()
+            .any(|ch| matches!(ch, ':' | '/' | '\\' | '(' | ')' | ' ' | '\t'))
 }
 
 fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, usize> {

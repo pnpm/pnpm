@@ -15,6 +15,7 @@ import {
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn, logger } from '@pnpm/logger'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { localFilePath } from '@pnpm/resolving.local-resolver'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { ProjectManifest } from '@pnpm/types'
@@ -24,6 +25,7 @@ import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames, type GlobalNodePathOptions } from './globalActivation.js'
+import { applyRuntimeRangeBumps, depSpecsForUpdate, latestDepSpec, needsRuntimeRangeBump } from './globalUpdateSelectors.js'
 import {
   installGlobalPackages,
   type InstallGlobalPackagesResult,
@@ -200,7 +202,25 @@ async function resolveGroupUpdate (
       installDir,
       depSpecs
     )
-  return { depSpecs, comparison }
+  if (groupOpts.latest !== true || !needsRuntimeRangeBump(pkg.dependencies, downgradeCheck.pins)) {
+    return { depSpecs, comparison }
+  }
+  const bumpedSpecs = applyRuntimeRangeBumps({
+    dependencies: pkg.dependencies,
+    depSpecs,
+    pins: downgradeCheck.pins,
+    resolvedVersions: comparison.resolvedVersions,
+    rangeSpecStyle: getRangeSpecStyle(groupOpts),
+  })
+  if (isDeepStrictEqual(bumpedSpecs, depSpecs)) {
+    return { depSpecs, comparison }
+  }
+  const bumpedComparison = await installGroup(
+    { ...groupOpts, lockfileOnly: true, groupDependencies: pkg.dependencies },
+    installDir,
+    bumpedSpecs
+  )
+  return { depSpecs: bumpedSpecs, comparison: bumpedComparison }
 }
 
 async function activateUpdatedGroup (
@@ -326,23 +346,6 @@ async function installGroup (
 }
 
 /**
- * The selectors that reinstall a group. With `--latest` a plain version spec is
- * dropped so the newest release is picked; `pins` holds back the aliases that
- * would otherwise move backwards.
- */
-function depSpecsForUpdate (
-  dependencies: Record<string, string>,
-  latest?: boolean,
-  pins: ReadonlyMap<string, string> = new Map()
-): string[] {
-  return Object.entries(dependencies).map(([alias, spec]) => {
-    const pin = pins.get(alias)
-    if (pin != null) return `${alias}@${pin}`
-    return latest && isPlainVersionSpec(spec) ? alias : `${alias}@${spec}`
-  })
-}
-
-/**
  * The version to hold each dependency of `pkg` at, for the ones an update would
  * otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
  * points at an older release than the one installed whenever that came from
@@ -352,10 +355,6 @@ function depSpecsForUpdate (
  * release that is about to be rejected never gets the chance to run its
  * lifecycle scripts. The install that follows reuses the lockfile written here
  * and only re-resolves what a pin changes.
- *
- * Only plain version dependencies are considered: every other spec form says
- * where the package comes from, so holding one at a bare version would resolve
- * a different package from the default registry.
  */
 async function pinsForDowngrades (
   opts: GlobalUpdateOptions,
@@ -363,14 +362,10 @@ async function pinsForDowngrades (
   pkg: GlobalPackageInfo
 ): Promise<{ candidate?: InstallGlobalPackagesResult, pins: Map<string, string> }> {
   const pins = new Map<string, string>()
-  // Only `--latest` can pick a version outside the recorded range, and only a
-  // plain version spec is dropped for it. Everything else resolves within a
-  // range the installed version already satisfies, so nothing below — not even
-  // reading the group's installed versions — is worth doing.
   if (opts.latest !== true) return { pins }
   const versionsBefore = new Map(
     (await getGlobalPackageDetails(pkg))
-      .filter(({ alias }) => isPlainVersionSpec(pkg.dependencies[alias] ?? ''))
+      .filter(({ alias }) => latestDepSpec(alias, pkg.dependencies[alias] ?? '') != null)
       .map(({ alias, version }) => [alias, version])
   )
   // Nothing to compare a resolution against, so nothing to resolve.
@@ -402,14 +397,4 @@ async function lockfilesAreEqual (activeDir: string, candidateDir: string): Prom
   } catch {
     return false
   }
-}
-
-// Only a plain version range may be dropped in favor of the bare alias.
-// Every other spec form (`link:`, `file:`, a git or tarball URL, an `npm:`
-// alias, a named registry) also says where the package comes from, so the
-// alias alone would be resolved from the default registry: a different
-// package gets installed, or the lookup 404s and aborts the groups that
-// have not been updated yet.
-function isPlainVersionSpec (spec: string): boolean {
-  return !spec.includes(':')
 }

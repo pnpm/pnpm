@@ -20,7 +20,7 @@ use super::{
     DependencyNode,
     dep_types::{DepType, DepTypes},
     graph::GraphEdge,
-    peers_suffix_hash,
+    peers_suffix_hash, resolved_pkg_version,
 };
 
 /// Everything that stays constant while resolving node metadata across
@@ -212,9 +212,7 @@ fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer)
     }
 
     let name = dep_path.name.to_string();
-    let version = metadata
-        .and_then(|metadata| metadata.version.clone())
-        .unwrap_or_else(|| dep_path.suffix.version().to_string());
+    let version = resolved_pkg_version(metadata, dep_path).unwrap_or_default();
     LockedPkg {
         resolved: metadata.and_then(|metadata| {
             resolved_tarball_url(env, &metadata.resolution, &name, &version)

@@ -407,8 +407,9 @@ impl CliCommand {
     }
 
     /// Whether reporter output (warnings, progress) goes to stderr so this
-    /// command's stdout stays a clean, machine-readable value — pnpm's
-    /// `COMMANDS_WITH_STDERR_REPORTER`.
+    /// command's stdout stays a clean, machine-readable value. Covers pnpm's
+    /// `COMMANDS_WITH_STDERR_REPORTER` plus invocations that select JSON or
+    /// parseable output.
     pub(crate) fn uses_stderr_reporter(&self) -> bool {
         matches!(
             self,
@@ -425,13 +426,44 @@ impl CliCommand {
                 | CliCommand::Root(_)
                 | CliCommand::Bin(_),
         ) || self.prints_upload_values()
-            || matches!(self, CliCommand::Version(args) if args.json)
+            || self.prints_structured_stdout()
     }
 
     /// `publish --upload-variant` prints the values a later publish takes,
     /// which a CI job captures from stdout.
     fn prints_upload_values(&self) -> bool {
         matches!(self, CliCommand::Publish(args) if !args.flags.variants.upload_variant.is_empty())
+    }
+
+    fn prints_structured_stdout(&self) -> bool {
+        match self {
+            CliCommand::Access(args) => args.json,
+            CliCommand::Audit(args) => args.json,
+            CliCommand::Cache(command) => cache_prints_structured_stdout(command),
+            CliCommand::CatIndex(_) => true,
+            CliCommand::Doctor(args) => args.json,
+            CliCommand::Fund(args) => args.json,
+            CliCommand::Licenses(args) => args.json,
+            CliCommand::List(args) | CliCommand::Ll(args) => {
+                args.output.json || args.output.parseable
+            }
+            CliCommand::Outdated(args) => args.uses_json_output(),
+            CliCommand::Pack(args) => args.json,
+            CliCommand::Peers(args) => args.json,
+            CliCommand::Pipeline(args) => args.prints_json_plan(),
+            CliCommand::Pkg(args) => pkg_prints_structured_stdout(args),
+            CliCommand::Profile(args) => args.json || args.parseable,
+            CliCommand::Publish(args) => args.flags.output.json,
+            CliCommand::Run(args) => args.dry_run && args.json,
+            CliCommand::Search(args) => args.json,
+            CliCommand::Stage(args) => args.flags.output.json,
+            CliCommand::Team(args) => args.json || args.parseable,
+            CliCommand::Token(args) => args.json || args.parseable,
+            CliCommand::Version(args) => args.json,
+            CliCommand::View(args) => args.json,
+            CliCommand::Why(args) => args.output.json || args.output.parseable,
+            _ => false,
+        }
     }
 
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
@@ -448,5 +480,24 @@ impl CliCommand {
             CliCommand::Dlx(_) | CliCommand::Create(_) => SummaryScope::AllPrefixes,
             _ => SummaryScope::CurrentPrefix,
         }
+    }
+}
+
+fn cache_prints_structured_stdout(command: &CacheCommand) -> bool {
+    match command {
+        CacheCommand::Path | CacheCommand::View { .. } => true,
+        CacheCommand::List { .. }
+        | CacheCommand::ListRegistries
+        | CacheCommand::Delete { .. }
+        | CacheCommand::Prune { .. } => false,
+    }
+}
+
+fn pkg_prints_structured_stdout(args: &PkgArgs) -> bool {
+    match args.command {
+        crate::cli_args::pkg::PkgSubcommand::Get(_) => true,
+        crate::cli_args::pkg::PkgSubcommand::Set(_)
+        | crate::cli_args::pkg::PkgSubcommand::Delete(_)
+        | crate::cli_args::pkg::PkgSubcommand::Fix => false,
     }
 }

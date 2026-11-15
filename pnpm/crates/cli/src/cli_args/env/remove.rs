@@ -44,7 +44,29 @@ pub async fn run_remove<Reporter: self::Reporter + 'static>(
 }
 
 fn matches_node_version(actual: &str, requested: &str) -> bool {
-    actual == requested || actual.starts_with(&format!("{requested}."))
+    let (explicit_channel, raw_version) = match requested.split_once('/') {
+        Some((channel, rest))
+            if pnpm_engine_runtime_node_resolver::RELEASE_CHANNELS.contains(&channel) =>
+        {
+            (Some(channel), rest)
+        }
+        Some(_) => return false,
+        None => (None, requested),
+    };
+    let normalized = pnpm_engine_runtime_node_resolver::strip_leading_v(raw_version);
+    if normalized.is_empty() {
+        return false;
+    }
+    if let Some(channel) = explicit_channel {
+        let Ok(actual_parsed) = pnpm_engine_runtime_node_resolver::parse_node_specifier(actual)
+        else {
+            return false;
+        };
+        if actual_parsed.release_channel != channel {
+            return false;
+        }
+    }
+    actual == normalized || actual.starts_with(&format!("{normalized}."))
 }
 
 /// Remove a global `node` package when its installed version matches.

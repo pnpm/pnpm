@@ -383,3 +383,78 @@ fn concurrent_engine_installs_all_succeed_on_a_cold_cache() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn with_current_composes_with_pm_prefix_and_subcommand_boolean_flags() {
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "name": "demo-argv",
+            "version": "1.0.0",
+            "packageManager": "yarn@4.0.0",
+            "scripts": {
+                "clean": "echo script-clean-ran",
+            },
+        }),
+    );
+    let node_modules = workspace.join("node_modules/pkg");
+    fs::create_dir_all(&node_modules).expect("seed node_modules");
+    fs::write(node_modules.join("package.json"), "{}").expect("seed package.json");
+
+    let list_out = test_command(Command::cargo_bin("pnpm").expect("pnpm bin"), root.path())
+        .with_args([
+            "--dir",
+            workspace.to_str().expect("UTF-8 path"),
+            "with",
+            "current",
+            "pm",
+            "list",
+        ])
+        .output()
+        .expect("run with current pm list");
+    assert_success(&list_out);
+
+    #[cfg(unix)]
+    {
+        let clean_out = test_command(Command::cargo_bin("pnpm").expect("pnpm bin"), root.path())
+            .with_args([
+                "--dir",
+                workspace.to_str().expect("UTF-8 path"),
+                "with",
+                "current",
+                "pm",
+                "clean",
+            ])
+            .output()
+            .expect("run with current pm clean");
+        assert_success(&clean_out);
+        assert!(!stdout(&clean_out).contains("script-clean-ran"));
+        assert!(!workspace.join("node_modules/pkg").exists());
+    }
+
+    let new_pkg = workspace.join("new-pkg");
+    fs::create_dir_all(&new_pkg).expect("create new-pkg");
+    let init_out = test_command(Command::cargo_bin("pnpm").expect("pnpm bin"), root.path())
+        .with_env("PNPM_CONFIG_OFFLINE", "true")
+        .with_args([
+            "--dir",
+            new_pkg.to_str().expect("UTF-8 path"),
+            "--bare",
+            "with",
+            "current",
+            "init",
+        ])
+        .output()
+        .expect("run --bare with current init");
+    assert_success(&init_out);
+    let created: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(new_pkg.join("package.json")).expect("read init manifest"),
+    )
+    .expect("parse init manifest");
+    assert_eq!(created.get("name"), None);
+    assert_eq!(created.get("version"), None);
+    assert_eq!(created["type"], serde_json::json!("module"));
+
+    drop(root);
+}

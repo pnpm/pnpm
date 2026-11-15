@@ -123,24 +123,47 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .wrap_err("serialize the resolved settings for updateConfig hooks")?;
     seed_hook_input(&mut input, config, root_dir, &pnpmfiles, manifest_catalogs_value(root_dir)?)?;
 
-    let prefix = root_dir.to_string_lossy().into_owned();
-    let mut current = input.clone();
-    let mut ignored_hooks = Vec::new();
-    for (pnpmfile, hook) in pnpmfiles.iter().zip(&hooks) {
-        let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix), dir: None };
-        current = hook
-            .update_config(current, ctx)
-            .await
-            .map_err(|err| miette::miette!("{err}"))
-            .wrap_err_with(|| format!("running updateConfig hook from {}", pnpmfile.display()))?;
-        ignored_hooks.push((pnpmfile.as_path(), hook.ignored_hooks().await));
-    }
-    warn_ignored_hooks::<Reporter>(&ignored_hooks, &prefix);
-
+    let current =
+        execute_update_config_hooks::<Reporter>(&pnpmfiles, &hooks, input.clone(), root_dir).await?;
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
     Ok(hooks)
+}
+
+async fn execute_update_config_hooks<Reporter: self::Reporter>(
+    pnpmfiles: &[PathBuf],
+    hooks: &[Arc<dyn PnpmfileHooks>],
+    mut current: Value,
+    root_dir: &Path,
+) -> Result<Value> {
+    let prefix = root_dir.to_string_lossy().into_owned();
+    let mut ignored_hooks = Vec::new();
+    for (pnpmfile, hook) in pnpmfiles.iter().zip(hooks) {
+        let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix), dir: None };
+        current = hook
+            .update_config(current, ctx)
+            .await
+            .map_err(|err| update_config_hook_error(pnpmfile, err))?;
+        ignored_hooks.push((pnpmfile.as_path(), hook.ignored_hooks().await));
+    }
+    warn_ignored_hooks::<Reporter>(&ignored_hooks, &prefix);
+    Ok(current)
+}
+
+fn update_config_hook_error(pnpmfile: &Path, err: pnpm_hooks::HookError) -> miette::Report {
+    match err {
+        pnpm_hooks::HookError::ConfigIsUndefined { message } => {
+            miette::miette!(code = "ERR_PNPM_CONFIG_IS_UNDEFINED", "{message}")
+        }
+        other => {
+            let pnpmfile_display = pnpmfile.display();
+            miette::miette!(
+                code = "ERR_PNPM_PNPMFILE_FAIL",
+                "running updateConfig hook from {pnpmfile_display}: {other}",
+            )
+        }
+    }
 }
 
 fn warn_ignored_hooks<Reporter: self::Reporter>(

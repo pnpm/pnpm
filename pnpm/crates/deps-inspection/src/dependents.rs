@@ -61,6 +61,12 @@ pub struct DependentNode {
     /// [`merge_trees`] so unnamed projects do not collapse into one leaf.
     #[serde(skip)]
     pub(crate) importer_id: Option<String>,
+    /// Package identity for non-semver nodes whose display `version` is empty
+    /// (such as `file:` directory snapshots), kept across [`merge_trees`] so
+    /// distinct targets with the same package name do not collapse into one
+    /// node.
+    #[serde(skip)]
+    pub(crate) merge_id: Option<String>,
     /// Originating matched-package paths from merged per-project trees,
     /// used by `pnpm why --parseable --long`.
     #[serde(skip)]
@@ -86,6 +92,7 @@ impl DependentNode {
             dependents: None,
             manifest: None,
             importer_id: None,
+            merge_id: None,
             root_paths: Vec::new(),
         }
     }
@@ -115,6 +122,13 @@ impl DepField {
 /// One matched package and everything that depends on it.
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public dependents-tree JSON plus an internal skip-serialized merge key."
+    )
+)]
 pub struct DependentsTree {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -130,6 +144,9 @@ pub struct DependentsTree {
     /// See [`DependentNode::manifest`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manifest: Option<serde_json::Map<String, serde_json::Value>>,
+    /// See [`DependentNode::merge_id`].
+    #[serde(skip)]
+    pub(crate) merge_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -232,6 +249,8 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
             continue;
         }
 
+        let merge_id =
+            package_merge_id(&opts.env.layout.lockfile_dir, lockfile, dep_path, &version);
         trees.push(DependentsTree {
             name,
             display_name: None,
@@ -242,6 +261,7 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
             search_message: matched.message().map(str::to_string),
             manifest: ManifestProjector { fields: opts.manifest_fields, resolved: &resolved_nodes }
                 .project(node_id),
+            merge_id,
         });
     }
 
@@ -336,8 +356,11 @@ fn circular_node(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> Option<DependentNode
                 return None;
             }
             let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
+            let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
             let mut node = DependentNode::leaf(name, version);
             node.circular = true;
+            node.peers_suffix_hash = peers_suffix_hash(dep_path);
+            node.merge_id = merge_id;
             node.manifest = ctx.manifest_reader.project(parent);
             Some(node)
         }
@@ -355,8 +378,10 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
         return None;
     }
     let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
+    let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
     let mut node = DependentNode::leaf(name, version);
     node.peers_suffix_hash = peers_suffix_hash(dep_path);
+    node.merge_id = merge_id;
     node.manifest = ctx.manifest_reader.project(&edge.parent);
 
     if ctx.expanded.contains(&edge.parent) {
@@ -434,4 +459,4 @@ fn dep_field_for_alias(alias: &str, importer: &ProjectSnapshot) -> Option<DepFie
 
 mod selection;
 
-use selection::{has_snapshot, match_package};
+use selection::{has_snapshot, match_package, package_merge_id};
