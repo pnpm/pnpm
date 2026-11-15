@@ -647,10 +647,15 @@ test('command-specific value options before the command name do not hide the com
   const opts = {
     ...DEFAULT_OPTS,
     fallbackCommand: 'run',
-    getCommandLongName: (name: string) => name === 'init' ? 'init' : null,
-    getTypesByCommandName: (name: string) => name === 'init'
-      ? { 'init-type': ['commonjs', 'module'] }
-      : {},
+    getCommandLongName: (name: string) => (
+      name === 'init' || name === 'list' || name === 'publish' ? name : null
+    ),
+    getTypesByCommandName: (name: string) => {
+      if (name === 'init') return { 'init-type': ['commonjs', 'module'] }
+      if (name === 'list') return { depth: Number }
+      if (name === 'publish') return { otp: String }
+      return {}
+    },
   }
 
   const direct = await parseCliArgs(opts, ['--init-type', 'commonjs', 'init'])
@@ -662,4 +667,21 @@ test('command-specific value options before the command name do not hide the com
   expect(configDot.cmd).toBe('init')
   expect(configDot.params).toStrictEqual([])
   expect(configDot.options['init-type']).toBe('commonjs')
+
+  const withDepth = await parseCliArgs(opts, ['--depth', '2', 'list'])
+  expect(withDepth.cmd).toBe('list')
+  expect(withDepth.params).toStrictEqual([])
+  expect(withDepth.options.depth).toBe(2)
+
+  const missingDepth = await parseCliArgs(opts, ['--depth', 'list'])
+  expect(missingDepth.cmd).toBe('list')
+  expect(missingDepth.params).toStrictEqual([])
+
+  const missingInitType = await parseCliArgs(opts, ['--init-type', 'init'])
+  expect(missingInitType.cmd).toBe('init')
+  expect(missingInitType.params).toStrictEqual([])
+
+  const missingStringOpt = await parseCliArgs(opts, ['--otp', 'publish'])
+  expect(missingStringOpt.cmd).toBe('publish')
+  expect(missingStringOpt.options.otp).toBe('publish')
 })

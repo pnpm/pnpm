@@ -151,4 +151,23 @@ test('command-specific value options before with current and pm resolve the targ
   expect(tripleDashDir.cmd).toBe('list')
   expect(tripleDashDir.params).toStrictEqual([])
   expect(tripleDashDir.options.dir).toMatch(/(?:^|[\\/])---dir$/)
+
+  const depthValueWithCurrent = await parseCliArgs(['--depth', '2', 'with', 'current', 'list'])
+  expect(depthValueWithCurrent.cmd).toBe('list')
+  expect(depthValueWithCurrent.options.depth).toBe(2)
+
+  const missingDepthDirect = await parseCliArgs(['--depth', 'list'])
+  expect(missingDepthDirect.cmd).toBe('list')
+
+  const missingDepthWithCurrent = await parseCliArgs(['--depth', 'with', 'current', 'list'])
+  expect(missingDepthWithCurrent.cmd).toBe('list')
+
+  const missingDepthPm = await parseCliArgs(['--depth', 'pm', 'list'])
+  expect(missingDepthPm.cmd).toBe('list')
+  expect(missingDepthPm.builtInCommandForced).toBe(true)
+
+  const listTargetNamedPm = await parseCliArgs(['--depth', 'list', 'pm'])
+  expect(listTargetNamedPm.cmd).toBe('list')
+  expect(listTargetNamedPm.builtInCommandForced).toBe(false)
+  expect(listTargetNamedPm.argv.remain).toStrictEqual(['pm'])
 })

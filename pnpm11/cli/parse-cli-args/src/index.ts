@@ -5,11 +5,21 @@ import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 import {
   BASE_EXPLORATORY_TYPES,
-  buildExploratoryTypes,
+  buildBaseExploratoryTypes,
+  collectKnownCommands,
+  configDotTypes,
+  extendExploratoryTypes,
+  parseExploratory,
   VERSION_BOOTSTRAP_KEYS,
 } from './exploratory.js'
 
-export { BASE_EXPLORATORY_TYPES, buildExploratoryTypes }
+export {
+  BASE_EXPLORATORY_TYPES,
+  buildBaseExploratoryTypes,
+  collectKnownCommands,
+  configDotTypes,
+  extendExploratoryTypes,
+}
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx', 'with'])
@@ -84,17 +94,6 @@ export async function parseCliArgs (
     fallbackCommandUsed: resolution.fallbackCommandUsed,
     ...normalizeOptions(rawOptions, new Set(Object.keys(types))),
   }
-}
-
-function parseExploratory (opts: ParseCliArgsOptions, inputArgv: string[]): ReturnType<typeof nopt> {
-  const exploratoryTypes = buildExploratoryTypes(opts, inputArgv)
-  return nopt(
-    { ...exploratoryTypes, ...configDotTypes(exploratoryTypes) },
-    { r: '--recursive', ...opts.universalShorthands },
-    inputArgv,
-    0,
-    { escapeArgs: opts.escapeArgs }
-  )
 }
 
 function resolveCommand (
@@ -276,19 +275,6 @@ function mergeExtractedConfigArgs (options: Record<string, unknown>, configDotAr
   if (configDotArgs.length === 0) return
   const { argv: _, ...configOptions } = nopt(configDotTypes(types), {}, configDotArgs, 0)
   Object.assign(options, configOptions)
-}
-
-/**
- * The types of `types` under their `--config.<key>` spellings, so a
- * `--config.<key>` value takes the type the command declares for `<key>`: a
- * list setting given once is a one-item list and a number is a number, as
- * the bare `--<key>` flag would give. A key the command does not declare
- * keeps its raw value.
- */
-export function configDotTypes (types: Parameters<typeof nopt>[0]): Parameters<typeof nopt>[0] {
-  return Object.fromEntries(
-    Object.entries(types).map(([name, type]) => [`${CUSTOM_OPTION_PREFIX}${name}`, type])
-  )
 }
 
 function applyRenamedOptions (options: Record<string, unknown>, renamedOptions?: Record<string, string>): void {

@@ -1,7 +1,8 @@
 import {
-  BASE_EXPLORATORY_TYPES,
-  buildExploratoryTypes,
+  buildBaseExploratoryTypes,
+  collectKnownCommands,
   configDotTypes,
+  extendExploratoryTypes,
   parseCliArgs as parseCliArgsLib,
   type ParseCliArgsOptions,
   type ParsedCliArgs,
@@ -25,7 +26,6 @@ const RENAMED_OPTIONS = {
 type FlagTypeMap = Parameters<typeof nopt>[0]
 
 const OPTION_SEPARATOR_RE = /^-{2,}$/
-const CUSTOM_OPTION_PREFIX = '--config.'
 const RECURSIVE_PREFIXES = new Set(['recursive', 'multi', 'm'])
 const PREFIX_WORDS = new Set(['pm', 'with', 'current', ...RECURSIVE_PREFIXES])
 const EXPLORATORY_SHORTHANDS = { r: '--recursive', ...universalShorthands }
@@ -109,9 +109,15 @@ function extractRemainingPositionals (argv: string[]): Array<number | undefined>
   if (!head.some((token) => token.startsWith('-') && token.length > 1)) {
     return head.map((token, idx) => (PREFIX_WORDS.has(token) ? idx : undefined))
   }
-  const { taggedArgs, tagToIndex } = tagPrefixCandidates(head)
-  const parsed = nopt(resolveScanTypes(head, argv), EXPLORATORY_SHORTHANDS, taggedArgs, 0)
-  return parsed.argv.remain.map((token) => tagToIndex.get(token))
+  const tagged = tagPrefixCandidates(head)
+  const baseRemain = nopt(
+    getBaseScanTypes().baseWithConfigDot,
+    EXPLORATORY_SHORTHANDS,
+    tagged.taggedArgs,
+    0
+  ).argv.remain
+  const finalRemain = retryScanIfPrefixBlocked(baseRemain, tagged)
+  return finalRemain.map((token) => tagged.tagToIndex.get(token))
 }
 
 interface PrefixCursor {
@@ -185,18 +191,9 @@ function chooseMarkerPrefix (head: string[]): string {
   return candidate
 }
 
-function resolveScanTypes (head: string[], argv: string[]): FlagTypeMap {
-  const { rawBase, baseWithConfigDot } = getBaseScanTypes()
-  if (head.every((token) => isCoveredByBaseTypes(token, rawBase))) {
-    return baseWithConfigDot
-  }
-  const exploratory = buildExploratoryTypes(getLibOpts(), argv)
-  return { ...exploratory, ...configDotTypes(exploratory) }
-}
-
 function getBaseScanTypes (): BaseScanTypes {
   if (cachedBaseScanTypes == null) {
-    const rawBase = { ...BASE_EXPLORATORY_TYPES, ...GLOBAL_OPTIONS } as FlagTypeMap
+    const rawBase = buildBaseExploratoryTypes(getLibOpts())
     cachedBaseScanTypes = {
       rawBase,
       baseWithConfigDot: { ...rawBase, ...configDotTypes(rawBase) },
@@ -205,17 +202,38 @@ function getBaseScanTypes (): BaseScanTypes {
   return cachedBaseScanTypes
 }
 
-function isCoveredByBaseTypes (token: string, rawBase: FlagTypeMap): boolean {
-  if (!token.startsWith('-') || token.length === 1) return true
-  const flag = token.split('=', 1)[0]
-  if (!flag.startsWith('--')) {
-    return [...flag.slice(1)].every((ch) => Object.hasOwn(EXPLORATORY_SHORTHANDS, ch))
+function retryScanIfPrefixBlocked (baseRemain: string[], tagged: TaggedCandidates): string[] {
+  const candidates = findBlockedPrefixCommands(baseRemain, tagged.tagToIndex)
+  if (candidates == null || candidates.size === 0) return baseRemain
+  const extended = extendExploratoryTypes(getBaseScanTypes().rawBase, getLibOpts(), candidates)
+  const retryRemain = nopt(
+    { ...extended, ...configDotTypes(extended) },
+    EXPLORATORY_SHORTHANDS,
+    tagged.taggedArgs,
+    0
+  ).argv.remain
+  return hasKnownNonTagCommand(retryRemain, tagged.tagToIndex) ? retryRemain : baseRemain
+}
+
+function findBlockedPrefixCommands (
+  remain: string[],
+  tagToIndex: Map<string, number>
+): Set<string> | undefined {
+  const firstNonTagIdx = remain.findIndex((token) => !tagToIndex.has(token))
+  if (firstNonTagIdx < 0 || getCommandFullName(remain[firstNonTagIdx]) != null) {
+    return undefined
   }
-  if (flag.startsWith(CUSTOM_OPTION_PREFIX)) {
-    const key = flag.slice(CUSTOM_OPTION_PREFIX.length)
-    return key !== '' && Object.hasOwn(rawBase, key)
+  const tail = remain.slice(firstNonTagIdx + 1)
+  if (!tail.some((token) => tagToIndex.has(token))) {
+    return undefined
   }
-  const rawName = flag.replace(/^-+/, '')
-  const name = rawName.startsWith('no-') ? rawName.slice(3) : rawName
-  return Object.hasOwn(rawBase, name) || Object.hasOwn(EXPLORATORY_SHORTHANDS, rawName)
+  return collectKnownCommands(
+    getLibOpts(),
+    tail.filter((token) => !tagToIndex.has(token))
+  )
+}
+
+function hasKnownNonTagCommand (remain: string[], tagToIndex: Map<string, number>): boolean {
+  const firstNonTag = remain.find((token) => !tagToIndex.has(token))
+  return firstNonTag !== undefined && getCommandFullName(firstNonTag) != null
 }
