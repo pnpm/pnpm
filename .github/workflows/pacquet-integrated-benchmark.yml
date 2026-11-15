@@ -1151,7 +1151,7 @@ jobs:
 
       - name: Install Bencher CLI
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.head_ref
-        uses: bencherdev/bencher@7de3c69a85380826613050826b4bce062be2f07d # v0.6.16
+        uses: bencherdev/bencher@b2484bc6734c8e6da4fad141bd13527a11da3988 # v0.6.17
 
       - name: Upload results to Bencher
         # Runs on push and workflow_dispatch — both execute in the

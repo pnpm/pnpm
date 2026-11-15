@@ -206,7 +206,7 @@ object_store = { version = "0.14.2", features = ["aws"] }
 open = { version = "5.4.5" }
 os_display = { version = "0.1.4" }
 owo-colors = { version = "4.4.0", features = ["supports-colors"] }
-reflink-copy = { version = "0.1.32" }
+reflink-copy = { version = "0.1.33" }
 junction = { version = "2.1.0" }
 libc = { version = "0.2.191" }
 reqwest = { version = "0.13.5", default-features = false, features = [
