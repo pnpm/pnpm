@@ -219,11 +219,20 @@ fn unchanged_legacy_scopes<'a>(
                 .is_some_and(|expected| {
                     final_routes
                         .get(*scope)
-                        .is_some_and(|route| !pnpm_lockfile::same_registry(route, expected))
+                        .is_some_and(|route| !same_registry_route(route, expected))
                 })
         })
         .map(|(scope, _)| scope.as_str())
         .collect()
+}
+
+fn same_registry_route(left: &str, right: &str) -> bool {
+    let (Ok(left_url), Ok(right_url)) = (url::Url::parse(left), url::Url::parse(right)) else {
+        return left == right;
+    };
+    left_url.username() == right_url.username()
+        && left_url.password() == right_url.password()
+        && pnpm_lockfile::same_registry(left_url.as_str(), right_url.as_str())
 }
 
 fn expected_legacy_route<'a>(

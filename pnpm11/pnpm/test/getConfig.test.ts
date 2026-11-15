@@ -454,6 +454,18 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(globalWarn).not.toHaveBeenCalled()
   })
 
+  test('warns when a scope route and legacy registry have different credentials', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://mirror.example:443/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://registry-a/' } })
+    config.registriesByScope['@acme'] = 'https://user:pass@mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+  })
+
   test('does not warn when an updateConfig hook changes registry URL settings', async () => {
     prepare()
     writeUpdateConfigHook("(config) => ({ ...config, registries: { 'https://registry.example/': 'npm' } })")

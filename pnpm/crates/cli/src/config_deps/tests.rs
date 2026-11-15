@@ -144,6 +144,27 @@ fn legacy_registries_warning_is_absent_when_urls_differ_only_by_default_port() {
 }
 
 #[test]
+fn legacy_registries_warning_keeps_credentials_when_comparing_urls() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://user:pass@mirror.example/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example:443/" },
+        "registriesByScope": { "@acme": "https://user:pass@mirror.example/" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://user:pass@mirror.example/".to_string())]),
+    )
+    .expect("legacy route has different credentials");
+
+    assert!(warning.contains("@acme"));
+}
+
+#[test]
 fn legacy_registries_warning_is_present_when_scope_routes_are_omitted() {
     let before = serde_json::json!({
         "registries": { "default": "https://registry-a/" },
