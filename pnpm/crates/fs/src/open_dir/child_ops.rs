@@ -5,7 +5,6 @@ use super::unix;
 #[cfg(windows)]
 use super::windows;
 use super::{ChildFileStat, ChildWrite, OpenDir, validate_child_name};
-#[cfg(unix)]
 #[cfg(any(not(unix), test))]
 use std::path::Path;
 use std::{
