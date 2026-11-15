@@ -26,6 +26,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
     recursive: Boolean,
     ...pick([
       'dry-run',
+      'ignore-pnpmfile',
+      'ignore-scripts',
       'pack-destination',
       'pack-gzip-level',
       'json',
@@ -57,6 +59,14 @@ function getPackOptionsHelp (): Array<{ description: string, name: string, short
     {
       description: 'Does everything `pnpm pack` would do except actually writing the tarball to disk.',
       name: '--dry-run',
+    },
+    {
+      description: 'Packs without loading the project\'s pnpmfile, so its hooks, including `beforePacking`, do not run.',
+      name: '--ignore-pnpmfile',
+    },
+    {
+      description: 'Packs without running the `prepack`, `prepare`, and `postpack` scripts.',
+      name: '--ignore-scripts',
     },
     {
       description: 'Directory in which `pnpm pack` will save tarballs. The default is the current working directory.',

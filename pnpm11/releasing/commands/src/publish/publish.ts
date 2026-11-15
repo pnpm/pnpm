@@ -26,6 +26,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'access',
     'git-checks',
+    'ignore-pnpmfile',
     'ignore-scripts',
     'skip-manifest-obfuscation',
     'provenance',
@@ -78,6 +79,10 @@ const PUBLISH_OPTIONS_HELP = [
   {
     description: 'Tells the registry whether this package should be published as public or restricted',
     name: '--access <public|restricted>',
+  },
+  {
+    description: 'Publishes without loading the project\'s pnpmfile, so its hooks, including `beforePacking`, do not run.',
+    name: '--ignore-pnpmfile',
   },
   {
     description: 'Ignores any publish related lifecycle scripts (prepublishOnly, postpublish, and the like)',

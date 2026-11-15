@@ -59,6 +59,14 @@ Pack only the archive of the [`publishConfig.variants`](../package_json.md#publi
 
 Does everything a normal run does, except actually packing the tarball. Useful for verifying the contents of the tarball.
 
+### --ignore-pnpmfile
+
+Don't load the project's `.pnpmfile.cjs`, so its hooks, including `beforePacking`, don't run.
+
+### --ignore-scripts
+
+Don't run the `prepack`, `prepare`, and `postpack` scripts.
+
 ### --skip-manifest-obfuscation
 
 Keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The `pnpm` field is still omitted, except for `pnpm.config`.
