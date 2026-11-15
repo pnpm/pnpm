@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
@@ -5,8 +6,37 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
-import { type CheckResult, handler } from '../src/cmd/doctor.js'
+import { type CheckResult, handler, type LinkOperations } from '../src/cmd/doctor.js'
 import { closeServer, listenOnLocalhost } from './utils/localServer.js'
+
+const PNPM_BIN = path.resolve(import.meta.dirname, '../bin/pnpm.mjs')
+
+function simulatedMount (filePath: string): string | undefined {
+  return path.resolve(filePath).split(path.sep).find((part) => part.startsWith('mount-'))
+}
+
+function createCrossMountLinkOperations (): LinkOperations {
+  const assertSameMount = (source: string, dest: string): void => {
+    if (simulatedMount(source) !== simulatedMount(dest)) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' })
+    }
+  }
+  return {
+    reflink (source, dest) {
+      try {
+        assertSameMount(source, dest)
+        fs.copyFileSync(source, dest)
+        return true
+      } catch {
+        return false
+      }
+    },
+    async hardlink (source, dest) {
+      assertSameMount(source, dest)
+      await fs.promises.link(source, dest)
+    },
+  }
+}
 
 test('pnpm doctor pings the configured default registry with its credentials', async () => {
   prepare()
@@ -67,4 +97,115 @@ test('pnpm doctor fails the connectivity check when the configured registry resp
   } finally {
     await closeServer(server)
   }
+})
+
+test('pnpm doctor succeeds on a fresh environment before cacheDir, storeDir, or pnpmHomeDir exist', async () => {
+  prepare()
+  const root = process.cwd()
+  const projectDir = path.join(root, 'proj')
+  const cacheDir = path.join(root, 'fresh-cache', 'pnpm')
+  const pnpmHomeDir = path.join(root, 'fresh-pnpm-home')
+  const storeDir = path.join(pnpmHomeDir, 'store', 'v10')
+  fs.mkdirSync(projectDir, { recursive: true })
+
+  const originalPath = process.env.PATH
+  const originalCorepack = process.env.COREPACK_ROOT
+  process.env.PATH = [pnpmHomeDir, originalPath].filter(Boolean).join(path.delimiter)
+  delete process.env.COREPACK_ROOT
+  try {
+    const { output, exitCode } = await handler({
+      dir: projectDir,
+      cacheDir,
+      pnpmHomeDir,
+      storeDir,
+      offline: true,
+      json: true,
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      configByUri: {},
+      pnpmCommand: [process.execPath, PNPM_BIN],
+    })
+    const { checks } = JSON.parse(output) as { checks: CheckResult[] }
+
+    expect(exitCode).toBe(0)
+    for (const title of [
+      'Global bin directory',
+      'Cache directory',
+      'Store directory',
+      'Filesystem',
+      'Registry connectivity',
+      'Install smoke test',
+    ]) {
+      expect(checks.find((check) => check.title === title)?.status).toBe('pass')
+    }
+    expect(fs.existsSync(path.join(root, 'fresh-cache'))).toBe(false)
+    expect(fs.existsSync(pnpmHomeDir)).toBe(false)
+    expect(fs.existsSync(path.join(projectDir, 'node_modules'))).toBe(false)
+  } finally {
+    process.env.PATH = originalPath
+    if (originalCorepack !== undefined) {
+      process.env.COREPACK_ROOT = originalCorepack
+    }
+  }
+})
+
+test('pnpm doctor fails store write check and warns on filesystem check when storeDir is blocked by a file', async () => {
+  prepare()
+  const root = process.cwd()
+  const blocker = path.join(root, 'not-a-dir')
+  fs.writeFileSync(blocker, 'file')
+
+  const { output, exitCode } = await handler({
+    dir: root,
+    cacheDir: path.join(root, 'cache'),
+    pnpmHomeDir: path.join(root, 'pnpm-home'),
+    storeDir: path.join(blocker, 'store'),
+    offline: true,
+    json: true,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    configByUri: {},
+    pnpmCommand: [process.execPath, PNPM_BIN],
+  })
+  const { checks } = JSON.parse(output) as { checks: CheckResult[] }
+  const storeCheck = checks.find((check) => check.title === 'Store directory')
+  const fsCheck = checks.find((check) => check.title === 'Filesystem')
+
+  expect(exitCode).toBe(1)
+  expect(storeCheck?.status).toBe('fail')
+  expect(storeCheck?.detail).toContain('no write access to ')
+  expect(fsCheck?.status).toBe('warn')
+  expect(fsCheck?.detail).toBe('could not create a probe directory')
+})
+
+test('pnpm doctor warns when storeDir and project are on different filesystems', async () => {
+  prepare()
+  const root = process.cwd()
+  const mountA = path.join(root, 'mount-a')
+  const mountB = path.join(root, 'mount-b')
+  const projectDir = path.join(mountB, 'proj')
+  fs.mkdirSync(mountA, { recursive: true })
+  fs.mkdirSync(projectDir, { recursive: true })
+
+  const { output, exitCode } = await handler({
+    dir: projectDir,
+    cacheDir: path.join(mountA, 'cache'),
+    pnpmHomeDir: path.join(mountA, 'pnpm-home'),
+    storeDir: path.join(mountA, 'store'),
+    offline: true,
+    json: true,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    configByUri: {},
+    pnpmCommand: [process.execPath, PNPM_BIN],
+    linkOperations: createCrossMountLinkOperations(),
+  })
+  const { checks } = JSON.parse(output) as { checks: CheckResult[] }
+  const fsCheck = checks.find((check) => check.title === 'Filesystem')
+
+  expect(exitCode).toBe(0)
+  expect(fsCheck?.status).toBe('warn')
+  if (process.platform !== 'win32') {
+    expect(fsCheck?.detail).toBe('available: symlink')
+  }
+  expect(fsCheck?.fix).toBe(
+    'Neither reflink nor hardlink works between the store and this project; installs will copy files and be slower. Put the store on the same filesystem as your projects.'
+  )
 })

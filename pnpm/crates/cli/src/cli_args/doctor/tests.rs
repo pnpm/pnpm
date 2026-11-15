@@ -1,12 +1,59 @@
 use super::{
-    CheckResult, CheckStatus, DoctorArgs, DoctorReport, can_write_to_dir, check_versions,
-    last_line, probe_link_capabilities, render_report, status_mark,
+    CheckResult, CheckStatus, DoctorArgs, DoctorReport, check_versions,
+    filesystem::{
+        ProbeDirs, can_write_to_dir, check_filesystem_capabilities, probe_link_capabilities,
+    },
+    last_line, render_report, status_mark,
 };
 use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_fs::{FsHardLink, FsReflink, Host};
+use pnpm_store_dir::StoreDir;
 use pretty_assertions::assert_eq;
+use std::{
+    fs, io,
+    path::{Component, Path},
+};
 
 fn report(checks: Vec<CheckResult>) -> DoctorReport {
     DoctorReport { checks }
+}
+
+/// Simulates independent filesystem mounts under a single test sandbox: each
+/// top-level `mount-*` directory acts as its own device, so linking within one
+/// mount delegates to [`Host`] while linking across two mounts fails with
+/// [`io::ErrorKind::CrossesDevices`].
+struct CrossMountFs;
+
+fn simulated_mount_name(path: &Path) -> Option<&std::ffi::OsStr> {
+    path.components()
+        .find_map(|component| match component {
+            Component::Normal(name) if name.to_string_lossy().starts_with("mount-") => Some(name),
+            _ => None,
+        })
+}
+
+fn ensure_same_mount(source: &Path, target: &Path) -> io::Result<()> {
+    if simulated_mount_name(source) != simulated_mount_name(target) {
+        return Err(io::Error::new(
+            io::ErrorKind::CrossesDevices,
+            "cross-device link not permitted",
+        ));
+    }
+    Ok(())
+}
+
+impl FsReflink for CrossMountFs {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        ensure_same_mount(source, target)?;
+        Host::reflink(source, target)
+    }
+}
+
+impl FsHardLink for CrossMountFs {
+    fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
+        ensure_same_mount(source, target)?;
+        Host::hard_link(source, target)
+    }
 }
 
 /// The registry answers slower than `fetchTimeout` but well within the
@@ -85,16 +132,17 @@ fn json_report_uses_camel_case_and_omits_empty_fields() {
 
 #[test]
 fn probe_reports_the_links_a_normal_filesystem_supports() {
-    let dir = tempfile::tempdir().expect("create temp dir");
-    let capabilities = probe_link_capabilities(dir.path()).expect("probe links");
+    let store = tempfile::tempdir().expect("create store temp dir");
+    let target = tempfile::tempdir().expect("create target temp dir");
+    let capabilities = probe_link_capabilities::<Host>(ProbeDirs {
+        store: store.path(),
+        link_target: target.path(),
+        symlink_target: target.path(),
+    })
+    .expect("probe links");
     dbg!(&capabilities);
-    let supported = |name: &str| {
-        capabilities
-            .iter()
-            .any(|(candidate, supported)| *candidate == name && *supported)
-    };
-    assert!(supported("hardlink"), "a temp dir must support hardlinks");
-    assert!(supported("symlink"), "a temp dir must support symlinks");
+    assert!(capabilities.hardlink, "a temp dir must support hardlinks");
+    assert!(capabilities.symlink, "a temp dir must support symlinks");
 }
 
 #[test]
@@ -104,9 +152,141 @@ fn can_write_to_dir_detects_a_writable_dir() {
 }
 
 #[test]
-fn can_write_to_dir_rejects_a_missing_dir() {
+fn can_write_to_dir_accepts_a_missing_nested_dir_without_creating_it() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    assert!(!can_write_to_dir(&dir.path().join("does-not-exist")));
+    let missing = dir.path().join("cache/pnpm/dlx");
+    assert!(can_write_to_dir(&missing));
+    assert!(
+        !dir.path().join("cache").exists(),
+        "probing writability must not leave missing directories behind",
+    );
+}
+
+#[test]
+fn can_write_to_dir_rejects_empty_and_file_blocked_paths() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let blocker = dir.path().join("not-a-directory");
+    fs::write(&blocker, "file").expect("write blocking file");
+
+    assert!(!can_write_to_dir(Path::new("")));
+    assert!(!can_write_to_dir(&blocker));
+    assert!(!can_write_to_dir(&blocker.join("cache/pnpm")));
+}
+
+#[cfg(unix)]
+#[test]
+fn can_write_to_dir_rejects_dangling_symlinks_and_readonly_ancestors() {
+    use std::os::unix::fs::{PermissionsExt as _, symlink};
+
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let dangling = dir.path().join("dangling-link");
+    symlink(dir.path().join("nowhere"), &dangling).expect("create dangling symlink");
+    assert!(!can_write_to_dir(&dangling));
+    assert!(!can_write_to_dir(&dangling.join("pnpm")));
+
+    // Root bypasses POSIX permission bits.
+    // SAFETY: `geteuid` takes no arguments and has no preconditions.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+
+    let readonly = dir.path().join("readonly");
+    fs::create_dir(&readonly).expect("create readonly dir");
+    fs::set_permissions(&readonly, fs::Permissions::from_mode(0o555)).expect("chmod 0555");
+    let direct = can_write_to_dir(&readonly);
+    let nested = can_write_to_dir(&readonly.join("missing/store/v11"));
+    fs::set_permissions(&readonly, fs::Permissions::from_mode(0o755)).expect("restore permissions");
+
+    assert!(!direct);
+    assert!(!nested);
+}
+
+#[test]
+fn filesystem_check_passes_before_store_or_modules_dirs_exist() {
+    let sandbox = tempfile::tempdir().expect("create sandbox");
+    let project_dir = sandbox.path().join("proj");
+    fs::create_dir(&project_dir).expect("create project dir");
+    let missing_store_parent = sandbox.path().join("fresh-data/pnpm/store");
+    let modules_dir = project_dir.join("node_modules");
+
+    let mut config = Config {
+        store_dir: StoreDir::new(&missing_store_parent),
+        modules_dir: modules_dir.clone(),
+        install_state_dir: modules_dir.join(".pnpm"),
+        ..Config::default()
+    };
+    config.apply_global_virtual_store_derivation(false, false);
+
+    let result = check_filesystem_capabilities::<Host>(&config);
+    dbg!(&result);
+    assert_eq!(result.status, CheckStatus::Pass);
+    assert!(
+        !sandbox
+            .path()
+            .join("fresh-data")
+            .exists(),
+        "store parent must stay uncreated",
+    );
+    assert!(!modules_dir.exists(), "node_modules must stay uncreated");
+    assert_eq!(
+        fs::read_dir(&project_dir).expect("read project dir").count(),
+        0,
+        "temporary probe directory in project must be cleaned up",
+    );
+}
+
+#[test]
+fn filesystem_check_warns_when_store_and_project_are_on_different_mounts() {
+    let sandbox = tempfile::tempdir().expect("create sandbox");
+    let mount_a = sandbox.path().join("mount-a");
+    let mount_b = sandbox.path().join("mount-b");
+    let project_dir = mount_b.join("proj");
+    fs::create_dir_all(&mount_a).expect("create mount-a");
+    fs::create_dir_all(&project_dir).expect("create mount-b project");
+
+    let modules_dir = project_dir.join("node_modules");
+    let mut config = Config {
+        store_dir: StoreDir::new(mount_a.join("store")),
+        modules_dir: modules_dir.clone(),
+        install_state_dir: modules_dir.join(".pnpm"),
+        ..Config::default()
+    };
+    config.apply_global_virtual_store_derivation(false, false);
+
+    let result = check_filesystem_capabilities::<CrossMountFs>(&config);
+    dbg!(&result);
+    assert_eq!(result.status, CheckStatus::Warn);
+    #[cfg(unix)]
+    assert_eq!(result.detail.as_deref(), Some("available: symlink"));
+    assert_eq!(
+        result.fix.as_deref(),
+        Some(
+            "Neither reflink nor hardlink works between the store and this project; installs will copy files and be slower. Put the store on the same filesystem as your projects."
+        ),
+    );
+}
+
+#[test]
+fn filesystem_check_passes_across_mounts_when_global_virtual_store_links_on_store_mount() {
+    let sandbox = tempfile::tempdir().expect("create sandbox");
+    let mount_a = sandbox.path().join("mount-a");
+    let mount_b = sandbox.path().join("mount-b");
+    let project_dir = mount_b.join("proj");
+    fs::create_dir_all(&mount_a).expect("create mount-a");
+    fs::create_dir_all(&project_dir).expect("create mount-b project");
+
+    let modules_dir = project_dir.join("node_modules");
+    let mut config = Config {
+        store_dir: StoreDir::new(mount_a.join("store")),
+        modules_dir,
+        enable_global_virtual_store: true,
+        ..Config::default()
+    };
+    config.apply_global_virtual_store_derivation(false, false);
+
+    let result = check_filesystem_capabilities::<CrossMountFs>(&config);
+    dbg!(&result);
+    assert_eq!(result.status, CheckStatus::Pass);
 }
 
 /// The install smoke test surfaces the last meaningful stderr line, so a

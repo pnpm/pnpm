@@ -9,8 +9,19 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { isError } from '@pnpm/error'
 import { ping } from '@pnpm/registry-access.commands'
 import chalk from 'chalk'
+import { pathAbsolute } from 'path-absolute'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+
+import {
+  areSameDir,
+  canWriteToDir,
+  checkFilesystemCapabilities,
+  checkWritableDir,
+  type LinkOperations,
+} from './doctorFilesystem.js'
+
+export type { LinkOperations }
 
 export const commandNames = ['doctor']
 
@@ -25,7 +36,7 @@ export const commandNames = ['doctor']
 export const skipPackageManagerCheck = true
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return pick(['offline'], allTypes)
+  return pick(['offline', 'store-dir'], allTypes)
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
@@ -74,12 +85,20 @@ export interface CheckResult {
   durationMs?: number
 }
 
-export interface DoctorCommandOptions extends Omit<ping.PingOptions, 'registry'>, Pick<Config, 'registriesByScope'> {
-  dir: string
-  cacheDir: string
-  pnpmHomeDir: string
-  globalBinDir?: string
-  storeDir?: string
+export interface DoctorCommandOptions extends Omit<ping.PingOptions, 'registry'>, Pick<Config,
+| 'dir'
+| 'cacheDir'
+| 'pnpmHomeDir'
+| 'globalBinDir'
+| 'storeDir'
+| 'lockfileDir'
+| 'workspaceDir'
+| 'modulesDir'
+| 'virtualStoreDir'
+| 'enableGlobalVirtualStore'
+| 'nodeLinker'
+| 'registriesByScope'
+> {
   offline?: boolean
   json?: boolean
   benchmark?: boolean
@@ -88,17 +107,23 @@ export interface DoctorCommandOptions extends Omit<ping.PingOptions, 'registry'>
    * the running binary; tests point it at a built entry instead.
    */
   pnpmCommand?: string[]
+  /**
+   * Filesystem link operations used by the filesystem capabilities probe;
+   * tests override them to simulate cross-device (`EXDEV`) mounts.
+   */
+  linkOperations?: LinkOperations
 }
 
 export async function handler (opts: DoctorCommandOptions): Promise<{ output: string, exitCode: number }> {
   const pnpmCommand = opts.pnpmCommand ?? resolvePnpmSelfCommand()
+  const pkgRoot = opts.workspaceDir ?? opts.dir
 
   const checks: CheckResult[] = [
     checkVersions(),
     checkInstallMethod(),
     await checkGlobalBinDir(opts),
     await checkWritableDir('Cache directory', opts.cacheDir),
-    ...(opts.storeDir ? [await checkWritableDir('Store directory', opts.storeDir)] : []),
+    ...(opts.storeDir ? [await checkWritableDir('Store directory', pathAbsolute(opts.storeDir, pkgRoot))] : []),
     await checkFilesystemCapabilities(opts),
     await checkConnectivity(opts),
     await checkInstallSmokeTest(pnpmCommand, opts),
@@ -172,51 +197,6 @@ async function checkGlobalBinDir (opts: DoctorCommandOptions): Promise<CheckResu
     }
   }
   return { title, status: 'pass', detail: binDir }
-}
-
-async function checkWritableDir (title: string, dir: string): Promise<CheckResult> {
-  if (!canWriteToDir(dir)) {
-    return {
-      title,
-      status: 'fail',
-      detail: `no write access to ${dir}`,
-      fix: 'Fix the directory permissions or point the setting at a writable path.',
-    }
-  }
-  return { title, status: 'pass', detail: dir }
-}
-
-/**
- * Probe which link strategies work from the store's volume, since that is
- * what determines how packages land in `node_modules` and how fast an install
- * is: a reflink (copy-on-write) or hardlink is near-free, a plain copy is not.
- */
-async function checkFilesystemCapabilities (opts: DoctorCommandOptions): Promise<CheckResult> {
-  const title = 'Filesystem'
-  const probeParent = opts.storeDir ?? opts.cacheDir
-  let probeDir: string
-  try {
-    probeDir = await fs.promises.mkdtemp(path.join(probeParent, '.pnpm-doctor-'))
-  } catch {
-    probeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-doctor-'))
-  }
-  const started = Date.now()
-  try {
-    const capabilities = await probeLinkCapabilities(probeDir)
-    const available = Object.entries(capabilities).filter(([, ok]) => ok).map(([name]) => name)
-    const status: CheckStatus = capabilities.reflink || capabilities.hardlink ? 'pass' : 'warn'
-    return {
-      title,
-      status,
-      detail: available.length > 0 ? `available: ${available.join(', ')}` : 'only copying is available',
-      fix: status === 'warn'
-        ? 'Neither reflink nor hardlink works between the store and this project; installs will copy files and be slower. Put the store on the same filesystem as your projects.'
-        : undefined,
-      durationMs: opts.benchmark ? Date.now() - started : undefined,
-    }
-  } finally {
-    await fs.promises.rm(probeDir, { recursive: true, force: true })
-  }
 }
 
 async function checkConnectivity (opts: DoctorCommandOptions): Promise<CheckResult> {
@@ -349,47 +329,6 @@ function statusMark (status: CheckStatus): string {
   }
 }
 
-async function probeLinkCapabilities (dir: string): Promise<{ reflink: boolean, hardlink: boolean, symlink: boolean }> {
-  const source = path.join(dir, 'source')
-  await fs.promises.writeFile(source, 'pnpm-doctor')
-  return {
-    reflink: canReflink(source, path.join(dir, 'reflink')),
-    hardlink: await canLink(() => fs.promises.link(source, path.join(dir, 'hardlink'))),
-    symlink: await canLink(() => fs.promises.symlink(source, path.join(dir, 'symlink'))),
-  }
-}
-
-/**
- * Clone exactly the way the importer does, so the answer describes the reflink
- * pnpm would really attempt: Node cannot clone on macOS or Windows — its
- * `COPYFILE_FICLONE_FORCE` fails there with ENOSYS even on a filesystem that
- * supports cloning — so those platforms go through `@reflink/reflink`, as
- * `@pnpm/fs.indexed-pkg-importer` does.
- */
-function canReflink (source: string, dest: string): boolean {
-  try {
-    if (process.platform === 'darwin' || process.platform === 'win32') {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports -- the native addon is loaded synchronously and only on the platforms that need it
-      const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
-      reflinkFileSync(source, dest)
-    } else {
-      fs.copyFileSync(source, dest, fs.constants.COPYFILE_FICLONE_FORCE)
-    }
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function canLink (link: () => Promise<void>): Promise<boolean> {
-  try {
-    await link()
-    return true
-  } catch {
-    return false
-  }
-}
-
 function readPathEnv (env: NodeJS.ProcessEnv): string | undefined {
   if (process.platform !== 'win32') return env.PATH
   const key = Object.keys(env).find((name) => name.toUpperCase() === 'PATH')
@@ -402,19 +341,6 @@ async function dirIsInPath (dir: string, pathEnv: string): Promise<boolean> {
   try {
     const real = await fs.promises.realpath(dir)
     return dirs.some((entry) => areSameDir(real, entry))
-  } catch {
-    return false
-  }
-}
-
-const areSameDir = (dir1: string, dir2: string): boolean => dir1 !== '' && dir2 !== '' && path.relative(dir1, dir2) === ''
-
-function canWriteToDir (dir: string): boolean {
-  const probe = path.join(dir, `.pnpm-doctor-write-${process.pid}`)
-  try {
-    fs.writeFileSync(probe, '')
-    fs.rmSync(probe, { force: true })
-    return true
   } catch {
     return false
   }
