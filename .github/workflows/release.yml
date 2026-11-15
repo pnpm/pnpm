@@ -520,6 +520,9 @@ jobs:
           # published release cannot be corrected, only deleted — and deleting
           # it burns its tag for releases forever.
           draft: true
+          # The Tag workflow (update-latest.yml) moves the "Latest" badge along
+          # with the npm `latest` dist-tag.
+          make_latest: false
           # Explicit so the release's identity comes from the plan job like
           # every other step here, never from the github.ref fallback.
           tag_name: v${{ needs.plan.outputs.ts_version }}
@@ -1314,9 +1317,8 @@ jobs:
         # binary at the root of `pnpm-<target>.tar.gz` / `.zip`), so they're
         # uploaded byte-for-byte as attested there — get.pnpm.io's install
         # scripts fetch them by these exact names. Draft so a maintainer
-        # publishes it deliberately. `make_latest: false` keeps a published v12
-        # prerelease from stealing the "Latest" badge from the stable v11
-        # line.
+        # publishes it deliberately. The Tag workflow (update-latest.yml) moves
+        # the "Latest" badge along with the npm `latest` dist-tag.
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
