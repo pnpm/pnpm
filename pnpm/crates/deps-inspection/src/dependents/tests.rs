@@ -39,6 +39,6 @@ fn specifiers_and_projection_share_a_query_scoped_manifest_snapshot() {
     let next_query = ManifestProjector::new(&fields, &resolved);
     assert_eq!(
         next_query.dependency_specifier(&node_id, "target", DependencyKind::Dependency),
-        None
+        None,
     );
 }

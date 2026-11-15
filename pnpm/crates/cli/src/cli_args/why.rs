@@ -7,7 +7,7 @@ use crate::{
             build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
             dependents::{
                 BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree,
-                merge_trees,
+                merge_trees, merge_trees_for_parseable,
             },
             dependents_render::{
                 RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
@@ -123,7 +123,8 @@ impl WhyArgs {
         if !any_lockfile {
             return Ok(None);
         }
-        Ok(Some(merge_trees(trees)))
+        let merge = if self.output.parseable { merge_trees_for_parseable } else { merge_trees };
+        Ok(Some(merge(trees)))
     }
 
     async fn trees_for_lockfile(

@@ -9,7 +9,28 @@ use pnpm_lockfile::{
 };
 use pnpm_modules_yaml::IncludedDependencies;
 
-use super::{TreeNodeId, dependents::DepField};
+use super::TreeNodeId;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum DepField {
+    #[serde(rename = "dependencies")]
+    Dependencies,
+    #[serde(rename = "devDependencies")]
+    DevDependencies,
+    #[serde(rename = "optionalDependencies")]
+    OptionalDependencies,
+}
+
+impl DepField {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DepField::Dependencies => "dependencies",
+            DepField::DevDependencies => "devDependencies",
+            DepField::OptionalDependencies => "optionalDependencies",
+        }
+    }
+}
 
 /// One outgoing dependency edge of a graph node.
 #[derive(Debug, Clone)]

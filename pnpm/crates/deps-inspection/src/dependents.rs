@@ -1,8 +1,11 @@
 //! Reverse (dependents) tree for `pnpm why`. Rust counterpart of the
 //! TypeScript tree-builder's `buildDependentsTree`.
 
+pub use crate::graph::DepField;
+
 pub use selection::{
-    compare_versions, merge_trees, name_ver_from_dep_path, resolve_package_nodes, sort_trees,
+    compare_versions, merge_trees, merge_trees_for_parseable, name_ver_from_dep_path,
+    resolve_package_nodes, sort_trees,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -97,27 +100,6 @@ impl DependentNode {
             importer_id: None,
             merge_id: None,
             root_paths: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum DepField {
-    #[serde(rename = "dependencies")]
-    Dependencies,
-    #[serde(rename = "devDependencies")]
-    DevDependencies,
-    #[serde(rename = "optionalDependencies")]
-    OptionalDependencies,
-}
-
-impl DepField {
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            DepField::Dependencies => "dependencies",
-            DepField::DevDependencies => "devDependencies",
-            DepField::OptionalDependencies => "optionalDependencies",
         }
     }
 }
