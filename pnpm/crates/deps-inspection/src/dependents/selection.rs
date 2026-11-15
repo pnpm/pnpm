@@ -119,9 +119,9 @@ pub fn name_ver_from_dep_path(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) ->
 }
 
 /// Disambiguating merge key for a package whose display `version` is empty.
-/// Directory `file:` resolutions key on the resolved target directory so the
-/// same directory referenced from multiple per-project lockfiles merges while
-/// distinct directories with the same package name stay separate.
+/// Directory `file:` resolutions key lexically on the target directory without
+/// touching the filesystem so the same directory referenced from multiple
+/// per-project lockfiles merges while distinct directories stay separate.
 pub(super) fn package_merge_id(
     lockfile_dir: &Path,
     lockfile: &Lockfile,
@@ -137,9 +137,11 @@ pub(super) fn package_merge_id(
         .and_then(|packages| packages.get(&without_peer))
         .map(|metadata| &metadata.resolution);
     if let Some(LockfileResolution::Directory(dir_res)) = resolution {
-        let joined = lexical_normalize(&lockfile_dir.join(&dir_res.directory));
-        let canonical = dunce::canonicalize(&joined).unwrap_or(joined);
-        return Some(format!("dir:{}", canonical.to_string_lossy()));
+        if dir_res.directory.starts_with(r"\\") || dir_res.directory.starts_with("//") {
+            return Some(format!("dir:{}", dir_res.directory));
+        }
+        let normalized = lexical_normalize(&lockfile_dir.join(&dir_res.directory));
+        return Some(format!("dir:{}", normalized.to_string_lossy()));
     }
     Some(format!("dep:{without_peer}"))
 }
@@ -285,3 +287,6 @@ fn merge_into_node(target: &mut DependentNode, source: DependentNode) {
         target.deduped = false;
     }
 }
+
+#[cfg(test)]
+mod tests;

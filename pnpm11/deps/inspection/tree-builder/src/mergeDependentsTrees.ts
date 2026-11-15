@@ -56,30 +56,32 @@ function cloneAndTagDependents (
       ...node,
       ...(node.dependents ? { dependents: cloneAndTagDependents(node.dependents, rootPath, treeIndex) } : {}),
     }
-    copyClonedDependentMetadata(cloned, node, rootPath, treeIndex)
+    copyClonedDependentMetadata({ cloned, source: node, rootPath, treeIndex })
     return cloned
   })
 }
 
-function copyClonedDependentMetadata (
-  cloned: DependentNode,
-  source: DependentNode,
-  rootPath: string | undefined,
+interface CopyClonedDependentMetadataOpts {
+  cloned: DependentNode
+  source: DependentNode
+  rootPath: string | undefined
   treeIndex: number
-): void {
-  const existingImporterId = getDependentNodeImporterId(source) ?? (source.depField != null ? `tree:${treeIndex}` : undefined)
+}
+
+function copyClonedDependentMetadata (opts: CopyClonedDependentMetadataOpts): void {
+  const existingImporterId = getDependentNodeImporterId(opts.source) ?? (opts.source.depField != null ? `tree:${opts.treeIndex}` : undefined)
   if (existingImporterId != null) {
-    setDependentNodeImporterId(cloned, existingImporterId)
+    setDependentNodeImporterId(opts.cloned, existingImporterId)
   }
-  const existingMergeId = getDependentNodeMergeId(source)
+  const existingMergeId = getDependentNodeMergeId(opts.source)
   if (existingMergeId != null) {
-    setDependentNodeMergeId(cloned, existingMergeId)
+    setDependentNodeMergeId(opts.cloned, existingMergeId)
   }
-  const existingRootPaths = dependentNodeRootPaths.get(source)
+  const existingRootPaths = dependentNodeRootPaths.get(opts.source)
   if (existingRootPaths != null) {
-    dependentNodeRootPaths.set(cloned, [...existingRootPaths])
-  } else if (rootPath != null) {
-    dependentNodeRootPaths.set(cloned, [rootPath])
+    dependentNodeRootPaths.set(opts.cloned, [...existingRootPaths])
+  } else if (opts.rootPath != null) {
+    dependentNodeRootPaths.set(opts.cloned, [opts.rootPath])
   }
 }
 

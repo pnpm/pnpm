@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { removePeersSuffix } from '@pnpm/deps.path'
@@ -37,33 +36,44 @@ export function getDependentNodeMergeId (node: DependentNode): string | undefine
   return dependentNodeMergeIds.get(node)
 }
 
-export function getPackageMergeId (
-  lockfileDir: string,
-  depPath: DepPath,
-  snapshot: PackageSnapshot,
+export interface GetPackageMergeIdOpts {
+  lockfileDir: string
+  depPath: DepPath
+  snapshot: PackageSnapshot
   version: string | undefined
-): string | undefined {
-  if (version) return undefined
-  if ('directory' in snapshot.resolution && snapshot.resolution.type === 'directory') {
-    const joined = path.resolve(lockfileDir, snapshot.resolution.directory)
-    try {
-      return `dir:${fs.realpathSync.native(joined)}`
-    } catch {
-      return `dir:${joined}`
-    }
-  }
-  return `dep:${removePeersSuffix(depPath)}`
 }
 
-export function recordPackageNodeMergeId (
-  node: DependentNode,
-  lockfileDir: string,
-  depPath: DepPath,
+export function getPackageMergeId (opts: GetPackageMergeIdOpts): string | undefined {
+  if (opts.version) return undefined
+  if ('directory' in opts.snapshot.resolution && opts.snapshot.resolution.type === 'directory') {
+    const { directory } = opts.snapshot.resolution
+    if (directory.startsWith('\\\\') || directory.startsWith('//')) {
+      return `dir:${directory}`
+    }
+    const normalized = path.isAbsolute(directory)
+      ? path.normalize(directory)
+      : path.join(opts.lockfileDir, directory)
+    return `dir:${normalized}`
+  }
+  return `dep:${removePeersSuffix(opts.depPath)}`
+}
+
+export interface RecordPackageNodeMergeIdOpts {
+  node: DependentNode
+  lockfileDir: string
+  depPath: DepPath
   snapshot: PackageSnapshot
-): void {
-  const mergeId = getPackageMergeId(lockfileDir, depPath, snapshot, node.version)
+}
+
+export function recordPackageNodeMergeId (opts: RecordPackageNodeMergeIdOpts): void {
+  const mergeId = getPackageMergeId({
+    lockfileDir: opts.lockfileDir,
+    depPath: opts.depPath,
+    snapshot: opts.snapshot,
+    version: opts.node.version,
+  })
   if (mergeId != null) {
-    setDependentNodeMergeId(node, mergeId)
+    setDependentNodeMergeId(opts.node, mergeId)
   }
 }
 

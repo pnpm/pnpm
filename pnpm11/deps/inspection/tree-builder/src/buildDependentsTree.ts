@@ -227,7 +227,7 @@ function buildTreeIfMatched (
   if (typeof matched === 'string') {
     tree.searchMessage = matched
   }
-  const mergeId = getPackageMergeId(ctx.lockfileDir, depPath, snapshot, version)
+  const mergeId = getPackageMergeId({ lockfileDir: ctx.lockfileDir, depPath, snapshot, version })
   if (mergeId != null) {
     setDependentsTreeMergeId(tree, mergeId)
   }
@@ -382,7 +382,7 @@ function createCircularDependent (edge: ReverseEdge, ctx: WalkContext): Dependen
   const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
   const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
   const node: DependentNode = { name, displayName, version, peersSuffixHash, circular: true }
-  recordPackageNodeMergeId(node, ctx.lockfileDir, depPath, snapshot)
+  recordPackageNodeMergeId({ node, lockfileDir: ctx.lockfileDir, depPath, snapshot })
   return node
 }
 
@@ -421,7 +421,7 @@ function createPackageDependent (edge: ReverseEdge, depPath: DepPath, ctx: WalkC
 
   if (ctx.expanded.has(edge.parentSerialized)) {
     const node: DependentNode = { name, displayName, version, peersSuffixHash, deduped: true }
-    recordPackageNodeMergeId(node, ctx.lockfileDir, depPath, snapshot)
+    recordPackageNodeMergeId({ node, lockfileDir: ctx.lockfileDir, depPath, snapshot })
     return node
   }
 
@@ -437,7 +437,7 @@ function createPackageDependent (edge: ReverseEdge, depPath: DepPath, ctx: WalkC
     peersSuffixHash,
     dependents: childDependents.length > 0 ? childDependents : undefined,
   }
-  recordPackageNodeMergeId(node, ctx.lockfileDir, depPath, snapshot)
+  recordPackageNodeMergeId({ node, lockfileDir: ctx.lockfileDir, depPath, snapshot })
   return node
 }
 
