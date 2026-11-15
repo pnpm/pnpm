@@ -18,6 +18,15 @@ on:
 
 permissions: {}
 
+# Runs write the npm dist-tags and then the GitHub "Latest" release. Overlapping
+# runs could interleave those writes and leave the two pointing at different
+# versions, and cancelling a run could stop it between them. The default queue
+# keeps one pending run and cancels it when another dispatch arrives.
+concurrency:
+  group: update-latest
+  cancel-in-progress: false
+  queue: max
+
 env:
   # Passed to each command as `--registry`, which is the only form pnpm reads;
   # it ignores `npm_config_registry`.
@@ -34,7 +43,8 @@ jobs:
   validate:
     name: Validate ${{ github.event.inputs.version }} and ${{ github.event.inputs.tag }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    permissions: {}
+    permissions:
+      contents: read  # to read the GitHub release
     steps:
     - name: Install pnpm and Node
       uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
@@ -82,6 +92,25 @@ jobs:
             fi
             ;;
         esac
+    # mark-latest-release moves the GitHub "Latest" badge to this release, and
+    # the announcement jobs link to it, so it must be public before npm moves.
+    # A token without push access cannot see drafts, so a draft reads as missing.
+    - name: Verify the GitHub release is published
+      if: ${{ inputs.tag == 'latest' }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        VERSION: ${{ github.event.inputs.version }}
+      run: |
+        set -euo pipefail
+        if ! state="$(gh release view "v${VERSION}" --json isDraft,isPrerelease --jq '"\(.isDraft) \(.isPrerelease)"')"; then
+          echo "::error::No published GitHub release v${VERSION}. Publish its draft before tagging it latest."
+          exit 1
+        fi
+        if [ "$state" != "false false" ]; then
+          echo "::error::GitHub release v${VERSION} is a draft or a prerelease (isDraft isPrerelease: ${state}). Publish it as a full release before tagging it latest."
+          exit 1
+        fi
   # Upgrading onto a version reads its published manifest and platform packages,
   # so a release that is only broken as an upgrade target fails here and nowhere
   # earlier — and the dist-tag move below is the last point at which it can still
@@ -220,6 +249,50 @@ jobs:
         if [ "$TAG" != "latest-${MAJOR}" ]; then
           pn dist-tag add "pnpm@${VERSION}" "${TAG}" --registry="$REGISTRY"
           pn dist-tag add "@pnpm/exe@${VERSION}" "${TAG}" --registry="$REGISTRY"
+        fi
+
+  # The badge follows the npm `latest` dist-tag, so it moves here, after the
+  # dist-tag, rather than when the release is published: a published release
+  # has not passed verify-upgrade yet. It is set from the registry, not from the
+  # inputs, so every dispatch also corrects a badge that a manually published
+  # release took (https://github.com/pnpm/pnpm/issues/18134).
+  mark-latest-release:
+    name: Mark the npm latest version as the latest GitHub release
+    needs: tag-in-registry
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: write  # to set the "Latest" release
+    steps:
+    - name: Mark the release as latest
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        VERSION: ${{ github.event.inputs.version }}
+        TAG: ${{ github.event.inputs.tag }}
+      run: |
+        set -euo pipefail
+        # The registry can serve the dist-tags from before tag-in-registry for
+        # a short while, and marking that version would pass the check below.
+        for _ in 1 2 3 4 5 6; do
+          latest="$(curl -fsS "${REGISTRY}-/package/pnpm/dist-tags" | jq -r .latest)"
+          if [ "$TAG" != latest ] || [ "$latest" = "$VERSION" ]; then
+            break
+          fi
+          sleep 10
+        done
+        if [ "$TAG" = latest ] && [ "$latest" != "$VERSION" ]; then
+          echo "::error::The registry still reports ${latest} as latest, expected ${VERSION}."
+          exit 1
+        fi
+        if ! printf '%s\n' "$latest" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "::error::Could not read the latest version of pnpm from the registry. Got: ${latest}"
+          exit 1
+        fi
+        gh release edit "v${latest}" --latest
+        actual="$(gh api "repos/${GH_REPO}/releases/latest" --jq .tag_name)"
+        if [ "$actual" != "v${latest}" ]; then
+          echo "::error::The latest GitHub release is ${actual}, expected v${latest}."
+          exit 1
         fi
 
   publish-to-winget:
