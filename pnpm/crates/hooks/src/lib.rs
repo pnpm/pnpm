@@ -78,9 +78,10 @@ pub type ReadPackageResult = Arc<Value>;
 
 /// An error raised while running a pnpmfile hook in Node.js.
 ///
-/// Covers the `ERR_PNPM_PNPMFILE_FAIL` / `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` conditions: a
-/// throwing or syntactically invalid pnpmfile, or a `readPackage` hook that
-/// returns something that is not a package manifest, aborts the install.
+/// Covers the `ERR_PNPM_PNPMFILE_FAIL`, `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT`,
+/// `ERR_PNPM_CONFIG_IS_UNDEFINED`, and `ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN`
+/// conditions: a throwing or syntactically invalid pnpmfile, or a hook that
+/// returns an invalid value, aborts the command.
 #[derive(Debug, Display, Clone)]
 pub enum HookError {
     #[display("pnpmfile hook '{_0}' timed out after {_1} seconds")]
@@ -93,6 +94,14 @@ pub enum HookError {
     },
 
     BadReadPackageResult {
+        message: String,
+    },
+
+    ConfigIsUndefined {
+        message: String,
+    },
+
+    BadAfterAllResolvedReturn {
         message: String,
     },
 }

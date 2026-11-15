@@ -43,8 +43,8 @@ use crate::{
 use cleanup::discard_install_dir_on_error;
 use derive_more::{Display, Error};
 use install::{
-    GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, is_plain_version_spec,
-    pins_for_downgrades, run_group_install,
+    GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, pins_for_downgrades,
+    run_group_install,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
@@ -60,7 +60,7 @@ use pnpm_global::{
     get_installed_bin_names, installed_versions, is_global_install_subdir,
     read_direct_dependencies, read_installed_packages, scan_global_packages,
 };
-use pnpm_lockfile::{ImporterDepVersion, Lockfile};
+use pnpm_lockfile::Lockfile;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pnpm_package_name::is_valid_old_npm_package_name;
@@ -74,9 +74,9 @@ use remove::{
     collect_existing_global_installs, snapshot_global_package,
 };
 use selectors::{
-    SelectorGroup, groups_matching_params, infer_local_package_alias, missing_file_source_warning,
-    replacement_aliases, should_replace_existing_package, split_into_groups, take_rust_toolchains,
-    tool_install_selectors, update_selectors,
+    SelectorGroup, can_update_to_latest, groups_matching_params, infer_local_package_alias,
+    missing_file_source_warning, replacement_aliases, should_replace_existing_package,
+    split_into_groups, take_rust_toolchains, tool_install_selectors, update_selectors,
 };
 
 use shims::{

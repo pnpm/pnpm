@@ -204,14 +204,19 @@ fn detects_windows_drive_paths() {
 }
 
 #[test]
-fn latest_update_uses_the_latest_tag_only_for_plain_version_dependencies() {
+fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencies() {
     let dependencies = vec![
         ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
         ("local-tarball-pkg".to_string(), "file:/home/user/local-tarball-pkg.tgz".to_string()),
         ("git-pkg".to_string(), "github:user/git-pkg".to_string()),
         ("remote-tarball-pkg".to_string(), "https://example.com/pkg.tgz".to_string()),
         ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("scoped-alias".to_string(), "npm:@scope/pkg@1.0.0".to_string()),
+        ("same-name-npm".to_string(), "npm:^1.0.0".to_string()),
         ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
+        ("node".to_string(), "runtime:^20.0.0".to_string()),
+        ("deno".to_string(), "runtime:^1.40.0".to_string()),
+        ("bun".to_string(), "runtime:1.1.0".to_string()),
         ("foo".to_string(), "^1.0.0".to_string()),
         ("bar".to_string(), "next".to_string()),
     ];
@@ -222,8 +227,13 @@ fn latest_update_uses_the_latest_tag_only_for_plain_version_dependencies() {
             "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
             "git-pkg@github:user/git-pkg",
             "remote-tarball-pkg@https://example.com/pkg.tgz",
-            "aliased-pkg@npm:other-pkg@^2.0.0",
+            "aliased-pkg@npm:other-pkg@latest",
+            "scoped-alias@npm:@scope/pkg@latest",
+            "same-name-npm@npm:same-name-npm@latest",
             "named-registry-pkg@gh:^3.0.0",
+            "node@runtime:latest",
+            "deno@runtime:latest",
+            "bun@runtime:latest",
             "foo@latest",
             "bar@latest",
         ],
@@ -237,19 +247,39 @@ fn latest_update_uses_the_latest_tag_only_for_plain_version_dependencies() {
     );
 }
 
+#[test]
+fn latest_update_preserves_node_prerelease_channels() {
+    let dependencies = vec![("node".to_string(), "runtime:22.0.0-rc.1".to_string())];
+    assert_eq!(
+        update_selectors(&dependencies, true, &HashMap::new()),
+        vec!["node@runtime:rc/latest"],
+    );
+}
+
 /// An update must never move a package backwards, so a pinned alias is held at
 /// the version it is already on while the rest of the group still updates.
 #[test]
 fn a_pinned_dependency_is_held_at_its_installed_version() {
     let dependencies = vec![
         ("prerelease".to_string(), "^2.0.0".to_string()),
+        ("aliased".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("node".to_string(), "runtime:^22.0.0".to_string()),
         ("stable".to_string(), "^1.0.0".to_string()),
     ];
-    let pins = HashMap::from([("prerelease".to_string(), "2.0.0".to_string())]);
+    let pins = HashMap::from([
+        ("prerelease".to_string(), "2.0.0".to_string()),
+        ("aliased".to_string(), "2.5.0".to_string()),
+        ("node".to_string(), "22.4.0".to_string()),
+    ]);
 
     assert_eq!(
         update_selectors(&dependencies, true, &pins),
-        vec!["prerelease@2.0.0", "stable@latest"],
+        vec![
+            "prerelease@2.0.0",
+            "aliased@npm:other-pkg@2.5.0",
+            "node@runtime:22.4.0",
+            "stable@latest",
+        ],
     );
 }
 

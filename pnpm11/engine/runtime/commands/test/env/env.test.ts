@@ -482,4 +482,43 @@ test('env remove does not remove Windows shims targeting 18.10 when removing 18.
   }
 })
 
+test.each([
+  ['22.14.0', 'v22.14.0'],
+  ['22.14.0', 'V22'],
+  ['22.0.0-rc.1', 'v22.0.0-rc.1'],
+  ['22.0.0-rc.1', 'rc/22.0.0-rc.1'],
+  ['22.0.0-rc.1', 'rc/v22.0.0-rc.1'],
+])('env remove matches installed %s when requested as %s', async (installedVersion, requestedVersion) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  try {
+    const pnpmHomeDir = path.join(tempDir, 'home')
+    const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
+    fs.mkdirSync(path.join(installDir, 'node_modules', 'node'), { recursive: true })
+    fs.writeFileSync(
+      path.join(installDir, 'package.json'),
+      JSON.stringify({
+        engines: {
+          runtime: { name: 'node', version: installedVersion, onFail: 'download' },
+        },
+      })
+    )
+    fs.writeFileSync(
+      path.join(installDir, 'node_modules', 'node', 'package.json'),
+      JSON.stringify({ name: 'node', version: installedVersion })
+    )
+    createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
+
+    await env.handler({
+      bin: path.join(tempDir, 'bin'),
+      global: true,
+      pnpmHomeDir,
+      configByUri: {},
+    }, ['remove', requestedVersion])
+
+    expect(fs.existsSync(installDir)).toBe(false)
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
 

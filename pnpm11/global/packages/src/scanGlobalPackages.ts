@@ -4,7 +4,7 @@ import path from 'node:path'
 import { type Command, getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { isError } from '@pnpm/error'
 import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import type { PackageManifest } from '@pnpm/types'
+import { type EngineDependency, isPlainObject, type PackageManifest, RUNTIME_NAMES } from '@pnpm/types'
 
 const RESERVED_ALIASES = new Set(['node_modules', 'favicon.ico'])
 
@@ -76,13 +76,46 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
   return result
 }
 
+export function readGlobalGroupDependencies (installDir: string): Record<string, string> {
+  const pkgJson = readPackageJsonFromDirRawSync(installDir)
+  const rawDeps: Record<string, string> = isPlainObject(pkgJson.dependencies)
+    ? { ...pkgJson.dependencies }
+    : {}
+  appendDownloadedRuntimes(rawDeps, pkgJson.engines?.runtime)
+  return pickValidDependencies(rawDeps)
+}
+
+function appendDownloadedRuntimes (
+  deps: Record<string, string>,
+  runtimeField: EngineDependency | EngineDependency[] | undefined
+): void {
+  if (runtimeField == null) return
+  const runtimes = Array.isArray(runtimeField) ? runtimeField : [runtimeField]
+  for (const runtimeName of RUNTIME_NAMES) {
+    const spec = downloadedRuntimeSpec(runtimes, runtimeName)
+    if (spec != null && !deps[runtimeName]) {
+      Object.defineProperty(deps, runtimeName, {
+        value: spec,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      })
+    }
+  }
+}
+
+function downloadedRuntimeSpec (runtimes: EngineDependency[], runtimeName: string): string | undefined {
+  const runtime = runtimes.find((entry) => entry?.name === runtimeName)
+  if (runtime?.onFail !== 'download' || typeof runtime.version !== 'string') return undefined
+  const trimmed = runtime.version.trim()
+  return trimmed ? `runtime:${trimmed}` : undefined
+}
+
 function scanSymlinkEntry (globalDir: string, entryName: string): GlobalPackageInfo | undefined {
   const linkPath = path.join(globalDir, entryName)
   try {
     const installDir = fs.realpathSync(linkPath)
-    const pkgJson = readPackageJsonFromDirRawSync(installDir)
-    if (!pkgJson.dependencies) return undefined
-    const dependencies = pickValidDependencies(pkgJson.dependencies)
+    const dependencies = readGlobalGroupDependencies(installDir)
     if (Object.keys(dependencies).length === 0) return undefined
     return {
       hash: entryName,

@@ -36,6 +36,29 @@ pub enum ParseNodeSpecifierError {
     },
 }
 
+/// Strip a leading `'v'` or `'V'` before an ASCII digit, leaving release
+/// channel names such as `"v8-canary"` untouched.
+#[must_use]
+pub fn strip_leading_v(value: &str) -> &str {
+    if value
+        .get(..9)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("v8-canary"))
+    {
+        return value;
+    }
+    match value.strip_prefix(['v', 'V']) {
+        Some(rest)
+            if rest
+                .bytes()
+                .next()
+                .is_some_and(|byte| byte.is_ascii_digit()) =>
+        {
+            rest
+        }
+        _ => value,
+    }
+}
+
 /// Split a `runtime:` bare specifier's body into its release-channel
 /// and version-selector halves.
 pub fn parse_node_specifier(specifier: &str) -> Result<NodeSpecifier, ParseNodeSpecifierError> {
@@ -47,34 +70,36 @@ pub fn parse_node_specifier(specifier: &str) -> Result<NodeSpecifier, ParseNodeS
         }
         return Ok(NodeSpecifier {
             release_channel: channel.to_string(),
-            version_specifier: rest.to_string(),
+            version_specifier: strip_leading_v(rest).to_string(),
         });
     }
 
-    if let Some(channel) = prerelease_channel(specifier) {
+    let normalized = strip_leading_v(specifier);
+
+    if let Some(channel) = prerelease_channel(normalized) {
         return Ok(NodeSpecifier {
             release_channel: channel.to_string(),
-            version_specifier: specifier.to_string(),
+            version_specifier: normalized.to_string(),
         });
     }
 
-    if is_stable_version(specifier) {
+    if is_stable_version(normalized) {
         return Ok(NodeSpecifier {
             release_channel: "release".to_string(),
-            version_specifier: specifier.to_string(),
+            version_specifier: normalized.to_string(),
         });
     }
 
-    if RELEASE_CHANNELS.contains(&specifier) {
+    if RELEASE_CHANNELS.contains(&normalized) {
         return Ok(NodeSpecifier {
-            release_channel: specifier.to_string(),
+            release_channel: normalized.to_string(),
             version_specifier: "latest".to_string(),
         });
     }
 
     Ok(NodeSpecifier {
         release_channel: "release".to_string(),
-        version_specifier: specifier.to_string(),
+        version_specifier: normalized.to_string(),
     })
 }
 

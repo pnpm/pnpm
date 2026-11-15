@@ -333,7 +333,12 @@ async fn after_all_resolved<'a>(
     let result = hook
         .after_all_resolved(value, ctx)
         .await
-        .map_err(InstallWithFreshLockfileError::AfterAllResolvedHook)?;
+        .map_err(|err| match err {
+            pnpm_hooks::HookError::BadAfterAllResolvedReturn { .. } => {
+                InstallWithFreshLockfileError::BadAfterAllResolvedReturn(err)
+            }
+            other => InstallWithFreshLockfileError::AfterAllResolvedHook(other),
+        })?;
 
     // `Null` means the pnpmfile has no `afterAllResolved` hook.
     Ok(if result.is_null() {

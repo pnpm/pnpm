@@ -1021,6 +1021,81 @@ fn global_update_latest_exceeds_the_saved_range() {
     drop((root, npmrc_info));
 }
 
+#[cfg(unix)]
+#[test]
+fn global_update_latest_upgrades_npm_aliases_and_runtimes_across_majors_without_downgrading() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let mut node_server = mockito::Server::new();
+    let _node_mocks = crate::install_runtimes::mock_node_releases(
+        &mut node_server,
+        &["24.0.0-rc.4", "20.0.0-rc.1"],
+        None,
+    );
+
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read workspace yaml");
+    fs::write(&yaml_path, format!("{yaml}nodeDownloadMirrors:\n  rc: '{}/'\n", node_server.url()))
+        .expect("write workspace yaml with node mirror");
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "my-alias@npm:@pnpm.e2e/multi-version-a@^1.0.0"])
+        .assert()
+        .success();
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "node@20.0.0-rc.1"])
+        .assert()
+        .success();
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest"])
+        .assert()
+        .success();
+
+    let global_dir = pnpm_home.join("global/v11");
+    let alias_group = pnpm_global::find_global_package(&global_dir, "my-alias")
+        .expect("scan global")
+        .expect("find my-alias");
+    assert_eq!(
+        pnpm_global::installed_versions(&alias_group.install_dir)
+            .get("my-alias")
+            .map(String::as_str),
+        Some("2.1.0"),
+    );
+
+    let node_group = pnpm_global::find_global_package(&global_dir, "node")
+        .expect("scan global")
+        .expect("find node");
+    assert_eq!(
+        pnpm_global::installed_versions(&node_group.install_dir).get("node").map(String::as_str),
+        Some("24.0.0-rc.4"),
+    );
+
+    // Moving `latest` backwards must hold `my-alias` at 2.1.0 rather than downgrading to 1.0.0.
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest", "my-alias"])
+        .assert()
+        .success();
+    let alias_group_after = pnpm_global::find_global_package(&global_dir, "my-alias")
+        .expect("scan global")
+        .expect("find my-alias");
+    assert_eq!(
+        pnpm_global::installed_versions(&alias_group_after.install_dir)
+            .get("my-alias")
+            .map(String::as_str),
+        Some("2.1.0"),
+    );
+
+    drop((root, npmrc_info));
+}
+
 /// `--latest` resolves the `latest` dist-tag, which can point at an older
 /// release than the one installed — that is what rolled a self-updated pnpm
 /// back in pnpm/pnpm#14270. An update must never move a global package

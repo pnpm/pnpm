@@ -31,7 +31,9 @@ pub(super) fn spawn_stdout_reader(
 
 pub(super) fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &str) {
     let Ok(message) = serde_json::from_str::<Value>(line) else { return };
-    let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
+    let Some(id) = message.get("id").and_then(Value::as_u64) else {
+        return;
+    };
 
     if let Some(log) = message.get("log").and_then(Value::as_str) {
         dispatch_log(pending, id, log, &message);
@@ -44,15 +46,21 @@ pub(super) fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>
     }
 
     let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
-    let result = match message.get("err").and_then(Value::as_str) {
-        Some(err)
-            if message.get("code").and_then(Value::as_str)
-                == Some("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT") =>
-        {
+    let result = match (
+        message.get("err").and_then(Value::as_str),
+        message.get("code").and_then(Value::as_str),
+    ) {
+        (Some(err), Some("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT")) => {
             Err(WorkerError::BadReadPackageResult(err.to_string()))
         }
-        Some(err) => Err(WorkerError::Execution(err.to_string())),
-        None => Ok(message
+        (Some(err), Some("ERR_PNPM_CONFIG_IS_UNDEFINED")) => {
+            Err(WorkerError::ConfigIsUndefined(err.to_string()))
+        }
+        (Some(err), Some("ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN")) => {
+            Err(WorkerError::BadAfterAllResolvedReturn(err.to_string()))
+        }
+        (Some(err), _) => Err(WorkerError::Execution(err.to_string())),
+        (None, _) => Ok(message
             .get("ok")
             .cloned()
             .unwrap_or(Value::Null)),
@@ -81,7 +89,9 @@ fn dispatch_callback(
     id: u64,
     callback: &Value,
 ) {
-    let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
+    let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else {
+        return;
+    };
     let Some(method) = callback.get("method").cloned() else { return };
     let Ok(method) = serde_json::from_value(method) else { return };
     let resolution = callback

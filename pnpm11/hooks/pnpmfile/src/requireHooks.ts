@@ -229,9 +229,8 @@ function applyEntryHooks (
     cookedHooks.beforePacking.push(<Pkg extends BaseManifest>(pkg: Pkg, dir: string) => fn(pkg, dir, context))
   }
   if (fileHooks.afterAllResolved) {
-    const fn = fileHooks.afterAllResolved
     const context = createReadPackageHookContext(file, prefix, 'afterAllResolved')
-    cookedHooks.afterAllResolved.push((lockfile) => fn(lockfile, context))
+    cookedHooks.afterAllResolved.push(createCookedAfterAllResolved(fileHooks.afterAllResolved, context))
   }
   if (fileHooks.filterLog) {
     cookedHooks.filterLog.push(fileHooks.filterLog)
@@ -250,6 +249,16 @@ function createCookedUpdateConfig (updateConfig: NonNullable<Hooks['updateConfig
   return (config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any -- the config object comes from a user pnpmfile and has no fixed shape
     const updated = updateConfig(config)
     return updated instanceof Promise ? updated.then(assertConfigIsDefined) : assertConfigIsDefined(updated)
+  }
+}
+
+function createCookedAfterAllResolved (
+  afterAllResolved: NonNullable<Hooks['afterAllResolved']>,
+  context: HookContext
+): Cook<Required<Hooks>['afterAllResolved']> {
+  return (lockfile) => {
+    const updated = afterAllResolved(lockfile, context)
+    return updated instanceof Promise ? updated.then(assertAfterAllResolvedReturn) : assertAfterAllResolvedReturn(updated)
   }
 }
 
@@ -312,5 +321,18 @@ function assertConfigIsDefined<Config> (config: Config): Config {
   if (config == null) {
     throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
   }
+  if (typeof config !== 'object' || Array.isArray(config)) {
+    throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook did not return a config object')
+  }
   return config
+}
+
+function assertAfterAllResolvedReturn<Lockfile> (lockfile: Lockfile): Lockfile {
+  if (lockfile == null) {
+    throw new PnpmError('BAD_AFTER_ALL_RESOLVED_RETURN', 'The afterAllResolved hook returned undefined')
+  }
+  if (typeof lockfile !== 'object' || Array.isArray(lockfile)) {
+    throw new PnpmError('BAD_AFTER_ALL_RESOLVED_RETURN', 'The afterAllResolved hook did not return a lockfile object')
+  }
+  return lockfile
 }

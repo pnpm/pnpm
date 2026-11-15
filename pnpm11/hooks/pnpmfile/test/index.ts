@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -194,6 +196,42 @@ test('updateConfig throws an error if it resolves to undefined', async () => {
   const pnpmfile = path.join(import.meta.dirname, '__fixtures__/updateConfigResolvesUndefined.js')
   const { hooks } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile] })
   await expect(hooks.updateConfig![0]!({})).rejects.toThrow('The updateConfig hook returned undefined')
+})
+
+test('afterAllResolved throws BAD_AFTER_ALL_RESOLVED_RETURN if it returns or resolves to undefined or non-object', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpmfile-after-all-resolved-'))
+  const lockfile = { lockfileVersion: '9.0', importers: {}, packages: {} } as never
+  try {
+    const syncUndefined = path.join(tempDir, 'sync-undef.cjs')
+    fs.writeFileSync(syncUndefined, 'module.exports = { hooks: { afterAllResolved () {} } }')
+    const { hooks: syncHooks } = await requireHooks(tempDir, { pnpmfiles: [syncUndefined] })
+    expect(() => syncHooks.afterAllResolved![0]!(lockfile)).toThrow(
+      expect.objectContaining({
+        code: 'ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN',
+        message: 'The afterAllResolved hook returned undefined',
+      })
+    )
+
+    const asyncUndefined = path.join(tempDir, 'async-undef.cjs')
+    fs.writeFileSync(asyncUndefined, 'module.exports = { hooks: { async afterAllResolved () { return null } } }')
+    const { hooks: asyncHooks } = await requireHooks(tempDir, { pnpmfiles: [asyncUndefined] })
+    await expect(asyncHooks.afterAllResolved![0]!(lockfile)).rejects.toMatchObject({
+      code: 'ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN',
+      message: 'The afterAllResolved hook returned undefined',
+    })
+
+    const nonObj = path.join(tempDir, 'non-obj.cjs')
+    fs.writeFileSync(nonObj, 'module.exports = { hooks: { afterAllResolved () { return [] } } }')
+    const { hooks: nonObjHooks } = await requireHooks(tempDir, { pnpmfiles: [nonObj] })
+    expect(() => nonObjHooks.afterAllResolved![0]!(lockfile)).toThrow(
+      expect.objectContaining({
+        code: 'ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN',
+        message: 'The afterAllResolved hook did not return a lockfile object',
+      })
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
 })
 
 test('requirePnpmfile wraps non-native-Error throws instead of crashing', async () => {

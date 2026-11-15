@@ -37,6 +37,16 @@ test.each([
   ['24.0.0-nightly20250315d765e70802', '24.0.0-nightly20250315d765e70802', 'nightly'],
   // Exact v8-canary version
   ['22.0.0-v8-canary20250101abc', '22.0.0-v8-canary20250101abc', 'v8-canary'],
+  // Leading-v / leading-V specifiers
+  ['v22.0.0', '22.0.0', 'release'],
+  ['V22.0.0', '22.0.0', 'release'],
+  ['v22', '22', 'release'],
+  ['v22.0.0-rc.1', '22.0.0-rc.1', 'rc'],
+  ['V22.0.0-rc.1', '22.0.0-rc.1', 'rc'],
+  ['rc/v22.0.0-rc.1', '22.0.0-rc.1', 'rc'],
+  ['rc/v22', '22', 'rc'],
+  ['v24.0.0-nightly20250315d765e70802', '24.0.0-nightly20250315d765e70802', 'nightly'],
+  ['v22.0.0-v8-canary20250101abc', '22.0.0-v8-canary20250101abc', 'v8-canary'],
 ])('Node.js version specifier is parsed: %s', (specifier, expectedVersionSpecifier, expectedReleaseChannel) => {
   const result = parseNodeSpecifier(specifier)
   expect(result.versionSpecifier).toBe(expectedVersionSpecifier)

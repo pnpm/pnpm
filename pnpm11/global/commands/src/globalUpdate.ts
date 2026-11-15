@@ -16,6 +16,7 @@ import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import { localFilePath } from '@pnpm/resolving.local-resolver'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
@@ -326,9 +327,9 @@ async function installGroup (
 }
 
 /**
- * The selectors that reinstall a group. With `--latest` a plain version spec is
- * dropped so the newest release is picked; `pins` holds back the aliases that
- * would otherwise move backwards.
+ * The selectors that reinstall a group. With `--latest`, plain version specs,
+ * `npm:` aliases, and `runtime:` dependencies target the latest release; `pins`
+ * holds back aliases that would otherwise move backwards.
  */
 function depSpecsForUpdate (
   dependencies: Record<string, string>,
@@ -337,8 +338,12 @@ function depSpecsForUpdate (
 ): string[] {
   return Object.entries(dependencies).map(([alias, spec]) => {
     const pin = pins.get(alias)
-    if (pin != null) return `${alias}@${pin}`
-    return latest && isPlainVersionSpec(spec) ? alias : `${alias}@${spec}`
+    if (pin != null) return pinnedDepSpec(alias, spec, pin)
+    if (latest) {
+      const latestSpec = latestDepSpec(alias, spec)
+      if (latestSpec != null) return latestSpec
+    }
+    return `${alias}@${spec}`
   })
 }
 
@@ -352,10 +357,6 @@ function depSpecsForUpdate (
  * release that is about to be rejected never gets the chance to run its
  * lifecycle scripts. The install that follows reuses the lockfile written here
  * and only re-resolves what a pin changes.
- *
- * Only plain version dependencies are considered: every other spec form says
- * where the package comes from, so holding one at a bare version would resolve
- * a different package from the default registry.
  */
 async function pinsForDowngrades (
   opts: GlobalUpdateOptions,
@@ -363,14 +364,10 @@ async function pinsForDowngrades (
   pkg: GlobalPackageInfo
 ): Promise<{ candidate?: InstallGlobalPackagesResult, pins: Map<string, string> }> {
   const pins = new Map<string, string>()
-  // Only `--latest` can pick a version outside the recorded range, and only a
-  // plain version spec is dropped for it. Everything else resolves within a
-  // range the installed version already satisfies, so nothing below — not even
-  // reading the group's installed versions — is worth doing.
   if (opts.latest !== true) return { pins }
   const versionsBefore = new Map(
     (await getGlobalPackageDetails(pkg))
-      .filter(({ alias }) => isPlainVersionSpec(pkg.dependencies[alias] ?? ''))
+      .filter(({ alias }) => latestDepSpec(alias, pkg.dependencies[alias] ?? '') != null)
       .map(({ alias, version }) => [alias, version])
   )
   // Nothing to compare a resolution against, so nothing to resolve.
@@ -404,12 +401,75 @@ async function lockfilesAreEqual (activeDir: string, candidateDir: string): Prom
   }
 }
 
-// Only a plain version range may be dropped in favor of the bare alias.
-// Every other spec form (`link:`, `file:`, a git or tarball URL, an `npm:`
-// alias, a named registry) also says where the package comes from, so the
-// alias alone would be resolved from the default registry: a different
-// package gets installed, or the lookup 404s and aborts the groups that
-// have not been updated yet.
-function isPlainVersionSpec (spec: string): boolean {
-  return !spec.includes(':')
+const NODE_RELEASE_CHANNELS = new Set(['nightly', 'rc', 'test', 'v8-canary', 'release'])
+
+function parseNodeRuntimeChannel (runtimeSpec: string): string | undefined {
+  if (runtimeSpec.includes('/')) {
+    const channel = runtimeSpec.slice(0, runtimeSpec.indexOf('/'))
+    return NODE_RELEASE_CHANNELS.has(channel) ? channel : undefined
+  }
+  const normalized = runtimeSpec.slice(0, 9).toLowerCase() === 'v8-canary'
+    ? runtimeSpec
+    : (/^v(?=\d)/i.test(runtimeSpec) ? runtimeSpec.slice(1) : runtimeSpec)
+  const prereleaseChannelMatch = normalized.match(/^\d+\.\d+\.\d+-(nightly|rc|test|v8-canary)/)
+  if (prereleaseChannelMatch != null) {
+    return prereleaseChannelMatch[1]
+  }
+  if (NODE_RELEASE_CHANNELS.has(normalized)) {
+    return normalized
+  }
+  return 'release'
+}
+
+function latestDepSpec (alias: string, spec: string): string | undefined {
+  if (!spec.includes(':')) return alias
+  if (spec.startsWith('npm:')) {
+    return latestNpmAliasSpec(alias, spec.slice('npm:'.length))
+  }
+  if (spec.startsWith('runtime:') || spec.startsWith('tool:')) {
+    return latestRuntimeSpec(alias, spec.slice(spec.indexOf(':') + 1))
+  }
+  return undefined
+}
+
+function latestNpmAliasSpec (alias: string, npmTarget: string): string | undefined {
+  const parsed = parseWantedDependency(npmTarget)
+  if (parsed.alias != null) {
+    return parsed.bareSpecifier == null || !parsed.bareSpecifier.includes(':')
+      ? `${alias}@npm:${parsed.alias}@latest`
+      : undefined
+  }
+  if (parsed.bareSpecifier != null && parsed.bareSpecifier !== '' && !parsed.bareSpecifier.includes(':')) {
+    return `${alias}@npm:${alias}@latest`
+  }
+  return undefined
+}
+
+function latestRuntimeSpec (alias: string, runtimeSpec: string): string | undefined {
+  if (alias !== 'node') return `${alias}@runtime:latest`
+  const channel = parseNodeRuntimeChannel(runtimeSpec)
+  if (channel == null) return undefined
+  return channel === 'release' ? 'node@runtime:latest' : `node@runtime:${channel}/latest`
+}
+
+function pinnedDepSpec (alias: string, spec: string, pin: string): string {
+  if (!spec.includes(':')) return `${alias}@${pin}`
+  if (spec.startsWith('npm:')) {
+    const parsed = parseWantedDependency(spec.slice('npm:'.length))
+    return `${alias}@npm:${parsed.alias ?? alias}@${pin}`
+  }
+  if (spec.startsWith('runtime:') || spec.startsWith('tool:')) {
+    return pinnedRuntimeSpec(alias, spec.slice(spec.indexOf(':') + 1), pin)
+  }
+  return `${alias}@${pin}`
+}
+
+function pinnedRuntimeSpec (alias: string, runtimeSpec: string, pin: string): string {
+  if (alias === 'node') {
+    const channel = parseNodeRuntimeChannel(runtimeSpec)
+    if (channel != null && channel !== 'release' && parseNodeRuntimeChannel(pin) === 'release') {
+      return `node@runtime:${channel}/${pin}`
+    }
+  }
+  return `${alias}@runtime:${pin}`
 }

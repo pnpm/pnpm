@@ -21,8 +21,8 @@ const findGlobalPackage = jest.fn<(globalDir: string, alias: string) => GlobalPa
 const getHashLink = jest.fn((globalDir: string, hash: string) => `${globalDir}/${hash}`)
 const getInstalledBinNames = jest.fn<(pkg: GlobalPackageInfo) => Promise<string[]>>().mockResolvedValue(['pnpm'])
 const scanGlobalPackages = jest.fn().mockReturnValue([])
-const readPackageJsonFromDirRawSync = jest.fn().mockReturnValue({
-  dependencies: { '@pnpm/exe': 'file:/tmp/pnpm' },
+const readGlobalGroupDependencies = jest.fn().mockReturnValue({
+  '@pnpm/exe': 'file:/tmp/pnpm',
 })
 const checkGlobalBinConflicts = jest.fn<(opts: CheckGlobalBinConflictsOptions) => Promise<Set<string>>>().mockResolvedValue(new Set())
 const installGlobalPackages = jest.fn<(...args: unknown[]) => Promise<{ ignoredBuilds: undefined, resolutionPolicyViolations: [] }>>()
@@ -43,10 +43,8 @@ jest.unstable_mockModule('@pnpm/global.packages', () => ({
   findGlobalPackage,
   getHashLink,
   getInstalledBinNames,
+  readGlobalGroupDependencies,
   scanGlobalPackages,
-}))
-jest.unstable_mockModule('@pnpm/pkg-manifest.reader', () => ({
-  readPackageJsonFromDirRawSync,
 }))
 jest.unstable_mockModule('../src/checkGlobalBinConflicts.js', () => ({ checkGlobalBinConflicts }))
 jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlobalPackages }))

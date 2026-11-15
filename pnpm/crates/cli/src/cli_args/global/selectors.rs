@@ -1,8 +1,7 @@
 use super::{
     AddRequest, Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf,
-    fs, is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize, local_file_path,
-    parse_wanted_dependency, rust_toolchain_request, safe_read_package_json_from_dir,
-    tool_install_selector,
+    fs, is_valid_old_npm_package_name, lexical_normalize, local_file_path, parse_wanted_dependency,
+    rust_toolchain_request, safe_read_package_json_from_dir, tool_install_selector,
 };
 
 /// The packages one global install request asks for: the tokens a
@@ -101,9 +100,77 @@ pub(super) fn groups_matching_params(
     Some(filtered)
 }
 
-/// The selectors that reinstall a group. With `--latest`, a plain version spec
-/// uses the latest dist-tag so the seeded manifest range cannot hold it back;
-/// `pins` holds back aliases that would otherwise move backwards.
+/// Whether `--latest` rewrites `(alias, spec)` to a latest selector.
+pub(super) fn can_update_to_latest(alias: &str, spec: &str) -> bool {
+    latest_selector(alias, spec).is_some()
+}
+
+fn latest_selector(alias: &str, spec: &str) -> Option<String> {
+    if !spec.contains(':') {
+        return Some(format!("{alias}@latest"));
+    }
+    if let Some(rest) = spec.strip_prefix("npm:") {
+        return latest_npm_alias_selector(alias, rest);
+    }
+    pnpm_tool_protocol::strip_tool_protocol(spec)
+        .and_then(|runtime_spec| latest_runtime_selector(alias, runtime_spec))
+}
+
+fn latest_npm_alias_selector(alias: &str, rest: &str) -> Option<String> {
+    let parsed = parse_wanted_dependency(rest);
+    if let Some(target_pkg) = parsed.alias.as_deref() {
+        return parsed.bare_specifier
+            .as_deref()
+            .is_none_or(|inner| !inner.contains(':'))
+            .then(|| format!("{alias}@npm:{target_pkg}@latest"));
+    }
+    let inner = parsed.bare_specifier.as_deref()?;
+    (!inner.is_empty() && !inner.contains(':')).then(|| format!("{alias}@npm:{alias}@latest"))
+}
+
+fn latest_runtime_selector(alias: &str, runtime_spec: &str) -> Option<String> {
+    if alias != "node" {
+        return Some(format!("{alias}@runtime:latest"));
+    }
+    let parsed = pnpm_engine_runtime_node_resolver::parse_node_specifier(runtime_spec).ok()?;
+    Some(if parsed.release_channel == "release" {
+        "node@runtime:latest".to_string()
+    } else {
+        format!("node@runtime:{}/latest", parsed.release_channel)
+    })
+}
+
+fn pinned_selector(alias: &str, spec: &str, pin: &str) -> String {
+    if !spec.contains(':') {
+        return format!("{alias}@{pin}");
+    }
+    if let Some(rest) = spec.strip_prefix("npm:") {
+        let parsed = parse_wanted_dependency(rest);
+        let target_pkg = parsed.alias.as_deref().unwrap_or(alias);
+        return format!("{alias}@npm:{target_pkg}@{pin}");
+    }
+    if let Some(runtime_spec) = pnpm_tool_protocol::strip_tool_protocol(spec) {
+        return pinned_runtime_selector(alias, runtime_spec, pin);
+    }
+    format!("{alias}@{pin}")
+}
+
+fn pinned_runtime_selector(alias: &str, runtime_spec: &str, pin: &str) -> String {
+    if alias == "node"
+        && let Ok(parsed) = pnpm_engine_runtime_node_resolver::parse_node_specifier(runtime_spec)
+        && parsed.release_channel != "release"
+        && pnpm_engine_runtime_node_resolver::parse_node_specifier(pin)
+            .is_ok_and(|pin_parsed| pin_parsed.release_channel == "release")
+    {
+        return format!("node@runtime:{}/{pin}", parsed.release_channel);
+    }
+    format!("{alias}@runtime:{pin}")
+}
+
+/// The selectors that reinstall a group. With `--latest`, plain version specs,
+/// `npm:` aliases, and `runtime:` dependencies use `latest` so the seeded
+/// manifest range cannot hold them back; `pins` holds back aliases that would
+/// otherwise move backwards.
 pub(super) fn update_selectors(
     dependencies: &[(String, String)],
     latest: bool,
@@ -113,9 +180,9 @@ pub(super) fn update_selectors(
         .iter()
         .map(|(alias, spec)| {
             if let Some(pin) = pins.get(alias) {
-                format!("{alias}@{pin}")
-            } else if latest && is_plain_version_spec(spec) {
-                format!("{alias}@latest")
+                pinned_selector(alias, spec, pin)
+            } else if latest && let Some(selector) = latest_selector(alias, spec) {
+                selector
             } else {
                 format!("{alias}@{spec}")
             }

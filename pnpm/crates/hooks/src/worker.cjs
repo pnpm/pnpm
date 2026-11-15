@@ -19,10 +19,15 @@ process.stdout.write = (chunk, encoding, callback) => {
   if (typeof done === 'function') done();
   return true;
 };
-class BadReadPackageResultError extends Error {
+class HookReturnError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
+class BadReadPackageResultError extends HookReturnError {
   constructor(message) {
-    super(message + " Hook imported via " + pnpmfilePath);
-    this.code = "ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT";
+    super("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT", message + " Hook imported via " + pnpmfilePath);
   }
 }
 async function ensureLoaded() {
@@ -225,6 +230,48 @@ async function handle(req) {
       if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
       const newPkg = await fn(req.payload, req.dir, context);
       send({ ok: newPkg == null ? req.payload : newPkg });
+    } else if (req.hook === 'updateConfig') {
+      if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
+      const updated = await fn(req.payload, context);
+      if (updated == null) {
+        throw new HookReturnError('ERR_PNPM_CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined');
+      }
+      if (typeof updated !== 'object' || Array.isArray(updated)) {
+        throw new HookReturnError('ERR_PNPM_CONFIG_IS_UNDEFINED', 'The updateConfig hook did not return a config object');
+      }
+      let response;
+      let serialized;
+      try {
+        response = JSON.stringify({ id, ok: updated });
+        serialized = JSON.parse(response).ok;
+      } catch {
+        throw new HookReturnError('ERR_PNPM_CONFIG_IS_UNDEFINED', 'The updateConfig hook did not return a serializable config object');
+      }
+      if (!serialized || typeof serialized !== 'object' || Array.isArray(serialized)) {
+        throw new HookReturnError('ERR_PNPM_CONFIG_IS_UNDEFINED', 'The updateConfig hook did not return a config object');
+      }
+      writeProtocol(response + '\n');
+    } else if (req.hook === 'afterAllResolved') {
+      if (typeof fn !== 'function') { send({ ok: null }); return; }
+      const updated = await fn(req.payload, context);
+      if (updated == null) {
+        throw new HookReturnError('ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN', 'The afterAllResolved hook returned undefined');
+      }
+      if (typeof updated !== 'object' || Array.isArray(updated)) {
+        throw new HookReturnError('ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN', 'The afterAllResolved hook did not return a lockfile object');
+      }
+      let response;
+      let serialized;
+      try {
+        response = JSON.stringify({ id, ok: updated });
+        serialized = JSON.parse(response).ok;
+      } catch {
+        throw new HookReturnError('ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN', 'The afterAllResolved hook did not return a serializable lockfile object');
+      }
+      if (!serialized || typeof serialized !== 'object' || Array.isArray(serialized)) {
+        throw new HookReturnError('ERR_PNPM_BAD_AFTER_ALL_RESOLVED_RETURN', 'The afterAllResolved hook did not return a lockfile object');
+      }
+      writeProtocol(response + '\n');
     } else if (req.hook === 'filterLog') {
       const res = (typeof fn === 'function') ? await fn(req.payload, context) : true;
       send({ ok: res });
@@ -233,7 +280,7 @@ async function handle(req) {
       send({ ok: res === undefined ? null : res });
     }
   } catch (err) {
-    if (err instanceof BadReadPackageResultError) {
+    if (err instanceof HookReturnError) {
       send({ err: err.message, code: err.code });
     } else {
       send({ err: err && err.stack ? err.stack : String(err) });
