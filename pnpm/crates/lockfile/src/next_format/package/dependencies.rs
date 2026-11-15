@@ -135,17 +135,35 @@ impl<'a> Declarations<'a> {
                 written.insert(alias.clone(), declared_dep(specifier, reference, injected));
             }
         }
-        let bare_string = matches!(self, Declarations::None);
         written.extend(
             references
                 .into_iter()
-                .map(|(alias, reference)| {
-                    (alias.to_string(), reference_dep(reference, bare_string))
-                }),
+                .map(|(alias, reference)| (alias.to_string(), self.reference_dep(reference))),
         );
         let marks_unrecorded =
             matches!(self, Declarations::Unrecorded) && group == DependencyGroup::Prod;
         (marks_unrecorded || !written.is_empty()).then_some(written)
+    }
+    /// A reference no declaration records: a bare version in a package
+    /// that is not a directory, else a map without a `specifier`, so a
+    /// reader does not take it for a declaration.
+    fn reference_dep(self, reference: NextRef) -> NextPackageDep {
+        match (self, reference) {
+            (Declarations::None, NextRef::Plain(version)) => NextPackageDep::Text(version),
+            (Declarations::Unrecorded | Declarations::Recorded(_), NextRef::Plain(version)) => {
+                NextPackageDep::Map(Box::new(NextPackageDepMap {
+                    version: Some(version),
+                    ..Default::default()
+                }))
+            }
+            (_, NextRef::Named { version, peers }) => {
+                NextPackageDep::Map(Box::new(NextPackageDepMap {
+                    version: Some(version),
+                    peers: Some(peers),
+                    ..Default::default()
+                }))
+            }
+        }
     }
 }
 
@@ -167,21 +185,6 @@ fn declared_dep(specifier: &str, reference: Option<NextRef>, injected: bool) -> 
                 injected,
             }))
         }
-    }
-}
-
-fn reference_dep(reference: NextRef, bare_string: bool) -> NextPackageDep {
-    match reference {
-        NextRef::Plain(version) if bare_string => NextPackageDep::Text(version),
-        NextRef::Plain(version) => NextPackageDep::Map(Box::new(NextPackageDepMap {
-            version: Some(version),
-            ..Default::default()
-        })),
-        NextRef::Named { version, peers } => NextPackageDep::Map(Box::new(NextPackageDepMap {
-            version: Some(version),
-            peers: Some(peers),
-            ..Default::default()
-        })),
     }
 }
 

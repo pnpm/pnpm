@@ -50,7 +50,7 @@ pub(super) async fn resolve_aliasless_specifier(
         .await
         .map(Some);
     }
-    resolve_aliasless_local(specifier, manifest).await
+    resolve_aliasless_local(specifier, manifest, inputs.add.config.workspace_dir.as_deref()).await
 }
 /// Resolve a local directory or tarball selector by reading the package's
 /// own manifest — off disk for a directory, out of the archive for a
@@ -61,6 +61,7 @@ pub(super) async fn resolve_aliasless_specifier(
 pub(super) async fn resolve_aliasless_local(
     specifier: &str,
     manifest: &PackageManifest,
+    workspace_dir: Option<&std::path::Path>,
 ) -> Result<Option<AliaslessDependency>, AddError> {
     if !is_local_filesystem_specifier(specifier) {
         return Ok(None);
@@ -78,7 +79,9 @@ pub(super) async fn resolve_aliasless_local(
         // The name and the normalized specifier are all this resolve is
         // after, and neither is measured from the lockfile root.
         lockfile_dir: None,
-        workspace_dir: None,
+        // The install bounds a `file:` directory's publishing project by
+        // the workspace root, so the name read here must too.
+        workspace_dir: workspace_dir.map(std::path::Path::to_path_buf),
         current_pkg: None,
         update: LocalResolverUpdate::On,
         // `is_local_filesystem_specifier` above never claims a `workspace:`
