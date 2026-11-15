@@ -161,6 +161,7 @@ fn legacy_registries_warning_keeps_credentials_when_comparing_urls() {
     )
     .expect("legacy route has different credentials");
 
+    eprintln!("{warning}");
     assert!(warning.contains("@acme"));
 }
 
