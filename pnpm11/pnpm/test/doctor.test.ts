@@ -360,12 +360,12 @@ test('pnpm doctor returns a filesystem warning when writing the store probe file
   fs.mkdirSync(projectDir, { recursive: true })
   fs.mkdirSync(storeDir, { recursive: true })
 
-  const realWriteFile = fs.promises.writeFile.bind(fs.promises)
-  const writeSpy = jest.spyOn(fs.promises, 'writeFile').mockImplementation(async (target, data, options) => {
+  const realOpen = fs.promises.open.bind(fs.promises)
+  const openSpy = jest.spyOn(fs.promises, 'open').mockImplementation(async (target, flags, mode) => {
     if (typeof target === 'string' && target.includes('.pnpm-doctor-') && target.endsWith(`${path.sep}source`)) {
       throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
     }
-    return realWriteFile(target, data, options)
+    return realOpen(target, flags, mode)
   })
   try {
     const { output, exitCode } = await handler({
@@ -392,7 +392,33 @@ test('pnpm doctor returns a filesystem warning when writing the store probe file
     expect(fs.readdirSync(storeDir)).toStrictEqual([])
     expect(fs.readdirSync(projectDir)).toStrictEqual([])
   } finally {
-    writeSpy.mockRestore()
+    openSpy.mockRestore()
+  }
+})
+
+test('pnpm doctor refuses to write probe files beneath a world-writable non-sticky ancestor', async () => {
+  if (process.platform === 'win32') return
+  prepare()
+  const root = process.cwd()
+  const unsafeParent = path.join(root, 'world-writable')
+  const projectDir = path.join(unsafeParent, 'proj')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.chmodSync(unsafeParent, 0o777)
+  try {
+    const fsCheck = await checkFilesystemCapabilities({
+      dir: projectDir,
+      pnpmHomeDir: path.join(root, 'pnpm-home'),
+    })
+
+    expect(fsCheck).toStrictEqual({
+      title: 'Filesystem',
+      status: 'warn',
+      detail: 'cannot safely probe link support in a directory writable by other users',
+      fix: 'Check ownership and permissions on the store and project ancestor directories.',
+    })
+    expect(fs.readdirSync(projectDir)).toStrictEqual([])
+  } finally {
+    fs.chmodSync(unsafeParent, 0o755)
   }
 })
 

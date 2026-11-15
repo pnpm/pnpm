@@ -1,10 +1,12 @@
 use super::{
     CheckResult, CheckStatus, DoctorArgs, DoctorReport, check_versions,
     filesystem::{
-        ProbeDirs, can_write_to_dir, check_filesystem_capabilities,
-        check_filesystem_capabilities_in_dirs, probe_link_capabilities,
+        ProbeDirs, check_filesystem_capabilities, check_filesystem_capabilities_in_dirs,
+        probe_link_capabilities,
     },
-    last_line, render_report, status_mark,
+    last_line,
+    probe_path::can_write_to_dir,
+    render_report, status_mark,
 };
 use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_fs::{FsHardLink, FsReflink, Host};
@@ -323,6 +325,39 @@ fn filesystem_check_warns_when_store_probe_cannot_write_file() {
     assert_eq!(result.status, CheckStatus::Warn);
     assert_eq!(result.detail.as_deref(), Some("could not write a probe file"));
     assert_eq!(result.fix.as_deref(), Some("Check that the store directory is writable."));
+}
+
+#[cfg(unix)]
+#[test]
+fn filesystem_check_warns_without_probing_beneath_world_writable_ancestor() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let sandbox = tempfile::tempdir().expect("create sandbox");
+    let unsafe_parent = sandbox.path().join("world-writable");
+    let project_dir = unsafe_parent.join("proj");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+    fs::set_permissions(&unsafe_parent, fs::Permissions::from_mode(0o777)).expect("chmod 0777");
+
+    let modules_dir = project_dir.join("node_modules");
+    let mut config = Config {
+        store_dir: StoreDir::new(sandbox.path().join("store")),
+        modules_dir: modules_dir.clone(),
+        install_state_dir: modules_dir.join(".pnpm"),
+        ..Config::default()
+    };
+    config.apply_global_virtual_store_derivation(false, false);
+
+    let result = check_filesystem_capabilities::<Host>(&config);
+    fs::set_permissions(&unsafe_parent, fs::Permissions::from_mode(0o755))
+        .expect("restore permissions");
+
+    dbg!(&result);
+    assert_eq!(result.status, CheckStatus::Warn);
+    assert_eq!(
+        result.detail.as_deref(),
+        Some("cannot safely probe link support in a directory writable by other users"),
+    );
+    assert_eq!(fs::read_dir(&project_dir).expect("read project dir").count(), 0);
 }
 
 /// The install smoke test surfaces the last meaningful stderr line, so a

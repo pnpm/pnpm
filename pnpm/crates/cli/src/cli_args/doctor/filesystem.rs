@@ -1,115 +1,13 @@
-use super::CheckResult;
+use super::{
+    CheckResult,
+    probe_path::{ProbeAncestor, ProbeDir, resolve_probe_ancestor, write_exclusive_probe_file},
+};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::{FsHardLink, FsReflink};
 use std::{
-    fs, io,
+    io,
     path::{Path, PathBuf},
 };
-
-pub(super) fn check_writable_dir(title: &str, dir: &Path) -> CheckResult {
-    if !can_write_to_dir(dir) {
-        return CheckResult::fail(
-            title,
-            format!("no write access to {}", dir.display()),
-            "Fix the directory permissions or point the setting at a writable path.",
-        );
-    }
-    CheckResult::pass(title, dir.display().to_string())
-}
-
-pub(super) fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
-    let canonical = dir.canonicalize();
-    path_dirs
-        .iter()
-        .any(|entry| {
-            entry == dir
-                || match (&canonical, entry.canonicalize()) {
-                    (Ok(dir), Ok(entry)) => dir == &entry,
-                    _ => false,
-                }
-        })
-}
-
-/// Probe write access for `dir`: existing directories are checked for file
-/// creation directly, while missing cache, store, or global bin directories
-/// probe subdirectory and file creation at their deepest existing ancestor
-/// without leaving empty directories on disk.
-pub(super) fn can_write_to_dir(dir: &Path) -> bool {
-    match resolve_existing_dir(dir) {
-        Some(ExistingDir::Target(existing)) => can_create_file(&existing),
-        Some(ExistingDir::Ancestor(ancestor)) => can_create_subdir(&ancestor),
-        None => false,
-    }
-}
-
-fn can_create_file(dir: &Path) -> bool {
-    pnpm_fs::private_named_tempfile_in(dir).is_ok()
-}
-
-fn can_create_subdir(ancestor: &Path) -> bool {
-    let Ok(probe_dir) = make_probe_dir(ancestor) else {
-        return false;
-    };
-    can_create_file(probe_dir.path())
-}
-
-enum ExistingDir {
-    Target(PathBuf),
-    Ancestor(PathBuf),
-}
-
-/// Return the deepest ancestor of `dir` (including `dir` itself) that already
-/// exists on disk and resolves to a directory, or `None` when an ancestor is
-/// blocked by a non-directory entry, a dangling symlink, or an unreadable parent.
-pub(super) fn existing_ancestor_dir(dir: &Path) -> Option<PathBuf> {
-    match resolve_existing_dir(dir)? {
-        ExistingDir::Target(path) | ExistingDir::Ancestor(path) => Some(path),
-    }
-}
-
-enum PathEntryState {
-    Dir,
-    Missing,
-    Blocked,
-}
-
-fn classify_path_entry(candidate: &Path) -> PathEntryState {
-    match fs::symlink_metadata(candidate) {
-        Ok(_) if fs::metadata(candidate).is_ok_and(|meta| meta.is_dir()) => PathEntryState::Dir,
-        Ok(_) => PathEntryState::Blocked,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => PathEntryState::Missing,
-        Err(_) => PathEntryState::Blocked,
-    }
-}
-
-fn normalize_non_empty_path(dir: &Path) -> Option<PathBuf> {
-    if dir.as_os_str().is_empty() {
-        return None;
-    }
-    let absolute =
-        if dir.is_absolute() { dir.to_path_buf() } else { std::env::current_dir().ok()?.join(dir) };
-    Some(pnpm_fs::lexical_normalize(&absolute))
-}
-
-fn resolve_existing_dir(dir: &Path) -> Option<ExistingDir> {
-    let normalized = normalize_non_empty_path(dir)?;
-    for ancestor in normalized
-        .ancestors()
-        .filter(|path| !path.as_os_str().is_empty())
-    {
-        match classify_path_entry(ancestor) {
-            PathEntryState::Dir if ancestor == normalized => {
-                return Some(ExistingDir::Target(ancestor.to_path_buf()));
-            }
-            PathEntryState::Dir => {
-                return Some(ExistingDir::Ancestor(ancestor.to_path_buf()));
-            }
-            PathEntryState::Missing => {}
-            PathEntryState::Blocked => return None,
-        }
-    }
-    None
-}
 
 /// Probe which link strategies work between the store and the project, since
 /// that determines how packages land in `node_modules` and how fast an install
@@ -118,14 +16,19 @@ pub(super) fn check_filesystem_capabilities<Sys>(config: &Config) -> CheckResult
 where
     Sys: FsReflink + FsHardLink,
 {
-    let Ok(probes) = create_probe_workspaces(config) else {
-        return CheckResult::warn(
+    match create_probe_workspaces(config) {
+        Ok(probes) => check_filesystem_capabilities_in_dirs::<Sys>(probes.as_dirs()),
+        Err(ProbeWorkspaceError::UnsafeAncestor) => CheckResult::warn(
+            "Filesystem",
+            "cannot safely probe link support in a directory writable by other users",
+            "Check ownership and permissions on the store and project ancestor directories.",
+        ),
+        Err(ProbeWorkspaceError::Unavailable) => CheckResult::warn(
             "Filesystem",
             "could not create a probe directory",
             "Check that the store and project directories are writable.",
-        );
-    };
-    check_filesystem_capabilities_in_dirs::<Sys>(probes.as_dirs())
+        ),
+    }
 }
 
 pub(super) fn check_filesystem_capabilities_in_dirs<Sys>(dirs: ProbeDirs<'_>) -> CheckResult
@@ -158,10 +61,15 @@ where
     }
 }
 
+enum ProbeWorkspaceError {
+    UnsafeAncestor,
+    Unavailable,
+}
+
 struct ProbeWorkspaces {
-    store: tempfile::TempDir,
-    link_target: tempfile::TempDir,
-    symlink_target: Option<tempfile::TempDir>,
+    store: ProbeDir,
+    link_target: ProbeDir,
+    symlink_target: Option<ProbeDir>,
 }
 
 impl ProbeWorkspaces {
@@ -171,32 +79,40 @@ impl ProbeWorkspaces {
             link_target: self.link_target.path(),
             symlink_target: self.symlink_target
                 .as_ref()
-                .map(tempfile::TempDir::path)
+                .map(ProbeDir::path)
                 .unwrap_or_else(|| self.link_target.path()),
         }
     }
 }
 
-fn create_probe_workspaces(config: &Config) -> io::Result<ProbeWorkspaces> {
-    let store_ancestor = existing_ancestor_dir(config.store_dir.root())
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "store ancestor unavailable"))?;
-    let link_ancestor = existing_ancestor_dir(link_target_dir(config))
-        .ok_or_else(|| {
-            io::Error::new(io::ErrorKind::NotFound, "link target ancestor unavailable")
-        })?;
-    let symlink_ancestor = existing_ancestor_dir(&config.modules_dir)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "modules ancestor unavailable"))?;
-
-    let store = make_probe_dir(&store_ancestor)?;
-    let link_target = make_probe_dir(&link_ancestor)?;
+fn create_probe_workspaces(config: &Config) -> Result<ProbeWorkspaces, ProbeWorkspaceError> {
+    let (store_ancestor, link_ancestor, symlink_ancestor) = resolve_workspace_ancestors(config)?;
+    let store = ProbeDir::new(&store_ancestor).map_err(|_| ProbeWorkspaceError::Unavailable)?;
+    let link_target = ProbeDir::new(&link_ancestor).map_err(|_| ProbeWorkspaceError::Unavailable)?;
     let symlink_target = (symlink_ancestor != link_ancestor)
-        .then(|| make_probe_dir(&symlink_ancestor))
-        .transpose()?;
+        .then(|| ProbeDir::new(&symlink_ancestor))
+        .transpose()
+        .map_err(|_| ProbeWorkspaceError::Unavailable)?;
     Ok(ProbeWorkspaces { store, link_target, symlink_target })
 }
 
-fn make_probe_dir(ancestor: &Path) -> io::Result<tempfile::TempDir> {
-    tempfile::Builder::new().prefix(".pnpm-doctor-").tempdir_in(ancestor)
+fn resolve_workspace_ancestors(
+    config: &Config,
+) -> Result<(PathBuf, PathBuf, PathBuf), ProbeWorkspaceError> {
+    let store = resolve_probe_ancestor(config.store_dir.root());
+    let link = resolve_probe_ancestor(link_target_dir(config));
+    let symlink = resolve_probe_ancestor(&config.modules_dir);
+    match (store, link, symlink) {
+        (ProbeAncestor::Unavailable, _, _)
+        | (_, ProbeAncestor::Unavailable, _)
+        | (_, _, ProbeAncestor::Unavailable) => Err(ProbeWorkspaceError::Unavailable),
+        (ProbeAncestor::Unsafe, _, _)
+        | (_, ProbeAncestor::Unsafe, _)
+        | (_, _, ProbeAncestor::Unsafe) => Err(ProbeWorkspaceError::UnsafeAncestor),
+        (ProbeAncestor::Safe(store), ProbeAncestor::Safe(link), ProbeAncestor::Safe(symlink)) => {
+            Ok((store, link, symlink))
+        }
+    }
 }
 
 fn link_target_dir(config: &Config) -> &Path {
@@ -245,7 +161,7 @@ where
     Sys: FsReflink + FsHardLink,
 {
     let source = dirs.store.join("source");
-    fs::write(&source, "pnpm-doctor")?;
+    write_exclusive_probe_file(&source, b"pnpm-doctor")?;
     Ok(LinkCapabilities {
         reflink: Sys::reflink(&source, &dirs.link_target.join("reflink")).is_ok(),
         hardlink: Sys::hard_link(&source, &dirs.link_target.join("hardlink")).is_ok(),

@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -9,11 +8,25 @@ import {
   modulesDirOf,
 } from '@pnpm/config.reader'
 import { STORE_VERSION } from '@pnpm/constants'
-import { isError } from '@pnpm/error'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pathAbsolute } from 'path-absolute'
 
 import type { CheckResult } from './doctor.js'
+import {
+  ancestorsFromRoot,
+  canWriteToDir,
+  checkWritableDir,
+  existingAncestorDir,
+  makeProbeDir,
+  type ProbeDir,
+  removeProbeDirs,
+  resolveProbeAncestor,
+  safeProbeAncestorDir,
+  verifyProbeDir,
+  writeExclusiveProbeFile,
+} from './doctorProbePath.js'
+
+export { canWriteToDir, checkWritableDir, existingAncestorDir }
 
 export interface LinkOperations {
   reflink: (source: string, dest: string) => boolean
@@ -51,111 +64,16 @@ export function resolveConfiguredStoreDir (storeDir: string, pkgRoot: string): s
     : path.join(storeBasePath, STORE_VERSION)
 }
 
-export async function checkWritableDir (title: string, dir: string): Promise<CheckResult> {
-  if (!canWriteToDir(dir)) {
-    return {
-      title,
-      status: 'fail',
-      detail: `no write access to ${dir}`,
-      fix: 'Fix the directory permissions or point the setting at a writable path.',
-    }
-  }
-  return { title, status: 'pass', detail: dir }
-}
-
-/**
- * Probe write access for `dir`: existing directories are checked for file creation directly,
- * while missing cache, store, or global bin directories probe subdirectory and file creation
- * at their deepest existing ancestor without leaving empty directories on disk.
- */
-export function canWriteToDir (dir: string): boolean {
-  const resolved = resolveExistingDir(dir)
-  if (resolved == null) return false
-  return resolved.kind === 'target' ? canCreateFile(resolved.path) : canCreateSubdir(resolved.path)
-}
-
-function canCreateFile (dir: string): boolean {
-  const probeFile = path.join(dir, `.pnpm-doctor-write-${process.pid}-${crypto.randomUUID()}`)
-  try {
-    const fd = fs.openSync(probeFile, 'wx', 0o600)
-    fs.closeSync(fd)
-    return true
-  } catch {
-    return false
-  } finally {
-    removeProbePathSync(probeFile)
-  }
-}
-
-function canCreateSubdir (ancestor: string): boolean {
-  let probeDir: string | undefined
-  try {
-    probeDir = fs.mkdtempSync(path.join(ancestor, '.pnpm-doctor-write-'))
-    return canCreateFile(probeDir)
-  } catch {
-    return false
-  } finally {
-    if (probeDir != null) {
-      removeProbePathSync(probeDir)
-    }
-  }
-}
-
-function removeProbePathSync (probePath: string): void {
-  try {
-    fs.rmSync(probePath, { recursive: true, force: true })
-  } catch {
-    // Ignore transient cleanup errors so they never abort the doctor report.
-  }
-}
-
-type AncestorEntryState = 'dir' | 'missing' | 'blocked'
-
-export function existingAncestorDir (dir: string): string | undefined {
-  return resolveExistingDir(dir)?.path
-}
-
-function resolveExistingDir (dir: string): { path: string, kind: 'target' | 'ancestor' } | undefined {
-  if (dir === '') return undefined
-  let current = path.resolve(dir)
-  let kind: 'target' | 'ancestor' = 'target'
-  for (;;) {
-    const state = classifyPathEntry(current)
-    if (state === 'dir') return { path: current, kind }
-    if (state === 'blocked') return undefined
-    const parent = path.dirname(current)
-    if (parent === current) return undefined
-    current = parent
-    kind = 'ancestor'
-  }
-}
-
-function classifyPathEntry (candidate: string): AncestorEntryState {
-  try {
-    fs.lstatSync(candidate)
-  } catch (err: unknown) {
-    return isMissingPathError(err) ? 'missing' : 'blocked'
-  }
-  return isExistingDirectory(candidate) ? 'dir' : 'blocked'
-}
-
-function isMissingPathError (err: unknown): boolean {
-  return isError(err) && 'code' in err && err.code === 'ENOENT'
-}
-
-function isExistingDirectory (candidate: string): boolean {
-  try {
-    return fs.statSync(candidate).isDirectory()
-  } catch {
-    return false
-  }
-}
-
 interface ProbeWorkspaces {
-  storeProbeDir: string
-  linkProbeDir: string
-  symlinkProbeDir: string
+  storeProbeDir: ProbeDir
+  linkProbeDir: ProbeDir
+  symlinkProbeDir: ProbeDir
 }
+
+type ProbeWorkspacesResult =
+  | { kind: 'ok', workspaces: ProbeWorkspaces }
+  | { kind: 'unsafe' }
+  | { kind: 'unavailable' }
 
 /**
  * Probe which link strategies work between the store and the project.
@@ -165,19 +83,31 @@ export async function checkFilesystemCapabilities (opts: FilesystemProbeOptions)
   const started = Date.now()
   const linkOps = opts.linkOperations ?? defaultLinkOperations
   const storeDir = await resolveProbeStoreDir(opts, linkOps)
-  const createdProbeDirs: string[] = []
+  const createdProbeDirs: ProbeDir[] = []
   try {
-    const workspaces = await createProbeWorkspaces(opts, storeDir, createdProbeDirs)
-    if (workspaces == null) {
+    const workspaceResult = await createProbeWorkspaces(opts, storeDir, createdProbeDirs)
+    if (workspaceResult.kind === 'unsafe') {
+      return unsafeProbeAncestorWarning()
+    }
+    if (workspaceResult.kind === 'unavailable') {
       return probeDirectoryWarning()
     }
-    const capabilities = await probeLinkCapabilities(workspaces, linkOps)
+    const capabilities = await probeLinkCapabilities(workspaceResult.workspaces, linkOps)
     if (capabilities == null) {
       return probeFileWarning()
     }
     return formatCapabilitiesResult(capabilities, opts.benchmark ? Date.now() - started : undefined)
   } finally {
     await removeProbeDirs(createdProbeDirs)
+  }
+}
+
+function unsafeProbeAncestorWarning (): CheckResult {
+  return {
+    title: 'Filesystem',
+    status: 'warn',
+    detail: 'cannot safely probe link support in a directory writable by other users',
+    fix: 'Check ownership and permissions on the store and project ancestor directories.',
   }
 }
 
@@ -219,26 +149,41 @@ function formatCapabilitiesResult (
 async function createProbeWorkspaces (
   opts: FilesystemProbeOptions,
   storeDir: string,
-  createdProbeDirs: string[]
-): Promise<ProbeWorkspaces | undefined> {
+  createdProbeDirs: ProbeDir[]
+): Promise<ProbeWorkspacesResult> {
   const projectModulesDir = await resolveProjectModulesDir(opts)
   const { linkTargetDir, symlinkTargetDir } = resolveProbeTargetDirs(opts, storeDir, projectModulesDir)
-  const storeAncestor = existingAncestorDir(storeDir)
-  const linkAncestor = existingAncestorDir(linkTargetDir)
-  const symlinkAncestor = existingAncestorDir(symlinkTargetDir)
-  if (storeAncestor == null || linkAncestor == null || symlinkAncestor == null) {
-    return undefined
+  const ancestors = resolveWorkspaceAncestors(storeDir, linkTargetDir, symlinkTargetDir)
+  if (ancestors.kind !== 'ok') {
+    return ancestors
   }
   try {
-    const storeProbeDir = await makeProbeDir(storeAncestor, createdProbeDirs)
-    const linkProbeDir = await makeProbeDir(linkAncestor, createdProbeDirs)
-    const symlinkProbeDir = areSameDir(symlinkAncestor, linkAncestor)
+    const storeProbeDir = await makeProbeDir(ancestors.store, createdProbeDirs)
+    const linkProbeDir = await makeProbeDir(ancestors.link, createdProbeDirs)
+    const symlinkProbeDir = areSameDir(ancestors.symlink, ancestors.link)
       ? linkProbeDir
-      : await makeProbeDir(symlinkAncestor, createdProbeDirs)
-    return { storeProbeDir, linkProbeDir, symlinkProbeDir }
+      : await makeProbeDir(ancestors.symlink, createdProbeDirs)
+    return { kind: 'ok', workspaces: { storeProbeDir, linkProbeDir, symlinkProbeDir } }
   } catch {
-    return undefined
+    return { kind: 'unavailable' }
   }
+}
+
+function resolveWorkspaceAncestors (
+  storeDir: string,
+  linkTargetDir: string,
+  symlinkTargetDir: string
+): { kind: 'ok', store: string, link: string, symlink: string } | { kind: 'unsafe' } | { kind: 'unavailable' } {
+  const store = resolveProbeAncestor(storeDir)
+  const link = resolveProbeAncestor(linkTargetDir)
+  const symlink = resolveProbeAncestor(symlinkTargetDir)
+  if (store.kind === 'unavailable' || link.kind === 'unavailable' || symlink.kind === 'unavailable') {
+    return { kind: 'unavailable' }
+  }
+  if (store.kind === 'unsafe' || link.kind === 'unsafe' || symlink.kind === 'unsafe') {
+    return { kind: 'unsafe' }
+  }
+  return { kind: 'ok', store: store.path, link: link.path, symlink: symlink.path }
 }
 
 async function resolveProjectModulesDir (opts: FilesystemProbeOptions): Promise<string> {
@@ -258,7 +203,7 @@ async function resolveProbeStoreDir (opts: FilesystemProbeOptions, linkOps: Link
   }
   const homeStoreDir = opts.pnpmHomeDir !== '' ? path.join(opts.pnpmHomeDir, 'store', STORE_VERSION) : ''
   const fallbackDefault = homeStoreDir !== '' ? homeStoreDir : path.join(pkgRoot, '.pnpm-store', STORE_VERSION)
-  const pkgAncestor = existingAncestorDir(pkgRoot)
+  const pkgAncestor = safeProbeAncestorDir(pkgRoot)
   if (pkgAncestor == null) {
     return fallbackDefault
   }
@@ -274,18 +219,17 @@ async function canUseHomeStoreDir (
   pkgAncestor: string,
   linkOps: LinkOperations
 ): Promise<boolean> {
-  const homeAncestor = existingAncestorDir(pnpmHomeDir)
+  const homeAncestor = safeProbeAncestorDir(pnpmHomeDir)
   if (homeAncestor == null) return false
   if (areSameDir(homeAncestor, pkgAncestor)) return true
-  return canHardlinkBetweenAncestors(pkgAncestor, homeAncestor, linkOps)
+  return canHardlinkBetweenAncestors(homeAncestor, pkgAncestor, linkOps)
 }
 
 async function findLinkableMountRoot (pkgAncestor: string, linkOps: LinkOperations): Promise<string | undefined> {
-  const created: string[] = []
+  const created: ProbeDir[] = []
   try {
     const pkgProbe = await makeProbeDir(pkgAncestor, created)
-    const source = path.join(pkgProbe, 'source')
-    await fs.promises.writeFile(source, '')
+    const source = await writeExclusiveProbeFile(pkgProbe, 'source', '')
     const candidates = ancestorsFromRoot(pkgAncestor)
     const linkable = await Promise.all(candidates.map(async (candidate) => canHardlinkToAncestor(source, candidate, linkOps)))
     return candidates.find((_, index) => linkable[index])
@@ -296,29 +240,16 @@ async function findLinkableMountRoot (pkgAncestor: string, linkOps: LinkOperatio
   }
 }
 
-function ancestorsFromRoot (dir: string): string[] {
-  const ancestors: string[] = []
-  let current = path.resolve(dir)
-  for (;;) {
-    ancestors.push(current)
-    const parent = path.dirname(current)
-    if (parent === current) break
-    current = parent
-  }
-  return ancestors.reverse()
-}
-
 async function canHardlinkBetweenAncestors (
-  fromAncestor: string,
-  toAncestor: string,
+  fromSafeAncestor: string,
+  toSafeAncestor: string,
   linkOps: LinkOperations
 ): Promise<boolean> {
-  const created: string[] = []
+  const created: ProbeDir[] = []
   try {
-    const fromProbe = await makeProbeDir(fromAncestor, created)
-    const source = path.join(fromProbe, 'source')
-    await fs.promises.writeFile(source, '')
-    return await canHardlinkToAncestor(source, toAncestor, linkOps)
+    const fromProbe = await makeProbeDir(fromSafeAncestor, created)
+    const source = await writeExclusiveProbeFile(fromProbe, 'source', '')
+    return await canHardlinkToAncestor(source, toSafeAncestor, linkOps)
   } catch {
     return false
   } finally {
@@ -326,11 +257,12 @@ async function canHardlinkBetweenAncestors (
   }
 }
 
-async function canHardlinkToAncestor (source: string, toAncestor: string, linkOps: LinkOperations): Promise<boolean> {
-  const created: string[] = []
+async function canHardlinkToAncestor (source: string, toSafeAncestor: string, linkOps: LinkOperations): Promise<boolean> {
+  const created: ProbeDir[] = []
   try {
-    const toProbe = await makeProbeDir(toAncestor, created)
-    await linkOps.hardlink(source, path.join(toProbe, 'hardlink'))
+    const toProbe = await makeProbeDir(toSafeAncestor, created)
+    await verifyProbeDir(toProbe)
+    await linkOps.hardlink(source, path.join(toProbe.path, 'hardlink'))
     return true
   } catch {
     return false
@@ -363,30 +295,22 @@ function resolveProbeTargetDirs (
   return { linkTargetDir: virtualStoreDir, symlinkTargetDir: projectModulesDir }
 }
 
-async function makeProbeDir (ancestor: string, created: string[]): Promise<string> {
-  const dir = await fs.promises.mkdtemp(path.join(ancestor, '.pnpm-doctor-'))
-  created.push(dir)
-  return dir
-}
-
-async function removeProbeDirs (dirs: string[]): Promise<void> {
-  await Promise.all(dirs.map(async (dir) => fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {})))
-}
-
 async function probeLinkCapabilities (
   workspaces: ProbeWorkspaces,
   linkOps: LinkOperations
 ): Promise<{ reflink: boolean, hardlink: boolean, symlink: boolean } | undefined> {
-  const source = path.join(workspaces.storeProbeDir, 'source')
+  let source: string
   try {
-    await fs.promises.writeFile(source, 'pnpm-doctor')
+    source = await writeExclusiveProbeFile(workspaces.storeProbeDir, 'source', 'pnpm-doctor')
+    await verifyProbeDir(workspaces.linkProbeDir)
+    await verifyProbeDir(workspaces.symlinkProbeDir)
   } catch {
     return undefined
   }
   return {
-    reflink: linkOps.reflink(source, path.join(workspaces.linkProbeDir, 'reflink')),
-    hardlink: await canLink(() => linkOps.hardlink(source, path.join(workspaces.linkProbeDir, 'hardlink'))),
-    symlink: await canLink(() => fs.promises.symlink(source, path.join(workspaces.symlinkProbeDir, 'symlink'))),
+    reflink: linkOps.reflink(source, path.join(workspaces.linkProbeDir.path, 'reflink')),
+    hardlink: await canLink(() => linkOps.hardlink(source, path.join(workspaces.linkProbeDir.path, 'hardlink'))),
+    symlink: await canLink(() => fs.promises.symlink(source, path.join(workspaces.symlinkProbeDir.path, 'symlink'))),
   }
 }
 
