@@ -5,7 +5,7 @@ import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { DEFAULT_REGISTRIES_BY_SCOPE } from '@pnpm/config.normalize-registries'
-import { refToRelative, removeSuffix } from '@pnpm/deps.path'
+import { getPeerBindingProviders, parse, parsePeerBindings, refToRelative, removeSuffix } from '@pnpm/deps.path'
 import {
   getNonDevWantedDependencies,
   getPeerSet,
@@ -104,12 +104,14 @@ export function createLocalDirectoryDepUpToDateChecker (
   ctx: LocalDirectoryDepContext
 ): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>, declaration?: Declaration) => Promise<boolean> {
   const visited = new Map<PackageSnapshot, Set<string>>()
+  const depPathsBySnapshot = depPathsOf(ctx.lockfilePackages)
   // Collected on the first check, since most projects have no local directory dependency to check.
   let recordedPeers: string[] | undefined
   return async (pkgSnapshot, parentPkgAliases, declaration = { declaredByPath: false }) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
     ...declaration,
     parentPkgAliases,
     visited,
+    depPathsBySnapshot,
     recordedPeers: recordedPeers ??= recordedPeersOf(ctx.lockfilePackages),
   })
 }
@@ -135,6 +137,7 @@ interface DirectoryWalk extends Declaration {
   parentPkgAliases: Record<string, unknown>
   /** The peer scopes each snapshot was checked in. */
   visited: Map<PackageSnapshot, Set<string>>
+  depPathsBySnapshot: Map<PackageSnapshot, DepPath>
   /**
    * Every peer the lockfile records for a package, which bounds the part of
    * a scope the descendants of a package can take.
@@ -143,6 +146,19 @@ interface DirectoryWalk extends Declaration {
 }
 
 const recordedPeersByPackages = new WeakMap<object, string[]>()
+const depPathsByPackages = new WeakMap<object, Map<PackageSnapshot, DepPath>>()
+
+function depPathsOf (lockfilePackages: PackageSnapshots | undefined): Map<PackageSnapshot, DepPath> {
+  if (lockfilePackages == null) return new Map()
+  let depPaths = depPathsByPackages.get(lockfilePackages)
+  if (depPaths == null) {
+    depPaths = new Map(
+      Object.entries(lockfilePackages).map(([depPath, snapshot]) => [snapshot, depPath as DepPath] as const)
+    )
+    depPathsByPackages.set(lockfilePackages, depPaths)
+  }
+  return depPaths
+}
 
 function recordedPeersOf (lockfilePackages: LocalDirectoryDepContext['lockfilePackages']): string[] {
   if (lockfilePackages == null) return []
@@ -166,7 +182,12 @@ async function localDirectoryDepIsUpToDateRec (
   // A revisit in the same peer scope is a cycle or a shared dependency that
   // is already being checked.
   if (!markVisited(walk, pkgSnapshot, manifest)) return true
-  if (!recordedPeersMatch(ctx, manifest, pkgSnapshot, walk.declaredByPath && !walk.declarationAssumed)) return false
+  if (!recordedPeersMatch(ctx, {
+    manifest,
+    pkgSnapshot,
+    declaredByPath: walk.declaredByPath && !walk.declarationAssumed,
+    depPathsBySnapshot: walk.depPathsBySnapshot,
+  })) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
     autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
     parentPkgAliases: walk.parentPkgAliases,
@@ -183,6 +204,7 @@ async function localDirectoryDepIsUpToDateRec (
     declarationAssumed: walk.declarationAssumed,
     parentPkgAliases: { ...walk.parentPkgAliases, ...dependencyAliasesOf(pkgSnapshot) },
     visited: walk.visited,
+    depPathsBySnapshot: walk.depPathsBySnapshot,
     recordedPeers: walk.recordedPeers,
   }
   return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, childWalk))
@@ -255,27 +277,85 @@ async function applyReadPackageHook (ctx: LocalDirectoryDepContext, declared: De
  * before it recorded every declared peer records only the peers taken without
  * any shadowing, the ones that are not also `dependencies`.
  */
-function recordedPeersMatch (ctx: LocalDirectoryDepContext, manifest: DependencyManifest, pkgSnapshot: PackageSnapshot, declaredByPath: boolean): boolean {
+function recordedPeersMatch (
+  ctx: LocalDirectoryDepContext,
+  {
+    manifest,
+    pkgSnapshot,
+    declaredByPath,
+    depPathsBySnapshot,
+  }: {
+    manifest: DependencyManifest
+    pkgSnapshot: PackageSnapshot
+    declaredByPath: boolean
+    depPathsBySnapshot: Map<PackageSnapshot, DepPath>
+  }
+): boolean {
   const { declared, taken } = getPeerSet(manifest)
   const recorded = pkgSnapshot.peerDependencies ?? {}
   return Object.keys(taken).every((name) => Object.hasOwn(recorded, name)) &&
     Object.keys(recorded).every((name) => {
       const peer = declared[name]
       return peer != null &&
-        peerRangeMatches(ctx, { alias: name, bareSpecifier: peer.version }, recorded[name], declaredByPath) &&
+        peerRangeMatches(ctx, {
+          peer: { alias: name, bareSpecifier: peer.version },
+          recordedRange: recorded[name],
+          declaredByPath,
+          pkgSnapshot,
+          depPathsBySnapshot,
+        }) &&
         Boolean(peer.optional) === Boolean(pkgSnapshot.peerDependenciesMeta?.[name]?.optional)
     })
 }
 
 function peerRangeMatches (
   ctx: LocalDirectoryDepContext,
-  peer: { alias: string, bareSpecifier: string },
-  recordedRange: string | undefined,
-  declaredByPath: boolean
+  {
+    peer,
+    recordedRange,
+    declaredByPath,
+    pkgSnapshot,
+    depPathsBySnapshot,
+  }: {
+    peer: { alias: string, bareSpecifier: string }
+    recordedRange: string | undefined
+    declaredByPath: boolean
+    pkgSnapshot: PackageSnapshot
+    depPathsBySnapshot: Map<PackageSnapshot, DepPath>
+  }
 ): boolean {
   if (recordedRange == null) return false
   if (!declaredByPath) return recordedRange === peer.bareSpecifier
+  if (peer.bareSpecifier.startsWith('catalog:')) {
+    const catalogRange = resolveCatalogSpec(ctx, peer)
+    if (catalogRange == null || catalogRange === peer.bareSpecifier) return recordedRange === peer.bareSpecifier
+    return catalogPeerVersionSatisfies({
+      alias: peer.alias,
+      range: catalogRange,
+      pkgSnapshot,
+      depPathsBySnapshot,
+    })
+  }
   return recordedRange === resolveCatalogSpec(ctx, peer)
+}
+
+function catalogPeerVersionSatisfies ({
+  alias,
+  range,
+  pkgSnapshot,
+  depPathsBySnapshot,
+}: {
+  alias: string
+  range: string
+  pkgSnapshot: PackageSnapshot
+  depPathsBySnapshot: Map<PackageSnapshot, DepPath>
+}): boolean {
+  const depPath = depPathsBySnapshot.get(pkgSnapshot)
+  if (depPath == null) return false
+  const bindings = parsePeerBindings(depPath)
+  if (bindings?.kind !== 'explicit') return false
+  const provider = getPeerBindingProviders(bindings).find((providerPath) => parse(providerPath).name === alias)
+  return provider != null && versionSatisfies(parse(provider).version, range)
 }
 
 /** Every child the snapshot records is one the resolver walks, or a peer, whose resolution it records too. */
