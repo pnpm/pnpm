@@ -151,16 +151,7 @@ fn can_create_subdir(ancestor: &Path) -> bool {
 
 #[cfg(unix)]
 fn can_access_writable_dir(dir: &Path) -> bool {
-    use std::os::unix::ffi::OsStrExt as _;
-
-    let Ok(c_path) = std::ffi::CString::new(dir.as_os_str().as_bytes()) else {
-        return false;
-    };
-    // SAFETY: `c_path` is a valid NUL-terminated string for the duration of the call.
-    unsafe {
-        libc::faccessat(libc::AT_FDCWD, c_path.as_ptr(), libc::W_OK | libc::X_OK, libc::AT_EACCESS)
-            == 0
-    }
+    pnpm_ffi_fs::can_write_and_search(dir)
 }
 
 #[cfg(windows)]
@@ -291,8 +282,7 @@ pub(super) fn resolve_probe_ancestor(dir: &Path) -> ProbeAncestor {
 
 #[cfg(unix)]
 fn is_safe_probe_ancestor_chain(canonical_dir: &Path) -> bool {
-    // SAFETY: `geteuid` takes no arguments and has no preconditions.
-    let euid = unsafe { libc::geteuid() };
+    let euid = pnpm_ffi_process::effective_user_id();
     canonical_dir
         .ancestors()
         .filter(|path| !path.as_os_str().is_empty())

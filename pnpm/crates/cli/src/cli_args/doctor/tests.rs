@@ -217,7 +217,7 @@ fn can_write_to_dir_rejects_readonly_ancestors() {
 
     // Root bypasses POSIX permission bits.
     // SAFETY: `geteuid` takes no arguments and has no preconditions.
-    if unsafe { libc::geteuid() } == 0 {
+    if pnpm_ffi_process::effective_user_id() == 0 {
         return;
     }
 

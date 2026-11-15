@@ -155,20 +155,8 @@ pub(super) fn create_exclusive_file_unix(
     name: &OsStr,
     content: &[u8],
 ) -> io::Result<()> {
-    use std::os::{
-        fd::{AsRawFd as _, FromRawFd as _, OwnedFd},
-        unix::ffi::OsStrExt as _,
-    };
-
-    let c_name = std::ffi::CString::new(name.as_bytes())?;
-    let flags = libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC;
-    // SAFETY: `c_name` is NUL-terminated and `raw_dir` stays open for the call.
-    let descriptor = unsafe { libc::openat(raw_dir.as_raw_fd(), c_name.as_ptr(), flags, 0o600) };
-    if descriptor < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: `openat` returned a fresh owned file descriptor.
-    let mut file = fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
+    let mut file =
+        pnpm_ffi_fs::create_file_at(raw_dir, name, pnpm_ffi_fs::FileMode::from_mode(0o600))?;
     if !content.is_empty()
         && let Err(error) = file.write_all(content)
     {
@@ -219,30 +207,15 @@ fn open_windows_pin_file(
 
 #[cfg(unix)]
 fn open_verified_unix_child_dir(safe_ancestor: &Path, child_name: &OsStr) -> io::Result<fs::File> {
-    use std::os::{
-        fd::{AsRawFd as _, FromRawFd as _, OwnedFd},
-        unix::{
-            ffi::OsStrExt as _,
-            fs::{MetadataExt as _, OpenOptionsExt as _},
-        },
-    };
+    use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
 
     let parent = fs::OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_DIRECTORY | libc::O_CLOEXEC)
         .open(safe_ancestor)?;
-    let c_name = std::ffi::CString::new(child_name.as_bytes())?;
-    let flags = libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
-    // SAFETY: `c_name` is NUL-terminated and `parent` stays open for the call.
-    let descriptor = unsafe { libc::openat(parent.as_raw_fd(), c_name.as_ptr(), flags) };
-    if descriptor < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: `openat` returned a fresh owned file descriptor.
-    let child = fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
+    let child = pnpm_ffi_fs::open_directory_at(&parent, child_name)?;
     let meta = child.metadata()?;
-    // SAFETY: `geteuid` has no preconditions.
-    if !meta.file_type().is_dir() || meta.uid() != unsafe { libc::geteuid() } {
+    if !meta.file_type().is_dir() || meta.uid() != pnpm_ffi_process::effective_user_id() {
         return Err(io::Error::other("probe directory ownership mismatch"));
     }
     Ok(child)
@@ -250,15 +223,7 @@ fn open_verified_unix_child_dir(safe_ancestor: &Path, child_name: &OsStr) -> io:
 
 #[cfg(unix)]
 pub(super) fn unlink_probe_entry_unix(raw_dir: &fs::File, entry: &OsStr) {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
-
-    let Ok(c_name) = std::ffi::CString::new(entry.as_bytes()) else {
-        return;
-    };
-    // SAFETY: `c_name` is NUL-terminated and `raw_dir` stays open for the call.
-    unsafe {
-        libc::unlinkat(raw_dir.as_raw_fd(), c_name.as_ptr(), 0);
-    }
+    drop(pnpm_ffi_fs::unlink_at(raw_dir, entry));
 }
 
 #[cfg(not(unix))]
