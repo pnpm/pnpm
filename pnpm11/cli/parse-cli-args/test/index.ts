@@ -677,6 +677,10 @@ test('command-specific value options before the command name do not hide the com
   expect(missingDepth.cmd).toBe('list')
   expect(missingDepth.params).toStrictEqual([])
 
+  const missingDepthWithTarget = await parseCliArgs(opts, ['--depth', 'list', 'react'])
+  expect(missingDepthWithTarget.cmd).toBe('list')
+  expect(missingDepthWithTarget.params).toStrictEqual(['react'])
+
   const missingInitType = await parseCliArgs(opts, ['--init-type', 'init'])
   expect(missingInitType.cmd).toBe('init')
   expect(missingInitType.params).toStrictEqual([])
@@ -684,4 +688,29 @@ test('command-specific value options before the command name do not hide the com
   const missingStringOpt = await parseCliArgs(opts, ['--otp', 'publish'])
   expect(missingStringOpt.cmd).toBe('publish')
   expect(missingStringOpt.options.otp).toBe('publish')
+})
+
+test('dlx space-separated --package and -p forward --help to the target command', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (name: string) => name === 'dlx' ? { package: [String, Array] } : {},
+    shorthandsByCommandName: {
+      ...DEFAULT_OPTS.shorthandsByCommandName,
+      dlx: { p: '--package' },
+    },
+    universalShorthands: {
+      ...DEFAULT_OPTS.universalShorthands,
+      p: '--parseable',
+    },
+  }
+
+  const longFlag = await parseCliArgs(opts, ['dlx', '--package', 'typescript', 'tsc', '--help'])
+  expect(longFlag.cmd).toBe('dlx')
+  expect(longFlag.options.package).toStrictEqual(['typescript'])
+  expect(longFlag.params).toStrictEqual(['tsc', '--help'])
+
+  const shortFlag = await parseCliArgs(opts, ['dlx', '-p', 'typescript', 'tsc', '--help'])
+  expect(shortFlag.cmd).toBe('dlx')
+  expect(shortFlag.options.package).toStrictEqual(['typescript'])
+  expect(shortFlag.params).toStrictEqual(['tsc', '--help'])
 })

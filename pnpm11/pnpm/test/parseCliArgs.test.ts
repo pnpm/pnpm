@@ -169,5 +169,38 @@ test('command-specific value options before with current and pm resolve the targ
   const listTargetNamedPm = await parseCliArgs(['--depth', 'list', 'pm'])
   expect(listTargetNamedPm.cmd).toBe('list')
   expect(listTargetNamedPm.builtInCommandForced).toBe(false)
-  expect(listTargetNamedPm.argv.remain).toStrictEqual(['pm'])
+  expect(listTargetNamedPm.params).toStrictEqual(['pm'])
+
+  const fallbackScriptWithCurrent = await parseCliArgs([
+    '--workspace-concurrency',
+    '2',
+    'with',
+    'current',
+    'build',
+    '--help',
+  ])
+  expect(fallbackScriptWithCurrent.cmd).toBe('run')
+  expect(fallbackScriptWithCurrent.fallbackCommandUsed).toBe(true)
+  expect(fallbackScriptWithCurrent.options['workspace-concurrency']).toBe(2)
+  expect(fallbackScriptWithCurrent.params).toStrictEqual(['build', '--help'])
+
+  const markerCollision = await parseCliArgs([
+    '--filter',
+    '__pnpm_prefix_0_pkg',
+    '--filter',
+    '__pnpm_prefix_1_pkg',
+    'pm',
+    'clean',
+  ])
+  expect(markerCollision.cmd).toBe('clean')
+  expect(markerCollision.builtInCommandForced).toBe(true)
+  expect(markerCollision.options.filter).toStrictEqual([
+    '__pnpm_prefix_0_pkg',
+    '__pnpm_prefix_1_pkg',
+  ])
+
+  const dlxHelpForwarding = await parseCliArgs(['dlx', '--package', 'typescript', 'tsc', '--help'])
+  expect(dlxHelpForwarding.cmd).toBe('dlx')
+  expect(dlxHelpForwarding.options.package).toStrictEqual(['typescript'])
+  expect(dlxHelpForwarding.params).toStrictEqual(['tsc', '--help'])
 })

@@ -1,6 +1,6 @@
 import {
   buildBaseExploratoryTypes,
-  collectKnownCommands,
+  collectCandidateCommands,
   configDotTypes,
   extendExploratoryTypes,
   parseCliArgs as parseCliArgsLib,
@@ -25,6 +25,7 @@ const RENAMED_OPTIONS = {
 
 type FlagTypeMap = Parameters<typeof nopt>[0]
 
+const MARKER_PREFIX_RE = /^__pnpm_prefix_(\d+)_/
 const OPTION_SEPARATOR_RE = /^-{2,}$/
 const RECURSIVE_PREFIXES = new Set(['recursive', 'multi', 'm'])
 const PREFIX_WORDS = new Set(['pm', 'with', 'current', ...RECURSIVE_PREFIXES])
@@ -182,13 +183,16 @@ function tagPrefixCandidates (head: string[]): TaggedCandidates {
 }
 
 function chooseMarkerPrefix (head: string[]): string {
-  let salt = 0
-  let candidate = `__pnpm_prefix_${salt}_`
-  while (head.some((token) => token.startsWith(candidate))) {
-    salt += 1
-    candidate = `__pnpm_prefix_${salt}_`
+  const occupied = new Set<string>()
+  for (const token of head) {
+    const match = MARKER_PREFIX_RE.exec(token)
+    if (match != null) occupied.add(match[1])
   }
-  return candidate
+  let salt = 0
+  while (occupied.has(String(salt))) {
+    salt += 1
+  }
+  return `__pnpm_prefix_${salt}_`
 }
 
 function getBaseScanTypes (): BaseScanTypes {
@@ -212,7 +216,7 @@ function retryScanIfPrefixBlocked (baseRemain: string[], tagged: TaggedCandidate
     tagged.taggedArgs,
     0
   ).argv.remain
-  return hasKnownNonTagCommand(retryRemain, tagged.tagToIndex) ? retryRemain : baseRemain
+  return retryRemain.some((token) => !tagged.tagToIndex.has(token)) ? retryRemain : baseRemain
 }
 
 function findBlockedPrefixCommands (
@@ -224,16 +228,12 @@ function findBlockedPrefixCommands (
     return undefined
   }
   const tail = remain.slice(firstNonTagIdx + 1)
-  if (!tail.some((token) => tagToIndex.has(token))) {
+  const firstBlockedTagIdx = tail.findIndex((token) => tagToIndex.has(token))
+  if (firstBlockedTagIdx < 0) {
     return undefined
   }
-  return collectKnownCommands(
+  return collectCandidateCommands(
     getLibOpts(),
-    tail.filter((token) => !tagToIndex.has(token))
+    tail.slice(firstBlockedTagIdx + 1).filter((token) => !tagToIndex.has(token))
   )
-}
-
-function hasKnownNonTagCommand (remain: string[], tagToIndex: Map<string, number>): boolean {
-  const firstNonTag = remain.find((token) => !tagToIndex.has(token))
-  return firstNonTag !== undefined && getCommandFullName(firstNonTag) != null
 }

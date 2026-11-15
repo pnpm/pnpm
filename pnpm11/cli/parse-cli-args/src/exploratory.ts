@@ -5,6 +5,7 @@ import type { ParseCliArgsOptions } from './index.js'
 const CUSTOM_OPTION_PREFIX = 'config.'
 const OPTION_SEPARATOR_RE = /^-{2,}$/
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
+const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx', 'with'])
 
 const VERSION_BOOTSTRAP_TYPES = {
   'frozen-lockfile': Boolean,
@@ -31,26 +32,42 @@ export const BASE_EXPLORATORY_TYPES = {
 
 export type ExploratoryOptions = Pick<
   ParseCliArgsOptions,
-  'getCommandLongName' | 'getTypesByCommandName' | 'universalOptionsTypes'
+  'fallbackCommand' | 'getCommandLongName' | 'getTypesByCommandName' | 'universalOptionsTypes'
 >
+
+interface ExploratoryContext {
+  opts: ParseCliArgsOptions
+  baseTypes: Parameters<typeof nopt>[0]
+  inputArgv: string[]
+}
+
+interface ResolvedCommand {
+  commandName: string
+  cmd: string
+}
 
 export function parseExploratory (
   opts: ParseCliArgsOptions,
   inputArgv: string[]
 ): ReturnType<typeof nopt> {
-  const baseTypes = buildBaseExploratoryTypes(opts)
-  const base = runExploratoryNopt(opts, baseTypes, inputArgv)
-  if (base.argv.remain.length === 0 || resolvesKnownCommand(opts, base.argv.remain)) {
-    return base
+  const ctx: ExploratoryContext = {
+    opts,
+    baseTypes: buildBaseExploratoryTypes(opts),
+    inputArgv,
   }
-  const candidates = collectKnownCommandsBeforeSeparator(opts, inputArgv)
-  if (candidates.size === 0) return base
-  const retry = runExploratoryNopt(opts, extendExploratoryTypes(baseTypes, opts, candidates), inputArgv)
-  return resolvesKnownCommand(opts, retry.argv.remain) ? retry : base
+  const base = runExploratoryNopt(ctx, ctx.baseTypes)
+  if (base.argv.remain.length === 0) return base
+  const resolved = getResolvedCommand(opts, base.argv.remain)
+  if (resolved != null) {
+    return SPECIALLY_ESCAPED_CMDS.has(resolved.cmd)
+      ? parseEscapedCommand(ctx, resolved, base)
+      : base
+  }
+  return retryCandidateCommands(ctx, base)
 }
 
 export function buildBaseExploratoryTypes (
-  opts: ExploratoryOptions
+  opts: Pick<ExploratoryOptions, 'getTypesByCommandName' | 'universalOptionsTypes'>
 ): Parameters<typeof nopt>[0] {
   return {
     ...BASE_EXPLORATORY_TYPES,
@@ -62,7 +79,7 @@ export function buildBaseExploratoryTypes (
 
 export function extendExploratoryTypes (
   baseTypes: Parameters<typeof nopt>[0],
-  opts: ExploratoryOptions,
+  opts: Pick<ExploratoryOptions, 'getTypesByCommandName'>,
   commandNames: Iterable<string>
 ): Parameters<typeof nopt>[0] {
   const merged: Record<string, unknown> = { ...baseTypes }
@@ -72,13 +89,13 @@ export function extendExploratoryTypes (
   return merged as Parameters<typeof nopt>[0]
 }
 
-export function collectKnownCommands (
-  opts: Pick<ExploratoryOptions, 'getCommandLongName'>,
+export function collectCandidateCommands (
+  opts: Pick<ExploratoryOptions, 'fallbackCommand' | 'getCommandLongName'>,
   tokens: Iterable<string>
 ): Set<string> {
   const names = new Set<string>()
   for (const token of tokens) {
-    const canonical = opts.getCommandLongName(token)
+    const canonical = opts.getCommandLongName(token) ?? opts.fallbackCommand
     if (canonical && canonical !== 'add' && canonical !== 'install') {
       names.add(canonical)
     }
@@ -100,36 +117,82 @@ export function configDotTypes (types: Parameters<typeof nopt>[0]): Parameters<t
 }
 
 function runExploratoryNopt (
-  opts: ParseCliArgsOptions,
+  ctx: ExploratoryContext,
   exploratoryTypes: Parameters<typeof nopt>[0],
-  inputArgv: string[]
+  shorthands?: Record<string, string | string[]>
 ): ReturnType<typeof nopt> {
   return nopt(
     { ...exploratoryTypes, ...configDotTypes(exploratoryTypes) },
-    { r: '--recursive', ...opts.universalShorthands },
-    inputArgv,
+    {
+      r: '--recursive',
+      ...ctx.opts.universalShorthands,
+      ...shorthands,
+    },
+    ctx.inputArgv,
     0,
-    { escapeArgs: opts.escapeArgs }
+    { escapeArgs: ctx.opts.escapeArgs }
   )
 }
 
-function resolvesKnownCommand (opts: ParseCliArgsOptions, remain: string[]): boolean {
-  const effectiveArgs = RECURSIVE_CMDS.has(remain[0]) ? remain.slice(1) : remain
-  return Boolean(effectiveArgs[0] && opts.getCommandLongName(effectiveArgs[0]))
+function getResolvedCommand (
+  opts: Pick<ParseCliArgsOptions, 'getCommandLongName'>,
+  remain: string[]
+): ResolvedCommand | null {
+  const effectiveArgs = stripRecursivePrefix(remain)
+  const commandName = effectiveArgs[0]
+  if (!commandName) return null
+  const cmd = opts.getCommandLongName(commandName)
+  return cmd ? { commandName, cmd } : null
 }
 
-function collectKnownCommandsBeforeSeparator (
-  opts: Pick<ExploratoryOptions, 'getCommandLongName'>,
+function parseEscapedCommand (
+  ctx: ExploratoryContext,
+  resolved: ResolvedCommand,
+  fallback: ReturnType<typeof nopt>
+): ReturnType<typeof nopt> {
+  const types = extendExploratoryTypes(ctx.baseTypes, ctx.opts, [resolved.cmd])
+  const shorthands = ctx.opts.shorthandsByCommandName[resolved.commandName] ??
+    ctx.opts.shorthandsByCommandName[resolved.cmd]
+  const parsed = runExploratoryNopt(ctx, types, shorthands)
+  return getResolvedCommand(ctx.opts, parsed.argv.remain)?.cmd === resolved.cmd
+    ? parsed
+    : fallback
+}
+
+function retryCandidateCommands (
+  ctx: ExploratoryContext,
+  fallback: ReturnType<typeof nopt>
+): ReturnType<typeof nopt> {
+  const candidates = collectCandidatesBeforeSeparator(ctx.opts, ctx.inputArgv)
+  if (candidates.size === 0) return fallback
+  const retry = runExploratoryNopt(ctx, extendExploratoryTypes(ctx.baseTypes, ctx.opts, candidates))
+  if (getResolvedCommand(ctx.opts, retry.argv.remain) != null) {
+    return retry
+  }
+  return Boolean(ctx.opts.fallbackCommand) && stripRecursivePrefix(retry.argv.remain).length > 0
+    ? retry
+    : fallback
+}
+
+function stripRecursivePrefix (remain: string[]): string[] {
+  return RECURSIVE_CMDS.has(remain[0]) ? remain.slice(1) : remain
+}
+
+function collectCandidatesBeforeSeparator (
+  opts: Pick<ExploratoryOptions, 'fallbackCommand' | 'getCommandLongName'>,
   inputArgv: string[]
 ): Set<string> {
-  const tokens: string[] = []
-  for (const arg of inputArgv) {
-    if (OPTION_SEPARATOR_RE.test(arg)) break
-    if (!arg.startsWith('-') && !RECURSIVE_CMDS.has(arg)) {
-      tokens.push(arg)
-    }
+  const preSep = sliceBeforeSeparator(inputArgv)
+  if (!preSep.some((arg) => arg.startsWith('-') && arg.length > 1)) {
+    return new Set()
   }
-  return collectKnownCommands(opts, tokens)
+  const nonFlagTokens = preSep.filter((arg) => !arg.startsWith('-') && !RECURSIVE_CMDS.has(arg))
+  return collectCandidateCommands(opts, nonFlagTokens)
+}
+
+function sliceBeforeSeparator (inputArgv: string[]): string[] {
+  const sepIndex = inputArgv.findIndex((arg) => OPTION_SEPARATOR_RE.test(arg))
+  return sepIndex >= 0 ? inputArgv.slice(0, sepIndex) : inputArgv
 }
 
 function mergeCommandOptionTypes (

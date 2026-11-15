@@ -6,7 +6,7 @@ import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 import {
   BASE_EXPLORATORY_TYPES,
   buildBaseExploratoryTypes,
-  collectKnownCommands,
+  collectCandidateCommands,
   configDotTypes,
   extendExploratoryTypes,
   parseExploratory,
@@ -16,7 +16,7 @@ import {
 export {
   BASE_EXPLORATORY_TYPES,
   buildBaseExploratoryTypes,
-  collectKnownCommands,
+  collectCandidateCommands,
   configDotTypes,
   extendExploratoryTypes,
 }
@@ -56,6 +56,8 @@ export interface ParseCliArgsOptions {
 interface EarlyResolution {
   commandName: string
   cmd: string | null
+  expectedHead?: string
+  exploratoryRemainCount: number
   fallbackCommandUsed: boolean
   recursiveCommandUsed: boolean
 }
@@ -110,7 +112,14 @@ function resolveCommand (
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
   }
-  return { commandName, cmd, fallbackCommandUsed, recursiveCommandUsed }
+  return {
+    commandName,
+    cmd,
+    expectedHead: fallbackCommandUsed ? opts.fallbackCommand : remain[0],
+    exploratoryRemainCount: remain.length + (fallbackCommandUsed ? 1 : 0),
+    fallbackCommandUsed,
+    recursiveCommandUsed,
+  }
 }
 
 function getCommandName (args: string[], recursiveCommandUsed: boolean, opts: ParseCliArgsOptions): string {
@@ -301,6 +310,13 @@ function adjustPostParseCommands (
   resolution: EarlyResolution,
   opts: ParseCliArgsOptions
 ): AdjustedCommands {
+  if (
+    resolution.expectedHead !== undefined &&
+    argv.remain[0] !== resolution.expectedHead &&
+    argv.remain.length < resolution.exploratoryRemainCount
+  ) {
+    argv.remain.unshift(resolution.expectedHead)
+  }
   let cmd = resolution.cmd
   const params = argv.remain.slice(1)
   cmd = handleRecursiveInvocation(options, argv, resolution, opts, params, cmd)
