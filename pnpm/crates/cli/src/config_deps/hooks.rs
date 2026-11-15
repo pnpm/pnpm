@@ -194,8 +194,10 @@ pub(super) fn legacy_registries_warning(
 }
 
 fn has_legacy_registries_update(input: &Value, current: &Value) -> bool {
-    input.get("registries") != current.get("registries")
-        && input.get("registriesByScope") == current.get("registriesByScope")
+    let scope_routes_changed = current
+        .get("registriesByScope")
+        .is_some_and(|routes| input.get("registriesByScope") != Some(routes));
+    input.get("registries") != current.get("registries") && !scope_routes_changed
 }
 
 fn is_legacy_registry_map(legacy_routes: &serde_json::Map<String, Value>) -> bool {

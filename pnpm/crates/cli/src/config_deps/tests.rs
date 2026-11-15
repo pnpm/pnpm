@@ -102,6 +102,27 @@ fn legacy_registries_warning_is_absent_when_scope_routes_are_updated() {
 }
 
 #[test]
+fn legacy_registries_warning_is_present_when_scope_routes_are_omitted() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://registry-a/".to_string())]),
+    )
+    .expect("legacy routes warning");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@acme"));
+}
+
+#[test]
 fn legacy_registries_warning_is_absent_when_registry_setting_is_unchanged() {
     let config = serde_json::json!({ "registries": { "default": "https://registry-a/" } });
 
