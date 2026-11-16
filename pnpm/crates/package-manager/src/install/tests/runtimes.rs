@@ -2,10 +2,7 @@ use super::{
     InstallDirs, is_modules_yaml_consistent, run_purge_regression_install,
     run_purge_regression_install_with_lockfile,
 };
-use crate::{
-    PolicyExcludes,
-    install::{Install, ProjectMutation, effective_node_version},
-};
+use crate::install::{Install, ProjectMutation, effective_node_version};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -102,7 +99,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
             ignore_manifest_check: false,
             trust: false,
             update_checksums: false,
-            excludes: PolicyExcludes::Persist,
+            excludes: crate::PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
         },
         execution: crate::InstallExecution {
@@ -195,7 +192,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
             ignore_manifest_check: false,
             trust: false,
             update_checksums: false,
-            excludes: PolicyExcludes::Persist,
+            excludes: crate::PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
         },
         execution: crate::InstallExecution {
@@ -279,7 +276,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
             ignore_manifest_check: false,
             trust: false,
             update_checksums: false,
-            excludes: PolicyExcludes::Persist,
+            excludes: crate::PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
         },
         execution: crate::InstallExecution {
@@ -371,7 +368,7 @@ async fn fresh_install_honors_skip_runtimes() {
             ignore_manifest_check: false,
             trust: false,
             update_checksums: false,
-            excludes: PolicyExcludes::Persist,
+            excludes: crate::PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
         },
         execution: crate::InstallExecution {
@@ -712,7 +709,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
             ignore_manifest_check: false,
             trust: false,
             update_checksums: false,
-            excludes: PolicyExcludes::Persist,
+            excludes: crate::PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
         },
         execution: crate::InstallExecution {
@@ -775,7 +772,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
             ignore_manifest_check: false,
             trust: false,
             update_checksums: false,
-            excludes: PolicyExcludes::Persist,
+            excludes: crate::PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
         },
         execution: crate::InstallExecution {
