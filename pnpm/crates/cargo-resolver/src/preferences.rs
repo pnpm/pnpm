@@ -1,8 +1,9 @@
-use crate::model::RegistryVersion;
+use crate::{model::RegistryVersion, registry::Registry};
 use miette::Result;
 use semver::Version;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
+/// Versions to keep, by crate name, each list newest first without duplicates.
 pub(crate) type PreferredVersions = BTreeMap<String, Vec<Version>>;
 
 pub(crate) fn parse(
@@ -21,6 +22,7 @@ pub(crate) fn parse(
                 })
                 .collect::<Result<Vec<_>>>()?;
             versions.sort_unstable_by(|left, right| right.cmp(left));
+            versions.dedup();
             Ok((name.clone(), versions))
         })
         .collect()
@@ -43,5 +45,27 @@ pub(crate) fn contains(
 ) -> bool {
     preferred_versions
         .get(name)
-        .is_some_and(|versions| versions.contains(version))
+        .is_some_and(|versions| {
+            versions
+                .binary_search_by(|probe| version.cmp(probe))
+                .is_ok()
+        })
 }
+
+/// Drop the preferred versions `registry` does not offer, so no list is
+/// longer than the crate's index entry.
+pub(crate) fn retain_indexed(preferred_versions: &mut PreferredVersions, registry: &Registry) {
+    preferred_versions.retain(|name, versions| {
+        let indexed = registry
+            .versions(name)
+            .unwrap_or_default()
+            .iter()
+            .map(|version| &version.version)
+            .collect::<BTreeSet<_>>();
+        versions.retain(|version| indexed.contains(version));
+        !versions.is_empty()
+    });
+}
+
+#[cfg(test)]
+mod tests;
