@@ -123,31 +123,49 @@ async function readLockedNodeVersions (options: {
 }): Promise<Record<string, string>> {
   const { workspaceRoot, projects, opts } = options
   if (!shouldReadLockedNodeVersions(projects, opts)) return {}
-  const lockedNodeVersions: Record<string, string> = {}
-  const projectsByLockfileDir = new Map<string, Project[]>()
+  const projectsByLockfileDir = groupProjectsByLockfileDir({ workspaceRoot, projects, opts })
+  const versionsByLockfile = await Promise.all(
+    Array.from(projectsByLockfileDir, async ([lockfileDir, projects]) => {
+      const lockfile = await readNodeRuntimeLockfile({ lockfileDir, opts })
+      if (lockfile == null) return {}
+      return lockedNodeVersionsFromLockfile({ lockfile, lockfileDir, projects, opts })
+    })
+  )
+  return Object.assign({}, ...versionsByLockfile)
+}
+
+function groupProjectsByLockfileDir (options: {
+  workspaceRoot: string
+  projects: Project[]
+  opts?: FindWorkspaceProjectsOpts
+}): Map<string, Project[]> {
+  const { workspaceRoot, projects, opts } = options
+  const groups = new Map<string, Project[]>()
   for (const project of projects) {
     if (!hasDownloadedNodeRuntime(project.manifest, opts)) continue
     const lockfileDir = opts?.lockfileDir ?? (opts?.sharedWorkspaceLockfile === false ? project.rootDir : workspaceRoot)
-    const projects = projectsByLockfileDir.get(lockfileDir) ?? []
-    projects.push(project)
-    projectsByLockfileDir.set(lockfileDir, projects)
+    const lockfileProjects = groups.get(lockfileDir) ?? []
+    lockfileProjects.push(project)
+    groups.set(lockfileDir, lockfileProjects)
   }
-  for (const [lockfileDir, projects] of projectsByLockfileDir) {
-    let lockfile: Awaited<ReturnType<typeof readWantedLockfile>>
-    try {
-      lockfile = await readWantedLockfile(lockfileDir, {
-        ignoreIncompatible: true,
-        useGitBranchLockfile: opts?.useGitBranchLockfile,
-        mergeGitBranchLockfiles: opts?.mergeGitBranchLockfiles,
-      })
-    } catch (error: unknown) {
-      if (isError(error) && 'code' in error && error.code === 'ERR_PNPM_BROKEN_LOCKFILE') continue
-      throw error
-    }
-    if (lockfile == null) continue
-    Object.assign(lockedNodeVersions, lockedNodeVersionsFromLockfile({ lockfile, lockfileDir, projects, opts }))
+  return groups
+}
+
+async function readNodeRuntimeLockfile (options: {
+  lockfileDir: string
+  opts?: FindWorkspaceProjectsOpts
+}): Promise<Awaited<ReturnType<typeof readWantedLockfile>>> {
+  const { lockfileDir, opts } = options
+  try {
+    return await readWantedLockfile(lockfileDir, {
+      ignoreIncompatible: true,
+      useGitBranchLockfile: opts?.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts?.mergeGitBranchLockfiles,
+    })
+  } catch (error: unknown) {
+    if (isError(error) && 'code' in error && error.code === 'ERR_PNPM_BROKEN_LOCKFILE') return null
+    throw error
   }
-  return lockedNodeVersions
 }
 
 function shouldReadLockedNodeVersions (projects: Project[], opts?: FindWorkspaceProjectsOpts): boolean {
