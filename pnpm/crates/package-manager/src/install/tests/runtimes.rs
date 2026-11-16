@@ -69,7 +69,7 @@ fn effective_node_version_ignores_a_matching_runtime_dependency_when_policy_disa
         }),
     );
 
-    assert_eq!(effective_node_version(&config, &manifest, &[DependencyGroup::Prod]), None,);
+    assert_eq!(effective_node_version(&config, &manifest, &[DependencyGroup::Prod]), None);
 }
 
 #[test]
