@@ -258,7 +258,7 @@ fn mixed_cycle_cut_candidates(
             let mut variants = targets.clone();
             let mut seen: HashSet<_> = targets.iter().cloned().collect();
             for target in targets {
-                if !cycle_probe.may_depend_on_consumer(target) {
+                if !cycle_probe.may_be_cut(target) {
                     continue;
                 }
                 let bare = target.without_peer();
