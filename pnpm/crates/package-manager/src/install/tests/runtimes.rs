@@ -1,5 +1,5 @@
 use super::{
-    super::{Install, ProjectMutation},
+    super::{Install, ProjectMutation, effective_node_version},
     InstallDirs, is_modules_yaml_consistent, run_purge_regression_install,
     run_purge_regression_install_with_lockfile,
 };
@@ -15,8 +15,30 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
 use pnpm_testing_utils::registry::TestRegistry;
 use std::fs;
+use std::path::Path;
 use tempfile::tempdir;
 use text_block_macros::text_block;
+
+#[test]
+fn effective_node_version_uses_the_first_included_runtime_group() {
+    let config = Config::new();
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" } },
+            "devEngines": { "runtime": { "name": "node", "version": "26.0.0", "onFail": "download" } },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod]),
+        Some("24.0.0".to_string()),
+    );
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Dev]),
+        Some("26.0.0".to_string()),
+    );
+}
 
 /// The prune deletes directories under `virtual_store_dir`, which can be
 /// set by repo-controlled workspace config. When that path escapes the

@@ -78,7 +78,7 @@ use pnpm_modules_yaml::{
     write_modules_manifest,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, node_version_from_engines_runtime};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, node_version_from_engine_field};
 use pnpm_reporter::{
     ContextLog, GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage, StageLog,
     SummaryLog,
@@ -218,8 +218,24 @@ fn pnpmfile_checksum_check<'a>(
 pub(crate) fn effective_node_version(
     config: &Config,
     manifest: &PackageManifest,
+    dependency_groups: &[DependencyGroup],
 ) -> Option<String> {
-    config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()))
+    config.node_version
+        .clone()
+        .or_else(|| {
+            let runtime_field = if dependency_groups.contains(&DependencyGroup::Prod) {
+                Some("engines")
+            } else if dependency_groups.contains(&DependencyGroup::Dev) {
+                Some("devEngines")
+            } else {
+                None
+            }?;
+            node_version_from_engine_field(
+                manifest.value(),
+                runtime_field,
+                config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+            )
+        })
 }
 
 /// Shared out-map for [`ResolutionInputs::peer_issues_sink`]: importer id →
