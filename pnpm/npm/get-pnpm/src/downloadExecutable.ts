@@ -30,8 +30,6 @@ export interface DownloadExecutableOptions {
   proxy?: ProxyEnv
   /** Overrides the pinned npm signing keys. */
   keys?: readonly SigningKey[]
-  /** Where npm's signatures are looked up when `registry` serves none; npm's own registry unless set. */
-  npmRegistry?: string
   /**
    * Whether the registry's signature over the checksum has to check out;
    * `true` unless set. Waiving it is for a registry that carries no npm
@@ -61,6 +59,17 @@ export interface DownloadExecutableOptions {
  * @returns the package the executable came from.
  */
 export async function downloadPnpmExecutable (opts: DownloadExecutableOptions): Promise<{ packageName: string }> {
+  return downloadPnpmExecutableWithNpmRegistry({ ...opts, npmRegistry: DEFAULT_REGISTRY })
+}
+
+/**
+ * {@link downloadPnpmExecutable} with `npmRegistry` as the place npm's
+ * signatures are looked up when `registry` serves none. The package does not
+ * export it; tests use it to keep that lookup off the network.
+ */
+export async function downloadPnpmExecutableWithNpmRegistry (
+  opts: DownloadExecutableOptions & { npmRegistry: string }
+): Promise<{ packageName: string }> {
   const registry = normalizeRegistry(opts.registry)
   const packageName = platformPackageName({
     major: majorVersion(opts.version),
@@ -83,7 +92,7 @@ export async function downloadPnpmExecutable (opts: DownloadExecutableOptions): 
 }
 
 async function fetchExecutable (
-  opts: DownloadExecutableOptions & { packageName: string }
+  opts: DownloadExecutableOptions & { npmRegistry: string, packageName: string }
 ): Promise<{ packageName: string }> {
   const { version, destPath, registry, packageName } = opts
   const meta = await fetchVersionMeta(registry, packageName, version, opts.headers)
@@ -95,7 +104,7 @@ async function fetchExecutable (
       name: packageName,
       version,
       integrity: meta.dist.integrity,
-      signatures: await fetchSignatures(meta, { registry, pkgName: packageName, version, headers: opts.headers, npmRegistry: opts.npmRegistry ?? DEFAULT_REGISTRY }),
+      signatures: await fetchSignatures(meta, { registry, pkgName: packageName, version, headers: opts.headers, npmRegistry: opts.npmRegistry }),
       keys: opts.keys,
     })
   }

@@ -10,6 +10,7 @@ import type { Duplex } from 'node:stream'
 import { after, before, beforeEach, describe, test } from 'node:test'
 import zlib from 'node:zlib'
 
+import { downloadPnpmExecutableWithNpmRegistry } from '../lib/downloadExecutable.js'
 import { downloadPnpmExecutable } from '../lib/index.js'
 import { platformPackageName } from '../lib/platformPackageName.js'
 import type { SigningKey } from '../lib/verifySignature.js'
@@ -435,7 +436,7 @@ describe('downloadPnpmExecutable', () => {
     mode = 'no-version-document'
 
     await assert.rejects(
-      downloadPnpmExecutable({ version: '98.0.0', registry, destPath: destIn('missing-version'), keys: KEYS, npmRegistry: npmRegistryUrl() }),
+      downloadPnpmExecutable({ version: '98.0.0', registry, destPath: destIn('missing-version'), keys: KEYS }),
       /98\.0\.0: 404/
     )
   })
@@ -444,7 +445,7 @@ describe('downloadPnpmExecutable', () => {
     mode = 'npm-signatures'
     const destPath = destIn('npm-signatures')
 
-    await downloadPnpmExecutable({ version: VERSION, registry, destPath, keys: KEYS, npmRegistry: npmRegistryUrl(), headers: { authorization: 'Bearer secret' } })
+    await downloadPnpmExecutableWithNpmRegistry({ version: VERSION, registry, destPath, keys: KEYS, npmRegistry: npmRegistryUrl(), headers: { authorization: 'Bearer secret' } })
 
     assert.equal(fs.readFileSync(destPath, 'utf8'), CONTENT)
     assert.deepEqual(requests.map(({ path: asked }) => asked), [`/${packageNameFor()}/${VERSION}`, `/${packageNameFor()}`])
@@ -461,7 +462,7 @@ describe('downloadPnpmExecutable', () => {
     mode = 'npm-signatures'
 
     await assert.rejects(
-      downloadPnpmExecutable({ version: VERSION, registry, destPath: destIn('npm-unreachable'), keys: KEYS, npmRegistry: `${addressOf(probe)}/` }),
+      downloadPnpmExecutableWithNpmRegistry({ version: VERSION, registry, destPath: destIn('npm-unreachable'), keys: KEYS, npmRegistry: `${addressOf(probe)}/` }),
       /carries no npm registry signature/
     )
   })
@@ -706,7 +707,7 @@ async function withEnv (vars: Record<string, string | undefined>, fn: () => Prom
 }
 
 async function download (destPath: string): Promise<unknown> {
-  return downloadPnpmExecutable({ version: VERSION, registry, destPath, keys: KEYS, npmRegistry: npmRegistryUrl() })
+  return downloadPnpmExecutableWithNpmRegistry({ version: VERSION, registry, destPath, keys: KEYS, npmRegistry: npmRegistryUrl() })
 }
 
 function packageNameFor (): string {

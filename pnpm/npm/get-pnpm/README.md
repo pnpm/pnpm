@@ -203,8 +203,8 @@ rather than shelling out to `tar`, so it works where no `tar` is on the PATH.
 Placement is atomic and tolerates losing a race with a concurrent call.
 
 When the registry carries no npm signatures anywhere (Azure Artifacts strips
-them), `downloadPnpmExecutable` fetches npm's from registry.npmjs.org, or from
-`npmRegistry` when set, without the registry's credentials. They still have to
+them), `downloadPnpmExecutable` fetches npm's from registry.npmjs.org, without the
+registry's credentials. They still have to
 cover the checksum the download is checked against, so only the signature, not
 the binary, comes from npm. When npm cannot be reached, the package is refused
 as unsigned.
