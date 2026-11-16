@@ -85,3 +85,35 @@ fn a_project_runtime_without_download_policy_does_not_replace_the_shared_node_ve
     assert_eq!(requirements.dependencies_node_version, None);
     assert_eq!(requirements.dev_dependencies_node_version, None);
 }
+
+#[test]
+fn runtime_on_fail_override_does_not_use_a_reified_runtime_dependency() {
+    let manifest = json!({
+        "engines": {
+            "node": ">=99",
+            "runtime": { "name": "node", "version": "^99.0.0", "onFail": "download" },
+        },
+        "dependencies": { "node": "runtime:^99.0.0" },
+    });
+
+    let requirements = project_host_requirements(&manifest, Some("ignore")).expect("requirements");
+
+    assert_eq!(requirements.dependencies_node_version, None);
+    assert_eq!(requirements.dependencies_node_specifier, None);
+}
+
+#[test]
+fn runtime_on_fail_override_keeps_a_different_direct_runtime_dependency() {
+    let manifest = json!({
+        "engines": {
+            "node": ">=22",
+            "runtime": { "name": "node", "version": "^99.0.0", "onFail": "download" },
+        },
+        "dependencies": { "node": "runtime:^22.0.0" },
+    });
+
+    let requirements = project_host_requirements(&manifest, Some("ignore")).expect("requirements");
+
+    assert_eq!(requirements.dependencies_node_version.as_deref(), Some("22.0.0"));
+    assert_eq!(requirements.dependencies_node_specifier.as_deref(), Some("runtime:^22.0.0"));
+}

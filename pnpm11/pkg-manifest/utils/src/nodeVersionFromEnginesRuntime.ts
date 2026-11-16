@@ -52,12 +52,13 @@ function findDownloadedNodeRuntime (
   onFailOverride?: RuntimeOnFail,
   dependencyGroup?: 'dependencies' | 'devDependencies'
 ): DownloadedNodeRuntime | undefined {
-  return findDownloadedNodeRuntimeFromDependencies(manifest, dependencyGroup) ??
+  return findDownloadedNodeRuntimeFromDependencies(manifest, onFailOverride, dependencyGroup) ??
     findDownloadedNodeRuntimeFromEngines(manifest, onFailOverride, dependencyGroup)
 }
 
 function findDownloadedNodeRuntimeFromDependencies (
   manifest: ProjectManifest,
+  onFailOverride?: RuntimeOnFail,
   dependencyGroup?: 'dependencies' | 'devDependencies'
 ): DownloadedNodeRuntime | undefined {
   const dependencyFields = dependencyGroup === 'dependencies'
@@ -68,10 +69,23 @@ function findDownloadedNodeRuntimeFromDependencies (
   for (const dependencyField of dependencyFields) {
     const specifier = manifest[dependencyField]?.node
     if (typeof specifier !== 'string') continue
+    if (isRuntimeDependencyDisabledByOverride(manifest, dependencyField, specifier, onFailOverride)) continue
     const version = downloadedRuntimeVersion(specifier)
     if (version != null) return { specifier, version }
   }
   return undefined
+}
+
+function isRuntimeDependencyDisabledByOverride (
+  manifest: ProjectManifest,
+  dependencyField: 'dependencies' | 'devDependencies',
+  specifier: string,
+  onFailOverride: RuntimeOnFail | undefined
+): boolean {
+  if (onFailOverride == null || onFailOverride === 'download') return false
+  const enginesField = dependencyField === 'dependencies' ? 'engines' : 'devEngines'
+  const runtime = declaredNodeRuntime(manifest[enginesField]?.runtime, undefined)
+  return specifier === `runtime:${runtime?.specifier}`
 }
 
 function findDownloadedNodeRuntimeFromEngines (

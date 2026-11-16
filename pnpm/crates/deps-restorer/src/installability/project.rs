@@ -77,6 +77,12 @@ fn downloaded_node_runtime(
             manifest,
             dependencies_field,
         )
+        .filter(|(specifier, _)| {
+            !runtime_on_fail.is_some_and(|policy| {
+                policy != "download"
+                    && runtime_dependency_matches_engine_runtime(manifest, engines_field, specifier)
+            })
+        })
     {
         return (Some(version), Some(specifier));
     }
@@ -92,6 +98,35 @@ fn downloaded_node_runtime(
             runtime_on_fail,
         ),
     )
+}
+
+fn runtime_dependency_matches_engine_runtime(
+    manifest: &Value,
+    engines_field: &str,
+    dependency_specifier: &str,
+) -> bool {
+    let Some(runtime_entry) = manifest
+        .get(engines_field)
+        .and_then(|engines| engines.get("runtime"))
+    else {
+        return false;
+    };
+    let runtimes = match runtime_entry {
+        Value::Array(runtimes) => runtimes.as_slice(),
+        runtime @ Value::Object(_) => std::slice::from_ref(runtime),
+        _ => return false,
+    };
+    runtimes
+        .iter()
+        .any(|runtime| {
+            runtime.get("name").and_then(Value::as_str) == Some("node")
+                && runtime
+                    .get("version")
+                    .and_then(Value::as_str)
+                    .is_some_and(|version| {
+                        dependency_specifier.strip_prefix("runtime:") == Some(version.trim())
+                    })
+        })
 }
 
 #[cfg(test)]

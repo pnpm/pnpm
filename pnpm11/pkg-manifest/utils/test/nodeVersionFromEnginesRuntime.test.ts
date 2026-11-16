@@ -42,6 +42,26 @@ test('getDownloadedNodeVersionFromEnginesRuntime() follows the runtimeOnFail ove
   }, 'error')).toBeUndefined()
 })
 
+test('getDownloadedNodeVersionFromEnginesRuntime() ignores a reified runtime dependency when runtimeOnFail disables it', () => {
+  expect(getDownloadedNodeVersionFromEnginesRuntime({
+    engines: {
+      node: '>=99',
+      runtime: { name: 'node', version: '^99.0.0', onFail: 'download' },
+    },
+    dependencies: { node: 'runtime:^99.0.0' },
+  }, 'ignore', 'dependencies')).toBeUndefined()
+})
+
+test('getDownloadedNodeVersionFromEnginesRuntime() keeps a different direct runtime dependency when runtimeOnFail disables the engine runtime', () => {
+  expect(getDownloadedNodeVersionFromEnginesRuntime({
+    engines: {
+      node: '>=22',
+      runtime: { name: 'node', version: '^99.0.0', onFail: 'download' },
+    },
+    dependencies: { node: 'runtime:^22.0.0' },
+  }, 'ignore', 'dependencies')).toBe('22.0.0')
+})
+
 test('getDownloadedNodeVersionFromEnginesRuntime() falls back to engines.runtime when devEngines.runtime has no version', () => {
   expect(getDownloadedNodeVersionFromEnginesRuntime({
     devEngines: { runtime: { name: 'node', onFail: 'download' } },
