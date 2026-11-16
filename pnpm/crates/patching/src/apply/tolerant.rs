@@ -235,18 +235,40 @@ fn evaluate_hunk<'a>(
     }
 
     let mut modifications = Vec::new();
+    let mut pre_image_end = PreImageEnd::Elsewhere;
     for part in parts {
         match part.kind {
             Kind::Context | Kind::Delete => {
                 index = match_pre_image(part, lines, index)?;
+                pre_image_end = PreImageEnd::of(part, lines, index);
                 if part.kind == Kind::Delete {
                     push_deletion(&mut modifications, part, index);
                 }
             }
-            Kind::Insert => push_insertion(&mut modifications, part, index),
+            Kind::Insert => push_insertion(&mut modifications, part, index, pre_image_end),
         }
     }
     Some(modifications)
+}
+
+/// Where the pre-image lines walked so far stop in the file.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PreImageEnd {
+    /// On the file's last line, which has no final newline, although the
+    /// hunk carries no `\ No newline at end of file` marker for it.
+    UnterminatedLastLine,
+    Elsewhere,
+}
+
+impl PreImageEnd {
+    fn of(part: &Part<'_>, lines: &[&str], index: usize) -> Self {
+        let unterminated = !part.ends_file
+            && index == lines.len()
+            && lines
+                .last()
+                .is_some_and(|line| !line.is_empty());
+        if unterminated { PreImageEnd::UnterminatedLastLine } else { PreImageEnd::Elsewhere }
+    }
 }
 
 /// Walk the pre-image lines of one part past `index`, returning where it
@@ -276,7 +298,19 @@ fn push_deletion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>,
     }
 }
 
-fn push_insertion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>, index: usize) {
+fn push_insertion<'a>(
+    modifications: &mut Vec<Modification<'a>>,
+    part: &Part<'a>,
+    index: usize,
+    pre_image_end: PreImageEnd,
+) {
+    // `git diff --ignore-cr-at-eol`, which `pnpm patch-commit` runs, writes
+    // lines appended to a file without a final newline as context followed
+    // by the insertion. The newline is restored so that the insertion's
+    // `Pop` removes it rather than the last inserted line.
+    if part.ends_file && pre_image_end == PreImageEnd::UnterminatedLastLine {
+        modifications.push(Modification::Push);
+    }
     modifications.push(Modification::Splice { index, delete: 0, insert: part.lines.clone() });
     if part.ends_file {
         modifications.push(Modification::Pop);
