@@ -26,7 +26,8 @@ use pnpm_deps_inspection::{
     MAX_WALK_DEPTH,
     build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
     dependents::{
-        BuildDependentsOptions, DependentNode, DependentsTree, ImporterInfo, build_dependents_tree,
+        BuildDependentsOptions, DependencySpecifiers, DependentNode, DependentsTree, ImporterInfo,
+        build_dependents_tree,
     },
     dependents_render::{
         RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
@@ -264,6 +265,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
         search: &searcher,
         importer_info: &importer_info,
         manifest_fields: options.manifest_fields.as_deref().unwrap_or_default(),
+        dependency_specifiers: DependencySpecifiers::Include,
     }))
 }
 

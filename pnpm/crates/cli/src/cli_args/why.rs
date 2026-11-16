@@ -6,8 +6,8 @@ use crate::{
         deps_tree::{
             build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
             dependents::{
-                BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree,
-                merge_trees, merge_trees_for_parseable,
+                BuildDependentsOptions, DependencySpecifiers, DependentsTree, ImporterInfo,
+                build_dependents_tree, merge_trees,
             },
             dependents_render::{
                 RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
@@ -123,8 +123,7 @@ impl WhyArgs {
         if !any_lockfile {
             return Ok(None);
         }
-        let merge = if self.output.parseable { merge_trees_for_parseable } else { merge_trees };
-        Ok(Some(merge(trees)))
+        Ok(Some(merge_trees(trees)))
     }
 
     async fn trees_for_lockfile(
@@ -158,6 +157,11 @@ impl WhyArgs {
             search: &searcher,
             importer_info: &importer_info,
             manifest_fields: &[],
+            dependency_specifiers: if self.output.parseable {
+                DependencySpecifiers::Omit
+            } else {
+                DependencySpecifiers::Include
+            },
         })))
     }
 

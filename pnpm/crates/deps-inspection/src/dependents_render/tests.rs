@@ -5,9 +5,7 @@ use super::{
     RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
     render_dependents_tree,
 };
-use crate::dependents::{
-    DepField, DependentNode, DependentsTree, merge_trees, merge_trees_for_parseable,
-};
+use crate::dependents::{DepField, DependentNode, DependentsTree, merge_trees};
 
 fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> DependentsTree {
     DependentsTree {
@@ -589,27 +587,4 @@ fn merged_trees_keep_distinct_declared_constraints() {
     let json: Value = serde_json::from_str(&render_dependents_json(&merged, &opts(None))).unwrap();
     assert_eq!(json[0]["dependents"][0]["requires"], "^1.0.0");
     assert_eq!(json[0]["dependents"][1]["requires"], "~1.0.0");
-}
-
-#[test]
-fn merged_parseable_ignores_distinct_constraints_at_depth_limit() {
-    let trees = [("app", "^1.0.0"), ("lib", "~1.0.0")].map(|(name, requires)| DependentsTree {
-        path: Some(format!("/workspace/{name}/node_modules/target")),
-        ..tree(
-            "target",
-            "1.0.0",
-            vec![package_with_requires("parent", "2.0.0", Some(requires), vec![])],
-        )
-    });
-    let merged = merge_trees_for_parseable(trees.into());
-    let short = render_dependents_parseable(&merged, &opts(Some(1)));
-    assert_eq!(short, "parent@2.0.0 > target@1.0.0");
-    let long = render_dependents_parseable(
-        &merged,
-        &RenderDependentsOptions { long: true, depth: Some(1) },
-    );
-    assert_eq!(
-        long,
-        "parent@2.0.0 > /workspace/app/node_modules/target:target@1.0.0\nparent@2.0.0 > /workspace/lib/node_modules/target:target@1.0.0",
-    );
 }

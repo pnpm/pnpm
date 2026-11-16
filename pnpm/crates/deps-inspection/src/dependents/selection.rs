@@ -219,24 +219,6 @@ pub fn merge_trees(trees: Vec<DependentsTree>) -> Vec<DependentsTree> {
     merged
 }
 
-/// Merge without constraint identity for the existing parseable output contract.
-#[must_use]
-pub fn merge_trees_for_parseable(mut trees: Vec<DependentsTree>) -> Vec<DependentsTree> {
-    for tree in &mut trees {
-        clear_constraints(&mut tree.dependents);
-    }
-    merge_trees(trees)
-}
-
-fn clear_constraints(nodes: &mut [DependentNode]) {
-    for node in nodes {
-        node.requires = None;
-        if let Some(children) = &mut node.dependents {
-            clear_constraints(children);
-        }
-    }
-}
-
 fn tag_tree_dependents(nodes: &mut [DependentNode], root_path: Option<&str>, tree_index: usize) {
     for node in nodes {
         if node.root_paths.is_empty()

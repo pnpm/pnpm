@@ -4,8 +4,7 @@
 pub use crate::graph::DepField;
 
 pub use selection::{
-    compare_versions, merge_trees, merge_trees_for_parseable, name_ver_from_dep_path,
-    resolve_package_nodes, sort_trees,
+    compare_versions, merge_trees, name_ver_from_dep_path, resolve_package_nodes, sort_trees,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -147,7 +146,7 @@ pub struct BuildDependentsOptions<'a> {
     pub importer_info: &'a HashMap<String, ImporterInfo>,
     /// `package.json` fields to project onto every package node of the
     /// tree, in `manifest`. An empty slice omits this projection;
-    /// dependency specifiers are read independently.
+    /// [`Self::dependency_specifiers`] reads manifests independently.
     ///
     /// This is what the TypeScript tree-builder's `nameFormatter` callback
     /// is for: an embedder that renames nodes after a manifest field —
@@ -155,6 +154,15 @@ pub struct BuildDependentsOptions<'a> {
     /// field here and sets `displayName` on the returned tree, rather than
     /// handing a callback across the FFI boundary into a synchronous walk.
     pub manifest_fields: &'a [String],
+    pub dependency_specifiers: DependencySpecifiers,
+}
+
+/// Whether [`build_dependents_tree`] fills [`DependentNode::requires`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DependencySpecifiers {
+    Include,
+    /// Reads no `package.json` for them, for output that does not show them.
+    Omit,
 }
 
 #[derive(Clone, Copy)]
@@ -176,6 +184,7 @@ struct WalkCtx<'a> {
     lockfile: &'a Lockfile,
     importer_info: &'a HashMap<String, ImporterInfo>,
     manifest_reader: &'a ManifestProjector<'a>,
+    dependency_specifiers: DependencySpecifiers,
     /// Nodes on the current path, for cycle detection.
     visited: HashSet<TreeNodeId>,
     /// Nodes already fully expanded, for deduplication across branches.
@@ -240,6 +249,7 @@ fn walk_dependents_of(
         lockfile: opts.env.current_lockfile,
         importer_info: opts.importer_info,
         manifest_reader,
+        dependency_specifiers: opts.dependency_specifiers,
         visited: HashSet::from([node_id.clone()]),
         expanded: HashSet::new(),
     };
@@ -312,9 +322,7 @@ fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<DependentNode>
         TreeNodeId::Importer(importer_id) => {
             let info = ctx.importer_info.get(importer_id)?;
             let mut node = DependentNode::leaf(info.name.clone(), info.version.clone());
-            node.requires = edge.importer_dependency
-                .as_ref()
-                .map(|dependency| dependency.specifier.clone());
+            node.requires = importer_specifier(ctx, edge);
             node.circular = true;
             node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
             Some(node)
@@ -326,8 +334,7 @@ fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<DependentNode>
             let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
             let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
             let mut node = DependentNode::leaf(name, version);
-            node.requires =
-                ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.kind);
+            node.requires = package_specifier(ctx, edge);
             node.circular = true;
             node.peers_suffix_hash = peers_suffix_hash(dep_path);
             node.merge_id = merge_id;
@@ -350,7 +357,7 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
     let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
     let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
     let mut node = DependentNode::leaf(name, version);
-    node.requires = ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.kind);
+    node.requires = package_specifier(ctx, edge);
     node.peers_suffix_hash = peers_suffix_hash(dep_path);
     node.merge_id = merge_id;
     node.manifest = ctx.manifest_reader.project(&edge.parent);
@@ -378,12 +385,28 @@ fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> De
         None => (importer_id.to_string(), String::new()),
     };
     let mut node = DependentNode::leaf(name, version);
-    if let Some(dependency) = &edge.importer_dependency {
-        node.dep_field = Some(dependency.field);
-        node.requires = Some(dependency.specifier.clone());
-    }
+    node.dep_field = edge.importer_dependency.as_ref().map(|dependency| dependency.field);
+    node.requires = importer_specifier(ctx, edge);
     node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
     node
+}
+
+fn importer_specifier(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<String> {
+    match ctx.dependency_specifiers {
+        DependencySpecifiers::Include => edge.importer_dependency
+            .as_ref()
+            .map(|dependency| dependency.specifier.clone()),
+        DependencySpecifiers::Omit => None,
+    }
+}
+
+fn package_specifier(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<String> {
+    match ctx.dependency_specifiers {
+        DependencySpecifiers::Include => {
+            ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.kind)
+        }
+        DependencySpecifiers::Omit => None,
+    }
 }
 
 fn importer_identity(lockfile_dir: &std::path::Path, importer_id: &str) -> String {
