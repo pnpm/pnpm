@@ -259,7 +259,7 @@ fn write_dev_engines_pin(
 /// [`update_version_constraint`] rewrites the `devEngines` pin, keeping a
 /// range such as `*` or `12.2` that accepts the target as is, and report
 /// whether that changed the manifest.
-fn write_engines_pnpm(manifest: &mut Value, target_version: &str) -> bool {
+pub(crate) fn write_engines_pnpm(manifest: &mut Value, target_version: &str) -> bool {
     let Some(engines) = manifest.get_mut("engines") else {
         return false;
     };

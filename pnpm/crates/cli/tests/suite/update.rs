@@ -1623,6 +1623,7 @@ fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
             "name": "test-update-engines",
             "version": "1.0.0",
             "packageManager": "pnpm@10.0.0+sha256.deadbeef",
+            "engines": { "pnpm": pnpm_config::PNPM_VERSION },
         })
         .to_string(),
     )
@@ -1633,6 +1634,7 @@ fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     assert_eq!(manifest["packageManager"], "pnpm@11.0.0");
+    assert_eq!(manifest["engines"]["pnpm"], "11.0.0");
 }
 
 #[test]
