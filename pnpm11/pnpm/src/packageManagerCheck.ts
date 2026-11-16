@@ -215,11 +215,14 @@ function checkRuntime (runtime: EngineDependency, config: Config): void {
   const runtimeName: RuntimeName = runtime.name
   const displayName = RUNTIME_DISPLAY_NAMES[runtimeName]
   const wantedRange = runtime.version
-  if (!wantedRange || !semver.validRange(wantedRange)) {
-    const msg = wantedRange
-      ? `This project requires an invalid ${displayName} version range: ${wantedRange}`
-      : `This project requires a ${displayName} runtime but does not specify a version range`
-    failRuntimeCheck(config, runtime.onFail, msg)
+  if (!wantedRange) {
+    const msg = `This project requires a ${displayName} runtime but does not specify a version range`
+    failRuntimeCheck(config, runtime.onFail, msg, 'MISSING_RUNTIME_RANGE_VERSION')
+    return
+  }
+  if (!semver.validRange(wantedRange)) {
+    const msg = `This project requires an invalid ${displayName} version range: ${wantedRange}`
+    failRuntimeCheck(config, runtime.onFail, msg, 'INVALID_RUNTIME_RANGE_VERSION')
     return
   }
   const currentVersion = getSystemRuntimeVersion(runtimeName)
@@ -227,22 +230,25 @@ function checkRuntime (runtime: EngineDependency, config: Config): void {
     failRuntimeCheck(
       config,
       runtime.onFail,
-      `This project requires ${displayName} ${wantedRange}, but ${displayName} was not found on the system`
+      `This project requires ${displayName} ${wantedRange}, but ${displayName} was not found on the system`,
+      'MISSING_RUNTIME_VERSION'
     )
     return
   }
+
   if (semver.satisfies(currentVersion, wantedRange, { includePrerelease: true })) return
 
   failRuntimeCheck(
     config,
     runtime.onFail,
-    `This project requires ${displayName} ${wantedRange}. Your current ${displayName} is ${currentVersion}`
+    `This project requires ${displayName} ${wantedRange}. Your current ${displayName} is ${currentVersion}`,
+    'INVALID_RUNTIME_VERSION'
   )
 }
 
-function failRuntimeCheck (config: Config, onFail: 'error' | 'warn', message: string): void {
+function failRuntimeCheck (config: Config, onFail: 'error' | 'warn', message: string, errorCode?: string): void {
   if (onFail === 'error') {
-    throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
+    throw new PnpmError(errorCode ?? 'BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
   }
   warnAboutProject(config, message)
 }
