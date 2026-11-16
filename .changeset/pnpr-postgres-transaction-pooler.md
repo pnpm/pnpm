@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-pnpr on PostgreSQL works behind PgBouncer and other connection pools that run in transaction mode. Writes from more than one pnpr instance stalled there until they timed out.
+Fixed writes on PostgreSQL waiting until they timed out when more than one pnpr instance wrote through PgBouncer or another connection pool in transaction mode.

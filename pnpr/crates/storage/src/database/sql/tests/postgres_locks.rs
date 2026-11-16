@@ -11,8 +11,8 @@ use std::time::Duration;
 
 mod on_postgres {
     use super::{
-        Duration, adapters, initialize, migrate_after_an_ended_migration,
-        migrate_during_an_open_write, write_after_an_ended_write,
+        Duration, adapters, initialize, lock_schema_in_a_transaction,
+        migrate_after_an_ended_migration, migrate_during_an_open_write, write_after_an_ended_write,
     };
     use crate::database::sql::schema;
 
@@ -41,6 +41,16 @@ mod on_postgres {
     async fn a_migration_waits_for_an_open_write() {
         let (_db, first, second) = adapters().await;
         tokio::task::spawn_blocking(move || migrate_during_an_open_write(&*first, &*second))
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires PNPR_TEST_POSTGRES_URL"]
+    async fn a_transaction_that_is_open_refuses_the_schema_lock() {
+        let (_db, first, _second) = adapters().await;
+        tokio::task::spawn_blocking(move || lock_schema_in_a_transaction(&*first))
             .await
             .unwrap()
             .unwrap();
@@ -117,12 +127,25 @@ fn migrate_during_an_open_write(first: &dyn Adapter, second: &dyn Adapter) -> Re
             other.lock_schema()?;
             other.begin_write()
         });
+        let error = waiting.unwrap_err().to_string();
+        // The server and the client hold the same deadline.
         assert!(
-            waiting
-                .unwrap_err()
-                .to_string()
-                .contains("statement timeout"),
+            error.contains("statement timeout") || error.contains("database operation timed out"),
+            "{error}",
         );
         held.commit()
+    })
+}
+
+fn lock_schema_in_a_transaction(adapter: &dyn Adapter) -> Result<()> {
+    initialize(adapter)?;
+    adapter.write(&mut |connection| {
+        connection.begin_read()?;
+        let error = connection
+            .lock_schema()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("schema lock requested inside a transaction"), "{error}");
+        Ok(())
     })
 }

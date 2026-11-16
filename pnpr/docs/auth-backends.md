@@ -101,6 +101,8 @@ transaction mode:
   `ALTER ROLE <user> SET search_path = <schema>`. PgBouncer does not apply the
   `options` URL parameter to the connections pnpr's transactions run on, so
   pnpr would use the default schema.
+  The setting applies to connections opened after it. Reconnect the pooler's
+  open server connections before pnpr starts.
 
 ## MySQL
 

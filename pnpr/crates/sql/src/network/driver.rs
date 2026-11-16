@@ -311,6 +311,11 @@ macro_rules! driver {
                         self.schema_locked.set(true);
                         return Ok(());
                     }
+                    if self.transaction_open.get() && !self.schema_locked.get() {
+                        return Err(RegistryError::Internal {
+                            reason: "schema lock requested inside a transaction".to_string(),
+                        });
+                    }
                     self.schema_locked.set(true);
                     self.begin_migration()
                 }
