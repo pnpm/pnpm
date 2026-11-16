@@ -8,6 +8,13 @@ A missing package manifest is not created.
 
 `pnpm fetch` requires `pnpm-lock.yaml` and does not update it. When the project pins a pnpm version that commands would switch to, `pnpm fetch` also downloads that pnpm into the store, so a later `pnpm install --offline` finds it.
 
+## Workspaces
+
+With `sharedWorkspaceLockfile: false`, use `pnpm -r fetch` to fetch packages
+from each selected project's lockfile. Use `--filter` to select projects.
+Workspace discovery requires the projects' package manifests. Their dependency
+fields do not change what is fetched from the lockfiles.
+
 ## Usage scenario
 
 This command is specifically designed to improve building a docker image.
