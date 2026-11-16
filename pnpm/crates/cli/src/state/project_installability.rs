@@ -60,13 +60,14 @@ impl<'a> ProjectHost<'a> {
         project_dir: &Path,
         downloaded: Option<(&str, &str)>,
     ) -> Result<String, InitStateError> {
-        if self.config.node_version.is_none() && !self.config.skip_runtimes {
-            if let Some((version, specifier)) = downloaded {
-                if let Some(version) = self.locked_runtime_node_version(project_dir, specifier)? {
-                    return Ok(version);
-                }
-                return Ok(version.to_string());
+        if self.config.node_version.is_none()
+            && !self.config.skip_runtimes
+            && let Some((version, specifier)) = downloaded
+        {
+            if let Some(version) = self.locked_runtime_node_version(project_dir, specifier)? {
+                return Ok(version);
             }
+            return Ok(version.to_string());
         }
         Ok(self.node_version().to_string())
     }

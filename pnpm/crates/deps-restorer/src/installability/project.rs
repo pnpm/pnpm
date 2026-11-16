@@ -50,7 +50,7 @@ pub fn project_host_requirements(
         downloaded_node_runtime(manifest, "dependencies", "engines", runtime_on_fail);
     let (dev_dependencies_node_version, dev_dependencies_node_specifier) =
         downloaded_node_runtime(manifest, "devDependencies", "devEngines", runtime_on_fail);
-    declares_any.then(|| ProjectHostRequirements {
+    declares_any.then_some(ProjectHostRequirements {
         installability: requirements,
         dependencies_node_version,
         dev_dependencies_node_version,
