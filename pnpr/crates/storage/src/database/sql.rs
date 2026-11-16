@@ -103,6 +103,15 @@ impl PackageKey {
         (&self.namespace, self.ecosystem.as_str(), &self.name)
     }
 
+    /// `(namespace, name)` for a table named after `ecosystem`, which holds
+    /// only that ecosystem's rows and has no `ecosystem` column. A key of
+    /// another ecosystem would match a same-named package's rows there, so
+    /// callers reach it only for a key of `ecosystem`.
+    fn params_in(&self, ecosystem: Ecosystem) -> (&str, &str) {
+        debug_assert_eq!(self.ecosystem, ecosystem, "{} is of another ecosystem", self.name);
+        (&self.namespace, &self.name)
+    }
+
     fn generation(&self, value: u64) -> Generation {
         Generation { namespace: self.namespace.clone(), value }
     }

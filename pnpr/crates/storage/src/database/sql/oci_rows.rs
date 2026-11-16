@@ -11,6 +11,7 @@ use super::{
     removed, to_column, to_generation,
 };
 use pnpr_error::Result;
+use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -43,20 +44,18 @@ struct IncomingManifest {
 }
 
 pub(super) fn queries(key: &PackageKey) -> [Query<'_>; 2] {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Oci);
     [
         query!(
             "SELECT digest, entry FROM oci_manifests
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+             WHERE namespace = ?1 AND name = ?2",
             namespace,
-            ecosystem,
             name,
         ),
         query!(
             "SELECT tag, digest, updated FROM oci_tags
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+             WHERE namespace = ?1 AND name = ?2",
             namespace,
-            ecosystem,
             name,
         ),
     ]
@@ -111,14 +110,14 @@ fn clear_repository(
         commit.generation,
         stored.manifests.keys().map(String::as_str),
     )?;
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Oci);
     commit.transaction.execute(
-        "DELETE FROM oci_tags WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![namespace, ecosystem, name],
+        "DELETE FROM oci_tags WHERE namespace = ?1 AND name = ?2",
+        params![namespace, name],
     )?;
     commit.transaction.execute(
-        "DELETE FROM oci_manifests WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![namespace, ecosystem, name],
+        "DELETE FROM oci_manifests WHERE namespace = ?1 AND name = ?2",
+        params![namespace, name],
     )?;
     commit.delete_state()?;
     Ok(true)
@@ -150,25 +149,25 @@ fn upsert_manifests(
     incoming: &BTreeMap<String, IncomingManifest>,
 ) -> Result<bool> {
     let mut changed = false;
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Oci);
     for (digest, manifest) in incoming {
         match stored.remove(digest) {
             Some(existing) if existing == manifest.entry => {}
             Some(_) => {
                 let entry = serde_json::to_string(&manifest.entry)?;
                 commit.transaction.execute(
-                    "UPDATE oci_manifests SET entry = ?5
-                     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND digest = ?4",
-                    params![namespace, ecosystem, name, digest, entry],
+                    "UPDATE oci_manifests SET entry = ?4
+                     WHERE namespace = ?1 AND name = ?2 AND digest = ?3",
+                    params![namespace, name, digest, entry],
                 )?;
                 changed = true;
             }
             None => {
                 let entry = serde_json::to_string(&manifest.entry)?;
                 commit.transaction.execute(
-                    "INSERT INTO oci_manifests (namespace, ecosystem, name, digest, entry)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![namespace, ecosystem, name, digest, entry],
+                    "INSERT INTO oci_manifests (namespace, name, digest, entry)
+                     VALUES (?1, ?2, ?3, ?4)",
+                    params![namespace, name, digest, entry],
                 )?;
                 changed = true;
             }
@@ -178,12 +177,12 @@ fn upsert_manifests(
 }
 
 const WRITE_TAG: DialectSql = DialectSql::with_mysql(
-    "INSERT INTO oci_tags (namespace, ecosystem, name, tag, digest, updated)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-     ON CONFLICT (namespace, ecosystem, name, tag) DO UPDATE SET
+    "INSERT INTO oci_tags (namespace, name, tag, digest, updated)
+     VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (namespace, name, tag) DO UPDATE SET
        digest = excluded.digest, updated = excluded.updated",
-    "INSERT INTO oci_tags (namespace, ecosystem, name, tag, digest, updated)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+    "INSERT INTO oci_tags (namespace, name, tag, digest, updated)
+     VALUES (?1, ?2, ?3, ?4, ?5)
      AS excluded ON DUPLICATE KEY UPDATE digest = excluded.digest, updated = excluded.updated",
 );
 
@@ -193,12 +192,12 @@ fn reconcile_tags(
     incoming: &BTreeMap<String, (String, u64)>,
 ) -> Result<bool> {
     let mut changed = false;
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Oci);
     for (tag, target) in incoming {
         if stored.remove(tag).as_ref() != Some(target) {
             commit.transaction.execute(
                 WRITE_TAG.get(commit.transaction.dialect()),
-                params![namespace, ecosystem, name, tag, &target.0, to_column(target.1)],
+                params![namespace, name, tag, &target.0, to_column(target.1)],
             )?;
             changed = true;
         }
@@ -206,8 +205,8 @@ fn reconcile_tags(
     for tag in stored.keys() {
         commit.transaction.execute(
             "DELETE FROM oci_tags
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
-            params![namespace, ecosystem, name, tag],
+             WHERE namespace = ?1 AND name = ?2 AND tag = ?3",
+            params![namespace, name, tag],
         )?;
         changed = true;
     }
@@ -216,14 +215,14 @@ fn reconcile_tags(
 
 const DELETE_MANIFESTS: DialectSql = DialectSql {
     sqlite: "DELETE FROM oci_manifests
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-               AND digest IN (SELECT value FROM json_each(?4))",
+             WHERE namespace = ?1 AND name = ?2
+               AND digest IN (SELECT value FROM json_each(?3))",
     postgres: "DELETE FROM oci_manifests
-               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-                 AND digest IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+               WHERE namespace = ?1 AND name = ?2
+                 AND digest IN (SELECT value FROM json_array_elements_text(CAST(?3 AS JSON)) AS elements(value))",
     mysql: "DELETE FROM oci_manifests
-            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-              AND digest IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+            WHERE namespace = ?1 AND name = ?2
+              AND digest IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?3, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
 };
 
 fn remove_dropped_manifests(
@@ -239,7 +238,7 @@ fn remove_dropped_manifests(
         commit.generation,
         dropped.keys().map(String::as_str),
     )?;
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Oci);
     let keys: Vec<&str> = dropped
         .keys()
         .map(String::as_str)
@@ -247,7 +246,7 @@ fn remove_dropped_manifests(
     let digests = super::blobs::json_array(&keys);
     commit.transaction.execute(
         DELETE_MANIFESTS.get(commit.transaction.dialect()),
-        params![namespace, ecosystem, name, &digests],
+        params![namespace, name, &digests],
     )?;
     Ok(true)
 }
@@ -347,29 +346,27 @@ pub(super) fn view_queries<'query>(
     key: &'query PackageKey,
     unless: &'query i64,
 ) -> [Query<'query>; 2] {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Oci);
     [
         query!(
             "SELECT m.entry FROM oci_manifests m
-             WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3
+             WHERE m.namespace = ?1 AND m.name = ?2
                AND NOT EXISTS (
                  SELECT 1 FROM packages p
-                 WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+                 WHERE p.namespace = ?1 AND p.ecosystem = 'oci' AND p.name = ?2 AND p.generation = ?3)
              ORDER BY m.digest",
             namespace,
-            ecosystem,
             name,
             unless,
         ),
         query!(
             "SELECT t.tag, t.digest, t.updated FROM oci_tags t
-             WHERE t.namespace = ?1 AND t.ecosystem = ?2 AND t.name = ?3
+             WHERE t.namespace = ?1 AND t.name = ?2
                AND NOT EXISTS (
                  SELECT 1 FROM packages p
-                 WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+                 WHERE p.namespace = ?1 AND p.ecosystem = 'oci' AND p.name = ?2 AND p.generation = ?3)
              ORDER BY t.tag",
             namespace,
-            ecosystem,
             name,
             unless,
         ),

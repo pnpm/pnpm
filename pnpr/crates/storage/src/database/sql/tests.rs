@@ -398,7 +398,7 @@ async fn accepted_manifests(storage: &Storage) -> Vec<(String, String, String, S
             .write(&mut |connection| {
                 rows = connection
                     .query(
-                        "SELECT version, profile, inputs, manifest FROM accepted_manifests
+                        "SELECT version, profile, inputs, manifest FROM npm_accepted_manifests
                          ORDER BY version",
                         &[],
                     )?
@@ -802,11 +802,11 @@ async fn removing_versions_and_packages(db: Db) {
         .unwrap();
     let version_tables = [
         "artifact_blobs",
-        "release_records",
-        "accepted_manifests",
-        "readmes",
-        "annotations",
-        "versions",
+        "npm_release_records",
+        "npm_accepted_manifests",
+        "npm_readmes",
+        "npm_annotations",
+        "npm_versions",
     ];
     for table in version_tables {
         assert_eq!(row_count(&storage, table).await, 2, "{table}");
@@ -826,7 +826,7 @@ async fn removing_versions_and_packages(db: Db) {
     );
     for table in version_tables
         .into_iter()
-        .chain(["tags", "package_owners", "packages"])
+        .chain(["npm_tags", "package_owners", "packages"])
     {
         assert_eq!(row_count(&storage, table).await, 0, "{table}");
     }

@@ -10,6 +10,7 @@ use super::{
 use crate::database::ArtifactMember;
 use pnpm_release_record::{Purl, RecordIdentity, StoredRecord};
 use pnpr_error::{RegistryError, Result};
+use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;
@@ -25,14 +26,13 @@ pub(super) fn insert_version(
     record: Option<&[u8]>,
 ) -> Result<()> {
     refuse_removed(commit, removed, version)?;
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Npm);
     commit.transaction.execute(
-        "INSERT INTO versions (namespace, ecosystem, name, version, integrity,
-                               published_at, accepted_generation)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO npm_versions (namespace, name, version, integrity,
+                                   published_at, accepted_generation)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             namespace,
-            ecosystem,
             name,
             version,
             rows.integrity(),
@@ -61,17 +61,16 @@ pub(super) fn insert_version(
 }
 
 fn insert_accepted_manifest(commit: &Commit<'_>, version: &str, rows: &VersionRows) -> Result<()> {
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Npm);
     let manifest = serde_json::to_string(&rows.manifest)?;
     let inputs = serde_json::to_string(&rows.interpretation.inputs)?;
     let accepted_digest = accepted_digest(rows)?;
     commit.transaction.execute(
-        "INSERT INTO accepted_manifests (namespace, ecosystem, name, version, profile,
-                                         manifest, inputs, accepted_digest)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO npm_accepted_manifests (namespace, name, version, profile,
+                                             manifest, inputs, accepted_digest)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             namespace,
-            ecosystem,
             name,
             version,
             rows.interpretation.profile,
@@ -94,13 +93,13 @@ pub(super) struct AcceptedRows {
 /// restatement whose digest differs, such as one with its fields in another
 /// order.
 pub(super) fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<AcceptedRows> {
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Npm);
     let mut row = commit.transaction.query_one(
         "SELECT m.manifest, r.readme, r.readme_filename, m.profile, m.inputs
-         FROM accepted_manifests m
-         LEFT JOIN readmes r USING (namespace, ecosystem, name, version)
-         WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4",
-        params![namespace, ecosystem, name, version],
+         FROM npm_accepted_manifests m
+         LEFT JOIN npm_readmes r USING (namespace, name, version)
+         WHERE m.namespace = ?1 AND m.name = ?2 AND m.version = ?3",
+        params![namespace, name, version],
     )?;
     let manifest: String = row.get(0)?;
     let text: Option<String> = row.get(1)?;
@@ -159,18 +158,18 @@ fn insert_release_record(
     // The record keeps the index its entry was just sequenced at, the log's
     // last.
     commit.transaction.execute(
-        "INSERT INTO release_records (namespace, ecosystem, name, version, profile,
-                                      record, digest, log_index)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
-                 (SELECT MAX(idx) FROM log_entries WHERE namespace = ?1 AND ecosystem = ?2))",
+        "INSERT INTO npm_release_records (namespace, name, version, profile,
+                                          record, digest, log_index)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6,
+                 (SELECT MAX(idx) FROM log_entries WHERE namespace = ?1 AND ecosystem = ?7))",
         params![
             namespace,
-            ecosystem,
             name,
             version,
             profile,
             record.bytes(),
             record.digest().to_string(),
+            ecosystem,
         ],
     )?;
     Ok(())
@@ -198,11 +197,11 @@ pub(super) fn read_release_record(
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<Vec<u8>>> {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Npm);
     let row = connection.query_optional(
-        "SELECT record FROM release_records
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![namespace, ecosystem, name, version],
+        "SELECT record FROM npm_release_records
+         WHERE namespace = ?1 AND name = ?2 AND version = ?3",
+        params![namespace, name, version],
     )?;
     row.map(|mut row| row.get(0))
         .transpose()
@@ -224,13 +223,12 @@ fn insert_readme(commit: &Commit<'_>, version: &str, readme: &Readme) -> Result<
     if readme.is_empty() {
         return Ok(());
     }
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Npm);
     commit.transaction.execute(
-        "INSERT INTO readmes (namespace, ecosystem, name, version, readme, readme_filename)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO npm_readmes (namespace, name, version, readme, readme_filename)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
         params![
             namespace,
-            ecosystem,
             name,
             version,
             json_text(readme.text.as_ref())?,
@@ -241,12 +239,12 @@ fn insert_readme(commit: &Commit<'_>, version: &str, readme: &Readme) -> Result<
 }
 
 const WRITE_ANNOTATION: DialectSql = DialectSql::with_mysql(
-    "INSERT INTO annotations (namespace, ecosystem, name, version, deprecated, generation)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-     ON CONFLICT (namespace, ecosystem, name, version)
+    "INSERT INTO npm_annotations (namespace, name, version, deprecated, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (namespace, name, version)
      DO UPDATE SET deprecated = excluded.deprecated, generation = excluded.generation",
-    "INSERT INTO annotations (namespace, ecosystem, name, version, deprecated, generation)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+    "INSERT INTO npm_annotations (namespace, name, version, deprecated, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5)
      AS excluded ON DUPLICATE KEY UPDATE deprecated = excluded.deprecated, generation = excluded.generation",
 );
 
@@ -256,12 +254,11 @@ pub(super) fn write_deprecation(
     version: &str,
     deprecated: Option<&Value>,
 ) -> Result<()> {
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Npm);
     let Some(deprecated) = deprecated else {
         commit.transaction.execute(
-            "DELETE FROM annotations
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-            params![namespace, ecosystem, name, version],
+            "DELETE FROM npm_annotations WHERE namespace = ?1 AND name = ?2 AND version = ?3",
+            params![namespace, name, version],
         )?;
         return Ok(());
     };
@@ -269,7 +266,6 @@ pub(super) fn write_deprecation(
         WRITE_ANNOTATION.get(commit.transaction.dialect()),
         params![
             namespace,
-            ecosystem,
             name,
             version,
             serde_json::to_string(deprecated)?,
@@ -285,12 +281,12 @@ fn json_text(value: Option<&Value>) -> Result<Option<String>> {
 
 const RECORD_REMOVED_VERSION: DialectSql = DialectSql::with_mysql(
     "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-     SELECT namespace, ecosystem, name, version, ?5 FROM versions
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+     SELECT namespace, ?2, name, version, ?5 FROM npm_versions
+     WHERE namespace = ?1 AND name = ?3 AND version = ?4
      ON CONFLICT DO NOTHING",
     "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-     SELECT namespace, ecosystem, name, version, ?5 FROM versions
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+     SELECT namespace, ?2, name, version, ?5 FROM npm_versions
+     WHERE namespace = ?1 AND name = ?3 AND version = ?4
      ON DUPLICATE KEY UPDATE namespace = removed_versions.namespace",
 );
 
@@ -301,26 +297,28 @@ pub(super) fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
         RECORD_REMOVED_VERSION.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, version, to_column(commit.generation)],
     )?;
-    for table in VERSION_TABLES {
+    // The mappings of its files go first, which leaves the blobs nothing
+    // else maps to be reclaimed.
+    commit.transaction.execute(
+        "DELETE FROM artifact_blobs
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![namespace, ecosystem, name, version],
+    )?;
+    for table in NPM_VERSION_TABLES {
         commit.transaction.execute(
-            &format!(
-                "DELETE FROM {table}
-                 WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-            ),
-            params![namespace, ecosystem, name, version],
+            &format!("DELETE FROM {table} WHERE namespace = ?1 AND name = ?2 AND version = ?3"),
+            params![namespace, name, version],
         )?;
     }
     Ok(())
 }
 
-/// The tables holding a version's rows, each before the tables its rows
-/// reference. The mappings of its files go with it, which leaves the blobs
-/// nothing else maps to be reclaimed.
-const VERSION_TABLES: [&str; 6] = [
-    "artifact_blobs",
-    "release_records",
-    "accepted_manifests",
-    "readmes",
-    "annotations",
-    "versions",
+/// The tables holding an npm version's rows, each before the tables its rows
+/// reference.
+const NPM_VERSION_TABLES: [&str; 5] = [
+    "npm_release_records",
+    "npm_accepted_manifests",
+    "npm_readmes",
+    "npm_annotations",
+    "npm_versions",
 ];

@@ -37,79 +37,73 @@ CREATE TABLE IF NOT EXISTS package_owners (
 -- flips in place.
 CREATE TABLE IF NOT EXISTS cargo_versions (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     position INTEGER NOT NULL,
     yanked INTEGER NOT NULL,
     entry TEXT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 ) STRICT;
 CREATE INDEX IF NOT EXISTS cargo_versions_by_position
-    ON cargo_versions (namespace, ecosystem, name, position);
+    ON cargo_versions (namespace, name, position);
 
 -- Published distribution files of a Python project, ordered by `position`.
 -- `entry` holds the immutable PEP 691 file metadata; `yanked` and `yank_reason`
 -- change in place.
 CREATE TABLE IF NOT EXISTS pypi_files (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     filename TEXT NOT NULL,
     position INTEGER NOT NULL,
     yanked INTEGER NOT NULL,
     yank_reason TEXT,
     entry TEXT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, filename)
+    PRIMARY KEY (namespace, name, filename)
 ) STRICT;
 CREATE INDEX IF NOT EXISTS pypi_files_by_position
-    ON pypi_files (namespace, ecosystem, name, position);
+    ON pypi_files (namespace, name, position);
 
 -- Distribution filenames permanently reserved after deletion from a Python
 -- project, so a deleted filename can never be uploaded again.
-CREATE TABLE IF NOT EXISTS removed_pypi_files (
+CREATE TABLE IF NOT EXISTS pypi_removed_files (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     filename TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, filename)
+    PRIMARY KEY (namespace, name, filename)
 ) STRICT, WITHOUT ROWID;
 
 -- Manifests retained in an OCI image repository, keyed by content digest.
 -- `entry` holds child digests and indexed referrer metadata.
 CREATE TABLE IF NOT EXISTS oci_manifests (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     digest TEXT NOT NULL,
     entry TEXT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, digest)
+    PRIMARY KEY (namespace, name, digest)
 ) STRICT;
 
 -- Mutable tags of an OCI image repository and the manifest digest each names.
 CREATE TABLE IF NOT EXISTS oci_tags (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     tag TEXT NOT NULL,
     digest TEXT NOT NULL,
     updated INTEGER NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag)
+    PRIMARY KEY (namespace, name, tag)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: a version's artifact integrity. `accepted_generation` is the
 -- namespace generation that accepted it, which is the id of the version's
 -- initial publication.
-CREATE TABLE IF NOT EXISTS versions (
+CREATE TABLE IF NOT EXISTS npm_versions (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     integrity TEXT NOT NULL,
     published_at INTEGER,
     accepted_generation INTEGER NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: the manifest accepted for a version under an interpretation
@@ -118,32 +112,30 @@ CREATE TABLE IF NOT EXISTS versions (
 -- for the `submitted` profile, whose input is the manifest itself.
 -- `accepted_digest` covers the manifest, README, profile, and inputs, which a
 -- restatement of the version must match.
-CREATE TABLE IF NOT EXISTS accepted_manifests (
+CREATE TABLE IF NOT EXISTS npm_accepted_manifests (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     profile TEXT NOT NULL,
     manifest TEXT NOT NULL,
     inputs TEXT NOT NULL,
     accepted_digest TEXT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version, profile)
+    PRIMARY KEY (namespace, name, version, profile)
 ) STRICT;
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
 -- under `profile` and served unchanged at its record route. `digest` is their
 -- SHA-512, `sha512-<base64>`, which the record's log entry commits to, and
 -- `log_index` the index of that entry in its namespace's log.
-CREATE TABLE IF NOT EXISTS release_records (
+CREATE TABLE IF NOT EXISTS npm_release_records (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     profile TEXT NOT NULL,
     record BLOB NOT NULL,
     digest TEXT NOT NULL,
     log_index INTEGER NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version, profile)
+    PRIMARY KEY (namespace, name, version, profile)
 ) STRICT;
 
 -- Insert-only: the transparency log of each namespace's records of one
@@ -171,32 +163,29 @@ CREATE TABLE IF NOT EXISTS log_heads (
 ) STRICT, WITHOUT ROWID;
 
 -- Kept out of the manifest so a README never inflates resolution metadata.
-CREATE TABLE IF NOT EXISTS readmes (
+CREATE TABLE IF NOT EXISTS npm_readmes (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     readme TEXT,
     readme_filename TEXT,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS tags (
+CREATE TABLE IF NOT EXISTS npm_tags (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     tag TEXT NOT NULL,
     version TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag)
+    PRIMARY KEY (namespace, name, tag)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: every move of a tag, so a release-age or downgrade policy can
 -- see when a tag moved, not only where it points. Kept when the package is
 -- removed.
-CREATE TABLE IF NOT EXISTS tag_history (
+CREATE TABLE IF NOT EXISTS npm_tag_history (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     tag TEXT NOT NULL,
     generation INTEGER NOT NULL,
@@ -204,7 +193,7 @@ CREATE TABLE IF NOT EXISTS tag_history (
     target TEXT,
     principal TEXT,
     changed_at INTEGER NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag, generation)
+    PRIMARY KEY (namespace, name, tag, generation)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: the identity of every version removed from a package, by
@@ -224,7 +213,7 @@ CREATE TABLE IF NOT EXISTS removed_versions (
 -- removing the repository, so a publication that introduced it is not replayed
 -- after its removal. Kept when the repository is removed, with the generation
 -- of its latest removal when pushed and removed again.
-CREATE TABLE IF NOT EXISTS removed_oci_manifests (
+CREATE TABLE IF NOT EXISTS oci_removed_manifests (
     namespace TEXT NOT NULL,
     name TEXT NOT NULL,
     artifact TEXT NOT NULL,
@@ -234,14 +223,13 @@ CREATE TABLE IF NOT EXISTS removed_oci_manifests (
 
 -- Mutable annotations of a version. `deprecated` is its JSON value.
 -- `generation` is the generation that last changed the row.
-CREATE TABLE IF NOT EXISTS annotations (
+CREATE TABLE IF NOT EXISTS npm_annotations (
     namespace TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     deprecated TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 ) STRICT, WITHOUT ROWID;
 
 -- A commit that introduced artifacts. `id` is the namespace generation it
@@ -286,22 +274,30 @@ CREATE TABLE IF NOT EXISTS publication_outcomes (
 CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at
     ON publication_outcomes (committed_at);
 
--- Release notes of a package version (`kind` = 'version', `subject` = the
--- version) or of a publication (`kind` = 'publication', `ecosystem` and
--- `name` empty, `subject` = its id). `text` is NULL once deleted.
--- `initial_digest` is the digest of the text published with the subject.
-CREATE TABLE IF NOT EXISTS notes (
+-- Release notes of a package version. `text` is NULL once deleted.
+-- `initial_digest` is the digest of the text published with the version.
+CREATE TABLE IF NOT EXISTS version_notes (
     namespace TEXT NOT NULL,
-    kind TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
-    subject TEXT NOT NULL,
+    version TEXT NOT NULL,
     text TEXT,
     modified_at INTEGER NOT NULL,
     principal TEXT,
     initial_digest TEXT,
-    PRIMARY KEY (namespace, kind, ecosystem, name, subject)
-) STRICT, WITHOUT ROWID;
+    PRIMARY KEY (namespace, ecosystem, name, version)
+) STRICT;
+
+-- Release notes of a publication, as `version_notes` holds them for a version.
+CREATE TABLE IF NOT EXISTS publication_notes (
+    namespace TEXT NOT NULL,
+    publication INTEGER NOT NULL,
+    text TEXT,
+    modified_at INTEGER NOT NULL,
+    principal TEXT,
+    initial_digest TEXT,
+    PRIMARY KEY (namespace, publication)
+) STRICT;
 
 -- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
 -- the incarnation stored under `<blob_id>.<incarnation>` now, `live`,
@@ -371,55 +367,28 @@ CREATE TABLE IF NOT EXISTS scim_users (
 CREATE INDEX IF NOT EXISTS scim_users_by_generation
     ON scim_users (generation);
 
--- Registries whose team roster has been initialized in the database.
-CREATE TABLE IF NOT EXISTS team_rosters (
-    registry TEXT NOT NULL PRIMARY KEY,
-    generation INTEGER NOT NULL
-) STRICT, WITHOUT ROWID;
+-- The hosted store this database is bound to.
+CREATE TABLE IF NOT EXISTS hosted_store (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    store_id TEXT NOT NULL
+) STRICT;
 
-CREATE TABLE IF NOT EXISTS teams (
-    registry TEXT NOT NULL,
-    team_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    position INTEGER NOT NULL,
-    PRIMARY KEY (registry, team_id)
-) STRICT, WITHOUT ROWID;
-CREATE UNIQUE INDEX IF NOT EXISTS teams_by_name
-    ON teams (registry, name);
-CREATE INDEX IF NOT EXISTS teams_by_position
-    ON teams (registry, position);
+-- Every stored revision of the registry graph, the newest one current.
+CREATE TABLE IF NOT EXISTS registry_graph_revisions (
+    generation INTEGER NOT NULL PRIMARY KEY,
+    document TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    restored_from INTEGER
+) STRICT;
 
-CREATE TABLE IF NOT EXISTS team_members (
-    registry TEXT NOT NULL,
-    team_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    PRIMARY KEY (registry, team_id, user_id)
-) STRICT, WITHOUT ROWID;
-
--- Registries with stored API rule overrides, and the generation of their
--- current override set.
-CREATE TABLE IF NOT EXISTS rule_override_sets (
-    registry TEXT NOT NULL PRIMARY KEY,
-    generation INTEGER NOT NULL
-) STRICT, WITHOUT ROWID;
-
--- Overridden rule lists of a registry (`pattern` = '' for the registry-level
--- default `access`, else a declared package pattern). Presence with zero rows
--- in `rule_override_grants` represents an empty access list (`[]`).
-CREATE TABLE IF NOT EXISTS rule_overrides (
-    registry TEXT NOT NULL,
-    pattern TEXT NOT NULL,
-    action TEXT NOT NULL,
-    PRIMARY KEY (registry, pattern, action)
-) STRICT, WITHOUT ROWID;
-
-CREATE TABLE IF NOT EXISTS rule_override_grants (
-    registry TEXT NOT NULL,
-    pattern TEXT NOT NULL,
-    action TEXT NOT NULL,
-    position INTEGER NOT NULL,
-    principal TEXT NOT NULL,
-    PRIMARY KEY (registry, pattern, action, position)
+-- Each hosted `(namespace, ecosystem)` a stored registry graph revision
+-- stopped serving and no later revision serves again. Publishing into one is
+-- refused.
+CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (
+    namespace TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    PRIMARY KEY (namespace, ecosystem)
 ) STRICT, WITHOUT ROWID;
 
 -- The active Cloudflare CDN cache-tag target shared by replicas of this database.
