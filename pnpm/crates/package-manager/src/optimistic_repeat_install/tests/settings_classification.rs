@@ -136,6 +136,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("global_bin", NotAnInput("the global packages, which a project install does not touch")),
     ("global_bin_dir", NotAnInput("the global packages, which a project install does not touch")),
     ("global_dir", NotAnInput("the global packages, which a project install does not touch")),
+    ("global_packages_config", Through("the settings the config loader applies from it, for the global packages only")),
     ("global_pkg_dir", NotAnInput("the global packages, which a project install does not touch")),
     ("global_pnpmfile", Through("the pnpmfile list, compared as `pnpmfiles`")),
     ("global_shims", NotAnInput("the global packages, which a project install does not touch")),
