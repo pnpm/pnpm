@@ -5,6 +5,13 @@ title: pnpm fetch
 
 Fetch packages from a lockfile into virtual store, package manifest is ignored.
 
+## Workspaces
+
+With `sharedWorkspaceLockfile: false`, use `pnpm -r fetch` to fetch packages
+from each selected project's lockfile. Use `--filter` to select projects.
+Workspace discovery requires the projects' package manifests. Their dependency
+fields do not change what is fetched from the lockfiles.
+
 ## Usage scenario
 
 This command is specifically designed to improve building a docker image.

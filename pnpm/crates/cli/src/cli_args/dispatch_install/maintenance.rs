@@ -91,12 +91,12 @@ pub(in super::super) fn fetch<'a>(
     args: FetchArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let ignore_pnpmfile = args.ignore_pnpmfile;
-    let command_state = ctx.prepared_state_with(true, move |config| {
+    let manifest_path = ctx.locations.manifest_path;
+    let config = ctx.prepared_config_with(move |config| {
         config.ignore_pnpmfile |= ignore_pnpmfile;
     });
     Ok(Box::pin(async move {
-        let command_state = command_state.await?;
-        args.run::<CliReporter>(command_state).await
+        super::super::pipelines::run_fetch::<CliReporter>(args, config.await?, manifest_path).await
     }))
 }
 
