@@ -435,6 +435,10 @@ fn list_and_get_censor_global_cache_signing_keys() {
                 "remote": { "org": "acme", "packages": ["pkg"], "privateKey": "sec-sec" }
             }),
         ),
+        (
+            "global-packages-config",
+            json!({ "remoteCache": { "url": "https://cache.example.com", "privateKey": "sec-gp" } }),
+        ),
     ] {
         config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.to_string()))
             .unwrap();
@@ -443,15 +447,27 @@ fn list_and_get_censor_global_cache_signing_keys() {
     let loaded = load_global_only_config(&config_dir);
     let listed = config_list(&loaded);
     assert!(
-        !listed.contains("sec-rc") && !listed.contains("sec-rsec") && !listed.contains("sec-sec"),
+        !listed.contains("sec-rc")
+            && !listed.contains("sec-rsec")
+            && !listed.contains("sec-sec")
+            && !listed.contains("sec-gp"),
     );
 
     let listed_json: Value = serde_json::from_str(&listed).unwrap();
     assert_eq!(listed_json["remoteCache"]["privateKey"], json!("(protected)"));
     assert_eq!(listed_json["remoteSideEffectsCache"]["privateKey"], json!("(protected)"));
     assert_eq!(listed_json["sideEffectsCache"]["remote"]["privateKey"], json!("(protected)"));
+    assert_eq!(
+        listed_json["globalPackagesConfig"]["remoteCache"]["privateKey"],
+        json!("(protected)"),
+    );
 
-    for key in ["remote-cache", "remote-side-effects-cache", "side-effects-cache"] {
+    for key in [
+        "remote-cache",
+        "remote-side-effects-cache",
+        "side-effects-cache",
+        "global-packages-config",
+    ] {
         let output = config_get(&loaded, flags(true, None, false), key).unwrap();
         assert!(output.contains("(protected)"), "{key} output: {output}");
         assert!(!output.contains("sec-"), "{key} leaked key: {output}");
@@ -460,6 +476,7 @@ fn list_and_get_censor_global_cache_signing_keys() {
         "remoteCache.privateKey",
         "remoteSideEffectsCache.privateKey",
         "sideEffectsCache.remote.privateKey",
+        "globalPackagesConfig.remoteCache.privateKey",
     ] {
         assert_eq!(config_get(&loaded, flags(true, None, false), path).unwrap(), "(protected)");
     }
@@ -479,6 +496,10 @@ fn set_global_remote_cache_sections_writes_owner_only_permissions() {
         (
             "side-effects-cache",
             json!({ "remote": { "org": "acme", "packages": ["pkg"], "privateKey": "secret" } }),
+        ),
+        (
+            "global-packages-config",
+            json!({ "remoteCache": { "url": "https://cache.example.com", "privateKey": "secret" } }),
         ),
     ] {
         let tmp = TempDir::new().unwrap();

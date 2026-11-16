@@ -2,7 +2,7 @@ use super::{
     ApproveBuildsArgs, BTreeSet, Config, Context, GlobalError, IgnoredBuildsScan, IntoDiagnostic,
     Path, PathBuf, Reporter, State, clear_decided_ignored_builds, get_automatically_ignored_builds,
     global_approval_store, global_group_config, is_subdir, run_rebuild, scan_global_packages,
-    warn_about_legacy_build_settings,
+    warn_about_legacy_global_settings,
 };
 
 pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
@@ -21,7 +21,7 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
         return Ok(());
     };
 
-    warn_about_legacy_build_settings::<Reporter>(base_config, global_pkg_dir)?;
+    warn_about_legacy_global_settings::<Reporter>(base_config, global_pkg_dir)?;
     global_approval_store(base_config, global_pkg_dir)?.write_decision(&decision)?;
     let mut rebuild_groups = Vec::new();
     for (install_dir, scan) in groups {

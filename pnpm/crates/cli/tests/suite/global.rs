@@ -694,9 +694,10 @@ fn global_add_runs_the_builds_global_packages_allows() {
     drop(root);
 }
 
-/// The build decisions the global packages directory's `pnpm-workspace.yaml`
-/// held before `globalPackagesConfig` still apply, with a deprecation warning, and
-/// the next approval moves them into the global `config.yaml`.
+/// The build decisions in the global packages directory's
+/// `pnpm-workspace.yaml` still apply, with a deprecation warning, and the
+/// next approval moves them into the global `config.yaml`. Its other
+/// settings are reported as ignored and stay.
 #[cfg(unix)]
 #[test]
 fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
@@ -709,8 +710,11 @@ fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
     prepare_global_home(&pnpm_home, &npmrc_info);
     fs::create_dir_all(&global_pkg_dir).expect("create the global packages dir");
     let legacy_yaml = global_pkg_dir.join("pnpm-workspace.yaml");
-    fs::write(&legacy_yaml, "allowBuilds:\n  '@pnpm.e2e/legacy-decision': false\n")
-        .expect("write the legacy build decisions");
+    fs::write(
+        &legacy_yaml,
+        "allowBuilds:\n  '@pnpm.e2e/legacy-decision': false\ntrustPolicyExclude:\n  - vercel\n",
+    )
+    .expect("write the legacy settings");
 
     let output = global_command(&workspace, &pnpm_home)
         .with_args(["add", "-g", "@pnpm.e2e/install-script-example@1.0.0"])
@@ -726,6 +730,10 @@ fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
         printed.contains("The build settings in") && printed.contains("are deprecated"),
         "the legacy decisions should be reported: {printed}",
     );
+    assert!(
+        printed.contains("do not apply to global packages: trustPolicyExclude"),
+        "the ignored legacy setting should be reported: {printed}",
+    );
 
     global_command(&workspace, &pnpm_home)
         .with_args(["approve-builds", "-g", "--all"])
@@ -736,7 +744,11 @@ fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
         fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read the global config"),
         "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n    '@pnpm.e2e/legacy-decision':\n      build: false\n",
     );
-    assert!(!legacy_yaml.exists(), "the moved decisions should leave the legacy file");
+    assert_eq!(
+        fs::read_to_string(&legacy_yaml).expect("read the legacy file"),
+        "trustPolicyExclude:\n  - vercel\n",
+        "the moved decisions should leave the legacy file",
+    );
 
     drop(npmrc_info);
     drop(root);

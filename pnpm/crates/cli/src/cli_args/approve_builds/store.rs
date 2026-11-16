@@ -31,8 +31,9 @@ pub(crate) enum ApprovalStore<'a> {
 pub(crate) struct GlobalPackagesStore<'a> {
     /// The directory of the global `config.yaml`.
     pub(crate) config_dir: &'a Path,
-    /// The global packages directory. Its `pnpm-workspace.yaml` held the
-    /// decisions before `globalPackagesConfig`, and is still read.
+    /// The global packages directory, whose `pnpm-workspace.yaml` is still
+    /// read for build decisions, deprecated in favor of
+    /// `globalPackagesConfig`.
     pub(crate) global_pkg_dir: &'a Path,
 }
 
@@ -173,8 +174,8 @@ pub(crate) fn load_global_packages_config(
         .map(|settings| *settings))
 }
 
-/// The `pnpm-workspace.yaml` of the global packages directory, which held
-/// the build decisions of the global packages before `globalPackagesConfig`.
+/// The `pnpm-workspace.yaml` of the global packages directory, still read
+/// for build decisions, deprecated in favor of `globalPackagesConfig`.
 pub(crate) fn load_legacy_global_settings(
     global_pkg_dir: &Path,
 ) -> miette::Result<Option<(PathBuf, WorkspaceSettings)>> {

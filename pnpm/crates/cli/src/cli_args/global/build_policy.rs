@@ -38,21 +38,29 @@ pub(super) fn apply_global_build_policy(
     Ok(())
 }
 
-/// Warn when the global packages directory's `pnpm-workspace.yaml` still
-/// holds build settings.
-pub(super) fn warn_about_legacy_build_settings<Reporter: self::Reporter>(
+/// The settings of the global packages directory's `pnpm-workspace.yaml`
+/// that the global packages still apply, deprecated in favor of
+/// `globalPackagesConfig`.
+const LEGACY_BUILD_KEYS: &[&str] = &["allowBuilds", "dangerouslyAllowAllBuilds", "permissions"];
+
+/// Warn about the settings the global packages directory's
+/// `pnpm-workspace.yaml` holds: the build settings still apply and are
+/// deprecated, and every other setting there is ignored.
+pub(super) fn warn_about_legacy_global_settings<Reporter: self::Reporter>(
     config: &Config,
     global_pkg_dir: &Path,
 ) -> miette::Result<()> {
     let Some((path, settings)) = load_legacy_global_settings(global_pkg_dir)? else {
         return Ok(());
     };
-    if settings.allow_builds.is_none()
-        && settings.permissions.is_none()
-        && settings.dangerously_allow_all_builds.is_none()
-    {
+    let Ok(serde_json::Value::Object(set)) = serde_json::to_value(&settings) else {
         return Ok(());
-    }
+    };
+    let (build, ignored): (Vec<&str>, Vec<&str>) = set
+        .iter()
+        .filter(|(_, value)| !value.is_null())
+        .map(|(key, _)| key.as_str())
+        .partition(|key| LEGACY_BUILD_KEYS.contains(key));
     let global_config = config.config_dir
         .as_deref()
         .map_or_else(
@@ -64,9 +72,17 @@ pub(super) fn warn_about_legacy_build_settings<Reporter: self::Reporter>(
             },
         );
     let path = path.display();
-    emit_global_warning::<Reporter>(&format!(
-        "The build settings in {path} are deprecated. Move them under globalPackagesConfig in {global_config}.",
-    ));
+    if !build.is_empty() {
+        emit_global_warning::<Reporter>(&format!(
+            "The build settings in {path} are deprecated. Move them under globalPackagesConfig in {global_config}.",
+        ));
+    }
+    if !ignored.is_empty() {
+        let ignored = ignored.join(", ");
+        emit_global_warning::<Reporter>(&format!(
+            "These settings in {path} do not apply to global packages: {ignored}. Set them under globalPackagesConfig in {global_config}.",
+        ));
+    }
     Ok(())
 }
 

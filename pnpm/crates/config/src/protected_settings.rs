@@ -33,7 +33,8 @@ pub fn censor_protected_settings(config: &mut Map<String, Value>) {
 }
 
 /// Mask `value` in place when `key` is a protected setting or carries nested
-/// cache signing credentials (`privateKey`).
+/// cache signing credentials (`privateKey`). A section of settings, such as
+/// `globalPackagesConfig`, is masked setting by setting.
 pub fn censor_protected_setting_value(key: &str, value: &mut Value) {
     if is_setting_protected(key) {
         *value = Value::String(PROTECTED_PLACEHOLDER.to_string());
@@ -47,6 +48,15 @@ pub fn censor_protected_setting_value(key: &str, value: &mut Value) {
                 .and_then(|map| map.get_mut("remote"))
             {
                 censor_private_key_field(remote);
+            }
+        }
+        "globalPackagesConfig" => {
+            for (setting, setting_value) in value
+                .as_object_mut()
+                .into_iter()
+                .flatten()
+            {
+                censor_protected_setting_value(setting, setting_value);
             }
         }
         _ => {}
