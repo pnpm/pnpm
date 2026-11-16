@@ -90,7 +90,7 @@ jobs:
             outer_dir="$RUNNER_TEMP/outer-${outer_spec//[^a-zA-Z0-9]/_}"
             mkdir -p "$outer_dir"
             printf '{"name":"outer-runner","private":true}\n' > "$outer_dir/package.json"
-            pnpm --dir "$outer_dir" add "$outer_spec"
+            pnpm --dir "$outer_dir" add --allow-build=pnpm "$outer_spec"
             outer_bin="$outer_dir/node_modules/.bin/pnpm"
             if [ "${RUNNER_OS:-}" = "Windows" ] && [ -f "${outer_bin}.cmd" ]; then
               outer_bins+=("${outer_bin}.cmd")
