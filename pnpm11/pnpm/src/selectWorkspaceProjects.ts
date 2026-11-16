@@ -186,6 +186,8 @@ function createProjectsFilterOptions (config: Config, context: ConfigContext, op
     changedFilesIgnorePattern: config.changedFilesIgnorePattern,
     useGlobDirFiltering: !config.legacyDirFiltering,
     sharedWorkspaceLockfile: config.sharedWorkspaceLockfile,
+    useGitBranchLockfile: config.useGitBranchLockfile,
+    mergeGitBranchLockfiles: config.mergeGitBranchLockfiles,
   }
 }
 

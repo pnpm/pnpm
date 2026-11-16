@@ -59,6 +59,8 @@ export interface FilterProjectsOptions {
   changedFilesIgnorePattern?: string[]
   useGlobDirFiltering?: boolean
   sharedWorkspaceLockfile?: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
 }
 
 export interface FilterProjectsFromDirResult extends FilterProjectsResult<Project> {
@@ -93,6 +95,8 @@ export async function filterProjectsFromDir (
     modulesDir: opts.modulesDir,
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     nodeVersion: opts.nodeVersion,
     nodeVersionFromEnginesRuntime: opts.nodeVersionFromEnginesRuntime,
     production: opts.production,

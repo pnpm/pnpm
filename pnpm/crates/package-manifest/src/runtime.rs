@@ -223,9 +223,21 @@ pub fn downloaded_node_version_from_engine_field(
         .map(|runtime| runtime.version)
 }
 
+#[must_use]
+pub fn downloaded_node_specifier_from_engine_field(
+    manifest: &Value,
+    engines_field: &str,
+    on_fail_override: Option<&str>,
+) -> Option<String> {
+    declared_node_runtime_in_field(manifest.get(engines_field)?, on_fail_override)
+        .filter(|runtime| runtime.downloaded)
+        .map(|runtime| format!("runtime:{}", runtime.specifier))
+}
+
 struct DeclaredNodeRuntime {
     version: String,
     downloaded: bool,
+    specifier: String,
 }
 
 fn declared_node_runtime(
@@ -264,11 +276,19 @@ fn declared_node_runtime_in_field(
     let on_fail = on_fail_override.or_else(|| runtime.get("onFail").and_then(Value::as_str));
     if on_fail != Some("download") {
         let version = Version::parse(version).ok()?.to_string();
-        return Some(DeclaredNodeRuntime { version, downloaded: false });
+        return Some(DeclaredNodeRuntime {
+            specifier: version.clone(),
+            version,
+            downloaded: false,
+        });
     }
     range
         .min_version()
-        .map(|version| DeclaredNodeRuntime { version: version.to_string(), downloaded: true })
+        .map(|minimum| DeclaredNodeRuntime {
+            version: minimum.to_string(),
+            downloaded: true,
+            specifier: version.to_string(),
+        })
 }
 
 /// Fold `tool:<version>` / `runtime:<version>` dependency entries back into

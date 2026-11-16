@@ -14,7 +14,8 @@ use pnpm_package_is_installable::{
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_workspace::Project;
 use std::{
-    cell::OnceCell,
+    cell::{OnceCell, RefCell},
+    collections::HashMap,
     path::{Path, PathBuf},
 };
 
@@ -24,7 +25,7 @@ pub(crate) struct ProjectHost<'a> {
     root_dir: &'a Path,
     /// Detected for the first project that declares `engines.node`.
     node_version: OnceCell<String>,
-    lockfile: OnceCell<Result<Option<pnpm_lockfile::Lockfile>, String>>,
+    lockfiles: RefCell<HashMap<PathBuf, Option<pnpm_lockfile::Lockfile>>>,
 }
 
 impl<'a> ProjectHost<'a> {
@@ -32,7 +33,12 @@ impl<'a> ProjectHost<'a> {
     /// Node.js version when runtimes are not skipped and no `nodeVersion` is
     /// configured.
     pub(crate) fn new(config: &'a Config, root_dir: &'a Path) -> Self {
-        ProjectHost { config, root_dir, node_version: OnceCell::new(), lockfile: OnceCell::new() }
+        ProjectHost {
+            config,
+            root_dir,
+            node_version: OnceCell::new(),
+            lockfiles: RefCell::new(HashMap::new()),
+        }
     }
 
     fn node_version(&self) -> &str {
@@ -52,13 +58,13 @@ impl<'a> ProjectHost<'a> {
     fn project_node_version(
         &self,
         project_dir: &Path,
-        downloaded: Option<&str>,
+        downloaded: Option<(&str, &str)>,
     ) -> Result<String, InitStateError> {
         if self.config.node_version.is_none() && !self.config.skip_runtimes {
-            if let Some(version) = self.locked_runtime_node_version(project_dir)? {
-                return Ok(version);
-            }
-            if let Some(version) = downloaded {
+            if let Some((version, specifier)) = downloaded {
+                if let Some(version) = self.locked_runtime_node_version(project_dir, specifier)? {
+                    return Ok(version);
+                }
                 return Ok(version.to_string());
             }
         }
@@ -68,26 +74,37 @@ impl<'a> ProjectHost<'a> {
     fn locked_runtime_node_version(
         &self,
         project_dir: &Path,
+        expected_specifier: &str,
     ) -> Result<Option<String>, InitStateError> {
         if !self.config.lockfile {
             return Ok(None);
         }
-        let lockfile_dir = self.config.lockfile_dir.as_deref().unwrap_or(self.root_dir);
-        let lockfile = self.lockfile.get_or_init(|| {
-            pnpm_lockfile::Lockfile::load_wanted(
-                lockfile_dir,
+        let lockfile_dir = self.config.lockfile_dir_for(project_dir).to_path_buf();
+        if !self.lockfiles.borrow().contains_key(&lockfile_dir) {
+            let lockfile = match pnpm_lockfile::Lockfile::load_wanted(
+                &lockfile_dir,
                 &self.config.wanted_lockfile_selection(),
-            )
-            .map_err(|error| format!("{}: {error}", lockfile_dir.display()))
-        });
-        let lockfile =
-            lockfile.as_ref().map_err(|error| InitStateError::Lockfile(error.clone()))?;
+            ) {
+                Ok(lockfile) => lockfile,
+                Err(pnpm_lockfile::LoadLockfileError::ParseYaml { .. }) => None,
+                Err(error) => {
+                    return Err(InitStateError::Lockfile(format!(
+                        "{}: {error}",
+                        lockfile_dir.display()
+                    )));
+                }
+            };
+            self.lockfiles.borrow_mut().insert(lockfile_dir.clone(), lockfile);
+        }
+        let lockfiles = self.lockfiles.borrow();
+        let lockfile = lockfiles.get(&lockfile_dir).and_then(Option::as_ref);
         let Some(lockfile) = lockfile else { return Ok(None) };
-        let importer_id = pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir);
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(&lockfile_dir, project_dir);
         let Some(importer) = lockfile.importers.get(&importer_id) else { return Ok(None) };
-        Ok(pnpm_deps_restorer::find_project_runtime_node_version(
+        Ok(pnpm_deps_restorer::find_project_runtime_node_version_for_specifier(
             importer,
             self.dependency_groups(),
+            expected_specifier,
         ))
     }
 
@@ -103,16 +120,18 @@ impl<'a> ProjectHost<'a> {
     fn downloaded_node_version<'r>(
         &self,
         requirements: &'r pnpm_deps_restorer::ProjectHostRequirements,
-    ) -> Option<&'r str> {
+    ) -> Option<(&'r str, &'r str)> {
         self.dependency_groups()
             .iter()
             .find_map(|group| match group {
-                pnpm_package_manifest::DependencyGroup::Prod => {
-                    requirements.dependencies_node_version.as_deref()
-                }
-                pnpm_package_manifest::DependencyGroup::Dev => {
-                    requirements.dev_dependencies_node_version.as_deref()
-                }
+                pnpm_package_manifest::DependencyGroup::Prod => requirements
+                    .dependencies_node_version
+                    .as_deref()
+                    .zip(requirements.dependencies_node_specifier.as_deref()),
+                pnpm_package_manifest::DependencyGroup::Dev => requirements
+                    .dev_dependencies_node_version
+                    .as_deref()
+                    .zip(requirements.dev_dependencies_node_specifier.as_deref()),
                 pnpm_package_manifest::DependencyGroup::Optional
                 | pnpm_package_manifest::DependencyGroup::Peer => None,
             })
@@ -174,7 +193,7 @@ impl<'a> ProjectHost<'a> {
     fn check_part(
         &self,
         project_dir: &Path,
-        downloaded_node_version: Option<&str>,
+        downloaded_node_version: Option<(&str, &str)>,
         requirements: &PackageInstallabilityManifest,
     ) -> Result<Option<LogEvent>, InitStateError> {
         let wanted_engine = requirements.engines.as_ref();

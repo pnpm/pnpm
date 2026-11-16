@@ -38,6 +38,7 @@ fn a_project_runtime_is_resolved_after_the_runtime_on_fail_override() {
         project_host_requirements(&manifest, Some("download")).expect("requirements");
 
     assert_eq!(requirements.dev_dependencies_node_version.as_deref(), Some("24.0.0"));
+    assert_eq!(requirements.dev_dependencies_node_specifier.as_deref(), Some("runtime:^24.0.0"));
 }
 
 #[test]

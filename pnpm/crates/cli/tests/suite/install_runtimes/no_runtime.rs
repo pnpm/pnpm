@@ -295,9 +295,36 @@ fn project_engines_are_checked_against_a_locked_runtime_range_resolution() {
     fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
 
     command(&workspace)
-        .with_args(["install", "--frozen-lockfile", "--no-runtime"])
+        .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
+}
+
+#[test]
+fn project_engines_ignore_a_lockfile_runtime_for_an_outdated_specifier() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, "^24.0.0", Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["engines"]["node"] = json!(">=24.1.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["devDependencies"]["node"]["specifier"] = json!("runtime:^23.0.0");
+    fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+
+    let output = command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_UNSUPPORTED_ENGINE"));
 }
 
 #[test]

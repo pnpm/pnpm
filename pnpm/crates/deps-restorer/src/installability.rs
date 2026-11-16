@@ -362,6 +362,23 @@ pub fn find_project_runtime_node_version(
         .map(ToString::to_string)
 }
 
+#[must_use]
+pub fn find_project_runtime_node_version_for_specifier(
+    importer: &ProjectSnapshot,
+    dependency_groups: &[DependencyGroup],
+    expected_specifier: &str,
+) -> Option<String> {
+    importer
+        .dependencies_by_groups(dependency_groups.iter().copied())
+        .filter(|(alias, spec)| {
+            alias.scope.is_none() && alias.bare == "node" && spec.specifier == expected_specifier
+        })
+        .filter_map(|(_, spec)| spec.version.ver_peer())
+        .find(|ver_peer| ver_peer.prefix() == Prefix::Runtime)?
+        .version_semver()
+        .map(ToString::to_string)
+}
+
 /// The snapshot of the root project's `node` runtime dependency, the one
 /// [`find_root_runtime_node_version`] reads the version of. A dependency's
 /// own `engines.runtime` pin adds another `node@runtime:` snapshot, which

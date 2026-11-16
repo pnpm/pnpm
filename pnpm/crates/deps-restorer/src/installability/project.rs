@@ -8,6 +8,8 @@ pub struct ProjectHostRequirements {
     pub installability: PackageInstallabilityManifest,
     pub dependencies_node_version: Option<String>,
     pub dev_dependencies_node_version: Option<String>,
+    pub dependencies_node_specifier: Option<String>,
+    pub dev_dependencies_node_specifier: Option<String>,
 }
 
 /// What a project `manifest` requires of the host: its `engines.node`,
@@ -53,6 +55,18 @@ pub fn project_host_requirements(
         ),
         dev_dependencies_node_version:
             pnpm_package_manifest::downloaded_node_version_from_engine_field(
+                manifest,
+                "devEngines",
+                runtime_on_fail,
+            ),
+        dependencies_node_specifier:
+            pnpm_package_manifest::downloaded_node_specifier_from_engine_field(
+                manifest,
+                "engines",
+                runtime_on_fail,
+            ),
+        dev_dependencies_node_specifier:
+            pnpm_package_manifest::downloaded_node_specifier_from_engine_field(
                 manifest,
                 "devEngines",
                 runtime_on_fail,

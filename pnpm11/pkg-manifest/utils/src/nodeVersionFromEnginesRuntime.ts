@@ -6,6 +6,7 @@ type RuntimeOnFail = 'ignore' | 'warn' | 'error' | 'download'
 interface DeclaredNodeRuntime {
   version: string | undefined
   downloaded: boolean
+  specifier: string
 }
 
 /**
@@ -38,6 +39,23 @@ export function getDownloadedNodeVersionFromEnginesRuntime (
   for (const enginesFieldName of enginesFields) {
     const runtime = declaredNodeRuntime(manifest[enginesFieldName]?.runtime, onFailOverride)
     if (runtime?.downloaded) return runtime.version
+  }
+  return undefined
+}
+
+export function getDownloadedNodeRuntimeSpecifierFromEnginesRuntime (
+  manifest: ProjectManifest,
+  onFailOverride?: RuntimeOnFail,
+  dependencyGroup?: 'dependencies' | 'devDependencies'
+): string | undefined {
+  const enginesFields = dependencyGroup === 'dependencies'
+    ? ['engines'] as const
+    : dependencyGroup === 'devDependencies'
+      ? ['devEngines'] as const
+      : ['engines', 'devEngines'] as const
+  for (const enginesFieldName of enginesFields) {
+    const runtime = declaredNodeRuntime(manifest[enginesFieldName]?.runtime, onFailOverride)
+    if (runtime?.downloaded) return `runtime:${runtime.specifier}`
   }
   return undefined
 }
@@ -75,8 +93,8 @@ function declaredNodeRuntime (
   const version = nodeRuntime.version.trim()
   if (!semver.validRange(version)) return undefined
   if ((onFailOverride ?? nodeRuntime.onFail) !== 'download') {
-    return { version: semver.valid(version) ?? undefined, downloaded: false }
+    return { version: semver.valid(version) ?? undefined, downloaded: false, specifier: version }
   }
   const minVersion = semver.minVersion(version)
-  return minVersion != null ? { version: minVersion.version, downloaded: true } : undefined
+  return minVersion != null ? { version: minVersion.version, downloaded: true, specifier: version } : undefined
 }
