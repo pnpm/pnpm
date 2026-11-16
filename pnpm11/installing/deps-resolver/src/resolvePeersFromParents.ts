@@ -22,6 +22,7 @@ type PeerIssues = Pick<PeerDependencyIssues, 'bad' | 'missing'>
 
 interface ResolvePeersFromParentsContext<Pkg extends PartialResolvedPackage> {
   currentDepth: number
+  hoistedPeerProviderNodeIds: Set<NodeId>
   lockfileDir: string
   nodeId: NodeId
   parentPkgs: ParentRefs
@@ -40,9 +41,9 @@ export function resolvePeersFromParents<Pkg extends PartialResolvedPackage> (
   for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peers.taken)) {
     const peerVersionRange = getPeerVersionRange(version)
 
-    const inherited = Object.hasOwn(ctx.parentPkgs, peerName) ? ctx.parentPkgs[peerName] : undefined
-    const pick = providerFor(version, { inherited, inheritedMustWin: () => false })
     const optionalPeer = optional === true
+    const inherited = inheritedProvider(ctx, { peerName, peerVersionRange, optional: optionalPeer })
+    const pick = providerFor(version, { inherited, inheritedMustWin: () => false })
 
     if (pick.kind === 'missing') {
       missingPeers.set(peerName, { range: version, optional: optionalPeer })
@@ -58,6 +59,24 @@ export function resolvePeersFromParents<Pkg extends PartialResolvedPackage> (
     if (resolved.nodeId) resolvedPeers.set(peerName, resolved.nodeId)
   }
   return { resolvedPeers, missingPeers }
+}
+
+/**
+ * A hoisted peer provider is visible to the whole project, not only to the
+ * subtree that resolved it. Like an optional peer hoist, it binds an optional
+ * peer only inside the peer's range.
+ */
+function inheritedProvider (
+  ctx: Pick<ResolvePeersFromParentsContext<PartialResolvedPackage>, 'hoistedPeerProviderNodeIds' | 'parentPkgs'>,
+  peer: { peerName: string, peerVersionRange: string, optional: boolean }
+): ParentRef | undefined {
+  if (!Object.hasOwn(ctx.parentPkgs, peer.peerName)) return undefined
+  const provider = ctx.parentPkgs[peer.peerName]
+  const isHoistedOutsideRange = peer.optional &&
+    provider.nodeId != null &&
+    ctx.hoistedPeerProviderNodeIds.has(provider.nodeId) &&
+    !semverUtils.satisfiesWithPrereleases(provider.version, peer.peerVersionRange, true)
+  return isHoistedOutsideRange ? undefined : provider
 }
 
 function reportMissingPeer<Pkg> (

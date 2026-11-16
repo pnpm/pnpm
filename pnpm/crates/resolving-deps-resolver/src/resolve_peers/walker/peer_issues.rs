@@ -66,7 +66,12 @@ impl Walker<'_> {
         let optional = peer_dep.optional;
 
         let scope = PeerScope {
-            inherited: context.parent_refs.get(peer_name),
+            inherited: self.inherited_provider(
+                context.parent_refs,
+                peer_name,
+                peer_dep,
+                &comparable_range,
+            ),
             inherited_must_win: || false,
             locked: None,
         };
@@ -95,6 +100,30 @@ impl Walker<'_> {
                 }
             }
         }
+    }
+
+    /// The provider `parent_refs` holds for `peer_name`.
+    ///
+    /// A provider in [`crate::PeerResolutionScope::hoisted_peer_provider_node_ids`]
+    /// is visible to the whole importer, not only to the subtree that
+    /// resolved it. Like an optional peer hoist, it binds an optional peer
+    /// only inside the peer's range.
+    fn inherited_provider<'refs>(
+        &self,
+        parent_refs: &'refs super::ParentRefs,
+        peer_name: &str,
+        peer_dep: &PeerDep,
+        comparable_range: &ComparablePeerRange,
+    ) -> Option<&'refs super::ParentRef> {
+        let parent = parent_refs.get(peer_name)?;
+        let is_hoisted_outside_optional_range = peer_dep.optional
+            && parent.node_id
+                .as_ref()
+                .is_some_and(|node_id| {
+                    self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id)
+                })
+            && !comparable_range.satisfies(&parent.version);
+        (!is_hoisted_outside_optional_range).then_some(parent)
     }
 
     /// Report that `parent` provides `peer_name` at a version outside

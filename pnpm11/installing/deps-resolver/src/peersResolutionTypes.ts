@@ -137,6 +137,8 @@ export interface ResolveNodePeersContext<Pkg extends PartialResolvedPackage> ext
   rootDir: ProjectRootDir
   lockfileDir: string
   peersSuffixMaxLength: number
+  /** Every project's `hoistedPeerProviderNodeIds`. */
+  hoistedPeerProviderNodeIds: Set<NodeId>
 }
 
 export interface CurrentProviderSource {

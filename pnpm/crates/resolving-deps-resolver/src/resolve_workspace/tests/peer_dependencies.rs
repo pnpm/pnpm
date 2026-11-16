@@ -1157,3 +1157,67 @@ async fn project_scoped_optional_peers_stay_unbound_across_cyclic_peer_variants(
     assert_eq!(other_p.as_str(), "p@1.0.0(t@1.0.0)(w@1.0.0)");
     assert_eq!(result.peers.graph[other_p].edges.children["v"].as_str(), "v@1.0.0(t@1.0.0)");
 }
+
+/// `toolkit` resolves `plugin@1.0.0` for its own `uses-plugin`, which
+/// hoists `plugin` to the importer as a peer provider. Returns how the
+/// importer's `linter` resolved, given its optional peer range on `plugin`.
+async fn resolve_linter_beside_hoisted_plugin(linter_plugin_range: &str) -> String {
+    let mut table = HashMap::default();
+    let manifests = [
+        serde_json::json!({
+            "name": "linter",
+            "version": "2.0.0",
+            "peerDependencies": { "plugin": linter_plugin_range },
+            "peerDependenciesMeta": { "plugin": { "optional": true } },
+        }),
+        serde_json::json!({
+            "name": "toolkit",
+            "version": "1.0.0",
+            "dependencies": { "uses-plugin": "1.0.0", "plugin": "1.0.0" },
+        }),
+        serde_json::json!({
+            "name": "uses-plugin",
+            "version": "1.0.0",
+            "peerDependencies": { "plugin": "^1.0.0" },
+            "peerDependenciesMeta": { "plugin": { "optional": true } },
+        }),
+        serde_json::json!({ "name": "plugin", "version": "1.0.0" }),
+    ];
+    for manifest in manifests {
+        let name = manifest["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let version = manifest["version"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        table.insert((name.clone(), version.clone()), fake_result(&name, &version, None, manifest));
+    }
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp_root, root_manifest) =
+        fake_manifest(serde_json::json!({ "linter": "2.0.0", "toolkit": "1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest }];
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = PeerDependentsDedupe::On;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(tmp_root.path().to_path_buf(), None)
+    })
+    .await
+    .unwrap();
+
+    result.peers.direct_dependencies_by_importer["."]["linter"].to_string()
+}
+
+/// <https://github.com/pnpm/pnpm/issues/18162>
+#[tokio::test]
+async fn a_hoisted_peer_provider_outside_the_range_does_not_supply_an_optional_peer() {
+    assert_eq!(resolve_linter_beside_hoisted_plugin("^2.0.0").await, "linter@2.0.0");
+}
+
+#[tokio::test]
+async fn a_hoisted_peer_provider_inside_the_range_supplies_an_optional_peer() {
+    assert_eq!(resolve_linter_beside_hoisted_plugin(">=1.0.0").await, "linter@2.0.0(plugin@1.0.0)");
+}

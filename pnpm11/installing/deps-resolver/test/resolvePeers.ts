@@ -2622,6 +2622,84 @@ test('a peer cycle between an own direct dependency and a hoisted peer provider 
   expect(dependenciesByProjectId['.'].get('plugin')).toBe('plugin@1.0.0(main@1.0.0)')
 })
 
+describe('an optional peer provided by a hoisted peer provider', () => {
+  // toolkit resolves plugin@1.0.0 for its own uses-plugin, which hoists
+  // plugin to the project as a peer provider. linter is a sibling of toolkit.
+  async function resolveLinter (linterPluginRange: string): Promise<DepPath | undefined> {
+    function packageOf (name: string, version: string, peers: PeerDependencies = {}): PartialResolvedPackage {
+      return {
+        name,
+        pkgIdWithPatchHash: `${name}@${version}` as PkgIdWithPatchHash,
+        version,
+        peers: peerSetOf(peers),
+        id: '' as PkgResolutionId,
+      }
+    }
+    const pluginNodeId = '>toolkit@1.0.0>plugin@1.0.0>' as NodeId
+    const { dependenciesByProjectId } = await resolvePeers({
+      allPeerDepNames: new Set(['plugin']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['linter', '>linter@2.0.0>' as NodeId],
+            ['toolkit', '>toolkit@1.0.0>' as NodeId],
+            ['plugin', pluginNodeId],
+          ]),
+          hoistedPeerProviderNodeIds: new Set([pluginNodeId]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>linter@2.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: packageOf('linter', '2.0.0', { plugin: { version: linterPluginRange, optional: true } }),
+          depth: 0,
+        }],
+        ['>toolkit@1.0.0>' as NodeId, {
+          children: {
+            'uses-plugin': '>toolkit@1.0.0>uses-plugin@1.0.0>' as NodeId,
+            plugin: pluginNodeId,
+          },
+          installable: true,
+          resolvedPackage: packageOf('toolkit', '1.0.0'),
+          depth: 0,
+        }],
+        ['>toolkit@1.0.0>uses-plugin@1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: packageOf('uses-plugin', '1.0.0', { plugin: { version: '^1.0.0', optional: true } }),
+          depth: 1,
+        }],
+        [pluginNodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: packageOf('plugin', '1.0.0'),
+          depth: 1,
+        }],
+      ]),
+      virtualStoreDir: '',
+      lockfileDir: '',
+      virtualStoreDirMaxLength: 120,
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    return dependenciesByProjectId['.'].get('linter')
+  }
+
+  // https://github.com/pnpm/pnpm/issues/18162
+  test('is not bound outside the peer range', async () => {
+    expect(await resolveLinter('^2.0.0')).toBe('linter@2.0.0')
+  })
+
+  test('is bound inside the peer range', async () => {
+    expect(await resolveLinter('>=1.0.0')).toBe('linter@2.0.0(plugin@1.0.0)')
+  })
+})
+
 function peerSetOf (peers: PeerDependencies): PeerSet {
   return { declared: peers, taken: peers }
 }

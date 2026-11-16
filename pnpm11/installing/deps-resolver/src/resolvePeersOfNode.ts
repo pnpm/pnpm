@@ -193,6 +193,7 @@ async function resolveUncachedPeersOfNode<Pkg extends PartialResolvedPackage> (
     : resolvePeersFromParents({
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
+      hoistedPeerProviderNodeIds: ctx.hoistedPeerProviderNodeIds,
       lockfileDir: ctx.lockfileDir,
       nodeId,
       parentPkgs: opts.parentPkgs,
