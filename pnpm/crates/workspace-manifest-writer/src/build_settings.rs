@@ -38,11 +38,12 @@ where
     update_allow_builds(dir, entries, false)
 }
 
-/// Upsert `name → bool` entries into `globalPackagesConfig.allowBuilds` of the
-/// global `config.yaml` at `path`, creating the file, its directory, and the
+/// Record `name → bool` build decisions as
+/// `globalPackagesConfig.permissions.<name>.build` in the global
+/// `config.yaml` at `path`, creating the file, its directory, and the
 /// section if absent. Preserves the rest of the document's formatting, and
 /// writes the file back only when something changed.
-pub fn set_global_packages_allow_builds<'a, Entries>(
+pub fn set_global_packages_build_permissions<'a, Entries>(
     path: &Path,
     entries: Entries,
 ) -> Result<(), UpdateWorkspaceManifestError>
@@ -52,15 +53,21 @@ where
     let target = ManifestTarget::root_manifest(path);
     let mut manifest = read_manifest_at(path)?;
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
-    validate_allow_build_entries(
-        &manifest,
-        path,
-        &entries,
-        &[&["globalPackagesConfig"], &["globalPackagesConfig", "allowBuilds"]],
-    )?;
+    let mut blocks =
+        vec![vec!["globalPackagesConfig"], vec!["globalPackagesConfig", "permissions"]];
+    blocks.extend(
+        entries
+            .iter()
+            .map(|(name, _)| vec!["globalPackagesConfig", "permissions", *name]),
+    );
+    let blocks: Vec<&[&str]> = blocks
+        .iter()
+        .map(Vec::as_slice)
+        .collect();
+    validate_allow_build_entries(&manifest, path, &entries, &blocks)?;
     let mut changed = false;
     for (name, value) in entries {
-        changed |= edit::set_global_packages_allow_build(&mut manifest, name, value);
+        changed |= edit::set_global_packages_build_permission(&mut manifest, name, value);
     }
     if !changed {
         return Ok(());

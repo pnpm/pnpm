@@ -585,10 +585,10 @@ fn global_add_persists_build_approvals_to_the_global_config() {
         .success();
 
     let config_yaml = fs::read_to_string(global_config_yaml(&pnpm_home))
-        .expect("allowBuilds should persist to the global config");
+        .expect("the build decision should persist to the global config");
     assert_eq!(
         config_yaml,
-        "globalPackagesConfig:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n",
+        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n",
     );
     assert!(!global_pkg_dir.join("pnpm-workspace.yaml").exists());
 
@@ -659,7 +659,7 @@ fn approve_builds_global_approves_every_install_group() {
     drop(root);
 }
 
-/// `globalPackagesConfig.allowBuilds` in the global `config.yaml` decides which
+/// `globalPackagesConfig.permissions` in the global `config.yaml` decides which
 /// builds a global install runs.
 #[cfg(unix)]
 #[test]
@@ -675,7 +675,7 @@ fn global_add_runs_the_builds_global_packages_allows() {
     fs::create_dir_all(config_yaml.parent().unwrap()).expect("create the global config dir");
     fs::write(
         &config_yaml,
-        "globalPackagesConfig:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n",
+        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n",
     )
     .expect("write the global config");
 
@@ -736,7 +736,7 @@ fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
 
     assert_eq!(
         fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read the global config"),
-        "globalPackagesConfig:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n    '@pnpm.e2e/legacy-decision': false\n",
+        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n    '@pnpm.e2e/legacy-decision':\n      build: false\n",
     );
     assert!(!legacy_yaml.exists(), "the moved decisions should leave the legacy file");
 

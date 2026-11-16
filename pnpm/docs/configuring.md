@@ -38,15 +38,16 @@ To share project-only settings across several projects, publish them as a [confi
 
 ### Settings for global packages
 
-Settings under `globalPackagesConfig` apply only to the commands that act on [global packages](./global-packages.md), such as `pnpm add -g`, `pnpm update -g`, and `pnpm approve-builds -g`. For those commands they override the rest of `config.yaml`. Environment variables and command-line options override them. `globalPackagesConfig` may also hold settings that are otherwise project-only, such as `allowBuilds`:
+Settings under `globalPackagesConfig` apply only to the commands that act on [global packages](./global-packages.md), such as `pnpm add -g`, `pnpm update -g`, and `pnpm approve-builds -g`. For those commands they override the rest of `config.yaml`. Environment variables and command-line options override them. `globalPackagesConfig` may also hold settings that are otherwise project-only, such as [`permissions`](./settings/build.md#permissions):
 
 ```yaml title="config.yaml"
 trustPolicy: no-downgrade
 globalPackagesConfig:
   trustPolicyExclude:
     - vercel
-  allowBuilds:
-    esbuild: true
+  permissions:
+    esbuild:
+      build: true
 ```
 
 `catalog`, `catalogs`, `overrides`, `packageExtensions`, and `patchedDependencies` are not supported under `globalPackagesConfig`. pnpm ignores them with a warning.

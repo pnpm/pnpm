@@ -11,8 +11,9 @@ trustPolicyExclude:
 globalPackagesConfig:
   trustPolicyExclude:
     - from-global-packages
-  allowBuilds:
-    esbuild: true
+  permissions:
+    esbuild:
+      build: true
 ";
 
 /// A pnpm home and a global config dir holding `config_yaml`, with

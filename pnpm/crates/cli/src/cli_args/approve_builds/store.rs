@@ -8,7 +8,7 @@ use pnpm_config::{
     WorkspaceSettings,
 };
 use pnpm_workspace_manifest_writer::{
-    PermissionValue, set_allow_builds, set_global_packages_allow_builds, set_permissions,
+    PermissionValue, set_allow_builds, set_global_packages_build_permissions, set_permissions,
     update_manifest_field,
 };
 use std::{
@@ -22,7 +22,7 @@ pub(crate) enum ApprovalStore<'a> {
     /// The `pnpm-workspace.yaml` of this directory: the workspace root, or
     /// the project outside a workspace.
     Workspace(&'a Path),
-    /// `globalPackagesConfig.allowBuilds` in the global `config.yaml`.
+    /// `globalPackagesConfig.permissions` in the global `config.yaml`.
     GlobalPackages(GlobalPackagesStore<'a>),
 }
 
@@ -94,10 +94,12 @@ impl ApprovalStore<'_> {
 }
 
 impl GlobalPackagesStore<'_> {
-    /// Write `entries` to `globalPackagesConfig.allowBuilds`, moving the decisions
-    /// the global packages directory's `pnpm-workspace.yaml` still holds
-    /// along with them. A decision already in `globalPackagesConfig` outranks the
-    /// one it would move.
+    /// Write `entries` to `globalPackagesConfig.permissions`, moving the
+    /// decisions the global packages directory's `pnpm-workspace.yaml` still
+    /// holds along with them. A decision already in `globalPackagesConfig`
+    /// outranks the one it would move. Global installs link no agent skills,
+    /// so that file's `permissions` holds build decisions only and moves
+    /// whole.
     fn write<'entry>(
         self,
         entries: impl IntoIterator<Item = (&'entry str, bool)>,
@@ -119,18 +121,22 @@ impl GlobalPackagesStore<'_> {
                 .into_iter()
                 .map(|(pkg, allowed)| (pkg.to_string(), allowed)),
         );
-        set_global_packages_allow_builds(
+        set_global_packages_build_permissions(
             &self.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME),
             decisions
                 .iter()
                 .map(|(pkg, &allowed)| (pkg.as_str(), allowed)),
         )
         .into_diagnostic()?;
-        if let Some((path, settings)) = legacy
-            && settings.allow_builds.is_some()
-        {
-            update_manifest_field(&path, "allowBuilds", &serde_json::Value::Null)
-                .into_diagnostic()?;
+        let Some((path, settings)) = legacy else { return Ok(()) };
+        let moved = [
+            ("allowBuilds", settings.allow_builds.is_some()),
+            ("permissions", settings.permissions.is_some()),
+        ];
+        for (key, set) in moved {
+            if set {
+                update_manifest_field(&path, key, &serde_json::Value::Null).into_diagnostic()?;
+            }
         }
         Ok(())
     }

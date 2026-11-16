@@ -313,7 +313,7 @@ pnpm add -g --allow-build=esbuild esbuild
 [`pnpm approve-builds --global`](./cli/approve-builds.md#--global--g)
 lets you decide after the fact instead. It collects the packages awaiting approval from every
 install group, asks about them once, and writes the decisions to
-`globalPackagesConfig.allowBuilds` in the global `config.yaml`, then rebuilds only the
+`globalPackagesConfig.permissions` in the global `config.yaml`, then rebuilds only the
 groups that contain something you approved:
 
 ```sh
