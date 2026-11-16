@@ -167,15 +167,17 @@ async function localDirectoryDepIsUpToDateRec (
   // A revisit in the same peer scope is a cycle or a shared dependency that
   // is already being checked.
   if (!markVisited(walk, pkgSnapshot, manifest)) return true
+  const preparedManifest = prepareDependencyManifest(clone(manifest), {
+    autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
+    parentPkgAliases: walk.parentPkgAliases,
+  })
   if (!recordedPeersMatch(manifest, pkgSnapshot, {
     declaredByPath: walk.declaredByPath && !walk.declarationAssumed,
     parentPkgAliases: walk.parentPkgAliases,
+    preparedManifest,
     resolveCatalogSpec: (peer) => resolveCatalogSpec(ctx, peer),
   })) return false
-  const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
-    autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
-    parentPkgAliases: walk.parentPkgAliases,
-  }))
+  const children = getNonDevWantedDependencies(preparedManifest)
   if (!recordedChildrenAreExpected(manifest, children, pkgSnapshot)) return false
   const localDep: LocalDirectoryDep = {
     lockfileDir: ctx.lockfileDir,

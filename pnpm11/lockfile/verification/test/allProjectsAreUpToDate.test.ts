@@ -1524,7 +1524,12 @@ describe('local file dependency', () => {
 
   describe('catalog peer of local file', () => {
     const checkCatalogPeer = async (
-      { catalogEntry, lockedPeer = '2.0.0', parentDeclaresPeer = false }: { catalogEntry: string, lockedPeer?: string, parentDeclaresPeer?: boolean }
+      { catalogEntry, lockedPeer = '2.0.0', parentDeclaresPeer = false, autoInstallPeers = false }: {
+        catalogEntry: string
+        lockedPeer?: string
+        parentDeclaresPeer?: boolean
+        autoInstallPeers?: boolean
+      }
     ) => {
       const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
       const parentDeps = parentDeclaresPeer ? { 'is-positive': '2.0.0' } : {}
@@ -1534,6 +1539,7 @@ describe('local file dependency', () => {
         projects[1],
       ], {
         ...options,
+        autoInstallPeers,
         catalogs: { default: { 'is-positive': catalogEntry } },
         lockfileDir: process.cwd(),
         wantedLockfile: {
@@ -1564,6 +1570,12 @@ describe('local file dependency', () => {
       expect(await checkCatalogPeer({ catalogEntry: 'npm:is-positive@^3.0.0' })).toBeFalsy()
     })
 
+    test('allProjectsAreUpToDate(): detects when a catalog entry targets another package', async () => {
+      await writeLocalDirManifest({ peerDependencies: { 'is-positive': 'catalog:' } })
+      expect(await checkCatalogPeer({ catalogEntry: 'npm:is-negative@^2.0.0', lockedPeer: 'is-negative@2.0.0' })).toBeTruthy()
+      expect(await checkCatalogPeer({ catalogEntry: 'npm:is-negative@^2.0.0' })).toBeFalsy()
+    })
+
     test('allProjectsAreUpToDate(): accepts a prerelease peer that the catalog range includes', async () => {
       await writeLocalDirManifest({ peerDependencies: { 'is-positive': 'catalog:' } })
       expect(await checkCatalogPeer({ catalogEntry: '>=2', lockedPeer: '2.1.0-rc.0' })).toBeTruthy()
@@ -1580,6 +1592,15 @@ describe('local file dependency', () => {
         peerDependencies: { 'is-positive': 'catalog:' },
       })
       expect(await checkCatalogPeer({ catalogEntry: '^3.0.0' })).toBeTruthy()
+    })
+
+    test('allProjectsAreUpToDate(): detects when a catalog range rejects a peer that shadows a dependency', async () => {
+      await writeLocalDirManifest({
+        dependencies: { 'is-positive': '2.0.0' },
+        peerDependencies: { 'is-positive': 'catalog:' },
+      })
+      expect(await checkCatalogPeer({ catalogEntry: '^2.0.0', autoInstallPeers: true })).toBeTruthy()
+      expect(await checkCatalogPeer({ catalogEntry: '^3.0.0', autoInstallPeers: true })).toBeFalsy()
     })
   })
 
