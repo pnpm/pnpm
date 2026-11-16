@@ -22,6 +22,11 @@ beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
 })
 
+function isCaseSensitive (dir: string): boolean {
+  fs.writeFileSync(path.join(dir, 'probe'), '')
+  return !fs.existsSync(path.join(dir, 'PROBE'))
+}
+
 function prepareDirToPatch () {
   const dir = tempDir()
   testFixtures.copy('patch-target.txt', path.join(dir, 'patch-target.txt'))
@@ -119,9 +124,10 @@ rename to Index.js
     expect(fs.readdirSync(patchedDir)).toStrictEqual(['Index.js'])
     expect(fs.readFileSync(path.join(patchedDir, 'Index.js'), 'utf8')).toBe('module.exports = 1\n')
   })
-  // Creating symlinks on Windows needs a privilege CI does not have.
-  const itWithSymlinks = process.platform === 'win32' ? it.skip : it
-  itWithSymlinks('should not rename a symlink onto the file it points to', () => {
+  // index.js and Index.js can only coexist on a case-sensitive file system,
+  // which excludes the defaults on macOS and Windows.
+  const itWithCaseVariants = isCaseSensitive(tempDir(false)) ? it : it.skip
+  itWithCaseVariants('should not rename a symlink onto the file it points to', () => {
     const patchedDir = tempDir()
     fs.writeFileSync(path.join(patchedDir, 'Index.js'), 'module.exports = 1\n')
     fs.symlinkSync('Index.js', path.join(patchedDir, 'index.js'))
