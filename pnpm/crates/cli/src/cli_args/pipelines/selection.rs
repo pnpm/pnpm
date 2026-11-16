@@ -3,7 +3,6 @@
 
 use super::{
     DedicatedProjects, InstallFamilyPlan, InstallFamilySelection, configuration,
-    configuration::apply_runtime_on_fail,
     nested_workspace_manifests::report_nested_workspace_manifests, precomputed_workspace_cycles,
     project_dependencies, sequence_project_dependencies,
 };
@@ -193,6 +192,11 @@ pub(crate) fn select_workspace_projects(
     }
 }
 
+/// [`select_workspace_projects`], optionally running the install's
+/// workspace-cycle search over the selection graph while it is still in
+/// hand. Callers pass `true` only for a run that is certain to reach
+/// the cycle check — the "Already up to date" fast path returns before
+/// it, and a search it never reads would tax exactly that path.
 fn select_workspace_projects_with_cycles(
     cfg: &Config,
     prefix: &Path,
@@ -207,7 +211,7 @@ fn select_workspace_projects_with_cycles(
 
     let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| prefix.to_path_buf());
     let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root, cfg)?;
-    apply_runtime_on_fail(cfg, &mut projects);
+    pnpm_package_manager::apply_runtime_on_fail_to_projects(cfg, &mut projects);
     let resolved = resolve_selection(
         &projects,
         cfg,

@@ -283,12 +283,7 @@ fn load_or_create_manifest(
 }
 
 fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> PackageManifest {
-    if let Some(runtime_on_fail) = config.runtime_on_fail {
-        pnpm_package_manifest::apply_runtime_on_fail_override(
-            manifest.value_mut(),
-            runtime_on_fail.as_str(),
-        );
-    }
+    pnpm_package_manager::apply_runtime_on_fail(config, &mut manifest);
     manifest
 }
 

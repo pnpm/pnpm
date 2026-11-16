@@ -50,7 +50,7 @@ pub(super) fn workspace_projects_opts(
 /// [`load_workspace_projects`] for the repeat-install checks, which read the
 /// projects the install itself would read: the `--workspace-packages`
 /// patterns when given, else the ones `workspace_manifest` declares.
-pub(crate) fn load_checked_workspace_projects(
+fn load_checked_workspace_projects(
     config: &Config,
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
@@ -61,6 +61,24 @@ pub(crate) fn load_checked_workspace_projects(
         &checked_projects_opts(config, manifest),
     )
     .map(Some)
+}
+
+/// The workspace projects a repeat-install check compares: the ones `listed`
+/// names, or else [`load_checked_workspace_projects`], with
+/// [`crate::apply_runtime_on_fail`] applied as the install applies it.
+pub(crate) fn read_checked_workspace_projects(
+    config: &Config,
+    (workspace_root, workspace_manifest): (&Path, Option<&pnpm_workspace::WorkspaceManifest>),
+    listed: Option<Vec<pnpm_workspace::ProjectManifestPaths>>,
+) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
+    let mut projects = match listed {
+        Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
+        None => load_checked_workspace_projects(config, workspace_root, workspace_manifest),
+    }?;
+    if let Some(projects) = &mut projects {
+        crate::apply_runtime_on_fail_to_projects(config, projects);
+    }
+    Ok(projects)
 }
 
 /// The discovery options of [`load_checked_workspace_projects`].
