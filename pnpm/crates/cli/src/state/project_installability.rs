@@ -155,16 +155,10 @@ impl<'a> ProjectHost<'a> {
             return Ok(None);
         };
         let runtime_on_fail = self.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str);
-        let requirements =
-            pnpm_deps_restorer::project_host_requirements(manifest.value(), runtime_on_fail);
-        if let Some((version, specifier)) = requirements
-            .as_ref()
-            .and_then(|requirements| self.downloaded_node_version(requirements))
+        if let Some(version) =
+            self.locked_root_runtime_node_version(manifest.value(), runtime_on_fail)?
         {
-            if let Some(version) = self.locked_runtime_node_version(self.root_dir, specifier)? {
-                return Ok(Some(version));
-            }
-            return Ok(Some(version.to_string()));
+            return Ok(Some(version));
         }
         Ok(self
             .dependency_groups()
@@ -187,6 +181,22 @@ impl<'a> ProjectHost<'a> {
                 pnpm_package_manifest::DependencyGroup::Optional
                 | pnpm_package_manifest::DependencyGroup::Peer => None,
             }))
+    }
+
+    fn locked_root_runtime_node_version(
+        &self,
+        manifest: &serde_json::Value,
+        runtime_on_fail: Option<&str>,
+    ) -> Result<Option<String>, InitStateError> {
+        let requirements = pnpm_deps_restorer::project_host_requirements(manifest, runtime_on_fail);
+        let Some((version, specifier)) = requirements
+            .as_ref()
+            .and_then(|requirements| self.downloaded_node_version(requirements))
+        else {
+            return Ok(None);
+        };
+        let locked_version = self.locked_runtime_node_version(self.root_dir, specifier)?;
+        Ok(Some(locked_version.unwrap_or_else(|| version.to_string())))
     }
 
     /// Check the project in `project_dir`, returning the warnings to emit for
