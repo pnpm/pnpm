@@ -207,6 +207,7 @@ impl ConfigOverrides {
                 .or_else(|| self.registry.clone()),
             scoped_registries: self.registries.clone(),
             setting_values,
+            ..CliLayer::default()
         }
     }
 

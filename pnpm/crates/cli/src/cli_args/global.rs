@@ -25,8 +25,9 @@ use crate::{
     cli_args::{
         add::{AddGroups, AddRequest, add_packages, apply_allow_build},
         approve_builds::{
-            ApproveBuildsArgs, clear_decided_ignored_builds, prompt_approve_install_builds,
-            write_approval_settings,
+            ApprovalStore, ApproveBuildsArgs, GlobalPackagesStore, clear_decided_ignored_builds,
+            load_global_packages_config, load_legacy_global_settings,
+            prompt_approve_install_builds,
         },
         global_bin_lock::acquire_global_bin_lock,
         ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
@@ -40,6 +41,9 @@ use crate::{
     shim_dispatch::{ShimTarget, install_native_shim, migrate_legacy_shims, remove_native_shim},
 };
 
+use build_policy::{
+    apply_global_build_policy, global_approval_store, warn_about_legacy_build_settings,
+};
 use cleanup::discard_install_dir_on_error;
 use derive_more::{Display, Error};
 use install::{
@@ -180,6 +184,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
 
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
+    warn_about_legacy_build_settings::<Reporter>(base_config, &global_pkg_dir)?;
     for channel in rust_channels {
         rust::add_global_rust::<Reporter>(base_config, &global_bin_dir, channel).await?;
     }
@@ -220,6 +225,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
+    warn_about_legacy_build_settings::<Reporter>(base_config, &global_pkg_dir)?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
     let (rust_updated, params) =
@@ -355,6 +361,8 @@ mod selectors;
 mod update_selectors;
 
 mod builds;
+
+mod build_policy;
 
 mod cleanup;
 

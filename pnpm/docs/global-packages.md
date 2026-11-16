@@ -296,6 +296,10 @@ pnpm add -g .
 
 This registers the package's `bin` entries so they can be invoked from anywhere. See [`pnpm link`](./cli/link.md#add-a-binary-globally) for more details.
 
+## Configuration
+
+Global packages use the [global configuration](./configuring.md#global-configuration). To change a setting only for global packages, set it under [`globalPackagesConfig`](./configuring.md#settings-for-global-packages) in the global `config.yaml`.
+
 ## Build script approval
 
 Global packages that have build scripts (e.g., `postinstall`) require approval. When you install a global package that needs to run build scripts, pnpm will prompt you to approve or deny the build interactively.
@@ -308,8 +312,8 @@ pnpm add -g --allow-build=esbuild esbuild
 
 [`pnpm approve-builds --global`](./cli/approve-builds.md#--global--g)
 lets you decide after the fact instead. It collects the packages awaiting approval from every
-install group, asks about them once, and writes one `allowBuilds` policy into the
-`pnpm-workspace.yaml` of the global packages directory, then rebuilds only the
+install group, asks about them once, and writes the decisions to
+`globalPackagesConfig.permissions` in the global `config.yaml`, then rebuilds only the
 groups that contain something you approved:
 
 ```sh

@@ -54,6 +54,19 @@ pub fn update_workspace_setting(
     )
 }
 
+/// Whether a config dependency of `dir`'s workspace owns the setting `key`,
+/// which no write may then change.
+pub fn is_owned_by_config_dependency(
+    dir: &Path,
+    key: &str,
+) -> Result<bool, UpdateWorkspaceManifestError> {
+    match WorkspaceManifests::read(dir)?.target_for_setting(key) {
+        Ok(_) => Ok(false),
+        Err(UpdateWorkspaceManifestError::OwnedByConfigDependency { .. }) => Ok(true),
+        Err(error) => Err(error),
+    }
+}
+
 #[derive(Clone, Copy)]
 enum WritePrivacy {
     InheritOrUmask,

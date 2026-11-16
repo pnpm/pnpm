@@ -133,9 +133,9 @@ fn overlays_the_manifests_skills_dirs() {
     )
     .expect("write pnpm-workspace.yaml");
 
-    let approved =
-        super::config_with_install_approvals(&pnpm_config::Config::default(), dir.path())
-            .expect("lay the approvals over the config");
+    let approved = super::ApprovalStore::Workspace(dir.path())
+        .config_with_approvals(&pnpm_config::Config::default())
+        .expect("lay the approvals over the config");
 
     assert_eq!(approved.skills_dirs.as_deref(), Some([".claude/skills".to_string()].as_slice()));
     assert_eq!(
@@ -212,13 +212,89 @@ fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
     assert_eq!(scan.names.as_deref(), Some(["pending-pkg".to_string()].as_slice()));
 
     let (_, build_packages) = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
-        .prepare_with_scan::<SilentReporter>(dir.path(), &config, &config, &manifest_path, scan)
+        .prepare_with_scan::<SilentReporter>(
+            super::ApprovalStore::Workspace(dir.path()),
+            &config,
+            &config,
+            &manifest_path,
+            scan,
+        )
         .expect("prepare install approvals")
         .expect("pending-pkg awaits rebuild");
 
     assert_eq!(build_packages, vec!["pending-pkg".to_string()]);
-    let overlaid =
-        super::config_with_install_approvals(&config, dir.path()).expect("overlay approvals");
+    let overlaid = super::ApprovalStore::Workspace(dir.path())
+        .config_with_approvals(&config)
+        .expect("overlay approvals");
     assert_eq!(overlaid.allow_builds.get("denied-pkg"), Some(&false));
     assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
+}
+
+/// The legacy decisions move out of the file that holds them, which may be
+/// one the global packages directory's `pnpm-workspace.yaml` includes.
+#[test]
+fn moving_the_legacy_global_decisions_empties_the_file_that_owns_them() {
+    let config_dir = tempfile::TempDir::new().expect("config dir");
+    let global_pkg_dir = tempfile::TempDir::new().expect("global packages dir");
+    std::fs::write(
+        global_pkg_dir.path().join("pnpm-workspace.yaml"),
+        "include:\n  ./permissions.yaml: [permissions]\n",
+    )
+    .expect("write the legacy manifest");
+    std::fs::write(
+        global_pkg_dir.path().join("permissions.yaml"),
+        "permissions:\n  esbuild:\n    build: true\n",
+    )
+    .expect("write the included file");
+    let store = super::ApprovalStore::GlobalPackages(super::GlobalPackagesStore {
+        config_dir: config_dir.path(),
+        global_pkg_dir: global_pkg_dir.path(),
+    });
+
+    store
+        .write_allow_builds([("sharp", false)])
+        .expect("record the decision");
+
+    assert_eq!(
+        std::fs::read_to_string(config_dir.path().join("config.yaml")).expect("read config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    esbuild:\n      build: true\n    sharp:\n      build: false\n",
+    );
+    let included =
+        std::fs::read_to_string(global_pkg_dir.path().join("permissions.yaml")).unwrap_or_default();
+    assert!(!included.contains("esbuild"), "the moved decision should leave: {included}");
+}
+
+/// A config dependency that owns the legacy build decisions keeps them, and
+/// they are not copied above it, where they would outlive its own changes.
+#[test]
+fn a_package_owned_legacy_build_policy_stays_with_its_package() {
+    let config_dir = tempfile::TempDir::new().expect("config dir");
+    let global_pkg_dir = tempfile::TempDir::new().expect("global packages dir");
+    let manifest = global_pkg_dir.path().join("pnpm-workspace.yaml");
+    let original = "configDependencies:\n  policy: 1.0.0\ninclude:\n  policy: [permissions]\n";
+    std::fs::write(&manifest, original).expect("write the legacy manifest");
+    let policy = global_pkg_dir.path().join("node_modules/.pnpm-config/policy");
+    std::fs::create_dir_all(&policy).expect("create the config dependency");
+    std::fs::write(
+        policy.join("package.json"),
+        r#"{"name":"policy","pnpm":{"config":"config.yaml"}}"#,
+    )
+    .expect("write its manifest");
+    std::fs::write(policy.join("config.yaml"), "permissions:\n  esbuild:\n    build: true\n")
+        .expect("write its settings");
+    let store = super::ApprovalStore::GlobalPackages(super::GlobalPackagesStore {
+        config_dir: config_dir.path(),
+        global_pkg_dir: global_pkg_dir.path(),
+    });
+
+    store
+        .write_allow_builds([("sharp", false)])
+        .expect("record the decision");
+
+    assert_eq!(std::fs::read_to_string(&manifest).expect("read the legacy manifest"), original);
+    assert_eq!(
+        std::fs::read_to_string(config_dir.path().join("config.yaml")).expect("read config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    sharp:\n      build: false\n",
+        "a decision the package owns must not be copied above it",
+    );
 }

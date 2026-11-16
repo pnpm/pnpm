@@ -7,7 +7,7 @@ pub(super) use pipeline::{install_test, pipeline};
 
 use super::{
     add::{AddArgs, apply_allow_build},
-    approve_builds::ApproveBuildsArgs,
+    approve_builds::{ApprovalStore, ApproveBuildsArgs},
     ci::CiArgs,
     create::CreateArgs,
     dedupe::DedupeArgs,
@@ -118,12 +118,12 @@ fn prepare_add_config(
     // at the workspace root even when `lockfileDir` moved the config
     // root elsewhere.
     let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
-    apply_allow_build(cfg, &args.install.allow_build, &allow_build_root)?;
+    apply_allow_build(cfg, &args.install.allow_build, ApprovalStore::Workspace(&allow_build_root))?;
     Ok((config_root, recursive_sort))
 }
 
 fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.loaders.global_config)()?;
+    let config = (ctx.loaders.global_packages_config)()?;
     args.install.lockfile_dir.apply_to_global(config)?;
     args.apply_cli_config(config);
     let dir = ctx.locations.dir;
@@ -185,7 +185,7 @@ fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette:
 
 pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<CommandFuture<'a>> {
     if args.selection.global {
-        let config = (ctx.loaders.global_config)()?;
+        let config = (ctx.loaders.global_packages_config)()?;
         args.install.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
         return Ok(Box::pin(args.run_global::<CliReporter>(config)));
@@ -297,7 +297,7 @@ fn install_with_config<'a>(
         let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
-        apply_allow_build(cfg, args.allow_build(), &allow_build_root)?;
+        apply_allow_build(cfg, args.allow_build(), ApprovalStore::Workspace(&allow_build_root))?;
         let update_check = match update_check_policy {
             UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
             UpdateCheckPolicy::Skip => None,
@@ -349,7 +349,7 @@ pub(super) fn create<'a>(ctx: &RunCtx<'a>, args: CreateArgs) -> miette::Result<C
 }
 
 fn remove_global(ctx: &RunCtx<'_>, args: &RemoveArgs) -> miette::Result<()> {
-    let config = (ctx.loaders.global_config)()?;
+    let config = (ctx.loaders.global_packages_config)()?;
     args.lockfile_dir.apply_to_global(config)?;
     global::handle_global_remove::<CliReporter>(config, &args.package_names)?;
     Ok(())

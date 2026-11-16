@@ -28,6 +28,21 @@ pub struct CliLayer {
     /// settings, such as the lockfile-dir anchoring and the global virtual
     /// store.
     pub setting_values: BTreeMap<String, String>,
+
+    /// What the command acts on. `-g` selects
+    /// [`CommandTarget::GlobalPackages`],
+    /// which applies [`Config::global_packages_config`].
+    pub command_target: CommandTarget,
+}
+
+/// What a command acts on.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum CommandTarget {
+    /// The project in the directory the command runs in.
+    #[default]
+    Project,
+    /// The global packages, which `-g` commands install, update, and list.
+    GlobalPackages,
 }
 
 impl Config {

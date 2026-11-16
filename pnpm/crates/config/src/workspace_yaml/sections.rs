@@ -224,7 +224,7 @@ pub const DEFAULT_RUST_DIST_SERVER: &str = "https://static.rust-lang.org";
 
 /// `lockfile` as written: either a bare boolean, or the section that turns
 /// the lockfile on and configures what it records.
-#[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LockfileSetting {
     Enabled(bool),
@@ -232,7 +232,7 @@ pub enum LockfileSetting {
 }
 
 /// What the lockfile records beyond the resolved dependency graph.
-#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct LockfileSettings {
     pub include_resolution_settings: Option<bool>,
@@ -242,7 +242,7 @@ pub struct LockfileSettings {
 
 /// `sideEffectsCache` as written: either a bare boolean, or the declaration
 /// carrying all three parts.
-#[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SideEffectsCacheSetting {
     Enabled(bool),
@@ -254,7 +254,7 @@ pub enum SideEffectsCacheSetting {
 
 /// Where a dependency's build output may be reused from: this machine, and —
 /// through [`Self::remote`] — other machines in the same organization.
-#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SideEffectsCacheSettings {
     /// Restore a package's build from the cache when one is present.

@@ -10,12 +10,13 @@
 
 pub use build_settings::{
     LEGACY_BUILD_SETTINGS, PermissionValue, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds,
-    set_allow_builds, set_allow_builds_clearing_legacy, set_permissions, set_skills_dirs,
+    set_allow_builds, set_allow_builds_clearing_legacy, set_global_packages_build_permissions,
+    set_permissions, set_skills_dirs,
 };
 pub use catalog_references::CatalogReferenceSources;
 pub use field_updates::{
-    EditManifestFieldError, ManifestEdit, edit_manifest_field, update_manifest_field,
-    update_private_manifest_field, update_workspace_setting,
+    EditManifestFieldError, ManifestEdit, edit_manifest_field, is_owned_by_config_dependency,
+    update_manifest_field, update_private_manifest_field, update_workspace_setting,
 };
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
 pub use version_policies::{

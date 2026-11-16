@@ -549,14 +549,24 @@ fn global_add_installs_standalone_package_files_without_scripts() {
     drop(root);
 }
 
-/// A build approved during a global install must persist to the stable
-/// global packages directory (where the next global install reads it back),
-/// not to the throwaway per-group install dir. Regression test: the group
-/// install pins `workspace_dir` to the install dir, which `approve-builds`
-/// would otherwise use as the `allowBuilds` write target.
+/// The global `config.yaml` of a [`global_command`] run with `pnpm_home`.
+#[cfg(unix)]
+fn global_config_yaml(pnpm_home: &Path) -> PathBuf {
+    pnpm_home
+        .join("config-home")
+        .join("pnpm")
+        .join("config.yaml")
+}
+
+/// A build approved during a global install must persist to
+/// `globalPackagesConfig` in the global `config.yaml` (where the next global
+/// install reads it back), not to the throwaway per-group install dir.
+/// Regression test: the group install pins `workspace_dir` to the install
+/// dir, which `approve-builds` would otherwise use as the `allowBuilds`
+/// write target.
 #[cfg(unix)]
 #[test]
-fn global_add_persists_build_approvals_to_the_global_packages_dir() {
+fn global_add_persists_build_approvals_to_the_global_config() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -574,13 +584,13 @@ fn global_add_persists_build_approvals_to_the_global_packages_dir() {
         .assert()
         .success();
 
-    let global_yaml = fs::read_to_string(global_pkg_dir.join("pnpm-workspace.yaml"))
-        .expect("allowBuilds should persist to the global packages dir");
-    assert!(
-        global_yaml.contains("allowBuilds:")
-            && global_yaml.contains("@pnpm.e2e/install-script-example"),
-        "the global packages dir should hold the allowBuilds decision: {global_yaml}",
+    let config_yaml = fs::read_to_string(global_config_yaml(&pnpm_home))
+        .expect("the build decision should persist to the global config");
+    assert_eq!(
+        config_yaml,
+        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n",
     );
+    assert!(!global_pkg_dir.join("pnpm-workspace.yaml").exists());
 
     // No per-group install dir should carry the decision.
     for entry in fs::read_dir(&global_pkg_dir).expect("read global packages dir").flatten() {
@@ -649,9 +659,91 @@ fn approve_builds_global_approves_every_install_group() {
     drop(root);
 }
 
-/// A global install must ignore the `pnpm-workspace.yaml` of global
-/// settings (`allowBuilds`, `catalog`, ...) that lives in the global packages
-/// directory: the per-group install dir sits under it, so an install that
+#[cfg(unix)]
+#[test]
+fn global_add_runs_the_builds_global_packages_allows() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let config_yaml = global_config_yaml(&pnpm_home);
+    fs::create_dir_all(config_yaml.parent().unwrap()).expect("create the global config dir");
+    fs::write(
+        &config_yaml,
+        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n",
+    )
+    .expect("write the global config");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/install-script-example@1.0.0"])
+        .assert()
+        .success();
+
+    let generated =
+        pnpm_global::find_global_package(&global_pkg_dir, "@pnpm.e2e/install-script-example")
+            .expect("scan global packages")
+            .expect("find install-script group")
+            .install_dir
+            .join("node_modules/@pnpm.e2e/install-script-example/generated-by-install.js");
+    assert!(generated.exists(), "the build allowed in globalPackagesConfig should run");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+/// The build decisions the global packages directory's `pnpm-workspace.yaml`
+/// held before `globalPackagesConfig` still apply, with a deprecation warning, and
+/// the next approval moves them into the global `config.yaml`.
+#[cfg(unix)]
+#[test]
+fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(&global_pkg_dir).expect("create the global packages dir");
+    let legacy_yaml = global_pkg_dir.join("pnpm-workspace.yaml");
+    fs::write(&legacy_yaml, "allowBuilds:\n  '@pnpm.e2e/legacy-decision': false\n")
+        .expect("write the legacy build decisions");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/install-script-example@1.0.0"])
+        .output()
+        .expect("run pnpm add -g");
+    assert!(output.status.success(), "{output:?}");
+    let printed = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        printed.contains("The build settings in") && printed.contains("are deprecated"),
+        "the legacy decisions should be reported: {printed}",
+    );
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve-builds", "-g", "--all"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read the global config"),
+        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n    '@pnpm.e2e/legacy-decision':\n      build: false\n",
+    );
+    assert!(!legacy_yaml.exists(), "the moved decisions should leave the legacy file");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+/// A global install must ignore a `pnpm-workspace.yaml` in the global
+/// packages directory: the per-group install dir sits under it, so an install that
 /// walked up and adopted it as a workspace would fail enumerating its
 /// non-existent root project. Regression test for that walk-up.
 #[cfg(unix)]

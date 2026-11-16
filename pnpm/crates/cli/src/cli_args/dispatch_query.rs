@@ -96,7 +96,7 @@ pub(super) fn outdated<'a>(
     args: OutdatedArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.loaders.global_config)()?;
+        let config = (ctx.loaders.global_packages_config)()?;
         return Ok(Box::pin(async move {
             if Box::pin(args.run_global(config)).await? == OutdatedOutcome::Outdated {
                 // `outdated` exits non-zero when a dependency is outdated, mirroring pnpm.
@@ -178,7 +178,8 @@ pub(super) fn sbom<'a>(ctx: &RunCtx<'a>, args: SbomArgs) -> miette::Result<Comma
 }
 
 pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg = if args.global { (ctx.loaders.global_config)()? } else { (ctx.loaders.config)()? };
+    let cfg =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
     let recursive = ctx.workspace.recursive;
     let recursive_from_command_line = ctx.workspace.recursive_from_command_line;
     let dir = ctx.locations.dir;

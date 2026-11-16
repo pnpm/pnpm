@@ -51,6 +51,7 @@ fn from_resolved_reports_every_setting() {
         minimum_release_age_exclude: Some(vec!["is-positive".to_string()]),
         trust_policy_exclude: Some(vec!["is-negative".to_string()]),
         trust_policy_ignore_after: Some(1),
+        global_packages_config: Some(std::sync::Arc::new(WorkspaceSettings::default())),
         lockfile_dir: Some(PathBuf::from("/tmp/project")),
         npmrc_auth_file: Some(PathBuf::from("/tmp/auth.ini")),
         global_pnpmfile: Some(PathBuf::from("/tmp/global/pnpmfile.cjs")),

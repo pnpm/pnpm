@@ -78,6 +78,7 @@ fn create_config(
         store_dir: StoreDir::new(store_dir),
         skip_store_dir_resolution: false,
         settings_read: Default::default(),
+        global_packages_config: None,
         store_dir_placement_skipped: false,
         store_relocation: None,
         state_dir: store_dir.join("state"),
