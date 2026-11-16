@@ -10,10 +10,7 @@ use crate::{
         ensure_not_cancelled,
     },
     packages::{chosen_line, package_key_with_preferences},
-    preferences::{
-        PreferredVersions, contains as is_preferred, parse as parse_preferred_versions,
-        retain_indexed,
-    },
+    preferences::{PreferredVersions, contains as is_preferred, parse as parse_preferred_versions},
     registry::{Registry, compatibility_line},
 };
 use miette::Result;
@@ -176,7 +173,7 @@ pub fn resolve_lockfile_until_with_preferences(
     let metadata = parse_metadata(metadata)?;
     let registry = Registry::new_until(index_files, source, should_cancel)?;
     let mut preferred_versions = parse_preferred_versions(preferred_versions)?;
-    retain_indexed(&mut preferred_versions, &registry);
+    registry.retain_offered(&mut preferred_versions);
     let root_dependencies = root_dependencies(&metadata)?;
     resolve_with_feature_convergence(
         &metadata,

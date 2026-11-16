@@ -189,7 +189,7 @@ pub(super) async fn read_or_resolve_lockfile(
             "Cargo.lock is absent, but --frozen-lockfile forbids generating it"
         ));
     }
-    let preferred_versions = read_cargo_lock_preferences(cargo_lock_path, lockfile_policy)?;
+    let preferred_versions = read_cargo_lock_preferences(config, cargo_lock_path, lockfile_policy)?;
     let metadata = read_cargo_metadata(root_dir, checkout).await?;
     let source_overrides = super::resolution::has_source_overrides(root_dir)?;
     let git_dependencies = super::resolution::has_git_dependencies(&metadata)?;
@@ -259,8 +259,10 @@ pub(super) async fn resolve_via_pnpr_with_preferences(
 }
 
 /// The registry versions `Cargo.lock` records, by crate name, for the
-/// resolver to keep. Empty when `lockfile_policy` resolves afresh.
+/// resolver to keep, from the registries the configured Cargo index serves.
+/// Empty when `lockfile_policy` resolves afresh.
 fn read_cargo_lock_preferences(
+    config: &Config,
     path: &Path,
     lockfile_policy: CargoLockfilePolicy,
 ) -> Result<BTreeMap<String, Vec<String>>> {
@@ -279,9 +281,16 @@ fn read_cargo_lock_preferences(
     let lockfile = cargo_lock::Lockfile::from_str(&contents)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse {}", path.display()))?;
+    let source = pnpm_cargo_resolver::registry_source(config.cargo_index_url());
     let mut preferences = BTreeMap::<String, Vec<String>>::new();
     for package in lockfile.packages {
-        if package.source.as_ref().is_some_and(cargo_lock::SourceId::is_registry) {
+        if package.source
+            .as_ref()
+            .is_some_and(|locked| {
+                locked.is_registry()
+                    && pnpm_cargo_resolver::serves_registry(&source, &locked.to_string())
+            })
+        {
             preferences
                 .entry(package.name.as_str().to_string())
                 .or_default()

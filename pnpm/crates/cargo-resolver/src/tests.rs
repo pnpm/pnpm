@@ -1,8 +1,11 @@
 use super::{
     IndexDiscovery, git_dependency_sources, latest_version, missing_index_names, resolve_inputs,
-    resolve_lockfile, resolve_lockfile_with_preferences, verify_lockfile,
+    resolve_lockfile, resolve_lockfile_with_preferences, serves_registry, verify_lockfile,
 };
-use crate::registry::CRATES_IO_SOURCE;
+use crate::{
+    preferences::parse as parse_preferred_versions,
+    registry::{CRATES_IO_SOURCE, Registry},
+};
 use cargo_lock::Lockfile;
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -1289,3 +1292,41 @@ mod cancellation;
 mod freshness;
 mod lockfile_features;
 mod missing_features;
+
+#[test]
+fn retain_offered_drops_versions_and_crates_the_index_lacks() {
+    let index = concat!(
+        r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#,
+        "\n",
+        r#"{"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":true}"#,
+    );
+    let registry =
+        Registry::new(&BTreeMap::from([("foo".to_string(), index.to_string())]), CRATES_IO_SOURCE)
+            .unwrap();
+    let mut preferred = parse_preferred_versions(&BTreeMap::from([
+        ("foo".to_string(), vec!["1.1.0".to_string(), "1.0.0".to_string(), "9.9.9".to_string()]),
+        ("bar".to_string(), vec!["1.0.0".to_string()]),
+    ]))
+    .unwrap();
+
+    registry.retain_offered(&mut preferred);
+
+    assert_eq!(
+        preferred,
+        BTreeMap::from([(
+            "foo".to_string(),
+            vec![semver::Version::new(1, 1, 0), semver::Version::new(1, 0, 0)],
+        )]),
+    );
+}
+
+#[test]
+fn a_registry_serves_its_own_crates_and_crates_io_but_not_another_registry() {
+    let source = "sparse+https://private.example/index/";
+
+    assert!(serves_registry(source, "sparse+https://private.example/index"));
+    assert!(serves_registry(source, "registry+https://private.example/index"));
+    assert!(serves_registry(source, CRATES_IO_SOURCE));
+    assert!(!serves_registry(source, "sparse+https://other.example/index/"));
+    assert!(!serves_registry(CRATES_IO_SOURCE, source));
+}

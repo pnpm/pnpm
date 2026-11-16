@@ -10,7 +10,7 @@ pub use model::CancelError;
 pub use registry::{
     CRATES_IO_SOURCE, CRATES_IO_SPARSE_INDEX, download_url, index_prefix, is_crates_io,
     latest_matching_version, latest_version, missing_features, patches_crates_io, registry_source,
-    sparse_source,
+    serves_registry, sparse_source,
 };
 pub use resolution::{
     resolve_lockfile, resolve_lockfile_until, resolve_lockfile_until_with_preferences,
