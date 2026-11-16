@@ -182,7 +182,7 @@ fn drop_runtime_dependencies(manifest: &mut Value, deps_field: &str, managed: &[
 /// system, so it names a version only when the entry asks pnpm to download it.
 #[must_use]
 pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
-    declared_node_runtime(manifest, None).map(|runtime| runtime.version)
+    declared_node_runtime(manifest, None).and_then(|runtime| runtime.version)
 }
 
 #[must_use]
@@ -192,7 +192,7 @@ pub fn node_version_from_engine_field(
     on_fail_override: Option<&str>,
 ) -> Option<String> {
     declared_node_runtime_in_field(manifest.get(engines_field)?, on_fail_override)
-        .map(|runtime| runtime.version)
+        .and_then(|runtime| runtime.version)
 }
 
 /// [`node_version_from_engines_runtime`] when pnpm downloads that Node.js,
@@ -209,7 +209,7 @@ pub fn downloaded_node_version_from_engines_runtime(
             declared_node_runtime_in_field(manifest.get(engines_field)?, on_fail_override)
         })
         .find(|runtime| runtime.downloaded)
-        .map(|runtime| runtime.version)
+        .and_then(|runtime| runtime.version)
 }
 
 #[must_use]
@@ -220,7 +220,7 @@ pub fn downloaded_node_version_from_engine_field(
 ) -> Option<String> {
     declared_node_runtime_in_field(manifest.get(engines_field)?, on_fail_override)
         .filter(|runtime| runtime.downloaded)
-        .map(|runtime| runtime.version)
+        .and_then(|runtime| runtime.version)
 }
 
 #[must_use]
@@ -235,7 +235,7 @@ pub fn downloaded_node_specifier_from_engine_field(
 }
 
 struct DeclaredNodeRuntime {
-    version: String,
+    version: Option<String>,
     downloaded: bool,
     specifier: String,
 }
@@ -273,21 +273,18 @@ fn declared_node_runtime_in_field(
         })?;
     let version = version.trim();
     let range = Range::parse(version).ok()?;
+    let specifier = version.to_string();
     let on_fail = on_fail_override.or_else(|| runtime.get("onFail").and_then(Value::as_str));
     if on_fail != Some("download") {
-        let version = Version::parse(version).ok()?.to_string();
-        return Some(DeclaredNodeRuntime {
-            specifier: version.clone(),
-            version,
-            downloaded: false,
-        });
+        let version = Version::parse(version).ok().map(|version| version.to_string());
+        return Some(DeclaredNodeRuntime { specifier, version, downloaded: false });
     }
     range
         .min_version()
         .map(|minimum| DeclaredNodeRuntime {
-            version: minimum.to_string(),
+            version: Some(minimum.to_string()),
             downloaded: true,
-            specifier: version.to_string(),
+            specifier,
         })
 }
 

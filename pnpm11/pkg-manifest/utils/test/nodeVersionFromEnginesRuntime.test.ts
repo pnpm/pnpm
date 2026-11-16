@@ -8,6 +8,13 @@ test('getNodeVersionFromEnginesRuntime() keeps the lower bound of a range pnpm d
   })).toBe('22.12.0')
 })
 
+test('getNodeVersionFromEnginesRuntime() does not fall through from a non-downloaded range', () => {
+  expect(getNodeVersionFromEnginesRuntime({
+    devEngines: { runtime: { name: 'node', version: '>=22.12.0', onFail: 'error' } },
+    engines: { runtime: { name: 'node', version: '20.0.0' } },
+  })).toBeUndefined()
+})
+
 test('getNodeVersionFromEnginesRuntime() follows the included dependency group', () => {
   const manifest: ProjectManifest = {
     devEngines: { runtime: { name: 'node', version: '22.0.0', onFail: 'download' } },
