@@ -1,9 +1,11 @@
 use super::{
-    super::{Install, ProjectMutation, effective_node_version},
     InstallDirs, is_modules_yaml_consistent, run_purge_regression_install,
     run_purge_regression_install_with_lockfile,
 };
-use crate::PolicyExcludes;
+use crate::{
+    PolicyExcludes,
+    install::{Install, ProjectMutation, effective_node_version},
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
