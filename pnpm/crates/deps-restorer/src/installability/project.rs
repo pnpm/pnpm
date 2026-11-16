@@ -21,6 +21,28 @@ pub fn project_host_requirements(
     manifest: &Value,
     runtime_on_fail: Option<&str>,
 ) -> Option<ProjectHostRequirements> {
+    let installability = project_installability_manifest(manifest);
+    if installability.engines.is_none()
+        && installability.cpu.is_none()
+        && installability.os.is_none()
+        && installability.libc.is_none()
+    {
+        return None;
+    }
+    let (dependencies_node_version, dependencies_node_specifier) =
+        downloaded_node_runtime(manifest, "dependencies", "engines", runtime_on_fail);
+    let (dev_dependencies_node_version, dev_dependencies_node_specifier) =
+        downloaded_node_runtime(manifest, "devDependencies", "devEngines", runtime_on_fail);
+    Some(ProjectHostRequirements {
+        installability,
+        dependencies_node_version,
+        dev_dependencies_node_version,
+        dependencies_node_specifier,
+        dev_dependencies_node_specifier,
+    })
+}
+
+fn project_installability_manifest(manifest: &Value) -> PackageInstallabilityManifest {
     let engines = manifest.get("engines");
     let engine = |key| {
         engines
@@ -29,7 +51,7 @@ pub fn project_host_requirements(
             .map(str::to_string)
     };
     let wanted_engine = WantedEngine { node: engine("node"), pnpm: engine("pnpm") };
-    let requirements = PackageInstallabilityManifest {
+    PackageInstallabilityManifest {
         name: manifest
             .get("name")
             .and_then(Value::as_str)
@@ -41,22 +63,7 @@ pub fn project_host_requirements(
         cpu: read_string_list(Some(manifest), "cpu"),
         os: read_string_list(Some(manifest), "os"),
         libc: read_string_list(Some(manifest), "libc"),
-    };
-    let declares_any = requirements.engines.is_some()
-        || requirements.cpu.is_some()
-        || requirements.os.is_some()
-        || requirements.libc.is_some();
-    let (dependencies_node_version, dependencies_node_specifier) =
-        downloaded_node_runtime(manifest, "dependencies", "engines", runtime_on_fail);
-    let (dev_dependencies_node_version, dev_dependencies_node_specifier) =
-        downloaded_node_runtime(manifest, "devDependencies", "devEngines", runtime_on_fail);
-    declares_any.then_some(ProjectHostRequirements {
-        installability: requirements,
-        dependencies_node_version,
-        dev_dependencies_node_version,
-        dependencies_node_specifier,
-        dev_dependencies_node_specifier,
-    })
+    }
 }
 
 fn downloaded_node_runtime(
