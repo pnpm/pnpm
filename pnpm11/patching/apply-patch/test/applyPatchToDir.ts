@@ -104,6 +104,21 @@ new file mode 100644
     expect(() => applyPatchToDir({ patchFilePath, patchedDir })).toThrow(/patch path escapes target dir/)
     expect(fs.existsSync(path.join(outsideDir, 'escaped.txt'))).toBe(false)
   })
+  // On a case-insensitive file system the renamed-to file already exists:
+  // it is the file being renamed.
+  it('should rename a file to a name that differs only in case', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'index.js'), 'module.exports = 1\n')
+    const patchFilePath = path.join(patchedDir, '..', 'rename-case.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/index.js b/Index.js
+similarity index 100%
+rename from index.js
+rename to Index.js
+`)
+    expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
+    expect(fs.readdirSync(patchedDir)).toStrictEqual(['Index.js'])
+    expect(fs.readFileSync(path.join(patchedDir, 'Index.js'), 'utf8')).toBe('module.exports = 1\n')
+  })
   // `git diff --ignore-cr-at-eol` writes lines appended to a file without a
   // final newline as context followed by the insertion.
   it('should append after a last line that has no final newline but is matched as context', () => {

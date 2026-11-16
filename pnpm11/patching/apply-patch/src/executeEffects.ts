@@ -55,11 +55,29 @@ function renameFile (effect: FileRename, resolve: (filePath: string) => string, 
     }
     return
   }
-  if (fs.existsSync(toPath)) {
+  if (fs.existsSync(toPath) && !isRespelling(fromPath, toPath)) {
     throw new Error(`Trying to move a file onto one that already exists: ${effect.toPath}`)
   }
   fs.mkdirSync(path.dirname(toPath), { recursive: true })
   fs.renameSync(fromPath, toPath)
+}
+
+/**
+ * Whether `toPath` names the file at `fromPath` with only its case or Unicode
+ * normalization changed. On a case-insensitive file system such a destination
+ * exists before the rename, because it is the source file.
+ */
+function isRespelling (fromPath: string, toPath: string): boolean {
+  const fromName = path.basename(fromPath)
+  const toName = path.basename(toPath)
+  if (fromName === toName || normalizeName(fromName) !== normalizeName(toName)) return false
+  const fromStat = fs.statSync(fromPath)
+  const toStat = fs.statSync(toPath)
+  return fromStat.dev === toStat.dev && fromStat.ino === toStat.ino
+}
+
+function normalizeName (name: string): string {
+  return name.toLowerCase().normalize('NFC')
 }
 
 function createFile (effect: FileCreation, filePath: string, dryRun: boolean): void {
