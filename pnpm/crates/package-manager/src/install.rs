@@ -78,7 +78,7 @@ use pnpm_modules_yaml::{
     write_modules_manifest,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, node_version_from_engine_field};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{
     ContextLog, GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage, StageLog,
     SummaryLog,
@@ -223,26 +223,19 @@ pub(crate) fn effective_node_version(
     config.node_version
         .clone()
         .or_else(|| {
+            let requirements = pnpm_deps_restorer::project_host_requirements(
+                manifest.value(),
+                config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+            )?;
             dependency_groups
                 .iter()
                 .find_map(|group| {
-                    let (runtime_field, dependencies_field) = match group {
-                        DependencyGroup::Prod => ("engines", "dependencies"),
-                        DependencyGroup::Dev => ("devEngines", "devDependencies"),
+                    let version = match group {
+                        DependencyGroup::Prod => &requirements.dependencies_node_version,
+                        DependencyGroup::Dev => &requirements.dev_dependencies_node_version,
                         _ => return None,
                     };
-                    pnpm_package_manifest::downloaded_node_runtime_from_dependency_field(
-                        manifest.value(),
-                        dependencies_field,
-                    )
-                    .map(|(_, version)| version)
-                    .or_else(|| {
-                        node_version_from_engine_field(
-                            manifest.value(),
-                            runtime_field,
-                            config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
-                        )
-                    })
+                    version.clone()
                 })
         })
 }

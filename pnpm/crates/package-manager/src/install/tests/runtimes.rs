@@ -57,6 +57,40 @@ fn effective_node_version_skips_included_groups_without_a_runtime_pin() {
     );
 }
 
+#[test]
+fn effective_node_version_ignores_a_matching_runtime_dependency_when_policy_disables_it() {
+    let mut config = Config::new();
+    config.runtime_on_fail = Some(pnpm_config::RuntimeOnFail::Ignore);
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": "99.0.0", "onFail": "download" } },
+            "dependencies": { "node": "runtime:99.0.0" },
+        }),
+    );
+
+    assert_eq!(effective_node_version(&config, &manifest, &[DependencyGroup::Prod]), None,);
+}
+
+#[test]
+fn effective_node_version_keeps_a_different_runtime_dependency_when_policy_disables_engine_runtime()
+{
+    let mut config = Config::new();
+    config.runtime_on_fail = Some(pnpm_config::RuntimeOnFail::Ignore);
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": "99.0.0", "onFail": "download" } },
+            "dependencies": { "node": "runtime:20.0.0" },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod]),
+        Some("20.0.0".to_string()),
+    );
+}
+
 /// The prune deletes directories under `virtual_store_dir`, which can be
 /// set by repo-controlled workspace config. When that path escapes the
 /// project's `node_modules` (here, a sibling directory), the sweep is
