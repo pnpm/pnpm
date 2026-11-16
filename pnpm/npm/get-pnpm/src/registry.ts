@@ -251,8 +251,9 @@ async function fetchNpmSignatures (npmRegistry: string, pkgName: string, version
   try {
     const meta = await fetchJson<VersionMeta>(new URL(`${pkgName}/${version}`, npmRegistry), 'application/json')
     return meta.dist?.signatures
-  } catch {
-    return undefined
+  } catch (err) {
+    if (err instanceof RequestFailure) return undefined
+    throw err
   }
 }
 
