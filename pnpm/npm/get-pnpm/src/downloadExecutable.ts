@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { extractTarballMember } from './extractTarballMember.js'
 import { isMusl, platformPackageName } from './platformPackageName.js'
-import { downloadTarball, fetchSignatures, fetchVersionMeta, normalizeRegistry, type ProxyEnv, type RequestHeaders, useCertificateAuthorities, useProxyFromEnv } from './registry.js'
+import { DEFAULT_REGISTRY, downloadTarball, fetchSignatures, fetchVersionMeta, normalizeRegistry, type ProxyEnv, type RequestHeaders, useCertificateAuthorities, useProxyFromEnv } from './registry.js'
 import { majorVersion } from './resolveVersion.js'
 import { sameFileContents } from './sameFileContents.js'
 import { type SigningKey, verifyRegistrySignature } from './verifySignature.js'
@@ -59,6 +59,17 @@ export interface DownloadExecutableOptions {
  * @returns the package the executable came from.
  */
 export async function downloadPnpmExecutable (opts: DownloadExecutableOptions): Promise<{ packageName: string }> {
+  return downloadPnpmExecutableWithNpmRegistry({ ...opts, npmRegistry: DEFAULT_REGISTRY })
+}
+
+/**
+ * {@link downloadPnpmExecutable} with `npmRegistry` as the place npm's
+ * signatures are looked up when `registry` serves none. The package does not
+ * export it; tests use it to keep that lookup off the network.
+ */
+export async function downloadPnpmExecutableWithNpmRegistry (
+  opts: DownloadExecutableOptions & { npmRegistry: string }
+): Promise<{ packageName: string }> {
   const registry = normalizeRegistry(opts.registry)
   const packageName = platformPackageName({
     major: majorVersion(opts.version),
@@ -81,7 +92,7 @@ export async function downloadPnpmExecutable (opts: DownloadExecutableOptions): 
 }
 
 async function fetchExecutable (
-  opts: DownloadExecutableOptions & { packageName: string }
+  opts: DownloadExecutableOptions & { npmRegistry: string, packageName: string }
 ): Promise<{ packageName: string }> {
   const { version, destPath, registry, packageName } = opts
   const meta = await fetchVersionMeta(registry, packageName, version, opts.headers)
@@ -93,7 +104,7 @@ async function fetchExecutable (
       name: packageName,
       version,
       integrity: meta.dist.integrity,
-      signatures: await fetchSignatures(meta, { registry, pkgName: packageName, version, headers: opts.headers }),
+      signatures: await fetchSignatures(meta, { registry, pkgName: packageName, version, headers: opts.headers, npmRegistry: opts.npmRegistry }),
       keys: opts.keys,
     })
   }
