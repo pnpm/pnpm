@@ -68,7 +68,7 @@ function evaluateHunk (hunk: Hunk, fileLines: string[], start: number): Modifica
   let preImageEnd: PreImageEnd = 'elsewhere'
   for (const part of hunk.parts) {
     if (part.type === 'insertion') {
-      pushInsertion(modifications, part, index, preImageEnd)
+      pushInsertion(modifications, part, { index, preImageEnd })
       continue
     }
     const end = matchPreImage(part, fileLines, index)
@@ -115,7 +115,13 @@ function pushDeletion (modifications: Modification[], part: HunkPart, end: numbe
   }
 }
 
-function pushInsertion (modifications: Modification[], part: HunkPart, index: number, preImageEnd: PreImageEnd): void {
+/** Where an insertion goes: before line `index`, after pre-image lines that end at `preImageEnd`. */
+interface InsertionPoint {
+  index: number
+  preImageEnd: PreImageEnd
+}
+
+function pushInsertion (modifications: Modification[], part: HunkPart, { index, preImageEnd }: InsertionPoint): void {
   // `git diff --ignore-cr-at-eol`, which `pnpm patch-commit` runs, writes
   // lines appended to a file without a final newline as context followed by
   // the insertion. The newline is restored so that the insertion's "pop"

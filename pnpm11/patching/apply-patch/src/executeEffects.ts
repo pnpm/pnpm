@@ -23,7 +23,7 @@ export function executeEffects (effects: PatchFilePart[], opts: ExecuteEffectsOp
         deleteFile(effect, resolve(effect.path), opts.dryRun)
         break
       case 'rename':
-        renameFile(effect, resolve(effect.fromPath), resolve(effect.toPath), opts.dryRun)
+        renameFile(effect, resolve, opts.dryRun)
         break
       case 'file creation':
         createFile(effect, resolve(effect.path), opts.dryRun)
@@ -46,7 +46,9 @@ function deleteFile (effect: FileDeletion, filePath: string, dryRun: boolean): v
   }
 }
 
-function renameFile (effect: FileRename, fromPath: string, toPath: string, dryRun: boolean): void {
+function renameFile (effect: FileRename, resolve: (filePath: string) => string, dryRun: boolean): void {
+  const fromPath = resolve(effect.fromPath)
+  const toPath = resolve(effect.toPath)
   if (dryRun) {
     if (!fs.existsSync(fromPath)) {
       throw new Error(`Trying to move file that doesn't exist: ${effect.fromPath}`)

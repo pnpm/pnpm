@@ -112,6 +112,8 @@ function diffFiles (testCase: RoundTripCase): string {
   return git(repo, 'diff', '--cached', '--no-color')
 }
 
+// The user's git config can sign commits, run hooks, or change the diff format
+// (diff.noprefix, diff.renames), so it is not read.
 function git (cwd: string, ...args: string[]): string {
   return execFileSync('git', [
     '-c', 'user.name=test',
@@ -119,7 +121,11 @@ function git (cwd: string, ...args: string[]): string {
     '-c', 'core.autocrlf=false',
     '-c', 'core.fileMode=true',
     ...args,
-  ], { cwd, encoding: 'utf8' })
+  ], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(cwd, '.git', 'no-global-config'), GIT_CONFIG_NOSYSTEM: '1' },
+  })
 }
 
 function writeFiles (files: Files): string {

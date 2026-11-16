@@ -85,6 +85,25 @@ describe('applyPatchToDir()', () => {
     }).toThrow(/patch path escapes target dir/)
     expect(fs.existsSync(sentinel)).toBe(false)
   })
+  it.each([
+    ['a Windows-separated ".." path', (outsideDir: string) => path.relative(path.join(outsideDir, 'pkg'), path.join(outsideDir, 'escaped.txt')).replaceAll('/', '\\')],
+    ['an absolute path', (outsideDir: string) => path.join(outsideDir, 'escaped.txt').replaceAll('\\', '/')],
+  ])('should reject a patch with %s', (_name, escapingPath) => {
+    const outsideDir = tempDir(false)
+    const patchedDir = path.join(outsideDir, 'pkg')
+    fs.mkdirSync(patchedDir)
+    const target = escapingPath(outsideDir)
+    const patchFilePath = path.join(outsideDir, 'escape.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/${target} b/${target}
+new file mode 100644
+--- /dev/null
++++ b/${target}
+@@ -0,0 +1 @@
++escaped
+`)
+    expect(() => applyPatchToDir({ patchFilePath, patchedDir })).toThrow(/patch path escapes target dir/)
+    expect(fs.existsSync(path.join(outsideDir, 'escaped.txt'))).toBe(false)
+  })
   // `git diff --ignore-cr-at-eol` writes lines appended to a file without a
   // final newline as context followed by the insertion.
   it('should append after a last line that has no final newline but is matched as context', () => {
