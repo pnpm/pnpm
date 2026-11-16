@@ -9,6 +9,7 @@ use crate::{
 
 const MAX_COMBINATIONS: usize = 4096;
 const MAX_VISITED_SNAPSHOTS: usize = 1024;
+const MAX_CYCLE_PROBE_VISITS: usize = 16_384;
 
 pub(super) fn recover_hashed_providers(
     entries: LockfileEntries<'_>,
@@ -20,7 +21,7 @@ pub(super) fn recover_hashed_providers(
     let package = entries.packages?.get(&key.without_peer())?;
 
     let candidates = peer_candidates_by_name(snapshots, snapshot, package, key)?;
-    match_candidates(&candidates, &hash_hex)
+    match_candidates(&candidates, &hash_hex, &mut CycleProbe::new(snapshots, key))
 }
 
 fn suffix_hash_segment(peer_suffix: &str) -> Option<String> {
@@ -223,6 +224,7 @@ fn lists_transitive_peer(snapshot: &SnapshotEntry, peer_name: &str) -> bool {
 fn match_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
     hash_hex: &str,
+    cycle_probe: &mut CycleProbe<'_>,
 ) -> Option<HashSet<PkgNameVerPeer>> {
     for mode in [PeerGroups::Full, PeerGroups::Bare] {
         if let Some(matched) = CombinationSearch::new(mode, hash_hex).find(candidates) {
@@ -237,20 +239,26 @@ fn match_candidates(
         return None;
     }
     // Cycle cuts can omit nested groups from only some providers.
-    let mixed = mixed_cycle_cut_candidates(candidates);
+    let mixed = mixed_cycle_cut_candidates(candidates, cycle_probe);
     if mixed.as_slice() == candidates {
         return None;
     }
     CombinationSearch::new(PeerGroups::Full, hash_hex).find(&mixed)
 }
 
-fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<PkgNameVerPeer>> {
+fn mixed_cycle_cut_candidates(
+    candidates: &[Vec<PkgNameVerPeer>],
+    cycle_probe: &mut CycleProbe<'_>,
+) -> Vec<Vec<PkgNameVerPeer>> {
     candidates
         .iter()
         .map(|targets| {
             let mut variants = targets.clone();
             let mut seen: HashSet<_> = targets.iter().cloned().collect();
             for target in targets {
+                if !cycle_probe.may_depend_on_consumer(target) {
+                    continue;
+                }
                 let bare = target.without_peer();
                 if seen.insert(bare.clone()) {
                     variants.push(bare);
@@ -259,6 +267,55 @@ fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<Pkg
             variants
         })
         .collect()
+}
+
+/// Finds the providers a consumer's suffix can name without their nested
+/// groups. The resolver cuts only a provider that is still being walked, and
+/// such a provider depends on the consumer.
+struct CycleProbe<'a> {
+    snapshots: &'a std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
+    consumer: PkgNameVerPeer,
+    independent: HashSet<PkgNameVerPeer>,
+    remaining_visits: usize,
+}
+
+impl<'a> CycleProbe<'a> {
+    fn new(
+        snapshots: &'a std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
+        consumer: &PkgNameVerPeer,
+    ) -> Self {
+        CycleProbe {
+            snapshots,
+            consumer: consumer.without_peer(),
+            independent: HashSet::new(),
+            remaining_visits: MAX_CYCLE_PROBE_VISITS,
+        }
+    }
+
+    /// `false` only when every dependency path from `provider` was followed
+    /// and none reached the consumer.
+    fn may_depend_on_consumer(&mut self, provider: &PkgNameVerPeer) -> bool {
+        let mut visited = HashSet::new();
+        let mut pending = vec![provider.clone()];
+        while let Some(current) = pending.pop() {
+            if self.independent.contains(&current) || visited.contains(&current) {
+                continue;
+            }
+            if current.without_peer() == self.consumer || self.remaining_visits == 0 {
+                return true;
+            }
+            let Some(snapshot) = self.snapshots.get(&current) else {
+                return true;
+            };
+            self.remaining_visits -= 1;
+            pending.extend(
+                all_dep_refs(snapshot).filter_map(|(alias, dep_ref)| dep_ref.resolve(alias)),
+            );
+            visited.insert(current);
+        }
+        self.independent.extend(visited);
+        false
+    }
 }
 
 #[derive(Clone, Copy)]
