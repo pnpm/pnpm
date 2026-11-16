@@ -211,9 +211,8 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
             continue;
         }
 
-        let merge_id =
-            package_merge_id(&opts.env.layout.lockfile_dir, lockfile, dep_path, &version);
         trees.push(DependentsTree {
+            merge_id: package_merge_id(&opts.env.layout.lockfile_dir, lockfile, dep_path, &version),
             name,
             display_name: None,
             version,
@@ -222,7 +221,6 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
             dependents: walk_dependents_of(opts, &reverse_map, &manifest_reader, node_id),
             search_message: matched.message().map(str::to_string),
             manifest: manifest_reader.project(node_id),
-            merge_id,
         });
     }
 
