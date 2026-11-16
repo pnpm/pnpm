@@ -258,11 +258,9 @@ fn mixed_cycle_cut_candidates(
             let mut variants = targets.clone();
             let mut seen: HashSet<_> = targets.iter().cloned().collect();
             for target in targets {
-                if !cycle_probe.may_be_cut(target) {
-                    continue;
-                }
                 let bare = target.without_peer();
-                if seen.insert(bare.clone()) {
+                if !seen.contains(&bare) && cycle_probe.may_be_cut(target) {
+                    seen.insert(bare.clone());
                     variants.push(bare);
                 }
             }
