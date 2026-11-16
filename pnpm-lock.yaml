@@ -235,7 +235,7 @@ snapshots:
 					"specifier": "^2.0.0",
 					"version": "2.0.0",
 				},
-				"@pnpm/patch-package": "0.0.1",
+				"@pnpm/patch-package": "0.0.2",
 				"@pnpm/semver-diff": {
 					"specifier": "^2.0.0",
 					"version": "2.0.0",
@@ -1059,7 +1059,6 @@ snapshots:
 			"deepmerge-ts@<8.0.0": "^8.0.0",
 		},
 		"patchedDependencies": {
-			"@pnpm/patch-package@0.0.1": "2c4df639e02ee940af909ecf506f47240098d3c0e3f3f60487a5ec9d23205479",
 			"@tybys/wasm-util@0.10.4": "055e4dc4f0d5875fa7a4fe053318a52f9018a9d1020af186bd2fc41987d7a665",
 			"deepmerge@4.3.1": "6241e75cd0ebdeefbe93564d0f9a0da153bc6608add12970bd3c390910e7e4f4",
 			"glob@11.1.0": "aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3",
@@ -10789,8 +10788,8 @@ snapshots:
 			},
 		},
 
-		"@pnpm/patch-package@0.0.1": {
-			"integrity": "sha512-AEgJoZH2goHdGWlyQ1cOMlgmjGLCqk88IFcbAolxWqlhawa3bSL1jLHnjwQc1XBwxeeUltL7mNmPR23q+VZTWQ==",
+		"@pnpm/patch-package@0.0.2": {
+			"integrity": "sha512-pHDvjoh1fwIONt75emh+UYd11o4U9ZDleLCJ2Y35LdQ/Im6j9DqolYHg4BmnZ1xJl4nCBFzwhztob1TbxJadoA==",
 			"engines": {"node": ">=14", "npm": ">5"},
 			"hasBin": true,
 			"dependencies": {
