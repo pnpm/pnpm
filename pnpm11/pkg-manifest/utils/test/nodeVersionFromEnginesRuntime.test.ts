@@ -9,7 +9,7 @@ test('getNodeVersionFromEnginesRuntime() keeps the lower bound of a range pnpm d
 })
 
 test('getNodeVersionFromEnginesRuntime() follows the included dependency group', () => {
-  const manifest = {
+  const manifest: ProjectManifest = {
     devEngines: { runtime: { name: 'node', version: '22.0.0', onFail: 'download' } },
     engines: { runtime: { name: 'node', version: '24.0.0', onFail: 'download' } },
   }

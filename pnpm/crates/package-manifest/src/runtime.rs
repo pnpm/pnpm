@@ -251,17 +251,14 @@ fn declared_node_runtime_in_field(
         runtime @ Value::Object(_) => std::slice::from_ref(runtime),
         _ => return None,
     };
-    let Some((runtime, version)) = runtimes
+    let (runtime, version) = runtimes
         .iter()
         .find_map(|runtime| {
             let version = runtime.get("version").and_then(Value::as_str)?;
             (runtime.get("name").and_then(Value::as_str) == Some("node")).then_some((
                 runtime, version,
             ))
-        })
-    else {
-        return None;
-    };
+        })?;
     let version = version.trim();
     let range = Range::parse(version).ok()?;
     let on_fail = on_fail_override.or_else(|| runtime.get("onFail").and_then(Value::as_str));

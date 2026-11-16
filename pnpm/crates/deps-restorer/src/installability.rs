@@ -386,10 +386,10 @@ pub(crate) fn root_runtime_node_ver_peer(
     )
 }
 
-fn project_runtime_node_ver_peer(
-    importer: &ProjectSnapshot,
+fn project_runtime_node_ver_peer<'a>(
+    importer: &'a ProjectSnapshot,
     dependency_groups: &[DependencyGroup],
-) -> Option<&PkgVerPeer> {
+) -> Option<&'a PkgVerPeer> {
     importer
         .dependencies_by_groups(dependency_groups.iter().copied())
         .filter(|(alias, _)| alias.scope.is_none() && alias.bare == "node")
