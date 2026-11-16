@@ -364,6 +364,7 @@ fn project_engines_use_the_locked_root_runtime_when_the_project_has_no_runtime()
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let mut lockfile: Value =
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["devDependencies"]["node"]["specifier"] = json!("runtime:^24.0.0");
     lockfile["importers"]["packages/app"] = json!({});
     fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
     fs::create_dir_all(workspace.join("packages/app")).unwrap();
