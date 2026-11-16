@@ -441,7 +441,7 @@ fn node_version_does_not_treat_a_range_as_the_running_runtime() {
                 "runtime": { "name": "node", "version": "20.0.0" },
             },
         })),
-        None,
+        Some("20.0.0".to_string()),
     );
 }
 
