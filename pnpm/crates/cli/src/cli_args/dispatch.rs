@@ -21,6 +21,7 @@ use crate::{
     config_deps::prepare_config,
     config_overrides::ConfigOverrides,
 };
+use config_scope::ConfigScope;
 use configuration::{
     ConfigTarget, ProjectSelectors, RunAnchors, RunSetup, StoreUse, apply_project_selectors,
     apply_run_output_config, warn_fast_path_config,
@@ -259,13 +260,8 @@ impl CliArgs {
         let target_template =
             (command.npm_command_name(), StoreUse::of(&command), ConfigWarnings::of(&command));
         let preloaded_config = Mutex::new(preloaded_config);
-        let load_config = |anchor: &Path, is_global: bool| {
-            let target = ConfigTarget {
-                anchor,
-                is_global,
-                store_use: target_template.1,
-                warnings: target_template.2,
-            };
+        let load_config = |scope: ConfigScope| {
+            let target = scope.target(anchors, target_template.1, target_template.2);
             self.load_and_finalize_config(
                 &target,
                 invocation,
@@ -273,13 +269,18 @@ impl CliArgs {
                 setup,
                 anchors,
                 target_template.0,
-                take_preloaded_config(&preloaded_config, anchor, is_global, &anchors.dir),
+                take_preloaded_config(
+                    &preloaded_config,
+                    target.anchor,
+                    target.is_global,
+                    &anchors.dir,
+                ),
             )
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
-        let config = || load_config(&anchors.dir, false);
+        let config = || load_config(ConfigScope::Dir);
         let config_self_update =
             || self.load_self_update_config(invocation, config_overrides, setup, anchors);
         let builtin_replaced_by_script = AtomicBool::new(false);
@@ -291,7 +292,8 @@ impl CliArgs {
             workspace: WorkspaceInvocation::from(&self.workspace),
             loaders: CommandLoaders {
                 config: &config,
-                global_config: &|| load_config(&anchors.global_config, true),
+                global_config: &|| load_config(ConfigScope::PnpmHome),
+                global_packages_config: &|| load_config(ConfigScope::GlobalPackages),
                 config_self_update: &config_self_update,
             },
         };
@@ -316,6 +318,7 @@ impl CliArgs {
         let ConfigTarget {
             anchor,
             is_global,
+            command_target,
             store_use,
             warnings,
         } = *target;
@@ -326,7 +329,7 @@ impl CliArgs {
                 return Err(miette::Report::new(failure.error)).wrap_err("load configuration");
             }
             Some(Ok(_)) | None => store_use.load(|place_store| {
-                self.load_config_at(anchor, place_store, config_overrides, warnings)
+                self.load_config_at(anchor, command_target, place_store, config_overrides, warnings)
             })?,
         };
         warnings.report(&cfg, anchor)?;
@@ -395,5 +398,7 @@ mod tests;
 mod routing;
 
 mod configuration;
+
+mod config_scope;
 
 mod context;

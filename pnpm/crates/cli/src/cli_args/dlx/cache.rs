@@ -87,7 +87,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
         config,
         prepare_dir,
-        prepare_dir,
+        crate::cli_args::approve_builds::ApprovalStore::Workspace(prepare_dir),
     )
     .await?;
     Ok(())
@@ -401,7 +401,7 @@ pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
             crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
                 config,
                 &cached_dir,
-                &cached_dir,
+                crate::cli_args::approve_builds::ApprovalStore::Workspace(&cached_dir),
             )
             .await?;
             Ok(cached_dir)

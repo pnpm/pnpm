@@ -51,6 +51,7 @@ pub fn validate_structured_setting(
             parse_workspace_yaml_setting(camel_key, value, target).map(|_| ())
         }
         "concurrencyGroups" => validate_concurrency_groups(value, target),
+        "globalPackages" => validate_global_packages(value),
         "remoteSideEffectsCache"
         | "remoteCache"
         | "namedRegistries"
@@ -74,6 +75,14 @@ fn validate_concurrency_groups(value: &Value, target: YamlConfigTarget) -> Resul
         return Err(format!("invalid concurrency group name {group:?}"));
     }
     Ok(())
+}
+
+fn validate_global_packages(value: &Value) -> Result<(), String> {
+    require_object(value)?;
+    let settings = parse_yaml_setting::<MachineSettings>("globalPackages", value)?;
+    settings.global_packages
+        .map_or(Ok(()), |section| section.validate_all_sections())
+        .map_err(|error| error.to_string())
 }
 
 fn require_object(value: &Value) -> Result<&Map<String, Value>, String> {

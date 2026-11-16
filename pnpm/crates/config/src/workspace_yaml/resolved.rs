@@ -41,6 +41,10 @@ impl MachineSettings {
                     .map(|dir| path(dir))
                     .collect(),
             ),
+            global_packages: config.global_packages
+                .as_deref()
+                .cloned()
+                .map(Box::new),
         }
     }
 }

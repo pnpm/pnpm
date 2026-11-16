@@ -1,5 +1,5 @@
 use super::{
-    IndexMap, Inline, Manifest, flow, insert_top_level_block, locate, locate_mapping, mapping_keys,
+    Inline, Manifest, flow, insert_top_level_block, locate, locate_mapping, mapping_keys,
     remove_top_level_block, render, render_bool, replace_value_text_at, write_named_subblock,
     write_rendered_entry_at,
 };
@@ -17,35 +17,68 @@ pub(crate) fn set_permission(
     capability: &str,
     value: &PermissionValue,
 ) -> bool {
-    let value_text = render_permission_value(value);
+    set_nested_entry(
+        manifest,
+        [BLOCK, pkg],
+        capability,
+        (&render_permission_value(value), &permission_json(value)),
+    )
+}
+
+/// Upsert `globalPackages.allowBuilds.<pkg>: <allowed>` in the global
+/// `config.yaml`. Returns whether anything changed.
+pub(crate) fn set_global_packages_allow_build(
+    manifest: &mut Manifest,
+    pkg: &str,
+    allowed: bool,
+) -> bool {
+    set_nested_entry(
+        manifest,
+        ["globalPackages", "allowBuilds"],
+        pkg,
+        (render_bool(allowed), &serde_json::Value::Bool(allowed)),
+    )
+}
+
+/// Upsert `<block>.<name>.<key>: <value>`, creating the block and the named
+/// mapping if absent. `value` is the rendered text and the JSON it reads
+/// back as, compared against what the document records for the no-op
+/// decision. Returns whether anything changed.
+fn set_nested_entry(
+    manifest: &mut Manifest,
+    [block, name]: [&str; 2],
+    key: &str,
+    (value_text, value_json): (&str, &serde_json::Value),
+) -> bool {
     let text = manifest.document.text();
-    let new_text = if locate(text, &[BLOCK]).is_none()
-        && !matches!(locate_mapping(text, &[BLOCK]), Inline::Flow(_))
+    let new_text = if locate(text, &[block]).is_none()
+        && !matches!(locate_mapping(text, &[block]), Inline::Flow(_))
     {
-        let block = format!(
-            "{BLOCK}:\n  {}:\n    {capability}: {value_text}\n",
-            render::render_value(pkg),
+        let entry = format!(
+            "{block}:\n  {}:\n    {}: {value_text}\n",
+            render::render_value(name),
+            render::render_value(key),
         );
-        let new_text = insert_top_level_block(manifest, BLOCK, &block);
+        let new_text = insert_top_level_block(manifest, block, &entry);
         manifest.document.keys =
-            render::target_order(&manifest.document.keys, &[BLOCK.to_string()]);
+            render::target_order(&manifest.document.keys, &[block.to_string()]);
         new_text
-    } else if !mapping_keys(text, &[BLOCK])
+    } else if !mapping_keys(text, &[block])
         .iter()
-        .any(|key| key == pkg)
+        .any(|existing| existing == name)
     {
-        write_named_subblock(text, BLOCK, pkg, capability, &value_text)
-    } else if !mapping_keys(text, &[BLOCK, pkg])
+        write_named_subblock(text, block, name, key, value_text)
+    } else if !mapping_keys(text, &[block, name])
         .iter()
-        .any(|key| key == capability)
+        .any(|existing| existing == key)
     {
-        write_rendered_entry_at(text, &[BLOCK, pkg], capability, &value_text)
-    } else if recorded_permission(text, pkg, capability) == Some(permission_json(value)) {
+        write_rendered_entry_at(text, &[block, name], key, value_text)
+    } else if recorded_value(text, [block, name, key]).as_ref() == Some(value_json) {
         return false;
-    } else if let Inline::Flow(collection) = locate_mapping(text, &[BLOCK, pkg]) {
-        flow::upsert(text, &collection, capability, &value_text)
+    } else if let Inline::Flow(collection) = locate_mapping(text, &[block, name]) {
+        flow::upsert(text, &collection, key, value_text)
     } else {
-        replace_value_text_at(text, &[BLOCK, pkg], capability, &value_text)
+        replace_value_text_at(text, &[block, name], key, value_text)
     };
     manifest.document.set_text(new_text);
     true
@@ -90,17 +123,10 @@ fn permission_json(value: &PermissionValue) -> serde_json::Value {
     serde_json::to_value(value).expect("a permission value serializes to JSON")
 }
 
-fn recorded_permission(text: &str, pkg: &str, capability: &str) -> Option<serde_json::Value> {
-    #[derive(serde::Deserialize)]
-    struct OnlyPermissions {
-        #[serde(default)]
-        permissions: IndexMap<String, IndexMap<String, serde_json::Value>>,
-    }
-    serde_saphyr::from_str::<OnlyPermissions>(text)
-        .ok()?
-        .permissions
-        .get(pkg)?
-        .get(capability)
+fn recorded_value(text: &str, path: [&str; 3]) -> Option<serde_json::Value> {
+    let document = serde_saphyr::from_str::<serde_json::Value>(text).ok()?;
+    path.iter()
+        .try_fold(&document, |value, key| value.get(key))
         .cloned()
 }
 

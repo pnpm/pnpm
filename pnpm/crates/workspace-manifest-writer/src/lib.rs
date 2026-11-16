@@ -10,7 +10,8 @@
 
 pub use build_settings::{
     LEGACY_BUILD_SETTINGS, PermissionValue, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds,
-    set_allow_builds, set_allow_builds_clearing_legacy, set_permissions, set_skills_dirs,
+    set_allow_builds, set_allow_builds_clearing_legacy, set_global_packages_allow_builds,
+    set_permissions, set_skills_dirs,
 };
 pub use catalog_references::CatalogReferenceSources;
 pub use field_updates::{

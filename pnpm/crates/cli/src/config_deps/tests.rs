@@ -820,6 +820,28 @@ async fn update_config_hook_cannot_read_or_change_the_symlinked_lockfile_dirs() 
     assert_eq!(config.symlinked_lockfile_target_dirs, allowed_dirs);
 }
 
+#[tokio::test]
+async fn update_config_hook_cannot_read_or_change_the_global_packages_settings() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { if ('globalPackages' in config) throw new Error('global packages settings leaked'); config.globalPackages = { dangerouslyAllowAllBuilds: true }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let global_packages = std::sync::Arc::new(pnpm_config::WorkspaceSettings {
+        trust_policy_exclude: Some(vec!["vercel".to_string()]),
+        ..pnpm_config::WorkspaceSettings::default()
+    });
+    config.global_packages = Some(std::sync::Arc::clone(&global_packages));
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.global_packages, Some(global_packages));
+}
+
 /// `Accept` header the resolver sends for full metadata
 /// (`ACCEPT_FULL_DOC`); only the full packument carries the per-version
 /// `time` map and trust evidence the no-downgrade check reads.

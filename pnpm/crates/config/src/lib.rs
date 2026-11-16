@@ -21,6 +21,7 @@ pub use crate::{
         standalone_install_command,
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
+    global_packages::{CommandTarget, GLOBAL_PACKAGES_UNSUPPORTED_KEYS},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
     source_date_epoch::source_date_epoch,
     store_path::StoreRelocation,
@@ -78,6 +79,7 @@ mod cli_layer;
 mod defaults;
 mod env_overlay;
 mod global_bin_check;
+mod global_packages;
 mod node_linker;
 mod npmrc_auth;
 mod override_version_references;

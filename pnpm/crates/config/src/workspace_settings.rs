@@ -78,6 +78,7 @@ impl Config {
                 )?;
             }
         }
+        self.apply_global_packages_layer(explicit, declared_registries);
         Ok(())
     }
 

@@ -28,6 +28,11 @@ pub struct CliLayer {
     /// settings, such as the lockfile-dir anchoring and the global virtual
     /// store.
     pub setting_values: BTreeMap<String, String>,
+
+    /// What the command acts on. `-g` selects
+    /// [`CommandTarget::GlobalPackages`](crate::CommandTarget::GlobalPackages),
+    /// which applies [`Config::global_packages`].
+    pub command_target: crate::CommandTarget,
 }
 
 impl Config {

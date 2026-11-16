@@ -6,11 +6,11 @@ use super::{
     activate_global_install_with_extra_bin_names, bin_names_of_other_groups,
     check_global_bin_conflicts, check_virtual_shim_conflicts, cleanup_replaced_global_installs,
     collect_existing_global_installs, create_global_cache_key, create_install_dir,
-    discard_install_dir_on_error, fs, get_actual_bin_names, get_hash_link, global_group_config,
-    hash_linked_packages, link_global_bins, missing_file_source_warning, plan_replaced_global_bins,
-    prompt_approve_install_builds, read_direct_dependencies, read_installed_packages,
-    registries_with_default, replacement_aliases, restore_virtual_shims, run_group_install,
-    should_replace_existing_package, snapshot_global_package, warn_global,
+    discard_install_dir_on_error, fs, get_actual_bin_names, get_hash_link, global_approval_store,
+    global_group_config, hash_linked_packages, link_global_bins, missing_file_source_warning,
+    plan_replaced_global_bins, prompt_approve_install_builds, read_direct_dependencies,
+    read_installed_packages, registries_with_default, replacement_aliases, restore_virtual_shims,
+    run_group_install, should_replace_existing_package, snapshot_global_package, warn_global,
 };
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 
@@ -224,7 +224,7 @@ impl GlobalInstallTarget<'_> {
         prompt_approve_install_builds::<Reporter>(
             active_config,
             &pkg.install_dir,
-            self.global_pkg_dir,
+            global_approval_store(self.base_config, self.global_pkg_dir)?,
         )
         .await?;
         Ok(true)

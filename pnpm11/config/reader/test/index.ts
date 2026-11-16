@@ -1385,6 +1385,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     const configDir = path.join(xdgConfigHome, 'pnpm')
     fs.mkdirSync(configDir, { recursive: true })
     writeYamlFileSync(path.join(configDir, 'config.yaml'), {
+      globalPackages: { allowBuilds: { esbuild: true } },
       globalShims: { node: true },
       minimumReleaseAg: 100,
       nodeLinker: 'hoisted',
@@ -1398,6 +1399,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     }))
 
     const unrecognized = warnings.find((warning) => warning.includes('in the global config file') && warning.includes('are not recognized by this version of pnpm'))
+    expect(unrecognized).toContain('"globalPackages" (a pnpm v12 setting)')
     expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
     expect(unrecognized).toContain('"minimumReleaseAg" (did you mean "minimumReleaseAge"?)')
     const movable = warnings.find((warning) => warning.includes('Move them to a project-level pnpm-workspace.yaml'))

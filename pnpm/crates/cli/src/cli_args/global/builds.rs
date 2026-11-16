@@ -1,7 +1,8 @@
 use super::{
     ApproveBuildsArgs, BTreeSet, Config, Context, GlobalError, IgnoredBuildsScan, IntoDiagnostic,
     Path, PathBuf, Reporter, State, clear_decided_ignored_builds, get_automatically_ignored_builds,
-    global_group_config, is_subdir, run_rebuild, scan_global_packages, write_approval_settings,
+    global_approval_store, global_group_config, is_subdir, run_rebuild, scan_global_packages,
+    warn_about_legacy_build_settings,
 };
 
 pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
@@ -20,7 +21,8 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
         return Ok(());
     };
 
-    write_approval_settings(global_pkg_dir, &decision)?;
+    warn_about_legacy_build_settings::<Reporter>(base_config, global_pkg_dir)?;
+    global_approval_store(base_config, global_pkg_dir)?.write_decision(&decision)?;
     let mut rebuild_groups = Vec::new();
     for (install_dir, scan) in groups {
         let build_packages: Vec<String> = decision.build_packages
@@ -85,13 +87,15 @@ async fn rebuild_approved_groups<Reporter: self::Reporter + 'static>(
     global_pkg_dir: &Path,
     rebuild_groups: Vec<(PathBuf, Vec<String>)>,
 ) -> miette::Result<()> {
+    let store = global_approval_store(base_config, global_pkg_dir)?;
     for (install_dir, build_packages) in rebuild_groups {
-        let config = Config::leak(global_group_config(
+        let group_config = global_group_config(
             base_config,
             &install_dir,
             global_pkg_dir,
             base_config.supported_architectures.clone(),
-        )?);
+        )?;
+        let config = store.config_with_approvals(&group_config)?;
         let state = State::init(install_dir.join("package.json"), config, true)
             .wrap_err("initialize the global approve-builds state")?;
         let selection = crate::cli_args::rebuild::RebuildSelection {

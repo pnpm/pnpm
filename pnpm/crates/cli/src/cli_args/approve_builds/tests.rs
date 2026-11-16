@@ -133,9 +133,9 @@ fn overlays_the_manifests_skills_dirs() {
     )
     .expect("write pnpm-workspace.yaml");
 
-    let approved =
-        super::config_with_install_approvals(&pnpm_config::Config::default(), dir.path())
-            .expect("lay the approvals over the config");
+    let approved = super::ApprovalStore::Workspace(dir.path())
+        .config_with_approvals(&pnpm_config::Config::default())
+        .expect("lay the approvals over the config");
 
     assert_eq!(approved.skills_dirs.as_deref(), Some([".claude/skills".to_string()].as_slice()));
     assert_eq!(
@@ -212,13 +212,20 @@ fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
     assert_eq!(scan.names.as_deref(), Some(["pending-pkg".to_string()].as_slice()));
 
     let (_, build_packages) = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
-        .prepare_with_scan::<SilentReporter>(dir.path(), &config, &config, &manifest_path, scan)
+        .prepare_with_scan::<SilentReporter>(
+            super::ApprovalStore::Workspace(dir.path()),
+            &config,
+            &config,
+            &manifest_path,
+            scan,
+        )
         .expect("prepare install approvals")
         .expect("pending-pkg awaits rebuild");
 
     assert_eq!(build_packages, vec!["pending-pkg".to_string()]);
-    let overlaid =
-        super::config_with_install_approvals(&config, dir.path()).expect("overlay approvals");
+    let overlaid = super::ApprovalStore::Workspace(dir.path())
+        .config_with_approvals(&config)
+        .expect("overlay approvals");
     assert_eq!(overlaid.allow_builds.get("denied-pkg"), Some(&false));
     assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
 }

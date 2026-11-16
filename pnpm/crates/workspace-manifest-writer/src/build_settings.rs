@@ -1,8 +1,8 @@
 use pnpm_config::SkillsPermission;
 
 use super::{
-    Manifest, Path, UpdateWorkspaceManifestError, edit, has_control_char, read_owning_manifest,
-    unsupported_inline_key, write_or_remove_manifest,
+    Manifest, ManifestTarget, Path, UpdateWorkspaceManifestError, edit, has_control_char,
+    read_manifest_at, read_owning_manifest, unsupported_inline_key, write_or_remove_manifest,
 };
 
 /// The value of one `permissions` entry: the capability the decision is
@@ -36,6 +36,43 @@ where
     Entries: IntoIterator<Item = (&'a str, bool)>,
 {
     update_allow_builds(dir, entries, false)
+}
+
+/// Upsert `name → bool` entries into `globalPackages.allowBuilds` of the
+/// global `config.yaml` at `path`, creating the file, its directory, and the
+/// section if absent. Preserves the rest of the document's formatting, and
+/// writes the file back only when something changed.
+pub fn set_global_packages_allow_builds<'a, Entries>(
+    path: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, bool)>,
+{
+    let target = ManifestTarget::root_manifest(path);
+    let mut manifest = read_manifest_at(path)?;
+    let entries: Vec<(&str, bool)> = entries.into_iter().collect();
+    validate_allow_build_entries(
+        &manifest,
+        path,
+        &entries,
+        &[&["globalPackages"], &["globalPackages", "allowBuilds"]],
+    )?;
+    let mut changed = false;
+    for (name, value) in entries {
+        changed |= edit::set_global_packages_allow_build(&mut manifest, name, value);
+    }
+    if !changed {
+        return Ok(());
+    }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|source| UpdateWorkspaceManifestError::Write {
+                path: path.to_path_buf(),
+                source,
+            })?;
+    }
+    write_or_remove_manifest(&target, manifest)
 }
 
 /// Top-level `pnpm-workspace.yaml` settings that `allowBuilds:` replaced in
@@ -73,21 +110,7 @@ where
     let path = target.path.clone();
 
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
-    if !entries.is_empty()
-        && let Some(key) = unsupported_inline_key(manifest.document.text(), &[&["allowBuilds"]])
-    {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
-    }
-
-    // The block-style splice writes `- name: true` on one line, so a control
-    // character in `name` (e.g. a newline from a crafted `--allow-build`)
-    // would corrupt the document — refuse instead.
-    if let Some((name, _)) = entries.iter().find(|(name, _)| has_control_char(name)) {
-        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
-            path,
-            value: (*name).to_string(),
-        });
-    }
+    validate_allow_build_entries(&manifest, &path, &entries, &[&["allowBuilds"]])?;
 
     let mut changed = false;
     for (name, value) in entries {
@@ -103,6 +126,34 @@ where
     }
 
     write_or_remove_manifest(&target, manifest)
+}
+
+/// Refuse an `allowBuilds` write the line-based splices cannot make safely:
+/// one into an inline block at `blocks`, or one whose name holds a control
+/// character. The block-style splice writes `name: true` on one line, so a
+/// control character in `name` (e.g. a newline from a crafted
+/// `--allow-build`) would corrupt the document.
+fn validate_allow_build_entries(
+    manifest: &Manifest,
+    path: &Path,
+    entries: &[(&str, bool)],
+    blocks: &[&[&str]],
+) -> Result<(), UpdateWorkspaceManifestError> {
+    if !entries.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.document.text(), blocks)
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key,
+        });
+    }
+    if let Some((name, _)) = entries.iter().find(|(name, _)| has_control_char(name)) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path: path.to_path_buf(),
+            value: (*name).to_string(),
+        });
+    }
+    Ok(())
 }
 
 /// Record `permissions` decisions in `dir`'s `pnpm-workspace.yaml`,

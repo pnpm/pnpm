@@ -13,7 +13,7 @@
 
 pub(crate) use allow_builds::{add_allow_build, add_undecided_allow_build, prune_allow_builds};
 pub(crate) use catalogs::{CatalogReferences, add_catalogs, remove_unused_catalogs};
-pub(crate) use permissions::{remove_allow_build, set_permission};
+pub(crate) use permissions::{remove_allow_build, set_global_packages_allow_build, set_permission};
 pub(crate) use policies::{
     prune_minimum_release_age_excludes, prune_trust_policy_excludes, set_audit_ignore_ghsas,
     set_minimum_release_age_excludes,

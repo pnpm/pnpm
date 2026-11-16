@@ -70,7 +70,7 @@ pub struct NodePackageMapSettings {
 ///
 /// The settings a repository must not control are no fields of this struct
 /// but of [`MachineSettings`](super::MachineSettings).
-#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
