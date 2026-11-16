@@ -755,6 +755,7 @@ fn fetch_dedicated_lockfiles_for_offline_install(selection: FetchSelection) {
         .success();
     for (name, dependency) in [("a", PROD_DEP), ("b", DEV_DEP)] {
         let project = workspace.join("packages").join(name);
+        assert_no_importer_links(&project);
         let target = if lockfile_args.is_empty() { project } else { workspace.join("lockfiles") };
         assert_eq!(virtual_dep(&target, dependency).exists(), expected_projects.contains(&name));
         assert_no_importer_links(&target);

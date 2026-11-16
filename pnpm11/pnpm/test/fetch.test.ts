@@ -31,5 +31,7 @@ test.each(['recursive', 'filtered', 'explicit lockfile directory'])('fetch with 
   expect(fs.existsSync(`${modules}/.pnpm/is-positive@1.0.0/node_modules/is-positive`)).toBe(true)
   expect(fs.existsSync(`${lockfileArgs.length ? 'lockfiles/node_modules' : 'packages/b/node_modules'}/.pnpm/is-negative@1.0.0/node_modules/is-negative`)).toBe(!filtered)
   expect(fs.existsSync(`${modules}/is-positive`)).toBe(false)
+  expect(fs.existsSync('packages/a/node_modules/is-positive')).toBe(false)
+  expect(fs.existsSync('packages/b/node_modules/is-negative')).toBe(false)
   execPnpmSync([...selection, 'install', '--offline', '--frozen-lockfile', '--store-dir', store], { expectSuccess: true })
 })
