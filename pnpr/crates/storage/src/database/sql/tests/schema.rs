@@ -43,6 +43,7 @@ pub(super) async fn execute(db: &Db, statements: &[&str]) {
         .collect();
     tokio::task::spawn_blocking(move || {
         adapter.write(&mut |connection| {
+            connection.lock_schema()?;
             let transaction = WriteTransaction::begin(connection)?;
             for statement in &statements {
                 transaction.execute(statement, params![])?;
@@ -224,6 +225,7 @@ async fn applying_every_step_matches_the_fresh_schema(db: Db) {
     let adapter = db.adapter();
     tokio::task::spawn_blocking(move || {
         adapter.write(&mut |connection| {
+            connection.lock_schema()?;
             let transaction = WriteTransaction::begin(connection)?;
             for statement in schema::statements(TABLES.get(transaction.dialect())) {
                 transaction.execute_ddl(&statement)?;
@@ -317,6 +319,7 @@ async fn seed_v1_fixture(db: &Db) {
     let adapter = db.adapter();
     tokio::task::spawn_blocking(move || {
         adapter.write(&mut |connection| {
+            connection.lock_schema()?;
             let transaction = WriteTransaction::begin(connection)?;
             for statement in schema::statements(&ddl) {
                 transaction.execute_ddl(&statement)?;

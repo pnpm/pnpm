@@ -51,6 +51,9 @@ pub trait Connection {
         Dialect::Sqlite
     }
 
+    /// Take the schema lock, which admits one migrating instance at a time.
+    /// `PostgreSQL` holds it in each write transaction the connection begins
+    /// from then on, and those read committed data, not one snapshot.
     fn lock_schema(&self) -> Result<()> {
         Ok(())
     }
