@@ -2,23 +2,14 @@
 //! `config.yaml` and applied only by the commands that act on them.
 
 use crate::{
-    Config, ExplicitPaths, WorkspaceSettings, collect_explicit_settings, note_declared_registries,
+    CommandTarget, Config, ExplicitPaths, WorkspaceSettings, collect_explicit_settings,
+    note_declared_registries,
 };
-
-/// What a command acts on.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum CommandTarget {
-    /// The project in the directory the command runs in.
-    #[default]
-    Project,
-    /// The global packages, which `-g` commands install, update, and list.
-    GlobalPackages,
-}
 
 /// The settings `globalPackagesConfig` names that a global group install does not
 /// apply. The group config drops them so that a caller's project cannot
 /// reach the global install through them.
-pub const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
+const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
     &["catalog", "catalogs", "overrides", "packageExtensions", "patchedDependencies"];
 
 impl Config {

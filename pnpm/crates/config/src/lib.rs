@@ -21,7 +21,6 @@ pub use crate::{
         standalone_install_command,
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
-    global_packages::{CommandTarget, GLOBAL_PACKAGES_UNSUPPORTED_KEYS},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
     source_date_epoch::source_date_epoch,
     store_path::StoreRelocation,
@@ -31,7 +30,7 @@ pub use crate::{
 };
 pub use boot_config::BootConfig;
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
-pub use cli_layer::CliLayer;
+pub use cli_layer::{CliLayer, CommandTarget};
 pub use loading::ConfigLoadFailure;
 pub use macos_backup::MacosBackupConfig;
 pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
