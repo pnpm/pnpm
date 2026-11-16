@@ -57,8 +57,6 @@ fn specifiers_and_projection_share_a_query_scoped_manifest_snapshot() {
     );
 }
 
-/// The root project depends on `dep@1.0.0`, which declares `nested` as
-/// `^2.0.0` in its installed manifest.
 fn write_workspace(dir: &std::path::Path) -> Lockfile {
     fs::write(
         dir.join("pnpm-lock.yaml"),
