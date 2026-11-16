@@ -6,10 +6,12 @@ use super::{BoundProviders, is_patch_marker, is_peer_suffix_hash, split_peer_suf
 use crate::{
     LockfileEntries, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotDepRef, SnapshotEntry,
 };
+use cycle_probe::CycleProbe;
+
+mod cycle_probe;
 
 const MAX_COMBINATIONS: usize = 4096;
 const MAX_VISITED_SNAPSHOTS: usize = 1024;
-const MAX_CYCLE_PROBE_VISITS: usize = 16_384;
 
 pub(super) fn recover_hashed_providers(
     entries: LockfileEntries<'_>,
@@ -267,55 +269,6 @@ fn mixed_cycle_cut_candidates(
             variants
         })
         .collect()
-}
-
-/// Finds the providers a consumer's suffix can name without their nested
-/// groups. The resolver cuts only a provider that is still being walked, and
-/// such a provider depends on the consumer.
-struct CycleProbe<'a> {
-    snapshots: &'a std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
-    consumer: PkgNameVerPeer,
-    independent: HashSet<PkgNameVerPeer>,
-    remaining_visits: usize,
-}
-
-impl<'a> CycleProbe<'a> {
-    fn new(
-        snapshots: &'a std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
-        consumer: &PkgNameVerPeer,
-    ) -> Self {
-        CycleProbe {
-            snapshots,
-            consumer: consumer.without_peer(),
-            independent: HashSet::new(),
-            remaining_visits: MAX_CYCLE_PROBE_VISITS,
-        }
-    }
-
-    /// `false` only when every dependency path from `provider` was followed
-    /// and none reached the consumer.
-    fn may_depend_on_consumer(&mut self, provider: &PkgNameVerPeer) -> bool {
-        let mut visited = HashSet::new();
-        let mut pending = vec![provider.clone()];
-        while let Some(current) = pending.pop() {
-            if self.independent.contains(&current) || visited.contains(&current) {
-                continue;
-            }
-            if current.without_peer() == self.consumer || self.remaining_visits == 0 {
-                return true;
-            }
-            let Some(snapshot) = self.snapshots.get(&current) else {
-                return true;
-            };
-            self.remaining_visits -= 1;
-            pending.extend(
-                all_dep_refs(snapshot).filter_map(|(alias, dep_ref)| dep_ref.resolve(alias)),
-            );
-            visited.insert(current);
-        }
-        self.independent.extend(visited);
-        false
-    }
 }
 
 #[derive(Clone, Copy)]
