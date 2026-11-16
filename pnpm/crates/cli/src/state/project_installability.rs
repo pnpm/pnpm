@@ -41,16 +41,21 @@ impl<'a> ProjectHost<'a> {
         }
     }
 
-    fn node_version(&self) -> &str {
-        self.node_version.get_or_init(|| {
-            let configured =
-                self.config.node_version.clone().or_else(|| self.root_runtime_node_version());
-            pnpm_deps_restorer::InstallabilityHost::detect_with(
-                self.config.engine_strict,
-                configured,
-            )
-            .node_version
-        })
+    fn node_version(&self) -> Result<String, InitStateError> {
+        if let Some(version) = self.node_version.get() {
+            return Ok(version.clone());
+        }
+        let configured = match self.config.node_version.clone() {
+            Some(version) => Some(version),
+            None => self.root_runtime_node_version()?,
+        };
+        let version = pnpm_deps_restorer::InstallabilityHost::detect_with(
+            self.config.engine_strict,
+            configured,
+        )
+        .node_version;
+        let _ = self.node_version.set(version.clone());
+        Ok(version)
     }
 
     /// The Node.js a project's scripts run on: the one pnpm downloads for it,
@@ -69,7 +74,7 @@ impl<'a> ProjectHost<'a> {
             }
             return Ok(version.to_string());
         }
-        Ok(self.node_version().to_string())
+        self.node_version()
     }
 
     fn locked_runtime_node_version(
@@ -138,15 +143,31 @@ impl<'a> ProjectHost<'a> {
             })
     }
 
-    fn root_runtime_node_version(&self) -> Option<String> {
+    fn root_runtime_node_version(&self) -> Result<Option<String>, InitStateError> {
         if self.config.skip_runtimes {
-            return None;
+            return Ok(None);
         }
         // An unreadable root manifest fails the root project's own check,
         // which every install runs, so the error is reported there.
-        let (_, manifest) = pnpm_workspace::try_read_project_manifest(self.root_dir).ok()??;
+        let Some((_, manifest)) =
+            pnpm_workspace::try_read_project_manifest(self.root_dir).ok().flatten()
+        else {
+            return Ok(None);
+        };
         let runtime_on_fail = self.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str);
-        self.dependency_groups()
+        let requirements =
+            pnpm_deps_restorer::project_host_requirements(manifest.value(), runtime_on_fail);
+        if let Some((version, specifier)) = requirements
+            .as_ref()
+            .and_then(|requirements| self.downloaded_node_version(requirements))
+        {
+            if let Some(version) = self.locked_runtime_node_version(self.root_dir, specifier)? {
+                return Ok(Some(version));
+            }
+            return Ok(Some(version.to_string()));
+        }
+        Ok(self
+            .dependency_groups()
             .iter()
             .find_map(|group| match group {
                 pnpm_package_manifest::DependencyGroup::Prod => {
@@ -165,7 +186,7 @@ impl<'a> ProjectHost<'a> {
                 }
                 pnpm_package_manifest::DependencyGroup::Optional
                 | pnpm_package_manifest::DependencyGroup::Peer => None,
-            })
+            }))
     }
 
     /// Check the project in `project_dir`, returning the warnings to emit for

@@ -335,6 +335,7 @@ fn project_engines_use_a_directly_declared_runtime_dependency() {
     let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
     write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "dependencies");
     let manifest_path = workspace.join("package.json");
+    fs::write(&manifest_path, json!({ "name": "app" }).to_string()).unwrap();
     let mut manifest: serde_json::Value =
         serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
     manifest["dependencies"] = json!({"node": "tool:24.1.0"});
@@ -345,6 +346,32 @@ fn project_engines_use_a_directly_declared_runtime_dependency() {
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
     lockfile["importers"]["."]["dependencies"]["node"]["specifier"] = json!("tool:24.1.0");
     fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn project_engines_use_the_locked_root_runtime_when_the_project_has_no_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\npackages:\n  - packages/*\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, "^24.0.0", Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["packages/app"] = json!({});
+    fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+    fs::create_dir_all(workspace.join("packages/app")).unwrap();
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        json!({ "name": "app", "engines": { "node": ">=24.1.0" } }).to_string(),
+    )
+    .unwrap();
 
     command(&workspace)
         .with_args(["install", "--frozen-lockfile"])

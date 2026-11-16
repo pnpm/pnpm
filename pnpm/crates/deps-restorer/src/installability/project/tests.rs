@@ -9,6 +9,17 @@ fn a_manifest_without_host_requirements_requires_nothing() {
 }
 
 #[test]
+fn a_runtime_dependency_is_available_even_without_other_host_requirements() {
+    let manifest = json!({
+        "devDependencies": { "node": "runtime:24.1.0" },
+    });
+
+    let requirements = project_host_requirements(&manifest, None).expect("requirements");
+
+    assert_eq!(requirements.dev_dependencies_node_version.as_deref(), Some("24.1.0"));
+}
+
+#[test]
 fn a_manifest_requires_its_engines_and_platforms() {
     let manifest = json!({
         "name": "app",

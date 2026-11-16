@@ -22,17 +22,19 @@ pub fn project_host_requirements(
     runtime_on_fail: Option<&str>,
 ) -> Option<ProjectHostRequirements> {
     let installability = project_installability_manifest(manifest);
-    if installability.engines.is_none()
-        && installability.cpu.is_none()
-        && installability.os.is_none()
-        && installability.libc.is_none()
-    {
-        return None;
-    }
     let (dependencies_node_version, dependencies_node_specifier) =
         downloaded_node_runtime(manifest, "dependencies", "engines", runtime_on_fail);
     let (dev_dependencies_node_version, dev_dependencies_node_specifier) =
         downloaded_node_runtime(manifest, "devDependencies", "devEngines", runtime_on_fail);
+    if installability.engines.is_none()
+        && installability.cpu.is_none()
+        && installability.os.is_none()
+        && installability.libc.is_none()
+        && dependencies_node_version.is_none()
+        && dev_dependencies_node_version.is_none()
+    {
+        return None;
+    }
     Some(ProjectHostRequirements {
         installability,
         dependencies_node_version,
