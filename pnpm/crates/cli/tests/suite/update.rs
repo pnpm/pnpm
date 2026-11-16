@@ -1616,7 +1616,8 @@ fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
         "lockfile should record latest pnpm pin in packageManagerDependencies:\n{lockfile}",
     );
 
-    // Explicit `pnpm update pnpm` selector skips pre-command PM enforcement and updates `packageManager`.
+    // Explicit `pnpm update pnpm` selector skips pre-command PM enforcement and updates
+    // `packageManager` and `engines.pnpm`.
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
