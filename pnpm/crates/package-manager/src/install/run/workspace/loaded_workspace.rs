@@ -28,20 +28,28 @@ impl LoadedWorkspace {
             Option<&pnpm_workspace::WorkspaceManifest>,
         ),
     ) -> Result<Self, InstallError> {
+        let config = install.context.config;
         let discovered = owned.projects.discovered_workspace.clone();
         let known_workspace_projects = owned.projects
             .workspace_projects_override
             .take()
-            .map(std::sync::Arc::from)
+            .map(|mut projects| {
+                crate::apply_runtime_on_fail_to_projects(config, &mut projects);
+                std::sync::Arc::from(projects)
+            })
             .or_else(|| {
                 discovered.as_ref().map(|workspace| std::sync::Arc::clone(&workspace.projects))
             });
-        let projects = discovered_workspace_projects(
-            install.context.config,
-            (options.selection.is_some(), known_workspace_projects),
-            dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
-            workspace_manifest,
-        )?;
+        // A selection carries its own projects.
+        let projects = match (&options.selection, known_workspace_projects) {
+            (Some(_), _) => None,
+            (None, Some(projects)) => Some(projects),
+            (None, None) => walk_workspace_projects(
+                config,
+                dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
+                workspace_manifest,
+            )?,
+        };
         let locked_registry_routes =
             locked_registry_routes(install.context.config, &dirs.workspace_root);
         Ok(LoadedWorkspace { projects, discovered, locked_registry_routes })
@@ -69,25 +77,13 @@ fn locked_registry_routes(
     .and_then(|state| state.settings.registry_routes)
 }
 
-/// Walk every workspace project's `package.json` once, unless the caller
-/// supplied the list. A selection carries its own projects, so it walks
-/// nothing. A walk applies [`crate::apply_runtime_on_fail`] to the manifests
-/// it reads.
-fn discovered_workspace_projects(
+/// Walk every workspace project's `package.json`, with
+/// [`crate::apply_runtime_on_fail`] applied to each manifest.
+fn walk_workspace_projects(
     config: &pnpm_config::Config,
-    (has_selection, known_workspace_projects): (
-        bool,
-        Option<std::sync::Arc<[pnpm_workspace::Project]>>,
-    ),
     workspace_dir: &Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
 ) -> Result<Option<std::sync::Arc<[pnpm_workspace::Project]>>, InstallError> {
-    if has_selection {
-        return Ok(None);
-    }
-    if let Some(projects) = known_workspace_projects {
-        return Ok(Some(projects));
-    }
     let mut projects =
         load_workspace_projects(workspace_dir, workspace_manifest, &config.managed_directories())
             .map_err(InstallError::FindWorkspaceProjects)?;
