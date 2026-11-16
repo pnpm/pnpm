@@ -1,7 +1,9 @@
 //! Numbered forward-only schema migrations for pnpr's metadata and auth tables.
 //!
 //! A package is keyed by `(namespace, ecosystem, name)`: the hosted storage
-//! namespace, its ecosystem, and its canonical name. Every key
+//! namespace, its ecosystem, and its canonical name. A table named after an
+//! ecosystem (`npm_`, `cargo_`, `pypi_`, `oci_`) holds only that ecosystem's
+//! rows and has no `ecosystem` column. Every key
 //! column is `NOT NULL`, so no nullable column can weaken a uniqueness
 //! constraint.
 //!

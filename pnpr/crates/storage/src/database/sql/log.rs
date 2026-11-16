@@ -145,11 +145,14 @@ pub(super) fn record_entry(
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<(u64, String)>> {
-    let (namespace, ecosystem, name) = key.params();
+    if key.ecosystem != Ecosystem::Npm {
+        return Ok(None);
+    }
+    let (namespace, name) = key.params_in(Ecosystem::Npm);
     let row = connection.query_optional(
-        "SELECT log_index, digest FROM release_records
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![namespace, ecosystem, name, version],
+        "SELECT log_index, digest FROM npm_release_records
+         WHERE namespace = ?1 AND name = ?2 AND version = ?3",
+        params![namespace, name, version],
     )?;
     row.map(|mut row| {
         let index = u64::try_from(row.get::<i64>(0)?).unwrap_or_default();
@@ -272,9 +275,8 @@ fn version_is_live(
 ) -> Result<bool> {
     Ok(connection
         .query_optional(
-            "SELECT 1 FROM versions
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-            params![namespace, Ecosystem::Npm.as_str(), name, version],
+            "SELECT 1 FROM npm_versions WHERE namespace = ?1 AND name = ?2 AND version = ?3",
+            params![namespace, name, version],
         )?
         .is_some())
 }

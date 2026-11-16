@@ -53,13 +53,8 @@ pub(super) struct TagMove<'change> {
 }
 
 pub(super) fn stored_tags_query(key: &PackageKey) -> Query<'_> {
-    let (namespace, ecosystem, name) = key.params();
-    query!(
-        "SELECT tag, version FROM tags WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
-        namespace,
-        ecosystem,
-        name,
-    )
+    let (namespace, name) = key.params_in(Ecosystem::Npm);
+    query!("SELECT tag, version FROM npm_tags WHERE namespace = ?1 AND name = ?2", namespace, name)
 }
 
 /// The tags in the rows of [`stored_tags_query`].
@@ -70,36 +65,35 @@ pub(super) fn tags_from_rows(rows: Vec<Row>) -> Result<BTreeMap<String, String>>
 }
 
 const WRITE_TAG: DialectSql = DialectSql::with_mysql(
-    "INSERT INTO tags (namespace, ecosystem, name, tag, version, generation)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-     ON CONFLICT (namespace, ecosystem, name, tag)
+    "INSERT INTO npm_tags (namespace, name, tag, version, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (namespace, name, tag)
      DO UPDATE SET version = excluded.version, generation = excluded.generation",
-    "INSERT INTO tags (namespace, ecosystem, name, tag, version, generation)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+    "INSERT INTO npm_tags (namespace, name, tag, version, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5)
      AS excluded ON DUPLICATE KEY UPDATE version = excluded.version, generation = excluded.generation",
 );
 
 /// Point the tag where `change` says and append the move to its history.
 pub(super) fn record_tag_move(commit: &Commit<'_>, change: &TagMove<'_>) -> Result<()> {
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Npm);
     let generation = to_column(commit.generation);
     match change.target {
         Some(target) => commit.transaction.execute(
             WRITE_TAG.get(commit.transaction.dialect()),
-            params![namespace, ecosystem, name, change.tag, target, generation],
+            params![namespace, name, change.tag, target, generation],
         )?,
         None => commit.transaction.execute(
-            "DELETE FROM tags WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
-            params![namespace, ecosystem, name, change.tag],
+            "DELETE FROM npm_tags WHERE namespace = ?1 AND name = ?2 AND tag = ?3",
+            params![namespace, name, change.tag],
         )?,
     }
     commit.transaction.execute(
-        "INSERT INTO tag_history (namespace, ecosystem, name, tag, generation, previous, target,
-                                  principal, changed_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO npm_tag_history (namespace, name, tag, generation, previous, target,
+                                      principal, changed_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             namespace,
-            ecosystem,
             name,
             change.tag,
             generation,
@@ -158,21 +152,18 @@ fn tag_target_query<'query>(
     key: &'query PackageKey,
     change: &'query OwnedTagChange,
 ) -> Query<'query> {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Npm);
     match change.target.as_deref() {
         Some(target) => query!(
-            "SELECT version FROM versions
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4 LIMIT 1",
+            "SELECT version FROM npm_versions
+             WHERE namespace = ?1 AND name = ?2 AND version = ?3 LIMIT 1",
             namespace,
-            ecosystem,
             name,
             target,
         ),
         None => query!(
-            "SELECT version FROM versions
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 LIMIT 1",
+            "SELECT version FROM npm_versions WHERE namespace = ?1 AND name = ?2 LIMIT 1",
             namespace,
-            ecosystem,
             name,
         ),
     }
@@ -244,13 +235,16 @@ pub(super) fn tag_history(
     key: &PackageKey,
     tag: &str,
 ) -> Result<Vec<TagHistoryEntry>> {
-    let (namespace, ecosystem, name) = key.params();
+    if key.ecosystem != Ecosystem::Npm {
+        return Ok(Vec::new());
+    }
+    let (namespace, name) = key.params_in(Ecosystem::Npm);
     connection
         .query(
-            "SELECT generation, previous, target, principal, changed_at FROM tag_history
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4
+            "SELECT generation, previous, target, principal, changed_at FROM npm_tag_history
+             WHERE namespace = ?1 AND name = ?2 AND tag = ?3
              ORDER BY generation",
-            params![namespace, ecosystem, name, tag],
+            params![namespace, name, tag],
         )?
         .into_iter()
         .map(|mut row| {

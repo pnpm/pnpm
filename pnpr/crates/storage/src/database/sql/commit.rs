@@ -108,17 +108,17 @@ impl StoredPackage {
         let mut queries = vec![package_row_query(key), tombstone_owners_query(key)];
         match key.ecosystem {
             Ecosystem::Npm => {
-                let (namespace, ecosystem, name) = key.params();
+                let (namespace, name) = key.params_in(Ecosystem::Npm);
                 queries.push(query!(
                     "SELECT v.version, m.accepted_digest, a.deprecated
-                     FROM versions v
-                     JOIN accepted_manifests m USING (namespace, ecosystem, name, version)
-                     LEFT JOIN annotations a USING (namespace, ecosystem, name, version)
-                     WHERE v.namespace = ?1 AND v.ecosystem = ?2 AND v.name = ?3",
+                     FROM npm_versions v
+                     JOIN npm_accepted_manifests m USING (namespace, name, version)
+                     LEFT JOIN npm_annotations a USING (namespace, name, version)
+                     WHERE v.namespace = ?1 AND v.name = ?2",
                     namespace,
-                    ecosystem,
                     name,
                 ));
+                let ecosystem = Ecosystem::Npm.as_str();
                 queries.push(stored_tags_query(key));
                 queries.push(query!(
                     "SELECT version FROM removed_versions

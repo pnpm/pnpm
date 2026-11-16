@@ -39,79 +39,73 @@ CREATE TABLE IF NOT EXISTS package_owners (
 -- flips in place.
 CREATE TABLE IF NOT EXISTS cargo_versions (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     version TEXT COLLATE "C" NOT NULL,
     position BIGINT NOT NULL,
     yanked BIGINT NOT NULL,
     entry TEXT COLLATE "C" NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 );
 CREATE INDEX IF NOT EXISTS cargo_versions_by_position
-    ON cargo_versions (namespace, ecosystem, name, position);
+    ON cargo_versions (namespace, name, position);
 
 -- Published distribution files of a Python project, ordered by `position`.
 -- `entry` holds the immutable PEP 691 file metadata; `yanked` and `yank_reason`
 -- change in place.
 CREATE TABLE IF NOT EXISTS pypi_files (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     filename TEXT COLLATE "C" NOT NULL,
     position BIGINT NOT NULL,
     yanked BIGINT NOT NULL,
     yank_reason TEXT COLLATE "C",
     entry TEXT COLLATE "C" NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, filename)
+    PRIMARY KEY (namespace, name, filename)
 );
 CREATE INDEX IF NOT EXISTS pypi_files_by_position
-    ON pypi_files (namespace, ecosystem, name, position);
+    ON pypi_files (namespace, name, position);
 
 -- Distribution filenames permanently reserved after deletion from a Python
 -- project, so a deleted filename can never be uploaded again.
-CREATE TABLE IF NOT EXISTS removed_pypi_files (
+CREATE TABLE IF NOT EXISTS pypi_removed_files (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     filename TEXT COLLATE "C" NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, filename)
+    PRIMARY KEY (namespace, name, filename)
 );
 
 -- Manifests retained in an OCI image repository, keyed by content digest.
 -- `entry` holds child digests and indexed referrer metadata.
 CREATE TABLE IF NOT EXISTS oci_manifests (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     digest TEXT COLLATE "C" NOT NULL,
     entry TEXT COLLATE "C" NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, digest)
+    PRIMARY KEY (namespace, name, digest)
 );
 
 -- Mutable tags of an OCI image repository and the manifest digest each names.
 CREATE TABLE IF NOT EXISTS oci_tags (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     tag TEXT COLLATE "C" NOT NULL,
     digest TEXT COLLATE "C" NOT NULL,
     updated BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag)
+    PRIMARY KEY (namespace, name, tag)
 );
 
 -- Insert-only: a version's artifact integrity. `accepted_generation` is the
 -- namespace generation that accepted it, which is the id of the version's
 -- initial publication.
-CREATE TABLE IF NOT EXISTS versions (
+CREATE TABLE IF NOT EXISTS npm_versions (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     version TEXT COLLATE "C" NOT NULL,
     integrity TEXT COLLATE "C" NOT NULL,
     published_at BIGINT,
     accepted_generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 );
 
 -- Insert-only: the manifest accepted for a version under an interpretation
@@ -120,32 +114,30 @@ CREATE TABLE IF NOT EXISTS versions (
 -- for the `submitted` profile, whose input is the manifest itself.
 -- `accepted_digest` covers the manifest, README, profile, and inputs, which a
 -- restatement of the version must match.
-CREATE TABLE IF NOT EXISTS accepted_manifests (
+CREATE TABLE IF NOT EXISTS npm_accepted_manifests (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     version TEXT COLLATE "C" NOT NULL,
     profile TEXT COLLATE "C" NOT NULL,
     manifest TEXT COLLATE "C" NOT NULL,
     inputs TEXT COLLATE "C" NOT NULL,
     accepted_digest TEXT COLLATE "C" NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version, profile)
+    PRIMARY KEY (namespace, name, version, profile)
 );
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
 -- under `profile` and served unchanged at its record route. `digest` is their
 -- SHA-512, `sha512-<base64>`, which the record's log entry commits to, and
 -- `log_index` the index of that entry in its namespace's log.
-CREATE TABLE IF NOT EXISTS release_records (
+CREATE TABLE IF NOT EXISTS npm_release_records (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     version TEXT COLLATE "C" NOT NULL,
     profile TEXT COLLATE "C" NOT NULL,
     record BYTEA NOT NULL,
     digest TEXT COLLATE "C" NOT NULL,
     log_index BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version, profile)
+    PRIMARY KEY (namespace, name, version, profile)
 );
 
 -- Insert-only: the transparency log of each namespace's records of one
@@ -173,32 +165,29 @@ CREATE TABLE IF NOT EXISTS log_heads (
 );
 
 -- Kept out of the manifest so a README never inflates resolution metadata.
-CREATE TABLE IF NOT EXISTS readmes (
+CREATE TABLE IF NOT EXISTS npm_readmes (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     version TEXT COLLATE "C" NOT NULL,
     readme TEXT COLLATE "C",
     readme_filename TEXT COLLATE "C",
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 );
 
-CREATE TABLE IF NOT EXISTS tags (
+CREATE TABLE IF NOT EXISTS npm_tags (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     tag TEXT COLLATE "C" NOT NULL,
     version TEXT COLLATE "C" NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag)
+    PRIMARY KEY (namespace, name, tag)
 );
 
 -- Insert-only: every move of a tag, so a release-age or downgrade policy can
 -- see when a tag moved, not only where it points. Kept when the package is
 -- removed.
-CREATE TABLE IF NOT EXISTS tag_history (
+CREATE TABLE IF NOT EXISTS npm_tag_history (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     tag TEXT COLLATE "C" NOT NULL,
     generation BIGINT NOT NULL,
@@ -206,7 +195,7 @@ CREATE TABLE IF NOT EXISTS tag_history (
     target TEXT COLLATE "C",
     principal TEXT COLLATE "C",
     changed_at BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag, generation)
+    PRIMARY KEY (namespace, name, tag, generation)
 );
 
 -- Insert-only: the identity of every version removed from a package, by
@@ -226,25 +215,23 @@ CREATE TABLE IF NOT EXISTS removed_versions (
 -- removing the repository, so a publication that introduced it is not replayed
 -- after its removal. Kept when the repository is removed, with the generation
 -- of its latest removal when pushed and removed again.
-CREATE TABLE IF NOT EXISTS removed_oci_manifests (
+CREATE TABLE IF NOT EXISTS oci_removed_manifests (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     artifact TEXT COLLATE "C" NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, artifact)
+    PRIMARY KEY (namespace, name, artifact)
 );
 
 -- Mutable annotations of a version. `deprecated` is its JSON value.
 -- `generation` is the generation that last changed the row.
-CREATE TABLE IF NOT EXISTS annotations (
+CREATE TABLE IF NOT EXISTS npm_annotations (
     namespace TEXT COLLATE "C" NOT NULL,
-    ecosystem TEXT COLLATE "C" NOT NULL,
     name TEXT COLLATE "C" NOT NULL,
     version TEXT COLLATE "C" NOT NULL,
     deprecated TEXT COLLATE "C" NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 );
 
 -- A commit that introduced artifacts. `id` is the namespace generation it

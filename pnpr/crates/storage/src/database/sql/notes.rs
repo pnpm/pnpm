@@ -125,12 +125,11 @@ fn subject_query(subject: &NoteSubject) -> Query<'_> {
             package_row_query(key)
         }
         NoteSubject::Version { key, version } => {
-            let (namespace, ecosystem, name) = key.params();
+            let (namespace, name) = key.params_in(Ecosystem::Npm);
             query!(
-                "SELECT 1 FROM versions WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-                 AND version = ?4 LIMIT 1",
+                "SELECT 1 FROM npm_versions WHERE namespace = ?1 AND name = ?2 AND version = ?3
+                 LIMIT 1",
                 namespace,
-                ecosystem,
                 name,
                 version,
             )
@@ -223,9 +222,8 @@ impl super::SqlDatabase {
                      WHERE n.namespace = ?1 AND n.ecosystem = ?2 AND n.name = ?3
                        AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL)
                        AND (n.ecosystem != 'npm' OR EXISTS (
-                         SELECT 1 FROM versions v WHERE v.namespace = n.namespace
-                           AND v.ecosystem = n.ecosystem AND v.name = n.name
-                           AND v.version = n.version))",
+                         SELECT 1 FROM npm_versions v WHERE v.namespace = n.namespace
+                           AND v.name = n.name AND v.version = n.version))",
                     params![namespace, ecosystem, name],
                 )?
                 .into_iter()
@@ -296,13 +294,15 @@ impl super::SqlDatabase {
         namespace: &str,
         version: &str,
     ) -> Result<bool> {
+        if name.ecosystem() != Ecosystem::Npm {
+            return Ok(false);
+        }
         let (key, version) = (package_key(name, namespace), version.to_string());
         self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
-            let (namespace, ecosystem, name) = key.params();
+            let (namespace, name) = key.params_in(Ecosystem::Npm);
             let found = connection.query_optional(
-                "SELECT 1 FROM versions
-                 WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-                params![namespace, ecosystem, name, version],
+                "SELECT 1 FROM npm_versions WHERE namespace = ?1 AND name = ?2 AND version = ?3",
+                params![namespace, name, version],
             )?;
             Ok(found.is_some())
         })
@@ -325,10 +325,9 @@ impl super::SqlDatabase {
                 "SELECT p.version, p.publication FROM (
                    SELECT m.version, MIN(m.publication) AS publication FROM publication_members m
                    WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3
-                     AND EXISTS (
-                       SELECT 1 FROM versions v WHERE v.namespace = m.namespace
-                         AND v.ecosystem = m.ecosystem AND v.name = m.name
-                         AND v.version = m.version)
+                     AND m.ecosystem = 'npm' AND EXISTS (
+                       SELECT 1 FROM npm_versions v WHERE v.namespace = m.namespace
+                         AND v.name = m.name AND v.version = m.version)
                    GROUP BY m.version
                  ) p
                  WHERE EXISTS (

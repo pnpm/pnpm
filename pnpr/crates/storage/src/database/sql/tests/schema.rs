@@ -18,10 +18,10 @@ use std::{sync::Arc, time::Duration};
 
 pub(super) const PAYLOAD_TABLES: [&str; 11] = [
     "packages",
-    "accepted_manifests",
-    "release_records",
+    "npm_accepted_manifests",
+    "npm_release_records",
     "log_entries",
-    "readmes",
+    "npm_readmes",
     "scim_users",
     "cargo_versions",
     "pypi_files",
@@ -788,7 +788,7 @@ fn every_schema_table_is_known() {
     assert!(tables.contains(&"version_notes".to_string()));
     assert!(tables.contains(&"publication_notes".to_string()));
     assert!(!tables.contains(&ALPHA_TABLE.to_string()));
-    assert!(tables.contains(&"removed_oci_manifests".to_string()));
+    assert!(tables.contains(&"oci_removed_manifests".to_string()));
     assert!(!tables.contains(&"note_history".to_string()));
     assert!(tables.contains(&"users".to_string()));
     assert!(tables.contains(&"tokens".to_string()));
