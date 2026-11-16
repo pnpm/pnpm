@@ -232,22 +232,28 @@ pub(crate) fn effective_node_version(
         .find_map(|group| {
             let (downloaded, engines_field) = match group {
                 DependencyGroup::Prod => (
-                    requirements.as_ref().and_then(|req| req.dependencies_node_version.as_ref()),
+                    requirements
+                        .as_ref()
+                        .and_then(|req| req.dependencies_node_version.as_ref()),
                     "engines",
                 ),
                 DependencyGroup::Dev => (
-                    requirements.as_ref().and_then(|req| req.dev_dependencies_node_version.as_ref()),
+                    requirements
+                        .as_ref()
+                        .and_then(|req| req.dev_dependencies_node_version.as_ref()),
                     "devEngines",
                 ),
                 DependencyGroup::Optional | DependencyGroup::Peer => return None,
             };
-            downloaded.cloned().or_else(|| {
-                pnpm_package_manifest::node_version_from_engine_field(
-                    manifest.value(),
-                    engines_field,
-                    runtime_on_fail,
-                )
-            })
+            downloaded
+                .cloned()
+                .or_else(|| {
+                    pnpm_package_manifest::node_version_from_engine_field(
+                        manifest.value(),
+                        engines_field,
+                        runtime_on_fail,
+                    )
+                })
         })
 }
 
