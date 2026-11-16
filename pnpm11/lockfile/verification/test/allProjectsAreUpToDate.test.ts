@@ -1530,7 +1530,7 @@ describe('local file dependency', () => {
       const parentDeps = parentDeclaresPeer ? { 'is-positive': '2.0.0' } : {}
       const barImporter = options.wantedLockfile.importers['bar' as ProjectId]
       return allProjectsAreUpToDate([
-        { ...projects[0], manifest: { dependencies: { ...projects[0].manifest.dependencies, ...parentDeps } } },
+        { ...projects[0], manifest: { dependencies: { local: 'file:./local-dir', ...parentDeps } } },
         projects[1],
       ], {
         ...options,
@@ -1544,7 +1544,7 @@ describe('local file dependency', () => {
               dependencies: { ...barImporter.dependencies, ...parentDeps },
               specifiers: { ...barImporter.specifiers, ...parentDeps },
             },
-          },
+          } as LockfileObject['importers'],
           packages: {
             ...options.wantedLockfile.packages,
             'local@file:./local-dir': {
