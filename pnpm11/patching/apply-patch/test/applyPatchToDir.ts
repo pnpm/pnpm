@@ -119,6 +119,24 @@ rename to Index.js
     expect(fs.readdirSync(patchedDir)).toStrictEqual(['Index.js'])
     expect(fs.readFileSync(path.join(patchedDir, 'Index.js'), 'utf8')).toBe('module.exports = 1\n')
   })
+  // Creating symlinks on Windows needs a privilege CI does not have.
+  const itWithSymlinks = process.platform === 'win32' ? it.skip : it
+  itWithSymlinks('should not rename a symlink onto the file it points to', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'Index.js'), 'module.exports = 1\n')
+    fs.symlinkSync('Index.js', path.join(patchedDir, 'index.js'))
+    const patchFilePath = path.join(patchedDir, '..', 'rename-symlink.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/index.js b/Index.js
+similarity index 100%
+rename from index.js
+rename to Index.js
+`)
+    try {
+      applyPatchToDir({ patchFilePath, patchedDir })
+    } catch {}
+    expect(fs.lstatSync(path.join(patchedDir, 'Index.js')).isFile()).toBe(true)
+    expect(fs.readFileSync(path.join(patchedDir, 'Index.js'), 'utf8')).toBe('module.exports = 1\n')
+  })
   // `git diff --ignore-cr-at-eol` writes lines appended to a file without a
   // final newline as context followed by the insertion.
   it('should append after a last line that has no final newline but is matched as context', () => {

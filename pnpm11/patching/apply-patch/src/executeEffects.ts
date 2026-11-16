@@ -71,8 +71,10 @@ function isRespelling (fromPath: string, toPath: string): boolean {
   const fromName = path.basename(fromPath)
   const toName = path.basename(toPath)
   if (fromName === toName || normalizeName(fromName) !== normalizeName(toName)) return false
-  const fromStat = fs.statSync(fromPath)
-  const toStat = fs.statSync(toPath)
+  // lstat: a symlink and the file it points to are different entries. bigint:
+  // NTFS file IDs do not fit a double.
+  const fromStat = fs.lstatSync(fromPath, { bigint: true })
+  const toStat = fs.lstatSync(toPath, { bigint: true })
   return fromStat.dev === toStat.dev && fromStat.ino === toStat.ino
 }
 
