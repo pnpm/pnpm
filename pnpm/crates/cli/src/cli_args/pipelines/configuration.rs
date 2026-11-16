@@ -7,25 +7,6 @@ use crate::cli_args::yarn_workspaces_field::{
     create_workspace_yaml_from_yarn_workspaces, warn_about_workspaces_field,
 };
 
-/// [`select_workspace_projects`](super::select_workspace_projects), optionally running the install's
-/// workspace-cycle search over the selection graph while it is still in
-/// hand. Callers pass `true` only for a run that is certain to reach
-/// the cycle check — the "Already up to date" fast path returns before
-/// it, and a search it never reads would tax exactly that path.
-/// `runtimeOnFail` is a workspace-level override the projects carry into
-/// their own installs, so it is applied to each manifest as it is read.
-pub(super) fn apply_runtime_on_fail(cfg: &Config, projects: &mut [pnpm_workspace::Project]) {
-    let Some(runtime_on_fail) = cfg.runtime_on_fail else {
-        return;
-    };
-    for project in projects {
-        pnpm_package_manifest::apply_runtime_on_fail_override(
-            project.manifest.value_mut(),
-            runtime_on_fail.as_str(),
-        );
-    }
-}
-
 /// Shared workspace-root and package-manager policy derivation.
 pub(crate) fn derive_config_root(
     cfg: &mut Config,

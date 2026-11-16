@@ -839,6 +839,55 @@ fn warn_action_warns_and_runs_the_script() {
     drop(root);
 }
 
+/// `runtimeOnFail` keeps the runtime that `devEngines.runtime` asks to
+/// download out of the install, and the gate reads the manifest the same way
+/// ([pnpm/pnpm#18155](https://github.com/pnpm/pnpm/issues/18155)).
+#[cfg(unix)]
+#[test]
+fn error_action_applies_runtime_on_fail_to_the_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_manifest_with_dependency_groups(
+        &workspace,
+        &marker,
+        json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "24.22.3", "onFail": "download" },
+            },
+        }),
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "runtimeOnFail: warn\n")
+        .expect("write pnpm-workspace.yaml");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(!lockfile.contains("runtime:"), "the install must skip the runtime:\n{lockfile}");
+
+    let run_hello = || {
+        pacquet_in(&workspace)
+            .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+            .assert()
+            .success();
+    };
+    run_hello();
+    assert!(marker.exists(), "the script must run");
+
+    // An edit outside the dependency fields makes the gate check the
+    // manifest's content against the lockfile.
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).expect("read package.json"))
+            .expect("parse package.json");
+    manifest["description"] = json!("edited");
+    fs::write(&manifest_path, manifest.to_string()).expect("write the edited package.json");
+    bump_mtime(&manifest_path);
+    run_hello();
+
+    drop(root);
+}
+
 /// A lockfile that records overrides the root manifest now keeps only in its
 /// ignored `pnpm` field must not be rewritten by an implicit install, which
 /// would drop them. The gate refuses and leaves the lockfile alone

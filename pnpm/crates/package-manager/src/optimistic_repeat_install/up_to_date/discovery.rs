@@ -51,7 +51,10 @@ pub fn check_deps_status_before_run_at(
         workspace_dir_opt.is_some(),
         config.shares_one_lockfile(),
     ) {
-        GateManifest::Found(manifest) => manifest,
+        GateManifest::Found(mut manifest) => {
+            crate::apply_runtime_on_fail(config, &mut manifest);
+            manifest
+        }
         GateManifest::NoManifest => return None,
         GateManifest::Unreadable => return cannot_check_deps(),
     };
@@ -120,7 +123,8 @@ impl GateWorkspace {
             .get_or_init(|| {
                 let manifest = pnpm_workspace::read_workspace_manifest(&self.root).ok()??;
                 let opts = crate::install::checked_projects_opts(config, &manifest);
-                let projects = pnpm_workspace::find_workspace_projects(&self.root, &opts).ok()?;
+                let mut projects = pnpm_workspace::find_workspace_projects(&self.root, &opts).ok()?;
+                crate::apply_runtime_on_fail_to_projects(config, &mut projects);
                 let key = opts.discovery_key(&self.root);
                 Some(DiscoveredProjects { manifest, key, projects })
             })
@@ -389,14 +393,11 @@ fn load_gated_workspace(
     if !needed {
         return Ok(None);
     }
-    match listed {
-        Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
-        None => crate::install::load_checked_workspace_projects(
-            config,
-            workspace_root,
-            workspace_manifest,
-        ),
-    }
+    crate::install::read_checked_workspace_projects(
+        config,
+        (workspace_root, workspace_manifest),
+        listed,
+    )
 }
 
 /// The projects the gate compares, and the ones whose commands they link per

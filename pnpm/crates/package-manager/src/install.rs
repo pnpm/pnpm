@@ -6,7 +6,7 @@ pub use deploy_manifest::apply_deploy_manifest_hook;
 pub(crate) use deploy_manifest::apply_deploy_manifest_hook_to_arc;
 pub use errors::{InstallError, defer_ignored_builds};
 pub(crate) use lifecycle::{
-    checked_projects_opts, load_checked_workspace_projects, load_workspace_projects,
+    checked_projects_opts, load_workspace_projects, read_checked_workspace_projects,
 };
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions, DependencyManifestSources, DirectoryManifests,
