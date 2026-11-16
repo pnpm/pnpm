@@ -13,8 +13,11 @@ interface DeclaredNodeRuntime {
  * in that precedence order. A range names a version only when pnpm downloads
  * it, since a range it does not download stands for the system Node.js.
  */
-export function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | undefined {
-  return findDeclaredNodeRuntime(manifest)?.version
+export function getNodeVersionFromEnginesRuntime (
+  manifest: ProjectManifest,
+  dependencyGroup?: 'dependencies' | 'devDependencies'
+): string | undefined {
+  return findDeclaredNodeRuntime(manifest, undefined, dependencyGroup)?.version
 }
 
 /**
@@ -24,14 +27,32 @@ export function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): st
  */
 export function getDownloadedNodeVersionFromEnginesRuntime (
   manifest: ProjectManifest,
-  onFailOverride?: RuntimeOnFail
+  onFailOverride?: RuntimeOnFail,
+  dependencyGroup?: 'dependencies' | 'devDependencies'
 ): string | undefined {
-  const runtime = findDeclaredNodeRuntime(manifest, onFailOverride)
-  return runtime?.downloaded ? runtime.version : undefined
+  const enginesFields = dependencyGroup === 'dependencies'
+    ? ['engines'] as const
+    : dependencyGroup === 'devDependencies'
+      ? ['devEngines'] as const
+      : ['engines', 'devEngines'] as const
+  for (const enginesFieldName of enginesFields) {
+    const runtime = declaredNodeRuntime(manifest[enginesFieldName]?.runtime, onFailOverride)
+    if (runtime?.downloaded) return runtime.version
+  }
+  return undefined
 }
 
-function findDeclaredNodeRuntime (manifest: ProjectManifest, onFailOverride?: RuntimeOnFail): DeclaredNodeRuntime | undefined {
-  for (const enginesFieldName of ['devEngines', 'engines'] as const) {
+function findDeclaredNodeRuntime (
+  manifest: ProjectManifest,
+  onFailOverride?: RuntimeOnFail,
+  dependencyGroup?: 'dependencies' | 'devDependencies'
+): DeclaredNodeRuntime | undefined {
+  const enginesFields = dependencyGroup === 'dependencies'
+    ? ['engines'] as const
+    : dependencyGroup === 'devDependencies'
+      ? ['devEngines'] as const
+      : ['devEngines', 'engines'] as const
+  for (const enginesFieldName of enginesFields) {
     const declared = declaredNodeRuntime(manifest[enginesFieldName]?.runtime, onFailOverride)
     if (declared != null) return declared
   }

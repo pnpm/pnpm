@@ -276,6 +276,43 @@ fn engines_are_checked_against_the_locked_node_runtime() {
 }
 
 #[test]
+fn project_engines_are_checked_against_a_locked_runtime_range_resolution() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, "^24.0.0", Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["engines"]["node"] = json!(">=24.1.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--no-runtime"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn production_install_checks_engines_against_the_runtime_it_links() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    write_devengines_manifest(&workspace, "99.0.0", Some("download"));
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["engines"]["node"] = json!(">=99.0.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--prod"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("ERR_PNPM_UNSUPPORTED_ENGINE"));
+}
+
+#[test]
 fn explicit_node_version_takes_priority_over_the_locked_node_runtime() {
     let root = tempfile::tempdir().unwrap();
     let workspace = prepare_workspace(&root, "engineStrict: true\nnodeVersion: 20.0.0\n");

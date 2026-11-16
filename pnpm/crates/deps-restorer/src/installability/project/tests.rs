@@ -37,7 +37,39 @@ fn a_project_runtime_is_resolved_after_the_runtime_on_fail_override() {
     let requirements =
         project_host_requirements(&manifest, Some("download")).expect("requirements");
 
-    assert_eq!(requirements.node_version.as_deref(), Some("24.0.0"));
+    assert_eq!(requirements.dev_dependencies_node_version.as_deref(), Some("24.0.0"));
+}
+
+#[test]
+fn a_project_runtime_uses_the_installed_runtime_from_its_dependency_group() {
+    let manifest = json!({
+        "devEngines": { "runtime": { "name": "node", "version": "22.0.0", "onFail": "download" } },
+        "engines": { "node": ">=24", "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" } },
+    });
+
+    let requirements = project_host_requirements(&manifest, None).expect("requirements");
+
+    assert_eq!(requirements.dependencies_node_version.as_deref(), Some("24.0.0"));
+    assert_eq!(requirements.dev_dependencies_node_version.as_deref(), Some("22.0.0"));
+}
+
+#[test]
+fn a_project_uses_the_other_runtime_dependency_group_when_the_first_is_not_downloaded() {
+    let engines_runtime = json!({
+        "name": "node", "version": "24.0.0", "onFail": "error",
+    });
+    let dev_runtime = json!({
+        "name": "node", "version": "22.0.0", "onFail": "download",
+    });
+    let manifest = json!({
+        "engines": { "node": ">=20", "runtime": engines_runtime },
+        "devEngines": { "runtime": dev_runtime },
+    });
+
+    let requirements = project_host_requirements(&manifest, None).expect("requirements");
+
+    assert_eq!(requirements.dependencies_node_version, None);
+    assert_eq!(requirements.dev_dependencies_node_version.as_deref(), Some("22.0.0"));
 }
 
 #[test]
@@ -49,5 +81,6 @@ fn a_project_runtime_without_download_policy_does_not_replace_the_shared_node_ve
 
     let requirements = project_host_requirements(&manifest, None).expect("requirements");
 
-    assert_eq!(requirements.node_version, None);
+    assert_eq!(requirements.dependencies_node_version, None);
+    assert_eq!(requirements.dev_dependencies_node_version, None);
 }

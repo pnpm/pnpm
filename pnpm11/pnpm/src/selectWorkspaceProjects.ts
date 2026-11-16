@@ -168,8 +168,12 @@ function createProjectsFilterOptions (config: Config, context: ConfigContext, op
   return {
     catalogs: config.catalogs,
     engineStrict: config.engineStrict,
+    dev: config.dev,
+    lockfile: config.lockfile,
+    lockfileDir: config.lockfileDir,
     nodeVersion: config.nodeVersion,
     nodeVersionFromEnginesRuntime: context.nodeVersionFromEnginesRuntime,
+    production: config.production,
     runtimeOnFail: config.runtimeOnFail,
     skipRuntimes: options.skipRuntimes,
     patterns: config.workspacePackagePatterns,

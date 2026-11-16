@@ -20,7 +20,12 @@ export function finalizeConfig ({ cliOptions, env, pnpmConfig }: ConfigBuildStat
   applyRuntimeOnFail(pnpmConfig)
 
   if (pnpmConfig.nodeVersion == null && pnpmConfig.enginePinManifest != null) {
-    pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
+    const dependencyGroup = pnpmConfig.production
+      ? 'dependencies'
+      : pnpmConfig.dev
+        ? 'devDependencies'
+        : undefined
+    pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest, dependencyGroup)
     pnpmConfig.nodeVersionFromEnginesRuntime = pnpmConfig.nodeVersion != null
   }
 

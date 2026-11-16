@@ -6545,6 +6545,8 @@ snapshots:
 				"@pnpm/cli.utils": "workspace:*",
 				"@pnpm/constants": "workspace:*",
 				"@pnpm/error": "workspace:*",
+				"@pnpm/lockfile.fs": "workspace:*",
+				"@pnpm/lockfile.utils": "workspace:*",
 				"@pnpm/pkg-manifest.utils": "workspace:*",
 				"@pnpm/text.ordinal-comparator": "workspace:*",
 				"@pnpm/types": "workspace:*",

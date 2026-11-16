@@ -90,6 +90,8 @@ pub struct Config {
     #[default = true]
     pub optional: bool,
 
+    pub included_dependency_groups: Option<Vec<pnpm_package_manifest::DependencyGroup>>,
+
     /// npm-compatible alias used when `lockfile` was not set explicitly.
     #[default = true]
     pub package_lock: bool,

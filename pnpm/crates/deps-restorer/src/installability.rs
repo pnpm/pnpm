@@ -345,7 +345,21 @@ fn add_runtime_skips_from(
 pub fn find_root_runtime_node_version(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<String> {
-    root_runtime_node_ver_peer(importers)?.version_semver().map(ToString::to_string)
+    let importer = importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
+    find_project_runtime_node_version(
+        importer,
+        &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+    )
+}
+
+#[must_use]
+pub fn find_project_runtime_node_version(
+    importer: &ProjectSnapshot,
+    dependency_groups: &[DependencyGroup],
+) -> Option<String> {
+    project_runtime_node_ver_peer(importer, dependency_groups)?
+        .version_semver()
+        .map(ToString::to_string)
 }
 
 /// The snapshot of the root project's `node` runtime dependency, the one
@@ -366,13 +380,18 @@ pub fn find_root_runtime_node_key<'a>(
 pub(crate) fn root_runtime_node_ver_peer(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<&PkgVerPeer> {
-    importers
-        .get(Lockfile::ROOT_IMPORTER_KEY)?
-        .dependencies_by_groups([
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ])
+    project_runtime_node_ver_peer(
+        importers.get(Lockfile::ROOT_IMPORTER_KEY)?,
+        &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+    )
+}
+
+fn project_runtime_node_ver_peer(
+    importer: &ProjectSnapshot,
+    dependency_groups: &[DependencyGroup],
+) -> Option<&PkgVerPeer> {
+    importer
+        .dependencies_by_groups(dependency_groups.iter().copied())
         .filter(|(alias, _)| alias.scope.is_none() && alias.bare == "node")
         .filter_map(|(_, spec)| spec.version.ver_peer())
         .find(|ver_peer| ver_peer.prefix() == Prefix::Runtime)

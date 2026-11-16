@@ -54,6 +54,8 @@ Added in: v10.21.0
 
 Specifies the Node.js runtime required by a dependency. When declared, pnpm will automatically install the specified Node.js version.
 
+For project `engines.node` checks, pnpm uses the Node.js runtime linked for the project. A lockfile's resolved runtime version takes precedence over the declared range. Production installs do not use a runtime declared only in `devEngines.runtime`.
+
 ```json title="package.json"
 {
   "engines": {

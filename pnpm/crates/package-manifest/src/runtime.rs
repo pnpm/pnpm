@@ -185,6 +185,16 @@ pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
     declared_node_runtime(manifest, None).map(|runtime| runtime.version)
 }
 
+#[must_use]
+pub fn node_version_from_engine_field(
+    manifest: &Value,
+    engines_field: &str,
+    on_fail_override: Option<&str>,
+) -> Option<String> {
+    declared_node_runtime_in_field(manifest.get(engines_field)?, on_fail_override)
+        .map(|runtime| runtime.version)
+}
+
 /// [`node_version_from_engines_runtime`] when pnpm downloads that Node.js,
 /// with `on_fail_override` (the `runtimeOnFail` setting) replacing the
 /// entry's `onFail`. `None` when the project runs on the system Node.js.
@@ -193,7 +203,22 @@ pub fn downloaded_node_version_from_engines_runtime(
     manifest: &Value,
     on_fail_override: Option<&str>,
 ) -> Option<String> {
-    declared_node_runtime(manifest, on_fail_override)
+    ["engines", "devEngines"]
+        .into_iter()
+        .filter_map(|engines_field| {
+            declared_node_runtime_in_field(manifest.get(engines_field)?, on_fail_override)
+        })
+        .find(|runtime| runtime.downloaded)
+        .map(|runtime| runtime.version)
+}
+
+#[must_use]
+pub fn downloaded_node_version_from_engine_field(
+    manifest: &Value,
+    engines_field: &str,
+    on_fail_override: Option<&str>,
+) -> Option<String> {
+    declared_node_runtime_in_field(manifest.get(engines_field)?, on_fail_override)
         .filter(|runtime| runtime.downloaded)
         .map(|runtime| runtime.version)
 }
@@ -208,42 +233,45 @@ fn declared_node_runtime(
     on_fail_override: Option<&str>,
 ) -> Option<DeclaredNodeRuntime> {
     for engines_field in ["devEngines", "engines"] {
-        let Some(runtime_entry) = manifest
-            .get(engines_field)
-            .and_then(|value| value.get("runtime"))
-        else {
-            continue;
-        };
-        let runtimes = match runtime_entry {
-            Value::Array(runtimes) => runtimes.as_slice(),
-            runtime @ Value::Object(_) => std::slice::from_ref(runtime),
-            _ => continue,
-        };
-        let Some((runtime, version)) = runtimes
-            .iter()
-            .find_map(|runtime| {
-                let version = runtime.get("version").and_then(Value::as_str)?;
-                (runtime.get("name").and_then(Value::as_str) == Some("node")).then_some((
-                    runtime, version,
-                ))
-            })
-        else {
-            continue;
-        };
-        let version = version.trim();
-        let Ok(range) = Range::parse(version) else {
-            continue;
-        };
-        let on_fail = on_fail_override.or_else(|| runtime.get("onFail").and_then(Value::as_str));
-        if on_fail != Some("download") {
-            let version = Version::parse(version).ok()?.to_string();
-            return Some(DeclaredNodeRuntime { version, downloaded: false });
-        }
-        if let Some(version) = range.min_version() {
-            return Some(DeclaredNodeRuntime { version: version.to_string(), downloaded: true });
+        let Some(field) = manifest.get(engines_field) else { continue };
+        if let Some(runtime) = declared_node_runtime_in_field(field, on_fail_override) {
+            return Some(runtime);
         }
     }
     None
+}
+
+fn declared_node_runtime_in_field(
+    engines_field: &Value,
+    on_fail_override: Option<&str>,
+) -> Option<DeclaredNodeRuntime> {
+    let runtime_entry = engines_field.get("runtime")?;
+    let runtimes = match runtime_entry {
+        Value::Array(runtimes) => runtimes.as_slice(),
+        runtime @ Value::Object(_) => std::slice::from_ref(runtime),
+        _ => return None,
+    };
+    let Some((runtime, version)) = runtimes
+        .iter()
+        .find_map(|runtime| {
+            let version = runtime.get("version").and_then(Value::as_str)?;
+            (runtime.get("name").and_then(Value::as_str) == Some("node")).then_some((
+                runtime, version,
+            ))
+        })
+    else {
+        return None;
+    };
+    let version = version.trim();
+    let range = Range::parse(version).ok()?;
+    let on_fail = on_fail_override.or_else(|| runtime.get("onFail").and_then(Value::as_str));
+    if on_fail != Some("download") {
+        let version = Version::parse(version).ok()?.to_string();
+        return Some(DeclaredNodeRuntime { version, downloaded: false });
+    }
+    range
+        .min_version()
+        .map(|version| DeclaredNodeRuntime { version: version.to_string(), downloaded: true })
 }
 
 /// Fold `tool:<version>` / `runtime:<version>` dependency entries back into

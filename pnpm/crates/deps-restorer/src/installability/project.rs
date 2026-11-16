@@ -6,9 +6,8 @@ use serde_json::Value;
 #[derive(Debug, Clone)]
 pub struct ProjectHostRequirements {
     pub installability: PackageInstallabilityManifest,
-    /// The Node.js pnpm downloads for the project, which its scripts run on.
-    /// `None` when they run on the shared Node.js.
-    pub node_version: Option<String>,
+    pub dependencies_node_version: Option<String>,
+    pub dev_dependencies_node_version: Option<String>,
 }
 
 /// What a project `manifest` requires of the host: its `engines.node`,
@@ -47,10 +46,17 @@ pub fn project_host_requirements(
         || requirements.libc.is_some();
     declares_any.then(|| ProjectHostRequirements {
         installability: requirements,
-        node_version: pnpm_package_manifest::downloaded_node_version_from_engines_runtime(
+        dependencies_node_version: pnpm_package_manifest::downloaded_node_version_from_engine_field(
             manifest,
+            "engines",
             runtime_on_fail,
         ),
+        dev_dependencies_node_version:
+            pnpm_package_manifest::downloaded_node_version_from_engine_field(
+                manifest,
+                "devEngines",
+                runtime_on_fail,
+            ),
     })
 }
 

@@ -22,6 +22,12 @@
       "path": "../../core/logger"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
       "path": "../../core/types"
     },
     {

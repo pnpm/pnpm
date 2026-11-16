@@ -17,13 +17,21 @@ const RUNTIME_PREFIX = 'runtime:'
  * is absent when the lockfile records no specifier for that dependency.
  */
 export function findLockedRootNodeRuntime (lockfile: LockfileObject): LockedNodeRuntime | undefined {
-  const rootImporter = lockfile.importers['.' as ProjectId]
-  if (rootImporter == null) return undefined
-  for (const depType of DEPENDENCIES_FIELDS) {
-    const ref = rootImporter[depType]?.node
+  return findLockedNodeRuntime(lockfile, '.' as ProjectId)
+}
+
+export function findLockedNodeRuntime (
+  lockfile: LockfileObject,
+  projectId: ProjectId,
+  dependencyFields: readonly (typeof DEPENDENCIES_FIELDS)[number][] = DEPENDENCIES_FIELDS
+): LockedNodeRuntime | undefined {
+  const importer = lockfile.importers[projectId]
+  if (importer == null) return undefined
+  for (const depType of dependencyFields) {
+    const ref = importer[depType]?.node
     if (ref?.startsWith(RUNTIME_PREFIX)) {
       return {
-        specifier: rootImporter.specifiers?.node,
+        specifier: importer.specifiers?.node,
         version: ref.slice(RUNTIME_PREFIX.length),
       }
     }
