@@ -447,6 +447,7 @@ describe('downloadPnpmExecutable', () => {
     await downloadPnpmExecutable({ version: VERSION, registry, destPath, keys: KEYS, npmRegistry: npmRegistryUrl(), headers: { authorization: 'Bearer secret' } })
 
     assert.equal(fs.readFileSync(destPath, 'utf8'), CONTENT)
+    assert.deepEqual(requests.map(({ path: asked }) => asked), [`/${packageNameFor()}/${VERSION}`, `/${packageNameFor()}`])
     assert.deepEqual(npmRequests, [{ path: `/${packageNameFor()}/${VERSION}`, authorization: undefined }])
   })
 
@@ -590,7 +591,6 @@ function handleRegistryRequest (req: http.IncomingMessage, res: http.ServerRespo
 
 /** Modes in which the registry, like Azure Artifacts, serves no version documents. */
 const STRIPS_VERSION_DOCUMENTS = new Set<Mode>(['no-version-document', 'npm-signatures', 'npm-bad-signature'])
-/** Modes in which the registry carries no signatures at all, so npm's are needed. */
 const STRIPS_ALL_SIGNATURES = new Set<Mode>(['npm-signatures', 'npm-bad-signature'])
 
 function handleNpmRequest (req: http.IncomingMessage, res: http.ServerResponse): void {

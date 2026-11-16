@@ -17,6 +17,8 @@ export interface VersionMeta {
     integrity?: string
     signatures?: PackageSignature[]
   }
+  /** Read from the package document, so its signatures are already in `dist`. */
+  fromPackageDocument?: true
 }
 
 const ABBREVIATED_PACKUMENT = 'application/vnd.npm.install-v1+json'
@@ -194,7 +196,7 @@ export async function fetchVersionMeta (
     const meta = packument.versions?.[version]
     // Not there either: the version is missing, which the 404 already says.
     if (meta?.dist?.tarball == null) throw err
-    return meta
+    return { ...meta, fromPackageDocument: true }
   }
 }
 
@@ -232,12 +234,7 @@ export async function fetchSignatures (
   }
 ): Promise<PackageSignature[] | undefined> {
   if (meta.dist.signatures?.length) return meta.dist.signatures
-  const packument = await fetchJson<SignedPackument>(
-    new URL(escapePackageName(opts.pkgName), opts.registry),
-    ABBREVIATED_PACKUMENT,
-    { registry: opts.registry, headers: opts.headers, headersPath: opts.headersPath }
-  )
-  const signatures = packument.versions?.[opts.version]?.dist?.signatures
+  const signatures = meta.fromPackageDocument ? undefined : await fetchPackageDocumentSignatures(opts)
   if (signatures?.length || opts.npmRegistry == null) return signatures
   const npmRegistry = normalizeRegistry(opts.npmRegistry)
   if (normalizeRegistry(opts.registry) === npmRegistry) return signatures
@@ -257,6 +254,17 @@ async function fetchNpmSignatures (npmRegistry: string, pkgName: string, version
   } catch {
     return undefined
   }
+}
+
+async function fetchPackageDocumentSignatures (
+  opts: { registry: string, pkgName: string, version: string, headers?: RequestHeaders, headersPath?: string }
+): Promise<PackageSignature[] | undefined> {
+  const packument = await fetchJson<SignedPackument>(
+    new URL(escapePackageName(opts.pkgName), opts.registry),
+    ABBREVIATED_PACKUMENT,
+    { registry: opts.registry, headers: opts.headers, headersPath: opts.headersPath }
+  )
+  return packument.versions?.[opts.version]?.dist?.signatures
 }
 
 interface SignedPackument {
