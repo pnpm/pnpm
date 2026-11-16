@@ -59,6 +59,7 @@ fn create_config(
         ignore_workspace: false,
         workspace_search_skipped: false,
         workspace_package_patterns: None,
+        included_dependency_groups: None,
         shell_emulator: false,
         skip_manifest_obfuscation: false,
         sort: true,
