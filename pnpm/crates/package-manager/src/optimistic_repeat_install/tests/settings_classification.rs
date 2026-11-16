@@ -155,7 +155,6 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("ignore_workspace_root_check", NotAnInput(OTHER_COMMAND)),
     ("ignored_optional_dependencies", Recorded { key: "ignoredOptionalDependencies", change: |config| config.ignored_optional_dependencies = Some(vec!["foo".into()]) }),
     ("include_workspace_root", Through("the selection the fast path is scoped to")),
-    ("included_dependency_groups", NotAnInput("which Node.js runtime is used for engine checks")),
     ("indexes_by_ecosystem", NotAnInput("non-npm packages are installed by their own step")),
     ("init_author_email", NotAnInput(OTHER_COMMAND)),
     ("init_author_name", NotAnInput(OTHER_COMMAND)),

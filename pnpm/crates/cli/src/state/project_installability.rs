@@ -120,7 +120,7 @@ impl<'a> ProjectHost<'a> {
             pnpm_package_manifest::DependencyGroup::Dev,
             pnpm_package_manifest::DependencyGroup::Optional,
         ];
-        self.config.included_dependency_groups.as_deref().unwrap_or(&ALL_GROUPS)
+        self.config.cli.included_dependency_groups.as_deref().unwrap_or(&ALL_GROUPS)
     }
 
     fn downloaded_node_version<'r>(

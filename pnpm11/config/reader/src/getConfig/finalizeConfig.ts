@@ -1,6 +1,7 @@
 import os from 'node:os'
 
 import { applyRuntimeOnFailOverride, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
+import type { ProjectManifest } from '@pnpm/types'
 
 import { transformPathKeys } from '../transformPath.js'
 import type { ConfigBuildState, PnpmConfigInProgress } from './configBuildState.js'
@@ -20,16 +21,23 @@ export function finalizeConfig ({ cliOptions, env, pnpmConfig }: ConfigBuildStat
   applyRuntimeOnFail(pnpmConfig)
 
   if (pnpmConfig.nodeVersion == null && pnpmConfig.enginePinManifest != null) {
-    const dependencyGroup = pnpmConfig.production && !pnpmConfig.dev
-      ? 'dependencies'
-      : pnpmConfig.dev && !pnpmConfig.production
-        ? 'devDependencies'
-        : undefined
-    pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest, dependencyGroup)
+    pnpmConfig.nodeVersion = getIncludedNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest, pnpmConfig)
     pnpmConfig.nodeVersionFromEnginesRuntime = pnpmConfig.nodeVersion != null
   }
 
   applyRemoteSideEffectsCacheEnv(pnpmConfig, env)
+}
+
+/**
+ * The runtime pin of the first included dependency group: `engines.runtime`
+ * for `dependencies`, then `devEngines.runtime` for `devDependencies`.
+ */
+function getIncludedNodeVersionFromEnginesRuntime (
+  manifest: ProjectManifest,
+  { production, dev }: Pick<PnpmConfigInProgress, 'production' | 'dev'>
+): string | undefined {
+  return (production ? getNodeVersionFromEnginesRuntime(manifest, 'dependencies') : undefined) ??
+    (dev ? getNodeVersionFromEnginesRuntime(manifest, 'devDependencies') : undefined)
 }
 
 /**

@@ -64,12 +64,28 @@ fn effective_node_version_ignores_a_matching_runtime_dependency_when_policy_disa
     let manifest = PackageManifest::from_value(
         Path::new("package.json").to_path_buf(),
         serde_json::json!({
-            "engines": { "runtime": { "name": "node", "version": "99.0.0", "onFail": "download" } },
-            "dependencies": { "node": "runtime:99.0.0" },
+            "engines": { "runtime": { "name": "node", "version": "^99.0.0", "onFail": "download" } },
+            "dependencies": { "node": "runtime:^99.0.0" },
         }),
     );
 
     assert_eq!(effective_node_version(&config, &manifest, &[DependencyGroup::Prod]), None);
+}
+
+#[test]
+fn effective_node_version_uses_an_exact_runtime_pin_that_is_not_downloaded() {
+    let config = Config::new();
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "22.0.0", "onFail": "error" } },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod, DependencyGroup::Dev]),
+        Some("22.0.0".to_string()),
+    );
 }
 
 #[test]

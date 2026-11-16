@@ -210,33 +210,44 @@ fn pnpmfile_checksum_check<'a>(
 }
 
 /// The Node version installability checks assume without probing: an
-/// explicit `nodeVersion` config value first, then a
-/// `devEngines.runtime` / `engines.runtime` pin from the root
-/// manifest. The early host detection and the install paths must
-/// derive it identically or the pre-spawned host would disagree with
-/// the one the install would have detected.
+/// explicit `nodeVersion` config value first, then the root manifest's
+/// runtime pin of the first included dependency group (`engines.runtime`
+/// for `dependencies`, `devEngines.runtime` for `devDependencies`). The early
+/// host detection and the install paths must derive it identically or the
+/// pre-spawned host would disagree with the one the install would have
+/// detected.
 pub(crate) fn effective_node_version(
     config: &Config,
     manifest: &PackageManifest,
     dependency_groups: &[DependencyGroup],
 ) -> Option<String> {
-    config.node_version
-        .clone()
-        .or_else(|| {
-            let requirements = pnpm_deps_restorer::project_host_requirements(
-                manifest.value(),
-                config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
-            )?;
-            dependency_groups
-                .iter()
-                .find_map(|group| {
-                    let version = match group {
-                        DependencyGroup::Prod => &requirements.dependencies_node_version,
-                        DependencyGroup::Dev => &requirements.dev_dependencies_node_version,
-                        _ => return None,
-                    };
-                    version.clone()
-                })
+    if let Some(node_version) = &config.node_version {
+        return Some(node_version.clone());
+    }
+    let runtime_on_fail = config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str);
+    let requirements =
+        pnpm_deps_restorer::project_host_requirements(manifest.value(), runtime_on_fail);
+    dependency_groups
+        .iter()
+        .find_map(|group| {
+            let (downloaded, engines_field) = match group {
+                DependencyGroup::Prod => (
+                    requirements.as_ref().and_then(|req| req.dependencies_node_version.as_ref()),
+                    "engines",
+                ),
+                DependencyGroup::Dev => (
+                    requirements.as_ref().and_then(|req| req.dev_dependencies_node_version.as_ref()),
+                    "devEngines",
+                ),
+                DependencyGroup::Optional | DependencyGroup::Peer => return None,
+            };
+            downloaded.cloned().or_else(|| {
+                pnpm_package_manifest::node_version_from_engine_field(
+                    manifest.value(),
+                    engines_field,
+                    runtime_on_fail,
+                )
+            })
         })
 }
 

@@ -67,7 +67,7 @@ mod serialization;
 mod truthiness;
 mod validation;
 
-#[derive(Debug, Clone, Copy, PartialEq, IntoStaticStr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoStaticStr)]
 pub enum DependencyGroup {
     #[strum(serialize = "dependencies")]
     Prod,

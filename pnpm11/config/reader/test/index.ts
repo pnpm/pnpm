@@ -150,6 +150,27 @@ test.each([
   expect(config.nodeVersion).toBe(expected)
 })
 
+test.each([
+  { cliOptions: {}, expected: '24.0.0' },
+  { cliOptions: { production: true }, expected: '24.0.0' },
+  { cliOptions: { dev: true }, expected: '22.0.0' },
+])('nodeVersion follows the runtime of the first included dependency group with $cliOptions', async ({ cliOptions, expected }) => {
+  prepare({
+    devEngines: { runtime: { name: 'node', version: '22.0.0', onFail: 'download' } },
+    engines: { runtime: { name: 'node', version: '24.0.0', onFail: 'download' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe(expected)
+})
+
 test('nodeVersion from config takes priority over devEngines.runtime', async () => {
   prepare({
     devEngines: {
