@@ -49,15 +49,13 @@ function deleteFile (effect: FileDeletion, filePath: string, dryRun: boolean): v
 function renameFile (effect: FileRename, resolve: (filePath: string) => string, dryRun: boolean): void {
   const fromPath = resolve(effect.fromPath)
   const toPath = resolve(effect.toPath)
-  if (dryRun) {
-    if (!fs.existsSync(fromPath)) {
-      throw new Error(`Trying to move file that doesn't exist: ${effect.fromPath}`)
-    }
-    return
+  if (!fs.existsSync(fromPath)) {
+    throw new Error(`Trying to move file that doesn't exist: ${effect.fromPath}`)
   }
   if (fs.existsSync(toPath) && !isRespelling(fromPath, toPath)) {
     throw new Error(`Trying to move a file onto one that already exists: ${effect.toPath}`)
   }
+  if (dryRun) return
   fs.mkdirSync(path.dirname(toPath), { recursive: true })
   fs.renameSync(fromPath, toPath)
 }

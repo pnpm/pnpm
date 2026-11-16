@@ -17,8 +17,6 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 
 const { globalWarn } = await import('@pnpm/logger')
 const { applyPatchToDir } = await import('@pnpm/patching.apply-patch')
-const { executeEffects } = await import('../src/executeEffects.js')
-const { parsePatchFile } = await import('../src/parsePatch.js')
 
 beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
@@ -133,14 +131,14 @@ rename to Index.js
     const patchedDir = tempDir()
     fs.writeFileSync(path.join(patchedDir, 'Index.js'), 'module.exports = 1\n')
     fs.symlinkSync('Index.js', path.join(patchedDir, 'index.js'))
-    const effects = parsePatchFile(`diff --git a/index.js b/Index.js
+    const patchFilePath = path.join(patchedDir, '..', 'rename-symlink.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/index.js b/Index.js
 similarity index 100%
 rename from index.js
 rename to Index.js
 `)
-    expect(() => {
-      executeEffects(effects, { root: patchedDir, dryRun: false })
-    }).toThrow('Trying to move a file onto one that already exists: Index.js')
+    expect(() => applyPatchToDir({ patchFilePath, patchedDir })).toThrow(`Could not apply patch ${patchFilePath} to ${patchedDir}`)
+    expect(fs.lstatSync(path.join(patchedDir, 'index.js')).isSymbolicLink()).toBe(true)
     expect(fs.lstatSync(path.join(patchedDir, 'Index.js')).isFile()).toBe(true)
     expect(fs.readFileSync(path.join(patchedDir, 'Index.js'), 'utf8')).toBe('module.exports = 1\n')
   })
