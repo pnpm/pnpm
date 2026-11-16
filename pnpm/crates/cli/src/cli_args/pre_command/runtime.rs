@@ -82,6 +82,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
                 "This project requires a {display_name} runtime but does not specify a version range",
             ),
             emit,
+            "MISSING_RUNTIME_RANGE_VERSION"
         );
     };
     if node_semver::Range::parse(wanted_range).is_err() {
@@ -91,6 +92,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
                 "This project requires an invalid {display_name} version range: {wanted_range}",
             ),
             emit,
+            "INVALID_RUNTIME_RANGE_VERSION"
         );
     }
     check_installed_runtime(name, display_name, wanted_range, on_fail, emit)
@@ -102,6 +104,8 @@ fn fail_runtime_check(
     on_fail: Option<&str>,
     message: &str,
     emit: fn(&LogEvent),
+    error_code: &str,
+    failure: RuntimeCheckFailure,
 ) -> miette::Result<()> {
     if on_fail == Some("error") {
         let message = sanitize_inline(message).into_owned();
@@ -135,6 +139,7 @@ fn check_installed_runtime(
                 "This project requires {display_name} {wanted_range}, but {display_name} was not found on the system",
             ),
             emit,
+            "MISSING_RUNTIME_VERSION"
         );
     };
     if version_satisfies(&current_version, wanted_range) {
@@ -146,5 +151,6 @@ fn check_installed_runtime(
             "This project requires {display_name} {wanted_range}. Your current {display_name} is v{current_version}",
         ),
         emit,
+        "INVALID_RUNTIME_VERSION"
     )
 }
