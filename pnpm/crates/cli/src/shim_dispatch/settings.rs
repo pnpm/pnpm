@@ -1,10 +1,9 @@
 use super::{
     Candidate, Channel, Config, Display, GlobalShims, GlobalShimsSetting, Host,
-    LoadWorkspaceYamlError, MachineSettings, PACKAGE_MANAGER_ENVS_DIR_NAME, PackageManager, Path,
-    PathBuf, SettingsRead, ShimPolicy, TrustedSettings, Value, create_hex_hash,
-    create_hex_hash_bytes, default_config_dir, default_pnpm_home_dir, default_state_dir,
-    local_bin_identity, parse_node_specifier, resolve_configured_state_dir, trusted_runtime_config,
-    wanted_package_manager,
+    LoadWorkspaceYamlError, PACKAGE_MANAGER_ENVS_DIR_NAME, PackageManager, Path, PathBuf,
+    ShimPolicy, TrustedSettings, Value, create_hex_hash, create_hex_hash_bytes, default_config_dir,
+    default_state_dir, local_bin_identity, parse_node_specifier, resolve_configured_state_dir,
+    trusted_runtime_config, wanted_package_manager,
 };
 use node_semver::Range;
 use std::collections::HashSet;
@@ -12,9 +11,8 @@ use std::collections::HashSet;
 /// The `globalShims` setting at dispatch time, so config edits take
 /// effect immediately instead of waiting for the next global install to
 /// relink the shims. Layers merge key-wise over the built-in defaults in
-/// the order global `config.yaml`, the pnpm home's own
-/// `pnpm-workspace.yaml`, then the env override — never a project file
-/// and never a discovered ancestor of the pnpm home. (The env override
+/// the order global `config.yaml`, then the env override — never a
+/// project file or workspace file. (The env override
 /// is only as trustworthy as the environment itself; tools like direnv
 /// can scope it per directory.) The state directory comes from its default,
 /// the global config, and the environment; the pnpm-home manifest cannot
@@ -93,8 +91,8 @@ pub(super) fn apply_state_dir_setting(
     *state_dir = resolve_configured_state_dir(default_state_dir, setting);
 }
 
-/// Apply the `globalShims` layers that outrank the global `config.yaml`:
-/// `$PNPM_HOME/pnpm-workspace.yaml`, then the environment.
+/// Apply the `globalShims` environment layer, which outranks the global
+/// `config.yaml`.
 ///
 /// `pnpm shim` uses this to answer whether the shim it is about to write
 /// would ever dispatch, so the command and the dispatcher cannot disagree
@@ -102,13 +100,6 @@ pub(super) fn apply_state_dir_setting(
 pub(crate) fn apply_settings_above_global_config(
     shims: &mut GlobalShims,
 ) -> Result<(), LoadGlobalShimsSettingError> {
-    if let Some(home) = default_pnpm_home_dir::<Host>()
-        && let Some(layer) =
-            MachineSettings::load_pnpm_home_global_shims::<Host>(&home, SettingsRead::All)
-                .map_err(LoadGlobalShimsSettingError::Workspace)?
-    {
-        shims.apply(&layer);
-    }
     for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
         if let Ok(value) = std::env::var(env_name)
             && !value.is_empty()

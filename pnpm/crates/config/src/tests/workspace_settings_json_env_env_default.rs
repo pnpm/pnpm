@@ -267,9 +267,8 @@ pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
     assert_eq!(config.workspace_key_issues.refused, vec!["scope".to_owned()]);
 }
 
-/// `globalShims` is read only from the global config file, the pnpm home's
-/// own `pnpm-workspace.yaml`, and the `PNPM_CONFIG_GLOBAL_SHIMS` environment
-/// variable. A project file's value is ignored, so a repository cannot grant
+/// `globalShims` is read only from the global config file and the
+/// `PNPM_CONFIG_GLOBAL_SHIMS` environment variable. A project file's value is ignored, so a repository cannot grant
 /// itself the right to run its own binaries in place of the user's global
 /// ones. See the `globalShims` section of `docs/settings/other.md`.
 #[test]
@@ -314,20 +313,67 @@ pub fn pnpm_workspace_yaml_cannot_add_a_global_shim_entry() {
     assert!(!config.global_shims.is_enabled("typescript"));
 }
 
-/// A global command anchors its config at the pnpm home, so the manifest
-/// there is one of the trusted locations the `globalShims` docs name.
+/// A pnpm-home `pnpm-workspace.yaml` does not set the machine-level
+/// `globalShims` setting.
 #[test]
-pub fn pnpm_home_manifest_sets_global_shims() {
-    fake_env!(load_with_fake_env);
+pub fn pnpm_home_manifest_cannot_set_global_shims() {
+    fake_env!();
     let pnpm_home = tempdir().expect("pnpm home tempdir");
+    let xdg = tempdir().expect("xdg config tempdir");
     fs::write(pnpm_home.path().join("pnpm-workspace.yaml"), "globalShims: {typescript: true}\n")
         .expect("write to pnpm-workspace.yaml");
-    set_fake_env(&[("PNPM_HOME", pnpm_home.path().to_str().unwrap())]);
+    set_fake_env(&[
+        ("PNPM_HOME", pnpm_home.path().to_str().unwrap()),
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+    ]);
 
-    let config = load_with_fake_env(pnpm_home.path());
+    let mut seed = Config::default();
+    seed.cli.command_target = crate::CommandTarget::GlobalPackages;
+    let config = seed.current::<FakeEnv>(pnpm_home.path()).expect("config loads");
 
-    assert!(config.global_shims.is_enabled("typescript"));
-    assert!(config.workspace_key_issues.refused.is_empty());
+    assert!(!config.global_shims.is_enabled("typescript"));
+}
+
+#[test]
+pub fn global_packages_ignore_workspace_dir_env_and_warn_about_the_pnpm_home_manifest() {
+    fake_env!();
+    let project = tempdir().expect("project tempdir");
+    let pnpm_home = project.path().join("pnpm-home");
+    let xdg = tempdir().expect("xdg config tempdir");
+    fs::create_dir_all(&pnpm_home).expect("create pnpm home");
+    let environment_workspace = tempdir().expect("environment workspace tempdir");
+    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "color: never\n")
+        .expect("write pnpm-home workspace yaml");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "color: auto\n")
+        .expect("write ancestor workspace yaml");
+    fs::write(environment_workspace.path().join("pnpm-workspace.yaml"), "color: always\n")
+        .expect("write environment workspace yaml");
+    set_fake_env(&[
+        ("PNPM_HOME", pnpm_home.to_str().unwrap()),
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "PNPM_CONFIG_WORKSPACE_DIR",
+            environment_workspace
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
+    ]);
+
+    let mut seed = Config::default();
+    seed.cli.command_target = crate::CommandTarget::GlobalPackages;
+    let config = seed.current::<FakeEnv>(&pnpm_home).expect("config loads");
+
+    assert_eq!(config.color, crate::ColorMode::Never);
+    assert!(
+        config.npmrc_warnings
+            .iter()
+            .any(|warning| {
+                warning.contains("pnpm-workspace.yaml")
+                    && warning.contains("color")
+                    && warning.contains("globalPackagesConfig")
+            })
+    );
 }
 
 #[test]

@@ -656,12 +656,12 @@ fn global_shims_setting_off_disables_dispatch() {
 
 #[cfg(unix)]
 #[test]
-fn global_home_setting_off_disables_dispatch() {
+fn global_config_setting_off_disables_dispatch() {
     let root = tempfile::tempdir().unwrap();
     let (project, global_target) = prepare_local_and_global(&root, "tool");
-    let pnpm_home = root.path().join("pnpm-home");
-    fs::create_dir_all(&pnpm_home).unwrap();
-    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
+    let config_dir = root.path().join("config").join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
     let output = shim_command(&root, &project, "tool", global_target.to_str().unwrap())
         .with_env(AUTO_TRUST_ENV, "1")
         .assert()
@@ -688,23 +688,17 @@ fn global_shims_env_override_disables_dispatch() {
 #[cfg(unix)]
 #[test]
 fn malformed_trusted_settings_disable_dispatch() {
-    for source in ["global config", "pnpm home", "environment"] {
+    for source in ["global config", "environment"] {
         let root = tempfile::tempdir().unwrap();
         let (project, global_target) = prepare_local_and_global(&root, "tool");
         let config_dir = root.path().join("config").join("pnpm");
-        let pnpm_home = root.path().join("pnpm-home");
         fs::create_dir_all(&config_dir).unwrap();
-        fs::create_dir_all(&pnpm_home).unwrap();
 
         let mut command = shim_command(&root, &project, "tool", global_target.to_str().unwrap())
             .with_env(AUTO_TRUST_ENV, "1");
         match source {
             "global config" => {
                 fs::write(config_dir.join("config.yaml"), "globalShims: [\n").unwrap();
-                command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#);
-            }
-            "pnpm home" => {
-                fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: [\n").unwrap();
                 command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#);
             }
             "environment" => {
@@ -1157,15 +1151,12 @@ fn removing_a_shim_under_a_higher_precedence_disable_records_no_defaults() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let pnpm_home = root.path().join("pnpm-home");
-    fs::create_dir_all(&pnpm_home).unwrap();
     let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
 
-    // The record the user has, and a disable that outranks it.
+    // The record the user has, including a disabled package.
     fs::write(config_dir.join("config.yaml"), "globalShims:\n  yarn: auto\n  node: false\n")
         .unwrap();
-    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
 
     let removed = pnpm_command(&root, &project)
         .with_args(["shim", "rm", "yarn"])
@@ -1182,21 +1173,23 @@ fn removing_a_shim_under_a_higher_precedence_disable_records_no_defaults() {
     }
 }
 
-/// The pnpm home's `pnpm-workspace.yaml` and the environment both outrank
-/// the file `pnpm shim` writes into, so a disable in either is a disable:
+/// The global config file and the environment both outrank the file
+/// `pnpm shim` writes into, so a disable in either is a disable:
 /// the shim would sit on `PATH` doing nothing.
 #[test]
 fn adding_a_shim_under_a_higher_precedence_disable_is_refused() {
-    for (label, disable) in [("workspace yaml", true), ("environment", false)] {
+    for (label, disable) in [("global config", true), ("environment", false)] {
         let root = tempfile::tempdir().unwrap();
         let project = root.path().join("project");
         fs::create_dir_all(&project).unwrap();
         let pnpm_home = root.path().join("pnpm-home");
         fs::create_dir_all(&pnpm_home).unwrap();
+        let config_dir = root.path().join("config").join("pnpm");
+        fs::create_dir_all(&config_dir).unwrap();
 
         let mut command = pnpm_command(&root, &project);
         if disable {
-            fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
+            fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
         } else {
             command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false");
         }

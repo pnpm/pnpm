@@ -349,8 +349,11 @@ fn env_list_use_and_remove_support_leading_v_and_prerelease_channels() {
     let pnpm_home = root.path().join("pnpm_home");
     let global_bin = pnpm_home.join("bin");
     std::fs::create_dir_all(&global_bin).unwrap();
+    let config_home = root.path().join("config-home");
+    let config_dir = config_home.join("pnpm");
+    std::fs::create_dir_all(&config_dir).unwrap();
     std::fs::write(
-        pnpm_home.join("pnpm-workspace.yaml"),
+        config_dir.join("config.yaml"),
         format!(
             "storeDir: {}\ncacheDir: {}\nnodeDownloadMirrors:\n  rc: '{}/'\n",
             root.path().join("store").display(),
@@ -366,6 +369,7 @@ fn env_list_use_and_remove_support_leading_v_and_prerelease_channels() {
             .unwrap()
             .current_dir(&workspace)
             .env("PNPM_HOME", &pnpm_home)
+            .env("XDG_CONFIG_HOME", &config_home)
             .env("PATH", prepend_to_path(&global_bin))
             .args(args)
             .output()

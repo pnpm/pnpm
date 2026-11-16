@@ -27,7 +27,6 @@ impl Config {
         if self.cli.command_target != CommandTarget::GlobalPackages {
             return;
         }
-        self.drop_build_policy();
         let Some(settings) = self.global_packages_config.as_deref().cloned() else {
             return;
         };
@@ -41,10 +40,8 @@ impl Config {
         self.workspace_dir = saved_workspace_dir;
     }
 
-    /// Drop the build policy the layers below set. The workspace layer may be
-    /// a repository's, through `PNPM_CONFIG_WORKSPACE_DIR`, and it must not
-    /// decide which lifecycle scripts a global install runs.
-    fn drop_build_policy(&mut self) {
+    /// Clear build policy from the base config before package-specific layers apply.
+    pub(super) fn drop_build_policy(&mut self) {
         self.allow_builds.clear();
         self.dangerously_allow_all_builds = false;
         for key in BUILD_POLICY_KEYS {

@@ -144,21 +144,57 @@ fn environment_overrides_the_global_packages_build_policy() {
     assert!(!config.dangerously_allow_all_builds);
 }
 
-/// The workspace layer of a global command may be a repository's, so its
-/// build policy does not reach the global packages.
+/// `PNPM_CONFIG_WORKSPACE_DIR` cannot add a project build policy to a global
+/// command.
 #[test]
-fn a_global_packages_load_drops_the_build_policy_of_the_workspace_layer() {
+fn global_packages_ignore_the_workspace_dir_build_policy() {
     fake_env!();
     let machine = Machine::with_global_config("");
+    let workspace = tempdir().expect("workspace tempdir");
     write_file(
-        &machine.pnpm_home.path().join("pnpm-workspace.yaml"),
+        &workspace.path().join("pnpm-workspace.yaml"),
         "dangerouslyAllowAllBuilds: true\nallowBuilds:\n  esbuild: true\n",
     );
-    set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", machine.xdg_config_home()),
+        ("PNPM_CONFIG_WORKSPACE_DIR", workspace.path().to_str().unwrap()),
+    ]);
 
     let config =
         global_packages_load().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
 
     assert!(!config.dangerously_allow_all_builds);
     assert!(config.allow_builds.is_empty());
+}
+
+#[test]
+fn global_packages_keep_the_pnpm_home_build_policy_during_deprecation() {
+    fake_env!();
+    let machine = Machine::with_global_config("");
+    write_file(
+        &machine.pnpm_home.path().join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  esbuild: true\n",
+    );
+    set_fake_env(&[
+        (
+            "PNPM_HOME",
+            machine.pnpm_home
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
+        ("XDG_CONFIG_HOME", machine.xdg_config_home()),
+    ]);
+
+    let config =
+        global_packages_load().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
+
+    assert_eq!(config.allow_builds.get("esbuild"), Some(&true));
+    assert!(
+        config.npmrc_warnings
+            .iter()
+            .any(|warning| {
+                warning.contains("allowBuilds") && warning.contains("globalPackagesConfig")
+            })
+    );
 }

@@ -3,7 +3,7 @@
 //! create real symlinks / bin shims, so they are Unix-gated.
 
 #[cfg(unix)]
-use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, without_colors};
+use crate::_utils::without_colors;
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 #[cfg(unix)]
@@ -19,23 +19,24 @@ use std::{fs, process::Command};
 /// registry / store / cache. A `-g` install anchors its config at the pnpm
 /// home (not the caller project), so its network + store settings must be
 /// reachable from there rather than the workspace. The registry goes in
-/// `.npmrc`; `storeDir` / `cacheDir` go in `pnpm-workspace.yaml` (pnpm reads
-/// those from the yaml, not `.npmrc`), pinning a per-test store so a build's
-/// side-effects cache can't leak across runs.
+/// `.npmrc`; `storeDir` / `cacheDir` go in the global `config.yaml`, pinning a
+/// per-test store so a build's side-effects cache can't leak across runs.
 #[cfg(unix)]
 fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
     fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
         .expect("seed the pnpm-home npmrc");
+    let config_dir = pnpm_home.join("config-home/pnpm");
+    fs::create_dir_all(&config_dir).expect("create the global config dir");
     fs::write(
-        pnpm_home.join("pnpm-workspace.yaml"),
+        config_dir.join("config.yaml"),
         format!(
             "storeDir: {}\ncacheDir: {}\n",
             npmrc_info.store_dir.display(),
             npmrc_info.cache_dir.display(),
         ),
     )
-    .expect("seed the pnpm-home workspace yaml");
+    .expect("seed the global config yaml");
 }
 
 /// Anchor `command` at `workspace` with `PNPM_HOME` set and the global bin
@@ -296,15 +297,16 @@ fn global_add_creates_a_missing_global_bin_dir() {
     fs::create_dir_all(&pnpm_home).expect("create the pnpm home");
     fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
         .expect("seed the pnpm-home npmrc");
+    fs::create_dir_all(pnpm_home.join("config-home/pnpm")).expect("create the global config dir");
     fs::write(
-        pnpm_home.join("pnpm-workspace.yaml"),
+        pnpm_home.join("config-home/pnpm/config.yaml"),
         format!(
             "storeDir: {}\ncacheDir: {}\n",
             npmrc_info.store_dir.display(),
             npmrc_info.cache_dir.display(),
         ),
     )
-    .expect("seed the pnpm-home workspace yaml");
+    .expect("seed the global config yaml");
 
     global_command(&workspace, &pnpm_home)
         .with_arg("add")
@@ -513,15 +515,16 @@ fn global_add_installs_standalone_package_files_without_scripts() {
     // `prepare_global_home` does).
     let store_dir = root.path().join("pacquet-store");
     let cache_dir = root.path().join("pacquet-cache");
+    fs::create_dir_all(pnpm_home.join("config-home/pnpm")).expect("create the global config dir");
     fs::write(
-        pnpm_home.join("pnpm-workspace.yaml"),
+        pnpm_home.join("config-home/pnpm/config.yaml"),
         format!(
             "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\nignoreScripts: false\n",
             store_dir.display(),
             cache_dir.display(),
         ),
     )
-    .expect("seed the pnpm-home workspace yaml");
+    .expect("seed the global config yaml");
     let global_pkg_dir = pnpm_home.join("global").join("v11");
     fs::create_dir_all(&global_pkg_dir).expect("create global package dir");
     fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "dangerouslyAllowAllBuilds: true\n")
@@ -588,7 +591,11 @@ fn global_add_persists_build_approvals_to_the_global_config() {
         .expect("the build decision should persist to the global config");
     assert_eq!(
         config_yaml,
-        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n",
+        format!(
+            "storeDir: {}\ncacheDir: {}\nglobalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n",
+            npmrc_info.store_dir.display(),
+            npmrc_info.cache_dir.display(),
+        ),
     );
     assert!(!global_pkg_dir.join("pnpm-workspace.yaml").exists());
 
@@ -742,7 +749,11 @@ fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
 
     assert_eq!(
         fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read the global config"),
-        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n    '@pnpm.e2e/legacy-decision':\n      build: false\n",
+        format!(
+            "storeDir: {}\ncacheDir: {}\nglobalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n    '@pnpm.e2e/legacy-decision':\n      build: false\n",
+            npmrc_info.store_dir.display(),
+            npmrc_info.cache_dir.display(),
+        ),
     );
     assert_eq!(
         fs::read_to_string(&legacy_yaml).expect("read the legacy file"),
@@ -1028,7 +1039,7 @@ fn global_commands_read_group_lockfiles_when_the_lockfile_setting_is_off() {
     let pnpm_home = root.path().join("pnpm-home");
     prepare_global_home(&pnpm_home, &npmrc_info);
     fs::write(
-        pnpm_home.join("pnpm-workspace.yaml"),
+        pnpm_home.join("config-home/pnpm/config.yaml"),
         format!(
             "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\nlockfile: false\n",
             npmrc_info.store_dir.display(),
@@ -1175,10 +1186,13 @@ fn global_update_latest_upgrades_npm_aliases_and_runtimes_across_majors_without_
 
     let pnpm_home = root.path().join("pnpm-home");
     prepare_global_home(&pnpm_home, &npmrc_info);
-    let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&yaml_path).expect("read workspace yaml");
-    fs::write(&yaml_path, format!("{yaml}nodeDownloadMirrors:\n  rc: '{}/'\n", node_server.url()))
-        .expect("write workspace yaml with node mirror");
+    let config_path = pnpm_home.join("config-home/pnpm/config.yaml");
+    let config = fs::read_to_string(&config_path).expect("read the global config");
+    fs::write(
+        &config_path,
+        format!("{config}nodeDownloadMirrors:\n  rc: '{}/'\n", node_server.url()),
+    )
+    .expect("write the global config with a node mirror");
 
     npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "latest");
     global_command(&workspace, &pnpm_home)
@@ -1638,6 +1652,7 @@ fn global_update_renders_both_changed_groups_with_one_completion_summary() {
 #[cfg(unix)]
 fn prepare_immature_global_update(workspace: &Path, pnpm_home: &Path) {
     use assert_cmd::assert::OutputAssertExt;
+    use std::fmt::Write as _;
 
     global_command(workspace, pnpm_home)
         .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@1.0.0"])
@@ -1656,10 +1671,15 @@ fn prepare_immature_global_update(workspace: &Path, pnpm_home: &Path) {
     };
     fs::write(&manifest_path, manifest).expect("write the group manifest");
     // A cutoff further back than every mock release makes 2.1.0 immature.
-    for dir in [pnpm_home, workspace] {
-        set_minimum_release_age(dir, 60 * 24 * 365 * 100);
-        append_workspace_yaml_key(dir, "minimumReleaseAgeStrict", true);
-    }
+    let config_path = global_config_yaml(pnpm_home);
+    let mut config = fs::read_to_string(&config_path).expect("read the global config");
+    write!(
+        config,
+        "globalPackagesConfig:\n  minimumReleaseAge: {}\n  minimumReleaseAgeStrict: true\n",
+        60 * 24 * 365 * 100,
+    )
+    .expect("append the global package release age");
+    fs::write(config_path, config).expect("set the global package release age");
 }
 
 #[cfg(unix)]

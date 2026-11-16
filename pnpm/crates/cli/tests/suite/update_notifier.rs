@@ -273,15 +273,18 @@ fn a_global_add_announces_a_newer_pnpm() {
     fs::create_dir_all(pnpm_home.join("bin")).expect("create the global bin dir");
     fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
         .expect("seed the pnpm-home npmrc");
+    let config_home = pnpm_home.join("config-home");
+    let config_dir = config_home.join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create the global config dir");
     fs::write(
-        pnpm_home.join("pnpm-workspace.yaml"),
+        config_dir.join("config.yaml"),
         format!(
             "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
             npmrc_info.store_dir.display(),
             npmrc_info.cache_dir.display(),
         ),
     )
-    .expect("seed the pnpm-home workspace yaml");
+    .expect("seed the global config yaml");
     let path = format!("{}:{}", pnpm_home.join("bin").display(), std::env::var("PATH").unwrap());
 
     let output = Command::cargo_bin("pnpm")
@@ -290,6 +293,7 @@ fn a_global_add_announces_a_newer_pnpm() {
         .without_ambient_pnpm_config()
         .with_env("PNPM_CONFIG_UPDATE_NOTIFIER", "true")
         .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("XDG_CONFIG_HOME", &config_home)
         .with_env("PATH", path)
         .with_args(["add", "-g", "@pnpm.e2e/foo", "--state-dir"])
         .with_arg(&state_dir)

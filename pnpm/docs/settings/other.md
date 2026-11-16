@@ -126,7 +126,7 @@ The scalar shorthands replace the whole map instead of merging: `globalShims: fa
 
 :::warning
 
-This setting is only read from locations a project cannot write to: the [global configuration file](../cli/config.md), a `pnpm-workspace.yaml` in the pnpm home directory itself, and the `PNPM_CONFIG_GLOBAL_SHIMS` environment variable (a JSON value), applied in that order. A project's own `pnpm-workspace.yaml` is ignored. Otherwise a repository could grant itself the right to run its own binaries in place of your global ones.
+This setting is read from the [global configuration file](../cli/config.md) and the `PNPM_CONFIG_GLOBAL_SHIMS` environment variable (a JSON value), in that order. A project's `pnpm-workspace.yaml` and the pnpm home's `pnpm-workspace.yaml` are ignored. Otherwise a repository could grant itself the right to run its own binaries in place of your global ones.
 
 :::
 

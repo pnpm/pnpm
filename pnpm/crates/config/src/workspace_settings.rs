@@ -2,7 +2,6 @@ use super::{
     Arc, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
     LoadWorkspaceYamlError, MachineSettings, Path, PathBuf, TrustedSettings, WorkspaceSettings,
     collect_explicit_settings, collect_explicit_trusted_settings, default_pnpm_home_dir,
-    naming_cases::to_camel_case,
     note_declared_registries, resolve_configured_state_dir,
     workspace_yaml::{parse_settings, read_workspace_document},
 };
@@ -20,6 +19,9 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        if self.cli.command_target == crate::CommandTarget::GlobalPackages {
+            self.drop_build_policy();
+        }
         // Capture the "did yaml set this field" booleans *before*
         // applying yaml so the GVS derivation downstream can tell apart
         // user-pinned values from SmartDefault fallbacks. Without these
@@ -106,6 +108,58 @@ impl Config {
             result => result?,
         };
         self.npmrc_warnings.extend(ignored_settings);
+        if self.cli.command_target == crate::CommandTarget::GlobalPackages
+            && default_pnpm_home_dir::<Sys>().as_deref() == Some(base_dir)
+            && let Ok(serde_json::Value::Object(fields)) = serde_json::to_value(&settings)
+        {
+            let mut keys = fields
+                .iter()
+                .filter(|(_, value)| !value.is_null())
+                .map(|(key, _)| key.as_str())
+                .collect::<Vec<_>>();
+            keys.extend(settings.key_issues.refused.iter().map(String::as_str));
+            if !keys.is_empty() {
+                let machine_keys = keys
+                    .iter()
+                    .filter(|key| MachineSettings::keys().contains(**key))
+                    .copied()
+                    .collect::<Vec<_>>();
+                let package_keys = keys
+                    .iter()
+                    .filter(|key| !MachineSettings::keys().contains(**key))
+                    .copied()
+                    .collect::<Vec<_>>();
+                let config_file = self.config_dir
+                    .as_deref()
+                    .map_or_else(
+                        || crate::GLOBAL_CONFIG_YAML_FILENAME.to_string(),
+                        |dir| {
+                            dir.join(crate::GLOBAL_CONFIG_YAML_FILENAME)
+                                .display()
+                                .to_string()
+                        },
+                    );
+                let migration = [
+                    (!package_keys.is_empty()).then(|| {
+                        format!(
+                            "package settings ({}) under globalPackagesConfig in {config_file}",
+                            package_keys.join(", ")
+                        )
+                    }),
+                    (!machine_keys.is_empty()).then(|| {
+                        format!("machine settings ({}) to {config_file}", machine_keys.join(", "))
+                    }),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" and ");
+                self.npmrc_warnings.push(format!(
+                    "For one minor release, global commands apply deprecated settings from {}/pnpm-workspace.yaml. Move {migration}.",
+                    base_dir.display(),
+                ));
+            }
+        }
         if for_self_update {
             settings.clear_self_update_policy();
         }
@@ -115,30 +169,12 @@ impl Config {
         collect_explicit_settings(&mut self.explicit_settings, &settings);
         settings.resolve_script_shell(base_dir);
         settings.apply_to(self, base_dir);
-        if default_pnpm_home_dir::<Sys>().as_deref() == Some(base_dir) {
-            self.apply_pnpm_home_global_shims::<Sys>(base_dir)?;
-        }
         // `overrides` reaches `Config` only from the workspace yaml (the
         // global config.yaml is stripped of the key, and no `PNPM_CONFIG_*`
         // var carries a map), so the `$dep-name` values it may hold are
         // resolved here, against the workspace root's manifest.
         if let Some(overrides) = self.overrides.as_mut() {
             crate::override_version_references::resolve_version_references(overrides, base_dir)?;
-        }
-        Ok(())
-    }
-
-    /// A global command anchors its config at the pnpm home, whose
-    /// `pnpm-workspace.yaml` the user owns, so `globalShims` is read from it.
-    fn apply_pnpm_home_global_shims<Sys: EnvVar>(
-        &mut self,
-        pnpm_home: &Path,
-    ) -> Result<(), LoadWorkspaceYamlError> {
-        self.workspace_key_issues.refused.retain(|key| to_camel_case(key) != "globalShims");
-        if let Some(global_shims) =
-            MachineSettings::load_pnpm_home_global_shims::<Sys>(pnpm_home, self.settings_read)?
-        {
-            self.global_shims.apply(&global_shims);
         }
         Ok(())
     }
@@ -207,18 +243,18 @@ impl Config {
         // so subdirectory invocations use the workspace-root config:
         // the workspace dir, falling back to the local prefix.
         //
-        // `--ignore-workspace` stops the search outright, which is what
-        // makes the flag mean "standalone project": with no workspace dir
-        // there is no shared lockfile, no sibling projects, and no
-        // `pnpm-workspace.yaml` settings layer. Only the flag reaches
-        // this far — see [`Config::ignore_workspace`].
-        let env_workspace_dir = pnpm_workspace::WORKSPACE_DIR_ENV_VARS
-            .iter()
-            .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
-            .map(PathBuf::from);
+        // `--ignore-workspace` stops the search outright. Global package
+        // commands ignore the workspace-dir environment variable but still
+        // search from their pnpm-home anchor for the deprecated settings file.
         let workspace_yaml = if self.ignore_workspace {
             None
-        } else if let Some(env_dir) = env_workspace_dir {
+        } else if self.cli.command_target == crate::CommandTarget::GlobalPackages {
+            read_workspace_yaml_at::<Sys>(start_dir, self.settings_read)?
+        } else if let Some(env_dir) = pnpm_workspace::WORKSPACE_DIR_ENV_VARS
+            .iter()
+            .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
+            .map(PathBuf::from)
+        {
             Some(read_env_workspace_yaml::<Sys>(env_dir, self.settings_read)?)
         } else {
             WorkspaceSettings::find_and_read(start_dir, self.settings_read)?
@@ -255,6 +291,21 @@ fn read_env_workspace_yaml<Sys: EnvVar>(
             })
     })?;
     Ok((env_dir, Some(settings)))
+}
+
+fn read_workspace_yaml_at<Sys: EnvVar>(
+    dir: &Path,
+    settings_read: crate::SettingsRead,
+) -> Result<Option<(PathBuf, Option<WorkspaceSettings>)>, LoadWorkspaceYamlError> {
+    let Some(document) = read_workspace_document(dir)? else { return Ok(None) };
+    let settings = WorkspaceSettings::read_document(document, settings_read, |text, path| {
+        parse_settings::<Sys, WorkspaceSettings>(text)
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                path: path.to_path_buf(),
+                source,
+            })
+    })?;
+    Ok(Some((dir.to_path_buf(), Some(settings))))
 }
 
 /// Does the workspace found above `start_dir` include a project there?

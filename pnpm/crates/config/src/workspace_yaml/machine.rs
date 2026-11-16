@@ -1,12 +1,11 @@
 //! The settings only the machine's own configuration sets.
 
 use super::{
-    BTreeMap, Config, Deserialize, EnvVar, GetHomeDir, LoadWorkspaceYamlError, MacosBackupSettings,
-    Path, Tool, ToolSettings, WorkspaceSettings, expand_home_prefix, overlay, overlay_some,
-    overlay_tools, parse_settings, read_readable_settings, read_workspace_document, resolve,
-    substitute_optional_string,
+    BTreeMap, Config, Deserialize, EnvVar, GetHomeDir, MacosBackupSettings, Path, Tool,
+    ToolSettings, WorkspaceSettings, expand_home_prefix, overlay, overlay_some, overlay_tools,
+    resolve, substitute_optional_string,
 };
-use crate::{GlobalShimsSetting, SettingsRead};
+use crate::GlobalShimsSetting;
 use std::{
     collections::HashSet,
     sync::{Arc, OnceLock},
@@ -50,8 +49,7 @@ pub struct MachineSettings {
     /// One layer of the record, merged key-wise into
     /// [`Config::global_shims`](crate::settings::Config::global_shims) rather
     /// than assigned wholesale. A shim decides which program a global command
-    /// runs. The `pnpm-workspace.yaml` in the pnpm home sets it too; see
-    /// [`Self::load_pnpm_home_global_shims`].
+    /// runs.
     pub global_shims: Option<GlobalShimsSetting>,
     /// What pnpm is told about the programs it downloads, keyed by tool name.
     /// A mirror decides where the binary pnpm runs an ecosystem with comes
@@ -96,27 +94,6 @@ impl MachineSettings {
     /// it. Errs only towards `true`.
     pub(crate) fn may_be_named_in(text: &str) -> bool {
         Self::keys().iter().any(|key| may_name(text, key))
-    }
-
-    /// The `globalShims` of the `pnpm-workspace.yaml` in `pnpm_home`, the one
-    /// machine setting that file carries: `pnpm add -g` anchors its config
-    /// at the pnpm home, which the user owns.
-    pub fn load_pnpm_home_global_shims<Sys: EnvVar>(
-        pnpm_home: &Path,
-        settings_read: SettingsRead,
-    ) -> Result<Option<GlobalShimsSetting>, LoadWorkspaceYamlError> {
-        let Some(document) = read_workspace_document(pnpm_home)? else { return Ok(None) };
-        if !may_name(&document.text, "globalShims") {
-            return Ok(None);
-        }
-        let read = parse_settings::<Sys, Self>;
-        let settings = if settings_read.skips_unreadable() {
-            read_readable_settings(&document.text, read)
-        } else {
-            read(&document.text)
-        }
-        .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: document.path, source })?;
-        Ok(settings.global_shims)
     }
 
     /// Expand `${VAR}` in the string settings.

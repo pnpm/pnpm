@@ -55,17 +55,18 @@ impl GlobalCli {
         let package_dir = root.path().join("cli");
         write_cli_package(&package_dir, "12.0.0");
         fs::create_dir_all(pnpm_home.join("bin")).expect("create the global bin dir");
-        // A global install anchors its config at the pnpm home, so the
-        // per-test store and cache go there.
+        // Keep the per-test store and cache in the isolated global config.
+        let config_dir = root.path().join("config").join("pnpm");
+        fs::create_dir_all(&config_dir).expect("create the global config dir");
         fs::write(
-            pnpm_home.join("pnpm-workspace.yaml"),
+            config_dir.join("config.yaml"),
             format!(
                 "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
                 root.path().join("store").display(),
                 root.path().join("cache").display(),
             ),
         )
-        .expect("seed the pnpm-home workspace yaml");
+        .expect("seed the global config yaml");
         fs::write(
             workspace.join("package.json"),
             json!({

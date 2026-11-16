@@ -125,26 +125,26 @@ fn global_groups_share_the_slots_of_a_common_dependency() {
 /// Where a user can set `virtualStoreType: project` for global installs.
 #[derive(Debug, Clone, Copy)]
 enum OptOut {
-    PnpmHomeYaml,
+    GlobalConfig,
     Env,
     Cli,
 }
 
 #[test]
 fn global_add_keeps_a_group_local_virtual_store_when_the_project_type_is_set() {
-    for opt_out in [OptOut::PnpmHomeYaml, OptOut::Env, OptOut::Cli] {
+    for opt_out in [OptOut::GlobalConfig, OptOut::Env, OptOut::Cli] {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
         let pnpm_home = root.path().join("pnpm-home");
         prepare_global_home(&pnpm_home, &npmrc_info);
         let mut command = global_command(&workspace, &pnpm_home).with_args(["add", "-g", PKG]);
         match opt_out {
-            OptOut::PnpmHomeYaml => {
-                let workspace_yaml = pnpm_home.join("pnpm-workspace.yaml");
-                let mut yaml =
-                    fs::read_to_string(&workspace_yaml).expect("read the pnpm-home workspace yaml");
-                yaml.push_str("virtualStoreType: project\n");
-                fs::write(&workspace_yaml, yaml).expect("write the pnpm-home workspace yaml");
+            OptOut::GlobalConfig => {
+                let config_path = pnpm_home.join("config-home/pnpm/config.yaml");
+                let mut config =
+                    fs::read_to_string(&config_path).expect("read the global config yaml");
+                config.push_str("virtualStoreType: project\n");
+                fs::write(&config_path, config).expect("write the global config yaml");
             }
             OptOut::Env => command = command.with_env("PNPM_CONFIG_VIRTUAL_STORE_TYPE", "project"),
             OptOut::Cli => command = command.with_arg("--config.virtual-store-type=project"),

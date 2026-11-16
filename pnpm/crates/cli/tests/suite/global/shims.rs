@@ -20,9 +20,9 @@ fn global_shims_all_prefers_local_bins() {
     let pnpm_home = root.path().join("pnpm-home");
     let global_bin = pnpm_home.join("bin");
     prepare_global_home(&pnpm_home, &npmrc_info);
-    let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&yaml_path).unwrap();
-    fs::write(&yaml_path, format!("{yaml}globalShims: {{'@foo/touch-file-one-bin': true}}\n"))
+    let config_path = pnpm_home.join("config-home/pnpm/config.yaml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    fs::write(&config_path, format!("{config}globalShims: {{'@foo/touch-file-one-bin': true}}\n"))
         .unwrap();
 
     global_command(&workspace, &pnpm_home)
@@ -70,7 +70,7 @@ fn global_shims_all_prefers_local_bins() {
         .with_current_dir(&project)
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("XDG_CONFIG_HOME", pnpm_home.join("config-home"))
         .with_env("PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS", "1")
         .output()
         .expect("run the generated shim inside the project");
@@ -83,7 +83,7 @@ fn global_shims_all_prefers_local_bins() {
         .with_current_dir(&outside)
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("XDG_CONFIG_HOME", pnpm_home.join("config-home"))
         .assert()
         .success();
 
@@ -338,9 +338,9 @@ fn global_shims_auto_writes_native_dispatcher_for_node_runtime() {
 
     let pnpm_home = root.path().join("pnpm-home");
     prepare_global_home(&pnpm_home, &npmrc_info);
-    let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&yaml_path).unwrap();
-    fs::write(&yaml_path, format!("{yaml}nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()))
+    let config_path = pnpm_home.join("config-home/pnpm/config.yaml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    fs::write(&config_path, format!("{config}nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()))
         .unwrap();
 
     global_command(&workspace, &pnpm_home)

@@ -277,7 +277,7 @@ A package that is not installed globally at all can still get a dispatching comm
 
 :::note
 
-`globalShims` is deliberately not read from a project's `pnpm-workspace.yaml`. It is read only from the global configuration file, the pnpm home directory's own `pnpm-workspace.yaml`, and the environment. See the [setting's documentation](./settings/other.md#globalshims) for details.
+`globalShims` is read only from the global configuration file and the environment. See the [setting's documentation](./settings/other.md#globalshims) for details.
 
 :::
 
