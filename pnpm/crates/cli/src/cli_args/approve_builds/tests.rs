@@ -229,3 +229,37 @@ fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
     assert_eq!(overlaid.allow_builds.get("denied-pkg"), Some(&false));
     assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
 }
+
+/// The legacy decisions move out of the file that holds them, which may be
+/// one the global packages directory's `pnpm-workspace.yaml` includes.
+#[test]
+fn moving_the_legacy_global_decisions_empties_the_file_that_owns_them() {
+    let config_dir = tempfile::TempDir::new().expect("config dir");
+    let global_pkg_dir = tempfile::TempDir::new().expect("global packages dir");
+    std::fs::write(
+        global_pkg_dir.path().join("pnpm-workspace.yaml"),
+        "include:\n  ./permissions.yaml: [permissions]\n",
+    )
+    .expect("write the legacy manifest");
+    std::fs::write(
+        global_pkg_dir.path().join("permissions.yaml"),
+        "permissions:\n  esbuild:\n    build: true\n",
+    )
+    .expect("write the included file");
+    let store = super::ApprovalStore::GlobalPackages(super::GlobalPackagesStore {
+        config_dir: config_dir.path(),
+        global_pkg_dir: global_pkg_dir.path(),
+    });
+
+    store
+        .write_allow_builds([("sharp", false)])
+        .expect("record the decision");
+
+    assert_eq!(
+        std::fs::read_to_string(config_dir.path().join("config.yaml")).expect("read config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    esbuild:\n      build: true\n    sharp:\n      build: false\n",
+    );
+    let included =
+        std::fs::read_to_string(global_pkg_dir.path().join("permissions.yaml")).unwrap_or_default();
+    assert!(!included.contains("esbuild"), "the moved decision should leave: {included}");
+}

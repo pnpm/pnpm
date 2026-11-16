@@ -1,7 +1,9 @@
 pub(crate) use prompt::disambiguated_labels;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) use prompt::{confirm, prompt_for_choices};
-pub(crate) use store::{ApprovalStore, GlobalPackagesStore, load_legacy_global_settings};
+pub(crate) use store::{
+    ApprovalStore, GlobalPackagesStore, load_global_packages_config, load_legacy_global_settings,
+};
 #[cfg(target_family = "wasm")]
 pub(crate) use wasm::{confirm, prompt_for_choices};
 

@@ -1,10 +1,10 @@
-//! The build policy of the global packages: `globalPackagesConfig` in the global
-//! `config.yaml`, laid over the decisions the global packages directory's
-//! `pnpm-workspace.yaml` still holds.
+//! The build policy of the global packages: `globalPackagesConfig` in the
+//! global `config.yaml`, laid over the decisions the global packages
+//! directory's `pnpm-workspace.yaml` still holds.
 
 use super::{
     ApprovalStore, Config, GlobalPackagesStore, Path, Reporter, WorkspaceSettings,
-    load_legacy_global_settings,
+    load_global_packages_config, load_legacy_global_settings,
 };
 use pnpm_config::GLOBAL_CONFIG_YAML_FILENAME;
 use pnpm_reporter::emit_global_warning;
@@ -17,20 +17,23 @@ pub(super) fn global_approval_store<'a>(
     Ok(ApprovalStore::GlobalPackages(GlobalPackagesStore::of(config, global_pkg_dir)?))
 }
 
-/// Replace `cfg`'s build policy with the one of the global packages, so a
-/// policy the caller's project set cannot decide which lifecycle scripts a
-/// global install runs.
+/// Complete `cfg`'s build policy for a global group. The loader already
+/// applied `globalPackagesConfig`, the environment, and the command line, in
+/// that order, and dropped the policy of the layers below them. Beneath those
+/// come the decisions this command recorded since `cfg` was loaded, which an
+/// earlier group may have moved there, then the legacy decisions of the
+/// global packages directory's `pnpm-workspace.yaml`.
 pub(super) fn apply_global_build_policy(
     cfg: &mut Config,
     global_pkg_dir: &Path,
 ) -> miette::Result<()> {
-    cfg.dangerously_allow_all_builds = false;
-    cfg.allow_builds.clear();
-    if let Some((_, settings)) = load_legacy_global_settings(global_pkg_dir)? {
-        overlay_build_policy(cfg, &settings);
+    if let Some(config_dir) = cfg.config_dir.clone()
+        && let Some(settings) = load_global_packages_config(&config_dir)?
+    {
+        fill_build_policy(cfg, &settings);
     }
-    if let Some(settings) = cfg.global_packages_config.clone() {
-        overlay_build_policy(cfg, &settings);
+    if let Some((_, settings)) = load_legacy_global_settings(global_pkg_dir)? {
+        fill_build_policy(cfg, &settings);
     }
     Ok(())
 }
@@ -67,9 +70,14 @@ pub(super) fn warn_about_legacy_build_settings<Reporter: self::Reporter>(
     Ok(())
 }
 
-fn overlay_build_policy(cfg: &mut Config, settings: &WorkspaceSettings) {
-    cfg.allow_builds.extend(settings.decided_build_approvals().unwrap_or_default());
-    if let Some(allow_all) = settings.dangerously_allow_all_builds {
+/// Add the decisions of `settings` that no higher layer of `cfg` made.
+fn fill_build_policy(cfg: &mut Config, settings: &WorkspaceSettings) {
+    for (pkg, allowed) in settings.decided_build_approvals().unwrap_or_default() {
+        cfg.allow_builds.entry(pkg).or_insert(allowed);
+    }
+    if let Some(allow_all) = settings.dangerously_allow_all_builds
+        && !cfg.explicit_settings.contains_key("dangerouslyAllowAllBuilds")
+    {
         cfg.dangerously_allow_all_builds = allow_all;
     }
 }

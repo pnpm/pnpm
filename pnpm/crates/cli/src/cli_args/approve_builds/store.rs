@@ -9,7 +9,7 @@ use pnpm_config::{
 };
 use pnpm_workspace_manifest_writer::{
     PermissionValue, set_allow_builds, set_global_packages_build_permissions, set_permissions,
-    update_manifest_field,
+    update_workspace_setting,
 };
 use std::{
     collections::BTreeMap,
@@ -128,26 +128,35 @@ impl GlobalPackagesStore<'_> {
                 .map(|(pkg, &allowed)| (pkg.as_str(), allowed)),
         )
         .into_diagnostic()?;
-        let Some((path, settings)) = legacy else { return Ok(()) };
+        let Some((_, settings)) = legacy else { return Ok(()) };
         let moved = [
             ("allowBuilds", settings.allow_builds.is_some()),
             ("permissions", settings.permissions.is_some()),
         ];
         for (key, set) in moved {
             if set {
-                update_manifest_field(&path, key, &serde_json::Value::Null).into_diagnostic()?;
+                update_workspace_setting(self.global_pkg_dir, key, &serde_json::Value::Null)
+                    .into_diagnostic()?;
             }
         }
         Ok(())
     }
 
     fn load_global_packages(self) -> miette::Result<Option<WorkspaceSettings>> {
-        Ok(TrustedSettings::load_global(self.config_dir)
-            .map_err(miette::Report::new)
-            .wrap_err("load the global configuration")?
-            .and_then(|settings| settings.machine.global_packages_config)
-            .map(|settings| *settings))
+        load_global_packages_config(self.config_dir)
     }
+}
+
+/// `globalPackagesConfig` as the global `config.yaml` in `config_dir` holds
+/// it now.
+pub(crate) fn load_global_packages_config(
+    config_dir: &Path,
+) -> miette::Result<Option<WorkspaceSettings>> {
+    Ok(TrustedSettings::load_global(config_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load the global configuration")?
+        .and_then(|settings| settings.machine.global_packages_config)
+        .map(|settings| *settings))
 }
 
 /// The `pnpm-workspace.yaml` of the global packages directory, which held

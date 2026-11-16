@@ -12,6 +12,9 @@ use crate::{
 const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
     &["catalog", "catalogs", "overrides", "packageExtensions", "patchedDependencies"];
 
+/// The settings that decide which lifecycle scripts run.
+const BUILD_POLICY_KEYS: &[&str] = &["allowBuilds", "dangerouslyAllowAllBuilds", "permissions"];
+
 impl Config {
     /// Apply [`Config::global_packages_config`] when the command acts on the global
     /// packages, in the slot of the workspace layer. Relative paths resolve
@@ -24,6 +27,7 @@ impl Config {
         if self.cli.command_target != CommandTarget::GlobalPackages {
             return;
         }
+        self.drop_build_policy();
         let Some(settings) = self.global_packages_config.as_deref().cloned() else {
             return;
         };
@@ -35,6 +39,17 @@ impl Config {
         let base_dir = self.dir.clone();
         settings.apply_to(self, &base_dir);
         self.workspace_dir = saved_workspace_dir;
+    }
+
+    /// Drop the build policy the layers below set. The workspace layer may be
+    /// a repository's, through `PNPM_CONFIG_WORKSPACE_DIR`, and it must not
+    /// decide which lifecycle scripts a global install runs.
+    fn drop_build_policy(&mut self) {
+        self.allow_builds.clear();
+        self.dangerously_allow_all_builds = false;
+        for key in BUILD_POLICY_KEYS {
+            self.explicit_settings.remove(*key);
+        }
     }
 
     fn warn_about_unsupported_global_packages_keys(&mut self, settings: &WorkspaceSettings) {

@@ -639,6 +639,51 @@ fn a_group_config_carries_the_persisted_minimum_release_age_excludes() {
     );
 }
 
+/// A group installed after an earlier group of the same command moved the
+/// legacy decisions into the global `config.yaml` still sees them, although
+/// the base config was loaded before the move.
+#[test]
+fn a_group_config_reads_the_decisions_recorded_after_the_base_config_loaded() {
+    let config_dir = TempDir::new().expect("config dir");
+    let global_pkg_dir = TempDir::new().expect("global packages dir");
+    fs::write(
+        config_dir.path().join("config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    esbuild:\n      build: true\n",
+    )
+    .expect("write the global config");
+    let mut base = Config::new();
+    base.config_dir = Some(config_dir.path().to_path_buf());
+
+    let config = global_group_config(&base, global_pkg_dir.path(), global_pkg_dir.path(), None)
+        .expect("build the group config");
+
+    assert_eq!(config.allow_builds.get("esbuild"), Some(&true));
+}
+
+/// The legacy decisions sit below every layer the loader applied, so they
+/// cannot turn on what the environment turned off.
+#[test]
+fn a_group_config_keeps_an_explicit_build_policy_over_the_legacy_one() {
+    let global_pkg_dir = TempDir::new().expect("global packages dir");
+    fs::write(
+        global_pkg_dir.path().join("pnpm-workspace.yaml"),
+        "dangerouslyAllowAllBuilds: true\nallowBuilds:\n  esbuild: true\n",
+    )
+    .expect("write the legacy settings");
+    let mut base = Config::new();
+    base.allow_builds.insert("esbuild".to_string(), false);
+    base.explicit_settings.insert(
+        "dangerouslyAllowAllBuilds".to_string(),
+        serde_json::Value::Bool(false),
+    );
+
+    let config = global_group_config(&base, global_pkg_dir.path(), global_pkg_dir.path(), None)
+        .expect("build the group config");
+
+    assert!(!config.dangerously_allow_all_builds);
+    assert_eq!(config.allow_builds.get("esbuild"), Some(&false));
+}
+
 #[test]
 fn a_group_config_resolves_hoisted_dependencies_from_its_own_install_dir() {
     let dir = TempDir::new().expect("temp dir");

@@ -106,3 +106,17 @@ fn refuses_a_name_with_a_control_character() {
     );
     assert!(!path.exists());
 }
+
+#[test]
+fn ends_an_unterminated_last_line_before_appending() {
+    let out = run(
+        Some("globalPackagesConfig:\n  permissions:\n    esbuild:\n      build: true"),
+        &[("sharp", false)],
+    );
+    assert_eq!(
+        out.as_deref(),
+        Some(
+            "globalPackagesConfig:\n  permissions:\n    esbuild:\n      build: true\n    sharp:\n      build: false\n",
+        ),
+    );
+}

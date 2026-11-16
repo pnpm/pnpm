@@ -659,8 +659,6 @@ fn approve_builds_global_approves_every_install_group() {
     drop(root);
 }
 
-/// `globalPackagesConfig.permissions` in the global `config.yaml` decides which
-/// builds a global install runs.
 #[cfg(unix)]
 #[test]
 fn global_add_runs_the_builds_global_packages_allows() {

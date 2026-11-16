@@ -436,9 +436,15 @@ fn append_top_level_block(text: &str, block_text: &str, blank_style: bool) -> St
     out
 }
 
+/// Insert the whole lines of `insertion` at `offset`, the start of a line or
+/// the end of `text`. A last line `text` leaves unterminated is ended first,
+/// so the insertion does not join it.
 fn splice(text: &str, offset: usize, insertion: &str) -> String {
-    let mut out = String::with_capacity(text.len() + insertion.len());
+    let mut out = String::with_capacity(text.len() + insertion.len() + 1);
     out.push_str(&text[..offset]);
+    if offset == text.len() && !text.is_empty() && !text.ends_with('\n') {
+        out.push('\n');
+    }
     out.push_str(insertion);
     out.push_str(&text[offset..]);
     out

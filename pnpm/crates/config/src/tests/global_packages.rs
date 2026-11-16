@@ -127,3 +127,38 @@ fn unsupported_global_packages_settings_are_reported() {
         ["These globalPackagesConfig settings are not supported and are ignored: overrides"],
     );
 }
+
+#[test]
+fn environment_overrides_the_global_packages_build_policy() {
+    fake_env!();
+    let machine =
+        Machine::with_global_config("globalPackagesConfig:\n  dangerouslyAllowAllBuilds: true\n");
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", machine.xdg_config_home()),
+        ("PNPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS", "false"),
+    ]);
+
+    let config =
+        global_packages_load().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
+
+    assert!(!config.dangerously_allow_all_builds);
+}
+
+/// The workspace layer of a global command may be a repository's, so its
+/// build policy does not reach the global packages.
+#[test]
+fn a_global_packages_load_drops_the_build_policy_of_the_workspace_layer() {
+    fake_env!();
+    let machine = Machine::with_global_config("");
+    write_file(
+        &machine.pnpm_home.path().join("pnpm-workspace.yaml"),
+        "dangerouslyAllowAllBuilds: true\nallowBuilds:\n  esbuild: true\n",
+    );
+    set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
+
+    let config =
+        global_packages_load().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
+
+    assert!(!config.dangerously_allow_all_builds);
+    assert!(config.allow_builds.is_empty());
+}

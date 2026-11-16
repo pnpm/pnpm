@@ -26,7 +26,8 @@ use crate::{
         add::{AddGroups, AddRequest, add_packages, apply_allow_build},
         approve_builds::{
             ApprovalStore, ApproveBuildsArgs, GlobalPackagesStore, clear_decided_ignored_builds,
-            load_legacy_global_settings, prompt_approve_install_builds,
+            load_global_packages_config, load_legacy_global_settings,
+            prompt_approve_install_builds,
         },
         global_bin_lock::acquire_global_bin_lock,
         ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
