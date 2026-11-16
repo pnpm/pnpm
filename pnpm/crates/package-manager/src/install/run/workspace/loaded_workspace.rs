@@ -2,7 +2,7 @@
 //! embedder, or shared by the command across its per-project installs.
 
 use super::{
-    super::super::{InstallError, InstallRunOptions, Path, PathBuf, load_workspace_projects},
+    super::super::{InstallError, InstallRunOptions, Path, load_workspace_projects},
     InstallOwned, InstallView, WorkspaceDirs,
 };
 
@@ -37,11 +37,10 @@ impl LoadedWorkspace {
                 discovered.as_ref().map(|workspace| std::sync::Arc::clone(&workspace.projects))
             });
         let projects = discovered_workspace_projects(
-            options.selection.is_some(),
-            known_workspace_projects,
+            install.context.config,
+            (options.selection.is_some(), known_workspace_projects),
             dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
             workspace_manifest,
-            &install.context.config.managed_directories(),
         )?;
         let locked_registry_routes =
             locked_registry_routes(install.context.config, &dirs.workspace_root);
@@ -72,13 +71,16 @@ fn locked_registry_routes(
 
 /// Walk every workspace project's `package.json` once, unless the caller
 /// supplied the list. A selection carries its own projects, so it walks
-/// nothing.
+/// nothing. A walk applies [`crate::apply_runtime_on_fail`] to the manifests
+/// it reads.
 fn discovered_workspace_projects(
-    has_selection: bool,
-    known_workspace_projects: Option<std::sync::Arc<[pnpm_workspace::Project]>>,
+    config: &pnpm_config::Config,
+    (has_selection, known_workspace_projects): (
+        bool,
+        Option<std::sync::Arc<[pnpm_workspace::Project]>>,
+    ),
     workspace_dir: &Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    ignored_directories: &[PathBuf],
 ) -> Result<Option<std::sync::Arc<[pnpm_workspace::Project]>>, InstallError> {
     if has_selection {
         return Ok(None);
@@ -86,7 +88,11 @@ fn discovered_workspace_projects(
     if let Some(projects) = known_workspace_projects {
         return Ok(Some(projects));
     }
-    load_workspace_projects(workspace_dir, workspace_manifest, ignored_directories)
-        .map(|projects| projects.map(std::sync::Arc::from))
-        .map_err(InstallError::FindWorkspaceProjects)
+    let mut projects =
+        load_workspace_projects(workspace_dir, workspace_manifest, &config.managed_directories())
+            .map_err(InstallError::FindWorkspaceProjects)?;
+    if let Some(projects) = &mut projects {
+        crate::apply_runtime_on_fail_to_projects(config, projects);
+    }
+    Ok(projects.map(std::sync::Arc::from))
 }
