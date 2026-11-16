@@ -1,0 +1,84 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { applyHunks } from './applyHunks.js'
+import type { FileCreation, FileDeletion, FileModeChange, FileRename, PatchFilePart } from './parsePatch.js'
+
+export interface ExecuteEffectsOpts {
+  /** The directory the patch's paths are relative to. */
+  root: string
+  /** Check that every effect applies without changing any file. */
+  dryRun: boolean
+}
+
+/**
+ * Apply each effect of a parsed patch in order. An effect that fails
+ * throws, leaving the effects before it applied.
+ */
+export function executeEffects (effects: PatchFilePart[], opts: ExecuteEffectsOpts): void {
+  const resolve = (filePath: string): string => path.join(opts.root, filePath)
+  for (const effect of effects) {
+    switch (effect.type) {
+      case 'file deletion':
+        deleteFile(effect, resolve(effect.path), opts.dryRun)
+        break
+      case 'rename':
+        renameFile(effect, resolve(effect.fromPath), resolve(effect.toPath), opts.dryRun)
+        break
+      case 'file creation':
+        createFile(effect, resolve(effect.path), opts.dryRun)
+        break
+      case 'patch':
+        applyHunks(effect, resolve(effect.path), opts.dryRun)
+        break
+      case 'mode change':
+        changeMode(effect, resolve(effect.path), opts.dryRun)
+        break
+    }
+  }
+}
+
+function deleteFile (effect: FileDeletion, filePath: string, dryRun: boolean): void {
+  if (!dryRun) {
+    fs.unlinkSync(filePath)
+  } else if (!fs.existsSync(filePath)) {
+    throw new Error(`Trying to delete file that doesn't exist: ${effect.path}`)
+  }
+}
+
+function renameFile (effect: FileRename, fromPath: string, toPath: string, dryRun: boolean): void {
+  if (dryRun) {
+    if (!fs.existsSync(fromPath)) {
+      throw new Error(`Trying to move file that doesn't exist: ${effect.fromPath}`)
+    }
+    return
+  }
+  if (fs.existsSync(toPath)) {
+    throw new Error(`Trying to move a file onto one that already exists: ${effect.toPath}`)
+  }
+  fs.mkdirSync(path.dirname(toPath), { recursive: true })
+  fs.renameSync(fromPath, toPath)
+}
+
+function createFile (effect: FileCreation, filePath: string, dryRun: boolean): void {
+  if (dryRun) {
+    if (fs.existsSync(filePath)) {
+      throw new Error(`Trying to create file that already exists: ${effect.path}`)
+    }
+    return
+  }
+  const firstPart = effect.hunk?.parts[0]
+  const contents = firstPart == null
+    ? ''
+    : firstPart.lines.join('\n') + (firstPart.noNewlineAtEndOfFile ? '' : '\n')
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, contents, { mode: effect.mode })
+}
+
+function changeMode (effect: FileModeChange, filePath: string, dryRun: boolean): void {
+  if (!dryRun) {
+    fs.chmodSync(filePath, effect.newMode)
+  } else if (!fs.existsSync(filePath)) {
+    throw new Error(`Trying to change the mode of a file that doesn't exist: ${effect.path}`)
+  }
+}

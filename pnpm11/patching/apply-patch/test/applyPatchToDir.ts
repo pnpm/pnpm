@@ -124,4 +124,26 @@ describe('applyPatchToDir()', () => {
     applyPatchToDir({ patchFilePath, patchedDir })
     expect(fs.readFileSync(path.join(patchedDir, 'file.txt'), 'utf-8')).toBe('one\ntwo\nthree')
   })
+  // pnpm takes a patch as already applied when its reverse applies cleanly.
+  // Checking that must not change the file it checks.
+  const itWithExecutableBits = process.platform === 'win32' ? it.skip : it
+  itWithExecutableBits('should keep the mode an already applied patch set', () => {
+    const patchedDir = tempDir()
+    const scriptPath = path.join(patchedDir, 'run.sh')
+    fs.writeFileSync(scriptPath, 'echo 2\n')
+    fs.chmodSync(scriptPath, 0o755)
+    const patchFilePath = path.join(patchedDir, 'mode.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/run.sh b/run.sh
+old mode 100644
+new mode 100755
+--- a/run.sh
++++ b/run.sh
+@@ -1 +1 @@
+-echo 1
++echo 2
+`)
+    expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
+    expect(fs.statSync(scriptPath).mode & 0o777).toBe(0o755)
+    expect(fs.readFileSync(scriptPath, 'utf8')).toBe('echo 2\n')
+  })
 })
