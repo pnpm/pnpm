@@ -256,9 +256,10 @@ fn write_dev_engines_pin(
 }
 
 /// Move the manifest's `engines.pnpm` to `target_version` and report whether
-/// that changed the manifest. An exact version or a `^`/`~` range moves to the
-/// target and keeps its operator. Any other range stays as is if it accepts the
-/// target, such as `*` or `12.2`, and becomes `^<target>` otherwise.
+/// that changed the manifest. A full version, bare or after `^`, `~`, or `=`,
+/// moves to the target and keeps its operator. Any other range stays as is if
+/// it accepts the target, such as `*` or `^12.2`, and moves to the target
+/// otherwise.
 pub(crate) fn write_engines_pnpm(manifest: &mut Value, target_version: &str) -> bool {
     let Some(engines) = manifest.get_mut("engines") else {
         return false;
