@@ -105,6 +105,69 @@ snapshots:
 }
 
 #[test]
+fn bound_providers_recovers_a_cycle_cut_among_many_nested_providers_and_an_own_dependency() {
+    let bound: Vec<String> = (0..10)
+        .map(|index| format!("bound-{index}"))
+        .collect();
+    let mut groups: Vec<String> = bound
+        .iter()
+        .map(|name| format!("{name}@1.0.0(child@1.0.0)"))
+        .collect();
+    groups.push("cut@1.0.0".to_string());
+    let suffix = PeerBindings::Explicit(groups).to_suffix(3).unwrap();
+    let root = key(&format!("root@1.0.0{suffix}"));
+    let peer_ranges = bound
+        .iter()
+        .map(|name| format!("      {name}: ^1.0.0\n"))
+        .collect::<Vec<_>>()
+        .concat();
+    let bound_dependencies = bound
+        .iter()
+        .map(|name| format!("      {name}: 1.0.0(child@1.0.0)\n"))
+        .collect::<Vec<_>>()
+        .concat();
+    let bound_snapshots = bound
+        .iter()
+        .map(|name| {
+            format!("  '{name}@1.0.0(child@1.0.0)':\n    dependencies:\n      child: 1.0.0\n")
+        })
+        .collect::<Vec<_>>()
+        .concat();
+    let yaml = format!(
+        r"lockfileVersion: '9.0'
+packages:
+  root@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+    peerDependencies:
+      a-own: ^1.0.0
+      cut: ^1.0.0
+{peer_ranges}snapshots:
+  '{root}':
+    dependencies:
+      a-own: 1.0.0(child@1.0.0)
+      cut: 1.0.0(child@1.0.0)
+{bound_dependencies}  'a-own@1.0.0(child@1.0.0)':
+    dependencies:
+      child: 1.0.0
+  'cut@1.0.0(child@1.0.0)':
+    dependencies:
+      child: 1.0.0
+      root: '{root_ref}'
+  child@1.0.0: {{}}
+{bound_snapshots}",
+        root_ref = root.suffix,
+    );
+    let lockfile: Lockfile = serde_saphyr::from_str(&yaml).unwrap();
+    let providers = BoundProviders::of_snapshot((&lockfile).into(), &root);
+    assert!(!providers.is_hashed());
+    for name in &bound {
+        assert!(providers.binds(&key(&format!("{name}@1.0.0"))));
+    }
+    assert!(providers.binds(&key("cut@1.0.0")));
+    assert!(!providers.binds(&key("a-own@1.0.0")));
+}
+
+#[test]
 fn bound_providers_of_snapshot_recovers_hashed_peers_across_shared_descendant_branches() {
     let suffix = PeerBindings::Explicit(vec!["p@1.0.0".to_string(), "q@1.0.0".to_string()])
         .to_suffix(3)
