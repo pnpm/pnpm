@@ -160,15 +160,19 @@ function hasDownloadedNodeRuntime (manifest: ProjectManifest, opts?: FindWorkspa
 }
 
 function getRuntimeDependencyGroup (opts?: FindWorkspaceProjectsOpts): 'dependencies' | 'devDependencies' | undefined {
-  return opts?.production ? 'dependencies' : opts?.dev ? 'devDependencies' : undefined
+  return opts?.production && !opts.dev
+    ? 'dependencies'
+    : opts?.dev && !opts.production
+      ? 'devDependencies'
+      : undefined
 }
 
 function getRuntimeDependencyFields (
   opts?: FindWorkspaceProjectsOpts
 ): readonly ('dependencies' | 'devDependencies' | 'optionalDependencies')[] | undefined {
-  return opts?.production
+  return opts?.production && !opts.dev
     ? ['dependencies', 'optionalDependencies']
-    : opts?.dev
+    : opts?.dev && !opts.production
       ? ['devDependencies']
       : undefined
 }
