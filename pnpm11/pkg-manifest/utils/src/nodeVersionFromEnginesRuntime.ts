@@ -31,16 +31,7 @@ export function getDownloadedNodeVersionFromEnginesRuntime (
   onFailOverride?: RuntimeOnFail,
   dependencyGroup?: 'dependencies' | 'devDependencies'
 ): string | undefined {
-  const enginesFields = dependencyGroup === 'dependencies'
-    ? ['engines'] as const
-    : dependencyGroup === 'devDependencies'
-      ? ['devEngines'] as const
-      : ['engines', 'devEngines'] as const
-  for (const enginesFieldName of enginesFields) {
-    const runtime = declaredNodeRuntime(manifest[enginesFieldName]?.runtime, onFailOverride)
-    if (runtime?.downloaded) return runtime.version
-  }
-  return undefined
+  return findDownloadedNodeRuntime(manifest, onFailOverride, dependencyGroup)?.version
 }
 
 export function getDownloadedNodeRuntimeSpecifierFromEnginesRuntime (
@@ -48,6 +39,46 @@ export function getDownloadedNodeRuntimeSpecifierFromEnginesRuntime (
   onFailOverride?: RuntimeOnFail,
   dependencyGroup?: 'dependencies' | 'devDependencies'
 ): string | undefined {
+  return findDownloadedNodeRuntime(manifest, onFailOverride, dependencyGroup)?.specifier
+}
+
+interface DownloadedNodeRuntime {
+  specifier: string
+  version: string
+}
+
+function findDownloadedNodeRuntime (
+  manifest: ProjectManifest,
+  onFailOverride?: RuntimeOnFail,
+  dependencyGroup?: 'dependencies' | 'devDependencies'
+): DownloadedNodeRuntime | undefined {
+  return findDownloadedNodeRuntimeFromDependencies(manifest, dependencyGroup) ??
+    findDownloadedNodeRuntimeFromEngines(manifest, onFailOverride, dependencyGroup)
+}
+
+function findDownloadedNodeRuntimeFromDependencies (
+  manifest: ProjectManifest,
+  dependencyGroup?: 'dependencies' | 'devDependencies'
+): DownloadedNodeRuntime | undefined {
+  const dependencyFields = dependencyGroup === 'dependencies'
+    ? ['dependencies'] as const
+    : dependencyGroup === 'devDependencies'
+      ? ['devDependencies'] as const
+      : ['dependencies', 'devDependencies'] as const
+  for (const dependencyField of dependencyFields) {
+    const specifier = manifest[dependencyField]?.node
+    if (typeof specifier !== 'string') continue
+    const version = downloadedRuntimeVersion(specifier)
+    if (version != null) return { specifier, version }
+  }
+  return undefined
+}
+
+function findDownloadedNodeRuntimeFromEngines (
+  manifest: ProjectManifest,
+  onFailOverride?: RuntimeOnFail,
+  dependencyGroup?: 'dependencies' | 'devDependencies'
+): DownloadedNodeRuntime | undefined {
   const enginesFields = dependencyGroup === 'dependencies'
     ? ['engines'] as const
     : dependencyGroup === 'devDependencies'
@@ -55,9 +86,20 @@ export function getDownloadedNodeRuntimeSpecifierFromEnginesRuntime (
       : ['engines', 'devEngines'] as const
   for (const enginesFieldName of enginesFields) {
     const runtime = declaredNodeRuntime(manifest[enginesFieldName]?.runtime, onFailOverride)
-    if (runtime?.downloaded) return `runtime:${runtime.specifier}`
+    if (runtime?.downloaded && runtime.version != null) {
+      return { specifier: `runtime:${runtime.specifier}`, version: runtime.version }
+    }
   }
   return undefined
+}
+
+function downloadedRuntimeVersion (specifier: string): string | undefined {
+  const version = specifier.startsWith('runtime:')
+    ? specifier.slice('runtime:'.length)
+    : specifier.startsWith('tool:')
+      ? specifier.slice('tool:'.length)
+      : undefined
+  return version == null ? undefined : semver.minVersion(version)?.version
 }
 
 function findDeclaredNodeRuntime (

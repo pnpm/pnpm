@@ -230,11 +230,20 @@ pub(crate) fn effective_node_version(
             } else {
                 None
             }?;
-            node_version_from_engine_field(
+            let dependencies_field =
+                if runtime_field == "engines" { "dependencies" } else { "devDependencies" };
+            pnpm_package_manifest::downloaded_node_runtime_from_dependency_field(
                 manifest.value(),
-                runtime_field,
-                config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+                dependencies_field,
             )
+            .map(|(_, version)| version)
+            .or_else(|| {
+                node_version_from_engine_field(
+                    manifest.value(),
+                    runtime_field,
+                    config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+                )
+            })
         })
 }
 

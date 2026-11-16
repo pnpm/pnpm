@@ -328,6 +328,31 @@ fn project_engines_ignore_a_lockfile_runtime_for_an_outdated_specifier() {
 }
 
 #[test]
+fn project_engines_use_a_directly_declared_runtime_dependency() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "dependencies");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["dependencies"] = json!({"node": "tool:24.1.0"});
+    manifest["engines"]["node"] = json!(">=24.1.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["dependencies"]["node"]["specifier"] = json!("tool:24.1.0");
+    fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+}
+
+#[test]
 fn production_install_checks_engines_against_the_runtime_it_links() {
     let root = tempfile::tempdir().unwrap();
     let workspace = prepare_workspace(&root, "engineStrict: true\n");

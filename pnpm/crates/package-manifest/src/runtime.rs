@@ -234,6 +234,23 @@ pub fn downloaded_node_specifier_from_engine_field(
         .map(|runtime| format!("runtime:{}", runtime.specifier))
 }
 
+#[must_use]
+pub fn downloaded_node_runtime_from_dependency_field(
+    manifest: &Value,
+    dependencies_field: &str,
+) -> Option<(String, String)> {
+    let specifier = manifest
+        .get(dependencies_field)?
+        .get("node")?
+        .as_str()?;
+    let version_range = strip_tool_protocol(specifier)?;
+    let version = Range::parse(version_range.trim())
+        .ok()?
+        .min_version()?
+        .to_string();
+    Some((specifier.to_string(), version))
+}
+
 struct DeclaredNodeRuntime {
     version: Option<String>,
     downloaded: bool,

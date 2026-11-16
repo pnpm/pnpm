@@ -46,32 +46,45 @@ pub fn project_host_requirements(
         || requirements.cpu.is_some()
         || requirements.os.is_some()
         || requirements.libc.is_some();
+    let (dependencies_node_version, dependencies_node_specifier) =
+        downloaded_node_runtime(manifest, "dependencies", "engines", runtime_on_fail);
+    let (dev_dependencies_node_version, dev_dependencies_node_specifier) =
+        downloaded_node_runtime(manifest, "devDependencies", "devEngines", runtime_on_fail);
     declares_any.then(|| ProjectHostRequirements {
         installability: requirements,
-        dependencies_node_version: pnpm_package_manifest::downloaded_node_version_from_engine_field(
+        dependencies_node_version,
+        dev_dependencies_node_version,
+        dependencies_node_specifier,
+        dev_dependencies_node_specifier,
+    })
+}
+
+fn downloaded_node_runtime(
+    manifest: &Value,
+    dependencies_field: &str,
+    engines_field: &str,
+    runtime_on_fail: Option<&str>,
+) -> (Option<String>, Option<String>) {
+    if let Some((specifier, version)) =
+        pnpm_package_manifest::downloaded_node_runtime_from_dependency_field(
             manifest,
-            "engines",
+            dependencies_field,
+        )
+    {
+        return (Some(version), Some(specifier));
+    }
+    (
+        pnpm_package_manifest::downloaded_node_version_from_engine_field(
+            manifest,
+            engines_field,
             runtime_on_fail,
         ),
-        dev_dependencies_node_version:
-            pnpm_package_manifest::downloaded_node_version_from_engine_field(
-                manifest,
-                "devEngines",
-                runtime_on_fail,
-            ),
-        dependencies_node_specifier:
-            pnpm_package_manifest::downloaded_node_specifier_from_engine_field(
-                manifest,
-                "engines",
-                runtime_on_fail,
-            ),
-        dev_dependencies_node_specifier:
-            pnpm_package_manifest::downloaded_node_specifier_from_engine_field(
-                manifest,
-                "devEngines",
-                runtime_on_fail,
-            ),
-    })
+        pnpm_package_manifest::downloaded_node_specifier_from_engine_field(
+            manifest,
+            engines_field,
+            runtime_on_fail,
+        ),
+    )
 }
 
 #[cfg(test)]
