@@ -166,6 +166,9 @@ macro_rules! driver {
                 dialect: NetworkDialect,
                 runtime: tokio::runtime::Handle,
                 timeout: Duration,
+                /// Whether the connection holds the schema lock: in its
+                /// session, or in each write transaction it begins when the
+                /// dialect has no [`NetworkDialect::session_locks`].
                 schema_locked: Cell<bool>,
                 /// Whether the session holds [`NetworkDialect::lock_writes`].
                 writes_locked: Cell<bool>,
@@ -186,12 +189,13 @@ macro_rules! driver {
                     let rollback =
                         if self.transaction_open.get() { self.rollback() } else { Ok(()) };
                     let unlock_writes = if self.writes_locked.get() {
-                        self.execute_batch(self.dialect.unlock_writes())
+                        self.execute_batch(NetworkDialect::UNLOCK_WRITES)
                     } else {
                         Ok(())
                     };
-                    let unlock = if self.schema_locked.get() {
-                        self.execute_batch(self.dialect.unlock_schema())
+                    let session_locks = self.dialect.session_locks();
+                    let unlock = if session_locks && self.schema_locked.get() {
+                        self.execute_batch(NetworkDialect::UNLOCK_SCHEMA)
                     } else {
                         Ok(())
                     };
@@ -263,6 +267,16 @@ macro_rules! driver {
                     Ok(())
                 }
 
+                /// Begin the transaction that holds the schema lock, unless
+                /// the connection is in it.
+                fn begin_migration(&self) -> Result<()> {
+                    if self.transaction_open.get() {
+                        return Ok(());
+                    }
+                    self.transaction_open.set(true);
+                    self.execute_batch(NetworkDialect::BEGIN_MIGRATION)
+                }
+
                 /// End the transaction with `end`, or with `end_write` when
                 /// the session holds the write lock, which it releases.
                 fn end_transaction(&self, end: &str, end_write: &str) -> Result<()> {
@@ -291,9 +305,14 @@ macro_rules! driver {
                 }
 
                 fn lock_schema(&self) -> Result<()> {
-                    self.take_session_lock(&self.dialect.lock_schema(self.timeout), "schema")?;
+                    if self.dialect.session_locks() {
+                        let lock = NetworkDialect::lock_schema(self.timeout);
+                        self.take_session_lock(&lock, "schema")?;
+                        self.schema_locked.set(true);
+                        return Ok(());
+                    }
                     self.schema_locked.set(true);
-                    Ok(())
+                    self.begin_migration()
                 }
 
                 fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
@@ -353,12 +372,17 @@ macro_rules! driver {
                 }
 
                 fn begin_write(&self) -> Result<()> {
-                    if !self.writes_locked.get() {
-                        self.take_session_lock(&self.dialect.lock_writes(self.timeout), "write")?;
+                    if !self.dialect.session_locks() && self.schema_locked.get() {
+                        self.begin_migration()?;
+                        return self.execute_batch(&NetworkDialect::lock_writes_of_a_migration());
+                    }
+                    if self.dialect.session_locks() && !self.writes_locked.get() {
+                        let lock = NetworkDialect::lock_writes(self.timeout);
+                        self.take_session_lock(&lock, "write")?;
                         self.writes_locked.set(true);
                     }
                     self.transaction_open.set(true);
-                    self.execute_batch(self.dialect.begin_write())
+                    self.execute_batch(&self.dialect.begin_write())
                 }
 
                 fn begin_read(&self) -> Result<()> {
@@ -367,11 +391,11 @@ macro_rules! driver {
                 }
 
                 fn commit(&self) -> Result<()> {
-                    self.end_transaction("COMMIT", self.dialect.commit_write())
+                    self.end_transaction("COMMIT", NetworkDialect::COMMIT_AND_UNLOCK_WRITES)
                 }
 
                 fn rollback(&self) -> Result<()> {
-                    self.end_transaction("ROLLBACK", self.dialect.rollback_write())
+                    self.end_transaction("ROLLBACK", NetworkDialect::ROLLBACK_AND_UNLOCK_WRITES)
                 }
 
                 fn schema_table_names(&self) -> Result<Vec<Row>> {

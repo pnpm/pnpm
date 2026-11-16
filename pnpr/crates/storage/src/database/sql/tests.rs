@@ -16,6 +16,8 @@ mod notes;
 mod nul_text;
 mod payload_benchmark;
 #[cfg(feature = "backend-postgres")]
+mod postgres_locks;
+#[cfg(feature = "backend-postgres")]
 mod postgres_schemas;
 mod publications;
 mod reclaims;
