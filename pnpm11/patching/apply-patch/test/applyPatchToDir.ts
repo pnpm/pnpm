@@ -17,6 +17,8 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 
 const { globalWarn } = await import('@pnpm/logger')
 const { applyPatchToDir } = await import('@pnpm/patching.apply-patch')
+const { executeEffects } = await import('../src/executeEffects.js')
+const { parsePatchFile } = await import('../src/parsePatch.js')
 
 beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
@@ -131,16 +133,51 @@ rename to Index.js
     const patchedDir = tempDir()
     fs.writeFileSync(path.join(patchedDir, 'Index.js'), 'module.exports = 1\n')
     fs.symlinkSync('Index.js', path.join(patchedDir, 'index.js'))
-    const patchFilePath = path.join(patchedDir, '..', 'rename-symlink.patch')
-    fs.writeFileSync(patchFilePath, `diff --git a/index.js b/Index.js
+    const effects = parsePatchFile(`diff --git a/index.js b/Index.js
 similarity index 100%
 rename from index.js
 rename to Index.js
 `)
-    expect(() => applyPatchToDir({ patchFilePath, patchedDir })).toThrow(`Could not apply patch ${patchFilePath} to ${patchedDir}`)
+    expect(() => {
+      executeEffects(effects, { root: patchedDir, dryRun: false })
+    }).toThrow('Trying to move a file onto one that already exists: Index.js')
     expect(fs.lstatSync(path.join(patchedDir, 'index.js')).isSymbolicLink()).toBe(true)
-    expect(fs.lstatSync(path.join(patchedDir, 'Index.js')).isFile()).toBe(true)
     expect(fs.readFileSync(path.join(patchedDir, 'Index.js'), 'utf8')).toBe('module.exports = 1\n')
+  })
+  // Creating symlinks on Windows needs a privilege CI does not have.
+  const itWithSymlinks = process.platform === 'win32' ? it.skip : it
+  itWithSymlinks('should rename a dangling symlink', () => {
+    const patchedDir = tempDir()
+    fs.symlinkSync('missing-target', path.join(patchedDir, 'old-link'))
+    const patchFilePath = path.join(patchedDir, '..', 'rename-dangling.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/old-link b/new-link
+similarity index 100%
+rename from old-link
+rename to new-link
+`)
+    expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
+    expect(fs.readlinkSync(path.join(patchedDir, 'new-link'))).toBe('missing-target')
+    expect(fs.existsSync(path.join(patchedDir, 'old-link'))).toBe(false)
+  })
+  it('should take a patch that renames a file and recreates its old path as already applied', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'a.txt'), 'old\n')
+    const patchFilePath = path.join(patchedDir, '..', 'rename-recreate.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/a.txt b/b.txt
+similarity index 100%
+rename from a.txt
+rename to b.txt
+diff --git a/a.txt b/a.txt
+new file mode 100644
+--- /dev/null
++++ b/a.txt
+@@ -0,0 +1 @@
++new
+`)
+    expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
+    expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
+    expect(fs.readFileSync(path.join(patchedDir, 'a.txt'), 'utf8')).toBe('new\n')
+    expect(fs.readFileSync(path.join(patchedDir, 'b.txt'), 'utf8')).toBe('old\n')
   })
   // `git diff --ignore-cr-at-eol` writes lines appended to a file without a
   // final newline as context followed by the insertion.
