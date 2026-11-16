@@ -16,8 +16,7 @@ use pnpm_modules_yaml::{
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
 use pnpm_testing_utils::registry::TestRegistry;
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
