@@ -41,6 +41,8 @@ pub struct CargoResolveRequest {
     /// `cargo metadata --no-deps --format-version 1` output for the
     /// workspace being resolved.
     pub metadata: String,
+    /// Registry versions the client's `Cargo.lock` records, by crate name.
+    /// The resolver keeps each one that still fits.
     #[serde(default)]
     pub preferred_versions: BTreeMap<String, Vec<String>>,
     /// The sparse index to resolve against. Falls back to the crates.io

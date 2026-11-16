@@ -928,12 +928,14 @@ fn assigns_root_features_to_the_preferred_compatibility_line() {
     "path+file:///workspace#other@0.1.0"
   ]
 }"#;
-    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"=1.0.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"f":[]},"yanked":false}
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"=1.0.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"f":["dep:baz"]},"yanked":false}
 {"name":"foo","vers":"2.0.0","deps":[{"name":"bar","req":"=1.1.0","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"f":["dep:bar"]},"yanked":false}"#;
     let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":false}
 {"name":"bar","vers":"1.1.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}"#;
+    let baz_index = r#"{"name":"baz","vers":"1.0.0","deps":[],"cksum":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","features":{},"yanked":false}"#;
     let files = BTreeMap::from([
         ("bar".to_string(), bar_index.to_string()),
+        ("baz".to_string(), baz_index.to_string()),
         ("foo".to_string(), foo_index.to_string()),
     ]);
     let preferences = BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]);
@@ -955,7 +957,10 @@ fn assigns_root_features_to_the_preferred_compatibility_line() {
             })
     };
 
-    assert_eq!(dependencies(semver::Version::new(1, 0, 0)), Some(vec!["bar".to_string()]));
+    assert_eq!(
+        dependencies(semver::Version::new(1, 0, 0)),
+        Some(vec!["bar".to_string(), "baz".to_string()]),
+    );
     assert_eq!(dependencies(semver::Version::new(2, 0, 0)), Some(Vec::new()));
 }
 

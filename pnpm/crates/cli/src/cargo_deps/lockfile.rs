@@ -189,12 +189,13 @@ pub(super) async fn read_or_resolve_lockfile(
             "Cargo.lock is absent, but --frozen-lockfile forbids generating it"
         ));
     }
-    let preferred_versions = read_cargo_lock_preferences(cargo_lock_path)?;
+    let preferred_versions = read_cargo_lock_preferences(cargo_lock_path, lockfile_policy)?;
     let metadata = read_cargo_metadata(root_dir, checkout).await?;
     let source_overrides = super::resolution::has_source_overrides(root_dir)?;
     let git_dependencies = super::resolution::has_git_dependencies(&metadata)?;
     if source_overrides || git_dependencies {
-        return super::resolution::resolve_with_cargo(config, root_dir, checkout).await;
+        return super::resolution::resolve_with_cargo(config, root_dir, checkout, lockfile_policy)
+            .await;
     }
     if let Some(lockfile) =
         resolve_via_pnpr_with_preferences(config, &metadata, &preferred_versions).await?
@@ -257,7 +258,15 @@ pub(super) async fn resolve_via_pnpr_with_preferences(
     }
 }
 
-fn read_cargo_lock_preferences(path: &Path) -> Result<BTreeMap<String, Vec<String>>> {
+/// The registry versions `Cargo.lock` records, by crate name, for the
+/// resolver to keep. Empty when `lockfile_policy` resolves afresh.
+fn read_cargo_lock_preferences(
+    path: &Path,
+    lockfile_policy: CargoLockfilePolicy,
+) -> Result<BTreeMap<String, Vec<String>>> {
+    if lockfile_policy == CargoLockfilePolicy::Resolve {
+        return Ok(BTreeMap::new());
+    }
     let contents = match fs::read_to_string(path) {
         Ok(contents) => contents,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(BTreeMap::new()),

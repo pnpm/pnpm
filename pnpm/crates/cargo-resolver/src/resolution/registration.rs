@@ -2,8 +2,8 @@ use crate::{
     features::{locked_dependencies, supports_features},
     model::{FeatureSelection, PackageKey, RegistryDependency},
     packages::package_key_with_preferences,
-    preferences::{PreferredVersions, contains as is_preferred},
-    registry::{Registry, compatibility_line, matching_lines_with_preferences},
+    preferences::{PreferredVersions, is_selectable},
+    registry::{Registry, compatibility_line, matching_lines_with_preferences, matching_versions},
 };
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pubgrub::{OfflineDependencyProvider, Ranges};
@@ -37,6 +37,8 @@ impl Registration<'_> {
         Registration { registry, feature_selections, preferred_versions, should_cancel }
     }
 
+    /// Tell the solver what `package` offers, which depends on what kind of
+    /// package it is.
     pub(super) fn register(
         &self,
         package: &PackageKey,
@@ -52,6 +54,8 @@ impl Registration<'_> {
         }
     }
 
+    /// Offer the solver the versions of `package` that every dependency able to
+    /// settle on it can support, queueing each one's own dependencies.
     fn register_candidates(
         &self,
         package: &PackageKey,
@@ -69,7 +73,7 @@ impl Registration<'_> {
         for version in versions
             .iter()
             .filter(|version| {
-                (!version.yanked || is_preferred(self.preferred_versions, name, &version.version))
+                is_selectable(self.preferred_versions, name, version)
                     && compatibility_line(&version.version) == *compatibility
             })
         {
@@ -82,6 +86,14 @@ impl Registration<'_> {
         Ok(())
     }
 
+    /// Offer the solver one version per compatibility line the requirement is
+    /// met on, each standing for that line and depending on the versions it
+    /// admits there. Ordered by version, so the solver reaches for the newest
+    /// line first and backtracks to an older one, as `cargo` does.
+    ///
+    /// A line is offered only the versions that support what the line's
+    /// dependants ask, so a line that cannot support them is not a choice at
+    /// all rather than one the solver takes and later has to leave.
     fn register_compatibility_lines(
         &self,
         package: &PackageKey,
@@ -171,19 +183,14 @@ pub(super) fn constraints_for(
         let package = package_key_with_preferences(registry, dependency, preferred_versions)?;
         let selection = dependency.feature_selection();
         let allowed = if let PackageKey::Registry { compatibility, .. } = &package {
-            registry
-                .package(&dependency.name)?
-                .iter()
-                .filter(|version| {
-                    (!version.yanked
-                        || is_preferred(preferred_versions, &dependency.name, &version.version))
-                        && dependency.requirement.matches(&version.version)
-                })
-                .filter(|version| compatibility_line(&version.version) == *compatibility)
-                .filter(|version| supports_features(version, &selection))
-                .fold(Ranges::empty(), |range, version| {
-                    range.union(&Ranges::singleton(version.version.clone()))
-                })
+            admitted_versions(
+                registry.package(&dependency.name)?,
+                &dependency.requirement,
+                &selection,
+                &dependency.name,
+                compatibility,
+                preferred_versions,
+            )
         } else {
             Ranges::full()
         };
@@ -204,12 +211,7 @@ fn admitted_versions(
     compatibility: &str,
     preferred_versions: &BTreeMap<String, Vec<Version>>,
 ) -> Ranges<Version> {
-    versions
-        .iter()
-        .filter(|version| {
-            (!version.yanked || is_preferred(preferred_versions, name, &version.version))
-                && requirement.matches(&version.version)
-        })
+    matching_versions(versions, requirement, name, preferred_versions)
         .filter(|version| compatibility_line(&version.version) == compatibility)
         .filter(|version| supports_features(version, requested))
         .fold(Ranges::empty(), |range, version| {

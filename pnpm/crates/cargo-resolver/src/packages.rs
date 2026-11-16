@@ -2,7 +2,7 @@ use crate::{
     features::supports_features,
     model::{FeatureSelection, PackageKey, RegistryDependency},
     preferences::PreferredVersions,
-    registry::{Registry, compatibility_line, matching_lines_with_preferences},
+    registry::{Registry, compatibility_line, matching_lines_with_preferences, matching_versions},
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -127,13 +127,7 @@ pub(crate) fn admits_features(
     name: &str,
     preferred_versions: &PreferredVersions,
 ) -> bool {
-    versions
-        .iter()
-        .filter(|version| {
-            (!version.yanked
-                || crate::preferences::contains(preferred_versions, name, &version.version))
-                && requirement.matches(&version.version)
-        })
+    matching_versions(versions, requirement, name, preferred_versions)
         .filter(|version| compatibility_line(&version.version) == compatibility)
         .any(|version| supports_features(version, selection))
 }

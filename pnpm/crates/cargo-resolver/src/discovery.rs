@@ -5,7 +5,7 @@ use crate::{
         CancelError, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion,
         ensure_not_cancelled,
     },
-    preferences::{PreferredVersions, contains as is_preferred, parse as parse_preferred_versions},
+    preferences::{PreferredVersions, is_selectable, parse as parse_preferred_versions},
     registry::{Registry, compatibility_line},
 };
 use miette::Result;
@@ -206,11 +206,8 @@ fn matching_line_groups<'a>(
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<Vec<CompatibleLineGroup<'a>>> {
     let mut by_line: BTreeMap<String, PendingLineGroup<'a>> = BTreeMap::new();
-    for version in versions
-        .iter()
-        .filter(|version| {
-            !version.yanked || is_preferred(preferred_versions, name, &version.version)
-        })
+    for version in
+        versions.iter().filter(|version| is_selectable(preferred_versions, name, version))
     {
         ensure_not_cancelled(should_cancel)?;
         let entry = by_line

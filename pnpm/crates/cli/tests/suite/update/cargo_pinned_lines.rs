@@ -88,18 +88,18 @@ fn update_latest_keeps_a_renamed_alias_and_a_prerelease_on_their_lines() {
     assert!(cargo_lock.contains("name = \"pre\"\nversion = \"2.0.0-rc.1\""));
 }
 
-#[test]
-fn targeted_update_keeps_an_unrelated_transitive_crate_locked() {
-    let root = tempfile::tempdir().unwrap();
-    let workspace = root.path().join("workspace");
-    let cache_dir = root.path().join("cache");
+/// A workspace that depends on `foo` 1, which depends on `bar` 1. The lock
+/// records `foo` 1.0.0 and `bar` 1.0.0; the index also has 1.1.0 of each.
+fn setup_transitive_workspace(root: &Path) -> PathBuf {
+    let workspace = root.join("workspace");
+    let cache_dir = root.join("cache");
     fs::create_dir_all(workspace.join("src")).unwrap();
     fs::write(workspace.join("src/lib.rs"), "").unwrap();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
             "cargo:\n  enabled: true\nstoreDir: '{}'\ncacheDir: '{}'\n",
-            root.path().join("store").display(),
+            root.join("store").display(),
             cache_dir.display(),
         ),
     )
@@ -140,6 +140,13 @@ fn targeted_update_keeps_an_unrelated_transitive_crate_locked() {
         ),
     )
     .unwrap();
+    workspace
+}
+
+#[test]
+fn targeted_update_keeps_an_unrelated_transitive_crate_locked() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = setup_transitive_workspace(root.path());
 
     pacquet(&workspace, ["update", "--latest", "crate:foo", "--offline", "--lockfile-only"])
         .assert()
@@ -148,6 +155,18 @@ fn targeted_update_keeps_an_unrelated_transitive_crate_locked() {
     let lockfile = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
     assert!(lockfile.contains("name = \"foo\"\nversion = \"1.1.0\""), "{lockfile}");
     assert!(lockfile.contains("name = \"bar\"\nversion = \"1.0.0\""), "{lockfile}");
+}
+
+#[test]
+fn untargeted_update_moves_a_transitive_crate_to_its_newest_version() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = setup_transitive_workspace(root.path());
+
+    pacquet(&workspace, ["update", "--latest", "--offline", "--lockfile-only"]).assert().success();
+
+    let lockfile = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
+    assert!(lockfile.contains("name = \"foo\"\nversion = \"1.1.0\""), "{lockfile}");
+    assert!(lockfile.contains("name = \"bar\"\nversion = \"1.1.0\""), "{lockfile}");
 }
 
 #[test]

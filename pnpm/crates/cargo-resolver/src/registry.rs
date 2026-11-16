@@ -1,6 +1,6 @@
 use crate::{
     model::{DependencyKind, RegistryDependency, RegistryVersion, ensure_not_cancelled},
-    preferences::{PreferredVersions, contains as is_preferred},
+    preferences::{PreferredVersions, is_selectable},
 };
 use cargo_util_schemas::index::{IndexPackage, RegistryDependency as IndexDependency};
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -274,23 +274,39 @@ fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<Reg
     })
 }
 
+/// The compatibility lines `requirement` is met on, oldest first, each
+/// paired with the newest [selectable](is_selectable) version on it.
+///
+/// `cargo` lets semver-incompatible versions of a crate coexist, so a
+/// requirement spanning several lines may be met on any one of them.
 pub(crate) fn matching_lines_with_preferences(
     versions: &[RegistryVersion],
     requirement: &VersionReq,
     name: &str,
     preferred_versions: &PreferredVersions,
 ) -> Vec<(String, Version)> {
-    let newest = versions
-        .iter()
-        .filter(|version| {
-            (!version.yanked || is_preferred(preferred_versions, name, &version.version))
-                && requirement.matches(&version.version)
-        })
+    // Ascending, so the last version recorded for a line is its newest.
+    let newest = matching_versions(versions, requirement, name, preferred_versions)
         .map(|version| (compatibility_line(&version.version), version.version.clone()))
         .collect::<BTreeMap<_, _>>();
     let mut lines = newest.into_iter().collect::<Vec<_>>();
     lines.sort_by(|left, right| left.1.cmp(&right.1));
     lines
+}
+
+/// The [selectable](is_selectable) versions that meet `requirement`.
+pub(crate) fn matching_versions<'a>(
+    versions: &'a [RegistryVersion],
+    requirement: &'a VersionReq,
+    name: &'a str,
+    preferred_versions: &'a PreferredVersions,
+) -> impl DoubleEndedIterator<Item = &'a RegistryVersion> {
+    versions
+        .iter()
+        .filter(move |version| {
+            is_selectable(preferred_versions, name, version)
+                && requirement.matches(&version.version)
+        })
 }
 
 pub(crate) fn is_crates_io_source(registry: &str) -> bool {

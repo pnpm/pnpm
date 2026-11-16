@@ -1,4 +1,4 @@
-use super::{build_std, ensure_workspace_directory, git, read_workspace_file};
+use super::{CargoLockfilePolicy, build_std, ensure_workspace_directory, git, read_workspace_file};
 use crate::process::Command;
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::Config;
@@ -51,6 +51,7 @@ pub(super) async fn resolve_with_cargo(
     config: &Config,
     root: &Path,
     checkout: Option<&Path>,
+    lockfile_policy: CargoLockfilePolicy,
 ) -> Result<String> {
     if !pnpm_cargo_resolver::is_crates_io(config.cargo_index_url()) {
         return Err(miette::miette!(
@@ -60,22 +61,31 @@ pub(super) async fn resolve_with_cargo(
     let root = root.to_path_buf();
     let offline = config.offline;
     let checkout = checkout.map(Path::to_path_buf);
-    tokio::task::spawn_blocking(move || resolve_workspace(&root, checkout.as_deref(), offline))
-        .await
-        .into_diagnostic()
-        .wrap_err("join Cargo dependency resolution")?
+    tokio::task::spawn_blocking(move || {
+        resolve_workspace(&root, checkout.as_deref(), offline, lockfile_policy)
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("join Cargo dependency resolution")?
 }
 
-fn resolve_workspace(root: &Path, checkout: Option<&Path>, offline: bool) -> Result<String> {
-    let output = resolution_command(root, checkout, offline)?
+fn resolve_workspace(
+    root: &Path,
+    checkout: Option<&Path>,
+    offline: bool,
+    lockfile_policy: CargoLockfilePolicy,
+) -> Result<String> {
+    let subcommand = ResolutionSubcommand::for_policy(lockfile_policy);
+    let name = subcommand.name;
+    let output = resolution_command(root, checkout, offline, &subcommand)?
         .output()
         .into_diagnostic()
-        .wrap_err("run cargo update")?;
+        .wrap_err_with(|| format!("run cargo {name}"))?;
     if !output.status.success() {
         let stderr = redact_and_sanitize_multiline(&String::from_utf8_lossy(&output.stderr));
         let stderr = stderr.trim();
         let root = root.display();
-        return Err(miette::miette!("cargo update failed for {root}: {stderr}"));
+        return Err(miette::miette!("cargo {name} failed for {root}: {stderr}"));
     }
     let directory = ensure_workspace_directory(root, &[])?;
     read_workspace_file(&directory, "Cargo.lock")
@@ -84,7 +94,31 @@ fn resolve_workspace(root: &Path, checkout: Option<&Path>, offline: bool) -> Res
         .wrap_err_with(|| format!("read {}", root.join("Cargo.lock").display()))
 }
 
-fn resolution_command(root: &Path, checkout: Option<&Path>, offline: bool) -> Result<Command> {
+/// The Cargo subcommand that resolves under a [`CargoLockfilePolicy`].
+pub(super) struct ResolutionSubcommand {
+    name: &'static str,
+    args: &'static [&'static str],
+}
+
+impl ResolutionSubcommand {
+    /// `cargo update --workspace` keeps every locked version that still
+    /// fits; `cargo generate-lockfile` resolves every crate afresh.
+    pub(super) fn for_policy(lockfile_policy: CargoLockfilePolicy) -> Self {
+        match lockfile_policy {
+            CargoLockfilePolicy::Resolve => Self { name: "generate-lockfile", args: &[] },
+            CargoLockfilePolicy::UseExisting | CargoLockfilePolicy::KeepLocked => {
+                Self { name: "update", args: &["--workspace"] }
+            }
+        }
+    }
+}
+
+fn resolution_command(
+    root: &Path,
+    checkout: Option<&Path>,
+    offline: bool,
+    subcommand: &ResolutionSubcommand,
+) -> Result<Command> {
     let sysroot = build_std::sysroot(root, checkout)?;
     let mut command = Command::new(
         sysroot
@@ -102,7 +136,9 @@ fn resolution_command(root: &Path, checkout: Option<&Path>, offline: bool) -> Re
                 .join("bin")
                 .join(format!("rustc{}", env::consts::EXE_SUFFIX)),
         )
-        .args(["update", "--workspace", "--manifest-path"])
+        .arg(subcommand.name)
+        .args(subcommand.args)
+        .arg("--manifest-path")
         .arg(root.join("Cargo.toml"));
     let protocols = pnpm_git_fetcher::read_allowed_git_protocols(root)
         .into_diagnostic()

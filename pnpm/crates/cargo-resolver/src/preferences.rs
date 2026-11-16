@@ -1,3 +1,4 @@
+use crate::model::RegistryVersion;
 use miette::Result;
 use semver::Version;
 use std::collections::BTreeMap;
@@ -23,6 +24,16 @@ pub(crate) fn parse(
             Ok((name.clone(), versions))
         })
         .collect()
+}
+
+/// Whether resolution may select `version` of `name`. A yanked release is
+/// selectable only while the lockfile records it, as `cargo` keeps it.
+pub(crate) fn is_selectable(
+    preferred_versions: &PreferredVersions,
+    name: &str,
+    version: &RegistryVersion,
+) -> bool {
+    !version.yanked || contains(preferred_versions, name, &version.version)
 }
 
 pub(crate) fn contains(

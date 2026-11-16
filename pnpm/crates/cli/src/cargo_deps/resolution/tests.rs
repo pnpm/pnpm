@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use super::configs_in_scope;
-use super::{resolution_command, resolution_settings};
-use crate::cargo_deps::build_std;
+use super::{ResolutionSubcommand, resolution_command, resolution_settings};
+use crate::cargo_deps::{CargoLockfilePolicy, build_std};
 use std::fs;
 use tempfile::TempDir;
 
@@ -40,7 +40,13 @@ replace-with = "checkout-source"
     .unwrap();
 
     let settings = resolution_settings(&child, None).unwrap();
-    let command = resolution_command(&child, None, true).unwrap();
+    let command = resolution_command(
+        &child,
+        None,
+        true,
+        &ResolutionSubcommand::for_policy(CargoLockfilePolicy::Resolve),
+    )
+    .unwrap();
 
     assert_eq!(settings.len(), 2);
     assert_eq!(settings["unstable.bindeps"], toml::Value::Boolean(true));
