@@ -12,6 +12,7 @@ import {
   SPECIALLY_ESCAPED_CMDS,
   VERSION_BOOTSTRAP_KEYS,
 } from './exploratory.js'
+import { attributeUnknownOptionsToShorthands, type ShorthandContext } from './shorthandAttribution.js'
 
 export {
   BASE_EXPLORATORY_TYPES,
@@ -39,6 +40,12 @@ export interface ParsedCliArgs {
   options: Record<string, any>
   cmd: string | null
   unknownOptions: Map<string, string[]>
+  /**
+   * The unknown options that were passed via a shorthand, mapped to the
+   * shorthand as it was typed. For instance, `-l` expands to `--long`, so if
+   * `long` is unknown to the command, this maps `long` to `-l`.
+   */
+  unknownOptionShorthands?: Map<string, string>
   fallbackCommandUsed: boolean
   workspaceDir: string | undefined
   /** The `--config.<key>=<value>` options as given, keyed without the prefix. */
@@ -98,7 +105,13 @@ export async function parseCliArgs (
     params,
     workspaceDir,
     fallbackCommandUsed: resolution.fallbackCommandUsed,
-    ...normalizeOptions(rawOptions, new Set(Object.keys(types))),
+    ...normalizeOptions(rawOptions, new Set(Object.keys(types)), {
+      originalArgv: argv.original,
+      shorthands: {
+        ...opts.universalShorthands,
+        ...opts.shorthandsByCommandName[resolution.commandName],
+      },
+    }),
   }
 }
 
@@ -319,10 +332,15 @@ function validateWorkspaceOptions (options: Record<string, unknown>, workspaceDi
 interface NormalizeOptionsResult {
   options: Record<string, unknown>
   unknownOptions: Map<string, string[]>
+  unknownOptionShorthands: Map<string, string>
   rawCliConfig: Record<string, unknown>
 }
 
-function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>): NormalizeOptionsResult {
+function normalizeOptions (
+  options: Record<string, unknown>,
+  knownOptions: Set<string>,
+  shorthandCtx: ShorthandContext
+): NormalizeOptionsResult {
   const standardOptionNames = []
   const normalizedOptions: Record<string, unknown> = {}
   const rawCliConfig: Record<string, unknown> = {}
@@ -337,7 +355,8 @@ function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<s
     standardOptionNames.push(optionName)
   }
   const unknownOptions = getUnknownOptions(standardOptionNames, knownOptions)
-  return { options: normalizedOptions, unknownOptions, rawCliConfig }
+  const unknownOptionShorthands = attributeUnknownOptionsToShorthands(unknownOptions, knownOptions, shorthandCtx)
+  return { options: normalizedOptions, unknownOptions, unknownOptionShorthands, rawCliConfig }
 }
 
 function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): Map<string, string[]> {

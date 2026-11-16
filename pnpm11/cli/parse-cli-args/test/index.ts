@@ -148,6 +148,50 @@ test('detect unknown options', async () => {
   expect(Array.from(unknownOptions.entries())).toStrictEqual([['save-dev', []], ['qar', ['bar']]])
 })
 
+test('an unknown option that came from a shorthand is attributed to the shorthand as typed', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'update') {
+        return {
+          latest: Boolean,
+          recursive: Boolean,
+        }
+      }
+      return {}
+    },
+    universalShorthands: {
+      l: '--long',
+      L: '--latest',
+      r: '--recursive',
+      s: '--reporter=silent',
+    },
+  }
+  for (const typed of ['-l', '--l']) {
+    // eslint-disable-next-line no-await-in-loop -- the cases share one set of options and run in order
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', typed, 'foo'])
+    expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', ['-L']]])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', typed]])
+  }
+  {
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', '-rl'])
+    expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', ['-L']]])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '-l']])
+  }
+  {
+    // The other-case shorthand is not suggested when the command does not know its option
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['add', '-l'])
+    expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', []]])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '-l']])
+  }
+  {
+    // An option typed in full is reported as is
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', '--long'])
+    expect(Array.from(unknownOptions.keys())).toStrictEqual(['long'])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([])
+  }
+})
+
 test('allow any option that starts with "config."', async () => {
   const { options, unknownOptions } = await parseCliArgs({
     ...DEFAULT_OPTS,
