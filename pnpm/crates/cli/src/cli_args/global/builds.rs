@@ -11,6 +11,7 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     args.validate()?;
     let global_pkg_dir = base_config.global_pkg_dir.as_ref().ok_or(GlobalError::NoGlobalBinDir)?;
+    warn_about_legacy_global_settings::<Reporter>(base_config, global_pkg_dir)?;
     let (groups, pending) = scan_global_ignored_builds(base_config, global_pkg_dir)?;
     if pending.is_empty() && args.packages.is_empty() {
         pnpm_diagnostics::println!("There are no packages awaiting approval");
@@ -21,7 +22,6 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
         return Ok(());
     };
 
-    warn_about_legacy_global_settings::<Reporter>(base_config, global_pkg_dir)?;
     global_approval_store(base_config, global_pkg_dir)?.write_decision(&decision)?;
     let mut rebuild_groups = Vec::new();
     for (install_dir, scan) in groups {

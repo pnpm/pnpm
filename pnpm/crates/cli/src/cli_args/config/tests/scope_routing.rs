@@ -501,6 +501,7 @@ fn set_global_remote_cache_sections_writes_owner_only_permissions() {
             "global-packages-config",
             json!({ "remoteCache": { "url": "https://cache.example.com", "privateKey": "secret" } }),
         ),
+        ("global-packages-config", json!({ "_auth": "dXNlcjpzZWNyZXQ=" })),
     ] {
         let tmp = TempDir::new().unwrap();
         let config_dir = tmp.path().join("global-config");

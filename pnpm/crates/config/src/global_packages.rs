@@ -9,7 +9,7 @@ use crate::{
 /// The settings `globalPackagesConfig` names that a global group install does not
 /// apply. The group config drops them so that a caller's project cannot
 /// reach the global install through them.
-const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
+pub const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
     &["catalog", "catalogs", "overrides", "packageExtensions", "patchedDependencies"];
 
 /// The settings that decide which lifecycle scripts run.

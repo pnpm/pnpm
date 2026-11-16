@@ -754,6 +754,40 @@ fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
     drop(root);
 }
 
+/// The warning reaches a run with no build awaiting approval, which ends
+/// before any decision is written.
+#[cfg(unix)]
+#[test]
+fn approve_builds_global_reports_ignored_legacy_settings_with_nothing_pending() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(&global_pkg_dir).expect("create the global packages dir");
+    fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "trustPolicyExclude:\n  - vercel\n")
+        .expect("write the legacy settings");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["approve-builds", "-g", "--all"])
+        .output()
+        .expect("run pnpm approve-builds -g");
+
+    assert!(output.status.success(), "{output:?}");
+    let printed = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        printed.contains("do not apply to global packages: trustPolicyExclude"),
+        "the ignored legacy setting should be reported: {printed}",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// A global install must ignore a `pnpm-workspace.yaml` in the global
 /// packages directory: the per-group install dir sits under it, so an install that
 /// walked up and adopted it as a workspace would fail enumerating its
