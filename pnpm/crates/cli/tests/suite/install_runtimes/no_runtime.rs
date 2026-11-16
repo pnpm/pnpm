@@ -288,6 +288,11 @@ fn project_engines_are_checked_against_a_locked_runtime_range_resolution() {
         serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
     manifest["engines"]["node"] = json!(">=24.1.0");
     fs::write(&manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["devDependencies"]["node"]["specifier"] = json!("runtime:^24.0.0");
+    fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
 
     command(&workspace)
         .with_args(["install", "--frozen-lockfile", "--no-runtime"])
