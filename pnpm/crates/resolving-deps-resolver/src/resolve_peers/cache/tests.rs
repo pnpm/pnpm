@@ -99,8 +99,12 @@ fn equal_provisional_paths_require_matching_nested_providers() {
         cached.clone(),
         Arc::new(HashMap::from_iter([("inner".into(), cached_inner.clone())])),
     );
-    let current_ref =
-        ParentRef { node_id: Some(current.clone()), version: "1.0.0".into(), alias: None };
+    let current_ref = ParentRef {
+        node_id: Some(current.clone()),
+        version: "1.0.0".into(),
+        alias: None,
+        hoisted_provider: false,
+    };
 
     assert_eq!(walker.provider_identity_match(&current, &cached), CacheMatch::Ambiguous);
     assert!(!walker.parent_ref_matches_cached(&current_ref, &cached));

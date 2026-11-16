@@ -38,6 +38,7 @@ function cacheItemMatchesParentPkgs<Pkg extends PartialResolvedPackage> (
   cache: PeersCacheItem
 ): boolean {
   for (const [name, cachedNodeId] of cache.resolvedPeers) {
+    if (Boolean(parentPkgs[name]?.hoistedPeerProvider) !== cache.hoistedPeerProviderPeers.has(name)) return false
     if (!cachedPeerMatches(ctx, parentPkgs[name]?.nodeId, cachedNodeId)) return false
   }
   for (const missingPeer of cache.missingPeers.keys()) {

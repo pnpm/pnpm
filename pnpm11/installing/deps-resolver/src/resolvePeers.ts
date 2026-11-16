@@ -151,7 +151,6 @@ function createSharedPeersContext<Pkg extends PartialResolvedPackage> (opts: Res
     purePkgs: new Set<PkgIdWithPatchHash>(),
     dedupePeers: opts.dedupePeers,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
-    hoistedPeerProviderNodeIds: new Set(opts.projects.flatMap((project) => [...project.hoistedPeerProviderNodeIds ?? []])),
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   }

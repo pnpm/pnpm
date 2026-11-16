@@ -44,7 +44,7 @@ fn importer_parent_refs_skip_direct_deps_irrelevant_by_alias_and_real_name() {
     };
     let walker = walker_for_tests(&mut tree);
 
-    let refs = walker.build_importer_parents_from(&walker.tree.direct);
+    let refs = walker.build_importer_parents_from(&walker.tree.direct, &HashSet::default());
 
     assert!(refs.contains_key("alias-peer"));
     assert!(refs.contains_key("peer-c1"));

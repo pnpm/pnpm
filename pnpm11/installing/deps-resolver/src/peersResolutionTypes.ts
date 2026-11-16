@@ -89,6 +89,10 @@ export type MissingPeers = Map<string, MissingPeerInfo>
 export interface PeersCacheItem {
   depPath: DeferredPromise<DepPath>
   resolvedPeers: Map<string, NodeId>
+  // The names in resolvedPeers bound through a ParentRef.hoistedPeerProvider.
+  // A hit needs the same provenance, since only a hoisted provider is
+  // range-checked for an optional peer.
+  hoistedPeerProviderPeers: Set<string>
   missingPeers: MissingPeers
   // The node whose resolution created this entry and will resolve depPath.
   // See breakDepPathAwaitCycles.
@@ -137,8 +141,6 @@ export interface ResolveNodePeersContext<Pkg extends PartialResolvedPackage> ext
   rootDir: ProjectRootDir
   lockfileDir: string
   peersSuffixMaxLength: number
-  /** Every project's `hoistedPeerProviderNodeIds`. */
-  hoistedPeerProviderNodeIds: Set<NodeId>
 }
 
 export interface CurrentProviderSource {
@@ -176,6 +178,11 @@ export interface ParentRef {
   alias?: string
   occurrence: number
   parentNodeIds: NodeId[]
+  /**
+   * Set when the project has this provider only because it was hoisted for
+   * another subtree's peer. See ProjectToResolve.hoistedPeerProviderNodeIds.
+   */
+  hoistedPeerProvider?: true
 }
 
 export interface ParentPkgNode<Pkg> {
@@ -183,4 +190,5 @@ export interface ParentPkgNode<Pkg> {
   nodeId: NodeId
   node: DependenciesTreeNode<Pkg>
   parentNodeIds: NodeId[]
+  hoistedPeerProvider?: true
 }

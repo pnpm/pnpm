@@ -2623,80 +2623,107 @@ test('a peer cycle between an own direct dependency and a hoisted peer provider 
 })
 
 describe('an optional peer provided by a hoisted peer provider', () => {
-  // toolkit resolves plugin@1.0.0 for its own uses-plugin, which hoists
-  // plugin to the project as a peer provider. linter is a sibling of toolkit.
-  async function resolveLinter (linterPluginRange: string): Promise<DepPath | undefined> {
-    function packageOf (name: string, version: string, peers: PeerDependencies = {}): PartialResolvedPackage {
-      return {
-        name,
-        pkgIdWithPatchHash: `${name}@${version}` as PkgIdWithPatchHash,
-        version,
-        peers: peerSetOf(peers),
-        id: '' as PkgResolutionId,
-      }
+  // linter has an optional peer on plugin. toolkit resolves plugin@1.0.0 for
+  // its own uses-plugin, which hoists plugin to a project that does not
+  // declare it. plugin is a leaf, so every occurrence shares one node ID.
+  const pluginNodeId = 'plugin@1.0.0' as NodeId
+
+  function packageOf (name: string, version: string, peers: PeerDependencies = {}): PartialResolvedPackage {
+    return {
+      name,
+      pkgIdWithPatchHash: `${name}@${version}` as PkgIdWithPatchHash,
+      version,
+      peers: peerSetOf(peers),
+      id: '' as PkgResolutionId,
     }
-    const pluginNodeId = '>toolkit@1.0.0>plugin@1.0.0>' as NodeId
-    const { dependenciesByProjectId } = await resolvePeers({
-      allPeerDepNames: new Set(['plugin']),
-      projects: [
-        {
-          directNodeIdsByAlias: new Map([
-            ['linter', '>linter@2.0.0>' as NodeId],
-            ['toolkit', '>toolkit@1.0.0>' as NodeId],
-            ['plugin', pluginNodeId],
-          ]),
+  }
+
+  function linterNode (linterPluginRange: string): DependenciesTreeNode<PartialResolvedPackage> {
+    return {
+      children: {},
+      installable: true,
+      resolvedPackage: packageOf('linter', '2.0.0', { plugin: { version: linterPluginRange, optional: true } }),
+      depth: 0,
+    }
+  }
+
+  async function resolveLinters (
+    linterPluginRange: string,
+    projectIds: string[]
+  ): Promise<Record<string, DepPath | undefined>> {
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>toolkit@1.0.0>' as NodeId, {
+        children: {
+          'uses-plugin': '>toolkit@1.0.0>uses-plugin@1.0.0>' as NodeId,
+          plugin: pluginNodeId,
+        },
+        installable: true,
+        resolvedPackage: packageOf('toolkit', '1.0.0'),
+        depth: 0,
+      }],
+      ['>toolkit@1.0.0>uses-plugin@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: packageOf('uses-plugin', '1.0.0', { plugin: { version: '^1.0.0', optional: true } }),
+        depth: 1,
+      }],
+      [pluginNodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: packageOf('plugin', '1.0.0'),
+        depth: 1,
+      }],
+    ])
+    const projects = projectIds.map((id) => {
+      const linterNodeId = `>${id}>linter@2.0.0>` as NodeId
+      dependenciesTree.set(linterNodeId, linterNode(linterPluginRange))
+      // Project "b" declares plugin itself. Every other project gets it hoisted from toolkit.
+      return id === 'b'
+        ? {
+          directNodeIdsByAlias: new Map([['linter', linterNodeId], ['plugin', pluginNodeId]]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id,
+        }
+        : {
+          directNodeIdsByAlias: new Map([['linter', linterNodeId], ['toolkit', '>toolkit@1.0.0>' as NodeId], ['plugin', pluginNodeId]]),
           hoistedPeerProviderNodeIds: new Set([pluginNodeId]),
           topParents: [],
           rootDir: '' as ProjectRootDir,
-          id: '.',
-        },
-      ],
+          id,
+        }
+    })
+    const { dependenciesByProjectId } = await resolvePeers({
+      allPeerDepNames: new Set(['plugin']),
+      projects,
       resolvedImporters: {},
-      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
-        ['>linter@2.0.0>' as NodeId, {
-          children: {},
-          installable: true,
-          resolvedPackage: packageOf('linter', '2.0.0', { plugin: { version: linterPluginRange, optional: true } }),
-          depth: 0,
-        }],
-        ['>toolkit@1.0.0>' as NodeId, {
-          children: {
-            'uses-plugin': '>toolkit@1.0.0>uses-plugin@1.0.0>' as NodeId,
-            plugin: pluginNodeId,
-          },
-          installable: true,
-          resolvedPackage: packageOf('toolkit', '1.0.0'),
-          depth: 0,
-        }],
-        ['>toolkit@1.0.0>uses-plugin@1.0.0>' as NodeId, {
-          children: {},
-          installable: true,
-          resolvedPackage: packageOf('uses-plugin', '1.0.0', { plugin: { version: '^1.0.0', optional: true } }),
-          depth: 1,
-        }],
-        [pluginNodeId, {
-          children: {},
-          installable: true,
-          resolvedPackage: packageOf('plugin', '1.0.0'),
-          depth: 1,
-        }],
-      ]),
+      dependenciesTree,
       virtualStoreDir: '',
       lockfileDir: '',
       virtualStoreDirMaxLength: 120,
       peersSuffixMaxLength: 1000,
       workspaceProjectIds: new Set(),
     })
-    return dependenciesByProjectId['.'].get('linter')
+    return Object.fromEntries(projectIds.map((id) => [id, dependenciesByProjectId[id].get('linter')]))
   }
 
   // https://github.com/pnpm/pnpm/issues/18162
   test('is not bound outside the peer range', async () => {
-    expect(await resolveLinter('^2.0.0')).toBe('linter@2.0.0')
+    expect(await resolveLinters('^2.0.0', ['.'])).toStrictEqual({ '.': 'linter@2.0.0' })
   })
 
   test('is bound inside the peer range', async () => {
-    expect(await resolveLinter('>=1.0.0')).toBe('linter@2.0.0(plugin@1.0.0)')
+    expect(await resolveLinters('>=1.0.0', ['.'])).toStrictEqual({ '.': 'linter@2.0.0(plugin@1.0.0)' })
+  })
+
+  test.each([
+    [['a', 'b']],
+    [['b', 'a']],
+  ])('does not change the binding of a project that declares the same provider (projects %j)', async (projectIds) => {
+    expect(await resolveLinters('^2.0.0', projectIds)).toStrictEqual({
+      a: 'linter@2.0.0',
+      b: 'linter@2.0.0(plugin@1.0.0)',
+    })
   })
 })
 

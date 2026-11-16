@@ -258,7 +258,7 @@ impl Walker<'_> {
         let subtree_dep_paths = self.record_walk_result(
             node_id,
             &entry.pkg.id,
-            &settled.as_walk_result(),
+            &settled.as_walk_result(walk.parent_refs),
             &mut walked.outputs.dep_path_subtrees,
         );
         match self.traversal.mode {

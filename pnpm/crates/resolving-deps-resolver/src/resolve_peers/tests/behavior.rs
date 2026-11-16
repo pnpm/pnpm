@@ -303,7 +303,8 @@ fn a_backedge_cut_subtree_is_pure() {
     );
     let direct = tree.direct.clone();
     let mut walker = crate::resolve_peers::test_support::walker_for_tests(&mut tree);
-    let importer_parents = Arc::new(walker.build_importer_parents_from(&direct));
+    let importer_parents =
+        Arc::new(walker.build_importer_parents_from(&direct, &HashSet::default()));
     let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
     for dep in &direct {
         walker.resolve_node(

@@ -96,6 +96,7 @@ function addChildrenToParentPkgs<Pkg extends PartialResolvedPackage> (
       continue
     }
     if (
+      !inheritedParentPkg.hoistedPeerProvider &&
       parentPkgsMatch(ctx.dependenciesTree, inheritedParentPkg, newParentPkg) &&
       !inheritedParentPkgBreaksPeerDiamond(ctx, parentPkgs, { inheritedParentPkg, ownChildParentPkg: newParentPkg, children })
     ) continue
@@ -193,7 +194,6 @@ async function resolveUncachedPeersOfNode<Pkg extends PartialResolvedPackage> (
     : resolvePeersFromParents({
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
-      hoistedPeerProviderNodeIds: ctx.hoistedPeerProviderNodeIds,
       lockfileDir: ctx.lockfileDir,
       nodeId,
       parentPkgs: opts.parentPkgs,
@@ -216,7 +216,7 @@ async function resolveUncachedPeersOfNode<Pkg extends PartialResolvedPackage> (
     missingPeers: allMissingPeers,
     calculateDepPath: addDepPathOrDeferCalculation(ctx, {
       ...opts,
-      cache: cachePeersResolution(ctx, { resolvedPackage, nodeId, isPure, allResolvedPeers, allMissingPeers }),
+      cache: cachePeersResolution(ctx, { resolvedPackage, nodeId, isPure, allResolvedPeers, allMissingPeers, parentPkgs: opts.parentPkgs }),
       isPure,
       allResolvedPeers,
       ownResolvedPeers: ownPeers.resolvedPeers,
@@ -246,6 +246,7 @@ function cachePeersResolution<Pkg extends PartialResolvedPackage> (
     isPure: boolean
     allResolvedPeers: Map<string, NodeId>
     allMissingPeers: MissingPeers
+    parentPkgs: ParentRefs
   }
 ): PeersCacheItem | undefined {
   const { pkgIdWithPatchHash } = opts.resolvedPackage
@@ -269,6 +270,7 @@ function cachePeersResolution<Pkg extends PartialResolvedPackage> (
     missingPeers: opts.allMissingPeers,
     depPath: pDefer(),
     resolvedPeers: opts.allResolvedPeers,
+    hoistedPeerProviderPeers: new Set([...opts.allResolvedPeers.keys()].filter((name) => opts.parentPkgs[name]?.hoistedPeerProvider)),
     ownerNodeId: opts.nodeId,
   }
   if (ctx.peersCache.has(pkgIdWithPatchHash)) {

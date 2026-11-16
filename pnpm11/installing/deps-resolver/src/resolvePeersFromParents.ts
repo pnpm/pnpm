@@ -22,7 +22,6 @@ type PeerIssues = Pick<PeerDependencyIssues, 'bad' | 'missing'>
 
 interface ResolvePeersFromParentsContext<Pkg extends PartialResolvedPackage> {
   currentDepth: number
-  hoistedPeerProviderNodeIds: Set<NodeId>
   lockfileDir: string
   nodeId: NodeId
   parentPkgs: ParentRefs
@@ -42,7 +41,7 @@ export function resolvePeersFromParents<Pkg extends PartialResolvedPackage> (
     const peerVersionRange = getPeerVersionRange(version)
 
     const optionalPeer = optional === true
-    const inherited = inheritedProvider(ctx, { peerName, peerVersionRange, optional: optionalPeer })
+    const inherited = inheritedProvider(ctx.parentPkgs, { peerName, peerVersionRange, optional: optionalPeer })
     const pick = providerFor(version, { inherited, inheritedMustWin: () => false })
 
     if (pick.kind === 'missing') {
@@ -62,19 +61,17 @@ export function resolvePeersFromParents<Pkg extends PartialResolvedPackage> (
 }
 
 /**
- * A hoisted peer provider is visible to the whole project, not only to the
- * subtree that resolved it. Like an optional peer hoist, it binds an optional
- * peer only inside the peer's range.
+ * Like an optional peer hoist, a ParentRef.hoistedPeerProvider binds an
+ * optional peer only inside the peer's range.
  */
 function inheritedProvider (
-  ctx: Pick<ResolvePeersFromParentsContext<PartialResolvedPackage>, 'hoistedPeerProviderNodeIds' | 'parentPkgs'>,
+  parentPkgs: ParentRefs,
   peer: { peerName: string, peerVersionRange: string, optional: boolean }
 ): ParentRef | undefined {
-  if (!Object.hasOwn(ctx.parentPkgs, peer.peerName)) return undefined
-  const provider = ctx.parentPkgs[peer.peerName]
-  const isHoistedOutsideRange = peer.optional &&
-    provider.nodeId != null &&
-    ctx.hoistedPeerProviderNodeIds.has(provider.nodeId) &&
+  if (!Object.hasOwn(parentPkgs, peer.peerName)) return undefined
+  const provider = parentPkgs[peer.peerName]
+  const isHoistedOutsideRange = provider.hoistedPeerProvider === true &&
+    peer.optional &&
     !semverUtils.satisfiesWithPrereleases(provider.version, peer.peerVersionRange, true)
   return isHoistedOutsideRange ? undefined : provider
 }
