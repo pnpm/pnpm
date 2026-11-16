@@ -111,7 +111,8 @@ test('tarballs from GitHub (is-negative)', async () => {
 
 test('falls back to GET when HEAD returns 405 Method Not Allowed (immutable)', async () => {
   const calls: string[] = []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let getBodyCancelled = false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a partial Response stub is enough for the resolver
   const fetch: any = async (url: string, opts: { method: string }) => {
     calls.push(opts.method)
     if (opts.method === 'HEAD') {
@@ -123,6 +124,11 @@ test('falls back to GET when HEAD returns 405 Method Not Allowed (immutable)', a
       status: 200,
       url: 'https://pkg.pr.new/canonical/pkg@123',
       headers: new Map([['cache-control', 'immutable']]),
+      body: {
+        cancel: async () => {
+          getBodyCancelled = true
+        },
+      },
     }
   }
   const resolutionResult = await _resolveFromTarball(fetch, {
@@ -130,6 +136,7 @@ test('falls back to GET when HEAD returns 405 Method Not Allowed (immutable)', a
   })
 
   expect(calls).toEqual(['HEAD', 'GET'])
+  expect(getBodyCancelled).toBe(true)
   expect(resolutionResult).toStrictEqual({
     id: 'https://pkg.pr.new/foo/bar@1.0.0',
     normalizedBareSpecifier: 'https://pkg.pr.new/foo/bar@1.0.0',

@@ -29,9 +29,7 @@ export async function resolveFromTarball (
   } else {
     resolvedUrl = normalizedBareSpecifier
   }
-  if (response.body?.cancel) {
-    await response.body.cancel().catch(() => {})
-  }
+  await response.body?.cancel()
 
   return {
     id: normalizedBareSpecifier as PkgResolutionId,

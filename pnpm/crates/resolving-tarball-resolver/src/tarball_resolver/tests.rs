@@ -174,15 +174,17 @@ async fn resolve_latest_returns_none_for_non_http_specifiers() {
 #[tokio::test]
 async fn method_not_allowed_on_head_falls_back_to_get() {
     let mut server = mockito::Server::new_async().await;
-    let _mock_head = server
+    let mock_head = server
         .mock("HEAD", "/pkg-1.0.0.tgz")
         .with_status(405)
+        .expect(1)
         .create_async()
         .await;
-    let _mock_get = server
+    let mock_get = server
         .mock("GET", "/pkg-1.0.0.tgz")
         .with_status(200)
         .with_header("cache-control", "immutable")
+        .expect(1)
         .create_async()
         .await;
     let url = format!("{}/pkg-1.0.0.tgz", server.url());
@@ -200,6 +202,8 @@ async fn method_not_allowed_on_head_falls_back_to_get() {
         .expect("claim");
 
     assert_eq!(tarball_url(&result.resolution), url);
+    mock_head.assert_async().await;
+    mock_get.assert_async().await;
 }
 
 #[tokio::test]
