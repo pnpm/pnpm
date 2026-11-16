@@ -113,7 +113,8 @@ function downloadedRuntimeVersion (specifier: string): string | undefined {
     : specifier.startsWith('tool:')
       ? specifier.slice('tool:'.length)
       : undefined
-  return version == null ? undefined : semver.minVersion(version)?.version
+  if (version == null || semver.validRange(version) == null) return undefined
+  return semver.minVersion(version)?.version
 }
 
 function findDeclaredNodeRuntime (

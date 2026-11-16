@@ -62,6 +62,15 @@ test('getDownloadedNodeVersionFromEnginesRuntime() keeps a different direct runt
   }, 'ignore', 'dependencies')).toBe('22.0.0')
 })
 
+test('getDownloadedNodeVersionFromEnginesRuntime() defers runtime aliases to resolution', () => {
+  for (const version of ['latest', 'lts', 'rc/22']) {
+    expect(getDownloadedNodeVersionFromEnginesRuntime({
+      devEngines: { runtime: { name: 'node', version, onFail: 'download' } },
+      devDependencies: { node: `runtime:${version}` },
+    })).toBeUndefined()
+  }
+})
+
 test('getDownloadedNodeVersionFromEnginesRuntime() falls back to engines.runtime when devEngines.runtime has no version', () => {
   expect(getDownloadedNodeVersionFromEnginesRuntime({
     devEngines: { runtime: { name: 'node', onFail: 'download' } },
