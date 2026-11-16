@@ -514,7 +514,7 @@ const SETTINGS_NOT_READ_FROM_ENV: &[&str] = &[
     "macosBackup",
     // A section of the global `config.yaml`, which `PNPM_CONFIG_*` overrides
     // setting by setting.
-    "globalPackages",
+    "globalPackagesConfig",
     // Read with the auth files, not through the overlay.
     "_auth",
     "npmrcAuthFile",

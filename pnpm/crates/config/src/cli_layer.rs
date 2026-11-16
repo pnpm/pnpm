@@ -31,7 +31,7 @@ pub struct CliLayer {
 
     /// What the command acts on. `-g` selects
     /// [`CommandTarget::GlobalPackages`](crate::CommandTarget::GlobalPackages),
-    /// which applies [`Config::global_packages`].
+    /// which applies [`Config::global_packages_config`].
     pub command_target: crate::CommandTarget,
 }
 

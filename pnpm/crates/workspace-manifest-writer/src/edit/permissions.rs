@@ -25,7 +25,7 @@ pub(crate) fn set_permission(
     )
 }
 
-/// Upsert `globalPackages.allowBuilds.<pkg>: <allowed>` in the global
+/// Upsert `globalPackagesConfig.allowBuilds.<pkg>: <allowed>` in the global
 /// `config.yaml`. Returns whether anything changed.
 pub(crate) fn set_global_packages_allow_build(
     manifest: &mut Manifest,
@@ -34,7 +34,7 @@ pub(crate) fn set_global_packages_allow_build(
 ) -> bool {
     set_nested_entry(
         manifest,
-        ["globalPackages", "allowBuilds"],
+        ["globalPackagesConfig", "allowBuilds"],
         pkg,
         (render_bool(allowed), &serde_json::Value::Bool(allowed)),
     )

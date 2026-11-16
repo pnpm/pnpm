@@ -8,7 +8,7 @@ const GLOBAL_CONFIG: &str = "\
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - from-the-top-level
-globalPackages:
+globalPackagesConfig:
   trustPolicyExclude:
     - from-global-packages
   allowBuilds:
@@ -75,13 +75,13 @@ fn global_packages_settings_do_not_apply_to_a_project_load() {
 
     assert_eq!(config.trust_policy_exclude, Some(vec!["from-the-top-level".to_string()]));
     assert_eq!(config.allow_builds.get("esbuild"), None);
-    assert!(config.global_packages.is_some());
+    assert!(config.global_packages_config.is_some());
 }
 
 #[test]
 fn environment_overrides_global_packages_settings() {
     fake_env!();
-    let machine = Machine::with_global_config("globalPackages:\n  trustPolicy: off\n");
+    let machine = Machine::with_global_config("globalPackagesConfig:\n  trustPolicy: off\n");
     set_fake_env(&[
         ("XDG_CONFIG_HOME", machine.xdg_config_home()),
         ("PNPM_CONFIG_TRUST_POLICY", "no-downgrade"),
@@ -99,7 +99,7 @@ fn a_project_manifest_cannot_set_global_packages_settings() {
     let machine = Machine::with_global_config("");
     write_file(
         &machine.pnpm_home.path().join("pnpm-workspace.yaml"),
-        "globalPackages:\n  trustPolicyExclude:\n    - from-a-project\n",
+        "globalPackagesConfig:\n  trustPolicyExclude:\n    - from-a-project\n",
     );
     set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
 
@@ -107,14 +107,14 @@ fn a_project_manifest_cannot_set_global_packages_settings() {
         global_packages_load().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
 
     assert_eq!(config.trust_policy_exclude, None);
-    assert_eq!(config.workspace_key_issues.refused, ["globalPackages"]);
+    assert_eq!(config.workspace_key_issues.refused, ["globalPackagesConfig"]);
 }
 
 #[test]
 fn unsupported_global_packages_settings_are_reported() {
     fake_env!();
     let machine = Machine::with_global_config(
-        "globalPackages:\n  overrides:\n    foo: 1.0.0\n  trustPolicyExclude:\n    - bar\n",
+        "globalPackagesConfig:\n  overrides:\n    foo: 1.0.0\n  trustPolicyExclude:\n    - bar\n",
     );
     set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
 
@@ -123,6 +123,6 @@ fn unsupported_global_packages_settings_are_reported() {
 
     assert_eq!(
         config.npmrc_warnings,
-        ["These globalPackages settings are not supported and are ignored: overrides"],
+        ["These globalPackagesConfig settings are not supported and are ignored: overrides"],
     );
 }

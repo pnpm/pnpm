@@ -1,4 +1,4 @@
-//! The build policy of the global packages: `globalPackages` in the global
+//! The build policy of the global packages: `globalPackagesConfig` in the global
 //! `config.yaml`, laid over the decisions the global packages directory's
 //! `pnpm-workspace.yaml` still holds.
 
@@ -29,7 +29,7 @@ pub(super) fn apply_global_build_policy(
     if let Some((_, settings)) = load_legacy_global_settings(global_pkg_dir)? {
         overlay_build_policy(cfg, &settings);
     }
-    if let Some(settings) = cfg.global_packages.clone() {
+    if let Some(settings) = cfg.global_packages_config.clone() {
         overlay_build_policy(cfg, &settings);
     }
     Ok(())
@@ -62,7 +62,7 @@ pub(super) fn warn_about_legacy_build_settings<Reporter: self::Reporter>(
         );
     let path = path.display();
     emit_global_warning::<Reporter>(&format!(
-        "The build settings in {path} are deprecated. Move them under globalPackages in {global_config}.",
+        "The build settings in {path} are deprecated. Move them under globalPackagesConfig in {global_config}.",
     ));
     Ok(())
 }

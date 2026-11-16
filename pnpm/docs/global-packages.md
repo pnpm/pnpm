@@ -298,7 +298,7 @@ This registers the package's `bin` entries so they can be invoked from anywhere.
 
 ## Configuration
 
-Global packages use the [global configuration](./configuring.md#global-configuration). To change a setting only for global packages, set it under [`globalPackages`](./configuring.md#settings-for-global-packages) in the global `config.yaml`.
+Global packages use the [global configuration](./configuring.md#global-configuration). To change a setting only for global packages, set it under [`globalPackagesConfig`](./configuring.md#settings-for-global-packages) in the global `config.yaml`.
 
 ## Build script approval
 
@@ -313,7 +313,7 @@ pnpm add -g --allow-build=esbuild esbuild
 [`pnpm approve-builds --global`](./cli/approve-builds.md#--global--g)
 lets you decide after the fact instead. It collects the packages awaiting approval from every
 install group, asks about them once, and writes the decisions to
-`globalPackages.allowBuilds` in the global `config.yaml`, then rebuilds only the
+`globalPackagesConfig.allowBuilds` in the global `config.yaml`, then rebuilds only the
 groups that contain something you approved:
 
 ```sh

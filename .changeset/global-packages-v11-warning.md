@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-The warning about unrecognized settings in the global `config.yaml` now names `globalPackages` as a pnpm v12 setting.
+The warning about unrecognized settings in the global `config.yaml` now names `globalPackagesConfig` as a pnpm v12 setting.

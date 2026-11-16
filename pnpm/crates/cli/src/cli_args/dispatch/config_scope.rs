@@ -5,7 +5,7 @@ use crate::cli_args::config_warnings::ConfigWarnings;
 use pnpm_config::CommandTarget;
 
 /// Which config a command loads: the one anchored at `--dir`, or the one
-/// anchored at the pnpm home, with or without the `globalPackages` settings.
+/// anchored at the pnpm home, with or without the `globalPackagesConfig` settings.
 #[derive(Clone, Copy)]
 pub(super) enum ConfigScope {
     Dir,

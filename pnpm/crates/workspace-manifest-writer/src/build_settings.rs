@@ -38,7 +38,7 @@ where
     update_allow_builds(dir, entries, false)
 }
 
-/// Upsert `name → bool` entries into `globalPackages.allowBuilds` of the
+/// Upsert `name → bool` entries into `globalPackagesConfig.allowBuilds` of the
 /// global `config.yaml` at `path`, creating the file, its directory, and the
 /// section if absent. Preserves the rest of the document's formatting, and
 /// writes the file back only when something changed.
@@ -56,7 +56,7 @@ where
         &manifest,
         path,
         &entries,
-        &[&["globalPackages"], &["globalPackages", "allowBuilds"]],
+        &[&["globalPackagesConfig"], &["globalPackagesConfig", "allowBuilds"]],
     )?;
     let mut changed = false;
     for (name, value) in entries {

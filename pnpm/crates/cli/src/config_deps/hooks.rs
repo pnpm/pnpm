@@ -225,7 +225,7 @@ fn manifest_catalogs_value(root_dir: &Path) -> Result<Value> {
 /// which decide the builds a global install runs. Repository-controlled hooks
 /// may neither read nor rewrite them.
 const HIDDEN_FROM_HOOKS: [&str; 3] =
-    ["globalPackages", "macosBackup", "symlinkedLockfileTargetDirs"];
+    ["globalPackagesConfig", "macosBackup", "symlinkedLockfileTargetDirs"];
 
 /// Seed the hook input with the values pnpm resolves outside
 /// [`WorkspaceSettings`], so a hook can read and extend them. They are

@@ -22,7 +22,7 @@ pub(crate) enum ApprovalStore<'a> {
     /// The `pnpm-workspace.yaml` of this directory: the workspace root, or
     /// the project outside a workspace.
     Workspace(&'a Path),
-    /// `globalPackages.allowBuilds` in the global `config.yaml`.
+    /// `globalPackagesConfig.allowBuilds` in the global `config.yaml`.
     GlobalPackages(GlobalPackagesStore<'a>),
 }
 
@@ -32,7 +32,7 @@ pub(crate) struct GlobalPackagesStore<'a> {
     /// The directory of the global `config.yaml`.
     pub(crate) config_dir: &'a Path,
     /// The global packages directory. Its `pnpm-workspace.yaml` held the
-    /// decisions before `globalPackages`, and is still read.
+    /// decisions before `globalPackagesConfig`, and is still read.
     pub(crate) global_pkg_dir: &'a Path,
 }
 
@@ -94,9 +94,9 @@ impl ApprovalStore<'_> {
 }
 
 impl GlobalPackagesStore<'_> {
-    /// Write `entries` to `globalPackages.allowBuilds`, moving the decisions
+    /// Write `entries` to `globalPackagesConfig.allowBuilds`, moving the decisions
     /// the global packages directory's `pnpm-workspace.yaml` still holds
-    /// along with them. A decision already in `globalPackages` outranks the
+    /// along with them. A decision already in `globalPackagesConfig` outranks the
     /// one it would move.
     fn write<'entry>(
         self,
@@ -139,13 +139,13 @@ impl GlobalPackagesStore<'_> {
         Ok(TrustedSettings::load_global(self.config_dir)
             .map_err(miette::Report::new)
             .wrap_err("load the global configuration")?
-            .and_then(|settings| settings.machine.global_packages)
+            .and_then(|settings| settings.machine.global_packages_config)
             .map(|settings| *settings))
     }
 }
 
 /// The `pnpm-workspace.yaml` of the global packages directory, which held
-/// the build decisions of the global packages before `globalPackages`.
+/// the build decisions of the global packages before `globalPackagesConfig`.
 pub(crate) fn load_legacy_global_settings(
     global_pkg_dir: &Path,
 ) -> miette::Result<Option<(PathBuf, WorkspaceSettings)>> {

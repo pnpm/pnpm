@@ -52,7 +52,7 @@ impl TrustedSettings {
             },
         };
         let sections = std::iter::once(&mut settings.settings)
-            .chain(settings.machine.global_packages.as_deref_mut());
+            .chain(settings.machine.global_packages_config.as_deref_mut());
         for section in sections {
             if settings_read.skips_unreadable() {
                 section.drop_invalid_sections();

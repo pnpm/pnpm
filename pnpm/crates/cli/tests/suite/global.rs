@@ -559,7 +559,7 @@ fn global_config_yaml(pnpm_home: &Path) -> PathBuf {
 }
 
 /// A build approved during a global install must persist to
-/// `globalPackages` in the global `config.yaml` (where the next global
+/// `globalPackagesConfig` in the global `config.yaml` (where the next global
 /// install reads it back), not to the throwaway per-group install dir.
 /// Regression test: the group install pins `workspace_dir` to the install
 /// dir, which `approve-builds` would otherwise use as the `allowBuilds`
@@ -588,7 +588,7 @@ fn global_add_persists_build_approvals_to_the_global_config() {
         .expect("allowBuilds should persist to the global config");
     assert_eq!(
         config_yaml,
-        "globalPackages:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n",
+        "globalPackagesConfig:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n",
     );
     assert!(!global_pkg_dir.join("pnpm-workspace.yaml").exists());
 
@@ -659,7 +659,7 @@ fn approve_builds_global_approves_every_install_group() {
     drop(root);
 }
 
-/// `globalPackages.allowBuilds` in the global `config.yaml` decides which
+/// `globalPackagesConfig.allowBuilds` in the global `config.yaml` decides which
 /// builds a global install runs.
 #[cfg(unix)]
 #[test]
@@ -675,7 +675,7 @@ fn global_add_runs_the_builds_global_packages_allows() {
     fs::create_dir_all(config_yaml.parent().unwrap()).expect("create the global config dir");
     fs::write(
         &config_yaml,
-        "globalPackages:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n",
+        "globalPackagesConfig:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n",
     )
     .expect("write the global config");
 
@@ -690,14 +690,14 @@ fn global_add_runs_the_builds_global_packages_allows() {
             .expect("find install-script group")
             .install_dir
             .join("node_modules/@pnpm.e2e/install-script-example/generated-by-install.js");
-    assert!(generated.exists(), "the build allowed in globalPackages should run");
+    assert!(generated.exists(), "the build allowed in globalPackagesConfig should run");
 
     drop(npmrc_info);
     drop(root);
 }
 
 /// The build decisions the global packages directory's `pnpm-workspace.yaml`
-/// held before `globalPackages` still apply, with a deprecation warning, and
+/// held before `globalPackagesConfig` still apply, with a deprecation warning, and
 /// the next approval moves them into the global `config.yaml`.
 #[cfg(unix)]
 #[test]
@@ -736,7 +736,7 @@ fn approve_builds_global_moves_the_decisions_of_the_global_packages_dir() {
 
     assert_eq!(
         fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read the global config"),
-        "globalPackages:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n    '@pnpm.e2e/legacy-decision': false\n",
+        "globalPackagesConfig:\n  allowBuilds:\n    '@pnpm.e2e/install-script-example': true\n    '@pnpm.e2e/legacy-decision': false\n",
     );
     assert!(!legacy_yaml.exists(), "the moved decisions should leave the legacy file");
 

@@ -826,20 +826,20 @@ async fn update_config_hook_cannot_read_or_change_the_global_packages_settings()
     fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) { if ('globalPackages' in config) throw new Error('global packages settings leaked'); config.globalPackages = { dangerouslyAllowAllBuilds: true }; return config } } }",
+        "module.exports = { hooks: { updateConfig (config) { if ('globalPackagesConfig' in config) throw new Error('global packages settings leaked'); config.globalPackagesConfig = { dangerouslyAllowAllBuilds: true }; return config } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
-    let global_packages = std::sync::Arc::new(pnpm_config::WorkspaceSettings {
+    let global_packages_config = std::sync::Arc::new(pnpm_config::WorkspaceSettings {
         trust_policy_exclude: Some(vec!["vercel".to_string()]),
         ..pnpm_config::WorkspaceSettings::default()
     });
-    config.global_packages = Some(std::sync::Arc::clone(&global_packages));
+    config.global_packages_config = Some(std::sync::Arc::clone(&global_packages_config));
 
     run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
-    assert_eq!(config.global_packages, Some(global_packages));
+    assert_eq!(config.global_packages_config, Some(global_packages_config));
 }
 
 /// `Accept` header the resolver sends for full metadata

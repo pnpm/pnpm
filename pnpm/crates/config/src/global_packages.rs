@@ -1,4 +1,4 @@
-//! `globalPackages`: the settings of the global packages, kept in the global
+//! `globalPackagesConfig`: the settings of the global packages, kept in the global
 //! `config.yaml` and applied only by the commands that act on them.
 
 use crate::{
@@ -15,14 +15,14 @@ pub enum CommandTarget {
     GlobalPackages,
 }
 
-/// The settings `globalPackages` names that a global group install does not
+/// The settings `globalPackagesConfig` names that a global group install does not
 /// apply. The group config drops them so that a caller's project cannot
 /// reach the global install through them.
 pub const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
     &["catalog", "catalogs", "overrides", "packageExtensions", "patchedDependencies"];
 
 impl Config {
-    /// Apply [`Config::global_packages`] when the command acts on the global
+    /// Apply [`Config::global_packages_config`] when the command acts on the global
     /// packages, in the slot of the workspace layer. Relative paths resolve
     /// against [`Config::dir`], as the rest of the global `config.yaml` does.
     pub(super) fn apply_global_packages_layer(
@@ -33,7 +33,7 @@ impl Config {
         if self.cli.command_target != CommandTarget::GlobalPackages {
             return;
         }
-        let Some(settings) = self.global_packages.as_deref().cloned() else {
+        let Some(settings) = self.global_packages_config.as_deref().cloned() else {
             return;
         };
         self.warn_about_unsupported_global_packages_keys(&settings);
@@ -60,7 +60,7 @@ impl Config {
             .collect();
         if !ignored.is_empty() {
             self.npmrc_warnings.push(format!(
-                "These globalPackages settings are not supported and are ignored: {}",
+                "These globalPackagesConfig settings are not supported and are ignored: {}",
                 ignored.join(", "),
             ));
         }

@@ -272,11 +272,11 @@ pub struct Config {
     /// switch out.
     pub settings_read: crate::SettingsRead,
 
-    /// `globalPackages` from the global `config.yaml`. A `-g` command applies
+    /// `globalPackagesConfig` from the global `config.yaml`. A `-g` command applies
     /// it where a project command applies its `pnpm-workspace.yaml`: above the
     /// rest of `config.yaml`, below `PNPM_CONFIG_*` and the command line. See
     /// [`CliLayer::command_target`](crate::CliLayer::command_target).
-    pub global_packages: Option<std::sync::Arc<workspace_yaml::WorkspaceSettings>>,
+    pub global_packages_config: Option<std::sync::Arc<workspace_yaml::WorkspaceSettings>>,
 
     /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
     /// left the default store unplaced, still on the home volume.

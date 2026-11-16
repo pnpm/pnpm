@@ -64,9 +64,9 @@ pub struct MachineSettings {
     /// file the user can write.
     pub symlinked_lockfile_target_dirs: Option<Vec<String>>,
     /// The settings of the global packages, which only `-g` commands apply.
-    /// See [`Config::global_packages`](crate::settings::Config::global_packages).
+    /// See [`Config::global_packages_config`](crate::settings::Config::global_packages_config).
     #[serde(serialize_with = "serialize_set_settings")]
-    pub global_packages: Option<Box<WorkspaceSettings>>,
+    pub global_packages_config: Option<Box<WorkspaceSettings>>,
 }
 
 /// The settings `settings` sets, leaving out the ones it leaves unset, so
@@ -125,8 +125,8 @@ impl MachineSettings {
         substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.global_dir);
         substitute_optional_string::<Sys>(&mut self.global_bin_dir);
-        if let Some(global_packages) = self.global_packages.as_mut() {
-            global_packages.substitute_env_trusted::<Sys>();
+        if let Some(global_packages_config) = self.global_packages_config.as_mut() {
+            global_packages_config.substitute_env_trusted::<Sys>();
         }
     }
 
@@ -143,8 +143,8 @@ impl MachineSettings {
                 *dir = expanded;
             }
         }
-        if let Some(global_packages) = self.global_packages.as_mut() {
-            global_packages.expand_home_prefixes::<Sys>();
+        if let Some(global_packages_config) = self.global_packages_config.as_mut() {
+            global_packages_config.expand_home_prefixes::<Sys>();
         }
     }
 
@@ -161,7 +161,7 @@ impl MachineSettings {
             global_shims,
             tools,
             symlinked_lockfile_target_dirs,
-            global_packages,
+            global_packages_config,
         } = self;
         overlay(&mut config.ci, ci);
         overlay_some(&mut config.scope, scope);
@@ -184,8 +184,8 @@ impl MachineSettings {
         if let Some(dirs) = symlinked_lockfile_target_dirs {
             config.symlinked_lockfile_target_dirs = absolute_dirs(dirs);
         }
-        if let Some(global_packages) = global_packages {
-            config.global_packages = Some(Arc::new(*global_packages));
+        if let Some(global_packages_config) = global_packages_config {
+            config.global_packages_config = Some(Arc::new(*global_packages_config));
         }
     }
 }
