@@ -85,4 +85,43 @@ describe('applyPatchToDir()', () => {
     }).toThrow(/patch path escapes target dir/)
     expect(fs.existsSync(sentinel)).toBe(false)
   })
+  // `git diff --ignore-cr-at-eol` writes lines appended to a file without a
+  // final newline as context followed by the insertion.
+  it('should append after a last line that has no final newline but is matched as context', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'index.js'), 'function f() {\n  return 1;\n}\nmodule.exports = f;')
+    const patchFilePath = path.join(patchedDir, 'append.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/index.js b/index.js
+--- a/index.js
++++ b/index.js
+@@ -2,3 +2,6 @@ function f() {
+   return 1;
+ }
+ module.exports = f;
++function g() {
++  return 2;
++}
+\\ No newline at end of file
+`)
+    applyPatchToDir({ patchFilePath, patchedDir })
+    expect(fs.readFileSync(path.join(patchedDir, 'index.js'), 'utf-8'))
+      .toBe('function f() {\n  return 1;\n}\nmodule.exports = f;\nfunction g() {\n  return 2;\n}')
+  })
+  // `pnpm patch-commit` strips the patch's final "No newline at end of file"
+  // marker, so an append that keeps the file without a final newline arrives unmarked.
+  it('should keep a file without a final newline unterminated after an unmarked append', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'file.txt'), 'one\ntwo')
+    const patchFilePath = path.join(patchedDir, 'append.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -1,2 +1,3 @@
+ one
+ two
++three
+`)
+    applyPatchToDir({ patchFilePath, patchedDir })
+    expect(fs.readFileSync(path.join(patchedDir, 'file.txt'), 'utf-8')).toBe('one\ntwo\nthree')
+  })
 })

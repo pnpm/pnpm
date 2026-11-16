@@ -235,7 +235,7 @@ snapshots:
 					"specifier": "^2.0.0",
 					"version": "2.0.0",
 				},
-				"@pnpm/patch-package": "0.0.1",
+				"@pnpm/patch-package": "0.0.2",
 				"@pnpm/semver-diff": {
 					"specifier": "^2.0.0",
 					"version": "2.0.0",
@@ -10788,8 +10788,8 @@ snapshots:
 			},
 		},
 
-		"@pnpm/patch-package@0.0.1": {
-			"integrity": "sha512-AEgJoZH2goHdGWlyQ1cOMlgmjGLCqk88IFcbAolxWqlhawa3bSL1jLHnjwQc1XBwxeeUltL7mNmPR23q+VZTWQ==",
+		"@pnpm/patch-package@0.0.2": {
+			"integrity": "sha512-pHDvjoh1fwIONt75emh+UYd11o4U9ZDleLCJ2Y35LdQ/Im6j9DqolYHg4BmnZ1xJl4nCBFzwhztob1TbxJadoA==",
 			"engines": {"node": ">=14", "npm": ">5"},
 			"hasBin": true,
 			"dependencies": {
