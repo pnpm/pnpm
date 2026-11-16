@@ -305,11 +305,12 @@ fn production_install_checks_engines_against_the_runtime_it_links() {
     manifest["engines"]["node"] = json!(">=99.0.0");
     fs::write(&manifest_path, manifest.to_string()).unwrap();
 
-    command(&workspace)
+    let output = command(&workspace)
         .with_args(["install", "--prod"])
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("ERR_PNPM_UNSUPPORTED_ENGINE"));
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_UNSUPPORTED_ENGINE"));
 }
 
 #[test]
