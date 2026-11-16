@@ -15,11 +15,13 @@ pub(crate) async fn run_fetch<Rep: Reporter + 'static>(
 ) -> miette::Result<()> {
     if !config.shares_one_lockfile() && config.recursive {
         let prefix = manifest_path.parent().expect("manifest path always has a parent dir");
+        // Fetching a lockfile does not require sibling projects to finish first.
+        let recursive_sort = false;
         let plan = select_install_family_plan::<Rep>(
             config,
             prefix,
             manifest_path,
-            config.sort,
+            recursive_sort,
             false,
             false,
         )?;

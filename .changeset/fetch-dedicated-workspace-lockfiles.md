@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Fixed `pnpm -r fetch` skipping project lockfiles when `sharedWorkspaceLockfile` is `false`. Filtered fetches now populate the store from the selected projects' lockfiles [pnpm/pnpm#18152](https://github.com/pnpm/pnpm/issues/18152).
+`pnpm -r fetch` now fetches each selected project's lockfile when `sharedWorkspaceLockfile` is `false`. Use `--filter` to limit which projects are fetched [pnpm/pnpm#18152](https://github.com/pnpm/pnpm/issues/18152).

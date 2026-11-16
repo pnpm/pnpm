@@ -53,7 +53,7 @@ type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'optional' | 'all
 
 export async function handler (opts: FetchCommandOptions): Promise<void> {
   const store = await createStoreController(opts)
-  if (opts.recursive && opts.sharedWorkspaceLockfile === false && opts.selectedProjectsGraph) {
+  if (opts.recursive && opts.sharedWorkspaceLockfile === false && opts.lockfileDir == null && opts.selectedProjectsGraph) {
     await fetchProjects(opts, store)
     return
   }
