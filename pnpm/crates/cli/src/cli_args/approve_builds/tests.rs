@@ -263,3 +263,38 @@ fn moving_the_legacy_global_decisions_empties_the_file_that_owns_them() {
         std::fs::read_to_string(global_pkg_dir.path().join("permissions.yaml")).unwrap_or_default();
     assert!(!included.contains("esbuild"), "the moved decision should leave: {included}");
 }
+
+/// A config dependency that owns a legacy setting keeps it, and the approval
+/// still completes.
+#[test]
+fn moving_the_legacy_global_decisions_leaves_a_package_owned_setting() {
+    let config_dir = tempfile::TempDir::new().expect("config dir");
+    let global_pkg_dir = tempfile::TempDir::new().expect("global packages dir");
+    let manifest = global_pkg_dir.path().join("pnpm-workspace.yaml");
+    let original = "configDependencies:\n  policy: 1.0.0\ninclude:\n  policy: [permissions]\n";
+    std::fs::write(&manifest, original).expect("write the legacy manifest");
+    let policy = global_pkg_dir.path().join("node_modules/.pnpm-config/policy");
+    std::fs::create_dir_all(&policy).expect("create the config dependency");
+    std::fs::write(
+        policy.join("package.json"),
+        r#"{"name":"policy","pnpm":{"config":"config.yaml"}}"#,
+    )
+    .expect("write its manifest");
+    std::fs::write(policy.join("config.yaml"), "permissions:\n  esbuild:\n    build: true\n")
+        .expect("write its settings");
+    let store = super::ApprovalStore::GlobalPackages(super::GlobalPackagesStore {
+        config_dir: config_dir.path(),
+        global_pkg_dir: global_pkg_dir.path(),
+    });
+
+    store
+        .write_allow_builds([("sharp", false)])
+        .expect("record the decision");
+
+    assert_eq!(std::fs::read_to_string(&manifest).expect("read the legacy manifest"), original);
+    assert!(
+        std::fs::read_to_string(config_dir.path().join("config.yaml"))
+            .expect("read config.yaml")
+            .contains("sharp:"),
+    );
+}

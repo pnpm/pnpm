@@ -8,8 +8,8 @@ use pnpm_config::{
     WorkspaceSettings,
 };
 use pnpm_workspace_manifest_writer::{
-    PermissionValue, set_allow_builds, set_global_packages_build_permissions, set_permissions,
-    update_workspace_setting,
+    PermissionValue, UpdateWorkspaceManifestError, set_allow_builds,
+    set_global_packages_build_permissions, set_permissions, update_workspace_setting,
 };
 use std::{
     collections::BTreeMap,
@@ -135,8 +135,7 @@ impl GlobalPackagesStore<'_> {
         ];
         for (key, set) in moved {
             if set {
-                update_workspace_setting(self.global_pkg_dir, key, &serde_json::Value::Null)
-                    .into_diagnostic()?;
+                remove_legacy_setting(self.global_pkg_dir, key)?;
             }
         }
         Ok(())
@@ -144,6 +143,16 @@ impl GlobalPackagesStore<'_> {
 
     fn load_global_packages(self) -> miette::Result<Option<WorkspaceSettings>> {
         load_global_packages_config(self.config_dir)
+    }
+}
+
+/// Remove `key` from the legacy file that owns it. A config dependency that
+/// owns it keeps it: pnpm never edits an installed package, and the legacy
+/// decisions stay the lowest layer of the build policy.
+fn remove_legacy_setting(global_pkg_dir: &Path, key: &str) -> miette::Result<()> {
+    match update_workspace_setting(global_pkg_dir, key, &serde_json::Value::Null) {
+        Err(UpdateWorkspaceManifestError::OwnedByConfigDependency { .. }) => Ok(()),
+        result => result.into_diagnostic(),
     }
 }
 
