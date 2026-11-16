@@ -52,7 +52,7 @@ function renameFile (effect: FileRename, resolve: (filePath: string) => string, 
   if (dryRun) {
     // Only the source is checked. The dry run does not track the effects
     // before it, so the destination can still hold a file one of them removes.
-    if (!fs.existsSync(fromPath)) {
+    if (!entryExists(fromPath)) {
       throw new Error(`Trying to move file that doesn't exist: ${effect.fromPath}`)
     }
     return

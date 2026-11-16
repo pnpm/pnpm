@@ -156,6 +156,7 @@ rename from old-link
 rename to new-link
 `)
     expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
+    expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
     expect(fs.readlinkSync(path.join(patchedDir, 'new-link'))).toBe('missing-target')
     expect(fs.existsSync(path.join(patchedDir, 'old-link'))).toBe(false)
   })
