@@ -103,6 +103,9 @@ them in the package document (JFrog Artifactory does) is handled: the signatures
 are read from there instead, and still have to cover the checksum the download
 is checked against.
 
+A registry that serves no version documents at all (Azure Artifacts answers 404
+for them) is handled too: the version is read from the package document.
+
 The download goes to the registry npm is configured with (`npm_config_registry`), not to GitHub — including the tarball itself, so a registry that proxies npm and hands back an npmjs.org URL does not send the download off the mirror.
 
 ### Private registries
@@ -198,6 +201,13 @@ await downloadPnpmExecutable({
 It verifies exactly what `downloadPnpm` does, and reads the archive in-process
 rather than shelling out to `tar`, so it works where no `tar` is on the PATH.
 Placement is atomic and tolerates losing a race with a concurrent call.
+
+When the registry carries no npm signatures anywhere (Azure Artifacts strips
+them), `downloadPnpmExecutable` fetches npm's from registry.npmjs.org, or from
+`npmRegistry` when set, without the registry's credentials. They still have to
+cover the checksum the download is checked against, so only the signature, not
+the binary, comes from npm. When npm cannot be reached, the package is refused
+as unsigned.
 
 Pass `keys` to trust a signing key other than the pinned npm one, or
 `verifySignature: false` to download from a registry that carries no npm

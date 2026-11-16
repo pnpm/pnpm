@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { extractTarballMember } from './extractTarballMember.js'
 import { isMusl, platformPackageName } from './platformPackageName.js'
-import { downloadTarball, fetchSignatures, fetchVersionMeta, normalizeRegistry, type ProxyEnv, type RequestHeaders, useCertificateAuthorities, useProxyFromEnv } from './registry.js'
+import { DEFAULT_REGISTRY, downloadTarball, fetchSignatures, fetchVersionMeta, normalizeRegistry, type ProxyEnv, type RequestHeaders, useCertificateAuthorities, useProxyFromEnv } from './registry.js'
 import { majorVersion } from './resolveVersion.js'
 import { sameFileContents } from './sameFileContents.js'
 import { type SigningKey, verifyRegistrySignature } from './verifySignature.js'
@@ -30,6 +30,8 @@ export interface DownloadExecutableOptions {
   proxy?: ProxyEnv
   /** Overrides the pinned npm signing keys. */
   keys?: readonly SigningKey[]
+  /** Where npm's signatures are looked up when `registry` serves none; npm's own registry unless set. */
+  npmRegistry?: string
   /**
    * Whether the registry's signature over the checksum has to check out;
    * `true` unless set. Waiving it is for a registry that carries no npm
@@ -93,7 +95,7 @@ async function fetchExecutable (
       name: packageName,
       version,
       integrity: meta.dist.integrity,
-      signatures: await fetchSignatures(meta, { registry, pkgName: packageName, version, headers: opts.headers }),
+      signatures: await fetchSignatures(meta, { registry, pkgName: packageName, version, headers: opts.headers, npmRegistry: opts.npmRegistry ?? DEFAULT_REGISTRY }),
       keys: opts.keys,
     })
   }

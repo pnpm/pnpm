@@ -164,6 +164,13 @@ export async function fetchPackument (
   )
 }
 
+/**
+ * The registry's document for `pkgName@version`.
+ *
+ * Some registry proxies, Azure Artifacts among them, answer 404 for every
+ * version document while serving the package document, so the version is
+ * looked up there instead.
+ */
 export async function fetchVersionMeta (
   registry: string,
   pkgName: string,
@@ -171,11 +178,33 @@ export async function fetchVersionMeta (
   headers?: RequestHeaders,
   headersPath?: string
 ): Promise<VersionMeta> {
-  return fetchJson<VersionMeta>(
-    new URL(`${pkgName}/${version}`, registry),
-    'application/json',
-    { registry, headers, headersPath }
-  )
+  try {
+    return await fetchJson<VersionMeta>(
+      new URL(`${pkgName}/${version}`, registry),
+      'application/json',
+      { registry, headers, headersPath }
+    )
+  } catch (err) {
+    if (!(err instanceof RequestFailure) || err.status !== 404) throw err
+    const packument = await fetchJson<VersionsPackument>(
+      new URL(escapePackageName(pkgName), registry),
+      ABBREVIATED_PACKUMENT,
+      { registry, headers, headersPath }
+    )
+    const meta = packument.versions?.[version]
+    // Not there either: the version is missing, which the 404 already says.
+    if (meta?.dist?.tarball == null) throw err
+    return meta
+  }
+}
+
+interface VersionsPackument {
+  versions?: Record<string, VersionMeta | undefined>
+}
+
+/** Escaped the way npm requests a scoped package, which every registry serves. */
+function escapePackageName (pkgName: string): string {
+  return pkgName.replaceAll('/', '%2f')
 }
 
 /**
@@ -183,23 +212,51 @@ export async function fetchVersionMeta (
  *
  * Some registry proxies, JFrog Artifactory among them, strip `dist.signatures`
  * from the version document but keep them in the package document, so that is
- * where they are looked up when `meta` carries none. Only the signatures are
- * taken from it: they cover `<name>@<version>:<integrity>`, so they still have
- * to verify against the checksum in `meta`, which the tarball is checked
- * against.
+ * where they are looked up when `meta` carries none. Others, Azure Artifacts
+ * among them, carry none anywhere; given `npmRegistry`, npm's own are taken
+ * from there.
+ * Only the signatures are taken from either: they cover
+ * `<name>@<version>:<integrity>`, so they still have to verify against the
+ * checksum in `meta`, which the tarball is checked against.
  */
 export async function fetchSignatures (
   meta: VersionMeta,
-  opts: { registry: string, pkgName: string, version: string, headers?: RequestHeaders, headersPath?: string }
+  opts: {
+    registry: string
+    pkgName: string
+    version: string
+    headers?: RequestHeaders
+    headersPath?: string
+    /** Where npm's signatures are looked up when `registry` serves none. */
+    npmRegistry?: string
+  }
 ): Promise<PackageSignature[] | undefined> {
   if (meta.dist.signatures?.length) return meta.dist.signatures
-  // Escaped the way npm requests a scoped package, which every registry serves.
   const packument = await fetchJson<SignedPackument>(
-    new URL(opts.pkgName.replaceAll('/', '%2f'), opts.registry),
+    new URL(escapePackageName(opts.pkgName), opts.registry),
     ABBREVIATED_PACKUMENT,
     { registry: opts.registry, headers: opts.headers, headersPath: opts.headersPath }
   )
-  return packument.versions?.[opts.version]?.dist?.signatures
+  const signatures = packument.versions?.[opts.version]?.dist?.signatures
+  if (signatures?.length || opts.npmRegistry == null) return signatures
+  const npmRegistry = normalizeRegistry(opts.npmRegistry)
+  if (normalizeRegistry(opts.registry) === npmRegistry) return signatures
+  return fetchNpmSignatures(npmRegistry, opts.pkgName, opts.version)
+}
+
+/**
+ * npm's signatures for `pkgName@version`, or `undefined` when npm cannot be
+ * reached — from an air-gapped network, say — so the caller reports the
+ * package as unsigned rather than the failed request. No credentials are sent:
+ * they belong to the registry the package is downloaded from.
+ */
+async function fetchNpmSignatures (npmRegistry: string, pkgName: string, version: string): Promise<PackageSignature[] | undefined> {
+  try {
+    const meta = await fetchJson<VersionMeta>(new URL(`${pkgName}/${version}`, npmRegistry), 'application/json')
+    return meta.dist?.signatures
+  } catch {
+    return undefined
+  }
 }
 
 interface SignedPackument {
@@ -323,10 +380,13 @@ async function fetchJson<Result> (url: URL, accept: string, opts: ScopedHeadersO
 /** A request failure, marked so `withRetries` knows whether retrying it can help. */
 class RequestFailure extends Error {
   readonly retryable: boolean
+  /** The HTTP status the server answered with, if it answered. */
+  readonly status?: number
 
-  constructor (message: string, opts: { cause?: unknown, retryable: boolean }) {
+  constructor (message: string, opts: { cause?: unknown, retryable: boolean, status?: number }) {
     super(message, { cause: opts.cause })
     this.retryable = opts.retryable
+    this.status = opts.status
   }
 }
 
@@ -396,7 +456,7 @@ async function fetchHop (
 /** Where the redirect `response` points; throws for a response that is not one. */
 function redirectTarget (response: Response, url: URL): URL {
   if (!REDIRECT_STATUSES.has(response.status)) {
-    throw new RequestFailure(`Could not download ${url.href}: ${response.status} ${response.statusText}`, { retryable: isRetryableStatus(response.status) })
+    throw new RequestFailure(`Could not download ${url.href}: ${response.status} ${response.statusText}`, { retryable: isRetryableStatus(response.status), status: response.status })
   }
   const location = response.headers.get('location')
   if (location == null) {
