@@ -264,10 +264,10 @@ fn moving_the_legacy_global_decisions_empties_the_file_that_owns_them() {
     assert!(!included.contains("esbuild"), "the moved decision should leave: {included}");
 }
 
-/// A config dependency that owns a legacy setting keeps it, and the approval
-/// still completes.
+/// A config dependency that owns the legacy build decisions keeps them, and
+/// they are not copied above it, where they would outlive its own changes.
 #[test]
-fn moving_the_legacy_global_decisions_leaves_a_package_owned_setting() {
+fn a_package_owned_legacy_build_policy_stays_with_its_package() {
     let config_dir = tempfile::TempDir::new().expect("config dir");
     let global_pkg_dir = tempfile::TempDir::new().expect("global packages dir");
     let manifest = global_pkg_dir.path().join("pnpm-workspace.yaml");
@@ -292,9 +292,9 @@ fn moving_the_legacy_global_decisions_leaves_a_package_owned_setting() {
         .expect("record the decision");
 
     assert_eq!(std::fs::read_to_string(&manifest).expect("read the legacy manifest"), original);
-    assert!(
-        std::fs::read_to_string(config_dir.path().join("config.yaml"))
-            .expect("read config.yaml")
-            .contains("sharp:"),
+    assert_eq!(
+        std::fs::read_to_string(config_dir.path().join("config.yaml")).expect("read config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    sharp:\n      build: false\n",
+        "a decision the package owns must not be copied above it",
     );
 }

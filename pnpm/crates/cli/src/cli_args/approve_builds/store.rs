@@ -8,7 +8,7 @@ use pnpm_config::{
     WorkspaceSettings,
 };
 use pnpm_workspace_manifest_writer::{
-    PermissionValue, UpdateWorkspaceManifestError, set_allow_builds,
+    PermissionValue, is_owned_by_config_dependency, set_allow_builds,
     set_global_packages_build_permissions, set_permissions, update_workspace_setting,
 };
 use std::{
@@ -104,14 +104,14 @@ impl GlobalPackagesStore<'_> {
         self,
         entries: impl IntoIterator<Item = (&'entry str, bool)>,
     ) -> miette::Result<()> {
-        let legacy = load_legacy_global_settings(self.global_pkg_dir)?;
+        let movable = self.movable_legacy_settings()?;
         let recorded = self
             .load_global_packages()?
             .and_then(|settings| settings.decided_build_approvals())
             .unwrap_or_default();
-        let mut decisions: BTreeMap<String, bool> = legacy
+        let mut decisions: BTreeMap<String, bool> = movable
             .as_ref()
-            .and_then(|(_, settings)| settings.decided_build_approvals())
+            .and_then(WorkspaceSettings::decided_build_approvals)
             .unwrap_or_default()
             .into_iter()
             .filter(|(pkg, _)| !recorded.contains_key(pkg))
@@ -128,31 +128,36 @@ impl GlobalPackagesStore<'_> {
                 .map(|(pkg, &allowed)| (pkg.as_str(), allowed)),
         )
         .into_diagnostic()?;
-        let Some((_, settings)) = legacy else { return Ok(()) };
+        let Some(settings) = movable else { return Ok(()) };
         let moved = [
             ("allowBuilds", settings.allow_builds.is_some()),
             ("permissions", settings.permissions.is_some()),
         ];
-        for (key, set) in moved {
-            if set {
-                remove_legacy_setting(self.global_pkg_dir, key)?;
-            }
+        for (key, _) in moved.into_iter().filter(|(_, set)| *set) {
+            update_workspace_setting(self.global_pkg_dir, key, &serde_json::Value::Null)
+                .into_diagnostic()?;
         }
         Ok(())
     }
 
+    /// The legacy settings whose build decisions may move. A config
+    /// dependency that owns them keeps them: pnpm never edits an installed
+    /// package, and a copy above them would outlive the package's own
+    /// changes. They stay the lowest layer of the build policy instead.
+    fn movable_legacy_settings(self) -> miette::Result<Option<WorkspaceSettings>> {
+        let Some((_, settings)) = load_legacy_global_settings(self.global_pkg_dir)? else {
+            return Ok(None);
+        };
+        for key in ["allowBuilds", "permissions"] {
+            if is_owned_by_config_dependency(self.global_pkg_dir, key).into_diagnostic()? {
+                return Ok(None);
+            }
+        }
+        Ok(Some(settings))
+    }
+
     fn load_global_packages(self) -> miette::Result<Option<WorkspaceSettings>> {
         load_global_packages_config(self.config_dir)
-    }
-}
-
-/// Remove `key` from the legacy file that owns it. A config dependency that
-/// owns it keeps it: pnpm never edits an installed package, and the legacy
-/// decisions stay the lowest layer of the build policy.
-fn remove_legacy_setting(global_pkg_dir: &Path, key: &str) -> miette::Result<()> {
-    match update_workspace_setting(global_pkg_dir, key, &serde_json::Value::Null) {
-        Err(UpdateWorkspaceManifestError::OwnedByConfigDependency { .. }) => Ok(()),
-        result => result.into_diagnostic(),
     }
 }
 

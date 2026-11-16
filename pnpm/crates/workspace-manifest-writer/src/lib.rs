@@ -15,8 +15,8 @@ pub use build_settings::{
 };
 pub use catalog_references::CatalogReferenceSources;
 pub use field_updates::{
-    EditManifestFieldError, ManifestEdit, edit_manifest_field, update_manifest_field,
-    update_private_manifest_field, update_workspace_setting,
+    EditManifestFieldError, ManifestEdit, edit_manifest_field, is_owned_by_config_dependency,
+    update_manifest_field, update_private_manifest_field, update_workspace_setting,
 };
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
 pub use version_policies::{
