@@ -19,6 +19,8 @@ A package name or [`--find-by`](#--find-by-finder_name) is required. Without eit
 
 The output is a reverse dependency tree: the searched package appears at the root, with its dependents as branches, walking back to workspace roots.
 
+Tree output includes `(requires <specifier>)` on a dependent when its declared version constraint is available.
+
 Duplicate subtrees are deduplicated in the output and shown as "deduped".
 
 ## Options
@@ -30,7 +32,7 @@ subdirectories or on every workspace package when executed inside a workspace.
 
 ### --json
 
-Show information in JSON format.
+Show information in JSON format. Dependent nodes include a `requires` field containing the declared dependency specifier, when available.
 
 ### --long
 
@@ -38,7 +40,7 @@ Show verbose output.
 
 ### --parseable
 
-Show parseable output instead of tree view.
+Show parseable output instead of tree view. Dependency constraints are omitted from this format.
 
 ### --prod, -P, --production
 

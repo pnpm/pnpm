@@ -331,11 +331,14 @@ fn invert_graph(graph: &DependencyGraph) -> HashMap<TreeNodeId, Vec<ReverseEdge>
             let Some(target) = &edge.target else {
                 continue;
             };
-            reverse.entry(target.clone()).or_default().push(ReverseEdge {
-                parent: parent_id.clone(),
-                alias: edge.alias.clone(),
-                is_peer: node.peers.contains(&edge.alias),
-            });
+            reverse
+                .entry(target.clone())
+                .or_default()
+                .push(ReverseEdge {
+                    parent: parent_id.clone(),
+                    alias: edge.alias.clone(),
+                    is_peer: node.peers.contains(&edge.alias),
+                });
         }
     }
     reverse
@@ -382,12 +385,11 @@ fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<DependentNode>
         TreeNodeId::Importer(importer_id) => {
             let info = ctx.importer_info.get(importer_id)?;
             let mut node = DependentNode::leaf(info.name.clone(), info.version.clone());
-            node.requires = ctx
-                .lockfile
-                .importers
-                .get(importer_id.as_str())
-                .and_then(|importer| importer_dependency_info(&edge.alias, importer))
-                .map(|(_, specifier)| specifier);
+            if let Some(importer) = ctx.lockfile.importers.get(importer_id.as_str())
+                && let Some((_, specifier)) = importer_dependency_info(&edge.alias, importer)
+            {
+                node.requires = Some(specifier);
+            }
             node.circular = true;
             node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
             Some(node)
@@ -423,7 +425,8 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
     let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
     let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
     let mut node = DependentNode::leaf(name, version);
-    node.requires = ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.is_peer);
+    node.requires =
+        ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.is_peer);
     node.peers_suffix_hash = peers_suffix_hash(dep_path);
     node.merge_id = merge_id;
     node.manifest = ctx.manifest_reader.project(&edge.parent);
@@ -489,7 +492,9 @@ fn importer_dependency_info(alias: &str, importer: &ProjectSnapshot) -> Option<(
     let find = |group: Option<&pnpm_lockfile::ResolvedDependencyMap>| {
         group.and_then(|deps| {
             deps.iter()
-                .find_map(|(key, spec)| (key.to_string() == alias).then(|| spec.specifier.clone()))
+                .find_map(|(key, spec)| {
+                    (key.to_string() == alias).then(|| spec.specifier.clone())
+                })
         })
     };
     if let Some(specifier) = find(importer.dev_dependencies.as_ref()) {

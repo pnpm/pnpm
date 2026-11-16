@@ -5,7 +5,7 @@ use super::{
     RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
     render_dependents_tree,
 };
-use crate::dependents::{DepField, DependentNode, DependentsTree};
+use crate::dependents::{DepField, DependentNode, DependentsTree, merge_trees};
 
 fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> DependentsTree {
     DependentsTree {
@@ -468,8 +468,8 @@ fn depth_limits_parseable_output_depth() {
     eprintln!("output:\n{output}");
     // With depth 1, mid-a cannot recurse further — it becomes a leaf.
     assert_eq!(lines.len(), 2);
-    assert!(lines.contains(&"mid-a@2.0.0 > target@1.0.0 (by ^2.0.0)"));
-    assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0 (by 1.0.0)"));
+    assert!(lines.contains(&"mid-a@2.0.0 > target@1.0.0"));
+    assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0"));
 }
 
 // Port of upstream's 'renderDependentsParseable > no depth option renders full paths in parseable output' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -481,12 +481,8 @@ fn no_depth_option_renders_full_paths_in_parseable_output() {
     eprintln!("output:\n{output}");
     // Without depth limit, mid-a is expanded to root-project.
     assert_eq!(lines.len(), 2);
-    assert!(
-        lines.contains(
-            &"root-project@0.0.0 > mid-a@2.0.0 (by workspace:*) > target@1.0.0 (by ^2.0.0)",
-        ),
-    );
-    assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0 (by 1.0.0)"));
+    assert!(lines.contains(&"root-project@0.0.0 > mid-a@2.0.0 > target@1.0.0"));
+    assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0"));
 }
 
 // Port of upstream's 'renderDependentsParseable > uses displayName in parseable output' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -515,10 +511,7 @@ fn uses_display_name_in_parseable_output() {
     }];
 
     let output = render_dependents_parseable(&results, &opts(None));
-    assert_eq!(
-        output,
-        "my-project@0.0.0 > other-component@2.0.0 (by workspace:*) > my-component@1.0.0 (by ^2.0.0)",
-    );
+    assert_eq!(output, "my-project@0.0.0 > other-component@2.0.0 > my-component@1.0.0");
 }
 
 // Port of upstream's 'renderDependentsParseable > renders parseable output with searchMessage result' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -537,4 +530,36 @@ fn renders_parseable_output_with_search_message_result() {
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains("dep-a@1.0.0"));
     assert!(lines[0].contains("my-project@0.0.0"));
+}
+
+#[test]
+fn merged_parseable_long_preserves_format_with_requires() {
+    let trees = ["app", "lib"].map(|name| DependentsTree {
+        path: Some(format!("/workspace/{name}/node_modules/target")),
+        ..tree(
+            "target",
+            "1.0.0",
+            vec![package_with_requires(
+                "mid",
+                "2.0.0",
+                Some("^1.0.0"),
+                vec![importer_with_requires(name, "0.0.0", DepField::Dependencies, Some("~2.0.0"))],
+            )],
+        )
+    });
+    let merged = merge_trees(trees.into());
+    let output =
+        render_dependents_parseable(&merged, &RenderDependentsOptions { long: true, depth: None });
+    assert_eq!(
+        output,
+        "app@0.0.0 > mid@2.0.0 > /workspace/app/node_modules/target:target@1.0.0\nlib@0.0.0 > mid@2.0.0 > /workspace/lib/node_modules/target:target@1.0.0",
+    );
+    let depth_limited = render_dependents_parseable(
+        &merged,
+        &RenderDependentsOptions { long: true, depth: Some(1) },
+    );
+    assert_eq!(
+        depth_limited,
+        "mid@2.0.0 > /workspace/app/node_modules/target:target@1.0.0\nmid@2.0.0 > /workspace/lib/node_modules/target:target@1.0.0",
+    );
 }

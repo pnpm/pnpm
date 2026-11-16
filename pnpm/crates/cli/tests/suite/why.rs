@@ -569,16 +569,11 @@ fn why_displays_parseable_output() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
     assert!(
-        lines.contains(&format!("project@0.0.0 > {DEP}@100.0.0 (by 100.0.0)").as_str()),
+        lines.contains(&format!("project@0.0.0 > {DEP}@100.0.0").as_str()),
         "direct path is importer-first: {stdout}",
     );
     assert!(
-        lines.contains(
-            &format!(
-                "project@0.0.0 > {PKG}@100.0.0 (by 100.0.0) > {DEP}@100.0.0 (by ^100.0.0)",
-            )
-            .as_str(),
-        ),
+        lines.contains(&format!("project@0.0.0 > {PKG}@100.0.0 > {DEP}@100.0.0").as_str()),
         "transitive path is importer-first: {stdout}",
     );
 }
@@ -647,8 +642,10 @@ fn why_json_output_includes_requires() {
         .find(|result| result["name"] == DEP)
         .expect("the queried package is present");
     let dependents = matched["dependents"].as_array().expect("dependents array");
-    let pkg_node =
-        dependents.iter().find(|node| node["name"] == PKG).expect("package dependent is present");
+    let pkg_node = dependents
+        .iter()
+        .find(|node| node["name"] == PKG)
+        .expect("package dependent is present");
     assert_eq!(pkg_node["requires"], "^100.0.0");
     let importer_node = pkg_node["dependents"][0].as_object().expect("importer dependent object");
     assert_eq!(importer_node.get("requires").and_then(serde_json::Value::as_str), Some("100.0.0"),);
