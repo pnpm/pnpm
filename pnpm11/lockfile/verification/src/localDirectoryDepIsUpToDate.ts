@@ -19,7 +19,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
 import { barePathIsUnambiguous, isLocalFilesystemSpecifier, isTarballFilename, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
-import type { DependencyManifest, DepPath, ReadPackageHook, RegistryContext } from '@pnpm/types'
+import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import pEvery from 'p-every'
 import { pathExists } from 'path-exists'
@@ -105,14 +105,12 @@ export function createLocalDirectoryDepUpToDateChecker (
   ctx: LocalDirectoryDepContext
 ): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>, declaration?: Declaration) => Promise<boolean> {
   const visited = new Map<PackageSnapshot, Set<string>>()
-  const depPathsBySnapshot = depPathsOf(ctx.lockfilePackages)
   // Collected on the first check, since most projects have no local directory dependency to check.
   let recordedPeers: string[] | undefined
   return async (pkgSnapshot, parentPkgAliases, declaration = { declaredByPath: false }) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
     ...declaration,
     parentPkgAliases,
     visited,
-    depPathsBySnapshot,
     recordedPeers: recordedPeers ??= recordedPeersOf(ctx.lockfilePackages),
   })
 }
@@ -138,7 +136,6 @@ interface DirectoryWalk extends Declaration {
   parentPkgAliases: Record<string, unknown>
   /** The peer scopes each snapshot was checked in. */
   visited: Map<PackageSnapshot, Set<string>>
-  depPathsBySnapshot: Map<PackageSnapshot, DepPath>
   /**
    * Every peer the lockfile records for a package, which bounds the part of
    * a scope the descendants of a package can take.
@@ -147,19 +144,6 @@ interface DirectoryWalk extends Declaration {
 }
 
 const recordedPeersByPackages = new WeakMap<object, string[]>()
-const depPathsByPackages = new WeakMap<object, Map<PackageSnapshot, DepPath>>()
-
-function depPathsOf (lockfilePackages: PackageSnapshots | undefined): Map<PackageSnapshot, DepPath> {
-  if (lockfilePackages == null) return new Map()
-  let depPaths = depPathsByPackages.get(lockfilePackages)
-  if (depPaths == null) {
-    depPaths = new Map(
-      Object.entries(lockfilePackages).map(([depPath, snapshot]) => [snapshot, depPath as DepPath] as const)
-    )
-    depPathsByPackages.set(lockfilePackages, depPaths)
-  }
-  return depPaths
-}
 
 function recordedPeersOf (lockfilePackages: LocalDirectoryDepContext['lockfilePackages']): string[] {
   if (lockfilePackages == null) return []
@@ -183,12 +167,9 @@ async function localDirectoryDepIsUpToDateRec (
   // A revisit in the same peer scope is a cycle or a shared dependency that
   // is already being checked.
   if (!markVisited(walk, pkgSnapshot, manifest)) return true
-  if (!recordedPeersMatch({
-    manifest,
-    pkgSnapshot,
+  if (!recordedPeersMatch(manifest, pkgSnapshot, {
     declaredByPath: walk.declaredByPath && !walk.declarationAssumed,
-    depPathsBySnapshot: walk.depPathsBySnapshot,
-    lockfilePackages: ctx.lockfilePackages,
+    parentPkgAliases: walk.parentPkgAliases,
     resolveCatalogSpec: (peer) => resolveCatalogSpec(ctx, peer),
   })) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
@@ -207,7 +188,6 @@ async function localDirectoryDepIsUpToDateRec (
     declarationAssumed: walk.declarationAssumed,
     parentPkgAliases: { ...walk.parentPkgAliases, ...dependencyAliasesOf(pkgSnapshot) },
     visited: walk.visited,
-    depPathsBySnapshot: walk.depPathsBySnapshot,
     recordedPeers: walk.recordedPeers,
   }
   return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, childWalk))
@@ -275,11 +255,6 @@ async function applyReadPackageHook (ctx: LocalDirectoryDepContext, declared: De
   return (await hook(clone(declared)) as DependencyManifest | undefined) ?? declared
 }
 
-/**
- * The lockfile records the peers the package declares. A lockfile written
- * before it recorded every declared peer records only the peers taken without
- * any shadowing, the ones that are not also `dependencies`.
- */
 /** Every child the snapshot records is one the resolver walks, or a peer, whose resolution it records too. */
 function recordedChildrenAreExpected (
   manifest: DependencyManifest,
