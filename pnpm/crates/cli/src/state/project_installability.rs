@@ -91,7 +91,7 @@ impl<'a> ProjectHost<'a> {
                 Err(error) => {
                     return Err(InitStateError::Lockfile(format!(
                         "{}: {error}",
-                        lockfile_dir.display()
+                        lockfile_dir.display(),
                     )));
                 }
             };

@@ -223,27 +223,27 @@ pub(crate) fn effective_node_version(
     config.node_version
         .clone()
         .or_else(|| {
-            let runtime_field = if dependency_groups.contains(&DependencyGroup::Prod) {
-                Some("engines")
-            } else if dependency_groups.contains(&DependencyGroup::Dev) {
-                Some("devEngines")
-            } else {
-                None
-            }?;
-            let dependencies_field =
-                if runtime_field == "engines" { "dependencies" } else { "devDependencies" };
-            pnpm_package_manifest::downloaded_node_runtime_from_dependency_field(
-                manifest.value(),
-                dependencies_field,
-            )
-            .map(|(_, version)| version)
-            .or_else(|| {
-                node_version_from_engine_field(
-                    manifest.value(),
-                    runtime_field,
-                    config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
-                )
-            })
+            dependency_groups
+                .iter()
+                .find_map(|group| {
+                    let (runtime_field, dependencies_field) = match group {
+                        DependencyGroup::Prod => ("engines", "dependencies"),
+                        DependencyGroup::Dev => ("devEngines", "devDependencies"),
+                        _ => return None,
+                    };
+                    pnpm_package_manifest::downloaded_node_runtime_from_dependency_field(
+                        manifest.value(),
+                        dependencies_field,
+                    )
+                    .map(|(_, version)| version)
+                    .or_else(|| {
+                        node_version_from_engine_field(
+                            manifest.value(),
+                            runtime_field,
+                            config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+                        )
+                    })
+                })
         })
 }
 

@@ -40,6 +40,22 @@ fn effective_node_version_uses_the_first_included_runtime_group() {
     );
 }
 
+#[test]
+fn effective_node_version_skips_included_groups_without_a_runtime_pin() {
+    let config = Config::new();
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "26.0.0", "onFail": "download" } },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod, DependencyGroup::Dev]),
+        Some("26.0.0".to_string()),
+    );
+}
+
 /// The prune deletes directories under `virtual_store_dir`, which can be
 /// set by repo-controlled workspace config. When that path escapes the
 /// project's `node_modules` (here, a sibling directory), the sweep is
