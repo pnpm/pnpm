@@ -90,9 +90,6 @@ fn from_default_yaml_parses_bundled_file() {
         routing.registries.resolve("local", Ecosystem::Npm, "my-pkg"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
-    let rules = &routing.hosted["local"].rules;
-    assert!(!rules.access_admits("my-pkg", &super::Identity::Anonymous));
-    assert!(rules.access_admits("my-pkg", &super::Identity::user("alice")));
 }
 
 #[test]
@@ -455,7 +452,6 @@ registries:
   remote:
     type: upstream
     url: https://registry.npmjs.org/
-    access: [$all]
     maxFails: 4
     failTimeout: 25s
     packumentTtl: 12m

@@ -8,10 +8,10 @@ registries:
     url: https://registry.npmjs.org/
     public: true
 
-  # Hosted registry for private packages, addressable at `/~local/`.
+  # Hosted registry for private packages, addressable at `/~local/`. Its
+  # default grant lets signed-in callers read it.
   local:
     type: hosted
-    access: $authenticated
 
 # The path-less base URL (`https://<pnpr>/`) proxies the public npm registry.
 defaultRegistry: npmjs

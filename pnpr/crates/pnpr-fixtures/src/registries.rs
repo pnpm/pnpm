@@ -86,12 +86,12 @@ pub fn load_seeded_config(path: &Path, listen: SocketAddr, public_url: Option<St
         .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
     let mut config = Config::from_yaml(path, listen, public_url)
         .unwrap_or_else(|error| panic!("load {}: {error}", path.display()));
-    let graph = Graph::of(graph.unwrap_or_else(|| Value::Object(Map::new())));
-    seed_document(&mut config, &graph);
     if let Some(Value::Object(teams)) = teams {
         let storage = Storage::from_config(&config.storage).expect("open the storage");
         crate::database::run(store_teams(&storage, &teams));
     }
+    let graph = Graph::of(graph.unwrap_or_else(|| Value::Object(Map::new())));
+    seed_document(&mut config, &graph);
     config
 }
 

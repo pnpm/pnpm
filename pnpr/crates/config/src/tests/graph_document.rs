@@ -11,13 +11,9 @@ registries:
     type: hosted
     ecosystem: npm
     namespace: acme
-    access: $authenticated
     tarballs: tar
     packages:
       '@acme/*':
-        access: [team:t1]
-        publish: team:t1
-        unpublish: [$owners]
       '@acme/open': {}
       '@acme/bare':
   corp:
@@ -32,7 +28,6 @@ registries:
     failTimeout: 5m
     cache: false
     search: true
-    access: [$authenticated]
     packages: { '@corp/*': {} }
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
   crates:
@@ -58,7 +53,7 @@ fn stored_options(registry_env: &[String]) -> RoutingOptions<'_> {
 
 fn upstream_document(auth_and_headers: &str) -> RegistryGraphDocument {
     let yaml = format!(
-        "registries:\n  corp:\n    type: upstream\n    url: https://npm.corp.example/\n    access: $authenticated\n{auth_and_headers}",
+        "registries:\n  corp:\n    type: upstream\n    url: https://npm.corp.example/\n{auth_and_headers}",
     );
     RegistryGraphDocument::from_yaml(&yaml).unwrap()
 }
@@ -326,9 +321,7 @@ fn a_stored_url_must_not_carry_credentials() {
         "https://token@npm.corp.example/",
         "https://npm.corp.example/?token=hunter2",
     ] {
-        let yaml = format!(
-            "registries:\n  corp:\n    type: upstream\n    url: {url}\n    access: $authenticated\n",
-        );
+        let yaml = format!("registries:\n  corp:\n    type: upstream\n    url: {url}\n",);
         let document = RegistryGraphDocument::from_yaml(&yaml).unwrap();
         let error = document
             .check_stored(&[])

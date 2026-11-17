@@ -18,7 +18,6 @@ registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
-    access: $authenticated
     packages: { '@corp/*': {} }
   main:
     type: router
@@ -257,26 +256,6 @@ registries:
     let message = err.to_string();
     assert!(message.contains("hosted"), "expected the valid kinds listed, got: {message}");
     assert!(message.contains("upstream"), "expected the valid kinds listed, got: {message}");
-}
-
-#[test]
-fn rules_are_derived_from_the_registry_packages_map() {
-    // The `access` / `publish` tokens in each entry drive the runtime
-    // rules — not a hard-coded default set.
-    let config = hosted_rules_config(
-        "      '@secret/*':\n        access: $authenticated\n        publish: $authenticated\n        unpublish: admin\n      '**':\n        access: $all\n        publish: $authenticated\n",
-    );
-    let rules = &config.routing.hosted["local"].rules;
-    let table = rules.snapshot();
-    let secret = table.for_package("@secret/thing");
-    assert!(!secret.access.allows(&Identity::Anonymous));
-    assert!(secret.access.allows(&user("alice")));
-    let table = rules.snapshot();
-    let public = table.for_package("lodash");
-    assert!(public.access.allows(&Identity::Anonymous));
-    assert!(!public.publish.allows(&Identity::Anonymous));
-    assert!(!secret.unpublish.allows(&user("alice")));
-    assert!(secret.unpublish.allows(&user("admin")));
 }
 
 #[test]
@@ -538,7 +517,6 @@ registries:
     tarballs: tar
     packages:
       '@acme/*':
-        publish: $authenticated
   main:
     type: router
     sources: [local]

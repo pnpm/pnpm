@@ -114,10 +114,10 @@ auth:
             sync_interval_secs: None,
             max_connections: None,
         });
-        crate::managed_registries::store_graph(&config, &graph()).await;
         let storage = Storage::from_config(&config.storage).unwrap();
         storage.create_team("readers", "readers").await.unwrap();
         assert!(storage.add_team_member("readers", "reader").await.unwrap());
+        crate::managed_registries::store_graph(&config, &graph()).await;
         let package = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
         storage
             .write_hosted_document_if_current(
