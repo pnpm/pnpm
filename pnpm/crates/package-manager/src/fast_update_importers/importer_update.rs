@@ -78,12 +78,12 @@ pub(super) fn apply_one_importer_update(
         manifest,
         manifest_dependencies,
     } = *entry;
-    if importers
+    let needs_a_new_importer = importers
         .get(importer_id.as_str())
         .is_none_or(|importer| {
             records_no_dependencies(importer) && !manifest_dependencies.is_empty()
-        })
-    {
+        });
+    if needs_a_new_importer {
         let Some(new_importer) =
             importer_from_locked_versions(locked.snapshots, manifest, manifest_dependencies, plan)
         else {

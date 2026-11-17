@@ -77,9 +77,12 @@ fn writes_an_empty_importer_for_a_new_project_without_dependencies() {
     .expect("a project without dependencies needs nothing resolved");
 
     let importer = &updated.importers["pkg-b"];
-    assert!(importer.dependencies.is_none());
-    assert!(importer.dev_dependencies.is_none());
-    assert!(importer.optional_dependencies.is_none());
+    assert!(
+        importer.dependencies.is_none()
+            && importer.dev_dependencies.is_none()
+            && importer.optional_dependencies.is_none(),
+        "the new importer records no dependency groups",
+    );
     assert!(snapshot_optional(&updated, "opt@5.0.0"), "nothing else changed about the old path");
 }
 #[test]
