@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Fixed `pnpm install` with `nodeLinker: hoisted` counting skipped optional packages that were never installed as removed [pnpm/pnpm#18178](https://github.com/pnpm/pnpm/issues/18178).
+`pnpm install` with `nodeLinker: hoisted` no longer counts missing packages as removed. This fixes inflated removal counts for skipped optional dependencies [pnpm/pnpm#18178](https://github.com/pnpm/pnpm/issues/18178).

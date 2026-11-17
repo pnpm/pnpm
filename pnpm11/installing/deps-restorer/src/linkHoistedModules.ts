@@ -129,26 +129,24 @@ async function removeDirsOutsidePlan (
   const holdsImporter = holdsAnyOf([lockfileDir, ...importerDirs, ...Object.keys(hierarchy)])
   const rootModulesDir = importerModulesDir(lockfileDir, { lockfileDir, modulesDir })
   const isPermittedDir = (dir: string) => isStrictlyInside(dir, lockfileDir) || isStrictlyInside(dir, rootModulesDir)
-  const orphanDirs = difference(previousDirs, Object.keys(graph))
+  const dirsToRemove = difference(previousDirs, Object.keys(graph))
     .filter((dir) => !holdsImporter(dir) && isPermittedDir(dir))
-  const existingOrphanDirs = await Promise.all(orphanDirs.map(async (dir) => await pathExistsNoFollow(dir) ? dir : null))
-  const dirsToRemove = existingOrphanDirs.filter((dir) => dir != null)
   // A directory the previous install recorded is pnpm's to delete. One that only
   // the on-disk scan found is not: pnpm has no record of putting it there, so it
   // is quarantined instead, the way an alien package directory already is.
   const recordedDirs = new Set(dirsToRemove)
   const dirsToQuarantine = (await findUnplannedDirs(hierarchy, holdsImporter, { lockfileDir, modulesDir }))
     .filter(({ dir }) => !recordedDirs.has(dir))
-  statsLogger.debug({
-    prefix: lockfileDir,
-    removed: dirsToRemove.length + dirsToQuarantine.length,
-  })
   // We should avoid removing unnecessary directories while simultaneously adding new ones.
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
-  await Promise.all([
-    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
-    ...dirsToQuarantine.map((unplanned) => quarantineDir(unplanned, lockfileDir)),
+  const [removedCounts] = await Promise.all([
+    Promise.all(dirsToRemove.map((dir) => limitLinking(() => tryRemoveDir(dir)))),
+    Promise.all(dirsToQuarantine.map((unplanned) => quarantineDir(unplanned, lockfileDir))),
   ])
+  statsLogger.debug({
+    prefix: lockfileDir,
+    removed: removedCounts.reduce((total, count) => total + count, 0) + dirsToQuarantine.length,
+  })
 }
 
 /**
@@ -258,7 +256,19 @@ async function makeRealDir (parent: string, name: string): Promise<string | null
   return dir
 }
 
-async function tryRemoveDir (dir: string): Promise<void> {
+async function orphanPathMayExist (dir: string): Promise<boolean> {
+  try {
+    return await pathExistsNoFollow(dir)
+  } catch (error: unknown) {
+    if (isError(error) && 'code' in error && error.code === 'ENOTDIR') return false
+    // Metadata failures must not make best-effort orphan cleanup fatal.
+    logger.debug({ error, message: `Failed to inspect the orphan package at "${dir}"` })
+    return true
+  }
+}
+
+async function tryRemoveDir (dir: string): Promise<number> {
+  if (!await orphanPathMayExist(dir)) return 0
   removalLogger.debug(dir)
   try {
     await removeOrphanBins(dir)
@@ -276,6 +286,7 @@ async function tryRemoveDir (dir: string): Promise<void> {
     })
     */
   }
+  return 1
 }
 
 export async function removeOrphanBins (pkgDir: string): Promise<void> {

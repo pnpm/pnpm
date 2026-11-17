@@ -35,6 +35,13 @@ test('missing orphan directories are not counted as removed', async () => {
 
     await linkHoistedModules({} as StoreController, {}, [installed, missing], { [lockfileDir]: {} }, opts)
     expect(stats).toHaveBeenLastCalledWith({ prefix: lockfileDir, removed: 0 })
+
+    const scope = path.dirname(missing)
+    fs.rmdirSync(scope)
+    fs.writeFileSync(scope, 'not a directory')
+    await linkHoistedModules({} as StoreController, {}, [installed, missing], { [lockfileDir]: {} }, opts)
+    expect(stats).toHaveBeenLastCalledWith({ prefix: lockfileDir, removed: 0 })
+    expect(fs.readFileSync(scope, 'utf8')).toBe('not a directory')
   } finally {
     stats.mockRestore()
   }

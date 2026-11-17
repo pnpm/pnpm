@@ -32,7 +32,7 @@ struct UnplannedDir {
 /// way an alien package directory already is. Both are best-effort with
 /// the same `EPERM`/`EBUSY` tolerance: a directory we cannot clear right
 /// now is no worse than leaving a stale entry, and the next install will
-/// retry. Returns the count of existing paths attempted, not necessarily cleared.
+/// retry. Paths known to be missing are excluded from the attempted removal count.
 pub(super) fn remove_orphans(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<u64, LinkHoistedModulesError> {
@@ -41,27 +41,34 @@ pub(super) fn remove_orphans(
         .filter(|dir| !opts.graph.contains_key(*dir))
         .filter(|dir| !holds_importer(opts, dir))
         .filter(|dir| confined(dir, opts.modules_dirs.removal_bound(dir)))
-        .filter_map(|dir| match fs::symlink_metadata(dir) {
-            Ok(_) => Some(Ok(dir)),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(source) => {
-                Some(Err(LinkHoistedModulesError::ReadModulesDir { path: dir.clone(), source }))
-            }
-        })
-        .collect::<Result<BTreeSet<_>, _>>()?;
+        .collect::<BTreeSet<_>>();
     let unplanned_dirs = unplanned_dirs(opts, &recorded_dirs)?;
-    recorded_dirs
+    let removed = recorded_dirs
         .par_iter()
-        .for_each(|dir| {
-            if let Some(modules_dir) = containing_modules_dir(dir)
-                && let Err(error) = remove_dep_bins(modules_dir, dir)
-            {
-                tracing::warn!(?dir, %error, "failed to remove the bins of an orphan package");
-            }
-            let _ = try_remove_dir(dir);
-        });
+        .map(|dir| remove_recorded_dir(dir))
+        .sum::<u64>();
     unplanned_dirs.par_iter().for_each(quarantine_dir);
-    Ok((recorded_dirs.len() + unplanned_dirs.len()) as u64)
+    Ok(removed + unplanned_dirs.len() as u64)
+}
+
+fn remove_recorded_dir(dir: &Path) -> u64 {
+    match fs::symlink_metadata(dir) {
+        Ok(_) => {}
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+        {
+            return 0;
+        }
+        // Metadata failures must not make best-effort orphan cleanup fatal.
+        Err(error) => tracing::debug!(?dir, %error, "failed to inspect an orphan package"),
+    }
+    if let Some(modules_dir) = containing_modules_dir(dir)
+        && let Err(error) = remove_dep_bins(modules_dir, dir)
+    {
+        tracing::warn!(?dir, %error, "failed to remove the bins of an orphan package");
+    }
+    let _ = try_remove_dir(dir);
+    1
 }
 
 /// The package directories in the importers' modules directories that

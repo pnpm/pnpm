@@ -120,11 +120,18 @@ fn missing_orphan_directories_are_not_counted_as_removed() {
     let missing = modules_dir.join("@scope/skipped");
     write_package(&installed);
     fs::create_dir_all(missing.parent().unwrap()).unwrap();
-    let previous_dirs = BTreeSet::from([installed.clone(), missing]);
+    let previous_dirs = BTreeSet::from([installed.clone(), missing.clone()]);
 
     link_empty_plan::<RecordingReporter>(lockfile_dir, "node_modules", &previous_dirs);
     assert_eq!(*REMOVED.lock().unwrap(), 1);
     assert!(!installed.exists());
     link_empty_plan::<RecordingReporter>(lockfile_dir, "node_modules", &previous_dirs);
     assert_eq!(*REMOVED.lock().unwrap(), 0);
+
+    let scope = missing.parent().unwrap();
+    fs::remove_dir(scope).unwrap();
+    fs::write(scope, b"not a directory").unwrap();
+    link_empty_plan::<RecordingReporter>(lockfile_dir, "node_modules", &previous_dirs);
+    assert_eq!(*REMOVED.lock().unwrap(), 0);
+    assert_eq!(fs::read(scope).unwrap(), b"not a directory");
 }
