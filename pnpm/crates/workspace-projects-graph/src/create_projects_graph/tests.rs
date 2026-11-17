@@ -191,7 +191,12 @@ fn strict_link_workspace_packages_still_links_workspace_specs() {
 #[test]
 fn registry_protocols_contribute_no_edge() {
     let projects = vec![
-        project("/ws/a", "a", "1.0.0", &[("b", "npm:other@1.0.0"), ("c", "github:o/r")]),
+        project(
+            "/ws/a",
+            "a",
+            "1.0.0",
+            &[("b", "npm:other@1.0.0"), ("b-spaced", "reg:b@>=2.0.0 <3.0.0"), ("c", "github:o/r")],
+        ),
         project("/ws/b", "b", "2.0.0", &[]),
     ];
     let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
@@ -290,9 +295,9 @@ fn npm_alias_resolves_to_the_sibling_it_names() {
                 "a",
                 "1.0.0",
                 &[
-                    ("b-alias", "npm:b@^2.0.0"),
+                    ("b-alias", "npm:b@>=2.0.0 <3.0.0"),
                     ("c-alias", "npm:c@^9.0.0"),
-                    ("d", "npm:^4.0.0"),
+                    ("d", "npm:>=4.0.0 <5.0.0"),
                     ("e-alias", "npm:b"),
                     ("f-alias", "npm:c@file:../c"),
                     ("g-alias", "npm:c@link:../c"),

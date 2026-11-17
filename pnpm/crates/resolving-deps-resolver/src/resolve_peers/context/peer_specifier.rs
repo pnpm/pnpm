@@ -1,3 +1,5 @@
+use pnpm_resolving_resolver_base::parse_strict_semver_range;
+
 use super::{
     DepPath, NodeId, Path, PathBuf, PeerId, Range, ResolvePeersOptions, ResolveResult, Version,
     get_peer_version_range, index_of_dep_path_suffix, pkg_name,
@@ -167,7 +169,7 @@ pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
 /// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
 /// in Yarn's full per-comparator algorithm.
 pub(crate) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
-    let parsed_range = Range::parse(range).ok();
+    let parsed_range = parse_strict_semver_range(range);
     satisfies_with_parsed_prereleases(version, range, parsed_range.as_ref())
 }
 
@@ -208,23 +210,23 @@ pub(super) fn satisfies_with_parsed_prereleases(
 /// yields, paired with its parsed form so a range that many nodes
 /// declare is parsed once. Holding the two together is what keeps the
 /// parsed range in step with the text it came from.
-#[derive(Debug)]
-pub(in super::super) struct ComparablePeerRange {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ComparablePeerRange {
     /// The comparable range, as peer-dependency issues quote it.
-    pub(in super::super) text: String,
+    pub(crate) text: String,
     pub(super) parsed: Option<Range>,
 }
 
 impl ComparablePeerRange {
-    pub(in super::super) fn new(raw_range: &str) -> Self {
+    pub(crate) fn new(raw_range: &str) -> Self {
         let text = get_peer_version_range(raw_range);
-        let parsed = Range::parse(&text).ok();
+        let parsed = parse_strict_semver_range(&text);
         ComparablePeerRange { text, parsed }
     }
 
     /// Whether `version` satisfies this range, by
     /// [`satisfies_with_prereleases`]'s rules.
-    pub(in super::super) fn satisfies(&self, version: &str) -> bool {
+    pub(crate) fn satisfies(&self, version: &str) -> bool {
         satisfies_with_parsed_prereleases(version, &self.text, self.parsed.as_ref())
     }
 }

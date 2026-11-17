@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use node_semver::Range;
 use pnpm_lockfile::{PkgName, PkgNameVerPeer, Prefix, RegistryContext, VersionPart, same_registry};
+use pnpm_resolving_resolver_base::parse_strict_semver_range;
 
 /// Whether the version locked as `key` for the child `alias` still satisfies
 /// `bare_specifier`, from the registry the specifier resolves against. A
@@ -112,7 +113,7 @@ impl<'a> WantedRegistryRange<'a> {
                 name: Cow::Owned(name.parse().ok()?),
                 registry,
                 key_prefix: registries.key_prefix_for_registry(registry),
-                range: range.parse().ok()?,
+                range: parse_strict_semver_range(range)?,
             });
         }
         if let Some((prefix, body)) = bare_specifier.split_once(':')
@@ -131,14 +132,19 @@ impl<'a> WantedRegistryRange<'a> {
                 None => (Cow::Borrowed(alias), body),
             };
             let key_prefix = registries.key_prefix_for_alias(prefix, &name.to_string());
-            return Some(Self { name, registry, key_prefix, range: range.parse().ok()? });
+            return Some(Self {
+                name,
+                registry,
+                key_prefix,
+                range: parse_strict_semver_range(range)?,
+            });
         }
         let registry = registries.routed_registry(&alias.to_string());
         Some(Self {
             name: Cow::Borrowed(alias),
             registry,
             key_prefix: registries.key_prefix_for_registry(registry),
-            range: bare_specifier.parse().ok()?,
+            range: parse_strict_semver_range(bare_specifier)?,
         })
     }
 }

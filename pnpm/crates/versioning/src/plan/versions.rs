@@ -1,7 +1,8 @@
+use pnpm_semver_include_prerelease::parse_strict_semver_range;
+
 use super::{
-    BTreeMap, BumpState, Identifier, IntentBumpType, Participant, PlannedRelease, Range,
-    ReleaseBumpType, ResolvedEpic, Version, VersioningError, VersioningSettings,
-    parse_workspace_spec_alias,
+    BTreeMap, BumpState, Identifier, IntentBumpType, Participant, PlannedRelease, ReleaseBumpType,
+    ResolvedEpic, Version, VersioningError, VersioningSettings, parse_workspace_spec_alias,
 };
 
 pub(super) fn bump_release_order(bump_type: IntentBumpType) -> u8 {
@@ -360,7 +361,8 @@ pub fn materialize_workspace_range(spec: &str, dep_current_version: &str) -> Opt
 }
 
 pub(super) fn range_accepts(range: &str, version: &str) -> bool {
-    let (Ok(range), Ok(version)) = (Range::parse(range), Version::parse(version)) else {
+    let (Some(range), Ok(version)) = (parse_strict_semver_range(range), Version::parse(version))
+    else {
         return false;
     };
     version.satisfies(&range)
