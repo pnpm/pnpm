@@ -422,7 +422,7 @@ when running add/update with the --workspace option')
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
-  return { [searchedDir]: { dependencies: [], package: project } }
+  return { [project.rootDir]: { dependencies: [], package: project } }
 }
 
 async function recursiveInstallThenUpdateWorkspaceState (
