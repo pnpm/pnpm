@@ -188,6 +188,22 @@ test('nodeVersion prefers a downloaded runtime over an exact runtime pin of an e
   expect(config.nodeVersion).toBe('24.0.0')
 })
 
+test('nodeVersion ignores a runtime dependency without an engines runtime field', async () => {
+  prepare({
+    dependencies: { node: 'runtime:^24.0.0' },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBeUndefined()
+})
+
 test('nodeVersion from config takes priority over devEngines.runtime', async () => {
   prepare({
     devEngines: {

@@ -34,6 +34,19 @@ export function getDownloadedNodeVersionFromEnginesRuntime (
   return findDownloadedNodeRuntime(manifest, onFailOverride, dependencyGroup)?.version
 }
 
+/**
+ * {@link getDownloadedNodeVersionFromEnginesRuntime} that reads only the
+ * `engines.runtime` and `devEngines.runtime` fields, not a `runtime:`
+ * dependency, whose locked version may differ from its range's lower bound.
+ */
+export function getDownloadedNodeVersionFromEnginesField (
+  manifest: ProjectManifest,
+  onFailOverride?: RuntimeOnFail,
+  dependencyGroup?: 'dependencies' | 'devDependencies'
+): string | undefined {
+  return findDownloadedNodeRuntimeFromEngines(manifest, onFailOverride, dependencyGroup)?.version
+}
+
 export function getDownloadedNodeRuntimeSpecifierFromEnginesRuntime (
   manifest: ProjectManifest,
   onFailOverride?: RuntimeOnFail,

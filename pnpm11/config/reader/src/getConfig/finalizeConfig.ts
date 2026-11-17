@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import { applyRuntimeOnFailOverride, getDownloadedNodeVersionFromEnginesRuntime, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
+import { applyRuntimeOnFailOverride, getDownloadedNodeVersionFromEnginesField, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
 import type { ProjectManifest } from '@pnpm/types'
 
 import { transformPathKeys } from '../transformPath.js'
@@ -42,7 +42,7 @@ function getIncludedNodeVersionFromEnginesRuntime (
     ...(dev ? ['devDependencies' as const] : []),
   ]
   for (const dependencyGroup of dependencyGroups) {
-    const version = getDownloadedNodeVersionFromEnginesRuntime(manifest, runtimeOnFail, dependencyGroup)
+    const version = getDownloadedNodeVersionFromEnginesField(manifest, runtimeOnFail, dependencyGroup)
     if (version != null) return version
   }
   for (const dependencyGroup of dependencyGroups) {
