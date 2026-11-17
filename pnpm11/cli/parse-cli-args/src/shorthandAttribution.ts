@@ -32,7 +32,7 @@ export function attributeUnknownOptionsToShorthands (
   const unknownOptionShorthands = new Map<string, string>()
   if (unknownOptions.size === 0) return unknownOptionShorthands
   const { shorthands } = ctx
-  for (const { typed, shorthand } of findTypedShorthands(ctx, knownOptions)) {
+  for (const { typed, shorthand } of findTypedShorthands(ctx, knownOptions, unknownOptions)) {
     for (const optionName of getShorthandOptionNames(shorthands[shorthand])) {
       if (!unknownOptions.has(optionName) || unknownOptionShorthands.has(optionName)) continue
       unknownOptionShorthands.set(optionName, typed)
@@ -47,33 +47,45 @@ export function attributeUnknownOptionsToShorthands (
  * the value of the preceding option, or come after `--` or an escape argument.
  * So only the shorthands that the parser expanded are kept.
  */
-function findTypedShorthands (ctx: ShorthandContext, knownOptions: Set<string>): TypedShorthand[] {
+function findTypedShorthands (
+  ctx: ShorthandContext,
+  knownOptions: Set<string>,
+  unknownOptions: Map<string, string[]>
+): TypedShorthand[] {
   const typedShorthands = ctx.originalArgv.flatMap((arg) => resolveTypedShorthands(arg, ctx.shorthands, knownOptions))
   if (typedShorthands.length === 0) return []
-  const expandedShorthands = findExpandedShorthands(ctx)
+  const expandedShorthands = findExpandedShorthands(ctx, unknownOptions)
   return typedShorthands.filter(({ shorthand }) => expandedShorthands.has(shorthand))
 }
 
 const EXPANSION_MARKER = '\0expanded-shorthand:'
 
 /**
- * Parses the arguments again, with the unknown options in each shorthand
- * expansion renamed to name the shorthand, and returns the shorthands whose
- * renamed options were parsed. The parser reads every unknown option the same
- * way, whatever its name, so the renaming does not change which arguments
- * are read as options.
+ * Parses the arguments again, with each unknown option in a shorthand
+ * expansion renamed after the shorthand, and returns the shorthands whose
+ * renamed options were parsed. A renamed option keeps the parser type of the
+ * original, so the second parse reads the same arguments as options.
  */
-function findExpandedShorthands ({ originalArgv, types, escapeArgs, shorthands }: ShorthandContext): Set<string> {
+function findExpandedShorthands (
+  { originalArgv, types, escapeArgs, shorthands }: ShorthandContext,
+  unknownOptions: Map<string, string[]>
+): Set<string> {
   const shorthandNames = Object.keys(shorthands)
+  const markedTypes: Record<string, unknown> = { ...types }
   const markedShorthands: Record<string, string[]> = {}
   for (const [index, shorthand] of shorthandNames.entries()) {
-    markedShorthands[shorthand] = renameUnknownOptions(shorthands[shorthand], types, `${EXPANSION_MARKER}${index}`)
+    markedShorthands[shorthand] = renameOptions(shorthands[shorthand], (optionName) => {
+      if (!unknownOptions.has(optionName)) return undefined
+      const marker = `${EXPANSION_MARKER}${index}:${optionName}`
+      if (Object.hasOwn(types, optionName)) markedTypes[marker] = types[optionName]
+      return marker
+    })
   }
-  const parsed = nopt(types, markedShorthands, originalArgv, 0, { escapeArgs })
+  const parsed = nopt(markedTypes as Parameters<typeof nopt>[0], markedShorthands, originalArgv, 0, { escapeArgs })
   const expandedShorthands = new Set<string>()
   for (const key of Object.keys(parsed)) {
     if (key.startsWith(EXPANSION_MARKER)) {
-      expandedShorthands.add(shorthandNames[Number(key.slice(EXPANSION_MARKER.length))])
+      expandedShorthands.add(shorthandNames[Number.parseInt(key.slice(EXPANSION_MARKER.length), 10)])
     }
   }
   return expandedShorthands
@@ -114,15 +126,15 @@ function resolveAbbreviation (prefix: string, names: Iterable<string>): string |
   return match
 }
 
-function renameUnknownOptions (
+function renameOptions (
   expansion: string | string[],
-  types: Parameters<typeof nopt>[0],
-  newName: string
+  getNewName: (optionName: string) => string | undefined
 ): string[] {
   return splitExpansion(expansion).map((arg) =>
-    arg.replace(/^(--(?:no-)?)([^=]+)/, (match, prefix: string, optionName: string) =>
-      Object.hasOwn(types, optionName) ? match : `${prefix}${newName}`
-    )
+    arg.replace(/^(--(?:no-)?)([^=]+)/, (match, prefix: string, optionName: string) => {
+      const newName = getNewName(optionName)
+      return newName == null ? match : `${prefix}${newName}`
+    })
   )
 }
 

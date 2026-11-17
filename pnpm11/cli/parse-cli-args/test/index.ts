@@ -220,6 +220,15 @@ test('an unknown option is not attributed to a shorthand after an escape arg', a
   }
 })
 
+test('an unknown option that the parser always reads is attributed to its shorthand', async () => {
+  const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalShorthands: { r: '--recursive' },
+  }, ['update', '-r'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['recursive'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['recursive', '-r']])
+})
+
 test('an unknown option is not attributed to a shorthand consumed as an option value', async () => {
   const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
     ...DEFAULT_OPTS,
