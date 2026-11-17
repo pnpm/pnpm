@@ -224,14 +224,13 @@ function legacyRegistriesWarning (
   if (!isPlainObject(legacyRoutes) || !isLegacyRegistryRoutes(legacyRoutes)) return undefined
   const unchangedScopes = Object.entries(before.registriesByScope)
     .filter(([scope]) => {
-      if (scope === 'default') return false
       const expectedRoute = legacyRoutes[scope] ?? (scope === '@jsr' ? undefined : legacyRoutes.default)
       return typeof expectedRoute === 'string' &&
         config.registriesByScope[scope] !== normalizeLegacyRegistryRoute(expectedRoute)
     })
     .map(([scope]) => scope)
   if (unchangedScopes.length === 0) return undefined
-  return `The updateConfig hook changed the \`registries\` setting, but ${unchangedScopes.join(', ')} still use their configured registry. Return \`registriesByScope\` to replace scope routing.`
+  return `The updateConfig hook changed the \`registries\` setting, but these routes still use their configured registry: ${unchangedScopes.join(', ')}. Return \`registriesByScope\` to replace scope routing.`
 }
 
 function normalizeLegacyRegistryRoute (route: string): string {

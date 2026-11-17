@@ -418,7 +418,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
   })
 
-  test('does not warn when a scope route already matches the legacy default registry', async () => {
+  test('does not name a scope route that already matches the legacy default registry', async () => {
     prepare()
     writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://other-mirror.example/' } })")
 
@@ -427,7 +427,18 @@ describe('installConfigDepsAndLoadHooks', () => {
     config.registriesByScope['@acme'] = 'https://other-mirror.example/'
     await installConfigDepsAndLoadHooks(config, context)
 
-    expect(globalWarn).not.toHaveBeenCalled()
+    expect(globalWarn).toHaveBeenCalledTimes(1)
+    expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('@acme'))
+  })
+
+  test('warns that the default registry is unchanged when an updateConfig hook returns only a legacy default route', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('still use their configured registry: default.'))
   })
 
   test('does not warn when a scope route matches a legacy registry without a trailing slash', async () => {

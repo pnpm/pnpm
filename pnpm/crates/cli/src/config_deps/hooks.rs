@@ -188,7 +188,7 @@ pub(super) fn legacy_registries_warning(
         return None;
     }
     Some(format!(
-        "The updateConfig hook changed the `registries` setting, but {} still use their configured registry. Return `registriesByScope` to replace scope routing.",
+        "The updateConfig hook changed the `registries` setting, but these routes still use their configured registry: {}. Return `registriesByScope` to replace scope routing.",
         unchanged_scopes.join(", "),
     ))
 }
