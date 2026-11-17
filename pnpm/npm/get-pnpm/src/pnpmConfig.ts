@@ -158,7 +158,8 @@ function readGlobalConfigProxySettings (opts: PnpmProxyConfigOptions, env: NodeJ
   const file = path.join(pnpmConfigDir(opts, env), 'config.yaml')
   let settings: unknown
   try {
-    settings = parseYAML(fs.readFileSync(file, 'utf8'))
+    const content = fs.readFileSync(file, 'utf8')
+    settings = holdsYamlDocument(content) ? parseYAML(content) : null
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
     throw new Error(`Could not read ${file}: ${(err as Error).message}`, { cause: err })
@@ -175,6 +176,11 @@ function readGlobalConfigProxySettings (opts: PnpmProxyConfigOptions, env: NodeJ
     noproxy: expandEnvIn(noproxy, env),
     proxy: expandEnvIn(proxy, env),
   }
+}
+
+/** Whether `content` holds more than blank lines and comments, which `parseYAML` rejects as no document. */
+function holdsYamlDocument (content: string): boolean {
+  return content.split(/\r\n?|\n/).some((line) => line.trim() !== '' && !line.trimStart().startsWith('#'))
 }
 
 /** A null value leaves the setting to a lower source, as pnpm reads the file. */
