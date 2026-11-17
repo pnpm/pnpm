@@ -158,10 +158,21 @@ fn can_access_writable_dir(dir: &Path) -> bool {
     };
     // SAFETY: `c_path` is a valid NUL-terminated string for the duration of the call.
     unsafe {
-        libc::faccessat(libc::AT_FDCWD, c_path.as_ptr(), libc::W_OK | libc::X_OK, libc::AT_EACCESS)
-            == 0
+        libc::faccessat(
+            libc::AT_FDCWD,
+            c_path.as_ptr(),
+            libc::W_OK | libc::X_OK,
+            FACCESSAT_EFFECTIVE_IDS,
+        ) == 0
     }
 }
+
+#[cfg(all(unix, not(target_os = "android")))]
+const FACCESSAT_EFFECTIVE_IDS: libc::c_int = libc::AT_EACCESS;
+
+/// Bionic's `faccessat` fails with `EINVAL` for every non-zero flag.
+#[cfg(target_os = "android")]
+const FACCESSAT_EFFECTIVE_IDS: libc::c_int = 0;
 
 #[cfg(windows)]
 fn can_access_writable_dir(dir: &Path) -> bool {
