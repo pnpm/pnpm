@@ -184,6 +184,7 @@ fn frozen_install_accepts_missing_dependency_free_workspace_importer() {
     lockfile
         .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
         .expect("save lockfile without pkg-b importer");
+    let saved = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
     fs::remove_dir_all(workspace.join("pkg-a/node_modules")).expect("remove pkg-a node_modules");
 
@@ -195,10 +196,11 @@ fn frozen_install_accepts_missing_dependency_free_workspace_importer() {
         workspace.join("pkg-a/node_modules/is-positive/package.json").exists(),
         "the frozen install must still link pkg-a's dependencies",
     );
-    let kept: pnpm_lockfile::Lockfile =
-        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
-            .expect("parse pnpm-lock.yaml");
-    assert!(!kept.importers.contains_key("pkg-b"), "a frozen install must not write the lockfile");
+    assert_eq!(
+        fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"),
+        saved,
+        "a frozen install must not write the lockfile",
+    );
 
     drop((root, mock_instance));
 }
