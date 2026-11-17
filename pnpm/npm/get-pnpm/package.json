@@ -43,7 +43,7 @@
     "@types/node": "catalog:",
     "@types/picomatch": "catalog:",
     "@types/semver": "catalog:",
-    "typescript": "catalog:"
+    "@typescript/native": "catalog:"
   },
   "engines": {
     "node": ">=22.13"
