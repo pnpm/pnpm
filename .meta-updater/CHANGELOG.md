@@ -1,5 +1,14 @@
 # @pnpm-private/updater
 
+## 1100.0.40
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/types@1102.1.4
+  - @pnpm/workspace.projects-reader@1101.1.8
+  - @pnpm/workspace.workspace-manifest-reader@1100.3.3
+
 ## 1100.0.39
 
 ### Patch Changes
