@@ -187,8 +187,8 @@ async fn the_listing_adds_up_grants_and_leaves_out_what_a_grant_excludes() {
         (
             "nothing",
             json!({
-                "include": ["@acme/lib"],
-                "exclude": ["@acme/lib"],
+                "include": ["@acme/lib", "@other/lib"],
+                "exclude": ["@acme/*", "@other/lib"],
                 "subjects": { "team:devs": ["read", "publish"] },
             }),
         ),

@@ -288,7 +288,12 @@ fn reauthorize_staged(
         // A document that attaches no version changes only what the existing
         // ones say of themselves.
         let action = if doc.prepared.is_empty() { Action::Annotate } else { Action::Publish };
-        return authorize_against_packument(state, &doc.publisher, &source, package, action);
+        authorize_against_packument(state, &doc.publisher, &source, package, action)?;
+        if action == Action::Publish && annotates_published(doc, packument) {
+            let annotate = Action::Annotate;
+            authorize_against_packument(state, &doc.publisher, &source, package, annotate)?;
+        }
+        return Ok(());
     }
     let ownership = match tombstone {
         Some(tombstone) => Ownership::Owners(&tombstone.maintainers),
@@ -296,6 +301,51 @@ fn reauthorize_staged(
     };
     let package = (doc.name.as_str(), &ownership);
     authorize_with_ownership(state, &doc.publisher, &source, package, Action::Publish)
+}
+
+/// Whether `doc`, beside the versions it attaches, changes what `hosted` says
+/// of the versions it already has: the deprecation of one, or a dist-tag
+/// moved to one.
+fn annotates_published(doc: &ValidatedPublish, hosted: &Value) -> bool {
+    redeprecates(&doc.incoming, hosted) || retags(doc, hosted)
+}
+
+fn entries<'a>(document: &'a Value, key: &str) -> impl Iterator<Item = (&'a String, &'a Value)> {
+    document
+        .get(key)
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+}
+
+/// Whether `incoming` gives a version `hosted` has another deprecation.
+fn redeprecates(incoming: &Value, hosted: &Value) -> bool {
+    let deprecation = |manifest: &Value| {
+        let text = manifest.get("deprecated").and_then(Value::as_str);
+        text.filter(|text| !text.is_empty())
+            .map(str::to_string)
+    };
+    entries(incoming, "versions")
+        .any(|(version, manifest)| {
+            let held = hosted
+                .get("versions")
+                .and_then(|versions| versions.get(version));
+            held.is_some_and(|held| deprecation(held) != deprecation(manifest))
+        })
+}
+
+/// Whether `doc` moves a dist-tag to a version it does not attach.
+fn retags(doc: &ValidatedPublish, hosted: &Value) -> bool {
+    entries(&doc.incoming, "dist-tags")
+        .any(|(tag, version)| {
+            let attached = doc.prepared
+                .iter()
+                .any(|prepared| version.as_str() == Some(&prepared.version));
+            let held = hosted
+                .get("dist-tags")
+                .and_then(|tags| tags.get(tag));
+            !attached && held != Some(version)
+        })
 }
 
 async fn prepare_publish_document(

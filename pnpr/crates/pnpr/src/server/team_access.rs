@@ -18,6 +18,7 @@ use super::{
 };
 use axum::body::Bytes;
 use pnpr_policy::Action;
+use pnpr_registry::{Ecosystem, PackagePattern};
 use pnpr_storage::database::{GrantContent, StoredGrant};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -159,19 +160,20 @@ pub(super) fn list_team_packages(
         let (registry, _) =
             team_registry(state, &routing, identity, target.registry, target.scope)?;
         let grants = state.inner.identity.managed.grants.snapshot();
-        let packages = team_packages(&grants.grants, registry, id);
+        let ecosystem = routing.registries.ecosystem(registry).unwrap_or_default();
+        let packages = team_packages(&grants.grants, (registry, ecosystem), id);
         Ok((StatusCode::OK, axum::Json(json!(packages))))
     })();
     respond(result)
 }
 
 /// The patterns `grants` give the team `id` in `registry`, each with what the
-/// grants naming it give between them. A pattern a grant also excludes is not
-/// counted for that grant. A pattern a grant excludes part of is listed,
+/// grants naming it give between them. A pattern a grant excludes in full is
+/// not counted for that grant. A pattern a grant excludes part of is listed,
 /// which npm's listing cannot qualify.
 fn team_packages(
     grants: &[StoredGrant],
-    registry: &str,
+    (registry, ecosystem): (&str, Ecosystem),
     id: &str,
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut given: BTreeMap<&str, TeamActions> = BTreeMap::new();
@@ -181,7 +183,7 @@ fn team_packages(
         .filter(|content| covers(content, registry))
     {
         let actions = TeamActions::of(content, id);
-        for pattern in listed_patterns(content) {
+        for pattern in listed_patterns(content, ecosystem) {
             given
                 .entry(pattern)
                 .or_default()
@@ -194,20 +196,26 @@ fn team_packages(
         .collect()
 }
 
-/// The patterns the grant `content` includes and does not itself exclude.
-fn listed_patterns(content: &GrantContent) -> impl Iterator<Item = &str> {
-    let included: &[String] = &content.include;
-    let all = included.is_empty().then_some("**");
-    let excluded = |pattern: &&str| {
-        content.exclude
-            .iter()
-            .any(|exclude| exclude == pattern || exclude == "**")
-    };
-    included
+/// The patterns the grant `content` includes and does not exclude in full.
+fn listed_patterns(content: &GrantContent, ecosystem: Ecosystem) -> impl Iterator<Item = &str> {
+    let parse = move |pattern: &str| PackagePattern::parse(pattern, ecosystem).ok();
+    let excludes: Vec<PackagePattern> = content.exclude
+        .iter()
+        .filter_map(|pattern| parse(pattern))
+        .collect();
+    let all = content.include.is_empty().then_some("**");
+    let included = content.include
         .iter()
         .map(String::as_str)
-        .chain(all)
-        .filter(move |pattern| !excluded(pattern))
+        .chain(all);
+    included.filter(move |pattern| {
+        let Some(pattern) = parse(pattern) else {
+            return false;
+        };
+        !excludes
+            .iter()
+            .any(|exclude| exclude.covers(&pattern))
+    })
 }
 
 /// What grants let a team do with a pattern, in the actions npm's listing
