@@ -144,7 +144,7 @@ async fn a_graph_and_the_teams_it_names_are_kept_together(db: Db) {
             .await
             .unwrap()
             .as_deref(),
-        Some("t-release")
+        Some("t-release"),
     );
     storage.create_team("t-release", "release").await.unwrap();
     storage.create_team("t-release-2", "release-2").await.unwrap();
