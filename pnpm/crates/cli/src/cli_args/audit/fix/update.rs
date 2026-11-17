@@ -4,7 +4,7 @@ use super::{
     State, Update, Version, blue, color_severity, green, red, resolve_minimum_release_age_excludes,
     satisfies_including_prerelease, severity_name, severity_number, write_age_excludes,
 };
-use crate::cli_args::audit::patched_range_for_style;
+use crate::cli_args::audit::{patched_range_for_style, report::AdvisoryId};
 use pnpm_resolving_deps_resolver::UpdateTargets;
 
 /// The advisories of a `--fix update` run, partitioned by how the update can
@@ -13,20 +13,20 @@ use pnpm_resolving_deps_resolver::UpdateTargets;
 /// could ever be safe), and ones whose range the registry sent in a form we
 /// can't parse.
 pub(crate) struct UpdateClassification {
-    pub(crate) vulnerabilities: HashMap<String, Vec<(u64, Range)>>,
-    pub(crate) unfixable: HashMap<String, Vec<u64>>,
+    pub(crate) vulnerabilities: HashMap<String, Vec<(AdvisoryId, Range)>>,
+    pub(crate) unfixable: HashMap<String, Vec<AdvisoryId>>,
     /// Advisory ids whose `vulnerable_versions` failed to parse. The registry
     /// is untrusted, so a malformed range must not silently drop the advisory
     /// — it is counted as remaining rather than read as a clean exit.
-    pub(crate) unparsable: Vec<u64>,
+    pub(crate) unparsable: Vec<AdvisoryId>,
 }
 
 pub(crate) fn classify_for_update(
     advisories: &BTreeMap<String, AuditAdvisory>,
 ) -> UpdateClassification {
-    let mut vulnerabilities: HashMap<String, Vec<(u64, Range)>> = HashMap::new();
-    let mut unfixable: HashMap<String, Vec<u64>> = HashMap::new();
-    let mut unparsable: Vec<u64> = Vec::new();
+    let mut vulnerabilities: HashMap<String, Vec<(AdvisoryId, Range)>> = HashMap::new();
+    let mut unfixable: HashMap<String, Vec<AdvisoryId>> = HashMap::new();
+    let mut unparsable: Vec<AdvisoryId> = Vec::new();
     for advisory in advisories.values() {
         // The registry is untrusted: trim both the package name and the range
         // so a whitespace-padded name still keys the guard and the
@@ -39,17 +39,17 @@ pub(crate) fn classify_for_update(
             unfixable
                 .entry(name.to_string())
                 .or_default()
-                .push(advisory.id);
+                .push(advisory.id.clone());
             continue;
         }
         let Ok(range) = range.parse::<Range>() else {
-            unparsable.push(advisory.id);
+            unparsable.push(advisory.id.clone());
             continue;
         };
         vulnerabilities
             .entry(name.to_string())
             .or_default()
-            .push((advisory.id, range));
+            .push((advisory.id.clone(), range));
     }
     UpdateClassification { vulnerabilities, unfixable, unparsable }
 }
@@ -66,7 +66,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     lockfile_dir: &std::path::Path,
     settings_dir: &std::path::Path,
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
-) -> miette::Result<(Vec<u64>, Vec<u64>, Vec<String>)> {
+) -> miette::Result<(Vec<AdvisoryId>, Vec<AdvisoryId>, Vec<String>)> {
     let classification = classify_for_update(advisories);
 
     let age_excludes = persist_age_excludes(state, advisories, settings_dir, publish_infos)?;
@@ -95,7 +95,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
 /// The resolver-time guard rejecting every vulnerable range, carrying the
 /// age exclusions that let the patched versions through.
 fn fix_observer(
-    vulnerabilities: &HashMap<String, Vec<(u64, Range)>>,
+    vulnerabilities: &HashMap<String, Vec<(AdvisoryId, Range)>>,
     age_excludes: Vec<String>,
 ) -> Arc<dyn ResolutionObserver> {
     let guard_ranges: HashMap<String, Vec<Range>> = vulnerabilities
@@ -174,20 +174,20 @@ pub(crate) struct InstalledPackages {
 /// conservative bias keeps `audit --fix update` from reporting a clean state
 /// it can't prove.
 pub(crate) fn report_fixed_remaining(
-    vulnerabilities: &HashMap<String, Vec<(u64, Range)>>,
-    unfixable: &HashMap<String, Vec<u64>>,
-    unparsable: &[u64],
+    vulnerabilities: &HashMap<String, Vec<(AdvisoryId, Range)>>,
+    unfixable: &HashMap<String, Vec<AdvisoryId>>,
+    unparsable: &[AdvisoryId],
     installed: &InstalledPackages,
-) -> (Vec<u64>, Vec<u64>) {
-    let mut fixed: Vec<u64> = Vec::new();
-    let mut remaining: Vec<u64> = Vec::new();
+) -> (Vec<AdvisoryId>, Vec<AdvisoryId>) {
+    let mut fixed: Vec<AdvisoryId> = Vec::new();
+    let mut remaining: Vec<AdvisoryId> = Vec::new();
     for (name, entries) in vulnerabilities {
         if !installed.names.contains(name) {
-            fixed.extend(entries.iter().map(|(id, _)| *id));
+            fixed.extend(entries.iter().map(|(id, _)| id.clone()));
             continue;
         }
         let Some(versions) = installed.versions.get(name) else {
-            remaining.extend(entries.iter().map(|(id, _)| *id));
+            remaining.extend(entries.iter().map(|(id, _)| id.clone()));
             continue;
         };
         split_by_vulnerability(entries, versions, &mut fixed, &mut remaining);
@@ -198,13 +198,13 @@ pub(crate) fn report_fixed_remaining(
     remaining.extend(
         still_installed
             .into_iter()
-            .flat_map(|(_, ids)| ids.iter().copied()),
+            .flat_map(|(_, ids)| ids.iter().cloned()),
     );
     fixed.extend(
         gone.into_iter()
-            .flat_map(|(_, ids)| ids.iter().copied()),
+            .flat_map(|(_, ids)| ids.iter().cloned()),
     );
-    remaining.extend(unparsable.iter().copied());
+    remaining.extend(unparsable.iter().cloned());
 
     (fixed, remaining)
 }
@@ -212,18 +212,18 @@ pub(crate) fn report_fixed_remaining(
 /// Sort one package's advisories by whether an installed version still
 /// falls in the advisory's vulnerable range.
 fn split_by_vulnerability(
-    entries: &[(u64, Range)],
+    entries: &[(AdvisoryId, Range)],
     versions: &[Version],
-    fixed: &mut Vec<u64>,
-    remaining: &mut Vec<u64>,
+    fixed: &mut Vec<AdvisoryId>,
+    remaining: &mut Vec<AdvisoryId>,
 ) {
     for (id, range) in entries {
         let still_vulnerable =
             versions.iter().any(|version| satisfies_including_prerelease(version, range));
         if still_vulnerable {
-            remaining.push(*id);
+            remaining.push(id.clone());
         } else {
-            fixed.push(*id);
+            fixed.push(id.clone());
         }
     }
 }
@@ -232,16 +232,16 @@ fn split_by_vulnerability(
 /// `formatFixWithUpdateOutput`: a one-line count, then the fixed and
 /// remaining advisories listed severity-high-to-low.
 pub(crate) fn format_fix_with_update_output(
-    fixed: &[u64],
-    remaining: &[u64],
+    fixed: &[AdvisoryId],
+    remaining: &[AdvisoryId],
     advisories: &BTreeMap<String, AuditAdvisory>,
 ) -> String {
-    let by_id = |id: u64| advisories.get(&id.to_string());
-    let sort_by_severity = |ids: &[u64]| -> Vec<u64> {
+    let by_id = |id: &AdvisoryId| advisories.get(&id.to_string());
+    let sort_by_severity = |ids: &[AdvisoryId]| -> Vec<AdvisoryId> {
         let mut ids = ids.to_vec();
         ids.sort_by_key(|id| {
             std::cmp::Reverse(
-                by_id(*id).map_or(-1, |advisory| i32::from(severity_number(advisory.severity))),
+                by_id(id).map_or(-1, |advisory| i32::from(severity_number(advisory.severity))),
             )
         });
         ids
@@ -260,7 +260,7 @@ pub(crate) fn format_fix_with_update_output(
         red(&remaining.len().to_string()),
     )];
 
-    let summarize = |is_fixed: bool, id: u64| -> String {
+    let summarize = |is_fixed: bool, id: &AdvisoryId| -> String {
         let Some(advisory) = by_id(id) else {
             return format!("- Advisory with ID {id} (details not found in the audit report)");
         };
@@ -269,11 +269,11 @@ pub(crate) fn format_fix_with_update_output(
 
     if !fixed.is_empty() {
         lines.push("\nThe fixed vulnerabilities are:".to_string());
-        lines.extend(fixed.iter().map(|id| summarize(true, *id)));
+        lines.extend(fixed.iter().map(|id| summarize(true, id)));
     }
     if !remaining.is_empty() {
         lines.push("\nThe remaining vulnerabilities are:".to_string());
-        lines.extend(remaining.iter().map(|id| summarize(false, *id)));
+        lines.extend(remaining.iter().map(|id| summarize(false, id)));
     }
     lines.push(String::new());
     lines.join("\n")
@@ -396,7 +396,7 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
 /// re-resolves only these, so every other dependency keeps its locked version.
 fn vulnerable_locked_versions(
     lockfile: Option<&Lockfile>,
-    vulnerabilities: &HashMap<String, Vec<(u64, Range)>>,
+    vulnerabilities: &HashMap<String, Vec<(AdvisoryId, Range)>>,
 ) -> UpdateTargets {
     let mut targets = UpdateTargets::default();
     for key in lockfile
