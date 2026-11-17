@@ -36,6 +36,59 @@ pub(super) async fn read_source_packument(
     }
 }
 
+/// How old a fresh cached packument must be before a request for a version it
+/// does not list refetches it. A version published upstream after the fetch
+/// is then served before the packument TTL expires, and requests for versions
+/// that do not exist refetch a package's packument at most once per interval.
+const MISSING_VERSION_REFETCH_INTERVAL: Duration = Duration::from_secs(60);
+
+/// [`reload_upstream_packument_lacking_version`] for the upstream `source`
+/// routes the package to. `None` for any other source.
+pub(super) async fn reload_source_packument_lacking_version(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    name: &CanonicalPackageName,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    let RegistrySource::Upstream(id) = source else { return Ok(None) };
+    let namespace = upstream_cache_namespace(state, id);
+    let upstream = authorized_upstream(state, identity, id)?;
+    reload_upstream_packument_lacking_version(state, &namespace, &upstream, name).await
+}
+
+/// Refetch an upstream packument whose fresh cached copy does not list a
+/// requested version. `None` when there is nothing newer to read:
+/// the upstream is not cached, or the cached copy was fetched within
+/// [`MISSING_VERSION_REFETCH_INTERVAL`].
+pub(super) async fn reload_upstream_packument_lacking_version(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &CanonicalPackageName,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    if !upstream.caches() {
+        return Ok(None);
+    }
+    let recent = state.inner.storage.fresh_upstream_document_stamp(
+        namespace,
+        name,
+        MISSING_VERSION_REFETCH_INTERVAL,
+    )
+    .await?;
+    if recent.is_some() {
+        return Ok(None);
+    }
+    let document = fetch_coalesced_upstream_packument(
+        state,
+        namespace,
+        upstream,
+        name,
+        MISSING_VERSION_REFETCH_INTERVAL,
+    )
+    .await?;
+    Ok(document.map(|document| document.bytes.to_vec()))
+}
+
 /// Load an upstream route's packument: a fresh per-registry cache entry when one
 /// exists, otherwise a coalesced fetch through the registry (with its server-side credential)
 /// written back to the same namespace. Concurrent requests for the same package/namespace
