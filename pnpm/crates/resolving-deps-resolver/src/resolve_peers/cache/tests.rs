@@ -149,9 +149,14 @@ fn provider_identity_comparison_terminates_on_peer_cycles() {
 fn tree_with_a_rejecting_optional_peer() -> ResolvedTree {
     use crate::resolve_peers::test_support::package_with_peer_dependencies;
 
-    let strict =
-        package_with_peer_dependencies("strict", "1.0.0", &[("plugin", "^2.0.0", true)], true);
-    let plugin = package("plugin", "1.0.0", &[], true);
+    let (optional, is_leaf) = (true, true);
+    let strict = package_with_peer_dependencies(
+        "strict",
+        "1.0.0",
+        &[("plugin", "^2.0.0", optional)],
+        is_leaf,
+    );
+    let plugin = package("plugin", "1.0.0", &[], is_leaf);
     let mut tree = ResolvedTree::default();
     tree.dependencies_tree.insert(
         NodeId::leaf(&plugin.id),
@@ -163,8 +168,27 @@ fn tree_with_a_rejecting_optional_peer() -> ResolvedTree {
     tree
 }
 
-fn plugin_ref(hoisted_provider: bool) -> crate::resolve_peers::context::ParentRefs {
+/// How an importer comes to provide `plugin@1.0.0`.
+#[derive(Clone, Copy)]
+enum PluginProvider {
+    Hoisted,
+    Declared,
+}
+
+/// What the cached walk did with its `plugin` peer.
+#[derive(Clone, Copy)]
+enum PluginPeer {
+    Resolved,
+    Missing,
+}
+
+fn plugin_ref(provider: PluginProvider) -> crate::resolve_peers::context::ParentRefs {
     use crate::resolve_peers::context::ParentRef;
+
+    let hoisted_provider = match provider {
+        PluginProvider::Hoisted => true,
+        PluginProvider::Declared => false,
+    };
 
     HashMap::from_iter([(
         "plugin".to_string(),
@@ -180,7 +204,7 @@ fn plugin_ref(hoisted_provider: bool) -> crate::resolve_peers::context::ParentRe
 fn cache_item_of_consumer(
     walker: &crate::resolve_peers::walker::Walker<'_>,
     recorded_under: &crate::resolve_peers::context::ParentRefs,
-    plugin_is_missing: bool,
+    plugin_peer: PluginPeer,
 ) -> super::PeersCacheItem {
     use crate::resolve_peers::walker::MissingPeerInfo;
 
@@ -194,10 +218,9 @@ fn cache_item_of_consumer(
             optional: true,
         },
     )]);
-    let (resolved, missing) = if plugin_is_missing {
-        (HashMap::default(), missing)
-    } else {
-        (resolved, HashMap::default())
+    let (resolved, missing) = match plugin_peer {
+        PluginPeer::Missing => (HashMap::default(), missing),
+        PluginPeer::Resolved => (resolved, HashMap::default()),
     };
     super::PeersCacheItem {
         owner_node_id: NodeId::next(),
@@ -218,20 +241,21 @@ fn a_cached_verdict_is_reused_only_under_the_restriction_it_was_recorded_under()
     let mut walker = walker_for_tests(&mut tree);
     walker.opts.cache_mode = PeerCacheMode::Enabled;
     let consumer: Arc<str> = "consumer@1.0.0".into();
-    let (hoisted, declared) = (plugin_ref(true), plugin_ref(false));
+    let hoisted = plugin_ref(PluginProvider::Hoisted);
+    let declared = plugin_ref(PluginProvider::Declared);
 
-    let bound_to_hoisted = cache_item_of_consumer(&walker, &hoisted, false);
+    let bound_to_hoisted = cache_item_of_consumer(&walker, &hoisted, PluginPeer::Resolved);
     walker.caches.peers_cache.push(&consumer, bound_to_hoisted);
     assert!(walker.find_hit(&hoisted, &consumer).is_some());
     assert!(walker.find_hit(&declared, &consumer).is_none());
 
-    let rejected_hoisted = cache_item_of_consumer(&walker, &hoisted, true);
+    let rejected_hoisted = cache_item_of_consumer(&walker, &hoisted, PluginPeer::Missing);
     let rejecter: Arc<str> = "rejecter@1.0.0".into();
     walker.caches.peers_cache.push(&rejecter, rejected_hoisted);
     assert!(walker.find_hit(&hoisted, &rejecter).is_some());
     assert!(walker.find_hit(&declared, &rejecter).is_none());
 
-    let bound_to_declared = cache_item_of_consumer(&walker, &declared, false);
+    let bound_to_declared = cache_item_of_consumer(&walker, &declared, PluginPeer::Resolved);
     let other: Arc<str> = "other@1.0.0".into();
     walker.caches.peers_cache.push(&other, bound_to_declared);
     assert!(walker.find_hit(&declared, &other).is_some());
@@ -249,9 +273,10 @@ fn an_unrestricted_hoisted_provider_reuses_a_verdict_recorded_under_a_declared_o
     let mut walker = walker_for_tests(&mut tree);
     walker.opts.cache_mode = PeerCacheMode::Enabled;
     let consumer: Arc<str> = "consumer@1.0.0".into();
-    let (hoisted, declared) = (plugin_ref(true), plugin_ref(false));
+    let hoisted = plugin_ref(PluginProvider::Hoisted);
+    let declared = plugin_ref(PluginProvider::Declared);
 
-    let bound_to_declared = cache_item_of_consumer(&walker, &declared, false);
+    let bound_to_declared = cache_item_of_consumer(&walker, &declared, PluginPeer::Resolved);
     walker.caches.peers_cache.push(&consumer, bound_to_declared);
     assert!(walker.find_hit(&hoisted, &consumer).is_some());
 }
