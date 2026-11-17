@@ -55,7 +55,7 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
             context,
             vec![root],
             checkout,
-            cargo_deps::CargoLockfilePolicy::Resolve,
+            cargo_deps::CargoLockfilePolicy::KeepLocked,
         )
         .await
     };

@@ -427,6 +427,9 @@ pub struct CargoResolveOptions {
     /// `cargo metadata --no-deps --format-version 1` output for the
     /// workspace being resolved.
     pub metadata: String,
+    /// Registry versions the existing `Cargo.lock` records, by crate name.
+    /// The resolver keeps each one that still fits.
+    pub preferred_versions: std::collections::BTreeMap<String, Vec<String>>,
     /// The sparse index to resolve against.
     pub registry: String,
     /// `Authorization` header identifying this caller to pnpr.

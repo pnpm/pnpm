@@ -73,6 +73,9 @@ const SOURCES_CONFIG: &str = "config.toml";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CargoLockfilePolicy {
     UseExisting,
+    /// Resolve, keeping each version `Cargo.lock` records that still fits.
+    KeepLocked,
+    /// Resolve every crate afresh.
     Resolve,
 }
 

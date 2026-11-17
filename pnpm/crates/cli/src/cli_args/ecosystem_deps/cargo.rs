@@ -242,7 +242,7 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
             context,
             vec![cargo_root.clone()],
             checkout_dir,
-            CargoLockfilePolicy::Resolve,
+            update_lockfile_policy(options),
         ),
     );
     let run_res = InstallPlan::new(cargo_root).with_task(task).run().await;
@@ -255,6 +255,17 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
 }
 
 type ManifestEdit = (PathBuf, &'static str, String, String);
+
+/// A targeted update moves only what the selected crates require, as
+/// `cargo update -p` does. An untargeted one re-resolves every crate, as
+/// `cargo update` does.
+fn update_lockfile_policy(options: &CargoUpdateOptions<'_>) -> CargoLockfilePolicy {
+    if options.restrict_to_selectors && !options.update_all_except_exclusions {
+        CargoLockfilePolicy::KeepLocked
+    } else {
+        CargoLockfilePolicy::Resolve
+    }
+}
 
 /// The manifest edits that stage the update for Cargo and the ones saved
 /// after it.
