@@ -119,12 +119,18 @@ fn version_scoped_target_only_matches_intersecting_range() {
         "name": "my-app",
         "version": "1.0.0",
         "dependencies": { "foo": "^2" },
+        "devDependencies": { "foo": "npm:bar@>=1.0.0 <2.0.0" },
     }));
     overrider.apply(&mut non_intersecting, Some(Path::new("/workspace")));
     assert_eq!(
         dep_spec(&non_intersecting, "dependencies", "foo"),
         Some("^2"),
         "override is dormant when ranges don't intersect",
+    );
+    assert_eq!(
+        dep_spec(&non_intersecting, "devDependencies", "foo"),
+        Some("npm:bar@>=1.0.0 <2.0.0"),
+        "override does not match an npm alias with space-separated comparators",
     );
 }
 
@@ -402,13 +408,13 @@ fn convergence_override_skips_non_range_specifiers() {
     let mut manifest = manifest_from_value(json!({
         "dependencies": { "foo": "github:org/foo" },
         "devDependencies": { "foo": "workspace:^" },
-        "optionalDependencies": { "foo": "latest" },
+        "optionalDependencies": { "foo": "npm:bar@>=4.0.0 <5.0.0" },
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
     assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("github:org/foo"));
     assert_eq!(dep_spec(&manifest, "devDependencies", "foo"), Some("workspace:^"));
-    assert_eq!(dep_spec(&manifest, "optionalDependencies", "foo"), Some("latest"));
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "foo"), Some("npm:bar@>=4.0.0 <5.0.0"));
 }
 
 #[test]

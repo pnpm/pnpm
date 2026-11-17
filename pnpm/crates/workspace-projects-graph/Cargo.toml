@@ -15,6 +15,7 @@ pnpm-catalogs-protocol-parser = { workspace = true }
 pnpm-catalogs-resolver = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-semver-include-prerelease = { workspace = true }
 pnpm-workspace-range-resolver = { workspace = true }
 pnpm-workspace-spec = { workspace = true }
 

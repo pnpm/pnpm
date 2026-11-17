@@ -221,7 +221,7 @@ pub(super) fn child_wanted(
             &key.suffix,
             &ctx.workspace.cache.registry_context,
         )
-        .zip(bare_specifier.parse::<node_semver::Range>().ok())
+        .zip(pnpm_resolving_resolver_base::parse_strict_semver_range(bare_specifier))
         .and_then(|(pinned, parsed)| {
             higher_direct_dep_version(scope.direct_versions.as_deref(), alias, &pinned, &parsed)
         })

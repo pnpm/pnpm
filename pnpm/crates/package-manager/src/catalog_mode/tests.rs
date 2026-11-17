@@ -241,6 +241,7 @@ fn prefer_keeps_a_direct_range_that_sits_inside_the_catalog_range() {
 #[test]
 fn a_wanted_version_inside_the_catalog_range_is_still_covered() {
     assert!(super::catalog_covers("^2.0.0", "2.1.0"));
+    assert!(!super::catalog_covers("npm:bar@>=2.0.0 <3.0.0", "2.1.0"));
     assert!(!super::catalog_covers("^2.0.0", "^2.1.0"), "a range is not a version");
     assert!(!super::catalog_covers("^2.1.0", "^2.0.0"), "nor is the wider one");
     assert!(super::catalog_covers("^2.0.0", "^2.0.0"), "only an equal range keeps the catalog");

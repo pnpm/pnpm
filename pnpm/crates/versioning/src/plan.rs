@@ -9,7 +9,7 @@ use std::{
 };
 
 use derive_more::Display;
-use node_semver::{Identifier, Range, Version};
+use node_semver::{Identifier, Version};
 
 use crate::{
     error::VersioningError,

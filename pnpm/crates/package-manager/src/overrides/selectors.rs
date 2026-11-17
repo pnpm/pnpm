@@ -6,7 +6,7 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::OverrideDependencyType;
 use pnpm_matcher::WildcardMatcher;
-use pnpm_semver_include_prerelease::ParsedSemverRange;
+use pnpm_semver_include_prerelease::{ParsedSemverRange, parse_strict_semver_range};
 use serde_json::Value;
 use std::borrow::Cow;
 
@@ -83,10 +83,7 @@ impl VersionsOverrider {
 /// defined "satisfies" relation and yield `None`. An empty declared
 /// spec counts as `*`.
 pub(crate) fn parse_declared_range(spec: &str) -> Option<Range> {
-    if spec.is_empty() {
-        return Some(Range::any());
-    }
-    Range::parse(spec).ok()
+    parse_strict_semver_range(spec)
 }
 
 /// A target matches when its dependency-type filter (if any) matches
@@ -257,8 +254,8 @@ fn is_intersecting_range(range1: Option<&str>, range2: &str) -> bool {
     if range1_str.is_empty() || range2 == range1_str {
         return true;
     }
-    let Ok(parsed1) = range1_str.parse::<Range>() else { return false };
-    let Ok(parsed2) = range2.parse::<Range>() else { return false };
+    let Some(parsed1) = parse_strict_semver_range(range1_str) else { return false };
+    let Some(parsed2) = parse_strict_semver_range(range2) else { return false };
     parsed1.allows_any(&parsed2)
 }
 
@@ -268,6 +265,6 @@ fn is_intersecting_range(range1: Option<&str>, range2: &str) -> bool {
 /// the parent constraint is treated as not applying.
 pub(super) fn semver_satisfies(version: &str, range: &str) -> bool {
     let Ok(parsed_version) = version.parse::<Version>() else { return false };
-    let Ok(parsed_range) = range.parse::<Range>() else { return false };
+    let Some(parsed_range) = parse_strict_semver_range(range) else { return false };
     parsed_range.satisfies(&parsed_version)
 }

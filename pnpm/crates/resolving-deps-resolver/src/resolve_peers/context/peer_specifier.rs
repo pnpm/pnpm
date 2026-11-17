@@ -1,3 +1,5 @@
+use pnpm_resolving_resolver_base::parse_strict_semver_range;
+
 use super::{
     DepPath, NodeId, Path, PathBuf, PeerId, Range, ResolvePeersOptions, ResolveResult, Version,
     get_peer_version_range, index_of_dep_path_suffix, pkg_name,
@@ -167,7 +169,7 @@ pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
 /// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
 /// in Yarn's full per-comparator algorithm.
 pub(crate) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
-    let parsed_range = Range::parse(range).ok();
+    let parsed_range = parse_strict_semver_range(range);
     satisfies_with_parsed_prereleases(version, range, parsed_range.as_ref())
 }
 
@@ -218,7 +220,7 @@ pub(in super::super) struct ComparablePeerRange {
 impl ComparablePeerRange {
     pub(in super::super) fn new(raw_range: &str) -> Self {
         let text = get_peer_version_range(raw_range);
-        let parsed = Range::parse(&text).ok();
+        let parsed = parse_strict_semver_range(&text);
         ComparablePeerRange { text, parsed }
     }
 

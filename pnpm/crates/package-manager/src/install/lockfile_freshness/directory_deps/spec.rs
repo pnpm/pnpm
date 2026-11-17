@@ -276,7 +276,7 @@ pub(super) fn importer_range_link_satisfies(
         return true;
     }
     let (target, range) = parse_npm_spec(spec);
-    if range.parse::<node_semver::Range>().is_err() {
+    if !is_valid_semver_range(range) {
         return true;
     }
     let target_dir = project_dir.join(link_target);

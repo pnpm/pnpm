@@ -6909,6 +6909,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-matcher",
  "pnpm-package-manifest",
+ "pnpm-semver-include-prerelease",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
@@ -7019,6 +7020,7 @@ dependencies = [
  "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
  "pnpm-fs",
+ "pnpm-semver-include-prerelease",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
  "rayon",
@@ -7029,6 +7031,7 @@ name = "pnpm-workspace-range-resolver"
 version = "0.0.1"
 dependencies = [
  "node-semver",
+ "pnpm-semver-include-prerelease",
 ]
 
 [[package]]

@@ -8,7 +8,7 @@ use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors, pinned_by_lockfile,
+    VersionSelectorWithWeight, VersionSelectors, parse_strict_semver_range, pinned_by_lockfile,
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::sync::Arc;
@@ -128,7 +128,7 @@ impl DirectSpecs {
     }
 
     fn record(&mut self, spec: DependencySpec, pinned: Option<Version>) {
-        let Ok(range) = spec.bare_specifier.parse::<Range>() else { return };
+        let Some(range) = parse_strict_semver_range(&spec.bare_specifier) else { return };
         match exact_version(&spec.bare_specifier) {
             Ok(version) => {
                 self.versions
@@ -176,7 +176,7 @@ fn importer_stale_peer_pins(
     auto_installed_peers(importer.manifest)
         .filter_map(|(alias, peer_spec)| {
             let ranges = direct_specs.ranges.get(alias)?;
-            let peer_range = peer_spec.parse::<Range>().ok()?;
+            let peer_range = parse_strict_semver_range(peer_spec)?;
             let mut overlapping = ranges
                 .iter()
                 .filter(|range| range.allows_any(&peer_range))

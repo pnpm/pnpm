@@ -2,7 +2,8 @@
 //! range tokens — `*`, `^`, `~`, the empty string, or an arbitrary
 //! semver range.
 
-use node_semver::{Range, Version};
+use node_semver::Version;
+use pnpm_semver_include_prerelease::parse_strict_semver_range;
 
 /// Pick the highest workspace-sibling version matching `range`.
 ///
@@ -66,7 +67,7 @@ fn max_version_including_prerelease(versions: &[String]) -> Option<String> {
 /// Highest version satisfying `range`. Prereleases are excluded unless
 /// the range itself contains a prerelease tag.
 fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
-    let parsed_range = Range::parse(range).ok()?;
+    let parsed_range = parse_strict_semver_range(range)?;
     let range_allows_prereleases = range_allows_prereleases(range);
     let mut best: Option<(Version, &str)> = None;
     for raw in versions {
