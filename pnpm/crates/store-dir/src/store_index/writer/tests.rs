@@ -71,7 +71,8 @@ fn sqlite_write_returns_error_after_retry_budget() {
         attempts += 1;
         Err::<(), _>(busy_error())
     });
-    assert!(matches!(result, Err(StoreIndexError::Write { .. })));
+    let error = result.unwrap_err();
+    assert!(matches!(error, StoreIndexError::Write { .. }), "{error:?}");
     assert_eq!(attempts, MAX_WRITE_RETRIES + 1);
 }
 
@@ -82,7 +83,8 @@ fn sqlite_write_does_not_retry_non_contention_errors() {
         attempts += 1;
         Err::<(), _>(StoreIndexError::WriterUnavailable)
     });
-    assert!(matches!(result, Err(StoreIndexError::WriterUnavailable)));
+    let error = result.unwrap_err();
+    assert!(matches!(error, StoreIndexError::WriterUnavailable), "{error:?}");
     assert_eq!(attempts, 1);
 }
 

@@ -98,6 +98,12 @@ const MAX_QUARANTINED_REMOTE_SIDE_EFFECTS: usize = 64;
 /// thousands of predecessors' worth of redo work on rollback.
 const MAX_BATCH_SIZE: usize = 256;
 
+#[derive(Clone, Copy)]
+enum WriteErrorPolicy {
+    Continue,
+    Return,
+}
+
 impl StoreIndexWriter {
     /// Spawn the batched writer task. Returns the handle producers push
     /// rows to, and a [`JoinHandle`][tokio::task::JoinHandle] the caller
@@ -120,7 +126,7 @@ impl StoreIndexWriter {
         store_dir: &StoreDir,
         index_format: StoreIndexFormat,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
-        Self::spawn_with_policy(store_dir, index_format, false)
+        Self::spawn_with_policy(store_dir, index_format, WriteErrorPolicy::Continue)
     }
 
     /// Spawn a writer that returns indexing failures to its caller.
@@ -128,13 +134,13 @@ impl StoreIndexWriter {
         store_dir: &StoreDir,
         index_format: StoreIndexFormat,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
-        Self::spawn_with_policy(store_dir, index_format, true)
+        Self::spawn_with_policy(store_dir, index_format, WriteErrorPolicy::Return)
     }
 
     fn spawn_with_policy(
         store_dir: &StoreDir,
         index_format: StoreIndexFormat,
-        fail_on_write_error: bool,
+        write_error_policy: WriteErrorPolicy,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         let store_root = store_dir.root().to_path_buf();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
@@ -145,12 +151,8 @@ impl StoreIndexWriter {
             while let Some(first) = rx.blocking_recv() {
                 batch.push(first);
                 drain_queued(&mut rx, &mut batch);
-                if let Err(error) = flush_batch(&mut index, &mut batch) {
-                    if fail_on_write_error {
-                        return Err(error);
-                    }
-                    tracing::warn!(target: "pacquet::store_index", ?error, "batched store-index write failed; dropping this batch and continuing");
-                }
+                flush_batch(&mut index, &mut batch)
+                    .or_else(|error| handle_batch_write_error(error, write_error_policy))?;
             }
             Ok(())
         });
@@ -233,6 +235,19 @@ impl StoreIndexWriter {
             }),
             handle,
         )
+    }
+}
+
+fn handle_batch_write_error(
+    error: StoreIndexError,
+    policy: WriteErrorPolicy,
+) -> Result<(), StoreIndexError> {
+    match policy {
+        WriteErrorPolicy::Return => Err(error),
+        WriteErrorPolicy::Continue => {
+            tracing::warn!(target: "pacquet::store_index", ?error, "batched store-index write failed; dropping this batch and continuing");
+            Ok(())
+        }
     }
 }
 

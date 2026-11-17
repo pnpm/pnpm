@@ -78,24 +78,7 @@ impl StoreIndex {
                 return files.aliases().set_many(&encoded);
             }
         };
-        super::retry_sqlite_write(|| {
-            let tx = conn
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .map_err(|source| StoreIndexError::Write { source })?;
-            {
-                let mut stmt = tx
-                    .prepare_cached(
-                        "INSERT OR REPLACE INTO package_index_alias (key, target) VALUES (?1, ?2)",
-                    )
-                    .map_err(|source| StoreIndexError::Write { source })?;
-                for (alias, target) in entries {
-                    stmt.execute(rusqlite::params![alias, target])
-                        .map_err(|source| StoreIndexError::Write { source })?;
-                }
-            }
-            tx.commit()
-                .map_err(|source| StoreIndexError::Write { source })
-        })
+        super::retry_sqlite_write(|| write_alias_transaction(conn, entries))
     }
 
     /// On-disk byte total of the `Files`-backend rows in `keys` and any alias
@@ -117,6 +100,32 @@ impl StoreIndex {
         }
         Ok(total.saturating_add(files_aliases_bytes(files, keys)?))
     }
+}
+
+fn write_alias_transaction(
+    conn: &mut Connection,
+    entries: &[(String, String)],
+) -> Result<(), StoreIndexError> {
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|source| StoreIndexError::Write { source })?;
+    write_alias_entries(&tx, entries)?;
+    tx.commit()
+        .map_err(|source| StoreIndexError::Write { source })
+}
+
+fn write_alias_entries(
+    tx: &rusqlite::Transaction<'_>,
+    entries: &[(String, String)],
+) -> Result<(), StoreIndexError> {
+    let mut stmt = tx
+        .prepare_cached("INSERT OR REPLACE INTO package_index_alias (key, target) VALUES (?1, ?2)")
+        .map_err(|source| StoreIndexError::Write { source })?;
+    for (alias, target) in entries {
+        stmt.execute(rusqlite::params![alias, target])
+            .map_err(|source| StoreIndexError::Write { source })?;
+    }
+    Ok(())
 }
 
 fn sqlite_alias_targets(

@@ -56,16 +56,16 @@ pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 
 const MAX_WRITE_RETRIES: usize = 4;
 
-pub(super) fn retry_sqlite_write<T>(
-    mut write: impl FnMut() -> Result<T, StoreIndexError>,
-) -> Result<T, StoreIndexError> {
+pub(super) fn retry_sqlite_write<Output>(
+    mut write: impl FnMut() -> Result<Output, StoreIndexError>,
+) -> Result<Output, StoreIndexError> {
     let mut retries = 0;
     loop {
         match write() {
             Err(StoreIndexError::Write { source })
                 if matches!(
                     source.sqlite_error_code(),
-                    Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)
+                    Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked),
                 ) && retries < MAX_WRITE_RETRIES =>
             {
                 retries += 1;

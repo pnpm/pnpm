@@ -350,24 +350,7 @@ impl StoreIndex {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(files) => return files.set_many(&encoded),
         };
-        super::retry_sqlite_write(|| {
-            let tx = conn
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .map_err(|source| StoreIndexError::Write { source })?;
-            {
-                let mut stmt = tx
-                    .prepare_cached(
-                        "INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)",
-                    )
-                    .map_err(|source| StoreIndexError::Write { source })?;
-                for (key, buf) in &encoded {
-                    stmt.execute(rusqlite::params![key, buf])
-                        .map_err(|source| StoreIndexError::Write { source })?;
-                }
-            }
-            tx.commit()
-                .map_err(|source| StoreIndexError::Write { source })
-        })
+        super::retry_sqlite_write(|| write_many_transaction(conn, &encoded))
     }
 
     /// `true` iff a row with this key exists, directly or through an alias.
@@ -468,6 +451,32 @@ impl StoreIndex {
             Backend::Files(_) => panic!("the store index is not an SQLite database"),
         }
     }
+}
+
+fn write_many_transaction(
+    conn: &mut Connection,
+    entries: &[(String, Vec<u8>)],
+) -> Result<(), StoreIndexError> {
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|source| StoreIndexError::Write { source })?;
+    write_many_entries(&tx, entries)?;
+    tx.commit()
+        .map_err(|source| StoreIndexError::Write { source })
+}
+
+fn write_many_entries(
+    tx: &rusqlite::Transaction<'_>,
+    entries: &[(String, Vec<u8>)],
+) -> Result<(), StoreIndexError> {
+    let mut stmt = tx
+        .prepare_cached("INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)")
+        .map_err(|source| StoreIndexError::Write { source })?;
+    for (key, buf) in entries {
+        stmt.execute(rusqlite::params![key, buf])
+            .map_err(|source| StoreIndexError::Write { source })?;
+    }
+    Ok(())
 }
 
 fn sqlite_get(conn: &Connection, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
