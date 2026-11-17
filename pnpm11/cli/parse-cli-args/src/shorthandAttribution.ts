@@ -1,5 +1,9 @@
+import nopt from '@pnpm/nopt'
+
 export interface ShorthandContext {
+  /** The arguments as passed to the parser. */
   originalArgv: string[]
+  types: Parameters<typeof nopt>[0]
   /** The arguments at which the parser stops reading options. */
   escapeArgs?: string[]
   shorthands: Record<string, string | string[]>
@@ -39,17 +43,40 @@ export function attributeUnknownOptionsToShorthands (
 }
 
 /**
- * Like the parser (`@pnpm/nopt`), stops at `--` and at the escape arguments,
- * after which the arguments belong to a script or to the executed command.
+ * An argument that looks like a shorthand is not always read as one: it may be
+ * the value of the preceding option, or come after `--` or an escape argument.
+ * So only the shorthands that the parser expanded are kept.
  */
-function findTypedShorthands (
-  { originalArgv, escapeArgs, shorthands }: ShorthandContext,
-  knownOptions: Set<string>
-): TypedShorthand[] {
-  const escapeArgSet = new Set(escapeArgs)
-  const endOfOptions = originalArgv.findIndex((arg) => /^-{2,}$/.test(arg) || escapeArgSet.has(arg))
-  const args = endOfOptions === -1 ? originalArgv : originalArgv.slice(0, endOfOptions)
-  return args.flatMap((arg) => resolveTypedShorthands(arg, shorthands, knownOptions))
+function findTypedShorthands (ctx: ShorthandContext, knownOptions: Set<string>): TypedShorthand[] {
+  const typedShorthands = ctx.originalArgv.flatMap((arg) => resolveTypedShorthands(arg, ctx.shorthands, knownOptions))
+  if (typedShorthands.length === 0) return []
+  const expandedShorthands = findExpandedShorthands(ctx)
+  return typedShorthands.filter(({ shorthand }) => expandedShorthands.has(shorthand))
+}
+
+const EXPANSION_MARKER = '\0expanded-shorthand:'
+
+/**
+ * Parses the arguments again, with the unknown options in each shorthand
+ * expansion renamed to name the shorthand, and returns the shorthands whose
+ * renamed options were parsed. The parser reads every unknown option the same
+ * way, whatever its name, so the renaming does not change which arguments
+ * are read as options.
+ */
+function findExpandedShorthands ({ originalArgv, types, escapeArgs, shorthands }: ShorthandContext): Set<string> {
+  const shorthandNames = Object.keys(shorthands)
+  const markedShorthands: Record<string, string[]> = {}
+  for (const [index, shorthand] of shorthandNames.entries()) {
+    markedShorthands[shorthand] = renameUnknownOptions(shorthands[shorthand], types, `${EXPANSION_MARKER}${index}`)
+  }
+  const parsed = nopt(types, markedShorthands, originalArgv, 0, { escapeArgs })
+  const expandedShorthands = new Set<string>()
+  for (const key of Object.keys(parsed)) {
+    if (key.startsWith(EXPANSION_MARKER)) {
+      expandedShorthands.add(shorthandNames[Number(key.slice(EXPANSION_MARKER.length))])
+    }
+  }
+  return expandedShorthands
 }
 
 /**
@@ -87,11 +114,26 @@ function resolveAbbreviation (prefix: string, names: Iterable<string>): string |
   return match
 }
 
+function renameUnknownOptions (
+  expansion: string | string[],
+  types: Parameters<typeof nopt>[0],
+  newName: string
+): string[] {
+  return splitExpansion(expansion).map((arg) =>
+    arg.replace(/^(--(?:no-)?)([^=]+)/, (match, prefix: string, optionName: string) =>
+      Object.hasOwn(types, optionName) ? match : `${prefix}${newName}`
+    )
+  )
+}
+
+function splitExpansion (expansion: string | string[]): string[] {
+  return Array.isArray(expansion) ? expansion : expansion.split(/\s+/)
+}
+
 function getShorthandOptionNames (expansion: string | string[] | undefined): string[] {
   if (expansion == null) return []
-  const args = Array.isArray(expansion) ? expansion : expansion.split(/\s+/)
   const optionNames: string[] = []
-  for (const arg of args) {
+  for (const arg of splitExpansion(expansion)) {
     const match = /^--(?:no-)?([^=]+)/.exec(arg)
     if (match != null) optionNames.push(match[1])
   }

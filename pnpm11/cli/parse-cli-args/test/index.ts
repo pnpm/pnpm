@@ -220,6 +220,28 @@ test('an unknown option is not attributed to a shorthand after an escape arg', a
   }
 })
 
+test('an unknown option is not attributed to a shorthand consumed as an option value', async () => {
+  const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalOptionsTypes: { filter: [String, Array] },
+    universalShorthands: { l: '--long' },
+  }, ['update', '--filter', '-l', '--long'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['long'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([])
+})
+
+test('an unknown option is attributed to a shorthand typed after an option value that matches the script name', async () => {
+  const { cmd, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalOptionsTypes: { 'test-pattern': String },
+    universalShorthands: { l: '--long' },
+  }, ['--test-pattern', 'build', '-l', 'run', 'build'])
+  expect(cmd).toBe('run')
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '-l']])
+})
+
 test('allow any option that starts with "config."', async () => {
   const { options, unknownOptions } = await parseCliArgs({
     ...DEFAULT_OPTS,
