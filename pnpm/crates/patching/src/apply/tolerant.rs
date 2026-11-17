@@ -1,8 +1,9 @@
 //! Hunk application with pnpm's tolerances.
 //!
-//! pnpm applies patches through `@pnpm/patch-package`, whose matcher is
-//! deliberately loose in two ways [`diffy::apply`] is not, and real
-//! patch files in the wild depend on both:
+//! pnpm 11's applier (`@pnpm/patching.apply-patch`, derived from
+//! patch-package) has a matcher that is deliberately loose in two ways
+//! [`diffy::apply`] is not, and real patch files in the wild depend on
+//! both:
 //!
 //! 1. Lines are compared with trailing whitespace stripped, so an LF
 //!    patch applies to a CRLF file (and a hunk whose last line is
@@ -15,7 +16,7 @@
 //! [`drop_context_no_newline_markers`].
 //!
 //! The file is modeled as `split('\n')` throughout — the same
-//! representation `patch-package` uses — so a line's own ending is
+//! representation pnpm 11's applier uses — so a line's own ending is
 //! whatever the surrounding text carried: untouched CRLF lines keep
 //! their `\r`, replacement lines take the patch's LF, and a file
 //! without a final newline keeps that shape through the round trip.
@@ -35,7 +36,7 @@ const NO_NEWLINE_MARKER: &str = r"\ No newline at end of file";
 // that only lost its final newline as unchanged, so git prints it as context
 // carrying the marker, followed by the deletions after it. `diffy` rejects
 // anything but the end of the hunk after a marked context line. Both
-// `patch-package` and `apply` ignore that marker, so dropping it loses
+// pnpm 11's applier and `apply` ignore that marker, so dropping it loses
 // nothing.
 pub(super) fn drop_context_no_newline_markers(text: String) -> String {
     if !text.contains(NO_NEWLINE_MARKER) {
@@ -78,7 +79,7 @@ const VALUE_EXTENDED_HEADERS: [&str; 9] = [
 /// patch saved with CRLF line endings each of those values keeps its `\r`
 /// and then fails the match it feeds: `invalid file mode: 100644`, an
 /// unparsable rename path, or an invalid `diff --git` fallback. Hunk
-/// lines are left alone — a `\r` there is content both `patch-package` and
+/// lines are left alone — a `\r` there is content both pnpm 11's applier and
 /// [`diffy`] preserve, and an LF patch for a CRLF file relies on it.
 pub(super) fn strip_cr_from_extended_headers(text: String) -> String {
     if !text.contains('\r') {

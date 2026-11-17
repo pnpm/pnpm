@@ -235,7 +235,6 @@ snapshots:
 					"specifier": "^2.0.0",
 					"version": "2.0.0",
 				},
-				"@pnpm/patch-package": "0.0.2",
 				"@pnpm/semver-diff": {
 					"specifier": "^2.0.0",
 					"version": "2.0.0",
@@ -5054,7 +5053,6 @@ snapshots:
 			"name": "@pnpm/patching.apply-patch",
 			"dependencies": {
 				"@pnpm/error": "workspace:*",
-				"@pnpm/patch-package": "catalog:",
 			},
 			"devDependencies": {
 				"@jest/globals": "catalog:",
@@ -10788,28 +10786,6 @@ snapshots:
 			},
 		},
 
-		"@pnpm/patch-package@0.0.2": {
-			"integrity": "sha512-pHDvjoh1fwIONt75emh+UYd11o4U9ZDleLCJ2Y35LdQ/Im6j9DqolYHg4BmnZ1xJl4nCBFzwhztob1TbxJadoA==",
-			"engines": {"node": ">=14", "npm": ">5"},
-			"hasBin": true,
-			"dependencies": {
-				"@yarnpkg/lockfile": "1.1.0",
-				"chalk": "4.1.2",
-				"ci-info": "3.9.0",
-				"cross-spawn": "7.0.6",
-				"find-yarn-workspace-root": "2.0.0",
-				"fs-extra": "11.4.1",
-				"klaw-sync": "6.0.0",
-				"minimist": "1.2.8",
-				"open": "7.4.2",
-				"rimraf": "2.7.1",
-				"semver": "7.8.6",
-				"slash": "2.0.0",
-				"tmp": "0.2.7",
-				"yaml": "2.9.1",
-			},
-		},
-
 		"@pnpm/patching.types@1000.1.0": {
 			"integrity": "sha512-Zib2ysLctRnWM4KXXlljR44qSKwyEqYmLk+8VPBDBEK3l5Gp5mT3N4ix9E4qjYynvFqahumsxzOfxOYQhUGMGw==",
 			"engines": {"node": ">=18.12"},
@@ -15313,13 +15289,6 @@ snapshots:
 			},
 		},
 
-		"find-yarn-workspace-root@2.0.0": {
-			"integrity": "sha512-1IMnbjt4KzsQfnhnzNd8wUEgXZ44IzZaZmnLYx7D5FZlaHt2gW20Cri8Q+E/t5tIj4+epTBub+2Zxu/vNILzqQ==",
-			"dependencies": {
-				"micromatch": "4.0.8",
-			},
-		},
-
 		"findup@0.1.5": {
 			"integrity": "sha512-Udxo3C9A6alt2GZ2MNsgnIvX7De0V3VGxeP/x98NSVgSlizcDHdmJza61LI7zJy4OEtSiJyE72s0/+tBl5/ZxA==",
 			"engines": {"node": ">=0.6"},
@@ -16230,12 +16199,6 @@ snapshots:
 			},
 		},
 
-		"is-docker@2.2.1": {
-			"integrity": "sha512-F+i2BKsFrH66iaUFc0woD8sLy8getkwTwtOBjvs56Cx4CgJDeKQeqfz8wAYiSb8JOprWhHH5p77PbmYCvvUuXQ==",
-			"engines": {"node": ">=8"},
-			"hasBin": true,
-		},
-
 		"is-docker@3.0.0": {
 			"integrity": "sha512-eljcgEDlEns/7AXFosB5K/2nCM4P7FQPkGc/DWLy5rmFEWvZayGrik1d9/QIY5nJ4f9YsVvBkA6kJpHn9rISdQ==",
 			"engines": {"node": "^12.20.0 || ^14.13.1 || >=16.0.0"},
@@ -16395,14 +16358,6 @@ snapshots:
 		"is-windows@1.0.2": {
 			"integrity": "sha512-eXK1UInq2bPmjyX6e3VHIzMLobc4J94i4AWn+Hpq3OU5KkrRC96OAcR3PRJ/pGu6m8TRnBHP9dkXQVsT/COVIA==",
 			"engines": {"node": ">=0.10.0"},
-		},
-
-		"is-wsl@2.2.0": {
-			"integrity": "sha512-fKzAra0rGJUUBwGBgNkHZuToZcn+TtXHpeCgmkMJMMYx1sQDYaCSyjJBSCa2nH1DGm7s3n1oBnohoVTBaN7Lww==",
-			"engines": {"node": ">=8"},
-			"dependencies": {
-				"is-docker": "2.2.1",
-			},
 		},
 
 		"is-wsl@3.1.1": {
@@ -17259,13 +17214,6 @@ snapshots:
 		"kind-of@6.0.3": {
 			"integrity": "sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==",
 			"engines": {"node": ">=0.10.0"},
-		},
-
-		"klaw-sync@6.0.0": {
-			"integrity": "sha512-nIeuVSzdCCs6TDPTqI8w1Yre34sSq7AkZ4B3sfOBbI2CgVSB4Du4aLQijFU2+lhAFCwt9+42Hel6lQNIv6AntQ==",
-			"dependencies": {
-				"graceful-fs": "4.2.12",
-			},
 		},
 
 		"lcov-result-merger@6.0.0": {
@@ -18904,15 +18852,6 @@ snapshots:
 			},
 		},
 
-		"open@7.4.2": {
-			"integrity": "sha512-MVHddDVweXZF3awtlAS+6pgKLlm/JgxZ90+/NBurBoQctVOOB/zDdVjcyPzQ+0laDGbsWgrRkflI65sQeOgT9Q==",
-			"engines": {"node": ">=8"},
-			"dependencies": {
-				"is-docker": "2.2.1",
-				"is-wsl": "2.2.0",
-			},
-		},
-
 		"openpgp@6.3.2": {
 			"integrity": "sha512-wcZTzHz41LV8Y48zH/JlD1JT8YdNmpWOuMAjQ/podvvCwsjBEU37K3znJh4UQcj3hksE5z9TzvhbUbwzsGvlLQ==",
 			"engines": {"node": ">= 18.0.0", "typescript": ">= 5.0.0"},
@@ -20016,14 +19955,6 @@ snapshots:
 			"engines": {"iojs": ">=1.0.0", "node": ">=0.10.0"},
 		},
 
-		"rimraf@2.7.1": {
-			"integrity": "sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==",
-			"hasBin": true,
-			"dependencies": {
-				"glob": "7.2.3",
-			},
-		},
-
 		"rimraf@3.0.2": {
 			"integrity": "sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==",
 			"hasBin": true,
@@ -20365,11 +20296,6 @@ snapshots:
 				"@sigstore/tuf": "4.0.2",
 				"@sigstore/verify": "3.1.1",
 			},
-		},
-
-		"slash@2.0.0": {
-			"integrity": "sha512-ZYKh3Wh2z1PpEXWr0MpSBZ0V6mZHAQfYevttO11c51CaWjGTaadiKZ+wVt1PbMlDV5qhMFslpZCemhwOK7C89A==",
-			"engines": {"node": ">=6"},
 		},
 
 		"slash@3.0.0": {
@@ -20977,11 +20903,6 @@ snapshots:
 
 		"tinylogic@2.0.0": {
 			"integrity": "sha512-dljTkiLLITtsjqBvTA1MRZQK/sGP4kI3UJKc3yA9fMzYbMF2RhcN04SeROVqJBIYYOoJMM8u0WDnhFwMSFQotw==",
-		},
-
-		"tmp@0.2.7": {
-			"integrity": "sha512-e0votIpp4Uo2AJYSzVHV6xCcawuiez3DzqDAbrTc3YxBkplN6e+dM13ZeIcZnDg/QpSuU2zfZ3rzwY8ukEnaXw==",
-			"engines": {"node": ">=14.14"},
 		},
 
 		"tmpl@1.0.5": {

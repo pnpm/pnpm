@@ -24,7 +24,6 @@ catalog:
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/nopt': ^0.3.1
   '@pnpm/npm-package-arg': ^2.0.0
-  '@pnpm/patch-package': 0.0.2
   '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
