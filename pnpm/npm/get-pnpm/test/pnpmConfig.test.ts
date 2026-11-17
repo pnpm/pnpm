@@ -326,6 +326,16 @@ describe('pnpmProxyConfig', () => {
     }
   })
 
+  test('reads the settings of a global config.yaml that breaks lines with CR only', () => {
+    const { home } = layout()
+    const configHome = writeGlobalConfig(home, '# proxy\rhttpsProxy: http://yaml.test/\r')
+
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome } }), {
+      HTTPS_PROXY: 'http://yaml.test/',
+      HTTP_PROXY: 'http://yaml.test/',
+    })
+  })
+
   test('expands the %NAME% references of LOCALAPPDATA on Windows, and throws on one that names nothing', () => {
     const { home } = layout()
     fs.mkdirSync(path.join(home, 'local', 'pnpm', 'config'), { recursive: true })

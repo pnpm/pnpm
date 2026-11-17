@@ -180,7 +180,7 @@ function readGlobalConfigProxySettings (opts: PnpmProxyConfigOptions, env: NodeJ
 
 /** Whether `content` holds more than blank lines and comments, which `parseYAML` rejects as no document. */
 function holdsYamlDocument (content: string): boolean {
-  return content.split('\n').some((line) => line.trim() !== '' && !line.trimStart().startsWith('#'))
+  return content.split(/\r\n?|\n/).some((line) => line.trim() !== '' && !line.trimStart().startsWith('#'))
 }
 
 /** A null value leaves the setting to a lower source, as pnpm reads the file. */
