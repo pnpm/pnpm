@@ -21,7 +21,7 @@ use pnpr_policy::Action;
 use pnpr_registry::{Ecosystem, PackagePattern};
 use pnpr_storage::database::{GrantContent, GrantWrite, StoredGrant};
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// The body of `npm access grant`.
 #[derive(Deserialize)]
@@ -198,7 +198,8 @@ fn team_packages(
         .map(|content| TeamScopeOfGrant::of(content, ecosystem, id))
         .filter(|scope| scope.actions.read || scope.actions.publish)
         .collect();
-    let listed: BTreeMap<String, &PackagePattern> = scopes
+    let scopes = TeamScopes::new(scopes);
+    let listed: BTreeMap<String, &PackagePattern> = scopes.all
         .iter()
         .flat_map(TeamScopeOfGrant::listed)
         .map(|pattern| (pattern.to_string(), pattern))
@@ -207,15 +208,66 @@ fn team_packages(
         .into_iter()
         .filter_map(|(name, pattern)| {
             let mut actions = TeamActions::default();
-            for scope in scopes
-                .iter()
-                .filter(|scope| scope.gives_all_of(pattern))
-            {
+            for scope in scopes.giving_all_of(pattern) {
                 actions.add(scope.actions);
             }
             Some((name, json!(actions.label()?)))
         })
         .collect()
+}
+
+/// What grants give a team, indexed so that a pattern is checked against the
+/// grants that can cover it: `npm access grant` writes one grant per package.
+struct TeamScopes {
+    all: Vec<TeamScopeOfGrant>,
+    /// The positions of the grants that include a pattern other than a name.
+    broad: Vec<usize>,
+    /// The positions of the other grants, under each name they include.
+    named: HashMap<String, Vec<usize>>,
+}
+
+impl TeamScopes {
+    fn new(all: Vec<TeamScopeOfGrant>) -> Self {
+        let mut broad = Vec::new();
+        let mut named: HashMap<String, Vec<usize>> = HashMap::new();
+        for (position, scope) in all.iter().enumerate() {
+            let names: Option<Vec<&String>> = scope.include
+                .iter()
+                .map(|pattern| match pattern {
+                    PackagePattern::Exact(name) => Some(name),
+                    _ => None,
+                })
+                .collect();
+            match names {
+                Some(names) => {
+                    for name in names {
+                        named
+                            .entry(name.clone())
+                            .or_default()
+                            .push(position);
+                    }
+                }
+                None => broad.push(position),
+            }
+        }
+        Self { all, broad, named }
+    }
+
+    /// The grants that give all of `pattern`.
+    fn giving_all_of<'a>(
+        &'a self,
+        pattern: &'a PackagePattern,
+    ) -> impl Iterator<Item = &'a TeamScopeOfGrant> {
+        let named = match pattern {
+            PackagePattern::Exact(name) => self.named.get(name).map(Vec::as_slice),
+            _ => None,
+        };
+        self.broad
+            .iter()
+            .chain(named.unwrap_or_default())
+            .map(|position| &self.all[*position])
+            .filter(move |scope| scope.gives_all_of(pattern))
+    }
 }
 
 /// What one grant gives a team, and on which packages.
