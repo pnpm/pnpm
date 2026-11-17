@@ -148,14 +148,14 @@ axum = { version = "0.8.9", default-features = false, features = [
   "matched-path",
   "original-uri",
 ] }
-clap = { version = "4.6.7", features = ["derive", "string"] }
+clap = { version = "4.6.8", features = ["derive", "string"] }
 command-extra = { version = "1.5.0" }
 base64 = { version = "0.23.1" }
 bcrypt = { version = "0.19.3" }
 bytes = { version = "1.12.1" }
 cap-primitives = { version = "4.0.3" }
 cargo-lock = { version = "11.1.0" }
-cargo-util-schemas = { version = "0.14.3" }
+cargo-util-schemas = { version = "0.15.0" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 console = { version = "0.16.6" }
 core-foundation = { version = "0.10.1" }
@@ -258,7 +258,7 @@ spdx = { version = "0.13.6" }
 split-first-char = { version = "2.0.1" }
 ssri = { version = "9.2.0" }
 strum = { version = "0.28.0", features = ["derive"] }
-sysinfo = { version = "0.40.3" }
+sysinfo = { version = "0.40.4" }
 tabled = { version = "0.22.0", features = ["ansi"] }
 tar = { version = "0.4.46" }
 text-block-macros = { version = "0.2.0" }
@@ -288,7 +288,7 @@ yamlpath = { version = "1.32.0" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.6" }
 zeroize = { version = "1.9.1" }
-zip = { version = "9.6.0", default-features = false, features = ["deflate"] }
+zip = { version = "9.6.1", default-features = false, features = ["deflate"] }
 zstd = { version = "0.14.4", default-features = false }
 zune-inflate = { version = "0.2.54" }
 

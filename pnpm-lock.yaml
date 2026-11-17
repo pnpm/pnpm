@@ -247,8 +247,8 @@ snapshots:
 				"@reflink/reflink": "0.1.19",
 				"@rushstack/worker-pool": "0.7.32",
 				"@stylistic/eslint-plugin": {
-					"specifier": "^6.0.0",
-					"version": "6.0.0",
+					"specifier": "^6.0.1",
+					"version": "6.0.1",
 				},
 				"@tybys/wasm-util": "0.10.4",
 				"@types/adm-zip": {
@@ -8750,7 +8750,7 @@ snapshots:
 			"engines": {"node": "^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0"},
 			"dependencies": {
 				"@jest/types": "30.4.1",
-				"@sinonjs/fake-timers": "15.4.0",
+				"@sinonjs/fake-timers": "15.5.0",
 				"@types/node": "22.19.19",
 				"jest-message-util": "30.4.1",
 				"jest-mock": "30.4.1",
@@ -11606,15 +11606,15 @@ snapshots:
 			},
 		},
 
-		"@sinonjs/fake-timers@15.4.0": {
-			"integrity": "sha512-DsG+8/LscQIQg68J6Ef3dv10u6nVyetYn923s3/sus5eaGfTo1of5WMZSLf0UJc9KDuKPilPH0UDJCjvNbDNCA==",
+		"@sinonjs/fake-timers@15.5.0": {
+			"integrity": "sha512-i7HpIYIsUmdSTQbtBjs2b3VqMgDsVDWfzVPV3MuUrXVqJNZmzFB8YJeM9SPms2bGg5zg7HvKH31sPS1WoLLRFg==",
 			"dependencies": {
 				"@sinonjs/commons": "3.0.1",
 			},
 		},
 
-		"@stylistic/eslint-plugin@6.0.0": {
-			"integrity": "sha512-phICSey4OqR8nkSwmoeXsl9EBzv30Zqbge4jrK3CU02GhjTgZ+y5qhTTg92EDK5j7JhX2xzp4VvH+YYUknQ8/Q==",
+		"@stylistic/eslint-plugin@6.0.1": {
+			"integrity": "sha512-7nyi2RmGIuzBYGq5C8cFaoQsh+COfo6oHMWCygzg2iaqJJ4RDThaKCMYRkkOUAQWv80R7sbBbpuKZfulH7bFcw==",
 			"engines": {"node": "^20.19.0 || ^22.13.0 || >=24"},
 			"peerDependencies": {
 				"eslint": {
@@ -16007,8 +16007,8 @@ snapshots:
 			},
 		},
 
-		"http-proxy-middleware@3.0.10": {
-			"integrity": "sha512-Niw9P+62tB2DuWJ/Vjxn53gAmDrRBM7hku8YRoxMFQu7pAkhITq0Dq9Uw4X/8hnAZ9kHsnDuBXKMzuN2i/RnGw==",
+		"http-proxy-middleware@3.0.11": {
+			"integrity": "sha512-juBSCfRpbRp+Ql4DbukzTx+beBdB8nQvVej1AhvznEIMTjX/O+ReCpyb1AJtob8NCHxD5KDBkLKS2QXl2vo11A==",
 			"engines": {"node": "^14.18.0 || ^16.10.0 || >=18.0.0"},
 			"peerDependencies": {
 				"supports-color": {
@@ -16092,7 +16092,7 @@ snapshots:
 			},
 			"dependencies": {
 				"express": "4.22.3",
-				"http-proxy-middleware": "3.0.10",
+				"http-proxy-middleware": "3.0.11",
 			},
 		},
 
