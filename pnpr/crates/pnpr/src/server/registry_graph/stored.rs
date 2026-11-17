@@ -142,22 +142,8 @@ fn added_teams(previous: &RegistryGraphDocument, next: &RegistryGraphDocument) -
 /// Refuse a team of `added` that does not exist, so a dry run reports what the
 /// write would refuse in its transaction.
 async fn check_teams_exist(storage: &Storage, added: &[String]) -> Result<(), RegistryError> {
-    if added.is_empty() {
-        return Ok(());
-    }
-    let stored = storage
-        .read_teams(None)
-        .await?
-        .map(|stored| stored.teams)
-        .unwrap_or_default();
-    match added
-        .iter()
-        .find(|id| {
-            !stored
-                .iter()
-                .any(|team| team.id == **id)
-        }) {
-        Some(id) => Err(unknown_team_error(id)),
+    match storage.unknown_team(added).await? {
+        Some(id) => Err(unknown_team_error(&id)),
         None => Ok(()),
     }
 }

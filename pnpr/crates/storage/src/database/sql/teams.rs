@@ -51,6 +51,15 @@ impl Storage {
         .await
     }
 
+    /// The first of `ids` that no team has.
+    pub async fn unknown_team(&self, ids: &[String]) -> Result<Option<String>> {
+        let ids = ids.to_vec();
+        self.database.read(String::new(), Freshness::Current, move |connection, _| {
+            unknown_team(connection, &ids)
+        })
+        .await
+    }
+
     pub async fn create_team(&self, id: &str, name: &str) -> Result<TeamCreation> {
         let (id, name) = (id.to_string(), name.to_string());
         self.database.write(move |connection| {
