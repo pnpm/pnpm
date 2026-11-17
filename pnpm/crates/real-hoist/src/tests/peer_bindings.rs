@@ -1,6 +1,6 @@
 use super::{
-    BTreeSet, HashMap, HoistOpts, Lockfile, ProjectSnapshot, Rc, RcByPtr, SnapshotDepRef,
-    SnapshotEntry, assert_eq, child_of, dep_key, empty_lockfile, hoist, nm_hoist,
+    BTreeSet, HashMap, HoistOpts, HoisterTree, Lockfile, ProjectSnapshot, Rc, RcByPtr,
+    SnapshotDepRef, SnapshotEntry, assert_eq, child_of, dep_key, empty_lockfile, hoist, nm_hoist,
     pkg_metadata_with_peer, pkg_name, resolved_dep, tree_node, tree_root, ver_peer,
 };
 use std::collections::BTreeMap;
@@ -13,22 +13,7 @@ fn identical_transitive_peer_bindings_dedupe_despite_a_conflicting_ancestor() {
         for depth in [1, 2] {
             let schema =
                 |version: &str| tree_node("schema", &format!("schema@{version}"), &[], vec![]);
-            let mut bridge = schema("2.0.0");
-            for level in 0..depth {
-                let name = format!("bridge-{level}");
-                bridge = tree_node(
-                    &name,
-                    &format!("{name}@1.0.0(schema@2.0.0)"),
-                    &["schema"],
-                    vec![bridge],
-                );
-            }
-            let client = tree_node(
-                client_name,
-                &format!("{client_name}@1.0.0(schema@2.0.0)"),
-                &["schema"],
-                vec![bridge],
-            );
+            let client = make_transitive_peer_client(client_name, depth);
             let host = tree_node(
                 "host",
                 "host@1.0.0",
@@ -71,6 +56,39 @@ fn deduplication_compares_every_transitive_peer_provider() {
         let host = child_of(&result, "host");
         dbg!(&host);
         assert_eq!(host.dependencies.borrow().is_empty(), root_version == "4.0.0");
+    }
+}
+
+#[test]
+fn an_inherited_transitive_peer_is_not_hidden_by_a_recorded_sibling_binding() {
+    let schema = |version: &str| tree_node("schema", &format!("schema@{version}"), &[], vec![]);
+    let client = |version: &str| {
+        let recorded = tree_node(
+            "recorded",
+            &format!("recorded@1.0.0(schema@{version})"),
+            &["schema"],
+            vec![schema(version)],
+        );
+        let inherited = tree_node("inherited", "inherited@1.0.0", &["schema"], vec![]);
+        tree_node("client", "client@1.0.0", &["schema"], vec![recorded, inherited])
+    };
+    for inherited_version in ["1.0.0", "3.0.0"] {
+        for recorded_version in ["2.0.0", "4.0.0"] {
+            let host = tree_node("host", "host@1.0.0", &[], vec![client("2.0.0"), schema("3.0.0")]);
+            let root = tree_root(vec![client(recorded_version), host, schema(inherited_version)]);
+
+            let result = nm_hoist(&root, &HoistOpts::default());
+            let host = child_of(&result, "host");
+            let keeps_client = host.dependencies
+                .borrow()
+                .iter()
+                .any(|child| child.0.name == "client");
+            assert_eq!(
+                keeps_client,
+                inherited_version != "3.0.0" || recorded_version != "2.0.0",
+                "inherited schema {inherited_version}, recorded schema {recorded_version}",
+            );
+        }
     }
 }
 
@@ -209,6 +227,28 @@ fn a_nested_peer_provider_moves_with_its_package_into_a_free_root_slot() {
 }
 
 #[test]
+fn a_transitive_peer_provider_moves_with_its_package_into_a_free_root_slot() {
+    for client_name in ["a-client", "z-client"] {
+        for depth in [1, 2] {
+            let client = make_transitive_peer_client(client_name, depth);
+            let host_a = tree_node("host-a", "host-a@1.0.0", &[], vec![Rc::clone(&client)]);
+            let host_b = tree_node("host-b", "host-b@1.0.0", &[], vec![client]);
+            let root =
+                tree_root(vec![host_a, host_b, tree_node("schema", "schema@1.0.0", &[], vec![])]);
+
+            let result = nm_hoist(&root, &HoistOpts::default());
+            for host in ["host-a", "host-b"] {
+                assert!(
+                    child_of(&result, host).dependencies.borrow().is_empty(),
+                    "{client_name}, depth {depth}: {host} shares the root client",
+                );
+            }
+            assert_eq!(child_of(&result, client_name).name, client_name);
+        }
+    }
+}
+
+#[test]
 fn a_peer_provider_hoisted_above_a_nested_root_lets_copies_share_its_slot() {
     let schema2 = tree_node("schema", "schema@2.0.0", &[], vec![]);
     let client2 =
@@ -262,4 +302,18 @@ fn a_nearer_peer_variant_keeps_a_matching_copy_from_deduping_against_the_root() 
         child_of(&wrapper, "client").references.borrow().contains("client@1.0.0(schema@2.0.0)"),
         "the host's client@1.0.0(schema@1.0.0) would shadow a deduped copy",
     );
+}
+
+fn make_transitive_peer_client(name: &str, depth: usize) -> Rc<HoisterTree> {
+    let mut bridge = tree_node("schema", "schema@2.0.0", &[], vec![]);
+    for level in 0..depth {
+        let bridge_name = format!("bridge-{level}");
+        bridge = tree_node(
+            &bridge_name,
+            &format!("{bridge_name}@1.0.0(schema@2.0.0)"),
+            &["schema"],
+            vec![bridge],
+        );
+    }
+    tree_node(name, &format!("{name}@1.0.0(schema@2.0.0)"), &["schema"], vec![bridge])
 }
