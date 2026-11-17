@@ -769,10 +769,10 @@ packumentTtl: 30s
 ```
 
 A request for a version, its tarball, or its manifest that the fresh packument
-does not list refetches the packument if it was fetched more than a minute ago.
-A version published upstream after the fetch is then served without waiting
-for the TTL. pnpr answers `404` only if the upstream does not list the version
-either.
+does not list refetches the packument, at most once a minute per package. A
+version published upstream after the fetch is then served without waiting for
+the TTL. Within a minute of the last fetch or refetch attempt, pnpr answers
+`404` for an unlisted version without asking the upstream.
 
 ## `maxTarballSize`
 

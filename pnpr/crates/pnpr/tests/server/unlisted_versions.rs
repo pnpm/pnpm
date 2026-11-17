@@ -67,18 +67,12 @@ fn age_cached_packuments(dir: &Path, age: Duration) {
     }
 }
 
-/// Cache `foo`'s packument listing only 1.0.0, then publish 1.0.1 upstream.
-/// Returns the mock that serves the packument with both versions.
-async fn publish_after_caching(
-    upstream: &mut mockito::ServerGuard,
-    app: &axum::Router,
-    new_tgz: &[u8],
-) -> mockito::Mock {
-    let old_tgz: &[u8] = b"old";
+/// Cache `foo`'s packument listing only 1.0.0.
+async fn cache_first_version(upstream: &mut mockito::ServerGuard, app: &axum::Router) {
     let cached = upstream
         .mock("GET", "/foo")
         .with_header("content-type", "application/json")
-        .with_body(packument(&upstream.url(), &[("1.0.0", old_tgz)]))
+        .with_body(packument(&upstream.url(), &[("1.0.0", b"old")]))
         .expect(1)
         .create_async()
         .await;
@@ -86,6 +80,16 @@ async fn publish_after_caching(
     assert_eq!(response.status(), StatusCode::OK);
     cached.assert_async().await;
     cached.remove_async().await;
+}
+
+/// Cache `foo`'s packument listing only 1.0.0, then publish 1.0.1 upstream.
+/// Returns the mock that serves the packument with both versions.
+async fn publish_after_caching(
+    upstream: &mut mockito::ServerGuard,
+    app: &axum::Router,
+    new_tgz: &[u8],
+) -> mockito::Mock {
+    cache_first_version(upstream, app).await;
     upstream
         .mock("GET", "/foo/-/foo-1.0.1.tgz")
         .with_body(new_tgz)
@@ -94,7 +98,25 @@ async fn publish_after_caching(
     upstream
         .mock("GET", "/foo")
         .with_header("content-type", "application/json")
-        .with_body(packument(&upstream.url(), &[("1.0.0", old_tgz), ("1.0.1", new_tgz)]))
+        .with_body(packument(&upstream.url(), &[("1.0.0", b"old"), ("1.0.1", new_tgz)]))
+        .expect(1)
+        .create_async()
+        .await
+}
+
+/// Cache `foo`'s packument listing only 1.0.0, date it back by `age`, and
+/// make the upstream fail. Returns the mock that fails.
+async fn fail_after_caching(
+    upstream: &mut mockito::ServerGuard,
+    app: &axum::Router,
+    storage: &Path,
+    age: Duration,
+) -> mockito::Mock {
+    cache_first_version(upstream, app).await;
+    age_cached_packuments(storage, age);
+    upstream
+        .mock("GET", "/foo")
+        .with_status(500)
         .expect(1)
         .create_async()
         .await
@@ -141,8 +163,6 @@ async fn a_version_manifest_published_after_the_packument_was_cached_is_served()
     }
 }
 
-/// Requests for versions that do not exist refetch a packument at most once
-/// per interval.
 #[tokio::test]
 async fn a_recently_fetched_packument_is_not_refetched_for_an_unlisted_version() {
     let mut upstream = mockito::Server::new_async().await;
@@ -170,4 +190,31 @@ async fn an_unlisted_version_refetches_an_old_packument_once() {
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{route}");
     }
     refetched.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_failed_refetch_is_not_retried_within_the_interval() {
+    let mut upstream = mockito::Server::new_async().await;
+    let tmp = TempDir::new().unwrap();
+    let app = app(&upstream.url(), tmp.path());
+    let failing = fail_after_caching(&mut upstream, &app, tmp.path(), Duration::from_mins(2)).await;
+
+    for _ in 0..2 {
+        let response = get(&app, "/npm/foo@1.0.1").await;
+        assert_ne!(response.status(), StatusCode::OK);
+    }
+    failing.assert_async().await;
+}
+
+/// The read of an expired packument already asked the upstream.
+#[tokio::test]
+async fn an_expired_packument_is_not_refetched_twice() {
+    let mut upstream = mockito::Server::new_async().await;
+    let tmp = TempDir::new().unwrap();
+    let app = app(&upstream.url(), tmp.path());
+    let failing = fail_after_caching(&mut upstream, &app, tmp.path(), TTL * 2).await;
+
+    let response = get(&app, "/npm/foo@1.0.1").await;
+    assert_ne!(response.status(), StatusCode::OK);
+    failing.assert_async().await;
 }

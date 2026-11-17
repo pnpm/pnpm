@@ -103,7 +103,7 @@ use upstream_tarballs::{
 mod upstream_integrity;
 mod upstream_packuments;
 use upstream_packuments::{
-    load_packument_for_read, load_upstream_packument, read_source_packument,
+    PackumentRefetches, load_packument_for_read, load_upstream_packument, read_source_packument,
     recover_stale_upstream_packument, reload_source_packument_lacking_version,
     reload_upstream_packument_lacking_version, serve_packument_via_upstream,
 };
