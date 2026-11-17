@@ -140,9 +140,10 @@ An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](contain
 
 Create a dedicated workload account, a named hosted npm registry, and exact
 package names. A [grant](configuration.md#grants) must give that account ID
-`publish` on the package too. Store it with
-[`pnpr grants import`](cli.md#grants) or the
-[grants API](endpoints.md#grant-endpoints):
+`publish` on the package too. Add it with the
+[grants API](endpoints.md#grant-endpoints), or add it to the file
+[`pnpr grants export`](cli.md#grants) writes and import that file. An import
+replaces every stored grant:
 
 ```yaml title="grants.yaml"
 grants:

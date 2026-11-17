@@ -150,6 +150,13 @@ impl ResolvedAlias {
         })
     }
 
+    /// Whether a descriptor recorded for `package` can no longer be checked:
+    /// one without a package was recorded while every package had the same
+    /// readers, and once they differ it names no package to check.
+    pub(super) fn outgrew(&self, package: Option<&str>) -> bool {
+        package.is_none() && self.rules.refines_access()
+    }
+
     /// Whether `identity` may select this alias: it may read something
     /// through the upstream and have the origin fetched. A fetch through an
     /// alias always reaches the origin, so `read` alone does not select one.

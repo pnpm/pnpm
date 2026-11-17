@@ -200,6 +200,17 @@ async fn the_listing_adds_up_grants_and_leaves_out_what_a_grant_excludes() {
         assert_eq!(status, StatusCode::OK, "{body}");
     }
     assert_eq!(team_packages(&app, &root).await, json!({ "@acme/app": "read-write" }));
+
+    // A grant on a wider pattern counts for the patterns it covers.
+    let wide = json!({ "registries": ["local"], "subjects": { "team:devs": ["read"] } });
+    let path = "/-/pnpr/v0/admin/grants/everything";
+    assert_eq!(send(&app, "PUT", path, Some(&root), Some(wide)).await.0, StatusCode::OK);
+    let readers = "/-/pnpr/v0/admin/grants/readers";
+    assert_eq!(send(&app, "DELETE", readers, Some(&root), None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(
+        team_packages(&app, &root).await,
+        json!({ "**": "read-only", "@acme/app": "read-write" }),
+    );
 }
 
 #[tokio::test]

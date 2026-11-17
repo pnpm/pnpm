@@ -44,7 +44,8 @@ fn seeded_name(connection: &dyn Connection, content: &GrantContent) -> Result<Op
     };
     for registry in &content.registries {
         let covered = connection.query_optional(
-            "SELECT 1 FROM grant_registries WHERE grant_id = ?1 AND registry = ?2",
+            "SELECT 1 FROM grant_registries
+             WHERE grant_id = ?1 AND (registry = ?2 OR registry = '*')",
             params![&owner, registry],
         )?;
         if covered.is_some() {

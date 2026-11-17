@@ -19,7 +19,7 @@ use super::{
 use axum::body::Bytes;
 use pnpr_policy::Action;
 use pnpr_registry::{Ecosystem, PackagePattern};
-use pnpr_storage::database::{GrantContent, StoredGrant};
+use pnpr_storage::database::{GrantContent, GrantWrite, StoredGrant};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -91,9 +91,12 @@ pub(super) async fn grant_team_access(
                 .collect(),
         };
         super::grant_directory::validate(state, &content)?;
-        reload_written_grants(state).await?;
-        let id = existing_id(state, &name).unwrap_or_else(pnpr_auth::new_principal_id);
-        written(state.inner.storage.put_grant(&id, content, None).await?, None)?;
+        let mut stored = put_named(state, &name, content.clone()).await?;
+        if stored == GrantWrite::NameTaken {
+            // Another replica created the grant since the reload.
+            stored = put_named(state, &name, content).await?;
+        }
+        written(stored, None)?;
         reload_written_grants(state).await?;
         let actor = crate::audit::Actor::of(identity);
         crate::audit!(
@@ -144,6 +147,18 @@ pub(super) async fn revoke_team_access(
     respond(result.await)
 }
 
+/// Store `content` under the ID the grant named `name` has, as of a reload,
+/// or under a new one.
+async fn put_named(
+    state: &AppState,
+    name: &str,
+    content: GrantContent,
+) -> Result<GrantWrite, RegistryError> {
+    reload_written_grants(state).await?;
+    let id = existing_id(state, name).unwrap_or_else(pnpr_auth::new_principal_id);
+    state.inner.storage.put_grant(&id, content, None).await
+}
+
 /// `GET /-/team/{scope}/{team}/package` — the package patterns that grants
 /// give the team in `@{scope}`'s registry, as `{"<pattern>": "read-only" |
 /// "read-write"}`. A grant that covers every package is listed as `**`.
@@ -168,54 +183,80 @@ pub(super) fn list_team_packages(
 }
 
 /// The patterns `grants` give the team `id` in `registry`, each with what the
-/// grants naming it give between them. A pattern a grant excludes in full is
-/// not counted for that grant. A pattern a grant excludes part of is listed,
-/// which npm's listing cannot qualify.
+/// grants covering it give between them. A pattern a grant excludes in full
+/// is not counted for that grant. A pattern a grant excludes part of is
+/// listed, which npm's listing cannot qualify.
 fn team_packages(
     grants: &[StoredGrant],
     (registry, ecosystem): (&str, Ecosystem),
     id: &str,
 ) -> serde_json::Map<String, serde_json::Value> {
-    let mut given: BTreeMap<&str, TeamActions> = BTreeMap::new();
-    for content in grants
+    let scopes: Vec<TeamScopeOfGrant> = grants
         .iter()
         .map(|grant| &grant.content)
         .filter(|content| covers(content, registry))
-    {
-        let actions = TeamActions::of(content, id);
-        for pattern in listed_patterns(content, ecosystem) {
-            given
-                .entry(pattern)
-                .or_default()
-                .add(actions);
-        }
-    }
-    given
+        .map(|content| TeamScopeOfGrant::of(content, ecosystem, id))
+        .filter(|scope| scope.actions.read || scope.actions.publish)
+        .collect();
+    let listed: BTreeMap<String, &PackagePattern> = scopes
+        .iter()
+        .flat_map(TeamScopeOfGrant::listed)
+        .map(|pattern| (pattern.to_string(), pattern))
+        .collect();
+    listed
         .into_iter()
-        .filter_map(|(pattern, actions)| Some((pattern.to_string(), json!(actions.label()?))))
+        .filter_map(|(name, pattern)| {
+            let mut actions = TeamActions::default();
+            for scope in scopes
+                .iter()
+                .filter(|scope| scope.gives_all_of(pattern))
+            {
+                actions.add(scope.actions);
+            }
+            Some((name, json!(actions.label()?)))
+        })
         .collect()
 }
 
-/// The patterns the grant `content` includes and does not exclude in full.
-fn listed_patterns(content: &GrantContent, ecosystem: Ecosystem) -> impl Iterator<Item = &str> {
-    let parse = move |pattern: &str| PackagePattern::parse(pattern, ecosystem).ok();
-    let excludes: Vec<PackagePattern> = content.exclude
-        .iter()
-        .filter_map(|pattern| parse(pattern))
-        .collect();
-    let all = content.include.is_empty().then_some("**");
-    let included = content.include
-        .iter()
-        .map(String::as_str)
-        .chain(all);
-    included.filter(move |pattern| {
-        let Some(pattern) = parse(pattern) else {
-            return false;
+/// What one grant gives a team, and on which packages.
+struct TeamScopeOfGrant {
+    include: Vec<PackagePattern>,
+    exclude: Vec<PackagePattern>,
+    actions: TeamActions,
+}
+
+impl TeamScopeOfGrant {
+    fn of(content: &GrantContent, ecosystem: Ecosystem, team: &str) -> Self {
+        let parse = |patterns: &[String]| -> Vec<PackagePattern> {
+            patterns
+                .iter()
+                .filter_map(|pattern| PackagePattern::parse(pattern, ecosystem).ok())
+                .collect()
         };
-        !excludes
+        let mut include = parse(&content.include);
+        if content.include.is_empty() {
+            include.push(PackagePattern::All);
+        }
+        Self { include, exclude: parse(&content.exclude), actions: TeamActions::of(content, team) }
+    }
+
+    /// The patterns the grant includes and does not exclude in full.
+    fn listed(&self) -> impl Iterator<Item = &PackagePattern> {
+        self.include
             .iter()
-            .any(|exclude| exclude.covers(&pattern))
-    })
+            .filter(|pattern| self.gives_all_of(pattern))
+    }
+
+    /// Whether the grant includes all of `pattern` and does not exclude all
+    /// of it.
+    fn gives_all_of(&self, pattern: &PackagePattern) -> bool {
+        self.include
+            .iter()
+            .any(|include| include.covers(pattern))
+            && !self.exclude
+                .iter()
+                .any(|exclude| exclude.covers(pattern))
+    }
 }
 
 /// What grants let a team do with a pattern, in the actions npm's listing

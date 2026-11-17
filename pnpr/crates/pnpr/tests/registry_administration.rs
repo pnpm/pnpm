@@ -1587,11 +1587,14 @@ async fn publishing_and_annotating_are_given_separately() {
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
 
     // Nor does attaching a version carry a deprecation of another along.
-    let mut smuggled = crate::npm::publish_doc("tagged-pkg", "1.1.0", b"tarball-contents-11");
-    smuggled["versions"]["1.0.0"] =
-        json!({ "name": "tagged-pkg", "version": "1.0.0", "deprecated": "use 1.1.0" });
-    let (status, body, _) = replica.send("PUT", package, Some(&replica.bob), Some(smuggled)).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    for deprecated in ["use 1.1.0", ""] {
+        let mut smuggled = crate::npm::publish_doc("tagged-pkg", "1.1.0", b"tarball-contents-11");
+        smuggled["versions"]["1.0.0"] =
+            json!({ "name": "tagged-pkg", "version": "1.0.0", "deprecated": deprecated });
+        let (status, body, _) =
+            replica.send("PUT", package, Some(&replica.bob), Some(smuggled)).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{deprecated:?}: {body}");
+    }
 
     let annotate = grant(json!(["annotate"]));
     assert_eq!(replica.as_root("PUT", grant_path, Some(annotate)).await.0, StatusCode::OK);

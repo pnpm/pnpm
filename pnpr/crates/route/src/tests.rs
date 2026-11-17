@@ -391,12 +391,37 @@ fn a_fetch_keeps_its_package_when_readers_differ_between_packages() {
         grant("one", &["@corp/allowed"], "bob"),
     ]);
     config.routing.upstreams.insert("corp".to_string(), upstream);
-    let context = RouteContext::from_config(&config);
+    let context = Arc::new(RouteContext::from_config(&config));
 
     assert_eq!(
         context.alias_package_qualifier("corp", Some("@corp/secret")),
         Some("@corp/secret".to_string()),
     );
+    // A descriptor recorded without a package, before readers differed,
+    // names no package to check and does not replay.
+    let unqualified = PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: corp_credential(),
+        package: None,
+    };
+    assert!(!context.allows_descriptor(&user("alice"), &unqualified));
+
+    // What alice resolved replays for her and not for bob.
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let hook = RouteHook::new(
+        Arc::clone(&context),
+        user("alice"),
+        Arc::clone(&footprint),
+        Arc::from(b"secret".as_slice()),
+    );
+    let secret = "https://npm.corp.example/@corp%2fsecret";
+    assert!(
+        hook.authorize(secret, Some("@corp/secret"))
+            .is_some(),
+    );
+    let recorded = footprint.lock().unwrap();
+    assert!(recorded.allows(&context, &user("alice")));
+    assert!(!recorded.allows(&context, &user("bob")));
     let url = "https://npm.corp.example/@corp%2fsecret";
     assert_eq!(context.classify(&user("bob"), url, Some("@corp/secret")), RouteClass::Public);
 }

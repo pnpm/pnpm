@@ -481,31 +481,7 @@ impl RouteContext {
     ) -> bool {
         match descriptor {
             PrivateAccessDescriptor::Alias { alias, credential_digest, package } => {
-                // Reuse the cached resolution only if `identity` would *select*
-                // this exact alias for its origin — the first authorized alias
-                // [`Self::select_alias`] returns there — and its credential
-                // still hashes to the same digest. Not merely an alias the
-                // caller is authorized for: with overlapping upstream access
-                // (several aliases on one origin a caller can use), an
-                // authorization-only check could replay a lockfile routed
-                // through a different `/~<name>/` endpoint than this caller
-                // resolves through. A since-removed alias (`find` → `None`) or
-                // a rotated credential also fails closed here.
-                self.aliases
-                    .iter()
-                    .find(|candidate| candidate.name == alias.as_str())
-                    .is_some_and(|candidate| {
-                        if candidate.authorization.is_none() {
-                            return candidate.admits(identity)
-                                && candidate.credential_digest == *credential_digest
-                                && self.upstream_admits(alias, identity, package.as_deref());
-                        }
-                        self.select_alias(identity, &candidate.origin, package.as_deref())
-                            .is_some_and(|selected| {
-                                selected.name == alias.as_str()
-                                    && selected.credential_digest == *credential_digest
-                            })
-                    })
+                self.allows_alias(identity, (alias, credential_digest), package.as_deref())
             }
             PrivateAccessDescriptor::Hosted { policy_id } => {
                 // The id is registry-qualified (see `hosted_policy_id`); a

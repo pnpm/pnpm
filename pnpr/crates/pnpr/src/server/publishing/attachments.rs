@@ -318,19 +318,15 @@ fn entries<'a>(document: &'a Value, key: &str) -> impl Iterator<Item = (&'a Stri
         .flatten()
 }
 
-/// Whether `incoming` gives a version `hosted` has another deprecation.
+/// Whether `incoming` gives a version `hosted` has another `deprecated`
+/// value, compared as stored: the merge keeps whatever the body says.
 fn redeprecates(incoming: &Value, hosted: &Value) -> bool {
-    let deprecation = |manifest: &Value| {
-        let text = manifest.get("deprecated").and_then(Value::as_str);
-        text.filter(|text| !text.is_empty())
-            .map(str::to_string)
-    };
     entries(incoming, "versions")
         .any(|(version, manifest)| {
             let held = hosted
                 .get("versions")
                 .and_then(|versions| versions.get(version));
-            held.is_some_and(|held| deprecation(held) != deprecation(manifest))
+            held.is_some_and(|held| held.get("deprecated") != manifest.get("deprecated"))
         })
 }
 

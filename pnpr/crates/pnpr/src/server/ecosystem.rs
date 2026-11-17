@@ -99,7 +99,7 @@ pub(super) fn caller_scoped(
 
 /// Whether some read of `ecosystem` through `registry` is closed to anonymous
 /// callers: a source that no grant lets them read in full, or an upstream
-/// source that sends a credential. Drives the Cargo `auth-required`
+/// source that sends a credential or that they may not have fetched. Drives the Cargo `auth-required`
 /// flag, which makes `cargo` send its token on index and download requests too.
 pub(super) fn registry_requires_auth(
     state: &AppState,
@@ -117,7 +117,9 @@ pub(super) fn registry_requires_auth(
             Some(Registry::Upstream { .. }) => routing.upstreams
                 .get(source)
                 .is_some_and(|upstream| {
-                    !upstream.public || !upstream.rules.all_access_admit(&Identity::Anonymous)
+                    !upstream.public
+                        || !upstream.rules.all_access_admit(&Identity::Anonymous)
+                        || !upstream.rules.any_admits(Action::Cache, &Identity::Anonymous)
                 }),
             Some(Registry::Router { .. }) | None => false,
         })

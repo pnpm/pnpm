@@ -241,8 +241,30 @@ async fn a_graph_write_seeds_and_forgets_the_grants_of_its_registries(db: Db) {
         storage.replace_grants(stale, None).await.unwrap(),
         GrantWrite::UnknownRegistry("corp".to_string()),
     );
-    let every = content("every", &["*"], &[("$all", "read")]);
+    let every = content("every", &["*"], &[("$authenticated", "read")]);
     written(storage.put_grant("g-5", every, None).await.unwrap());
+
+    // A grant of the registry's name on every registry covers it too.
+    let named = [seed("g-7", "every")];
+    let document = r#"{"registries":{"local":{},"shared":{},"every":{}}}"#;
+    assert_eq!(
+        storage
+            .write_registry_graph(Some(2), revision(document, &named, &[]))
+            .await
+            .unwrap(),
+        RegistryGraphWrite::Written(3),
+    );
+    let stored = storage
+        .read_grants(None)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        stored.grants
+            .iter()
+            .all(|grant| grant.id != "g-7"),
+        "{stored:?}",
+    );
 }
 
 conformance!(

@@ -24,6 +24,41 @@ impl RouteContext {
                 .is_none_or(|rules| rules.access_admits(package, identity))
     }
 
+    /// Reuse the cached resolution only if `identity` would *select*
+    /// this exact alias for its origin — the first authorized alias
+    /// [`Self::select_alias`] returns there — and its credential
+    /// still hashes to the same digest. Not merely an alias the
+    /// caller is authorized for: with overlapping upstream access
+    /// (several aliases on one origin a caller can use), an
+    /// authorization-only check could replay a lockfile routed
+    /// through a different `/~<name>/` endpoint than this caller
+    /// resolves through. A since-removed alias (`find` → `None`) or
+    /// a rotated credential also fails closed here.
+    pub(super) fn allows_alias(
+        &self,
+        identity: &Identity,
+        (alias, credential_digest): (&str, &str),
+        package: Option<&str>,
+    ) -> bool {
+        self.aliases
+            .iter()
+            .find(|candidate| candidate.name == alias)
+            .is_some_and(|candidate| {
+                if candidate.outgrew(package) {
+                    return false;
+                }
+                if candidate.authorization.is_none() {
+                    return candidate.admits(identity)
+                        && candidate.credential_digest == credential_digest
+                        && self.upstream_admits(alias, identity, package);
+                }
+                self.select_alias(identity, &candidate.origin, package)
+                    .is_some_and(|selected| {
+                        selected.name == alias && selected.credential_digest == credential_digest
+                    })
+            })
+    }
+
     /// Whether `registry`'s declared namespace claims `package`, resolved in
     /// the ecosystem the upstream serves.
     pub(super) fn upstream_claims(&self, registry: &str, package: &str) -> bool {
