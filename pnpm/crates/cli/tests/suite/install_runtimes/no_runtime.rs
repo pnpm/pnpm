@@ -399,6 +399,24 @@ fn production_install_checks_engines_against_the_runtime_it_links() {
 }
 
 #[test]
+fn production_add_checks_engines_against_the_runtime_it_links() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    write_devengines_manifest(&workspace, "99.0.0", Some("download"));
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["engines"]["node"] = json!(">=99.0.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+
+    let output = command(&workspace)
+        .with_args(["add", "--prod", "is-positive"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_UNSUPPORTED_ENGINE"));
+}
+
+#[test]
 fn explicit_node_version_takes_priority_over_the_locked_node_runtime() {
     let root = tempfile::tempdir().unwrap();
     let workspace = prepare_workspace(&root, "engineStrict: true\nnodeVersion: 20.0.0\n");

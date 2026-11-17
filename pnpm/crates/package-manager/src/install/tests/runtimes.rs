@@ -89,6 +89,23 @@ fn effective_node_version_uses_an_exact_runtime_pin_that_is_not_downloaded() {
 }
 
 #[test]
+fn effective_node_version_prefers_a_downloaded_runtime_over_an_exact_pin() {
+    let config = Config::new();
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": "20.0.0", "onFail": "warn" } },
+            "devEngines": { "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" } },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod, DependencyGroup::Dev]),
+        Some("24.0.0".to_string()),
+    );
+}
+
+#[test]
 fn effective_node_version_keeps_a_different_runtime_dependency_when_policy_disables_engine_runtime()
 {
     let mut config = Config::new();

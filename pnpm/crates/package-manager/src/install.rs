@@ -210,9 +210,10 @@ fn pnpmfile_checksum_check<'a>(
 }
 
 /// The Node version installability checks assume without probing: an
-/// explicit `nodeVersion` config value first, then the root manifest's
-/// runtime pin of the first included dependency group (`engines.runtime`
-/// for `dependencies`, `devEngines.runtime` for `devDependencies`). The early
+/// explicit `nodeVersion` config value first, then the runtime pnpm
+/// downloads for the first included dependency group that has one, then the
+/// exact runtime pin of the first included group (`engines.runtime` for
+/// `dependencies`, `devEngines.runtime` for `devDependencies`). The early
 /// host detection and the install paths must derive it identically or the
 /// pre-spawned host would disagree with the one the install would have
 /// detected.
@@ -225,36 +226,37 @@ pub(crate) fn effective_node_version(
         return Some(node_version.clone());
     }
     let runtime_on_fail = config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str);
-    let requirements =
-        pnpm_deps_restorer::project_host_requirements(manifest.value(), runtime_on_fail);
-    dependency_groups
-        .iter()
-        .find_map(|group| {
-            let (downloaded, engines_field) = match group {
-                DependencyGroup::Prod => (
-                    requirements
-                        .as_ref()
-                        .and_then(|req| req.dependencies_node_version.as_ref()),
-                    "engines",
-                ),
-                DependencyGroup::Dev => (
-                    requirements
-                        .as_ref()
-                        .and_then(|req| req.dev_dependencies_node_version.as_ref()),
-                    "devEngines",
-                ),
-                DependencyGroup::Optional | DependencyGroup::Peer => return None,
-            };
-            downloaded
-                .cloned()
-                .or_else(|| {
-                    pnpm_package_manifest::node_version_from_engine_field(
-                        manifest.value(),
-                        engines_field,
-                        runtime_on_fail,
-                    )
-                })
-        })
+    let downloaded =
+        pnpm_deps_restorer::project_host_requirements(manifest.value(), runtime_on_fail)
+            .and_then(|requirements| {
+                dependency_groups
+                    .iter()
+                    .find_map(|group| match group {
+                        DependencyGroup::Prod => {
+                            requirements.dependencies_node_version.clone()
+                        }
+                        DependencyGroup::Dev => {
+                            requirements.dev_dependencies_node_version.clone()
+                        }
+                        DependencyGroup::Optional | DependencyGroup::Peer => None,
+                    })
+            });
+    downloaded.or_else(|| {
+        dependency_groups
+            .iter()
+            .find_map(|group| {
+                let engines_field = match group {
+                    DependencyGroup::Prod => "engines",
+                    DependencyGroup::Dev => "devEngines",
+                    DependencyGroup::Optional | DependencyGroup::Peer => return None,
+                };
+                pnpm_package_manifest::node_version_from_engine_field(
+                    manifest.value(),
+                    engines_field,
+                    runtime_on_fail,
+                )
+            })
+    })
 }
 
 /// Shared out-map for [`ResolutionInputs::peer_issues_sink`]: importer id →

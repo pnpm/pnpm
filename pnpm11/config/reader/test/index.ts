@@ -171,6 +171,23 @@ test.each([
   expect(config.nodeVersion).toBe(expected)
 })
 
+test('nodeVersion prefers a downloaded runtime over an exact runtime pin of an earlier group', async () => {
+  prepare({
+    devEngines: { runtime: { name: 'node', version: '24.0.0', onFail: 'download' } },
+    engines: { runtime: { name: 'node', version: '20.0.0', onFail: 'warn' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('24.0.0')
+})
+
 test('nodeVersion from config takes priority over devEngines.runtime', async () => {
   prepare({
     devEngines: {

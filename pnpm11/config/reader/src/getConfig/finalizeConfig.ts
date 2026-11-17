@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import { applyRuntimeOnFailOverride, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
+import { applyRuntimeOnFailOverride, getDownloadedNodeVersionFromEnginesRuntime, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
 import type { ProjectManifest } from '@pnpm/types'
 
 import { transformPathKeys } from '../transformPath.js'
@@ -29,15 +29,27 @@ export function finalizeConfig ({ cliOptions, env, pnpmConfig }: ConfigBuildStat
 }
 
 /**
- * The runtime pin of the first included dependency group: `engines.runtime`
- * for `dependencies`, then `devEngines.runtime` for `devDependencies`.
+ * The runtime pnpm downloads for the first included dependency group that has
+ * one, else the exact runtime pin of the first included group. `engines.runtime`
+ * belongs to `dependencies` and `devEngines.runtime` to `devDependencies`.
  */
 function getIncludedNodeVersionFromEnginesRuntime (
   manifest: ProjectManifest,
-  { production, dev }: Pick<PnpmConfigInProgress, 'production' | 'dev'>
+  { production, dev, runtimeOnFail }: Pick<PnpmConfigInProgress, 'production' | 'dev' | 'runtimeOnFail'>
 ): string | undefined {
-  return (production ? getNodeVersionFromEnginesRuntime(manifest, 'dependencies') : undefined) ??
-    (dev ? getNodeVersionFromEnginesRuntime(manifest, 'devDependencies') : undefined)
+  const dependencyGroups = [
+    ...(production ? ['dependencies' as const] : []),
+    ...(dev ? ['devDependencies' as const] : []),
+  ]
+  for (const dependencyGroup of dependencyGroups) {
+    const version = getDownloadedNodeVersionFromEnginesRuntime(manifest, runtimeOnFail, dependencyGroup)
+    if (version != null) return version
+  }
+  for (const dependencyGroup of dependencyGroups) {
+    const version = getNodeVersionFromEnginesRuntime(manifest, dependencyGroup)
+    if (version != null) return version
+  }
+  return undefined
 }
 
 /**

@@ -258,6 +258,7 @@ impl AddArgs {
         }
         config.optional =
             resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
+        config.cli.included_dependency_groups = Some(self.included_groups(config));
         if self.install.force {
             config.cli_settings.insert("force".to_string());
         }
