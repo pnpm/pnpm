@@ -64,7 +64,7 @@ use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
 use pnpr_config::{Config, PublicRoute, RoutePolicy, RoutingConfig, UpstreamConfig};
-use pnpr_policy::{AccessList, Identity, PackageRules};
+use pnpr_policy::{Identity, PackageRules};
 use pnpr_registry::{ConcreteKind, Ecosystem, Registries, Resolved};
 
 /// The classification of a single fetch route.
@@ -149,8 +149,9 @@ struct ResolvedAlias {
     /// The fully-formed `Authorization` header value the alias sends
     /// upstream (`Bearer ...` / `Basic ...`).
     authorization: Option<String>,
-    /// Which pnpr callers may select this alias.
-    access: AccessList,
+    /// The upstream's grants, which decide which pnpr callers may select this
+    /// alias.
+    rules: pnpr_policy::PackageRules,
 }
 
 impl fmt::Debug for ResolvedAlias {
@@ -164,7 +165,7 @@ impl fmt::Debug for ResolvedAlias {
             .field("origin", &self.origin)
             .field("scheme", &self.scheme)
             .field("authorization", &"<redacted>")
-            .field("access", &self.access)
+            .field("rules", &self.rules)
             .finish()
     }
 }
@@ -340,7 +341,7 @@ impl RouteContext {
         match admitted {
             Some(alias)
                 if alias.authorization.is_some()
-                    || !alias.access.allows(&Identity::Anonymous)
+                    || !alias.admits(&Identity::Anonymous)
                     || !self.upstream_admits(registry, &Identity::Anonymous, Some(package)) =>
             {
                 RouteClass::Proxied {
@@ -355,7 +356,7 @@ impl RouteContext {
     fn authorized_alias(&self, identity: &Identity, registry: &str) -> Option<&ResolvedAlias> {
         self.aliases
             .iter()
-            .find(|alias| alias.name == registry && alias.access.allows(identity))
+            .find(|alias| alias.name == registry && alias.admits(identity))
     }
 
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
@@ -459,12 +460,10 @@ impl RouteContext {
         let Some(rules) = self.hosted_rules.get(registry) else {
             return RouteClass::Public;
         };
-        let table = rules.snapshot();
-        let access = table.for_package(package).access;
-        if access.allows(&Identity::Anonymous) {
+        if rules.access_admits(package, &Identity::Anonymous) {
             return RouteClass::Public;
         }
-        if access.allows(identity) {
+        if rules.access_admits(package, identity) {
             RouteClass::Hosted { policy_id: hosted_policy_id(registry, package) }
         } else {
             // The caller can't read this hosted package: classify it as an
@@ -497,7 +496,7 @@ impl RouteContext {
                     .find(|candidate| candidate.name == alias.as_str())
                     .is_some_and(|candidate| {
                         if candidate.authorization.is_none() {
-                            return candidate.access.allows(identity)
+                            return candidate.admits(identity)
                                 && candidate.credential_digest == *credential_digest
                                 && self.upstream_admits(alias, identity, package.as_deref());
                         }
@@ -530,7 +529,7 @@ impl RouteContext {
     pub fn upstream_registry(&self, identity: &Identity, upstream: &str) -> Option<String> {
         self.aliases
             .iter()
-            .find(|candidate| candidate.name == upstream && candidate.access.allows(identity))
+            .find(|candidate| candidate.name == upstream && candidate.admits(identity))
             .map(|candidate| candidate.registry.clone())
     }
 }

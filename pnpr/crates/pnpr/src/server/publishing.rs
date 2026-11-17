@@ -179,12 +179,12 @@ pub(super) fn registry_visible_to_caller(
 ) -> bool {
     let routing = state.routing();
     let concrete_visible = |name: &str| match routing.registries.get(name) {
-        // The name being probed is unclaimed, so there is no per-package
-        // entry to consult: the registry-level default `access:` decides
-        // whether the caller may learn the registry exists at all.
+        // The name being probed is unclaimed, so no grant covers it: whether
+        // the caller may read anything in the registry decides whether it may
+        // learn the registry exists at all.
         Some(Registry::Hosted { .. }) => routing.hosted
             .get(name)
-            .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
+            .is_some_and(|hosted| hosted.rules.any_access_admits(identity)),
         Some(Registry::Upstream { .. }) => true,
         Some(Registry::Router { .. }) | None => false,
     };

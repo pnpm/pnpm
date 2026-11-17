@@ -238,7 +238,7 @@ impl VersionRequest<'_> {
         name: &CanonicalPackageName,
     ) -> Result<Option<CachedPackument>, RegistryError> {
         let RegistrySource::Upstream(id) = source else { return Ok(None) };
-        authorize(self.state, self.identity, source, name.as_str(), Action::Access)?;
+        authorize(self.state, self.identity, source, name.as_str(), Action::Read)?;
         let upstream = authorized_upstream(self.state, self.identity, id)?;
         if !upstream.caches() {
             return Ok(None);

@@ -263,7 +263,6 @@ async fn a_replica_that_cannot_read_the_graph_serves_no_registry() {
         restored_from: None,
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded: &[],
         removed: &[],
     };

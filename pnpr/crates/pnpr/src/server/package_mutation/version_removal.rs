@@ -45,7 +45,7 @@ async fn try_remove_listed_version(
 ) -> Result<Option<bool>, RegistryError> {
     let storage = hosted_storage(state, Some(&target.namespace));
     let Some((mut packument, doc_version)) =
-        read_authorized_packument(state, identity, (target, name), Action::Unpublish).await?
+        read_authorized_packument(state, identity, (target, name), Action::Delete).await?
     else {
         if storage.read_tombstone(name).await?.is_none() {
             return Err(RegistryError::NotFound);

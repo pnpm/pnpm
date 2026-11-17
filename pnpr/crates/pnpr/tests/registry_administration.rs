@@ -563,7 +563,6 @@ async fn a_stored_upstream_never_reaches_a_refused_address() {
         restored_from: None,
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded: &[],
         removed: &[],
     };
@@ -607,7 +606,6 @@ async fn the_own_public_host_is_no_exception_for_a_stored_upstream() {
             restored_from: None,
             vacated: &[],
             bound: &[],
-            teams: &[],
             seeded: &[],
             removed: &[],
         };
@@ -656,7 +654,6 @@ async fn a_stored_upstream_at_the_own_public_origin_is_refused_on_an_allowed_net
             restored_from: None,
             vacated: &[],
             bound: &[],
-            teams: &[],
             seeded: &[],
             removed: &[],
         };
@@ -956,7 +953,6 @@ async fn a_registry_admin_repairs_a_graph_the_replica_cannot_serve() {
         restored_from: None,
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded: &[],
         removed: &[],
     };
@@ -1203,7 +1199,6 @@ async fn a_server_whose_stored_graph_does_not_load_starts_and_is_repaired() {
         restored_from: None,
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded: &[],
         removed: &[],
     };

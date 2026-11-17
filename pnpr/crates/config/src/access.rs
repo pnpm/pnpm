@@ -1,23 +1,5 @@
 use super::{AccessList, AccessToken, BTreeSet, Deserialize, RegistryError, Serialize};
 
-/// One `packages:` map value: `access` / `publish` / `unpublish` are
-/// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`
-/// pseudo-groups, bare account IDs, and `team:<id>` references to the
-/// instance's teams), compiled into the owning registry's
-/// [`pnpr_policy::PackageRules`]. An omitted field falls back to the registry-level
-/// default. The map key set doubles as the registry's claimed package patterns, so
-/// one declaration routes, filters, and authorizes.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PackageAccess {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub access: Option<AccessSpec>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publish: Option<AccessSpec>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unpublish: Option<AccessSpec>,
-}
-
 /// A YAML permission value: a sequence of tokens, or a scalar naming exactly
 /// one token. Every entry is taken verbatim — there is no whitespace
 /// splitting inside a scalar or a sequence element, so a multi-token list
@@ -57,20 +39,6 @@ impl AccessSpec {
         }
         Ok(AccessList::new(tokens))
     }
-
-    /// The IDs of the teams the entries name.
-    pub(super) fn teams(&self) -> impl Iterator<Item = &str> {
-        self.entries()
-            .iter()
-            .filter_map(|entry| entry.strip_prefix("team:"))
-    }
-}
-
-/// Compile a permission list given as its tokens: each entry is one
-/// well-formed token. A `team:<id>` entry is not checked against the teams
-/// that exist.
-pub fn compile_access_list(entries: Vec<String>) -> Result<AccessList, String> {
-    AccessSpec::Many(entries).to_access_list()
 }
 
 /// Compile `auth.admins`, rejecting any entry that is not one account ID.
@@ -123,7 +91,7 @@ pub fn validate_member_name(member: &str) -> Result<(), String> {
 }
 
 /// Reject unknown built-ins and typed prefixes, reserved aliases, and malformed IDs.
-pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
+pub fn validate_access_token(token: &str) -> Result<(), String> {
     validate_single_token(token)?;
     if let Some(builtin) = token.strip_prefix('$') {
         if !matches!(builtin, "all" | "authenticated" | "anonymous" | "owners") {

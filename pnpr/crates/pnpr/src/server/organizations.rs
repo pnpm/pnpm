@@ -138,11 +138,7 @@ pub(super) async fn add_upstream_org_packages(
     let Some(config) = routing.upstreams.get(scan.source) else {
         return Ok(());
     };
-    if !config.search
-        || config.access
-            .as_ref()
-            .is_some_and(|access| !access.allows(identity))
-    {
+    if !config.search || !config.rules.any_access_admits(identity) {
         return Ok(());
     }
     let Some(upstream) = routing.upstream_clients.get(scan.source) else {
@@ -176,7 +172,7 @@ pub(super) fn upstream_org_package_is_visible(
             resolve_registry_source(state, scan.registry, name),
             RegistrySource::Upstream(candidate) if candidate == scan.source,
         )
-        && authorize(state, identity, resolved, name, Action::Access).is_ok()
+        && authorize(state, identity, resolved, name, Action::Read).is_ok()
 }
 
 /// The hosted registry `@{scope}` addresses in a team request: the scope routes
@@ -212,7 +208,7 @@ pub(super) fn team_registry<'a>(
     let Some((name, hosted)) = routing.hosted.get_key_value(&source) else {
         return Err(RegistryError::NotFound);
     };
-    if !hosted.rules.default_access_admits(identity) {
+    if !hosted.rules.any_access_admits(identity) {
         return Err(RegistryError::NotFound);
     }
     Ok((name, hosted))

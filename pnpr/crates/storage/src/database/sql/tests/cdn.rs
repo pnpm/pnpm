@@ -14,7 +14,6 @@ async fn write_graph(storage: &Storage, document: &str) {
         restored_from: None,
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded: &[],
         removed: &[],
     };

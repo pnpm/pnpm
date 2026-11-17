@@ -164,7 +164,7 @@ async fn read_packument_for_rewrite(
             identity,
             &registry_source,
             name.as_str(),
-            Action::Unpublish,
+            Action::Delete,
             Some(&target.namespace),
         )
         .await
@@ -176,7 +176,7 @@ async fn read_packument_for_rewrite(
         identity,
         &registry_source,
         (name.as_str(), &hosted),
-        Action::Unpublish,
+        Action::Delete,
     )
     .map_err(IntoResponse::into_response)?;
     Ok((hosted, version))

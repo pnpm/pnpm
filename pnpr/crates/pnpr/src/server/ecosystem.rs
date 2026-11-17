@@ -114,9 +114,9 @@ pub(super) fn registry_requires_auth(
             Some(Registry::Hosted { .. }) => routing.hosted
                 .get(source)
                 .is_some_and(|hosted| !hosted.rules.all_access_admit(&Identity::Anonymous)),
-            Some(Registry::Upstream { .. }) => routing.upstreams
-                .get(source)
-                .is_some_and(|upstream| upstream.access.is_some()),
+            Some(Registry::Upstream { .. }) => {
+                routing.upstreams.get(source).is_some_and(|upstream| !upstream.public)
+            }
             Some(Registry::Router { .. }) | None => false,
         })
 }
@@ -184,7 +184,7 @@ pub(super) fn upstream_for(
     let RegistrySource::Upstream(name) = source else {
         return Err(RegistryError::NotFound);
     };
-    authorize(state, identity, source, key.as_str(), Action::Access)?;
+    authorize(state, identity, source, key.as_str(), Action::Read)?;
     let upstream = authorized_upstream(state, identity, name)?;
     Ok((upstream, upstream_cache_namespace(state, name)))
 }

@@ -1,26 +1,24 @@
 //! npm's team package access endpoints (`npm access grant`, `revoke`, and
-//! `list packages <scope:team>`), mapped onto the `packages:` rules of a
-//! hosted registry in the stored registry graph.
+//! `list packages <scope:team>`), mapped onto grants.
 //!
-//! A grant edits the rule of the package's own pattern: `read-write` puts
-//! `team:<team>` in its `access` and `publish` lists, `read-only` in `access`
-//! only. Revoking takes the team out of all three lists. A package without a
-//! pattern of its own is refused, because editing the scope's pattern would
-//! grant the team every package in the scope.
+//! A grant of a package to a team is one grant of the instance: it covers
+//! that package in the registry that serves the scope and gives the team
+//! `read` and `cache`, and for `read-write` also `publish` and `annotate`.
+//! Revoking removes that grant. Other grants that name the team stay.
 
 use super::{
-    AppState, Identity, RegistryError, Response, StatusCode, json,
-    organizations::team_registry,
+    AppState, Identity, RegistryError, Response, StatusCode,
+    grant_directory::{reload_written_grants, written},
+    json,
+    organizations::{team_registry, visible_teams},
     parse_json_body,
-    registry_graph::{GraphEdit, edit_graph},
     request_access::require_access_admin,
     team_directory::team_id,
     team_mutations::{TeamScope, respond},
 };
 use axum::body::Bytes;
-use pnpr_config::{RegistryGraphDocument, RuleLists};
-use pnpr_policy::{PackageRule, RuleTable};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use pnpr_policy::Action;
+use pnpr_storage::database::GrantContent;
 use serde::Deserialize;
 
 /// The body of `npm access grant`.
@@ -37,10 +35,32 @@ enum Permissions {
     ReadWrite,
 }
 
+impl Permissions {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::ReadOnly => "read-only",
+            Self::ReadWrite => "read-write",
+        }
+    }
+
+    fn actions(self) -> &'static [Action] {
+        match self {
+            Self::ReadOnly => &[Action::Read, Action::Cache],
+            Self::ReadWrite => &[Action::Read, Action::Cache, Action::Publish, Action::Annotate],
+        }
+    }
+}
+
 /// The body of `npm access revoke`.
 #[derive(Deserialize)]
 struct Revoke {
     package: String,
+}
+
+/// The name of the grant that gives the team `team_id` the package `package`
+/// of `registry`.
+fn grant_name(registry: &str, team_id: &str, package: &str) -> String {
+    format!("{registry}:team:{team_id}:{package}")
 }
 
 /// `PUT /-/team/{scope}/{team}/package`.
@@ -53,18 +73,25 @@ pub(super) async fn grant_team_access(
 ) -> Response {
     let result = async {
         let registry = managed_registry(state, identity, &target, team, "grant access to")?;
-        let token = format!("team:{}", team_id(state, team).await?);
+        let team_id = team_id(state, team).await?;
         let grant: Grant = parse_json_body(body)?;
-        edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            edit_team_lists(document, &registry, &grant.package, |lists| {
-                grant_lists(lists, &token, grant.permissions);
-            })
-        })
-        .await?;
-        let perm_str = match grant.permissions {
-            Permissions::ReadOnly => "read-only",
-            Permissions::ReadWrite => "read-write",
+        let name = grant_name(&registry, &team_id, &grant.package);
+        let subject = format!("team:{team_id}");
+        let content = GrantContent {
+            name: name.clone(),
+            registries: vec![registry.clone()],
+            include: vec![grant.package.clone()],
+            exclude: Vec::new(),
+            subjects: grant.permissions
+                .actions()
+                .iter()
+                .map(|action| (subject.clone(), action.as_str().to_string()))
+                .collect(),
         };
+        super::grant_directory::validate(state, &content)?;
+        let id = existing_id(state, &name).unwrap_or_else(pnpr_auth::new_principal_id);
+        written(state.inner.storage.put_grant(&id, content, None).await?, None)?;
+        reload_written_grants(state).await?;
         let actor = crate::audit::Actor::of(identity);
         crate::audit!(
             actor,
@@ -73,7 +100,7 @@ pub(super) async fn grant_team_access(
             scope = %target.scope,
             team = team,
             package = %grant.package,
-            permissions = perm_str,
+            permissions = grant.permissions.label(),
             "team package access granted",
         );
         Ok(StatusCode::CREATED)
@@ -81,7 +108,8 @@ pub(super) async fn grant_team_access(
     respond(result.await)
 }
 
-/// `DELETE /-/team/{scope}/{team}/package`.
+/// `DELETE /-/team/{scope}/{team}/package`. Revoking what was not granted
+/// succeeds, so a retried request does not fail.
 pub(super) async fn revoke_team_access(
     state: &AppState,
     identity: &Identity,
@@ -91,16 +119,13 @@ pub(super) async fn revoke_team_access(
 ) -> Response {
     let result = async {
         let registry = managed_registry(state, identity, &target, team, "revoke access from")?;
-        let token = format!("team:{}", team_id(state, team).await?);
+        let team_id = team_id(state, team).await?;
         let revoke: Revoke = parse_json_body(body)?;
-        edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            edit_team_lists(document, &registry, &revoke.package, |lists| {
-                for list in lists {
-                    remove(list, &token);
-                }
-            })
-        })
-        .await?;
+        reload_written_grants(state).await?;
+        if let Some(id) = existing_id(state, &grant_name(&registry, &team_id, &revoke.package)) {
+            state.inner.storage.remove_grant(&id, None).await?;
+            reload_written_grants(state).await?;
+        }
         let actor = crate::audit::Actor::of(identity);
         crate::audit!(
             actor,
@@ -116,9 +141,9 @@ pub(super) async fn revoke_team_access(
     respond(result.await)
 }
 
-/// `GET /-/team/{scope}/{team}/package` — the declared patterns of
-/// `@{scope}`'s registry whose rules name the team and that the caller may
-/// read, as `{"<pattern>": "read-only" | "read-write"}`.
+/// `GET /-/team/{scope}/{team}/package` — the package patterns that grants
+/// give the team in `@{scope}`'s registry, as `{"<pattern>": "read-only" |
+/// "read-write"}`. A grant that covers every package is listed as `**`.
 pub(super) fn list_team_packages(
     state: &AppState,
     identity: &Identity,
@@ -126,38 +151,58 @@ pub(super) fn list_team_packages(
     team: &str,
 ) -> Response {
     let result = (|| {
-        let teams =
-            super::organizations::visible_teams(state, identity, target.registry, target.scope)?;
+        let teams = visible_teams(state, identity, target.registry, target.scope)?;
         let (id, _) = teams.named(team)?;
         let routing = state.routing();
-        let (_, hosted) = team_registry(state, &routing, identity, target.registry, target.scope)?;
-        let table = hosted.rules.snapshot();
-        let packages: serde_json::Map<_, _> = table
-            .rules()
+        let (registry, _) =
+            team_registry(state, &routing, identity, target.registry, target.scope)?;
+        let subject = format!("team:{id}");
+        let grants = state.inner.identity.managed.grants.snapshot();
+        let mut packages = serde_json::Map::new();
+        let covering = grants.grants
             .iter()
-            .filter_map(|rule| team_permission(&table, rule, id, identity))
-            .collect();
+            .filter(|grant| {
+                grant.content.registries
+                    .iter()
+                    .any(|named| {
+                        named == registry || named == super::grant_directory::EVERY_REGISTRY
+                    })
+            });
+        for grant in covering {
+            let gives = |action: Action| {
+                grant.content.subjects
+                    .iter()
+                    .any(|(given, name)| *given == subject && name == action.as_str())
+            };
+            if !gives(Action::Read) {
+                continue;
+            }
+            let permission = if gives(Action::Publish) { "read-write" } else { "read-only" };
+            let all = ["**".to_string()];
+            let patterns =
+                if grant.content.include.is_empty() { &all[..] } else { &grant.content.include };
+            for pattern in patterns {
+                let known = packages.get(pattern).and_then(serde_json::Value::as_str);
+                if known != Some("read-write") {
+                    packages.insert(pattern.clone(), json!(permission));
+                }
+            }
+        }
         Ok((StatusCode::OK, axum::Json(json!(packages))))
     })();
     respond(result)
 }
 
-fn team_permission(
-    table: &RuleTable,
-    rule: &PackageRule,
-    team: &str,
-    identity: &Identity,
-) -> Option<(String, serde_json::Value)> {
-    let access = rule.access.as_ref().unwrap_or_else(|| table.default_access());
-    if !access.references_team(team) || !access.allows(identity) {
-        return None;
-    }
-    let publish = rule.publish.as_ref().unwrap_or_else(|| table.default_publish());
-    let permission = if publish.references_team(team) { "read-write" } else { "read-only" };
-    Some((rule.pattern.to_string(), json!(permission)))
+/// The ID of the grant named `name`, in this replica's copy of the grants.
+fn existing_id(state: &AppState, name: &str) -> Option<String> {
+    state.inner.identity.managed.grants
+        .snapshot()
+        .named(name)
+        .map(|grant| grant.id.clone())
 }
 
-/// The registry `target` addresses, whose rules an admin may edit for `team`.
+/// The registry `target` addresses, whose packages an admin may grant to
+/// `team`.
 fn managed_registry(
     state: &AppState,
     identity: &Identity,
@@ -170,84 +215,4 @@ fn managed_registry(
     let scope = target.scope.strip_prefix('@').unwrap_or(target.scope);
     require_access_admin(state, identity, action, format!("@{scope}:{team}"))?;
     Ok(registry.to_string())
-}
-
-/// Apply `edit` to the `access`, `publish`, and `unpublish` lists that apply
-/// to `package`'s own pattern now, and store each list the edit changed.
-/// Lists it left alone keep falling back to the registry defaults. The lists an
-/// omitted one falls back to come from `document`, the one being edited, so a
-/// retry against a newer document uses its defaults.
-fn edit_team_lists(
-    document: &mut RegistryGraphDocument,
-    registry: &str,
-    package: &str,
-    edit: impl FnOnce(&mut [Vec<String>; 3]),
-) -> Result<(), RegistryError> {
-    let mut lists = document.rule_lists(registry).ok_or(RegistryError::NotFound)?;
-    let key = own_key(&lists, package)?;
-    let built_in = RuleTable::new(Vec::new(), None);
-    let defaults = [
-        lists.access
-            .clone()
-            .unwrap_or_else(|| built_in.default_access().token_strings()),
-        built_in.default_publish().token_strings(),
-        built_in.default_unpublish().token_strings(),
-    ];
-    let entry = lists.packages.get_mut(&key).ok_or(RegistryError::NotFound)?;
-    let fields = [&mut entry.access, &mut entry.publish, &mut entry.unpublish];
-    let before: [Vec<String>; 3] = std::array::from_fn(|index| {
-        fields[index]
-            .clone()
-            .unwrap_or_else(|| defaults[index].clone())
-    });
-    let mut after = before.clone();
-    edit(&mut after);
-    for ((field, before), after) in fields
-        .into_iter()
-        .zip(before)
-        .zip(after)
-    {
-        if after != before {
-            *field = Some(after);
-        }
-    }
-    document.set_rule_lists(registry, lists)
-}
-
-/// The `packages:` key that names `package` exactly. A pattern covering other
-/// packages too is refused.
-fn own_key(lists: &RuleLists, package: &str) -> Result<String, RegistryError> {
-    lists.packages
-        .keys()
-        .find(|key| {
-            matches!(
-                PackagePattern::parse(key, Ecosystem::Npm),
-                Ok(PackagePattern::Exact(name)) if name == package,
-            )
-        })
-        .cloned()
-        .ok_or_else(|| RegistryError::BadRequest {
-            reason: format!(
-                "{package:?} has no rule of its own in this registry's `packages:` map; pnpr grants \
-                 a team access per declared package, so declare it there first",
-            ),
-        })
-}
-
-fn grant_lists([access, publish, _]: &mut [Vec<String>; 3], token: &str, permissions: Permissions) {
-    add(access, token);
-    match permissions {
-        Permissions::ReadWrite => add(publish, token),
-        Permissions::ReadOnly => remove(publish, token),
-    }
-}
-
-fn remove(list: &mut Vec<String>, token: &str) {
-    list.retain(|entry| entry != token);
-}
-
-fn add(list: &mut Vec<String>, token: &str) {
-    if !list.iter().any(|entry| entry == token) {
-        list.push(token.to_string());
-    }
 }

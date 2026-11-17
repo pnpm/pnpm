@@ -13,7 +13,6 @@ async fn oversized_keys_fail_without_truncating_or_advancing_generation() {
         restored_from: None,
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded: &[],
         removed: &[],
     };

@@ -111,6 +111,8 @@ pub(crate) fn publish_routing(
 ) -> Arc<RoutingSnapshot> {
     let inner = &state.inner;
     let previous = inner.current_routing();
+    let grants = inner.identity.managed.grants.snapshot();
+    crate::server::grant_directory::apply(state, &grants, &routing);
     let mut snapshot =
         build_snapshot(&inner.config, routing, Some(&previous), &inner.upstream_guard_context);
     snapshot.generation = generation;

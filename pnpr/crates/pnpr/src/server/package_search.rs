@@ -248,10 +248,7 @@ pub(super) fn upstream_search_admits(
     config: &pnpr_config::UpstreamConfig,
     identity: &Identity,
 ) -> bool {
-    config.access
-        .as_ref()
-        .is_none_or(|access| access.allows(identity))
-        && config.rules.all_access_admit(identity)
+    config.rules.all_access_admit(identity)
 }
 
 /// The hosted names one discovery source contributes to a search, beside the
@@ -381,7 +378,7 @@ pub(super) fn search_result_is_visible(
     matches!(
         resolve_registry_source(context.state, context.registry, name),
         RegistrySource::Upstream(candidate) if candidate == context.source,
-    ) && authorize(context.state, context.identity, resolved, name, Action::Access).is_ok()
+    ) && authorize(context.state, context.identity, resolved, name, Action::Read).is_ok()
 }
 
 pub(super) fn discovery_sources(

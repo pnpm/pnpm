@@ -168,7 +168,6 @@ fn revision<'a>(seeded: &'a [StoredGrant], removed: &'a [String]) -> NewRegistry
         restored_from: None,
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded,
         removed,
     }

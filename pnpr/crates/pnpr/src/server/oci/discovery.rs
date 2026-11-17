@@ -147,7 +147,7 @@ impl Request {
                     &self.identity,
                     &RegistrySource::Hosted(source.to_string()),
                     name,
-                    Action::Access,
+                    Action::Read,
                 )
                 .is_ok()
         })

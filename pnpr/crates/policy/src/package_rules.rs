@@ -1,4 +1,4 @@
-use super::{AccessList, Identity, PackagePattern, PackageRule, RuleIndex, RuleTable};
+use super::{AccessList, Action, Grant, Identity, PackagePattern, PackageRule, RuleTable};
 use std::sync::{Arc, PoisonError, RwLock};
 
 /// A registry's live rules: a handle on its current [`RuleTable`].
@@ -62,28 +62,28 @@ impl PackageRules {
         *self.0.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(table);
     }
 
+    /// Cover the registry with `grants` in place of the ones it had, keeping
+    /// its claimed patterns.
+    pub fn set_grants(&self, grants: Vec<Grant>) {
+        self.replace(RuleTable::of_grants(self.patterns(), grants));
+    }
+
     /// See [`RuleTable::patterns`].
     #[must_use]
     pub fn patterns(&self) -> Vec<PackagePattern> {
         self.snapshot().patterns()
     }
 
-    /// See [`RuleTable::refines_writes`].
-    #[must_use]
-    pub fn refines_writes(&self) -> bool {
-        self.snapshot().refines_writes()
-    }
-
-    /// See [`RuleTable::refines_access`].
-    #[must_use]
-    pub fn refines_access(&self) -> bool {
-        self.snapshot().refines_access()
-    }
-
     /// See [`RuleTable::references_team`].
     #[must_use]
     pub fn references_team(&self, team: &str) -> bool {
         self.snapshot().references_team(team)
+    }
+
+    /// See [`RuleTable::any_admits`].
+    #[must_use]
+    pub fn any_admits(&self, action: Action, identity: &Identity) -> bool {
+        self.snapshot().any_admits(action, identity)
     }
 
     /// See [`RuleTable::any_access_admits`].
@@ -98,46 +98,37 @@ impl PackageRules {
         self.snapshot().all_access_admit(identity)
     }
 
-    /// Whether `package`'s effective `access` admits `identity`.
+    /// Whether `identity` may read `package`, without being its owner.
     #[must_use]
     pub fn access_admits(&self, package: &str, identity: &Identity) -> bool {
-        self.snapshot()
-            .for_package(package)
-            .access
-            .allows(identity)
+        self.snapshot().permits(package, Action::Read, identity, false)
     }
 
-    /// See [`crate::Effective::access_is_explicit`].
+    /// See [`RuleTable::refines_access`].
     #[must_use]
-    pub fn access_is_explicit(&self, package: &str) -> bool {
-        self.snapshot().for_package(package).access_is_explicit
+    pub fn refines_access(&self) -> bool {
+        self.snapshot().refines_access()
     }
 
-    /// Whether the registry-level default `access` admits `identity`.
+    /// See [`RuleTable::refines_read_of`].
     #[must_use]
-    pub fn default_access_admits(&self, identity: &Identity) -> bool {
-        self.snapshot()
-            .default_access()
-            .allows(identity)
+    pub fn refines_read_of(&self, package: &str) -> bool {
+        self.snapshot().refines_read_of(package)
     }
 }
 
 impl RuleTable {
     /// This table with `default_access` and the per-pattern `overrides`
-    /// applied. Fails with the first pattern the table does not declare:
-    /// an override can change who may do what, never which names the
-    /// registry serves.
+    /// applied to its rules. Fails with the first pattern the table does not
+    /// declare.
     pub fn with_overrides(
         &self,
         default_access: Option<AccessList>,
         overrides: Vec<(PackagePattern, RuleOverride)>,
     ) -> Result<Self, PackagePattern> {
-        let mut table = self.clone();
-        if let Some(access) = default_access {
-            table.default_access = access;
-        }
+        let mut rules = self.rules().to_vec();
         for (pattern, lists) in overrides {
-            let Some(rule) = table.rules
+            let Some(rule) = rules
                 .iter_mut()
                 .find(|rule| rule.pattern == pattern)
             else {
@@ -147,25 +138,28 @@ impl RuleTable {
             rule.publish = lists.publish.or_else(|| rule.publish.take());
             rule.unpublish = lists.unpublish.or_else(|| rule.unpublish.take());
         }
-        table.index = RuleIndex::build(&table.rules);
-        Ok(table)
+        let access = default_access.unwrap_or_else(|| self.default_access().clone());
+        Ok(Self::new(rules, Some(access))
+            .with_default_publish(self.default_publish().clone())
+            .with_default_unpublish(self.default_unpublish().clone()))
     }
 
-    /// The declared entries, in declaration order.
+    /// The rules the table was built from, in declaration order.
     #[must_use]
     pub fn rules(&self) -> &[PackageRule] {
         &self.rules
     }
 
-    /// The registry-level `publish` default an entry's omitted `publish`
-    /// falls back to.
+    #[must_use]
+    pub fn default_access(&self) -> &AccessList {
+        &self.default_access
+    }
+
     #[must_use]
     pub fn default_publish(&self) -> &AccessList {
         &self.default_publish
     }
 
-    /// The registry-level `unpublish` default an entry's omitted `unpublish`
-    /// falls back to.
     #[must_use]
     pub fn default_unpublish(&self) -> &AccessList {
         &self.default_unpublish

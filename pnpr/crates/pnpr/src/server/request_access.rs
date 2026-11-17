@@ -22,12 +22,9 @@ pub(super) fn authorized_upstream(
     let Some(config) = routing.upstreams.get(upstream) else {
         return Err(RegistryError::NotFound);
     };
-    // A private upstream registry gates by its `access:` list; a public registry
-    // (no access) is reachable by anyone at its `/~<name>/` URL, its upstream
-    // credential (if any) staying server-side either way.
-    if let Some(access) = config.access.as_ref()
-        && !access.allows(identity)
-    {
+    // A caller no grant lets read anything through the upstream may not reach
+    // it at its `/~<name>/` URL.
+    if !config.rules.any_access_admits(identity) {
         let user = require_caller(identity, "upstream access")
             .unwrap_or_else(|_| "<anonymous>".to_string());
         return Err(RegistryError::Forbidden {
@@ -101,7 +98,7 @@ pub(crate) fn compute_upstream_cache_namespace(
         .get(upstream)
         .map_or("", |upstream_config| upstream_config.url.as_str());
     if let Some(upstream_config) = routing.upstreams.get(upstream)
-        && upstream_config.access.is_some()
+        && !upstream_config.public
     {
         // The credential epoch covers the origin URL and every header the
         // upstream attaches upstream, not just `Authorization`, so repointing

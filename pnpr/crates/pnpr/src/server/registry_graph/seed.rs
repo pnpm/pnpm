@@ -19,6 +19,8 @@ pub(crate) async fn seed_default_graph(storage: &Storage) -> Result<(), Registry
     }
     let document = default_graph()?;
     let bound = super::stored::bound_namespaces(&document);
+    let seeded =
+        super::stored::default_grants(&document, &pnpr_config::RegistryGraphDocument::default());
     let document = serde_json::to_string(&document)?;
     let revision = NewRegistryGraph {
         document: &document,
@@ -26,8 +28,7 @@ pub(crate) async fn seed_default_graph(storage: &Storage) -> Result<(), Registry
         restored_from: None,
         vacated: &[],
         bound: &bound,
-        teams: &[],
-        seeded: &[],
+        seeded: &seeded,
         removed: &[],
     };
     if let RegistryGraphWrite::Written(generation) =

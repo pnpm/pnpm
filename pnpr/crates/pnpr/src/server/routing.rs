@@ -219,7 +219,6 @@ fn surface_routes(
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())
         .merge(super::user_admin::user_admin_routes())
-        .merge(super::rule_admin::rule_admin_routes())
         .merge(super::registry_graph::registry_admin_routes());
     if state.inner.config.identity.auth.scim.is_some() {
         router = router.merge(super::scim::scim_routes());

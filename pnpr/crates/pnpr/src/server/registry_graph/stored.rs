@@ -4,12 +4,15 @@
 
 use super::super::oidc::validate_workloads;
 use pnpm_env_replace::EnvVar;
-use pnpr_config::{Config, GraphSource, RegistryGraphDocument, RoutingConfig, RoutingOptions};
+use pnpr_config::{
+    Config, GraphSource, RegistryGraphDocument, RegistryKind, RoutingConfig, RoutingOptions,
+};
 use pnpr_error::RegistryError;
+use pnpr_policy::Action;
 use pnpr_route::RouteContext;
 use pnpr_storage::{
     Storage,
-    database::{HostedNamespace, StoredRegistryGraph},
+    database::{GrantContent, HostedNamespace, StoredGrant, StoredRegistryGraph},
 };
 use std::net::IpAddr;
 use url::{Host, Url};
@@ -102,9 +105,10 @@ pub(crate) struct HostedChange {
     /// its transaction, that they hold no package.
     pub(crate) vacated: Vec<HostedNamespace>,
     pub(crate) bound: Vec<HostedNamespace>,
-    /// The IDs of the teams the revision starts to name. The write refuses
-    /// one that does not exist.
-    pub(crate) teams: Vec<String>,
+    /// The default grants of the registries the revision adds.
+    pub(crate) seeded: Vec<StoredGrant>,
+    /// The keys of the registries the revision removes.
+    pub(crate) removed: Vec<String>,
 }
 
 /// Validate `next` as the revision that replaces `previous`. An invalid
@@ -123,36 +127,53 @@ pub(crate) async fn check_revision(
     check_upstream_hosts(config, &routing, previous, next)?;
     check_public_route_hosts(config, &routing, previous, next)?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
-    let teams = added_teams(previous, next);
-    check_teams_exist(storage, &teams).await?;
-    let hosted = HostedChange { vacated, bound: bound_namespaces(next), teams };
+    let hosted = HostedChange {
+        vacated,
+        bound: bound_namespaces(next),
+        seeded: default_grants(next, previous),
+        removed: previous
+            .registry_names()
+            .filter(|name| next.registry_kind(name).is_none())
+            .map(str::to_string)
+            .collect(),
+    };
     Ok(CheckedRevision { routing, hosted })
 }
 
-/// The IDs of the teams `next` names and `previous` does not.
-fn added_teams(previous: &RegistryGraphDocument, next: &RegistryGraphDocument) -> Vec<String> {
-    let known = previous.named_teams();
-    next.named_teams()
-        .into_iter()
-        .filter(|team| !known.contains(team))
-        .map(str::to_string)
+/// The grant each registry of `next` that `previous` lacks starts with, named
+/// after it, so a registry serves callers as soon as it is added. A router
+/// holds no package and gets none.
+pub(crate) fn default_grants(
+    next: &RegistryGraphDocument,
+    previous: &RegistryGraphDocument,
+) -> Vec<StoredGrant> {
+    next.registry_names()
+        .filter(|name| previous.registry_kind(name).is_none())
+        .filter_map(|name| {
+            let subjects: &[(&str, Action)] = match next.registry_kind(name)? {
+                RegistryKind::Hosted => &[
+                    ("$all", Action::Read),
+                    ("$owners", Action::Publish),
+                    ("$owners", Action::Annotate),
+                ],
+                RegistryKind::PublicUpstream => &[("$all", Action::Read), ("$all", Action::Cache)],
+                RegistryKind::PrivateUpstream => {
+                    &[("$authenticated", Action::Read), ("$authenticated", Action::Cache)]
+                }
+                RegistryKind::Router => return None,
+            };
+            let content = GrantContent {
+                name: name.to_string(),
+                registries: vec![name.to_string()],
+                subjects: subjects
+                    .iter()
+                    .map(|(subject, action)| ((*subject).to_string(), action.as_str().to_string()))
+                    .collect(),
+                ..GrantContent::default()
+            };
+            Some(StoredGrant { id: pnpr_auth::new_principal_id(), content })
+        })
         .collect()
-}
-
-/// Refuse a team of `added` that does not exist, so a dry run reports what the
-/// write would refuse in its transaction.
-async fn check_teams_exist(storage: &Storage, added: &[String]) -> Result<(), RegistryError> {
-    match storage.unknown_team(added).await? {
-        Some(id) => Err(unknown_team_error(&id)),
-        None => Ok(()),
-    }
-}
-
-/// The refusal of a write that names the team `id`, which does not exist.
-pub(crate) fn unknown_team_error(id: &str) -> RegistryError {
-    RegistryError::BadRequest {
-        reason: format!("the access lists name `team:{id}`, and no team has that ID"),
-    }
 }
 
 /// Every hosted namespace `document` serves.

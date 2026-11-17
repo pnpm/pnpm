@@ -52,22 +52,15 @@ pub(super) fn carries_bearer_secret(headers: &HeaderMap, expected: &str) -> bool
         })
 }
 
-/// What the caller is trying to do with a package. Drives which
-/// rule from the access policy applies.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum Action {
-    Access,
-    Publish,
-    Unpublish,
-}
+pub(super) use pnpr_policy::Action;
 
-impl Action {
-    fn label(self) -> &'static str {
-        match self {
-            Action::Access => "access",
-            Action::Publish => "publish",
-            Action::Unpublish => "unpublish",
-        }
+/// The verb a denial of `action` names.
+fn action_label(action: Action) -> &'static str {
+    match action {
+        Action::Read | Action::Cache => "access",
+        Action::Publish | Action::Annotate => "publish",
+        Action::Delete => "unpublish",
+        Action::Manage => "manage",
     }
 }
 

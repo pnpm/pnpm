@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 
 use pnpr_error::RegistryError;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_policy::{AccessList, Identity, PackageRules, RuleTable};
+use pnpr_policy::{Identity, PackageRules, Permission, RuleTable};
 
 use super::{Action, AppState, RegistrySource};
 
@@ -130,7 +130,7 @@ fn owns(state: &AppState, identity: &Identity, ownership: &Ownership<'_>, action
         return true;
     }
     match ownership {
-        Ownership::Unclaimed => matches!(action, Action::Publish),
+        Ownership::Unclaimed => action == Action::Publish,
         Ownership::Owners(owners) => owners.iter().any(|owner| owner == user),
     }
 }
@@ -157,13 +157,8 @@ fn permission_list<'rules>(
     rules: &'rules RuleTable,
     package: &str,
     action: Action,
-) -> &'rules AccessList {
-    let effective = rules.for_package(package);
-    match action {
-        Action::Access => effective.access,
-        Action::Publish => effective.publish,
-        Action::Unpublish => effective.unpublish,
-    }
+) -> Permission<'rules> {
+    rules.permission(package, action)
 }
 
 /// An anonymous caller gets a chance to authenticate (401); an authenticated
@@ -172,7 +167,7 @@ fn denial(identity: &Identity, package: &str, action: Action) -> RegistryError {
     match identity {
         Identity::User { username, .. } => RegistryError::Forbidden {
             user: username.clone(),
-            action: action.label(),
+            action: super::action_label(action),
             resource: format!("package {package:?}"),
         },
         _ => RegistryError::Unauthenticated { resource: format!("package {package:?}") },

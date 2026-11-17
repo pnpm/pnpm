@@ -124,7 +124,7 @@ async fn load_upstream_revision_target(
     revision: TarballRevision,
 ) -> Result<Option<(Upstream, Integrity)>, Response> {
     let resolved = RegistrySource::Upstream(source.to_string());
-    if let Err(err) = authorize(state, identity, &resolved, name.as_str(), Action::Access) {
+    if let Err(err) = authorize(state, identity, &resolved, name.as_str(), Action::Read) {
         return Err(err.into_response());
     }
     if let Err(err) = ensure_osv_allowed(state, name, version) {

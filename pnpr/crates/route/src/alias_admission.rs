@@ -50,7 +50,7 @@ impl RouteContext {
         let package = package?;
         let refined = self.upstream_rules
             .get(alias)
-            .is_some_and(|rules| rules.access_is_explicit(package));
+            .is_some_and(|rules| rules.refines_read_of(package));
         (refined || self.earlier_alias_skips(alias, package)).then(|| package.to_string())
     }
 
@@ -83,7 +83,7 @@ impl RouteContext {
             .find(|alias| {
                 alias.authorization.is_some()
                     && fetch.starts_with(&alias.origin)
-                    && alias.access.allows(identity)
+                    && alias.admits(identity)
                     && self.upstream_admits(&alias.name, identity, package)
             })
     }

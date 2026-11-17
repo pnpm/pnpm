@@ -9,7 +9,7 @@ use super::{
     reload::publish_routing,
     stored::{
         Credentials, HostedChange, check_revision, graph_version, occupied_namespace_error,
-        parse_document, stored_document, unknown_team_error,
+        parse_document, stored_document,
     },
 };
 use crate::audit::Actor;
@@ -216,9 +216,8 @@ async fn store_revision(
         restored_from: request.restored_from,
         vacated: &target.hosted.vacated,
         bound: &target.hosted.bound,
-        teams: &target.hosted.teams,
-        seeded: &[],
-        removed: &[],
+        seeded: &target.hosted.seeded,
+        removed: &target.hosted.removed,
     };
     match state.inner.storage.write_registry_graph(target.current, revision).await? {
         RegistryGraphWrite::Written(generation) => Ok(Some(generation)),
@@ -227,7 +226,6 @@ async fn store_revision(
             Expected::OneOf(versions) => Err(precondition_failed(versions)),
         },
         RegistryGraphWrite::HostedNotEmpty(occupied) => Err(occupied_namespace_error(&occupied)),
-        RegistryGraphWrite::UnknownTeam(id) => Err(unknown_team_error(&id)),
     }
 }
 

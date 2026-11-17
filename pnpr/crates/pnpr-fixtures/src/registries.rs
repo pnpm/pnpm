@@ -173,7 +173,6 @@ async fn write_into(storage: &Storage, document: &RegistryGraphDocument) {
         restored_from: None,
         vacated: &[],
         bound: &bound,
-        teams: &[],
         seeded: &[],
         removed: &[],
     };

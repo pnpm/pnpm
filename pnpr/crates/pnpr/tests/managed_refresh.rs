@@ -229,7 +229,6 @@ async fn store_unreadable_graph(storage: &Storage) {
         restored_from: None,
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded: &[],
         removed: &[],
     };
@@ -245,7 +244,6 @@ async fn restore_graph(storage: &Storage) {
         restored_from: Some(1),
         vacated: &[],
         bound: &[],
-        teams: &[],
         seeded: &[],
         removed: &[],
     };
