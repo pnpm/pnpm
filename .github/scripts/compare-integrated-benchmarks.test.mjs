@@ -161,6 +161,7 @@ test('strace summaries parse every row and must add up to the total', () => {
 100,00    0,007647          10       169        43 total
 `
   assert.deepEqual(parseSyscallSummary(summary), { wait4: 4, statx: 135, read: 30 })
+  assert.deepEqual(parseSyscallSummary('11459 ???( <detached ...>\n' + summary), { wait4: 4, statx: 135, read: 30 })
   assert.throws(() => parseSyscallSummary(summary.replace('169', '170')), /add up to 169 calls, its total row says 170/)
   assert.throws(() => parseSyscallSummary(summary.replace(/^100.*\n/m, '')), /add up to 169 calls, its total row says undefined/)
   assert.throws(() => parseSyscallSummary(summary + 'System call usage summary for 32 bit mode:\n'), /Unexpected strace summary line: System call usage summary for 32 bit mode:/)
