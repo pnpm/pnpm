@@ -102,6 +102,9 @@ jobs:
               echo "pnpm version mismatch: expected $VERSION, got $installed" >&2
               exit 1
             }
+            # A login shell sources /etc/profile.d/pnpm.sh; pnpm refuses
+            # `pnpm add -g` unless its global bin directory is on PATH.
+            bash -lc '"'"'case ":$PATH:" in *":$(pnpm bin -g):"*) ;; *) echo "pnpm bin -g is not on PATH" >&2; exit 1 ;; esac'"'"'
           '
 
       - name: Upload the RPM and the dnf repository
