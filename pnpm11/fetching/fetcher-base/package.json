@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.fetcher-base",
-  "version": "1100.2.15",
+  "version": "1100.2.16",
   "description": "Types for pnpm-compatible fetchers",
   "keywords": [
     "pnpm",
