@@ -8,7 +8,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 
 import { linkHoistedModules } from '../src/linkHoistedModules.js'
 
-test('missing orphan directories are not counted as removed', async () => {
+test('orphan removal counts paths present before cleanup', async () => {
   const lockfileDir = tempDir(false)
   const modulesDir = path.join(lockfileDir, 'node_modules')
   const installed = path.join(modulesDir, 'installed')
@@ -42,6 +42,13 @@ test('missing orphan directories are not counted as removed', async () => {
     await linkHoistedModules({} as StoreController, {}, [installed, missing], { [lockfileDir]: {} }, opts)
     expect(stats).toHaveBeenLastCalledWith({ prefix: lockfileDir, removed: 0 })
     expect(fs.readFileSync(scope, 'utf8')).toBe('not a directory')
+
+    const parents = Array.from({ length: 17 }, (_, index) => path.join(modulesDir, `parent-${index}`))
+    const children = parents.map((parent) => path.join(parent, 'node_modules/child'))
+    for (const child of children) fs.mkdirSync(child, { recursive: true })
+    await linkHoistedModules({} as StoreController, {}, [...parents, ...children], { [lockfileDir]: {} }, opts)
+    expect(stats).toHaveBeenLastCalledWith({ prefix: lockfileDir, removed: parents.length + children.length })
+    for (const parent of parents) expect(fs.existsSync(parent)).toBe(false)
   } finally {
     stats.mockRestore()
   }

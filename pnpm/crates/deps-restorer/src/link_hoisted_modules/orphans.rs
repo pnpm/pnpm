@@ -42,33 +42,41 @@ pub(super) fn remove_orphans(
         .filter(|dir| !holds_importer(opts, dir))
         .filter(|dir| confined(dir, opts.modules_dirs.removal_bound(dir)))
         .collect::<BTreeSet<_>>();
-    let unplanned_dirs = unplanned_dirs(opts, &recorded_dirs)?;
-    let removed = recorded_dirs
+    // Probe every candidate before deleting a parent that may contain another candidate.
+    let recorded_dirs = recorded_dirs
         .par_iter()
-        .map(|dir| remove_recorded_dir(dir))
-        .sum::<u64>();
+        .filter(|dir| orphan_path_may_exist(dir))
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let unplanned_dirs = unplanned_dirs(opts, &recorded_dirs)?;
+    recorded_dirs
+        .par_iter()
+        .for_each(|dir| {
+            if let Some(modules_dir) = containing_modules_dir(dir)
+                && let Err(error) = remove_dep_bins(modules_dir, dir)
+            {
+                tracing::warn!(?dir, %error, "failed to remove the bins of an orphan package");
+            }
+            let _ = try_remove_dir(dir);
+        });
     unplanned_dirs.par_iter().for_each(quarantine_dir);
-    Ok(removed + unplanned_dirs.len() as u64)
+    Ok((recorded_dirs.len() + unplanned_dirs.len()) as u64)
 }
 
-fn remove_recorded_dir(dir: &Path) -> u64 {
+fn orphan_path_may_exist(dir: &Path) -> bool {
     match fs::symlink_metadata(dir) {
-        Ok(_) => {}
+        Ok(_) => true,
         Err(error)
             if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
         {
-            return 0;
+            false
         }
         // Metadata failures must not make best-effort orphan cleanup fatal.
-        Err(error) => tracing::debug!(?dir, %error, "failed to inspect an orphan package"),
+        Err(error) => {
+            tracing::debug!(?dir, %error, "failed to inspect an orphan package");
+            true
+        }
     }
-    if let Some(modules_dir) = containing_modules_dir(dir)
-        && let Err(error) = remove_dep_bins(modules_dir, dir)
-    {
-        tracing::warn!(?dir, %error, "failed to remove the bins of an orphan package");
-    }
-    let _ = try_remove_dir(dir);
-    1
 }
 
 /// The package directories in the importers' modules directories that

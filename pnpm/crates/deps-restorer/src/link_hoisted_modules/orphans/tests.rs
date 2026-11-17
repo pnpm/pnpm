@@ -100,7 +100,7 @@ fn a_previous_dir_that_is_the_workspace_or_holds_a_project_is_kept() {
 }
 
 #[test]
-fn missing_orphan_directories_are_not_counted_as_removed() {
+fn orphan_removal_counts_paths_present_before_cleanup() {
     static REMOVED: Mutex<u64> = Mutex::new(0);
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -134,4 +134,18 @@ fn missing_orphan_directories_are_not_counted_as_removed() {
     link_empty_plan::<RecordingReporter>(lockfile_dir, "node_modules", &previous_dirs);
     assert_eq!(*REMOVED.lock().unwrap(), 0);
     assert_eq!(fs::read(scope).unwrap(), b"not a directory");
+
+    let parent = modules_dir.join("parent");
+    let child = parent.join("node_modules/child");
+    write_package(&child);
+    let nested_dirs = BTreeSet::from([parent.clone(), child]);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .build()
+        .unwrap()
+        .install(|| {
+            link_empty_plan::<RecordingReporter>(lockfile_dir, "node_modules", &nested_dirs);
+        });
+    assert_eq!(*REMOVED.lock().unwrap(), 2);
+    assert!(!parent.exists());
 }
