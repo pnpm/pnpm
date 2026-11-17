@@ -607,26 +607,18 @@ fn upstream_without_access_is_an_anonymous_route() {
 
 #[test]
 fn proxied_alias_accepts_team_member_identity() {
-    use pnpr_policy::{AccessList, AccessToken, TeamDirectory};
+    use pnpr_policy::{AccessList, AccessToken, Identity};
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
-    upstream.access = Some(AccessList::new(vec![AccessToken::Team {
-        id: "platform".to_string(),
-        directory: TeamDirectory::new(
-            [(
-                "platform".to_string(),
-                pnpr_policy::Team::new("platform", ["alice".to_string()].into()),
-            )]
-            .into(),
-        ),
-    }]));
+    upstream.access = Some(AccessList::new(vec![AccessToken::Team("platform".to_string())]));
     config.routing.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);
     let url = "https://npm.corp.example/@acme%2fwidget";
 
+    let member = Identity::member("alice", vec!["platform".to_string()]);
     assert_eq!(
-        context.classify(&user("alice"), url, Some("@acme/widget")),
+        context.classify(&member, url, Some("@acme/widget")),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
     // A caller outside the alias's team gets no managed credential.

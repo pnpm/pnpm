@@ -17,5 +17,6 @@ pub(super) async fn account_identity(
     state: &AppState,
     user_id: &str,
 ) -> Result<Identity, RegistryError> {
-    Ok(Identity::account(user_id, active_account_name(state, user_id).await?))
+    let username = active_account_name(state, user_id).await?;
+    Ok(super::super::team_directory::account_identity(state, user_id.to_string(), username))
 }

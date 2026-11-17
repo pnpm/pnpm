@@ -7380,7 +7380,6 @@ dependencies = [
 name = "pnpr-policy"
 version = "0.0.1"
 dependencies = [
- "indexmap 2.14.2",
  "pnpr-registry",
 ]
 

@@ -2,7 +2,7 @@
 //! revision, building its routing, and the checks a new revision must pass
 //! before it is written.
 
-use super::super::{oidc::validate_workloads, oidc_groups::validate_group_grants};
+use super::super::oidc::validate_workloads;
 use pnpm_env_replace::EnvVar;
 use pnpr_config::{Config, GraphSource, RegistryGraphDocument, RoutingConfig, RoutingOptions};
 use pnpr_error::RegistryError;
@@ -80,14 +80,13 @@ pub(crate) fn stored_routing(
     }
 }
 
-/// The config file's references into the graph: the OIDC workloads and group
-/// grants must name hosted registries and teams that exist.
+/// The config file's references into the graph: the OIDC workloads must name
+/// hosted registries that exist.
 pub(crate) fn check_file_references(
     config: &Config,
     routing: &RoutingConfig,
 ) -> Result<(), RegistryError> {
-    validate_workloads(config, routing)?;
-    validate_group_grants(config, routing)
+    validate_workloads(config, routing)
 }
 
 /// A revision that passed [`check_revision`].
@@ -96,13 +95,16 @@ pub(crate) struct CheckedRevision {
     pub(crate) hosted: HostedChange,
 }
 
-/// The hosted namespaces of a revision, as
-/// [`pnpr_storage::database::NewRegistryGraph`] takes them.
+/// What the write of a revision checks in its transaction, as
+/// [`pnpr_storage::database::NewRegistryGraph`] takes it.
 pub(crate) struct HostedChange {
     /// The namespaces the revision stops serving. The write checks again, in
     /// its transaction, that they hold no package.
     pub(crate) vacated: Vec<HostedNamespace>,
     pub(crate) bound: Vec<HostedNamespace>,
+    /// The IDs of the teams the revision starts to name. The write refuses
+    /// one that does not exist.
+    pub(crate) teams: Vec<String>,
 }
 
 /// Validate `next` as the revision that replaces `previous`. An invalid
@@ -121,7 +123,36 @@ pub(crate) async fn check_revision(
     check_upstream_hosts(config, &routing, previous, next)?;
     check_public_route_hosts(config, &routing, previous, next)?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
-    Ok(CheckedRevision { routing, hosted: HostedChange { vacated, bound: bound_namespaces(next) } })
+    let teams = added_teams(previous, next);
+    check_teams_exist(storage, &teams).await?;
+    let hosted = HostedChange { vacated, bound: bound_namespaces(next), teams };
+    Ok(CheckedRevision { routing, hosted })
+}
+
+/// The IDs of the teams `next` names and `previous` does not.
+fn added_teams(previous: &RegistryGraphDocument, next: &RegistryGraphDocument) -> Vec<String> {
+    let known = previous.named_teams();
+    next.named_teams()
+        .into_iter()
+        .filter(|team| !known.contains(team))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Refuse a team of `added` that does not exist, so a dry run reports what the
+/// write would refuse in its transaction.
+async fn check_teams_exist(storage: &Storage, added: &[String]) -> Result<(), RegistryError> {
+    match storage.unknown_team(added).await? {
+        Some(id) => Err(unknown_team_error(&id)),
+        None => Ok(()),
+    }
+}
+
+/// The refusal of a write that names the team `id`, which does not exist.
+pub(crate) fn unknown_team_error(id: &str) -> RegistryError {
+    RegistryError::BadRequest {
+        reason: format!("the access lists name `team:{id}`, and no team has that ID"),
+    }
 }
 
 /// Every hosted namespace `document` serves.

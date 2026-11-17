@@ -24,7 +24,7 @@ use pnpr_auth::{AuthState, TokenBackend, TokenRecord};
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_policy::{AccessList, PackageRule, PackageRules, TeamDirectory};
+use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::Arc,
@@ -264,15 +264,9 @@ pub(super) fn app_with_config_and_token(
     record: TokenRecord,
 ) -> axum::Router {
     capture_server_logs();
-    let mut accounts: std::collections::BTreeSet<String> = config.routing.hosted
-        .values()
-        .flat_map(|hosted| {
-            hosted.teams
-                .snapshot()
-                .values()
-                .flat_map(|team| team.members.iter().cloned())
-                .collect::<Vec<_>>()
-        })
+    let mut accounts: std::collections::BTreeSet<String> = TEAMS
+        .iter()
+        .flat_map(|(_, members)| members.iter().map(ToString::to_string))
         .collect();
     accounts.insert(record.user_id.clone());
     let account = Arc::new(OneToken {
@@ -355,23 +349,15 @@ async fn team_tokens_reach_package_authorization() {
     config.routing.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
-            access: Some(AccessList::new(vec![AccessToken::Team {
-                id: "platform".to_string(),
-                directory: TeamDirectory::new(
-                    [(
-                        "platform".to_string(),
-                        pnpr_policy::Team::new("platform", ["alice".to_string()].into()),
-                    )]
-                    .into(),
-                ),
-            }])),
+            access: Some(AccessList::new(vec![AccessToken::Team("developers".to_string())])),
             publish: None,
             unpublish: None,
         }],
         None,
     );
+    seed_teams(&config).await;
     // Team membership reaches the per-package rule evaluation.
-    let alice = Identity::user("alice");
+    let alice = Identity::member("alice", vec!["developers".to_string()]);
     let carol = Identity::user("carol");
     let rules = &config.routing.hosted["local"].rules;
     assert!(
@@ -602,30 +588,28 @@ fn access_log_uri_redacts_the_logout_token_segment() {
 }
 
 // --------------------------------------------------------------------
-// npm team API — listings from the registry's `teams:` map, not-found
-// masking for callers the registry-level `access` denies.
+// npm team API: listings of the instance's teams, not-found masking for
+// callers the registry-level `access` denies.
 // --------------------------------------------------------------------
 
-fn config_with_teams(tmp: &TempDir) -> Config {
+/// The teams [`seed_teams`] stores, each under the ID of its name.
+const TEAMS: [(&str, &[&str]); 2] = [("developers", &["bob", "alice"]), ("admins", &["alice"])];
+
+/// Store [`TEAMS`] in the database `config` names.
+async fn seed_teams(config: &Config) {
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    for (team, members) in TEAMS {
+        storage.create_team(team, team).await.unwrap();
+        for member in members {
+            assert!(storage.add_team_member(team, member).await.unwrap());
+        }
+    }
+}
+
+async fn config_with_teams(tmp: &TempDir) -> Config {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    let teams = [("developers", vec!["bob", "alice"]), ("admins", vec!["alice"])];
-    let roster = teams
-        .into_iter()
-        .map(|(team, members)| {
-            (
-                team.to_string(),
-                pnpr_policy::Team::new(
-                    team,
-                    members
-                        .into_iter()
-                        .map(str::to_string)
-                        .collect(),
-                ),
-            )
-        })
-        .collect();
-    config.routing.hosted.get_mut("local").unwrap().teams = TeamDirectory::new(roster);
+    let config = Config::static_serve(listen, tmp.path().to_path_buf());
+    seed_teams(&config).await;
     config
 }
 
@@ -637,10 +621,9 @@ async fn body_json(response: axum::response::Response) -> serde_json::Value {
 #[tokio::test]
 async fn team_listing_serves_config_declared_teams() {
     let tmp = TempDir::new().unwrap();
-    let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
-    // Declaration order is preserved; the shape is what `pnpm team ls`
-    // consumes.
-    let expected = serde_json::json!([{ "id": "developers", "name": "developers" }, { "id": "admins", "name": "admins" }]);
+    let app = app_with_config_and_token(config_with_teams(&tmp).await, "tok", record(false, &[]));
+    // Sorted by name; the shape is what `pnpm team ls` consumes.
+    let expected = serde_json::json!([{ "id": "admins", "name": "admins" }, { "id": "developers", "name": "developers" }]);
     let response = app
         .clone()
         .oneshot(signed(Method::GET, "/npm/-/org/myorg/team", "tok"))
@@ -660,7 +643,7 @@ async fn team_listing_serves_config_declared_teams() {
 #[tokio::test]
 async fn team_members_are_listed_sorted() {
     let tmp = TempDir::new().unwrap();
-    let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
+    let app = app_with_config_and_token(config_with_teams(&tmp).await, "tok", record(false, &[]));
     // Members come from a sorted set, not declaration order.
     let expected =
         serde_json::json!([{ "id": "alice", "name": "alice" }, { "id": "bob", "name": "bob" }]);
@@ -678,7 +661,7 @@ async fn team_members_are_listed_sorted() {
         .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
-    // A team the config does not declare is a definitive not-found.
+    // A team that does not exist is a definitive not-found.
     let missing = app
         .oneshot(signed(Method::GET, "/npm/-/team/myorg/nope/user", "tok"))
         .await
@@ -689,7 +672,7 @@ async fn team_members_are_listed_sorted() {
 #[tokio::test]
 async fn team_listing_masks_callers_the_registry_denies() {
     let tmp = TempDir::new().unwrap();
-    let mut config = config_with_teams(&tmp);
+    let mut config = config_with_teams(&tmp).await;
     // Registry-level default access admits only authenticated callers.
     config.routing.hosted.get_mut("local").unwrap().rules =
         PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));

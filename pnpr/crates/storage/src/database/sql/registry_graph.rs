@@ -51,6 +51,9 @@ pub enum RegistryGraphWrite {
     /// A namespace the revision vacates holds a package, so nothing was
     /// written.
     HostedNotEmpty(HostedNamespace),
+    /// No team has this ID, which the revision starts to name, so nothing was
+    /// written.
+    UnknownTeam(String),
 }
 
 /// A hosted storage namespace of one ecosystem.
@@ -73,6 +76,9 @@ pub struct NewRegistryGraph<'a> {
     pub vacated: &'a [HostedNamespace],
     /// Every hosted namespace the revision serves.
     pub bound: &'a [HostedNamespace],
+    /// The IDs of the teams the revision's access lists start to name, which
+    /// must exist when it is written.
+    pub teams: &'a [String],
 }
 
 /// Lock a namespace's row the way a publish into it does, so a publish and a
@@ -180,14 +186,15 @@ impl Storage {
         let restored_from = revision.restored_from.map(to_column);
         let vacated = revision.vacated.to_vec();
         let bound = revision.bound.to_vec();
+        let teams = revision.teams.to_vec();
         self.database.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             let current = current_generation(&*transaction)?;
             if current != expected {
                 return Ok(RegistryGraphWrite::Conflict { current });
             }
-            if let Some(occupied) = occupied_namespace(&*transaction, &vacated)? {
-                return Ok(RegistryGraphWrite::HostedNotEmpty(occupied));
+            if let Some(refused) = refused_write(&*transaction, &vacated, &teams)? {
+                return Ok(refused);
             }
             let generation = current.map_or(1, |current| current + 1);
             transaction.execute(
@@ -267,6 +274,19 @@ fn occupied_namespace(
         }
     }
     Ok(None)
+}
+
+/// Why a revision that vacates `vacated` and starts to name `teams` cannot be
+/// written now.
+fn refused_write(
+    connection: &dyn Connection,
+    vacated: &[HostedNamespace],
+    teams: &[String],
+) -> Result<Option<RegistryGraphWrite>> {
+    if let Some(occupied) = occupied_namespace(connection, vacated)? {
+        return Ok(Some(RegistryGraphWrite::HostedNotEmpty(occupied)));
+    }
+    Ok(super::teams::unknown_team(connection, teams)?.map(RegistryGraphWrite::UnknownTeam))
 }
 
 fn current_generation(connection: &dyn Connection) -> Result<Option<u64>> {

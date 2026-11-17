@@ -4,7 +4,8 @@ pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use registry_graph::{
     Credentials, FileReferences, HostedChange, RoutingSnapshot, carry_pinned_routing,
-    check_revision, graph_version, occupied_namespace_error, stored_document, with_stored_routing,
+    check_revision, graph_version, occupied_namespace_error, stored_document, unknown_team_error,
+    with_stored_routing,
 };
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
@@ -134,7 +135,6 @@ mod metrics;
 mod notes;
 mod oci;
 mod oidc;
-mod oidc_groups;
 mod owner_access;
 use owner_access::CallerOwners;
 mod package_mutation;
@@ -157,6 +157,7 @@ mod staged;
 mod staged_archives;
 mod striped_locks;
 mod team_access;
+mod team_directory;
 mod team_mutations;
 mod user_admin;
 mod web_login;

@@ -34,8 +34,6 @@ registries:
   local:
     type: hosted
     namespace: \"\"
-    teams:
-      readers: { name: readers, members: [] }
     packages:
       '@secret/*':
         access: $authenticated
@@ -49,6 +47,8 @@ registries:
     type: router
     sources: [local]
 defaultRegistry: main
+teams:
+  readers: { name: readers, members: [] }
 ";
 
 #[derive(Debug, Clone)]

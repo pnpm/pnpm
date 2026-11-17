@@ -4,6 +4,7 @@ use super::{
     StatusCode, Value, allows_with_ownership, authorize, default_registry_target,
     discovery_sources, header, hosted_gate, hosted_storage, json, needs_package_owners, not_found,
     resolve_registry_source,
+    team_directory::{Team, Teams},
 };
 use axum::response::IntoResponse;
 use pnpr_config::RoutingConfig;
@@ -178,20 +179,14 @@ pub(super) fn upstream_org_package_is_visible(
         && authorize(state, identity, resolved, name, Action::Access).is_ok()
 }
 
-// --------------------------------------------------------------------
-// npm team API — read-only views over the config-declared `teams:` maps.
-// Team membership is part of the registry configuration (it feeds the
-// compiled access lists), so the API serves listings and rejects
-// mutations with an explicit "config-managed" error.
-// --------------------------------------------------------------------
-
-/// The hosted registry whose teams `@{scope}` addresses: the scope routes
+/// The hosted registry `@{scope}` addresses in a team request: the scope routes
 /// through the addressed registry (an explicit `/~<name>/`, or the
 /// path-less default) exactly as a package read in that scope would, then
 /// the registry-level default `access` gates the caller. A denial is
 /// masked as not-found — team and member names must not become an
 /// existence probe for a private registry. Returns the registry's name with
-/// its config.
+/// its config. Teams belong to the instance, so the registry only decides who
+/// may ask.
 pub(super) fn team_registry<'a>(
     state: &AppState,
     routing: &'a RoutingConfig,
@@ -223,42 +218,72 @@ pub(super) fn team_registry<'a>(
     Ok((name, hosted))
 }
 
-pub(super) fn readable_team_registry<'a>(
+/// The teams a caller who reaches `@{scope}`'s registry may see: every team
+/// for an admin, and otherwise the teams the caller is in.
+pub(super) struct VisibleTeams {
+    teams: std::sync::Arc<Teams>,
+    /// `None` for an admin.
+    own: Option<Vec<String>>,
+}
+
+impl VisibleTeams {
+    /// Sorted by name.
+    pub(super) fn list(&self) -> Vec<(&str, &Team)> {
+        let Some(own) = &self.own else {
+            return self.teams.iter().collect();
+        };
+        let mut teams: Vec<_> = own
+            .iter()
+            .filter_map(|id| self.teams.get(id))
+            .collect();
+        teams.sort_by_key(|(_, team)| team.name.as_str());
+        teams
+    }
+
+    pub(super) fn named(&self, name: &str) -> Result<(&str, &Team), RegistryError> {
+        self.list()
+            .into_iter()
+            .find(|(_, team)| team.name == name)
+            .ok_or(RegistryError::NotFound)
+    }
+}
+
+/// [`VisibleTeams`] for `identity`. A caller who is in no team and is not an
+/// admin gets not-found.
+pub(super) fn visible_teams(
     state: &AppState,
-    routing: &'a RoutingConfig,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
-) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
-    let (name, hosted) = team_registry(state, routing, identity, registry, scope)?;
+) -> Result<VisibleTeams, RegistryError> {
+    team_registry(state, &state.routing(), identity, registry, scope)?;
     super::require_caller(identity, "team listing")?;
     let auth = &state.inner.config.identity;
-    if auth.is_admin(identity) || auth.is_registry_admin(identity) {
-        return Ok((name, hosted));
-    }
-    if !identity.belongs_to_directory(&hosted.teams) {
+    let sees_all = auth.is_admin(identity) || auth.is_registry_admin(identity);
+    let own = (!sees_all).then(|| identity.teams().to_vec());
+    let visible = VisibleTeams { teams: state.inner.identity.managed.teams.snapshot(), own };
+    if !sees_all && visible.list().is_empty() {
         return Err(RegistryError::NotFound);
     }
-    Ok((name, hosted))
+    Ok(visible)
 }
 
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
-/// — list the teams of the hosted registry that claims `@{scope}`, in the
-/// shape the pnpm team command consumes: an array of `{"name": ...}`.
+/// — list the teams the caller may see, in the shape the pnpm team command
+/// consumes: an array of `{"name": ...}`.
 pub(super) fn get_org_teams(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
 ) -> Response {
-    let routing = state.routing();
-    let hosted = match readable_team_registry(state, &routing, identity, registry, scope) {
-        Ok((_, hosted)) => hosted,
+    let teams = match visible_teams(state, identity, registry, scope) {
+        Ok(teams) => teams,
         Err(err) => return err.into_response(),
     };
-    let teams: Vec<Value> = hosted.teams
-        .snapshot()
-        .iter()
+    let teams: Vec<Value> = teams
+        .list()
+        .into_iter()
         .map(|(id, team)| json!({ "id": id, "name": team.name }))
         .collect();
     (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
@@ -274,26 +299,16 @@ pub(super) async fn get_team_members(
     scope: &str,
     team: &str,
 ) -> Response {
-    let routing = state.routing();
-    let hosted = match readable_team_registry(state, &routing, identity, registry, scope) {
-        Ok((_, hosted)) => hosted,
+    let teams = match visible_teams(state, identity, registry, scope) {
+        Ok(teams) => teams,
         Err(err) => return err.into_response(),
     };
-    let roster = hosted.teams.snapshot();
-    let Some((_, record)) = roster
-        .iter()
-        .find(|(_, record)| record.name == team)
-    else {
-        return not_found();
+    let record = match teams.named(team) {
+        Ok((_, record)) => record,
+        Err(err) => return err.into_response(),
     };
-    let accounts = match state.inner.identity.auth.users.accounts_by_id(
-        &record.members
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>(),
-    )
-    .await
-    {
+    let ids: Vec<String> = record.members.iter().cloned().collect();
+    let accounts = match state.inner.identity.auth.users.accounts_by_id(&ids).await {
         Ok(accounts) => accounts,
         Err(err) => return err.into_response(),
     };

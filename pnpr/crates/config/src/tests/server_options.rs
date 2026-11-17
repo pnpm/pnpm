@@ -26,7 +26,7 @@ fn owner_policies_reject_ambiguous_or_incomplete_declarations() {
         "    '../acme': { access: ci, publish: ci }",
         "    acme: { access: ci }",
         "    acme: { access: 'ci developer', publish: ci }",
-        "    acme: { access: ci, publish: 'team:missing' }",
+        "    acme: { access: ci, publish: 'team:' }",
         "    acme: { access: ci, publish: ci, unexpected: true }",
     ] {
         let yaml = format!("artifacts:\n  enabled: true\n  owners:\n{declaration}\n");

@@ -24,8 +24,6 @@ registries:
   local:
     type: hosted
     namespace: \"\"
-    teams:
-      readers: { name: readers, members: [carol] }
     packages:
       '@secret/*':
         access: [$authenticated]
@@ -39,6 +37,8 @@ registries:
     type: router
     sources: [fixed, local]
 defaultRegistry: main
+teams:
+  readers: { name: readers, members: [carol] }
 ";
 
 const RULES: &str = "/-/pnpr/v0/admin/rules/npm/local";

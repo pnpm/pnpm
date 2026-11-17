@@ -53,11 +53,7 @@ fn test_resolver(origin: &str, dir: &TempDir) -> Resolver {
 }
 
 fn identity_with_id(id: &str, name: &str) -> Identity {
-    Identity::User {
-        id: id.to_string(),
-        username: name.to_string(),
-        memberships: Vec::new().into(),
-    }
+    Identity::User { id: id.to_string(), username: name.to_string(), teams: Vec::new().into() }
 }
 
 fn packument_json(origin: &str, name: &str, deps: &Value) -> String {

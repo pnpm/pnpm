@@ -10,19 +10,15 @@
 //! Each permission is a list of tokens; a request is allowed when the
 //! caller's identity satisfies any token in the list. Tokens are the
 //! built-in pseudo-groups (`$all`, `$authenticated`, `$anonymous`,
-//! `$owners`), a bare account ID, or a `team:<id>` reference to a team the
-//! owning registry declares. Teams are registry-scoped — the registry is the
-//! tenant, so it owns its principal sets — and a `team:` token reads the
-//! registry's live [`TeamDirectory`], so evaluation needs only the caller's
-//! identity.
+//! `$owners`), a bare account ID, or a `team:<id>` reference to a team of the
+//! instance. The caller's [`Identity`] lists its teams, so evaluation needs
+//! only the identity.
 
-pub use access::{AccessList, AccessToken, Identity, Membership};
+pub use access::{AccessList, AccessToken, Identity};
 pub use package_rules::{PackageRules, RuleOverride};
-pub use teams::{Team, TeamDirectory, Teams};
 
 mod access;
 mod package_rules;
-mod teams;
 
 use std::collections::BTreeMap;
 

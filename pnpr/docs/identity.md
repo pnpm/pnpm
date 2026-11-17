@@ -7,7 +7,7 @@ pnpr assigns each account an opaque, immutable ID. Usernames identify login
 names and can change. `pnpr add-user` prints the account ID; the admin user
 listing also returns it.
 
-Use account IDs in `auth.admins`, access lists, team membership lists, and
+Use account IDs in `auth.admins`, access lists, and
 OIDC `userId` bindings. Tokens, package ownership, staged uploads, and publication
 idempotency belong to account IDs. Renaming an account preserves these
 relationships. Deleting it revokes its credentials and retains a deleted record
@@ -19,24 +19,10 @@ snapshot. Updating an unchanged entry preserves that ID. To assign a reused
 username to its new account, an authorized maintainer or admin must explicitly
 supply the new `userId` with the current name. A mismatched ID and name are rejected.
 
-Teams also have stable IDs and mutable names:
-
-```yaml title="registries.yaml"
-registries:
-  private:
-    type: hosted
-    teams:
-      team-release-01:
-        name: release
-        members: [<account-id>]
-    packages:
-      '@example/*':
-        publish: team:team-release-01
-```
-
-The `teams:` keys are IDs. Keep them stable when editing names. API-created
-teams receive server-generated IDs. OIDC group grants use these IDs too;
-deleting and recreating a team name does not restore an old grant.
+[Teams](configuration.md#teams) also have stable IDs and mutable names. pnpr
+assigns a team's ID when the team is created. Access lists and OIDC group grants
+use the ID, so deleting and recreating a team name does not restore an old
+grant.
 
 Accounts live in the `users` table of the database: account IDs,
 status, credential kind, password hashes, and creation timestamps. Protect the

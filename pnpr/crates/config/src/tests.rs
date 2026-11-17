@@ -17,9 +17,9 @@ mod graph_document;
 use super::{
     ArtifactQuota, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
     DEFAULT_REGISTRIES_YAML, FeatureOverrides, HostedStoreConfig, Interval, LogFormat, LogLevel,
-    RegistryGraphDocument, RoutingConfig, RoutingOptions, S3Settings, TeamDirectory,
-    UpstreamAuthFile, UpstreamConfig, UpstreamConfigFile, config_file_in, normalize_key_prefix,
-    parse_interval, resolve_relative, resolve_upstream_config,
+    RegistryGraphDocument, RoutingConfig, RoutingOptions, S3Settings, UpstreamAuthFile,
+    UpstreamConfig, UpstreamConfigFile, config_file_in, normalize_key_prefix, parse_interval,
+    resolve_relative, resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
 };
 use indexmap::IndexMap;
@@ -217,10 +217,8 @@ fn auth_header(upstream: &super::UpstreamConfig) -> Option<&str> {
         .map(|value| value.to_str().unwrap())
 }
 
-/// [`resolve_upstream_config`] with no declared teams, as every serving-knob
-/// case here has.
 fn resolve_upstream(name: &str, file: UpstreamConfigFile) -> Result<UpstreamConfig, RegistryError> {
-    resolve_upstream_config::<FakeEnv>(name, file, &TeamDirectory::default())
+    resolve_upstream_config::<FakeEnv>(name, file)
 }
 
 fn user(name: &str) -> Identity {

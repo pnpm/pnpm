@@ -44,6 +44,9 @@ fn parse_document(yaml: &str) -> RegistryGraphDocument {
 /// database as its next revision, the empty graph when the file
 /// declares none, and the file keeps the rest.
 ///
+/// A top-level `teams` key also moves into the database. It maps each team ID
+/// to `{ name, members }`, with `members` a list of account IDs.
+///
 /// # Panics
 ///
 /// The file cannot be read, rewritten, or loaded, or its registries cannot be
@@ -51,7 +54,8 @@ fn parse_document(yaml: &str) -> RegistryGraphDocument {
 pub fn load_seeded_config(path: &Path, listen: SocketAddr, public_url: Option<String>) -> Config {
     let raw = std::fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-    let (file, graph) = split_graph(&raw);
+    let (mut file, graph) = split_graph(&raw);
+    let teams = file.remove("teams");
     std::fs::write(path, serde_json::to_string(&file).expect("serialize the config file"))
         .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
     let mut config = Config::from_yaml(path, listen, public_url)
@@ -62,7 +66,22 @@ pub fn load_seeded_config(path: &Path, listen: SocketAddr, public_url: Option<St
         .unwrap_or_else(|error| panic!("parse the registries of {}: {error}", path.display()))
         .unwrap_or_default();
     seed_document(&mut config, &document);
+    if let Some(Value::Object(teams)) = teams {
+        let storage = Storage::from_config(&config.storage).expect("open the storage");
+        crate::database::run(store_teams(&storage, &teams));
+    }
     config
+}
+
+async fn store_teams(storage: &Storage, teams: &Map<String, Value>) {
+    for (id, team) in teams {
+        let name = team["name"].as_str().expect("a team has a name");
+        storage.create_team(id, name).await.expect("store the team");
+        for member in team["members"].as_array().expect("a team lists its members") {
+            let member = member.as_str().expect("a member is an account ID");
+            storage.add_team_member(id, member).await.expect("store the team member");
+        }
+    }
 }
 
 /// `yaml`, a config file, without its registry graph keys, and the graph
@@ -154,6 +173,7 @@ async fn write_into(storage: &Storage, document: &RegistryGraphDocument) {
         restored_from: None,
         vacated: &[],
         bound: &bound,
+        teams: &[],
     };
     let written =
         storage.write_registry_graph(current, revision).await.expect("store the registries");

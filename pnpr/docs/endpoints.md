@@ -746,30 +746,32 @@ endpoint rather than masking as a `404`.
 ## Team endpoints
 
 pnpr serves npm's team endpoints in the shape [`pnpm team`](https://pnpm.io/cli/team)
-consumes. Teams are [registry-scoped](configuration.md#teams).
+consumes. [Teams](configuration.md#teams) belong to the pnpr instance. The
+`{scope}` selects the registry whose `access:` list the caller must pass; the
+teams are the same under every scope.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Requires membership in one of its teams or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. The scope may be written with or without a leading `@`. |
-| `GET` | `/-/team/{scope}/{team}/user` | Members of one team. Requires membership in one of the registry's teams or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. |
+| `GET` | `/-/org/{scope}/team` | The teams the caller is in, or every team for an administrator. A caller in no team gets `404`. Returns a JSON array of `{"id": ..., "name": ...}`. The scope may be written with or without a leading `@`. |
+| `GET` | `/-/team/{scope}/{team}/user` | Members of one team. Requires membership in that team or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. |
 | `PUT` | `/-/org/{scope}/team` | Create a team. The body is `{"name": "<team>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. A username with no account returns `404`. |
 
-Changes are accepted only on npm hosted registries, and
-[change the stored registries](configuration.md#managing-teams-through-the-api):
+[Changes](configuration.md#managing-teams-through-the-api) are accepted only
+under a scope that an npm hosted registry serves:
 
 - The caller must be one of the `auth.admins` or `auth.registryAdmins`.
   Others get `401` when anonymous and `403` when signed in.
-- Creating a team that exists, or destroying one a `packages:` rule names,
+- Creating a team that exists, or destroying one an access list names,
   returns `409`. Changing a team that does not exist returns `404`.
 
 Reads resolve `@{scope}` to a hosted registry the same way a package read in
 that scope would, then check that registry's default `access:` list. Unlike
 the stage endpoints, a denial here is **masked as `404`**. Team and member
-names must not become an existence probe for a private registry. A registry
-that declares no teams returns an empty array.
+names must not become an existence probe for a private registry. An
+administrator of an instance without teams gets an empty array.
 
 ### Team package access
 
@@ -783,7 +785,7 @@ the immutable team ID returned by the team endpoints.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/team/{scope}/{team}/package` | Requires registry team membership or administrator access. The `packages:` keys whose `access` list names `team:<id>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
+| `GET` | `/-/team/{scope}/{team}/package` | Requires membership in the team or administrator access. The `packages:` keys of the registry that serves `@{scope}` whose `access` list names `team:<id>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
 | `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. Both add `team:<id>` to the package's `access` list. `read-write` adds it to `publish` too, and `read-only` removes it from `publish`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}/package` | Revoke access. The body is `{"package": "<name>"}`. Removes `team:<id>` from the package's `access`, `publish`, and `unpublish` lists. Returns `204`. |
 
@@ -859,7 +861,7 @@ the same place:
 ```
 
 A key the registry's `packages:` map does not declare, a malformed token, or a
-`team:` reference to a team the registry does not have returns `400`. The
+`team:` reference to a team that does not exist returns `400`. The
 `{ecosystem}` and `{name}` are the pair the
 [registry directory](discovery.md#the-registry-directory) lists, for example
 `npm/private`.

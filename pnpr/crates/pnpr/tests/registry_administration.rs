@@ -253,6 +253,18 @@ async fn a_dry_run_reports_the_changes_without_storing_them() {
 }
 
 #[tokio::test]
+async fn a_dry_run_refuses_a_team_that_does_not_exist() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    let entry = json!({ "type": "hosted", "namespace": "extra", "access": ["team:absent"] });
+    for path in [format!("{DOCUMENT}/extra?dryRun=true"), format!("{DOCUMENT}/extra")] {
+        let (status, error) = replica.as_root("PUT", &path, Some(entry.clone())).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}: {error}");
+        assert!(error.to_string().contains("team:absent"), "{path}: {error}");
+    }
+}
+
+#[tokio::test]
 async fn a_change_based_on_a_stale_version_is_refused() {
     let dir = TempDir::new().unwrap();
     let replica = Replica::new(load_config(dir.path()).await).await;
@@ -551,6 +563,7 @@ async fn a_stored_upstream_never_reaches_a_refused_address() {
         restored_from: None,
         vacated: &[],
         bound: &[],
+        teams: &[],
     };
     let written = storage
         .write_registry_graph(Some(1), revision)
@@ -592,6 +605,7 @@ async fn the_own_public_host_is_no_exception_for_a_stored_upstream() {
             restored_from: None,
             vacated: &[],
             bound: &[],
+            teams: &[],
         };
         storage
             .write_registry_graph(Some(1), revision)
@@ -638,6 +652,7 @@ async fn a_stored_upstream_at_the_own_public_origin_is_refused_on_an_allowed_net
             restored_from: None,
             vacated: &[],
             bound: &[],
+            teams: &[],
         };
         storage
             .write_registry_graph(Some(1), revision)
@@ -935,6 +950,7 @@ async fn a_registry_admin_repairs_a_graph_the_replica_cannot_serve() {
         restored_from: None,
         vacated: &[],
         bound: &[],
+        teams: &[],
     };
     storage
         .write_registry_graph(Some(1), unreadable)
@@ -1179,6 +1195,7 @@ async fn a_server_whose_stored_graph_does_not_load_starts_and_is_repaired() {
         restored_from: None,
         vacated: &[],
         bound: &[],
+        teams: &[],
     };
     storage
         .write_registry_graph(Some(1), unreadable)
@@ -1319,12 +1336,12 @@ async fn config_check_accepts_a_stored_upstream_whose_credential_is_unset_here()
 }
 
 #[tokio::test]
-async fn config_check_fails_on_an_oidc_group_grant_the_stored_registries_lack() {
+async fn config_check_fails_on_an_oidc_workload_the_stored_registries_lack() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         "storage: {}\nauth:\n  oidc:\n    - name: company\n      issuer: https://issuer.example\n      \
-         audience: pnpr\n      login:\n        groups:\n          teams:\n            \
-         - group: eng\n              registry: local\n              teamId: platform\n\
+         audience: pnpr\n      workloads:\n        - identity: {{ subject: ci, userId: ci }}\n          \
+         registry: absent\n          packages: ['@org/pkg']\n\
          registries:\n  local:\n    type: hosted\n    namespace: ''\n    packages:\n      '**': {{}}\n",
         storage_dir(dir.path()).display(),
     );
@@ -1341,7 +1358,7 @@ async fn config_check_fails_on_an_oidc_group_grant_the_stored_registries_lack() 
     )
     .await
     .unwrap_err();
-    assert!(error.to_string().contains("platform"), "{error}");
+    assert!(error.to_string().contains("OIDC workloads require a hosted npm registry"), "{error}");
 }
 
 #[tokio::test]

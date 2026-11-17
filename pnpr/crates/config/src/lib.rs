@@ -25,7 +25,6 @@ pub use metrics::MetricsConfig;
 pub use oci::OciConfig;
 pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_error::redact_connection_url;
-pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
@@ -45,7 +44,7 @@ pub(crate) use secrets::resolve_secrets;
 pub(crate) use storage_config::{resolve_relative, resolve_storage_paths};
 
 mod access;
-use access::{build_admins, build_teams};
+use access::build_admins;
 
 mod artifacts;
 use artifacts::{parse_artifact_quota, parse_storage_access};

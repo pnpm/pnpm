@@ -2,15 +2,17 @@ use super::{
     AppState, Identity, RegistryError, Response, StatusCode, json,
     organizations::team_registry,
     parse_json_body,
-    registry_graph::{GraphEdit, edit_graph},
     request_access::require_access_admin,
     require_caller,
+    team_directory::{reload_written_teams, team_id},
 };
 use axum::{body::Bytes, response::IntoResponse};
 use pnpr_config::{validate_member_name, validate_team_name};
+use pnpr_storage::database::{TeamCreation, TeamRemoval};
 use serde::Deserialize;
 
-/// The registry and scope a team mutation addresses.
+/// The registry and scope a team request addresses. Teams belong to the
+/// instance; the scope names the registry whose access the caller must have.
 pub(super) struct TeamScope<'a> {
     pub(super) registry: Option<&'a str>,
     pub(super) scope: &'a str,
@@ -48,14 +50,16 @@ pub(super) async fn create_team(
     body: &Bytes,
 ) -> Response {
     let result = async {
-        let registry = admin_roster(state, identity, &target, "create a team")?;
+        let registry = admin_registry(state, identity, &target, "create a team")?;
         let team = parse_json_body::<NewTeam>(body)?.name;
         validate_team_name(&team).map_err(|reason| RegistryError::BadRequest { reason })?;
         let id = pnpr_auth::new_principal_id();
-        edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            document.create_team(&registry, &id, &team)
-        })
-        .await?;
+        if state.inner.storage.create_team(&id, &team).await? == TeamCreation::NameTaken {
+            return Err(RegistryError::AdminConflict {
+                reason: format!("team {team:?} already exists"),
+            });
+        }
+        reload_written_teams(state).await;
         let actor = crate::audit::Actor::of(identity);
         crate::audit!(
             actor,
@@ -70,8 +74,8 @@ pub(super) async fn create_team(
     respond(result.await)
 }
 
-/// `DELETE /-/team/{scope}/{team}`. A team a `packages:` rule names stays,
-/// so a rule never loses the team it grants to.
+/// `DELETE /-/team/{scope}/{team}`. A team an access list names stays, so no
+/// list loses the team it admits.
 pub(super) async fn destroy_team(
     state: &AppState,
     identity: &Identity,
@@ -79,11 +83,20 @@ pub(super) async fn destroy_team(
     team: &str,
 ) -> Response {
     let result = async {
-        let registry = admin_roster(state, identity, &target, "destroy a team")?;
-        edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            document.remove_team(&registry, team).map(drop)
-        })
-        .await?;
+        let registry = admin_registry(state, identity, &target, "destroy a team")?;
+        let id = team_id(state, team).await?;
+        let named = || RegistryError::AdminConflict {
+            reason: format!("team {team:?} is named by access rules; remove it from them first"),
+        };
+        if is_named_outside_the_stored_graph(state, &id) {
+            return Err(named());
+        }
+        match state.inner.storage.remove_team(&id).await? {
+            TeamRemoval::Removed => {}
+            TeamRemoval::NotFound => return Err(RegistryError::NotFound),
+            TeamRemoval::Named => return Err(named()),
+        }
+        reload_written_teams(state).await;
         let actor = crate::audit::Actor::of(identity);
         crate::audit!(
             actor,
@@ -107,17 +120,18 @@ pub(super) async fn add_team_member(
     body: &Bytes,
 ) -> Response {
     let result = async {
-        let registry = admin_roster(state, identity, &target, "add a team member")?;
+        let registry = admin_registry(state, identity, &target, "add a team member")?;
         let user = parse_json_body::<TeamMember>(body)?.user;
         validate_member_name(&user).map_err(|reason| RegistryError::BadRequest { reason })?;
         let user_id = state.inner.identity.auth.users
             .account_id(&user)
             .await?
             .ok_or(RegistryError::NotFound)?;
-        edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            document.add_team_member(&registry, team, &user_id)
-        })
-        .await?;
+        let id = team_id(state, team).await?;
+        if !state.inner.storage.add_team_member(&id, &user_id).await? {
+            return Err(RegistryError::NotFound);
+        }
+        reload_written_teams(state).await;
         let actor = crate::audit::Actor::of(identity);
         crate::audit!(
             actor,
@@ -144,12 +158,13 @@ pub(super) async fn remove_team_member(
     body: &Bytes,
 ) -> Response {
     let result = async {
-        let registry = admin_roster(state, identity, &target, "remove a team member")?;
+        let registry = admin_registry(state, identity, &target, "remove a team member")?;
         let (user_id, user) = member_removal(state, body).await?;
-        edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            document.remove_team_member(&registry, team, &user_id)
-        })
-        .await?;
+        let id = team_id(state, team).await?;
+        if !state.inner.storage.remove_team_member(&id, &user_id).await? {
+            return Err(RegistryError::NotFound);
+        }
+        reload_written_teams(state).await;
         let actor = crate::audit::Actor::of(identity);
         crate::audit!(
             actor,
@@ -166,10 +181,10 @@ pub(super) async fn remove_team_member(
     respond(result.await)
 }
 
-/// The name of the registry whose roster the caller may edit. The read gate
-/// runs first, so a caller who may not see the registry keeps the not-found
-/// mask.
-fn admin_roster(
+/// The name of the registry the scope addresses, for a caller who may edit
+/// teams. The read gate runs first, so a caller who may not see the registry
+/// keeps the not-found mask.
+fn admin_registry(
     state: &AppState,
     identity: &Identity,
     target: &TeamScope<'_>,
@@ -190,17 +205,21 @@ pub(super) fn respond(result: Result<impl IntoResponse, RegistryError>) -> Respo
     }
 }
 
-pub(super) fn team_id(
-    state: &AppState,
-    registry: &str,
-    name: &str,
-) -> Result<String, RegistryError> {
-    state.routing().hosted[registry].teams
-        .snapshot()
-        .iter()
-        .find(|(_, team)| team.name == name)
-        .map(|(id, _)| id.clone())
-        .ok_or(RegistryError::NotFound)
+/// Whether an access list that [`pnpr_storage::Storage::remove_team`] does
+/// not read names the team `id`: the `artifacts.owners` lists of the config
+/// file, and the rules of a graph this server was given in code.
+fn is_named_outside_the_stored_graph(state: &AppState, id: &str) -> bool {
+    let routing = state.routing();
+    let owners = &state.inner.config.features.artifacts.owners;
+    owners
+        .values()
+        .any(|owner| owner.access.references_team(id) || owner.publish.references_team(id))
+        || routing.hosted
+            .values()
+            .any(|hosted| hosted.rules.references_team(id))
+        || routing.upstreams
+            .values()
+            .any(|upstream| upstream.rules.references_team(id))
 }
 
 async fn member_removal(state: &AppState, body: &Bytes) -> Result<(String, String), RegistryError> {

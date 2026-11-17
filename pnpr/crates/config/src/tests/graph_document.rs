@@ -1,4 +1,6 @@
-use super::{Config, FakeEnv, FeatureOverrides, Path, RegistryError, auth_header, listen, user};
+use super::{
+    Config, FakeEnv, FeatureOverrides, Identity, Path, RegistryError, auth_header, listen, user,
+};
 use crate::{
     PackageLists, RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions,
     RuleLists,
@@ -14,9 +16,6 @@ registries:
     namespace: acme
     access: $authenticated
     tarballs: tar
-    teams:
-      t1: { name: platform, members: [u1, u2] }
-      t2: { name: solo, members: u3 }
     packages:
       '@acme/*':
         access: [team:t1]
@@ -248,10 +247,15 @@ fn the_config_file_refuses_a_graph() {
 }
 
 #[test]
-fn the_config_file_refuses_team_references_in_artifact_owners() {
-    let yaml = "artifacts:\n  enabled: true\n  owners:\n    example:\n      access: $authenticated\n      publish: team:local:builders\n";
-    let error = file_config(yaml).expect_err("teams live in the database");
-    assert!(error.to_string().contains("artifacts.owners"), "{error}");
+fn artifact_owners_admit_the_members_of_a_named_team() {
+    let yaml = "artifacts:\n  enabled: true\n  owners:\n    example:\n      access: $authenticated\n      publish: team:builders-id\n";
+    let config = file_config(yaml).unwrap();
+    let publish = &config.features.artifacts.owners["example"].publish;
+    assert!(publish.allows(&Identity::member("u1", vec!["builders-id".to_string()])));
+    assert!(!publish.allows(&Identity::user("u1")));
+    let malformed = yaml.replace("team:builders-id", "team:local:builders");
+    let error = file_config(&malformed).expect_err("a team ID holds no colon");
+    assert!(error.to_string().contains("team:local:builders"), "{error}");
 }
 
 #[test]
@@ -287,26 +291,25 @@ fn registry_admins_are_separate_from_admins() {
 }
 
 #[test]
-fn team_edits_keep_rules_pointing_at_existing_teams() {
+fn named_teams_lists_the_teams_of_every_access_list() {
     let mut document = RegistryGraphDocument::from_yaml(RICH_DOCUMENT).unwrap();
-    document.create_team("local", "t3", "docs").unwrap();
-    assert!(matches!(
-        document.create_team("local", "t4", "docs"),
-        Err(RegistryError::AdminConflict { .. }),
-    ));
-    document.add_team_member("local", "docs", "u9").unwrap();
-    document.add_team_member("local", "docs", "u9").unwrap();
-    document.remove_team_member("local", "solo", "u3").unwrap();
-    let teams = &serde_json::to_value(&document).unwrap()["registries"]["local"]["teams"];
-    assert_eq!(teams["t3"]["members"], serde_json::json!(["u9"]));
-    assert_eq!(teams["t2"]["members"], serde_json::json!([]));
-    assert!(matches!(
-        document.remove_team("local", "platform"),
-        Err(RegistryError::AdminConflict { .. }),
-    ));
-    assert_eq!(document.remove_team("local", "docs").unwrap(), "t3");
-    assert!(matches!(document.create_team("corp", "t5", "x"), Err(RegistryError::NotFound)));
-    assert_eq!(document.team_id("local", "platform"), Some("t1"));
+    assert_eq!(
+        document
+            .named_teams()
+            .into_iter()
+            .collect::<Vec<_>>(),
+        ["t1"],
+    );
+    let mut corp = document.registry_entry("corp").unwrap();
+    corp["access"] = serde_json::json!(["team:t9", "$authenticated"]);
+    document.set_registry_entry("corp", corp).unwrap();
+    assert_eq!(
+        document
+            .named_teams()
+            .into_iter()
+            .collect::<Vec<_>>(),
+        ["t1", "t9"],
+    );
 }
 
 #[test]

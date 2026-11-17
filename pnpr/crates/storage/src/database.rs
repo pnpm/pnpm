@@ -29,7 +29,7 @@ pub use sql::{
     CdnInvalidation, HostedNamespace, Mapping, NewRegistryGraph, NewScimUser,
     REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision, RegistryGraphWrite, RenderStats,
     ScimStatus, ScimUserRemoval, ScimUserWrite, SqlDatabase, StoredRegistryGraph, StoredScimUser,
-    TagHistoryEntry, Unmapping,
+    StoredTeam, StoredTeams, TagHistoryEntry, TeamCreation, TeamRemoval, Unmapping,
 };
 pub(crate) use sql::{StagedEntry, StagedId};
 pub(crate) use staged::{StagedRecord, StagedState};

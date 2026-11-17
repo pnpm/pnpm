@@ -14,10 +14,11 @@ use super::{
     parse_json_body,
     registry_graph::{GraphEdit, edit_graph},
     request_access::require_access_admin,
+    team_directory::team_id,
     team_mutations::{TeamScope, respond},
 };
 use axum::body::Bytes;
-use pnpr_config::{HostedConfig, RegistryGraphDocument, RuleLists};
+use pnpr_config::{RegistryGraphDocument, RuleLists};
 use pnpr_policy::{PackageRule, RuleTable};
 use pnpr_registry::{Ecosystem, PackagePattern};
 use serde::Deserialize;
@@ -51,10 +52,10 @@ pub(super) async fn grant_team_access(
     body: &Bytes,
 ) -> Response {
     let result = async {
-        let registry = managed_team(state, identity, &target, team, "grant access to")?;
+        let registry = managed_registry(state, identity, &target, team, "grant access to")?;
+        let token = format!("team:{}", team_id(state, team).await?);
         let grant: Grant = parse_json_body(body)?;
         edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            let token = team_token(document, &registry, team)?;
             edit_team_lists(document, &registry, &grant.package, |lists| {
                 grant_lists(lists, &token, grant.permissions);
             })
@@ -89,10 +90,10 @@ pub(super) async fn revoke_team_access(
     body: &Bytes,
 ) -> Response {
     let result = async {
-        let registry = managed_team(state, identity, &target, team, "revoke access from")?;
+        let registry = managed_registry(state, identity, &target, team, "revoke access from")?;
+        let token = format!("team:{}", team_id(state, team).await?);
         let revoke: Revoke = parse_json_body(body)?;
         edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            let token = team_token(document, &registry, team)?;
             edit_team_lists(document, &registry, &revoke.package, |lists| {
                 for list in lists {
                     remove(list, &token);
@@ -115,9 +116,9 @@ pub(super) async fn revoke_team_access(
     respond(result.await)
 }
 
-/// `GET /-/team/{scope}/{team}/package` — the declared patterns whose rules
-/// name the team and that the caller may read, as `{"<pattern>": "read-only"
-/// | "read-write"}`.
+/// `GET /-/team/{scope}/{team}/package` — the declared patterns of
+/// `@{scope}`'s registry whose rules name the team and that the caller may
+/// read, as `{"<pattern>": "read-only" | "read-write"}`.
 pub(super) fn list_team_packages(
     state: &AppState,
     identity: &Identity,
@@ -125,20 +126,16 @@ pub(super) fn list_team_packages(
     team: &str,
 ) -> Response {
     let result = (|| {
+        let teams =
+            super::organizations::visible_teams(state, identity, target.registry, target.scope)?;
+        let (id, _) = teams.named(team)?;
         let routing = state.routing();
-        let (registry, hosted) = super::organizations::readable_team_registry(
-            state,
-            &routing,
-            identity,
-            target.registry,
-            target.scope,
-        )?;
-        let id = super::team_mutations::team_id(state, registry, team)?;
+        let (_, hosted) = team_registry(state, &routing, identity, target.registry, target.scope)?;
         let table = hosted.rules.snapshot();
         let packages: serde_json::Map<_, _> = table
             .rules()
             .iter()
-            .filter_map(|rule| team_permission(&table, rule, &id, identity))
+            .filter_map(|rule| team_permission(&table, rule, id, identity))
             .collect();
         Ok((StatusCode::OK, axum::Json(json!(packages))))
     })();
@@ -160,8 +157,8 @@ fn team_permission(
     Some((rule.pattern.to_string(), json!(permission)))
 }
 
-/// The registry whose rules an admin may edit for `team`.
-fn managed_team(
+/// The registry `target` addresses, whose rules an admin may edit for `team`.
+fn managed_registry(
     state: &AppState,
     identity: &Identity,
     target: &TeamScope<'_>,
@@ -169,21 +166,10 @@ fn managed_team(
     action: &'static str,
 ) -> Result<String, RegistryError> {
     let routing = state.routing();
-    let (registry, hosted) =
-        team_registry(state, &routing, identity, target.registry, target.scope)?;
+    let (registry, _) = team_registry(state, &routing, identity, target.registry, target.scope)?;
     let scope = target.scope.strip_prefix('@').unwrap_or(target.scope);
     require_access_admin(state, identity, action, format!("@{scope}:{team}"))?;
-    if !holds_team(hosted, team) {
-        return Err(RegistryError::NotFound);
-    }
     Ok(registry.to_string())
-}
-
-fn holds_team(hosted: &HostedConfig, team: &str) -> bool {
-    hosted.teams
-        .snapshot()
-        .values()
-        .any(|record| record.name == team)
 }
 
 /// Apply `edit` to the `access`, `publish`, and `unpublish` lists that apply
@@ -226,16 +212,6 @@ fn edit_team_lists(
         }
     }
     document.set_rule_lists(registry, lists)
-}
-
-/// The access token of the team named `team` in `document`.
-fn team_token(
-    document: &RegistryGraphDocument,
-    registry: &str,
-    team: &str,
-) -> Result<String, RegistryError> {
-    let id = document.team_id(registry, team).ok_or(RegistryError::NotFound)?;
-    Ok(format!("team:{id}"))
 }
 
 /// The `packages:` key that names `package` exactly. A pattern covering other

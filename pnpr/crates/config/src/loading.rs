@@ -267,24 +267,6 @@ fn reject_file_graph(file: &ConfigFile) -> Result<(), RegistryError> {
             ),
         });
     }
-    let team_reference = file.artifacts
-        .iter()
-        .flat_map(|artifacts| artifacts.owners.values())
-        .flat_map(|owner| {
-            owner.access
-                .entries()
-                .iter()
-                .chain(owner.publish.entries())
-        })
-        .find(|entry| entry.starts_with("team:"));
-    if let Some(entry) = team_reference {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "`artifacts.owners` names {entry:?}, but registry teams live in the metadata \
-                 database; list account IDs instead",
-            ),
-        });
-    }
     Ok(())
 }
 

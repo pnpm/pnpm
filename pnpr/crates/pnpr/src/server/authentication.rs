@@ -346,7 +346,7 @@ async fn resolve_caller(
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
             let name = active_account_name(state, &user.user_id).await?;
-            return Ok((super::oidc_groups::session_identity(&state.routing(), user, name), None));
+            return Ok((super::team_directory::session_identity(state, user, name), None));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc
@@ -372,7 +372,7 @@ async fn resolve_caller(
             check_token_restrictions(&record, method, path, client_ip)?;
             state.inner.identity.last_used.record_raw(&raw_token, record.last_used_at);
             let identity = match record.owner_name().map(str::to_string) {
-                Some(name) => Identity::account(record.user_id, name),
+                Some(name) => super::team_directory::account_identity(state, record.user_id, name),
                 None => account_identity(state, &record.user_id).await?,
             };
             return Ok((identity, None));

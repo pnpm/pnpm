@@ -327,16 +327,12 @@ fn teams_grant_package_and_upstream_access() {
 registries:
   local:
     type: hosted
-    teams:
-      platform: { name: platform, members: [alice, bob] }
     packages:
       '@team/*':
         access: team:platform
   corp:
     type: upstream
     url: https://npm.corp.example/
-    teams:
-      partners: { name: partners, members: [alice] }
     access: team:partners
     auth:
       type: bearer
@@ -344,8 +340,8 @@ registries:
 registryEnv: [CUSTOM_TOKEN]
 ";
     let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
-    let alice = Identity::user("alice");
-    let bob = Identity::user("bob");
+    let alice = Identity::member("alice", vec!["platform".to_string(), "partners".to_string()]);
+    let bob = Identity::member("bob", vec!["platform".to_string()]);
     let carol = Identity::user("carol");
 
     let rules = &config.routing.hosted["local"].rules;

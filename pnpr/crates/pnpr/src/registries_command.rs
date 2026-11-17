@@ -7,7 +7,7 @@ use crate::{
     audit::Actor,
     server::{
         Credentials, HostedChange, check_revision, graph_version, occupied_namespace_error,
-        stored_document,
+        stored_document, unknown_team_error,
     },
 };
 use pnpm_diagnostics::{print, println};
@@ -131,6 +131,7 @@ async fn store_import(storage: &Storage, import: Import<'_>) -> Result<String, R
         restored_from: None,
         vacated: &import.hosted.vacated,
         bound: &import.hosted.bound,
+        teams: &import.hosted.teams,
     };
     match storage.write_registry_graph(import.current, revision).await? {
         RegistryGraphWrite::Written(generation) => {
@@ -149,6 +150,7 @@ async fn store_import(storage: &Storage, import: Import<'_>) -> Result<String, R
             reason: "the registries changed during the import; run it again".to_string(),
         }),
         RegistryGraphWrite::HostedNotEmpty(occupied) => Err(occupied_namespace_error(&occupied)),
+        RegistryGraphWrite::UnknownTeam(id) => Err(unknown_team_error(&id)),
     }
 }
 
