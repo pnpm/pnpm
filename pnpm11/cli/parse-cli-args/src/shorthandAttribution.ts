@@ -1,5 +1,7 @@
 export interface ShorthandContext {
   originalArgv: string[]
+  /** The arguments at which the parser stops reading options. */
+  escapeArgs?: string[]
   shorthands: Record<string, string | string[]>
 }
 
@@ -21,11 +23,12 @@ interface TypedShorthand {
 export function attributeUnknownOptionsToShorthands (
   unknownOptions: Map<string, string[]>,
   knownOptions: Set<string>,
-  { originalArgv, shorthands }: ShorthandContext
+  ctx: ShorthandContext
 ): Map<string, string> {
   const unknownOptionShorthands = new Map<string, string>()
   if (unknownOptions.size === 0) return unknownOptionShorthands
-  for (const { typed, shorthand } of findTypedShorthands(originalArgv, shorthands)) {
+  const { shorthands } = ctx
+  for (const { typed, shorthand } of findTypedShorthands(ctx, knownOptions)) {
     for (const optionName of getShorthandOptionNames(shorthands[shorthand])) {
       if (!unknownOptions.has(optionName) || unknownOptionShorthands.has(optionName)) continue
       unknownOptionShorthands.set(optionName, typed)
@@ -35,35 +38,58 @@ export function attributeUnknownOptionsToShorthands (
   return unknownOptionShorthands
 }
 
+/**
+ * Like the parser (`@pnpm/nopt`), stops at `--` and at the escape arguments,
+ * after which the arguments belong to a script or to the executed command.
+ */
 function findTypedShorthands (
-  originalArgv: string[],
-  shorthands: Record<string, string | string[]>
+  { originalArgv, escapeArgs, shorthands }: ShorthandContext,
+  knownOptions: Set<string>
 ): TypedShorthand[] {
-  const endOfOptions = originalArgv.indexOf('--')
+  const escapeArgSet = new Set(escapeArgs)
+  const endOfOptions = originalArgv.findIndex((arg) => /^-{2,}$/.test(arg) || escapeArgSet.has(arg))
   const args = endOfOptions === -1 ? originalArgv : originalArgv.slice(0, endOfOptions)
-  return args.flatMap((arg) => parseTypedShorthands(arg, shorthands))
+  return args.flatMap((arg) => resolveTypedShorthands(arg, shorthands, knownOptions))
 }
 
-function parseTypedShorthands (
+/**
+ * Resolves an argument to shorthands in the same order as `@pnpm/nopt`: an
+ * exact option name, an exact shorthand, a group of single-character
+ * shorthands (like `-rl`), an option abbreviation, a shorthand abbreviation.
+ * An attached value (`--l=false`) is not part of the name.
+ */
+function resolveTypedShorthands (
   arg: string,
-  shorthands: Record<string, string | string[]>
+  shorthands: Record<string, string | string[]>,
+  knownOptions: Set<string>
 ): TypedShorthand[] {
-  const match = /^(--?)([^-=][^=]*)$/.exec(arg)
-  if (match == null) return []
-  const [, dashes, name] = match
-  if (Object.hasOwn(shorthands, name)) {
-    return [{ typed: arg, shorthand: name }]
-  }
-  if (dashes !== '-' || name.length === 1) return []
-  // nopt splits a group of single-character shorthands, like `-rl`
+  if (arg.length < 2 || !arg.startsWith('-')) return []
+  const typed = arg.split('=', 1)[0]
+  const name = typed.replace(/^-+/, '')
+  if (name === '' || knownOptions.has(name)) return []
+  if (Object.hasOwn(shorthands, name)) return [{ typed, shorthand: name }]
   const chars = name.split('')
-  if (!chars.every((char) => Object.hasOwn(shorthands, char))) return []
-  return chars.map((char) => ({ typed: `-${char}`, shorthand: char }))
+  if (chars.every((char) => Object.hasOwn(shorthands, char))) {
+    return chars.map((char) => ({ typed: `-${char}`, shorthand: char }))
+  }
+  if (resolveAbbreviation(name, knownOptions) != null) return []
+  const shorthand = resolveAbbreviation(name, Object.keys(shorthands))
+  return shorthand == null ? [] : [{ typed, shorthand }]
+}
+
+function resolveAbbreviation (prefix: string, names: Iterable<string>): string | undefined {
+  let match: string | undefined
+  for (const name of names) {
+    if (!name.startsWith(prefix)) continue
+    if (match != null) return undefined
+    match = name
+  }
+  return match
 }
 
 function getShorthandOptionNames (expansion: string | string[] | undefined): string[] {
   if (expansion == null) return []
-  const args = Array.isArray(expansion) ? expansion : [expansion]
+  const args = Array.isArray(expansion) ? expansion : expansion.split(/\s+/)
   const optionNames: string[] = []
   for (const arg of args) {
     const match = /^--(?:no-)?([^=]+)/.exec(arg)

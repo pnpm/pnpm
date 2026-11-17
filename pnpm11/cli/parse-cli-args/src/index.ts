@@ -84,10 +84,11 @@ export async function parseCliArgs (
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(resolution.commandName),
   } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- option types are declared as unknown values
+  const escapeArgs = getEscapeArgs(opts, resolution, exploratoryResult.parsed)
   const { argv, rawOptions } = parseResolvedCommandArgs(opts, inputArgv, {
     commandName: resolution.commandName,
     types,
-    escapeArgs: getEscapeArgs(opts, resolution, exploratoryResult.parsed),
+    escapeArgs,
     recovery: resolution.recovery,
   })
 
@@ -107,6 +108,7 @@ export async function parseCliArgs (
     fallbackCommandUsed: resolution.fallbackCommandUsed,
     ...normalizeOptions(rawOptions, new Set(Object.keys(types)), {
       originalArgv: argv.original,
+      escapeArgs,
       shorthands: {
         ...opts.universalShorthands,
         ...opts.shorthandsByCommandName[resolution.commandName],

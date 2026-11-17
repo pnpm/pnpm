@@ -179,14 +179,42 @@ test('an unknown option that came from a shorthand is attributed to the shorthan
     expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '-l']])
   }
   {
-    // The other-case shorthand is not suggested when the command does not know its option
     const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['add', '-l'])
     expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', []]])
     expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '-l']])
   }
   {
-    // An option typed in full is reported as is
     const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', '--long'])
+    expect(Array.from(unknownOptions.keys())).toStrictEqual(['long'])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([])
+  }
+  {
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', '--l=false'])
+    expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', ['-L']]])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '--l']])
+  }
+})
+
+test('an unknown option is attributed to an abbreviated shorthand', async () => {
+  const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalShorthands: { porcelain: '--parseable' },
+  }, ['update', '--porc'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['parseable'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['parseable', '--porc']])
+})
+
+test('an unknown option is not attributed to a shorthand after an escape arg', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    escapeArgs: ['exec'],
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalShorthands: { l: '--long' },
+  }
+  for (const argv of [['--long', 'exec', 'ls', '-l'], ['--long', 'update', '--', '-l']]) {
+    // eslint-disable-next-line no-await-in-loop -- the cases share one set of options and run in order
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, argv)
     expect(Array.from(unknownOptions.keys())).toStrictEqual(['long'])
     expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([])
   }

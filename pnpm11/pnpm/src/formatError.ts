@@ -6,7 +6,6 @@ export function formatUnknownOptionsError (
 ): string {
   let output = chalk.bgRed.red('[') + chalk.bgRed.black('ERROR') + chalk.bgRed.red(']')
   const unknownOptionsArray = Array.from(unknownOptions.keys())
-  // An option passed via a shorthand is reported as typed: '-l', not 'long'
   const displayName = (unknownOption: string) => unknownOptionShorthands?.get(unknownOption) ?? unknownOption
   if (unknownOptionsArray.length > 1) {
     return `${output} ${chalk.red(`Unknown options: ${unknownOptionsArray.map(unknownOption => `'${displayName(unknownOption)}'`).join(', ')}`)}`
