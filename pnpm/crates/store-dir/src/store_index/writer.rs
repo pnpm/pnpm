@@ -151,7 +151,7 @@ impl StoreIndexWriter {
             while let Some(first) = rx.blocking_recv() {
                 batch.push(first);
                 drain_queued(&mut rx, &mut batch);
-                flush_batch(&mut index, &mut batch)
+                flush_batch(&mut index, &mut batch, write_error_policy)
                     .or_else(|error| handle_batch_write_error(error, write_error_policy))?;
             }
             Ok(())
@@ -270,7 +270,11 @@ fn drain_queued(
 }
 
 /// Coalesce the batch by key and write it in one transaction.
-fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) -> Result<(), StoreIndexError> {
+fn flush_batch(
+    index: &mut StoreIndex,
+    batch: &mut Vec<WriteMsg>,
+    write_error_policy: WriteErrorPolicy,
+) -> Result<(), StoreIndexError> {
     let mut pending: HashMap<String, PackageFilesIndex> = HashMap::with_capacity(batch.len());
     let mut aliases: Vec<(String, String)> = Vec::new();
     for msg in batch.drain(..) {
@@ -279,7 +283,10 @@ fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) -> Result<(), 
             msg => apply_write_msg(index, &mut pending, msg),
         }
     }
-    index.set_many(pending.drain())?;
+    match write_error_policy {
+        WriteErrorPolicy::Continue => index.set_many(pending.drain())?,
+        WriteErrorPolicy::Return => index.set_many_checked(pending.drain())?,
+    }
     index.set_aliases(&aliases)?;
     Ok(())
 }

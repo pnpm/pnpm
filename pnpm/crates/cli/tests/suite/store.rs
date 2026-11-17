@@ -466,6 +466,23 @@ fn store_add_fetches_a_package_without_touching_the_project() {
 }
 
 #[test]
+fn store_add_indexes_a_direct_tarball_url_without_integrity() {
+    let CommandTempCwd { pacquet, npmrc_info, .. } = CommandTempCwd::init().add_mocked_registry();
+    let tarball_url = format!("{}@pnpm.e2e/foo/-/foo-100.0.0.tgz", npmrc_info.mock_instance.url(),);
+
+    pacquet
+        .with_args(["store", "add", &tarball_url])
+        .assert()
+        .success();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let store_index = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index store add just wrote");
+    let keys = store_index.keys().expect("read the store index keys");
+    assert!(!keys.is_empty(), "store add must index the downloaded tarball");
+}
+
+#[test]
 fn store_add_fails_without_touching_a_frozen_store() {
     let CommandTempCwd {
         pacquet, root: _root, npmrc_info, ..

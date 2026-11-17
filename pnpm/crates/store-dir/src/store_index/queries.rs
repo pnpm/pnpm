@@ -330,16 +330,25 @@ impl StoreIndex {
         &mut self,
         entries: impl IntoIterator<Item = (String, PackageFilesIndex)>,
     ) -> Result<(), StoreIndexError> {
+        self.set_many_with_encoding_policy(entries, EncodingErrorPolicy::Skip)
+    }
+
+    pub(super) fn set_many_checked(
+        &mut self,
+        entries: impl IntoIterator<Item = (String, PackageFilesIndex)>,
+    ) -> Result<(), StoreIndexError> {
+        self.set_many_with_encoding_policy(entries, EncodingErrorPolicy::Return)
+    }
+
+    fn set_many_with_encoding_policy(
+        &mut self,
+        entries: impl IntoIterator<Item = (String, PackageFilesIndex)>,
+        policy: EncodingErrorPolicy,
+    ) -> Result<(), StoreIndexError> {
         let mut encoded: Vec<(String, Vec<u8>)> = Vec::new();
         for (key, value) in entries {
-            match crate::msgpackr_records::encode_package_files_index(&value) {
-                Ok(buf) => encoded.push((key, buf)),
-                Err(source) => tracing::warn!(
-                    target: "pacquet::store_index",
-                    ?key,
-                    error = ?source,
-                    "failed to encode package_index row; skipping",
-                ),
+            if let Some(entry) = encode_index_entry(key, value, policy)? {
+                encoded.push(entry);
             }
         }
         if encoded.is_empty() {
@@ -450,6 +459,34 @@ impl StoreIndex {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(_) => panic!("the store index is not an SQLite database"),
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum EncodingErrorPolicy {
+    Skip,
+    Return,
+}
+
+fn encode_index_entry(
+    key: String,
+    value: PackageFilesIndex,
+    policy: EncodingErrorPolicy,
+) -> Result<Option<(String, Vec<u8>)>, StoreIndexError> {
+    match crate::msgpackr_records::encode_package_files_index(&value) {
+        Ok(encoded) => Ok(Some((key, encoded))),
+        Err(source) => match policy {
+            EncodingErrorPolicy::Return => Err(StoreIndexError::Encode { source }),
+            EncodingErrorPolicy::Skip => {
+                tracing::warn!(
+                    target: "pacquet::store_index",
+                    ?key,
+                    error = ?source,
+                    "failed to encode package_index row; skipping",
+                );
+                Ok(None)
+            }
+        },
     }
 }
 

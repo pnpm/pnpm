@@ -288,10 +288,16 @@ impl<'a> AddOne<'a> {
         {
             Some(path) => self.add_downloaded_tarball::<Reporter>(&path, &archive).await?,
             None => {
-                self.ingestion(&archive, integrity.as_ref())
-                    .run_without_mem_cache::<Reporter>()
-                    .await
-                    .map_err(miette::Report::new)?;
+                let ingestion = self.ingestion(&archive, integrity.as_ref());
+                if integrity.is_some() {
+                    ingestion.run_without_mem_cache::<Reporter>().await
+                } else {
+                    ingestion
+                        .fetch_and_extract::<Reporter>()
+                        .await
+                        .map(|_| ())
+                }
+                .map_err(miette::Report::new)?;
             }
         }
 
