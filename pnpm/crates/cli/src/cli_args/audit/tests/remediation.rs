@@ -624,3 +624,41 @@ fn report_fixed_remaining_keeps_non_semver_installed_packages_remaining() {
     );
     assert!(!fixed.contains(&AdvisoryId::Number(3)));
 }
+
+#[test]
+fn fix_with_update_tracks_string_advisory_ids() {
+    let with_string_id = |id: &str, module_name: &str, severity: ConfigAuditLevel| {
+        let mut advisory =
+            fix_advisory(0, module_name, "<2.0.0", Some(">=2.0.0"), severity, "GHSA-a");
+        advisory.id = AdvisoryId::String(id.to_string());
+        advisory
+    };
+    let advisories = report_of(vec![
+        with_string_id("CUSTOM-1", "bumped", ConfigAuditLevel::High),
+        with_string_id("CUSTOM-2", "stuck", ConfigAuditLevel::Low),
+    ])
+    .advisories;
+
+    let classification = classify_for_update(&advisories);
+    let installed = InstalledPackages {
+        names: ["bumped".to_string(), "stuck".to_string()].into_iter().collect(),
+        versions: HashMap::from([
+            ("bumped".to_string(), vec!["2.0.0".parse().unwrap()]),
+            ("stuck".to_string(), vec!["1.0.0".parse().unwrap()]),
+        ]),
+    };
+    let (fixed, remaining) = report_fixed_remaining(
+        &classification.vulnerabilities,
+        &classification.unfixable,
+        &classification.unparsable,
+        &installed,
+    );
+
+    assert_eq!(fixed, vec![AdvisoryId::String("CUSTOM-1".to_string())]);
+    assert_eq!(remaining, vec![AdvisoryId::String("CUSTOM-2".to_string())]);
+
+    let output = format_fix_with_update_output(&fixed, &remaining, &advisories);
+    assert!(output.contains("bumped"));
+    assert!(output.contains("stuck"));
+    assert!(!output.contains("details not found"));
+}
