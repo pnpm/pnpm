@@ -29,6 +29,8 @@ pnpm --filter=<deployed project name> deploy <target directory>
 
 The filter must select exactly one project. Selecting none fails with `ERR_PNPM_NOTHING_TO_DEPLOY`, and selecting several fails with `ERR_PNPM_CANNOT_DEPLOY_MANY`. A target directory that is unsafe to write, such as the workspace root, fails with `ERR_PNPM_INVALID_DEPLOY_TARGET`.
 
+Relative `file:` paths in root `overrides` are resolved from the source workspace. Their dependencies are included in the deployed package.
+
 In case you build your project before deployment, also use the `--prod` option to skip `devDependencies` installation.
 
 ```sh
