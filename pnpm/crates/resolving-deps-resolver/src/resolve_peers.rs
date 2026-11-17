@@ -47,6 +47,7 @@ mod cache;
 mod context;
 mod discovery;
 mod finalize;
+mod optional_peer_ranges;
 mod provider_peers;
 mod walker;
 mod workspace_graph;

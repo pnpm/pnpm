@@ -38,7 +38,7 @@ impl Walker<'_> {
     ) -> CacheMatch {
         let mut ambiguous = false;
         for (name, cached_node_id) in item.resolved_peers.iter() {
-            match self.fast_resolved_peer_matches(query, item, name, cached_node_id) {
+            match self.fast_resolved_peer_matches(query, name, cached_node_id) {
                 CacheMatch::NoMatch => return CacheMatch::NoMatch,
                 CacheMatch::Ambiguous => ambiguous = true,
                 CacheMatch::Match => {}
@@ -59,23 +59,19 @@ impl Walker<'_> {
     pub(super) fn fast_resolved_peer_matches(
         &self,
         query: FastProviderQuery<'_>,
-        item: &PeersCacheItem,
         name: &str,
         cached_node_id: &NodeId,
     ) -> CacheMatch {
         match self.fast_provider_for_name(query, name) {
             FastProvider::Missing => CacheMatch::NoMatch,
             FastProvider::Inherited(current_ref) => {
-                if item.has_provenance_of(name, current_ref)
+                if !self.hoisted_provider_may_be_rejected(name, current_ref)
                     && self.parent_ref_matches_cached(current_ref, cached_node_id)
                 {
                     CacheMatch::Match
                 } else {
                     CacheMatch::NoMatch
                 }
-            }
-            FastProvider::Child(_) if item.hoisted_provider_peers.contains(name) => {
-                CacheMatch::NoMatch
             }
             FastProvider::Child(child_pkg_id) => {
                 self.fast_child_provider_matches(child_pkg_id, cached_node_id)

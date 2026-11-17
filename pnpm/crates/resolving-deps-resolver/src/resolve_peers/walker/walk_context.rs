@@ -277,9 +277,8 @@ pub(super) struct SettledPeers {
 }
 
 impl SettledPeers {
-    pub(super) fn as_walk_result<'a>(&'a self, parent_refs: &'a ParentRefs) -> WalkResult<'a> {
+    pub(super) fn as_walk_result(&self) -> WalkResult<'_> {
         WalkResult {
-            parent_refs,
             dep_path: &self.dep_path,
             all_resolved_peers: &self.all_resolved,
             all_missing_peers: &self.all_missing,
@@ -302,8 +301,6 @@ pub(super) struct DeferredChildren<'a> {
 
 /// What one walked node contributes to the per-`pkgIdWithPatchHash` caches.
 pub(super) struct WalkResult<'a> {
-    /// The parent context the node resolved its peers against.
-    pub(super) parent_refs: &'a ParentRefs,
     pub(super) dep_path: &'a DepPath,
     pub(super) all_resolved_peers: &'a Arc<HashMap<String, NodeId>>,
     pub(super) all_missing_peers: &'a Arc<HashMap<String, MissingPeerInfo>>,

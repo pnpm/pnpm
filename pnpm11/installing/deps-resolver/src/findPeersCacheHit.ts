@@ -1,9 +1,11 @@
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
 import type { NodeId } from './nextNodeId.js'
+import { isOutsideAnOptionalPeerRange, type OptionalPeerRanges } from './optionalPeerRanges.js'
 import type {
   ParentPkgInfo,
   ParentPkgsOfNode,
+  ParentRef,
   ParentRefs,
   PartialResolvedPackage,
   PeersCache,
@@ -20,6 +22,7 @@ interface PeersCacheContext<Pkg extends PartialResolvedPackage> extends ParentPa
   peersCache: PeersCache
   pathsByNodeId: Map<NodeId, DepPath>
   dependenciesTree: DependenciesTree<Pkg>
+  optionalPeerRanges: OptionalPeerRanges
 }
 
 export function findHit<Pkg extends PartialResolvedPackage> (
@@ -38,13 +41,27 @@ function cacheItemMatchesParentPkgs<Pkg extends PartialResolvedPackage> (
   cache: PeersCacheItem
 ): boolean {
   for (const [name, cachedNodeId] of cache.resolvedPeers) {
-    if (Boolean(parentPkgs[name]?.hoistedPeerProvider) !== cache.hoistedPeerProviderPeers.has(name)) return false
+    if (hoistedProviderMayBeRejected(ctx, parentPkgs[name], name)) return false
     if (!cachedPeerMatches(ctx, parentPkgs[name]?.nodeId, cachedNodeId)) return false
   }
   for (const missingPeer of cache.missingPeers.keys()) {
     if (Object.hasOwn(parentPkgs, missingPeer)) return false
   }
   return true
+}
+
+/**
+ * A cached binding can be reused for a hoisted provider only if no optional
+ * peer could reject it. A rejection the cached walk made is a missing peer,
+ * which a present provider already fails to match.
+ */
+function hoistedProviderMayBeRejected (
+  ctx: { optionalPeerRanges: OptionalPeerRanges },
+  provider: ParentRef | undefined,
+  peerName: string
+): boolean {
+  return provider?.hoistedPeerProvider === true &&
+    isOutsideAnOptionalPeerRange(ctx.optionalPeerRanges, peerName, provider.version)
 }
 
 function cachedPeerMatches<Pkg extends PartialResolvedPackage> (

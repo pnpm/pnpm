@@ -96,10 +96,16 @@ function addChildrenToParentPkgs<Pkg extends PartialResolvedPackage> (
       continue
     }
     if (
-      !inheritedParentPkg.hoistedPeerProvider &&
       parentPkgsMatch(ctx.dependenciesTree, inheritedParentPkg, newParentPkg) &&
       !inheritedParentPkgBreaksPeerDiamond(ctx, parentPkgs, { inheritedParentPkg, ownChildParentPkg: newParentPkg, children })
-    ) continue
+    ) {
+      // A real ancestor provides this package too, so the provider is no longer only hoisted.
+      if (inheritedParentPkg.hoistedPeerProvider) {
+        const { hoistedPeerProvider: _, ...provider } = inheritedParentPkg
+        parentPkgs[newParentPkgName] = provider
+      }
+      continue
+    }
     newParentPkg.occurrence = inheritedParentPkg.occurrence + 1
     parentPkgs[newParentPkgName] = newParentPkg
   }
@@ -216,7 +222,7 @@ async function resolveUncachedPeersOfNode<Pkg extends PartialResolvedPackage> (
     missingPeers: allMissingPeers,
     calculateDepPath: addDepPathOrDeferCalculation(ctx, {
       ...opts,
-      cache: cachePeersResolution(ctx, { resolvedPackage, nodeId, isPure, allResolvedPeers, allMissingPeers, parentPkgs: opts.parentPkgs }),
+      cache: cachePeersResolution(ctx, { resolvedPackage, nodeId, isPure, allResolvedPeers, allMissingPeers }),
       isPure,
       allResolvedPeers,
       ownResolvedPeers: ownPeers.resolvedPeers,
@@ -246,7 +252,6 @@ function cachePeersResolution<Pkg extends PartialResolvedPackage> (
     isPure: boolean
     allResolvedPeers: Map<string, NodeId>
     allMissingPeers: MissingPeers
-    parentPkgs: ParentRefs
   }
 ): PeersCacheItem | undefined {
   const { pkgIdWithPatchHash } = opts.resolvedPackage
@@ -270,7 +275,6 @@ function cachePeersResolution<Pkg extends PartialResolvedPackage> (
     missingPeers: opts.allMissingPeers,
     depPath: pDefer(),
     resolvedPeers: opts.allResolvedPeers,
-    hoistedPeerProviderPeers: new Set([...opts.allResolvedPeers.keys()].filter((name) => opts.parentPkgs[name]?.hoistedPeerProvider)),
     ownerNodeId: opts.nodeId,
   }
   if (ctx.peersCache.has(pkgIdWithPatchHash)) {

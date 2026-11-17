@@ -51,10 +51,6 @@ pub(super) struct PeersCacheItem {
     pub(super) owner_node_id: NodeId,
     pub(super) dep_path: DepPath,
     pub(super) resolved_peers: Arc<HashMap<String, NodeId>>,
-    /// The names in `resolved_peers` bound through a
-    /// [`ParentRef::hoisted_provider`]. A hit needs the same provenance,
-    /// since only a hoisted provider is range-checked for an optional peer.
-    pub(super) hoisted_provider_peers: HashSet<String>,
     pub(super) missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
     pub(super) missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
     /// See [`NodeOutput::subtree_missing_by_pkg`]. Replayed on a cache
@@ -65,12 +61,6 @@ pub(super) struct PeersCacheItem {
 }
 
 impl PeersCacheItem {
-    /// Whether `current_ref` reached this node the way the cached binding
-    /// of `name` did, through [`ParentRef::hoisted_provider`] or not.
-    pub(super) fn has_provenance_of(&self, name: &str, current_ref: &ParentRef) -> bool {
-        current_ref.hoisted_provider == self.hoisted_provider_peers.contains(name)
-    }
-
     /// The [`NodeOutput`] a cache hit hands the reusing walk; output
     /// fields the verdict doesn't carry come back empty.
     fn to_node_output(&self) -> NodeOutput {
@@ -196,6 +186,22 @@ impl Walker<'_> {
         cache_items.find(|item| self.item_matches(item, parent_refs))
     }
 
+    /// A cached binding is reused for a hoisted provider only if no
+    /// optional peer could reject it. A rejection the cached walk made is a
+    /// missing peer, which a present provider already fails to match.
+    pub(super) fn hoisted_provider_may_be_rejected(
+        &self,
+        peer_name: &str,
+        current_ref: &ParentRef,
+    ) -> bool {
+        current_ref.hoisted_provider
+            && self.caches.peers_cache.optional_peer_ranges.rejects(
+                self.tree,
+                self.caches.view_generation(),
+                (peer_name, &current_ref.version),
+            )
+    }
+
     fn item_matches(&self, item: &PeersCacheItem, parent_refs: &ParentRefs) -> bool {
         let resolved_still_match = item.resolved_peers
             .iter()
@@ -203,7 +209,7 @@ impl Walker<'_> {
                 parent_refs
                     .get(name)
                     .is_some_and(|current_ref| {
-                        item.has_provenance_of(name, current_ref)
+                        !self.hoisted_provider_may_be_rejected(name, current_ref)
                             && self.parent_ref_matches_cached(current_ref, cached_node_id)
                     })
             });

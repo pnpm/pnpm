@@ -1300,3 +1300,55 @@ async fn a_cached_binding_to_a_declared_provider_does_not_bind_an_optional_peer_
     .await;
     assert_eq!(linters["."], "linter@2.0.0");
 }
+
+/// `b` peer-depends on `a`, and `d` deep under `b` peer-depends on `b`. `x`
+/// brings in `a@2.0.0`, whose own `b` the importer's hoisted `b` stands in
+/// for, so `d` keeps a single variant.
+#[tokio::test]
+async fn a_hoisted_peer_provider_keeps_standing_in_for_an_equal_ancestor_provider() {
+    let mut table = HashMap::default();
+    let manifests = [
+        serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "b": "1.0.0" } }),
+        serde_json::json!({ "name": "a", "version": "2.0.0", "dependencies": { "b": "1.0.0" } }),
+        serde_json::json!({
+            "name": "b",
+            "version": "1.0.0",
+            "dependencies": { "c": "1.0.0" },
+            "peerDependencies": { "a": "*" },
+        }),
+        serde_json::json!({ "name": "c", "version": "1.0.0", "dependencies": { "d": "1.0.0" } }),
+        serde_json::json!({ "name": "d", "version": "1.0.0", "peerDependencies": { "b": "*" } }),
+        serde_json::json!({ "name": "x", "version": "1.0.0", "dependencies": { "a": "2.0.0" } }),
+    ];
+    for manifest in manifests {
+        let name = manifest["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let version = manifest["version"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        table.insert((name.clone(), version.clone()), fake_result(&name, &version, None, manifest));
+    }
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp_root, root_manifest) =
+        fake_manifest(serde_json::json!({ "a": "1.0.0", "x": "1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest }];
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(tmp_root.path().to_path_buf(), None)
+    })
+    .await
+    .unwrap();
+
+    let mut d_variants: Vec<String> = result.peers.graph
+        .keys()
+        .map(ToString::to_string)
+        .filter(|dep_path| dep_path.starts_with("d@"))
+        .collect();
+    d_variants.sort();
+    assert_eq!(d_variants, ["d@1.0.0(b@1.0.0(a@1.0.0))"]);
+}

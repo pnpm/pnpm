@@ -8,6 +8,7 @@ import type { DeferredPromise } from 'p-defer'
 
 import type { PeerNodeRecord } from './finalizePeerContexts.js'
 import type { NodeId } from './nextNodeId.js'
+import type { OptionalPeerRanges } from './optionalPeerRanges.js'
 import type {
   DependenciesTree,
   DependenciesTreeNode,
@@ -89,10 +90,6 @@ export type MissingPeers = Map<string, MissingPeerInfo>
 export interface PeersCacheItem {
   depPath: DeferredPromise<DepPath>
   resolvedPeers: Map<string, NodeId>
-  // The names in resolvedPeers bound through a ParentRef.hoistedPeerProvider.
-  // A hit needs the same provenance, since only a hoisted provider is
-  // range-checked for an optional peer.
-  hoistedPeerProviderPeers: Set<string>
   missingPeers: MissingPeers
   // The node whose resolution created this entry and will resolve depPath.
   // See breakDepPathAwaitCycles.
@@ -141,6 +138,7 @@ export interface ResolveNodePeersContext<Pkg extends PartialResolvedPackage> ext
   rootDir: ProjectRootDir
   lockfileDir: string
   peersSuffixMaxLength: number
+  optionalPeerRanges: OptionalPeerRanges
 }
 
 export interface CurrentProviderSource {
