@@ -385,6 +385,53 @@ CREATE TABLE IF NOT EXISTS team_directory (
 INSERT INTO team_directory (singleton, generation) VALUES (1, 0)
     ON DUPLICATE KEY UPDATE singleton = team_directory.singleton;
 
+-- The grants of the instance: on the registries of `grant_registries`, for
+-- the packages `grant_patterns` select, each subject of `grant_subjects` may
+-- do its actions.
+CREATE TABLE IF NOT EXISTS grants (
+    grant_id VARBINARY(512) NOT NULL PRIMARY KEY,
+    name VARBINARY(512) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- The registries a grant covers, by key; `*` is every registry.
+CREATE TABLE IF NOT EXISTS grant_registries (
+    grant_id VARBINARY(512) NOT NULL,
+    registry VARBINARY(512) NOT NULL,
+    PRIMARY KEY (grant_id, registry)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX grant_registries_by_registry
+    ON grant_registries (registry);
+
+-- The package patterns of a grant. A grant without an including pattern
+-- (`exclude` = 0) covers every package; an excluding one (`exclude` = 1)
+-- takes packages out.
+CREATE TABLE IF NOT EXISTS grant_patterns (
+    grant_id VARBINARY(512) NOT NULL,
+    exclude BIGINT NOT NULL,
+    pattern VARBINARY(512) NOT NULL,
+    PRIMARY KEY (grant_id, exclude, pattern)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- An action a grant gives a subject: a built-in group, an account ID, or
+-- `team:<team_id>`.
+CREATE TABLE IF NOT EXISTS grant_subjects (
+    grant_id VARBINARY(512) NOT NULL,
+    subject VARBINARY(512) NOT NULL,
+    action VARBINARY(512) NOT NULL,
+    PRIMARY KEY (grant_id, subject, action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX grant_subjects_by_subject
+    ON grant_subjects (subject);
+
+-- The generation of the last change to the grant tables, so a replica
+-- rereads them only after one.
+CREATE TABLE IF NOT EXISTS grant_directory (
+    singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
+    generation BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+INSERT INTO grant_directory (singleton, generation) VALUES (1, 0)
+    ON DUPLICATE KEY UPDATE singleton = grant_directory.singleton;
+
 -- The hosted store this database is bound to.
 CREATE TABLE IF NOT EXISTS hosted_store (
     singleton BIGINT PRIMARY KEY CHECK (singleton = 1),

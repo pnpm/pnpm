@@ -230,6 +230,8 @@ async fn store_unreadable_graph(storage: &Storage) {
         vacated: &[],
         bound: &[],
         teams: &[],
+        seeded: &[],
+        removed: &[],
     };
     storage.write_registry_graph(current, unreadable).await.unwrap();
 }
@@ -244,6 +246,8 @@ async fn restore_graph(storage: &Storage) {
         vacated: &[],
         bound: &[],
         teams: &[],
+        seeded: &[],
+        removed: &[],
     };
     storage.write_registry_graph(current, revision).await.unwrap();
 }

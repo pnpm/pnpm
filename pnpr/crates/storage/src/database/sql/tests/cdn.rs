@@ -15,6 +15,8 @@ async fn write_graph(storage: &Storage, document: &str) {
         vacated: &[],
         bound: &[],
         teams: &[],
+        seeded: &[],
+        removed: &[],
     };
     let written = storage.write_registry_graph(current, revision).await.unwrap();
     assert!(matches!(written, RegistryGraphWrite::Written(_)), "{written:?}");

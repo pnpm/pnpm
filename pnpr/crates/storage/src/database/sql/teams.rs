@@ -33,8 +33,8 @@ pub enum TeamCreation {
 pub enum TeamRemoval {
     Removed,
     NotFound,
-    /// An access list of the stored registry graph names the team, so nothing
-    /// was removed.
+    /// An access list of the stored registry graph or a grant names the team,
+    /// so nothing was removed.
     Named,
 }
 
@@ -91,7 +91,9 @@ impl Storage {
             if !team_exists(&*transaction, &id)? {
                 return Ok(TeamRemoval::NotFound);
             }
-            if graph_names_team(&*transaction, &id)? {
+            if graph_names_team(&*transaction, &id)?
+                || super::grants::grants_name_team(&*transaction, &id)?
+            {
                 return Ok(TeamRemoval::Named);
             }
             transaction.execute("DELETE FROM team_members WHERE team_id = ?1", params![&id])?;

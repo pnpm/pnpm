@@ -19,6 +19,8 @@ fn revision(document: &str) -> NewRegistryGraph<'_> {
         vacated: &[],
         bound: &[],
         teams: &[],
+        seeded: &[],
+        removed: &[],
     }
 }
 
@@ -126,6 +128,8 @@ async fn revisions_list_newest_first_in_pages(db: Db) {
                 vacated: &[],
                 bound: &[],
                 teams: &[],
+                seeded: &[],
+                removed: &[],
             },
         )
         .await

@@ -217,6 +217,8 @@ async fn store_revision(
         vacated: &target.hosted.vacated,
         bound: &target.hosted.bound,
         teams: &target.hosted.teams,
+        seeded: &[],
+        removed: &[],
     };
     match state.inner.storage.write_registry_graph(target.current, revision).await? {
         RegistryGraphWrite::Written(generation) => Ok(Some(generation)),

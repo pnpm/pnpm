@@ -122,6 +122,8 @@ fn naming<'a>(document: &'a str, teams: &'a [String]) -> NewRegistryGraph<'a> {
         vacated: &[],
         bound: &[],
         teams,
+        seeded: &[],
+        removed: &[],
     }
 }
 

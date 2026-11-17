@@ -174,6 +174,8 @@ async fn write_into(storage: &Storage, document: &RegistryGraphDocument) {
         vacated: &[],
         bound: &bound,
         teams: &[],
+        seeded: &[],
+        removed: &[],
     };
     let written =
         storage.write_registry_graph(current, revision).await.expect("store the registries");
