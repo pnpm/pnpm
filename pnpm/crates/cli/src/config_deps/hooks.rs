@@ -268,6 +268,9 @@ fn warn_legacy_registries_for_config<Reporter: self::Reporter>(
     current: &Value,
     config: &Config,
 ) {
+    if !has_legacy_registries_update(input, current) {
+        return;
+    }
     let mut final_routes = config.resolved_registry_lookups().registries_by_scope;
     final_routes.insert("default".to_string(), config.registry.clone());
     warn_legacy_registries::<Reporter>(input, current, &final_routes);
