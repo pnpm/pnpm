@@ -768,6 +768,12 @@ Can be specified as an integer number of seconds (e.g. `10`) or with a duration 
 packumentTtl: 30s
 ```
 
+A request for a version, its tarball, or its manifest that the fresh packument
+does not list refetches the packument, at most once a minute per package. A
+version published upstream after the fetch is then served without waiting for
+the TTL. Within a minute of the last fetch or refetch attempt, pnpr answers
+`404` for an unlisted version without asking the upstream.
+
 ## `maxTarballSize`
 
 The largest tarball pnpr fetches from an upstream registry. The same limit

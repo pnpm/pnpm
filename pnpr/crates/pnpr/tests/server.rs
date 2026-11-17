@@ -53,6 +53,9 @@ mod platform_variants;
 #[path = "server/version_tarballs.rs"]
 mod version_tarballs;
 
+#[path = "server/unlisted_versions.rs"]
+mod unlisted_versions;
+
 #[path = "server/packument_caching.rs"]
 mod packument_caching;
 

@@ -6,8 +6,9 @@ use super::{
     dist_view, ensure_osv_allowed, extract_upstream_version_manifest, extract_version_manifest,
     is_osv_vulnerable_packument_version, is_tar_registry, not_found,
     package_responses::processing::admission::DocumentSource, packument_response,
-    read_source_packument, registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
-    serve_tarball_via_upstream, tar_integrities_of, tarball_response,
+    read_source_packument, registry_endpoint, reload_source_packument_lacking_version,
+    resolve_version_or_tag, serve_packument_via_upstream, serve_tarball_via_upstream,
+    tar_integrities_of, tarball_response,
 };
 use axum::response::IntoResponse;
 
