@@ -64,7 +64,7 @@ fn occurrences_of_one_package_report_the_union_of_their_missing_peers() {
 
 #[test]
 fn discovery_reuses_nested_providers_with_retained_bindings() {
-    use super::{HashMap, NodeId, ParentRef, PeerWalkMode, WalkResult};
+    use super::{HashMap, NodeId, ParentRef, ParentRefs, PeerWalkMode, WalkResult};
     use crate::{ResolvedTree, resolve_peers::test_support::walker_for_tests};
     use pnpm_deps_path::DepPath;
 
@@ -86,6 +86,7 @@ fn discovery_reuses_nested_providers_with_retained_bindings() {
             node_id,
             &Arc::from("provider@1.0.0"),
             &WalkResult {
+                parent_refs: &ParentRefs::default(),
                 dep_path: &path,
                 all_resolved_peers: &bindings,
                 all_missing_peers: &missing,
@@ -103,6 +104,7 @@ fn discovery_reuses_nested_providers_with_retained_bindings() {
         &NodeId::next(),
         &Arc::from("consumer@1.0.0"),
         &WalkResult {
+            parent_refs: &ParentRefs::default(),
             dep_path: &DepPath::from("consumer@1.0.0(provider@1.0.0(inner@1.0.0))"),
             all_resolved_peers: &consumer_peers,
             all_missing_peers: &missing,

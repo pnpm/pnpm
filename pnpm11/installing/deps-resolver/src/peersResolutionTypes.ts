@@ -90,6 +90,10 @@ export type MissingPeers = Map<string, MissingPeerInfo>
 export interface PeersCacheItem {
   depPath: DeferredPromise<DepPath>
   resolvedPeers: Map<string, NodeId>
+  // The peers in resolvedPeers and missingPeers that this entry saw through
+  // a restricted provider, with the provider's version.
+  // See restrictedProviderVersion.
+  restrictedProviders: Map<string, string>
   missingPeers: MissingPeers
   // The node whose resolution created this entry and will resolve depPath.
   // See breakDepPathAwaitCycles.
@@ -155,6 +159,8 @@ export interface ParentPkgInfo {
   version?: string
   depth?: number
   occurrence?: number
+  /** See restrictedProviderVersion. */
+  restrictedProviderVersion?: string
 }
 
 export type ParentPkgsOfNode = Map<NodeId, Record<string, ParentPkgInfo>>

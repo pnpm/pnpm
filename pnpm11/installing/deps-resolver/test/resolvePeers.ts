@@ -2725,6 +2725,53 @@ describe('an optional peer provided by a hoisted peer provider', () => {
       b: 'linter@2.0.0(plugin@1.0.0)',
     })
   })
+
+  // host peer-depends on linter, which is resolved before host. Project "b"
+  // declares plugin, and project "a" gets it hoisted.
+  test.each([
+    [['a', 'b']],
+    [['b', 'a']],
+  ])('does not reuse a consumer of a peer that was bound through another provider (projects %j)', async (projectIds) => {
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [pluginNodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: packageOf('plugin', '1.0.0'),
+        depth: 0,
+      }],
+    ])
+    const projects = projectIds.map((id) => {
+      const linterNodeId = `>${id}>linter@2.0.0>` as NodeId
+      const hostNodeId = `>${id}>host@1.0.0>` as NodeId
+      dependenciesTree.set(linterNodeId, linterNode('^2.0.0'))
+      dependenciesTree.set(hostNodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: packageOf('host', '1.0.0', { linter: { version: '*' } }),
+        depth: 0,
+      })
+      return {
+        directNodeIdsByAlias: new Map([['linter', linterNodeId], ['host', hostNodeId], ['plugin', pluginNodeId]]),
+        ...(id === 'a' ? { hoistedPeerProviderNodeIds: new Set([pluginNodeId]) } : {}),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id,
+      }
+    })
+    const { dependenciesByProjectId } = await resolvePeers({
+      allPeerDepNames: new Set(['plugin', 'linter']),
+      projects,
+      resolvedImporters: {},
+      dependenciesTree,
+      virtualStoreDir: '',
+      lockfileDir: '',
+      virtualStoreDirMaxLength: 120,
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    expect(dependenciesByProjectId['a'].get('host')).toBe('host@1.0.0(linter@2.0.0)')
+    expect(dependenciesByProjectId['b'].get('host')).toBe('host@1.0.0(linter@2.0.0(plugin@1.0.0))')
+  })
 })
 
 function peerSetOf (peers: PeerDependencies): PeerSet {

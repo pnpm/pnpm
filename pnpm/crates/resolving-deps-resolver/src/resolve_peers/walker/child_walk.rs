@@ -164,6 +164,10 @@ impl Walker<'_> {
                 owner_node_id: node_id.clone(),
                 dep_path: result.dep_path.clone(),
                 resolved_peers: Arc::clone(result.all_resolved_peers),
+                restricted_providers: self.restricted_providers(
+                    result.parent_refs,
+                    result.all_resolved_peers.keys().chain(result.all_missing_peers.keys()),
+                ),
                 missing_peers: Arc::clone(result.all_missing_peers),
                 missing_peers_of_children: Arc::clone(result.missing_peers_of_children),
                 subtree_missing_by_pkg: result.subtree_missing_by_pkg.clone(),

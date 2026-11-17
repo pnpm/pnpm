@@ -1,7 +1,7 @@
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
 
-import type { PartialResolvedPackage } from './peersResolutionTypes.js'
+import type { ParentRef, ParentRefs, PartialResolvedPackage } from './peersResolutionTypes.js'
 import type { DependenciesTree } from './resolveDependencies.js'
 
 /** Every optional peer range declared in the tree, by peer name. */
@@ -23,10 +23,36 @@ export function collectOptionalPeerRanges<Pkg extends PartialResolvedPackage> (d
   return ranges
 }
 
-/** Whether some optional peer range declared for `peerName` rejects `version`. */
-export function isOutsideAnOptionalPeerRange (ranges: OptionalPeerRanges, peerName: string, version: string): boolean {
+/**
+ * The version of `provider` when it is restricted: a hoisted peer provider
+ * that some optional peer range in the tree rejects. Only such a provider can
+ * resolve a subtree differently from a declared one, so a cached peer
+ * resolution is reused only under the restriction it was recorded under.
+ */
+export function restrictedProviderVersion (
+  ranges: OptionalPeerRanges,
+  peerName: string,
+  provider: ParentRef | undefined
+): string | undefined {
+  if (provider?.hoistedPeerProvider !== true) return undefined
   for (const range of ranges.get(peerName) ?? []) {
-    if (!semverUtils.satisfiesWithPrereleases(version, range, true)) return true
+    if (!semverUtils.satisfiesWithPrereleases(provider.version, range, true)) return provider.version
   }
-  return false
+  return undefined
+}
+
+/** The restricted providers among the `parentPkgs` of `peerNames`, by peer name. */
+export function restrictedProviderVersions (
+  ranges: OptionalPeerRanges,
+  parentPkgs: ParentRefs,
+  peerNames: string[]
+): Map<string, string> {
+  const versions = new Map<string, string>()
+  for (const peerName of peerNames) {
+    const version = Object.hasOwn(parentPkgs, peerName)
+      ? restrictedProviderVersion(ranges, peerName, parentPkgs[peerName])
+      : undefined
+    if (version != null) versions.set(peerName, version)
+  }
+  return versions
 }

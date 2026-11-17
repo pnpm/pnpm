@@ -7,6 +7,7 @@ import { addDepPathOrDeferCalculation } from './addNodeDepPath.js'
 import { findHit } from './findPeersCacheHit.js'
 import { pinLockedPeerProviders } from './lockedPeerProviders.js'
 import type { NodeId } from './nextNodeId.js'
+import { type OptionalPeerRanges, restrictedProviderVersion, restrictedProviderVersions } from './optionalPeerRanges.js'
 import { parentPkgsMatch, toPkgByName } from './parentRefs.js'
 import { inheritedParentPkgBreaksPeerDiamond } from './peerDiamond.js'
 import type {
@@ -16,6 +17,7 @@ import type {
   MissingPeers,
   ParentPkgInfo,
   ParentPkgNode,
+  ParentRef,
   ParentRefs,
   PartialResolvedPackage,
   PeersCacheItem,
@@ -222,7 +224,7 @@ async function resolveUncachedPeersOfNode<Pkg extends PartialResolvedPackage> (
     missingPeers: allMissingPeers,
     calculateDepPath: addDepPathOrDeferCalculation(ctx, {
       ...opts,
-      cache: cachePeersResolution(ctx, { resolvedPackage, nodeId, isPure, allResolvedPeers, allMissingPeers }),
+      cache: cachePeersResolution(ctx, { resolvedPackage, nodeId, isPure, allResolvedPeers, allMissingPeers, parentPkgs: opts.parentPkgs }),
       isPure,
       allResolvedPeers,
       ownResolvedPeers: ownPeers.resolvedPeers,
@@ -252,6 +254,7 @@ function cachePeersResolution<Pkg extends PartialResolvedPackage> (
     isPure: boolean
     allResolvedPeers: Map<string, NodeId>
     allMissingPeers: MissingPeers
+    parentPkgs: ParentRefs
   }
 ): PeersCacheItem | undefined {
   const { pkgIdWithPatchHash } = opts.resolvedPackage
@@ -275,6 +278,7 @@ function cachePeersResolution<Pkg extends PartialResolvedPackage> (
     missingPeers: opts.allMissingPeers,
     depPath: pDefer(),
     resolvedPeers: opts.allResolvedPeers,
+    restrictedProviders: restrictedProviderVersions(ctx.optionalPeerRanges, opts.parentPkgs, [...opts.allResolvedPeers.keys(), ...opts.allMissingPeers.keys()]),
     ownerNodeId: opts.nodeId,
   }
   if (ctx.peersCache.has(pkgIdWithPatchHash)) {
@@ -332,23 +336,34 @@ function getChildNodeIdsInResolutionOrder (children: ChildrenMap, parentPkgs: Pa
 }
 
 function getParentPkgInfos<Pkg extends PartialResolvedPackage> (
-  ctx: { allPeerDepNames: Set<string>, dependenciesTree: DependenciesTree<Pkg> },
+  ctx: { allPeerDepNames: Set<string>, dependenciesTree: DependenciesTree<Pkg>, optionalPeerRanges: OptionalPeerRanges },
   parentPkgs: ParentRefs
 ): Record<string, ParentPkgInfo> {
   const parentDepPaths: Record<string, ParentPkgInfo> = {}
   for (const [name, parentPkg] of Object.entries(parentPkgs)) {
     if (!ctx.allPeerDepNames.has(name)) continue
-    if (parentPkg.nodeId && (typeof parentPkg.nodeId === 'number' || !parentPkg.nodeId.startsWith('link:'))) {
-      parentDepPaths[name] = {
-        pkgIdWithPatchHash: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as Pkg).pkgIdWithPatchHash,
-        depth: parentPkg.depth,
-        occurrence: parentPkg.occurrence,
-      }
-    } else {
-      parentDepPaths[name] = { version: parentPkg.version }
+    const parentPkgInfo = getParentPkgInfo(ctx.dependenciesTree, parentPkg)
+    const restrictedVersion = restrictedProviderVersion(ctx.optionalPeerRanges, name, parentPkg)
+    if (restrictedVersion != null) {
+      parentPkgInfo.restrictedProviderVersion = restrictedVersion
     }
+    parentDepPaths[name] = parentPkgInfo
   }
   return parentDepPaths
+}
+
+function getParentPkgInfo<Pkg extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<Pkg>,
+  parentPkg: ParentRef
+): ParentPkgInfo {
+  if (parentPkg.nodeId && (typeof parentPkg.nodeId === 'number' || !parentPkg.nodeId.startsWith('link:'))) {
+    return {
+      pkgIdWithPatchHash: (dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as Pkg).pkgIdWithPatchHash,
+      depth: parentPkg.depth,
+      occurrence: parentPkg.occurrence,
+    }
+  }
+  return { version: parentPkg.version }
 }
 
 async function resolvePeersOfEachChild<Pkg extends PartialResolvedPackage> (

@@ -143,3 +143,115 @@ fn provider_identity_comparison_terminates_on_peer_cycles() {
     }
     assert_eq!(walker.provider_identity_match(&current, &cached), CacheMatch::Match);
 }
+
+/// `strict` rejects `plugin@1.0.0` through an optional peer, which makes a
+/// hoisted `plugin@1.0.0` a restricted provider.
+fn tree_with_a_rejecting_optional_peer() -> ResolvedTree {
+    use crate::resolve_peers::test_support::package_with_peer_dependencies;
+
+    let strict =
+        package_with_peer_dependencies("strict", "1.0.0", &[("plugin", "^2.0.0", true)], true);
+    let plugin = package("plugin", "1.0.0", &[], true);
+    let mut tree = ResolvedTree::default();
+    tree.dependencies_tree.insert(
+        NodeId::leaf(&plugin.id),
+        tree_node(&plugin.id, BTreeMap::new(), 0),
+    );
+    for pkg in [strict, plugin] {
+        tree.packages.insert(Arc::clone(&pkg.id), pkg);
+    }
+    tree
+}
+
+fn plugin_ref(hoisted_provider: bool) -> crate::resolve_peers::context::ParentRefs {
+    use crate::resolve_peers::context::ParentRef;
+
+    HashMap::from_iter([(
+        "plugin".to_string(),
+        ParentRef {
+            node_id: Some(NodeId::leaf("plugin@1.0.0")),
+            version: "1.0.0".into(),
+            alias: None,
+            hoisted_provider,
+        },
+    )])
+}
+
+fn cache_item_of_consumer(
+    walker: &crate::resolve_peers::walker::Walker<'_>,
+    recorded_under: &crate::resolve_peers::context::ParentRefs,
+    plugin_is_missing: bool,
+) -> super::PeersCacheItem {
+    use crate::resolve_peers::walker::MissingPeerInfo;
+
+    let plugin = "plugin".to_string();
+    let resolved = HashMap::from_iter([(plugin.clone(), NodeId::leaf("plugin@1.0.0"))]);
+    let missing = HashMap::from_iter([(
+        plugin.clone(),
+        MissingPeerInfo {
+            range: "^2.0.0".to_string(),
+            declaring_pkg_id: "strict@1.0.0".into(),
+            optional: true,
+        },
+    )]);
+    let (resolved, missing) = if plugin_is_missing {
+        (HashMap::default(), missing)
+    } else {
+        (resolved, HashMap::default())
+    };
+    super::PeersCacheItem {
+        owner_node_id: NodeId::next(),
+        dep_path: DepPath::from("consumer@1.0.0"),
+        restricted_providers: walker.restricted_providers(recorded_under, std::iter::once(&plugin)),
+        resolved_peers: Arc::new(resolved),
+        missing_peers: Arc::new(missing),
+        missing_peers_of_children: Arc::new(HashMap::default()),
+        subtree_missing_by_pkg: None,
+    }
+}
+
+#[test]
+fn a_cached_verdict_is_reused_only_under_the_restriction_it_was_recorded_under() {
+    use crate::resolve_peers::test_support::PeerCacheMode;
+
+    let mut tree = tree_with_a_rejecting_optional_peer();
+    let mut walker = walker_for_tests(&mut tree);
+    walker.opts.cache_mode = PeerCacheMode::Enabled;
+    let consumer: Arc<str> = "consumer@1.0.0".into();
+    let (hoisted, declared) = (plugin_ref(true), plugin_ref(false));
+
+    let bound_to_hoisted = cache_item_of_consumer(&walker, &hoisted, false);
+    walker.caches.peers_cache.push(&consumer, bound_to_hoisted);
+    assert!(walker.find_hit(&hoisted, &consumer).is_some());
+    assert!(walker.find_hit(&declared, &consumer).is_none());
+
+    let rejected_hoisted = cache_item_of_consumer(&walker, &hoisted, true);
+    let rejecter: Arc<str> = "rejecter@1.0.0".into();
+    walker.caches.peers_cache.push(&rejecter, rejected_hoisted);
+    assert!(walker.find_hit(&hoisted, &rejecter).is_some());
+    assert!(walker.find_hit(&declared, &rejecter).is_none());
+
+    let bound_to_declared = cache_item_of_consumer(&walker, &declared, false);
+    let other: Arc<str> = "other@1.0.0".into();
+    walker.caches.peers_cache.push(&other, bound_to_declared);
+    assert!(walker.find_hit(&declared, &other).is_some());
+    assert!(walker.find_hit(&hoisted, &other).is_none());
+}
+
+/// No optional peer range rejects `plugin@1.0.0` here, so a hoisted
+/// provider resolves every subtree as a declared one does.
+#[test]
+fn an_unrestricted_hoisted_provider_reuses_a_verdict_recorded_under_a_declared_one() {
+    use crate::resolve_peers::test_support::PeerCacheMode;
+
+    let mut tree = tree_with_a_rejecting_optional_peer();
+    tree.packages.remove("strict@1.0.0");
+    let mut walker = walker_for_tests(&mut tree);
+    walker.opts.cache_mode = PeerCacheMode::Enabled;
+    let consumer: Arc<str> = "consumer@1.0.0".into();
+    let (hoisted, declared) = (plugin_ref(true), plugin_ref(false));
+
+    let bound_to_declared = cache_item_of_consumer(&walker, &declared, false);
+    walker.caches.peers_cache.push(&consumer, bound_to_declared);
+    assert!(walker.find_hit(&hoisted, &consumer).is_some());
+}

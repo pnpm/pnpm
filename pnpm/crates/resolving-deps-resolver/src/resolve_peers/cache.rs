@@ -7,6 +7,7 @@ mod realize_children;
 
 mod fast_match;
 mod provider_match;
+mod restricted_providers;
 
 use crate::{
     dependencies_graph::MissingPeer,
@@ -51,6 +52,10 @@ pub(super) struct PeersCacheItem {
     pub(super) owner_node_id: NodeId,
     pub(super) dep_path: DepPath,
     pub(super) resolved_peers: Arc<HashMap<String, NodeId>>,
+    /// The peers in `resolved_peers` and `missing_peers` this verdict saw
+    /// through a restricted provider, with the provider's version. See
+    /// [`Walker::restricted_version`].
+    pub(super) restricted_providers: HashMap<String, Arc<str>>,
     pub(super) missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
     pub(super) missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
     /// See [`NodeOutput::subtree_missing_by_pkg`]. Replayed on a cache
@@ -186,22 +191,6 @@ impl Walker<'_> {
         cache_items.find(|item| self.item_matches(item, parent_refs))
     }
 
-    /// A cached binding is reused for a hoisted provider only if no
-    /// optional peer could reject it. A rejection the cached walk made is a
-    /// missing peer, which a present provider already fails to match.
-    pub(super) fn hoisted_provider_may_be_rejected(
-        &self,
-        peer_name: &str,
-        current_ref: &ParentRef,
-    ) -> bool {
-        current_ref.hoisted_provider
-            && self.caches.peers_cache.optional_peer_ranges.rejects(
-                self.tree,
-                self.caches.view_generation(),
-                (peer_name, &current_ref.version),
-            )
-    }
-
     fn item_matches(&self, item: &PeersCacheItem, parent_refs: &ParentRefs) -> bool {
         let resolved_still_match = item.resolved_peers
             .iter()
@@ -209,14 +198,14 @@ impl Walker<'_> {
                 parent_refs
                     .get(name)
                     .is_some_and(|current_ref| {
-                        !self.hoisted_provider_may_be_rejected(name, current_ref)
+                        self.has_restriction_of(item, name, current_ref)
                             && self.parent_ref_matches_cached(current_ref, cached_node_id)
                     })
             });
         resolved_still_match
-            && !item.missing_peers
+            && item.missing_peers
                 .keys()
-                .any(|missing| parent_refs.contains_key(missing))
+                .all(|missing| self.missing_peer_still_missing(item, missing, parent_refs))
     }
 
     pub(super) fn finish_cache_hit(

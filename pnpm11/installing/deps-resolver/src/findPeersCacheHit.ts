@@ -1,11 +1,10 @@
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
 import type { NodeId } from './nextNodeId.js'
-import { isOutsideAnOptionalPeerRange, type OptionalPeerRanges } from './optionalPeerRanges.js'
+import { type OptionalPeerRanges, restrictedProviderVersion } from './optionalPeerRanges.js'
 import type {
   ParentPkgInfo,
   ParentPkgsOfNode,
-  ParentRef,
   ParentRefs,
   PartialResolvedPackage,
   PeersCache,
@@ -41,27 +40,27 @@ function cacheItemMatchesParentPkgs<Pkg extends PartialResolvedPackage> (
   cache: PeersCacheItem
 ): boolean {
   for (const [name, cachedNodeId] of cache.resolvedPeers) {
-    if (hoistedProviderMayBeRejected(ctx, parentPkgs[name], name)) return false
+    if (restrictedProviderVersion(ctx.optionalPeerRanges, name, parentPkgs[name]) !== cache.restrictedProviders.get(name)) return false
     if (!cachedPeerMatches(ctx, parentPkgs[name]?.nodeId, cachedNodeId)) return false
   }
   for (const missingPeer of cache.missingPeers.keys()) {
-    if (Object.hasOwn(parentPkgs, missingPeer)) return false
+    if (!missingPeerIsStillMissing(ctx, parentPkgs, { cache, missingPeer })) return false
   }
   return true
 }
 
 /**
- * A cached binding can be reused for a hoisted provider only if no optional
- * peer could reject it. A rejection the cached walk made is a missing peer,
- * which a present provider already fails to match.
+ * A missing peer stays missing when nothing provides it, or when the
+ * restricted provider that the cached resolution rejected provides it.
  */
-function hoistedProviderMayBeRejected (
+function missingPeerIsStillMissing (
   ctx: { optionalPeerRanges: OptionalPeerRanges },
-  provider: ParentRef | undefined,
-  peerName: string
+  parentPkgs: ParentRefs,
+  { cache, missingPeer }: { cache: PeersCacheItem, missingPeer: string }
 ): boolean {
-  return provider?.hoistedPeerProvider === true &&
-    isOutsideAnOptionalPeerRange(ctx.optionalPeerRanges, peerName, provider.version)
+  if (!Object.hasOwn(parentPkgs, missingPeer)) return true
+  const restrictedVersion = restrictedProviderVersion(ctx.optionalPeerRanges, missingPeer, parentPkgs[missingPeer])
+  return restrictedVersion != null && restrictedVersion === cache.restrictedProviders.get(missingPeer)
 }
 
 function cachedPeerMatches<Pkg extends PartialResolvedPackage> (
@@ -125,6 +124,7 @@ function parentPkgMatches (
   const { version, pkgIdWithPatchHash } = opts.cachedParentPkg
   const { checkedParentPkg } = opts
   if (checkedParentPkg == null) return false
+  if (opts.cachedParentPkg.restrictedProviderVersion !== checkedParentPkg.restrictedProviderVersion) return false
   if (version && checkedParentPkg.version) {
     return version === checkedParentPkg.version
   }
