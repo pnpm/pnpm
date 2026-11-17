@@ -33,9 +33,9 @@ use super::{
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being
 /// importer-independent. True for the `link:` / `file:` / `workspace:`
-/// protocols, whose resolved path `resolve_from_local_package` derives
-/// from `project_dir`. Such resolutions must not be shared across
-/// importers in [`WantedKey`].
+/// protocols and for a bare local path, whose resolved path
+/// `resolve_from_local_package` derives from `project_dir`. Such
+/// resolutions must not be shared across importers in [`WantedKey`].
 ///
 /// [`WantedKey`]: super::workspace_ctx::WantedKey
 pub(super) fn project_relative_cache_scope(
@@ -45,7 +45,10 @@ pub(super) fn project_relative_cache_scope(
     (wanted.bare_specifier
         .as_deref()
         .is_some_and(|spec| {
-            spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
+            spec.starts_with("link:")
+                || spec.starts_with("file:")
+                || spec.starts_with("workspace:")
+                || pnpm_local_spec::bare_path_is_unambiguous(spec)
         })
         || (opts.project.link_workspace_packages.enabled_at_depth(0)
             && opts.project.workspace_packages.is_some()))
@@ -127,16 +130,6 @@ pub struct TreeCtx {
         Arc<super::workspace_ctx::WorkspaceResolutionOptionsKey>,
     pub(super) options: ResolutionDepthOptions,
     pub(super) importer: TreeImporterContext,
-}
-
-impl TreeCtx {
-    pub(super) fn lockfile_dir(&self) -> &Path {
-        if self.options.base.project.lockfile_dir.as_os_str().is_empty() {
-            self.catalogs_dir.as_deref().unwrap_or(&self.importer.lockfile_dir)
-        } else {
-            &self.options.base.project.lockfile_dir
-        }
-    }
 }
 
 pub(super) struct ResolutionDepthOptions {

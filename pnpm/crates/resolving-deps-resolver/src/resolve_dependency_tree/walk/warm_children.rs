@@ -132,7 +132,7 @@ pub(super) async fn warm_result_children<Chain>(
                 opts,
                 &mut wanted,
                 declaring_dir.as_deref(),
-                Some(ctx.lockfile_dir()),
+                Some(&ctx.importer.lockfile_dir),
             );
             async move { warm_child(ctx, resolver, wanted, opts.as_ref(), depth, prior).await }
         })

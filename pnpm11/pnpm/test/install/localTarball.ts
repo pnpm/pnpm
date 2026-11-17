@@ -88,6 +88,8 @@ test('a local tarball child link resolves from the lockfile directory', () => {
 
   const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
   expect(lockfile).toContain('child: link:child')
+  const installedTarball = fs.realpathSync('packages/app/node_modules/tar-package')
+  expect(fs.realpathSync(path.join(installedTarball, '../child'))).toBe(fs.realpathSync('child'))
 })
 
 function packLocalTarball (packageDir: string, tarball: string): void {

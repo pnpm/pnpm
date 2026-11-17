@@ -165,7 +165,7 @@ where
         return Ok(Some(Arc::new(result)));
     }
     let base = edge_opts(ctx, wanted, edge, prior_key);
-    let fallback_dir = (edge.depth > 0).then_some(ctx.lockfile_dir());
+    let fallback_dir = (edge.depth > 0).then_some(ctx.importer.lockfile_dir.as_path());
     let opts = opts_for_child_spec(&base, wanted, edge.parent_dir, fallback_dir);
     let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
     match resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)

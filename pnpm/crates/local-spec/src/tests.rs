@@ -70,6 +70,18 @@ fn leaves_a_home_relative_specifier_alone() {
     }
 }
 
+#[test]
+fn keeps_a_home_relative_specifier_that_leaves_the_home_directory() {
+    for specifier in ["link:~/../shared", "file:~/../shared/x.tgz"] {
+        assert_eq!(render(specifier, Some("packages/foo")), specifier);
+        assert_eq!(render(specifier, None), specifier);
+    }
+    assert_eq!(
+        render_filesystem("~/../shared", Some("packages/foo")).as_deref(),
+        Some("~/../shared")
+    );
+}
+
 /// A home-relative path is recognized only after normalization, so the
 /// backslash spelling needs its own case: were the two ever reordered,
 /// this form would be re-anchored under the workspace instead.

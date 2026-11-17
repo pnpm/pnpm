@@ -63,8 +63,7 @@ pub(super) fn spec_satisfies_snapshot_dep(
 }
 
 fn uses_injection_setting(spec: &str) -> bool {
-    spec.starts_with("workspace:")
-        || (bare_path_is_unambiguous(spec) && !pnpm_local_spec::is_tarball_filename(spec))
+    spec.starts_with("workspace:") || (bare_path_is_unambiguous(spec) && !is_tarball_filename(spec))
 }
 
 /// Whether a spec that names one exact source, a tarball URL or a git
