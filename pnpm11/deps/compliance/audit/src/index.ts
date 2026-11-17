@@ -138,7 +138,7 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
 }
 
 // Guard against registry-supplied values that could corrupt the report:
-// only accept finite numeric or non-blank string ids and severities from the known set.
+// only accept finite numeric or non-blank string ids, and severities from the known set.
 function isAcceptedAdvisory (adv: BulkAdvisory): boolean {
   return isAcceptedId(adv.id) && isKnownSeverity(adv.severity)
 }

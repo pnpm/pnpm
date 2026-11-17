@@ -5,4 +5,4 @@
 "pacquet": patch
 ---
 
-`pnpm audit` now reports advisories that have a string `id`, as some registries send. It used to drop them and report no known vulnerabilities [#18184](https://github.com/pnpm/pnpm/issues/18184).
+`pnpm audit` now reports advisories whose `id` is a string. Such advisories were dropped, and `pnpm audit` reported no known vulnerabilities [#18184](https://github.com/pnpm/pnpm/issues/18184).

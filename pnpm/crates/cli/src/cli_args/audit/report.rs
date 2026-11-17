@@ -162,11 +162,11 @@ pub(crate) struct AuditAdvisory {
 
 /// An advisory's `id` as the registry sent it. npm sends a number, while
 /// other registries may use their own string ids.
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub(crate) enum AdvisoryId {
     Number(u64),
-    Text(String),
+    String(String),
 }
 
 impl AdvisoryId {
@@ -174,7 +174,7 @@ impl AdvisoryId {
         match value {
             serde_json::Value::Number(number) => number.as_u64().map(Self::Number),
             serde_json::Value::String(text) if !text.trim().is_empty() => {
-                Some(Self::Text(text.clone()))
+                Some(Self::String(text.clone()))
             }
             _ => None,
         }

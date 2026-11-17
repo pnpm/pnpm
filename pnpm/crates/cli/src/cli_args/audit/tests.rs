@@ -323,7 +323,7 @@ snapshots:
 
     assert_eq!(report.metadata.vulnerabilities.high, 1);
     let advisory = &report.advisories["CUSTOM-ADVISORY-1"];
-    assert_eq!(advisory.id, AdvisoryId::Text("CUSTOM-ADVISORY-1".to_string()));
+    assert_eq!(advisory.id, AdvisoryId::String("CUSTOM-ADVISORY-1".to_string()));
     assert_eq!(serde_json::to_value(advisory).unwrap()["id"], "CUSTOM-ADVISORY-1");
 }
 
