@@ -199,10 +199,10 @@ test('an unknown option is attributed to an abbreviated shorthand', async () => 
   const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: () => ({ recursive: Boolean }),
-    universalShorthands: { porcelain: '--parseable' },
-  }, ['update', '--porc'])
-  expect(Array.from(unknownOptions.keys())).toStrictEqual(['parseable'])
-  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['parseable', '--porc']])
+    universalShorthands: { development: '--dev' },
+  }, ['update', '--develop'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['dev'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['dev', '--develop']])
 })
 
 test('an unknown option is not attributed to a shorthand after an escape arg', async () => {
