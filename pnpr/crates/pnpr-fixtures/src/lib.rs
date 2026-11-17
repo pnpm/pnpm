@@ -9,8 +9,9 @@ pub use presets::{
     proxy_config, registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
 };
 pub use registries::{
-    MOCK_REGISTRIES_YAML, load_seeded_config, registries_routing, seed_registries, split_graph,
-    store_document, write_document, write_graph,
+    MOCK_GRANTS_YAML, MOCK_REGISTRIES_YAML, load_seeded_config, registries_routing,
+    registry_mock_routing, seed_registries, split_graph, store_document, write_document,
+    write_graph,
 };
 
 mod database;
@@ -236,6 +237,7 @@ fn fixture_fingerprint(root: &Path) -> String {
     // schema, must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
     hasher.update(MOCK_REGISTRIES_YAML.as_bytes());
+    hasher.update(MOCK_GRANTS_YAML.as_bytes());
     hasher.update(pnpr_storage::database::SqlDatabase::SCHEMA_VERSION.to_le_bytes());
     for statements in pnpr_storage::database::SqlDatabase::SCHEMA_STATEMENTS {
         hasher.update(statements.as_bytes());
@@ -287,6 +289,7 @@ fn build_storage(
     write_local_layout_marker(storage_root).expect("write registry fixture layout marker");
     database::write_packuments_with_archives(storage_root, packuments, archives);
     seed_storage_registries(storage_root, MOCK_REGISTRIES_YAML);
+    database::run(rules::replace(&database::open(storage_root), MOCK_GRANTS_YAML));
 }
 
 /// Store the registries document `yaml` in the database of the

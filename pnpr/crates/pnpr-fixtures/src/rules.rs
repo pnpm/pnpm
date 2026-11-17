@@ -189,3 +189,97 @@ pub(crate) async fn store(storage: &Storage, tables: &Tables) {
         assert!(matches!(written, GrantWrite::Written(_)), "{written:?}");
     }
 }
+
+/// The grants a `grants:` file declares, as `pnpr grants import` reads one,
+/// each stored under its name as its ID.
+fn declared(yaml: &str) -> Vec<StoredGrant> {
+    let file: Value = serde_saphyr::from_str(yaml).expect("parse the grants file");
+    let grants = file["grants"].as_object().expect("a `grants` map");
+    grants
+        .iter()
+        .map(|(name, grant)| StoredGrant {
+            id: name.clone(),
+            content: declared_content(name, grant),
+        })
+        .collect()
+}
+
+fn declared_content(name: &str, grant: &Value) -> GrantContent {
+    let subjects = grant["subjects"].as_object().expect("the subjects of a grant");
+    let mut subjects: Vec<(String, String)> = subjects
+        .iter()
+        .flat_map(|(subject, actions)| {
+            strings(actions)
+                .into_iter()
+                .map(move |action| (subject.clone(), action))
+        })
+        .collect();
+    subjects.sort();
+    GrantContent {
+        name: name.to_string(),
+        registries: strings(&grant["registries"]),
+        include: strings(&grant["include"]),
+        exclude: strings(&grant["exclude"]),
+        subjects,
+    }
+}
+
+/// The strings of a list, or none when the key is absent.
+fn strings(value: &Value) -> Vec<String> {
+    let entries = value.as_array().into_iter().flatten();
+    entries
+        .map(|entry| {
+            entry
+                .as_str()
+                .expect("a string")
+                .to_string()
+        })
+        .collect()
+}
+
+/// Cover the registries of `routing` with the grants the file `yaml`
+/// declares, for a test that reads the rules from the routing it built.
+pub(crate) fn apply_declared(routing: &RoutingConfig, yaml: &str) {
+    let grants = declared(yaml);
+    let tables = routing.hosted
+        .iter()
+        .map(|(key, hosted)| (key, &hosted.rules))
+        .chain(
+            routing.upstreams
+                .iter()
+                .map(|(key, upstream)| (key, &upstream.rules)),
+        );
+    for (key, rules) in tables {
+        let ecosystem = routing.registries.ecosystem(key).unwrap_or_default();
+        let covering = grants
+            .iter()
+            .filter(|grant| grant.content.registries.contains(key))
+            .map(|grant| compile(&grant.content, ecosystem))
+            .collect();
+        rules.set_grants(covering);
+    }
+}
+
+fn compile(content: &GrantContent, ecosystem: Ecosystem) -> pnpr_policy::Grant {
+    let spec = pnpr_policy::GrantSpec {
+        name: content.name.clone(),
+        include: content.include.clone(),
+        exclude: content.exclude.clone(),
+        subjects: content.subjects
+            .iter()
+            .map(|(subject, action)| {
+                (subject.clone(), pnpr_policy::Action::parse(action).expect("a known action"))
+            })
+            .collect(),
+    };
+    pnpr_policy::Grant::compile(&spec, ecosystem).expect("a grant that applies")
+}
+
+/// Make the grants the file `yaml` declares the grants of `storage`.
+pub(crate) async fn replace(storage: &Storage, yaml: &str) {
+    let written = storage
+        .replace_grants(declared(yaml), None)
+        .await
+        .expect("store the grants");
+    assert!(matches!(written, GrantWrite::Written(_)), "{written:?}");
+}

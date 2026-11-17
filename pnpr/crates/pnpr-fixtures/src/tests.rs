@@ -385,7 +385,7 @@ fn mock_config_yaml_enforces_registry_mock_protections() {
 
     let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
     let mut config = Config::from_yaml(&path, listen, None).unwrap();
-    config.routing = super::registries_routing(&config, super::MOCK_REGISTRIES_YAML);
+    config.routing = super::registry_mock_routing(&config);
     let rules = &config.routing.hosted["local"].rules;
     let table = rules.snapshot();
     let needs_auth = table.for_package("@pnpm.e2e/needs-auth");
@@ -421,9 +421,7 @@ fn mock_config_yaml_and_proxy_preset_share_the_npm_upstream_timeout() {
     let from_yaml = Config::from_yaml(&mock_config_path(), listen, None).unwrap();
     let preset = Config::proxy(listen, std::env::temp_dir());
     assert_eq!(
-        super::registries_routing(&from_yaml, super::MOCK_REGISTRIES_YAML).upstreams["npmjs"]
-            .requests
-            .timeout,
+        super::registry_mock_routing(&from_yaml).upstreams["npmjs"].requests.timeout,
         REGISTRY_MOCK_UPSTREAM_TIMEOUT,
     );
     assert_eq!(preset.routing.upstreams["npmjs"].requests.timeout, REGISTRY_MOCK_UPSTREAM_TIMEOUT);

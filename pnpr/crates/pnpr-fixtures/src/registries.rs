@@ -13,6 +13,10 @@ use std::{net::SocketAddr, path::Path};
 /// The registry-mock registries `pnpr/.fixtures/registries.yaml` declares.
 pub const MOCK_REGISTRIES_YAML: &str = include_str!("../../../.fixtures/registries.yaml");
 
+/// The grants of [`MOCK_REGISTRIES_YAML`], as `pnpr/.fixtures/grants.yaml`
+/// declares them.
+pub const MOCK_GRANTS_YAML: &str = include_str!("../../../.fixtures/grants.yaml");
+
 /// Store the registries document `yaml` as the next revision in the metadata
 /// database of `config`, and serve it from `config.routing` too.
 ///
@@ -54,6 +58,19 @@ impl Graph {
 #[must_use]
 pub fn registries_routing(config: &Config, yaml: &str) -> RoutingConfig {
     build_routing(config, &parse_document(yaml))
+}
+
+/// The routing of [`MOCK_REGISTRIES_YAML`] under `config`, covered by the
+/// grants of [`MOCK_GRANTS_YAML`], without storing either.
+///
+/// # Panics
+///
+/// A document does not parse or does not build.
+#[must_use]
+pub fn registry_mock_routing(config: &Config) -> RoutingConfig {
+    let routing = registries_routing(config, MOCK_REGISTRIES_YAML);
+    crate::rules::apply_declared(&routing, MOCK_GRANTS_YAML);
+    routing
 }
 
 pub(crate) fn parse_document(yaml: &str) -> Graph {

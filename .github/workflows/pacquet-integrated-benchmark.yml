@@ -236,6 +236,12 @@ jobs:
             cp pnpr/.fixtures/registries.yaml "$(dirname "$fixture")/registries.yaml"
             files+=("$(dirname "$fixture")/registries.yaml")
           fi
+          # A revision whose pnpr decides access by grants has this file,
+          # and the benchmark imports it after the registries.
+          if [ -f pnpr/.fixtures/grants.yaml ]; then
+            cp pnpr/.fixtures/grants.yaml "$(dirname "$fixture")/grants.yaml"
+            files+=("$(dirname "$fixture")/grants.yaml")
+          fi
           if [ "$REVISION" = HEAD ]; then
             mkdir -p target/release
             cp "$release/pnpr" target/release/pnpr
