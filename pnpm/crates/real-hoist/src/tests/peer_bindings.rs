@@ -1,9 +1,94 @@
 use super::{
-    BTreeSet, HashMap, HoistOpts, Lockfile, ProjectSnapshot, Rc, SnapshotDepRef, SnapshotEntry,
-    assert_eq, child_of, dep_key, empty_lockfile, hoist, nm_hoist, pkg_metadata_with_peer,
-    pkg_name, resolved_dep, tree_node, tree_root, ver_peer,
+    BTreeSet, HashMap, HoistOpts, Lockfile, ProjectSnapshot, Rc, RcByPtr, SnapshotDepRef,
+    SnapshotEntry, assert_eq, child_of, dep_key, empty_lockfile, hoist, nm_hoist,
+    pkg_metadata_with_peer, pkg_name, resolved_dep, tree_node, tree_root, ver_peer,
 };
 use std::collections::BTreeMap;
+
+#[test]
+fn identical_transitive_peer_bindings_dedupe_despite_a_conflicting_ancestor() {
+    for (client_name, root_version) in
+        [("a-client", "1.0.0"), ("a-client", "2.0.0"), ("z-client", "1.0.0"), ("z-client", "2.0.0")]
+    {
+        for depth in [1, 2] {
+            let schema =
+                |version: &str| tree_node("schema", &format!("schema@{version}"), &[], vec![]);
+            let mut bridge = schema("2.0.0");
+            for level in 0..depth {
+                let name = format!("bridge-{level}");
+                bridge = tree_node(
+                    &name,
+                    &format!("{name}@1.0.0(schema@2.0.0)"),
+                    &["schema"],
+                    vec![bridge],
+                );
+            }
+            let client = tree_node(
+                client_name,
+                &format!("{client_name}@1.0.0(schema@2.0.0)"),
+                &["schema"],
+                vec![bridge],
+            );
+            let host = tree_node(
+                "host",
+                "host@1.0.0",
+                &[client_name],
+                vec![Rc::clone(&client), schema("3.0.0")],
+            );
+            let root = tree_root(vec![client, host, schema(root_version)]);
+
+            let result = nm_hoist(&root, &HoistOpts::default());
+            let host = child_of(&result, "host");
+            dbg!(&host);
+            assert_eq!(
+                host.dependencies.borrow().len(),
+                1,
+                "{client_name}, root schema {root_version}, depth {depth}: host retains only its own schema",
+            );
+            assert!(child_of(&host, "schema").references.borrow().contains("schema@3.0.0"));
+        }
+    }
+}
+
+#[test]
+fn deduplication_compares_every_transitive_peer_provider() {
+    let bridge = |name: &str, version: &str| {
+        let schema = tree_node("schema", &format!("schema@{version}"), &[], vec![]);
+        tree_node(name, &format!("{name}@1.0.0(schema@{version})"), &["schema"], vec![schema])
+    };
+    let client = |second_version: &str| {
+        tree_node(
+            "client",
+            "client@1.0.0",
+            &["schema"],
+            vec![bridge("bridge-a", "2.0.0"), bridge("bridge-b", second_version)],
+        )
+    };
+    for root_version in ["2.0.0", "4.0.0"] {
+        let host = tree_node("host", "host@1.0.0", &[], vec![client("4.0.0")]);
+        let root = tree_root(vec![client(root_version), host]);
+        let result = nm_hoist(&root, &HoistOpts::default());
+        let host = child_of(&result, "host");
+        dbg!(&host);
+        assert_eq!(host.dependencies.borrow().is_empty(), root_version == "4.0.0");
+    }
+}
+
+#[test]
+fn a_transitive_peer_cycle_without_a_provider_uses_the_ancestor() {
+    let bridge = tree_node("bridge", "bridge@1.0.0", &["schema"], vec![]);
+    let client = tree_node("client", "client@1.0.0", &["schema"], vec![Rc::clone(&bridge)]);
+    bridge.dependencies
+        .borrow_mut()
+        .insert(RcByPtr(Rc::clone(&client)));
+    let schema = tree_node("schema", "schema@2.0.0", &[], vec![]);
+    let host = tree_node("host", "host@1.0.0", &[], vec![Rc::clone(&client)]);
+    let root = tree_root(vec![client, host, schema]);
+
+    let result = nm_hoist(&root, &HoistOpts::default());
+    let host = child_of(&result, "host");
+    assert_eq!(host.dependencies.borrow().len(), 0);
+}
 
 #[test]
 fn identical_peer_bindings_dedupe_despite_a_conflicting_ancestor() {

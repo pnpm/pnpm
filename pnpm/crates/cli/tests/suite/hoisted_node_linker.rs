@@ -1274,6 +1274,8 @@ mod local_symlinks;
 
 mod modules_dir;
 
+mod peer_bindings;
+
 mod repeat_install;
 
 mod scripts;
