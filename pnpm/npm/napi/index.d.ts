@@ -648,6 +648,11 @@ export interface DependentsOptions {
    */
   manifestFields?: string[]
   /**
+   * Whether to fill each dependent's `requires`. Default `false`, which
+   * reads no dependency manifest for it.
+   */
+  includeRequires?: boolean
+  /**
    * Whether a `devDependencies` entry of the root importer provides a peer to
    * every importer when a walk that leaves out a group decides which
    * optional-peer edges to skip. Default `false`.
@@ -661,7 +666,10 @@ export interface DependentNode {
   /** Rendered in place of `name`, when set. */
   displayName?: string
   version: string
-  /** The raw dependency specifier the parent declared for this edge. */
+  /**
+   * The raw dependency specifier the parent declared for this edge. Set
+   * only with `includeRequires`.
+   */
   requires?: string
   /** The node was reached again on its own path; the walk stopped there. */
   circular?: boolean

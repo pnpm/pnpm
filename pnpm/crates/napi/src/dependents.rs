@@ -82,6 +82,9 @@ pub struct DependentsOptions {
     /// tree, as `manifest`. Nodes whose manifest is missing (and every
     /// workspace-project node) carry none.
     pub manifest_fields: Option<Vec<String>>,
+    /// Whether to fill each dependent's `requires`. Defaults to `false`,
+    /// which reads no dependency manifest for it.
+    pub include_requires: Option<bool>,
     /// Whether a `devDependencies` entry of the root importer provides a peer to
     /// every importer when a walk that leaves out a group decides which
     /// optional-peer edges to skip. Defaults to `false`.
@@ -265,8 +268,16 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
         search: &searcher,
         importer_info: &importer_info,
         manifest_fields: options.manifest_fields.as_deref().unwrap_or_default(),
-        dependency_specifiers: DependencySpecifiers::All,
+        dependency_specifiers: dependency_specifiers(options),
     }))
+}
+
+fn dependency_specifiers(options: &DependentsOptions) -> DependencySpecifiers {
+    if options.include_requires.unwrap_or(false) {
+        DependencySpecifiers::All
+    } else {
+        DependencySpecifiers::Omit
+    }
 }
 
 fn registry_routes(options: &DependentsOptions) -> BTreeMap<String, String> {

@@ -271,3 +271,6 @@ fn state_project_dirs(state: &State, lockfile_dir: &Path) -> miette::Result<Vec<
 }
 
 mod ranges;
+
+#[cfg(test)]
+mod tests;
