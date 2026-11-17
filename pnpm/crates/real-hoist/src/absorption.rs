@@ -246,6 +246,7 @@ fn would_shadow_peer(
         .any(|peer_name| {
             let providers = resolved_peer_providers(candidate, peer_name, || {
                 nearest_peer_provider(peer_name, ancestor_path)
+                    .or_else(|| ctx.used.get(peer_name).map(Rc::clone))
             });
             let targets =
                 target_peer_providers(candidate, peer_name, ancestor_path, ctx, root_index);
@@ -283,7 +284,9 @@ fn same_inherited_peer_provider(
     match (left, right) {
         (NotRequired, NotRequired) | (Missing, Missing) => true,
         (Resolved(left), Resolved(right)) => same_locator(left, right),
-        _ => false,
+        (NotRequired, Missing | Resolved(_))
+        | (Missing, NotRequired | Resolved(_))
+        | (Resolved(_), NotRequired | Missing) => false,
     }
 }
 
@@ -341,7 +344,7 @@ fn resolved_peer_providers(
     }
     let mut bindings = TransitivePeerProviders::default();
     collect_transitive_peer_providers(node, peer_name, &mut bindings);
-    let inherited = if bindings.needs_inherited_provider() {
+    let inherited = if bindings.has_unbound_branches() {
         inherited_provider().map_or(InheritedPeerProvider::Missing, InheritedPeerProvider::Resolved)
     } else {
         InheritedPeerProvider::NotRequired
@@ -358,7 +361,7 @@ struct TransitivePeerProviders {
 
 impl TransitivePeerProviders {
     /// A branch inherits when no recorded provider is reachable, including in cycles.
-    fn needs_inherited_provider(&mut self) -> bool {
+    fn has_unbound_branches(&mut self) -> bool {
         while let Some(node) = self.bound.pop() {
             if let Some(parents) = self.parents.remove(&node) {
                 self.bound.extend(parents);

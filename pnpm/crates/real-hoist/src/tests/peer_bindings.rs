@@ -59,10 +59,16 @@ fn deduplication_compares_every_transitive_peer_provider() {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum PeerBranchShape {
+    Leaf,
+    Cycle,
+}
+
 #[test]
 fn an_inherited_transitive_peer_is_not_hidden_by_a_recorded_sibling_binding() {
     let schema = |version: &str| tree_node("schema", &format!("schema@{version}"), &[], vec![]);
-    let client = |version: &str, cyclic: bool| {
+    let client = |version: &str, shape: PeerBranchShape| {
         let recorded = tree_node(
             "recorded",
             &format!("recorded@1.0.0(schema@{version})"),
@@ -70,26 +76,29 @@ fn an_inherited_transitive_peer_is_not_hidden_by_a_recorded_sibling_binding() {
             vec![schema(version)],
         );
         let inherited = tree_node("inherited", "inherited@1.0.0", &["schema"], vec![]);
-        if cyclic {
-            let cycle = tree_node("cycle", "cycle@1.0.0", &["schema"], vec![Rc::clone(&inherited)]);
-            inherited.dependencies
-                .borrow_mut()
-                .insert(RcByPtr(cycle));
+        match shape {
+            PeerBranchShape::Leaf => {}
+            PeerBranchShape::Cycle => {
+                let cycle =
+                    tree_node("cycle", "cycle@1.0.0", &["schema"], vec![Rc::clone(&inherited)]);
+                inherited.dependencies
+                    .borrow_mut()
+                    .insert(RcByPtr(cycle));
+            }
         }
         tree_node("client", "client@1.0.0", &["schema"], vec![recorded, inherited])
     };
-    for (cyclic, inherited_version) in
-        [(false, "1.0.0"), (false, "3.0.0"), (true, "1.0.0"), (true, "3.0.0")]
-    {
+    for (shape, inherited_version) in [
+        (PeerBranchShape::Leaf, "1.0.0"),
+        (PeerBranchShape::Leaf, "3.0.0"),
+        (PeerBranchShape::Cycle, "1.0.0"),
+        (PeerBranchShape::Cycle, "3.0.0"),
+    ] {
         for recorded_version in ["2.0.0", "4.0.0"] {
-            let host = tree_node(
-                "host",
-                "host@1.0.0",
-                &[],
-                vec![client("2.0.0", cyclic), schema("3.0.0")],
-            );
+            let host =
+                tree_node("host", "host@1.0.0", &[], vec![client("2.0.0", shape), schema("3.0.0")]);
             let root =
-                tree_root(vec![client(recorded_version, cyclic), host, schema(inherited_version)]);
+                tree_root(vec![client(recorded_version, shape), host, schema(inherited_version)]);
 
             let result = nm_hoist(&root, &HoistOpts::default());
             let host = child_of(&result, "host");
@@ -100,7 +109,7 @@ fn an_inherited_transitive_peer_is_not_hidden_by_a_recorded_sibling_binding() {
             assert_eq!(
                 keeps_client,
                 inherited_version != "3.0.0" || recorded_version != "2.0.0",
-                "inherited schema {inherited_version}, recorded schema {recorded_version}, cyclic {cyclic}",
+                "inherited schema {inherited_version}, recorded schema {recorded_version}, shape {shape:?}",
             );
         }
     }
@@ -336,26 +345,30 @@ fn a_transitive_peer_provider_moves_with_its_package_into_a_free_root_slot() {
 #[test]
 fn a_peer_provider_hoisted_above_a_nested_root_lets_copies_share_its_slot() {
     let schema2 = tree_node("schema", "schema@2.0.0", &[], vec![]);
-    let client2 =
-        tree_node("client", "client@2.0.0(schema@2.0.0)", &["schema"], vec![Rc::clone(&schema2)]);
-    let wrapper_a2 = tree_node("wrapper-a", "wrapper-a@2.0.0", &[], vec![Rc::clone(&client2)]);
-    let wrapper_b2 = tree_node("wrapper-b", "wrapper-b@2.0.0", &[], vec![client2]);
-    let host = tree_node("host", "host@1.0.0", &[], vec![wrapper_a2, wrapper_b2]);
-    let root = tree_root(vec![
-        tree_node("client", "client@1.0.0", &[], vec![]),
-        schema2,
-        tree_node("wrapper-a", "wrapper-a@1.0.0", &[], vec![]),
-        tree_node("wrapper-b", "wrapper-b@1.0.0", &[], vec![]),
-        host,
-    ]);
+    for client_deps in [vec![], vec![Rc::clone(&schema2)]] {
+        let client2 = tree_node("client", "client@2.0.0(schema@2.0.0)", &["schema"], client_deps);
+        let wrapper_a2 = tree_node("wrapper-a", "wrapper-a@2.0.0", &[], vec![Rc::clone(&client2)]);
+        let wrapper_b2 = tree_node("wrapper-b", "wrapper-b@2.0.0", &[], vec![client2]);
+        let host =
+            tree_node("host", "host@1.0.0", &[], vec![wrapper_a2, wrapper_b2, Rc::clone(&schema2)]);
+        let root = tree_root(vec![
+            tree_node("client", "client@1.0.0", &[], vec![]),
+            Rc::clone(&schema2),
+            tree_node("wrapper-a", "wrapper-a@1.0.0", &[], vec![]),
+            tree_node("wrapper-b", "wrapper-b@1.0.0", &[], vec![]),
+            host,
+        ]);
 
-    let result = nm_hoist(&root, &HoistOpts::default());
-    dbg!(&result);
-    let host = child_of(&result, "host");
-    for wrapper in ["wrapper-a", "wrapper-b"] {
-        assert!(child_of(&host, wrapper).dependencies.borrow().is_empty());
+        let result = nm_hoist(&root, &HoistOpts::default());
+        dbg!(&result);
+        let host = child_of(&result, "host");
+        for wrapper in ["wrapper-a", "wrapper-b"] {
+            assert!(child_of(&host, wrapper).dependencies.borrow().is_empty());
+        }
+        assert!(
+            child_of(&host, "client").references.borrow().contains("client@2.0.0(schema@2.0.0)"),
+        );
     }
-    assert!(child_of(&host, "client").references.borrow().contains("client@2.0.0(schema@2.0.0)"));
 }
 
 #[test]
