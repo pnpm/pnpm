@@ -95,13 +95,16 @@ pub(crate) struct CheckedRevision {
     pub(crate) hosted: HostedChange,
 }
 
-/// The hosted namespaces of a revision, as
-/// [`pnpr_storage::database::NewRegistryGraph`] takes them.
+/// What the write of a revision checks in its transaction, as
+/// [`pnpr_storage::database::NewRegistryGraph`] takes it.
 pub(crate) struct HostedChange {
     /// The namespaces the revision stops serving. The write checks again, in
     /// its transaction, that they hold no package.
     pub(crate) vacated: Vec<HostedNamespace>,
     pub(crate) bound: Vec<HostedNamespace>,
+    /// The IDs of the teams the revision starts to name. The write refuses
+    /// one that does not exist.
+    pub(crate) teams: Vec<String>,
 }
 
 /// Validate `next` as the revision that replaces `previous`. An invalid
@@ -119,41 +122,26 @@ pub(crate) async fn check_revision(
     check_file_references(config, &routing).map_err(refused_change)?;
     check_upstream_hosts(config, &routing, previous, next)?;
     check_public_route_hosts(config, &routing, previous, next)?;
-    check_named_teams(storage, previous, next).await?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
-    Ok(CheckedRevision { routing, hosted: HostedChange { vacated, bound: bound_namespaces(next) } })
+    let hosted =
+        HostedChange { vacated, bound: bound_namespaces(next), teams: added_teams(previous, next) };
+    Ok(CheckedRevision { routing, hosted })
 }
 
-/// Refuse a team that `next` starts to name and the database does not hold.
-/// A team that is removed afterwards has no members, so its `team:` entry
-/// admits nobody.
-async fn check_named_teams(
-    storage: &Storage,
-    previous: &RegistryGraphDocument,
-    next: &RegistryGraphDocument,
-) -> Result<(), RegistryError> {
+/// The IDs of the teams `next` names and `previous` does not.
+fn added_teams(previous: &RegistryGraphDocument, next: &RegistryGraphDocument) -> Vec<String> {
     let known = previous.named_teams();
-    let added: Vec<&str> = next
-        .named_teams()
+    next.named_teams()
         .into_iter()
         .filter(|team| !known.contains(team))
-        .collect();
-    if added.is_empty() {
-        return Ok(());
-    }
-    let stored = storage
-        .read_teams(None)
-        .await?
-        .map(|stored| stored.teams)
-        .unwrap_or_default();
-    match added
-        .into_iter()
-        .find(|id| !stored.iter().any(|team| team.id == *id))
-    {
-        Some(id) => Err(RegistryError::BadRequest {
-            reason: format!("the access lists name `team:{id}`, and no team has that ID"),
-        }),
-        None => Ok(()),
+        .map(str::to_string)
+        .collect()
+}
+
+/// The refusal of a write that names the team `id`, which does not exist.
+pub(crate) fn unknown_team_error(id: &str) -> RegistryError {
+    RegistryError::BadRequest {
+        reason: format!("the access lists name `team:{id}`, and no team has that ID"),
     }
 }
 

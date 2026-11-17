@@ -3,7 +3,7 @@ use super::{
 };
 use crate::server::{
     AppState, RegistryError, managed_state::WRITE_ATTEMPTS, scim::resources::apply_patch,
-    team_directory::reload_teams,
+    team_directory::follow_write,
 };
 use pnpr_auth::{AccountLifecycle, AccountStatusOutcome};
 use pnpr_storage::database::{NewScimUser, ScimUserRemoval, ScimUserWrite, StoredScimUser};
@@ -264,13 +264,13 @@ pub(in super::super) async fn delete_user(
         AccountLifecycle::Deactivated,
     );
     state.inner.identity.auth.users.delete_user(user_id).await?;
-    state.inner.storage.remove_team_memberships(user_id).await?;
-    reload_teams(state).await;
     state.inner.identity.auth.revoke_all_tokens(user_id).await?;
     sync_scim_state(state, &status.user_id, status.generation, Some(AccountLifecycle::Deactivated))
         .await;
     state.inner.identity.oidc.revoke_user_sessions(user_id);
     pending.disarm();
+    state.inner.storage.remove_team_memberships(user_id).await?;
+    follow_write(state).await;
     Ok(username)
 }
 

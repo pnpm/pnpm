@@ -173,6 +173,7 @@ async fn write_into(storage: &Storage, document: &RegistryGraphDocument) {
         restored_from: None,
         vacated: &[],
         bound: &bound,
+        teams: &[],
     };
     let written =
         storage.write_registry_graph(current, revision).await.expect("store the registries");

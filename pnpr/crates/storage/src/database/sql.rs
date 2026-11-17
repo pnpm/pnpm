@@ -24,7 +24,7 @@ pub use scim::{NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredSc
 pub(crate) use staged::{StagedEntry, StagedId};
 pub(crate) use store_binding::{StoreBinding, StoreClaim};
 pub use tags::TagHistoryEntry;
-pub use teams::{StoredTeam, StoredTeams, TeamCreation};
+pub use teams::{StoredTeam, StoredTeams, TeamCreation, TeamRemoval};
 pub(crate) use view::PackageMetadata;
 
 mod batch;

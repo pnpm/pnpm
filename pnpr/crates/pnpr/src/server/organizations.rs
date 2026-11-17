@@ -3,7 +3,8 @@ use super::{
     HostedConfig, HostedGate, Identity, Map, Ownership, RegistryError, RegistrySource, Response,
     StatusCode, Value, allows_with_ownership, authorize, default_registry_target,
     discovery_sources, header, hosted_gate, hosted_storage, json, needs_package_owners, not_found,
-    resolve_registry_source, team_directory::Team,
+    resolve_registry_source,
+    team_directory::{Team, Teams},
 };
 use axum::response::IntoResponse;
 use pnpr_config::RoutingConfig;
@@ -218,34 +219,49 @@ pub(super) fn team_registry<'a>(
 }
 
 /// The teams a caller who reaches `@{scope}`'s registry may see: every team
-/// for an admin, and otherwise the teams the caller is in. A caller in no team
-/// gets not-found.
+/// for an admin, and otherwise the teams the caller is in.
+pub(super) struct VisibleTeams {
+    teams: std::sync::Arc<Teams>,
+    /// `None` for an admin.
+    own: Option<Vec<String>>,
+}
+
+impl VisibleTeams {
+    pub(super) fn iter(&self) -> impl Iterator<Item = (&str, &Team)> {
+        self.teams
+            .iter()
+            .filter(|(id, _)| {
+                self.own
+                    .as_ref()
+                    .is_none_or(|own| own.iter().any(|team| team == id))
+            })
+    }
+
+    pub(super) fn named(&self, name: &str) -> Result<(&str, &Team), RegistryError> {
+        self.iter()
+            .find(|(_, team)| team.name == name)
+            .ok_or(RegistryError::NotFound)
+    }
+}
+
+/// [`VisibleTeams`] for `identity`. A caller who is in no team and is not an
+/// admin gets not-found.
 pub(super) fn visible_teams(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
-) -> Result<Vec<(String, Team)>, RegistryError> {
+) -> Result<VisibleTeams, RegistryError> {
     team_registry(state, &state.routing(), identity, registry, scope)?;
     super::require_caller(identity, "team listing")?;
     let auth = &state.inner.config.identity;
     let sees_all = auth.is_admin(identity) || auth.is_registry_admin(identity);
-    let teams: Vec<_> = state.inner.identity.managed.teams
-        .snapshot()
-        .iter()
-        .filter(|(id, _)| {
-            sees_all
-                || identity
-                    .teams()
-                    .iter()
-                    .any(|own| own == id)
-        })
-        .map(|(id, team)| (id.to_string(), team.clone()))
-        .collect();
-    if teams.is_empty() && !sees_all {
+    let own = (!sees_all).then(|| identity.teams().to_vec());
+    let visible = VisibleTeams { teams: state.inner.identity.managed.teams.snapshot(), own };
+    if !sees_all && visible.iter().next().is_none() {
         return Err(RegistryError::NotFound);
     }
-    Ok(teams)
+    Ok(visible)
 }
 
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
@@ -282,20 +298,12 @@ pub(super) async fn get_team_members(
         Ok(teams) => teams,
         Err(err) => return err.into_response(),
     };
-    let Some((_, record)) = teams
-        .into_iter()
-        .find(|(_, record)| record.name == team)
-    else {
-        return not_found();
+    let record = match teams.named(team) {
+        Ok((_, record)) => record,
+        Err(err) => return err.into_response(),
     };
-    let accounts = match state.inner.identity.auth.users.accounts_by_id(
-        &record.members
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>(),
-    )
-    .await
-    {
+    let ids: Vec<String> = record.members.iter().cloned().collect();
+    let accounts = match state.inner.identity.auth.users.accounts_by_id(&ids).await {
         Ok(accounts) => accounts,
         Err(err) => return err.into_response(),
     };

@@ -13,6 +13,7 @@ async fn oversized_keys_fail_without_truncating_or_advancing_generation() {
         restored_from: None,
         vacated: &[],
         bound: &[],
+        teams: &[],
     };
     let first = storage
         .write_registry_graph(None, revision(&boundary))

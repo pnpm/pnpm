@@ -8,7 +8,7 @@ use super::{
 };
 use axum::{body::Bytes, response::IntoResponse};
 use pnpr_config::{validate_member_name, validate_team_name};
-use pnpr_storage::database::TeamCreation;
+use pnpr_storage::database::{TeamCreation, TeamRemoval};
 use serde::Deserialize;
 
 /// The registry and scope a team request addresses. Teams belong to the
@@ -85,15 +85,16 @@ pub(super) async fn destroy_team(
     let result = async {
         let registry = admin_registry(state, identity, &target, "destroy a team")?;
         let id = team_id(state, team).await?;
-        if is_named_by_access_lists(state, &id) {
-            return Err(RegistryError::AdminConflict {
-                reason: format!(
-                    "team {team:?} is named by a registry's access rules; remove it from them first",
-                ),
-            });
+        let named = || RegistryError::AdminConflict {
+            reason: format!("team {team:?} is named by access rules; remove it from them first"),
+        };
+        if is_named_outside_the_stored_graph(state, &id) {
+            return Err(named());
         }
-        if !state.inner.storage.remove_team(&id).await? {
-            return Err(RegistryError::NotFound);
+        match state.inner.storage.remove_team(&id).await? {
+            TeamRemoval::Removed => {}
+            TeamRemoval::NotFound => return Err(RegistryError::NotFound),
+            TeamRemoval::Named => return Err(named()),
         }
         reload_written_teams(state).await;
         let actor = crate::audit::Actor::of(identity);
@@ -204,12 +205,18 @@ pub(super) fn respond(result: Result<impl IntoResponse, RegistryError>) -> Respo
     }
 }
 
-/// Whether an access list of any registry names the team `id`.
-fn is_named_by_access_lists(state: &AppState, id: &str) -> bool {
+/// Whether an access list that [`pnpr_storage::Storage::remove_team`] does
+/// not read names the team `id`: the `artifacts.owners` lists of the config
+/// file, and the rules of a graph this server was given in code.
+fn is_named_outside_the_stored_graph(state: &AppState, id: &str) -> bool {
     let routing = state.routing();
-    routing.hosted
+    let owners = &state.inner.config.features.artifacts.owners;
+    owners
         .values()
-        .any(|hosted| hosted.rules.references_team(id))
+        .any(|owner| owner.access.references_team(id) || owner.publish.references_team(id))
+        || routing.hosted
+            .values()
+            .any(|hosted| hosted.rules.references_team(id))
         || routing.upstreams
             .values()
             .any(|upstream| upstream.rules.references_team(id))

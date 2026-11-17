@@ -12,7 +12,8 @@ pub(crate) use seed::seed_default_graph;
 pub(crate) use snapshot::{RoutingSnapshot, UpstreamGuardContext, build_snapshot};
 pub(crate) use stored::{
     Credentials, FileReferences, HostedChange, check_revision, graph_version, load_stored_routing,
-    occupied_namespace_error, stored_document, stored_routing, with_stored_routing,
+    occupied_namespace_error, stored_document, stored_routing, unknown_team_error,
+    with_stored_routing,
 };
 
 mod admin;

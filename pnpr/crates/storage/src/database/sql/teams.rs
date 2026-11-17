@@ -6,6 +6,7 @@ use super::{
 };
 use crate::Storage;
 use pnpr_error::{RegistryError, Result};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredTeam {
@@ -26,6 +27,15 @@ pub struct StoredTeams {
 pub enum TeamCreation {
     Created,
     NameTaken,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TeamRemoval {
+    Removed,
+    NotFound,
+    /// An access list of the stored registry graph names the team, so nothing
+    /// was removed.
+    Named,
 }
 
 impl Storage {
@@ -62,19 +72,24 @@ impl Storage {
         .await
     }
 
-    /// Remove the team and its memberships. Reports whether there was one.
-    pub async fn remove_team(&self, id: &str) -> Result<bool> {
+    /// Remove the team and its memberships, unless the stored registry graph
+    /// names it. A graph write that starts to name a team checks for it in
+    /// its own transaction, so no stored graph names a removed team.
+    pub async fn remove_team(&self, id: &str) -> Result<TeamRemoval> {
         let id = id.to_string();
         self.database.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             if !team_exists(&*transaction, &id)? {
-                return Ok(false);
+                return Ok(TeamRemoval::NotFound);
+            }
+            if graph_names_team(&*transaction, &id)? {
+                return Ok(TeamRemoval::Named);
             }
             transaction.execute("DELETE FROM team_members WHERE team_id = ?1", params![&id])?;
             transaction.execute("DELETE FROM teams WHERE team_id = ?1", params![&id])?;
             advance_directory(&*transaction)?;
             transaction.commit()?;
-            Ok(true)
+            Ok(TeamRemoval::Removed)
         })
         .await
     }
@@ -163,6 +178,30 @@ fn remove_members(
     advance_directory(&**transaction)
 }
 
+/// The first of `ids` that no team has.
+pub(super) fn unknown_team(connection: &dyn Connection, ids: &[String]) -> Result<Option<String>> {
+    for id in ids {
+        if !team_exists(connection, id)? {
+            return Ok(Some(id.clone()));
+        }
+    }
+    Ok(None)
+}
+
+/// Whether the stored registry graph holds the access list entry `team:<id>`.
+/// The document is JSON, so the entry is in it as that quoted string.
+fn graph_names_team(connection: &dyn Connection, id: &str) -> Result<bool> {
+    let entry = serde_json::to_string(&format!("team:{id}"))?;
+    let document = connection.query_optional(
+        "SELECT document FROM registry_graph_revisions ORDER BY generation DESC LIMIT 1",
+        params![],
+    )?;
+    match document {
+        Some(mut row) => Ok(row.get::<String>(0)?.contains(&entry)),
+        None => Ok(false),
+    }
+}
+
 fn team_exists(connection: &dyn Connection, id: &str) -> Result<bool> {
     Ok(connection
         .query_optional("SELECT 1 FROM teams WHERE team_id = ?1", params![id])?
@@ -192,17 +231,19 @@ fn read_teams(connection: &dyn Connection) -> Result<Vec<StoredTeam>> {
         .into_iter()
         .map(|mut row| Ok(StoredTeam { id: row.get(0)?, name: row.get(1)?, members: Vec::new() }))
         .collect::<Result<Vec<_>>>()?;
+    let positions: HashMap<String, usize> = teams
+        .iter()
+        .enumerate()
+        .map(|(position, team)| (team.id.clone(), position))
+        .collect();
     let rows = connection.query(
         "SELECT team_id, user_id FROM team_members ORDER BY team_id, user_id",
         params![],
     )?;
     for mut row in rows {
         let (team_id, user_id): (String, String) = (row.get(0)?, row.get(1)?);
-        if let Some(team) = teams
-            .iter_mut()
-            .find(|team| team.id == team_id)
-        {
-            team.members.push(user_id);
+        if let Some(position) = positions.get(&team_id) {
+            teams[*position].members.push(user_id);
         }
     }
     Ok(teams)

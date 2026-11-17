@@ -26,6 +26,7 @@ pub(crate) async fn seed_default_graph(storage: &Storage) -> Result<(), Registry
         restored_from: None,
         vacated: &[],
         bound: &bound,
+        teams: &[],
     };
     if let RegistryGraphWrite::Written(generation) =
         storage.write_registry_graph(None, revision).await?

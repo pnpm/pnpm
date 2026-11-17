@@ -1,5 +1,7 @@
 use super::{Db, storage};
-use crate::database::{StoredTeam, TeamCreation};
+use crate::database::{
+    NewRegistryGraph, RegistryGraphWrite, StoredTeam, TeamCreation, TeamRemoval,
+};
 
 fn team(id: &str, name: &str, members: &[&str]) -> StoredTeam {
     StoredTeam {
@@ -69,7 +71,7 @@ async fn a_write_that_changes_nothing_keeps_the_generation(db: Db) {
     assert!(storage.add_team_member("t-release", "u-1").await.unwrap());
     assert!(storage.remove_team_member("t-release", "u-absent").await.unwrap());
     storage.remove_team_memberships("u-absent").await.unwrap();
-    assert!(!storage.remove_team("t-absent").await.unwrap());
+    assert_eq!(storage.remove_team("t-absent").await.unwrap(), TeamRemoval::NotFound);
     assert_eq!(
         storage
             .read_teams(Some(generation))
@@ -104,14 +106,63 @@ async fn removals_take_the_memberships_with_them(db: Db) {
         [team("t-docs", "docs", &[]), team("t-release", "release", &["u-2"])],
     );
 
-    assert!(storage.remove_team("t-release").await.unwrap());
+    assert_eq!(storage.remove_team("t-release").await.unwrap(), TeamRemoval::Removed);
     assert_eq!(teams().await, [team("t-docs", "docs", &[])]);
     // A team created under the removed one's ID starts without its members.
     storage.create_team("t-release", "release").await.unwrap();
     assert_eq!(teams().await, [team("t-docs", "docs", &[]), team("t-release", "release", &[])]);
 }
 
+/// A graph revision whose access lists start to name the team `id`.
+fn naming<'a>(document: &'a str, teams: &'a [String]) -> NewRegistryGraph<'a> {
+    NewRegistryGraph {
+        document,
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+        teams,
+    }
+}
+
+async fn a_graph_and_the_teams_it_names_are_kept_together(db: Db) {
+    let storage = storage(&db);
+    let document = r#"{"registries":{"local":{"type":"hosted","access":["team:t-release"]}}}"#;
+    let teams = ["t-release".to_string()];
+    assert_eq!(
+        storage
+            .write_registry_graph(None, naming(document, &teams))
+            .await
+            .unwrap(),
+        RegistryGraphWrite::UnknownTeam("t-release".to_string()),
+    );
+    assert_eq!(storage.read_registry_graph_generation().await.unwrap(), None);
+
+    storage.create_team("t-release", "release").await.unwrap();
+    storage.create_team("t-release-2", "release-2").await.unwrap();
+    assert_eq!(
+        storage
+            .write_registry_graph(None, naming(document, &teams))
+            .await
+            .unwrap(),
+        RegistryGraphWrite::Written(1),
+    );
+    assert_eq!(storage.remove_team("t-release").await.unwrap(), TeamRemoval::Named);
+    // An ID that only begins like the named one is free to go.
+    assert_eq!(storage.remove_team("t-release-2").await.unwrap(), TeamRemoval::Removed);
+
+    assert_eq!(
+        storage
+            .write_registry_graph(Some(1), naming("{}", &[]))
+            .await
+            .unwrap(),
+        RegistryGraphWrite::Written(2),
+    );
+    assert_eq!(storage.remove_team("t-release").await.unwrap(), TeamRemoval::Removed);
+}
+
 conformance!(
+    a_graph_and_the_teams_it_names_are_kept_together,
     another_instance_reads_teams_only_after_they_change,
     a_write_that_changes_nothing_keeps_the_generation,
     removals_take_the_memberships_with_them,

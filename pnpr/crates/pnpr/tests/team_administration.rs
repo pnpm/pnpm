@@ -263,6 +263,7 @@ async fn a_replica_that_cannot_read_the_graph_serves_no_registry() {
         restored_from: None,
         vacated: &[],
         bound: &[],
+        teams: &[],
     };
     storage.write_registry_graph(current, unreadable).await.unwrap();
     let app = router_with_auth(config, auth);
@@ -490,4 +491,22 @@ async fn one_team_admits_its_members_to_every_registry_that_names_it() {
         send(&app, "GET", "/npm/-/team/other/readers/user", Some(&member), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(members[0]["name"], "member");
+}
+
+#[tokio::test]
+async fn a_team_that_an_artifact_owner_names_cannot_be_destroyed() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!(
+        "{CONFIG}artifacts:\n  enabled: true\n  owners:\n    example:\n      access: $authenticated\n      publish: team:builders\n",
+    )
+    .replace("teams:\n", "teams:\n  builders: { name: builders, members: [] }\n");
+    let app = app_router(load_config_with(dir.path(), &yaml).await).await;
+    let root = add_user(&app, "root").await;
+    let (status, error) =
+        send(&app, "DELETE", "/npm/-/team/acme/builders", Some(&root), None).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{error}");
+    assert_eq!(
+        team_names(&app, &root).await,
+        json!([{ "name": "builders" }, { "name": "readers" }]),
+    );
 }

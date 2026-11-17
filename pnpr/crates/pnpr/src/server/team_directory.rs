@@ -6,7 +6,10 @@ use pnpr_auth::oidc::SessionUser;
 use pnpr_storage::database::StoredTeams;
 use std::{
     collections::{BTreeSet, HashMap},
-    sync::{Arc, PoisonError, RwLock},
+    sync::{
+        Arc, PoisonError, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,17 +73,32 @@ impl Teams {
     }
 }
 
-/// The teams this replica last read. A failed read keeps them.
+/// The teams this replica last read. A failed periodic read keeps them.
 #[derive(Debug, Default)]
-pub(super) struct TeamState(RwLock<Arc<Teams>>);
+pub(super) struct TeamState {
+    teams: RwLock<Arc<Teams>>,
+    /// Set while this replica could not read the teams after writing them, so
+    /// its copy may still list a member the write removed. Cleared by the
+    /// next read.
+    behind_a_write: AtomicBool,
+}
 
 impl TeamState {
     pub(super) fn snapshot(&self) -> Arc<Teams> {
-        Arc::clone(&self.0.read().unwrap_or_else(PoisonError::into_inner))
+        Arc::clone(&self.teams.read().unwrap_or_else(PoisonError::into_inner))
     }
 
     fn publish(&self, teams: Teams) {
-        *self.0.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(teams);
+        *self.teams.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(teams);
+    }
+
+    /// The teams a request's identity is built from: none while this replica
+    /// is behind its own write, so a removed member is not admitted.
+    fn for_identities(&self) -> Arc<Teams> {
+        if self.behind_a_write.load(Ordering::Acquire) {
+            return Arc::default();
+        }
+        self.snapshot()
     }
 }
 
@@ -90,14 +108,15 @@ fn teams(state: &AppState) -> Arc<Teams> {
 
 /// The identity of the account `user_id`, in the teams that list it.
 pub(super) fn account_identity(state: &AppState, user_id: String, username: String) -> Identity {
-    let teams = teams(state).of_member(&user_id).to_vec();
+    let directory = state.inner.identity.managed.teams.for_identities();
+    let teams = directory.of_member(&user_id).to_vec();
     Identity::account_member(user_id, username, teams)
 }
 
 /// The identity of a browser session: its account, in the teams that list it
 /// and the teams its groups claim earned.
 pub(super) fn session_identity(state: &AppState, user: SessionUser, username: String) -> Identity {
-    let directory = teams(state);
+    let directory = state.inner.identity.managed.teams.for_identities();
     let mut teams = directory.of_member(&user.user_id).to_vec();
     for grant in user.teams {
         if directory.contains(&grant.team_id) && !teams.contains(&grant.team_id) {
@@ -112,7 +131,11 @@ pub(super) fn session_identity(state: &AppState, user: SessionUser, username: St
 pub(super) async fn reload_teams(state: &AppState) -> bool {
     let directory = &state.inner.identity.managed.teams;
     let known = directory.snapshot().generation;
-    match read_with_deadline(state.inner.storage.read_teams(known)).await {
+    let read = read_with_deadline(state.inner.storage.read_teams(known)).await;
+    if read.is_ok() {
+        directory.behind_a_write.store(false, Ordering::Release);
+    }
+    match read {
         Ok(Some(stored)) => {
             let teams = Teams::new(stored);
             warn_of_unknown_group_teams(state, &teams);
@@ -147,7 +170,18 @@ fn warn_of_unknown_group_teams(state: &AppState, teams: &Teams) {
 /// progress, which may have read the teams before the write.
 pub(super) async fn reload_written_teams(state: &AppState) {
     let _reload = state.inner.identity.managed.reload.lock().await;
-    reload_teams(state).await;
+    follow_write(state).await;
+}
+
+/// [`reload_written_teams`] for a caller that holds the reload lock. When the
+/// read fails, requests get no team until one succeeds.
+pub(super) async fn follow_write(state: &AppState) {
+    if reload_teams(state).await {
+        return;
+    }
+    let managed = &state.inner.identity.managed;
+    managed.teams.behind_a_write.store(true, Ordering::Release);
+    managed.schedule_retry();
 }
 
 /// The ID of the team named `name`. A name this replica does not hold is

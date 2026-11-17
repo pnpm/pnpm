@@ -128,10 +128,7 @@ pub(super) fn list_team_packages(
     let result = (|| {
         let teams =
             super::organizations::visible_teams(state, identity, target.registry, target.scope)?;
-        let (id, _) = teams
-            .iter()
-            .find(|(_, record)| record.name == team)
-            .ok_or(RegistryError::NotFound)?;
+        let (id, _) = teams.named(team)?;
         let routing = state.routing();
         let (_, hosted) = team_registry(state, &routing, identity, target.registry, target.scope)?;
         let table = hosted.rules.snapshot();
