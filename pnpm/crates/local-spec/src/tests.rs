@@ -80,6 +80,7 @@ fn keeps_a_home_relative_specifier_that_leaves_the_home_directory() {
         render_filesystem("~/../shared", Some("packages/foo")).as_deref(),
         Some("~/../shared"),
     );
+    assert_eq!(render(r"link:~\..\shared", Some("packages/foo")), "link:~/../shared");
 }
 
 /// A home-relative path is recognized only after normalization, so the

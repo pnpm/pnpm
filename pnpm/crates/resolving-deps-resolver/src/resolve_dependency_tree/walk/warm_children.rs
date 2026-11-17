@@ -126,6 +126,9 @@ pub(super) async fn warm_result_children<Chain>(
     let declaring_dir = declaring_manifest_dir(&ctx.importer.lockfile_dir, parent.result);
     warmed
         .into_iter()
+        // A link into the declaring package is never resolved; see
+        // `package_root_link_result`.
+        .filter(|(wanted, _)| wanted_package_root_link(wanted).is_none())
         .map(|(wanted, prior)| {
             let mut wanted = wanted;
             let opts = opts_for_child_spec(
@@ -197,11 +200,6 @@ pub(super) async fn warm_child<Chain>(
 ) where
     Chain: Resolver + ?Sized,
 {
-    // A link into the declaring package is never resolved; see
-    // `package_root_link_result`.
-    if wanted_package_root_link(&wanted).is_some() {
-        return;
-    }
     let project_scope = project_relative_cache_scope(&wanted, opts);
     let cache_key = WantedKey::new((
         wanted.alias.clone(),
