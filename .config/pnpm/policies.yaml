@@ -36,10 +36,9 @@ auditConfig:
     # No patched release exists. It is reached only through argparse 1, which
     # formats its own help text with it, never attacker-controlled formats.
     - GHSA-hp3w-g68c-fv3c
-    # GHSA-fc5q-39xc-vjpf: picomatch ReDoS through repeated extglobs.
-    # No patched release exists. pnpm 11 and get-pnpm use it to match workspace
-    # patterns, and @yarnpkg/shell also depends on it at runtime. Crafted patterns can
-    # stall matching commands. Other paths are test/build dependencies.
+    # GHSA-fc5q-39xc-vjpf: picomatch ReDoS through single-branch repeated
+    # extglobs. No patched release exists upstream; patched locally via
+    # .config/pnpm/patches/picomatch@2.3.2.patch and picomatch@4.0.7.patch.
     - GHSA-fc5q-39xc-vjpf
     # GHSA-gcqx-w48m-w2h4: deepmerge mergeObject() prototype poisoning of returned
     # objects. No patched release exists upstream; patched locally via

@@ -1,0 +1,97 @@
+diff --git a/lib/parse.js b/lib/parse.js
+index caa2b86aa5a567df33cef4bda3c7a97794f439f8..c5e03bba6918e894e08c55577fd01ce541aaa133 100644
+--- a/lib/parse.js
++++ b/lib/parse.js
+@@ -280,6 +280,60 @@ const repeatedExtglobRecursion = pattern => {
+   return depth;
+ };
+ 
++// Scans the branch outside escapes, quotes, and brackets. Returns whether it
++// has a wildcard (a `*` that does not open an extglob, or a `!(...)`), and
++// whether the whole branch is one `!(...)`.
++const scanBranch = branch => {
++  let bracket = 0;
++  let paren = 0;
++  let quote = 0;
++  let escaped = false;
++  let wildcard = false;
++  let negationEnd = -1;
++
++  for (let i = 0; i < branch.length; i++) {
++    const ch = branch[i];
++
++    if (escaped === true) {
++      escaped = false;
++      continue;
++    }
++
++    if (ch === '\\') {
++      escaped = true;
++      continue;
++    }
++
++    if (ch === '"') {
++      quote = quote === 1 ? 0 : 1;
++      continue;
++    }
++
++    if (quote === 1) {
++      continue;
++    }
++
++    if (ch === '[') {
++      bracket++;
++    } else if (ch === ']' && bracket > 0) {
++      bracket--;
++    } else if (bracket > 0) {
++      continue;
++    } else if (ch === '(') {
++      paren++;
++    } else if (ch === ')' && paren > 0) {
++      paren--;
++      if (paren === 0 && negationEnd === -1 && branch.startsWith('!(')) {
++        negationEnd = i;
++      }
++    } else if ((ch === '*' && branch[i + 1] !== '(') || (ch === '!' && branch[i + 1] === '(')) {
++      wildcard = true;
++    }
++  }
++
++  return { wildcard, wholeNegation: negationEnd === branch.length - 1 };
++};
++
+ const analyzeRepeatedExtglob = (body, options) => {
+   if (options.maxExtglobRecursion === false) {
+     return { risky: false };
+@@ -313,6 +367,20 @@ const analyzeRepeatedExtglob = (body, options) => {
+     }
+   }
+ 
++  // GHSA-fc5q-39xc-vjpf: repeating a wildcard nests its unbounded quantifier.
++  // A branch that is one `!(...)`, or that has stars but no slashes or groups,
++  // matches every repetition of itself: its first star absorbs the repeats.
++  // Its repetition is dropped. Any other wildcard branch is risky.
++  if (branches.length === 1) {
++    const { wildcard, wholeNegation } = scanBranch(branches[0]);
++
++    if (wildcard) {
++      return wholeNegation || !/[()/]/.test(branches[0])
++        ? { risky: false, collapse: true }
++        : { risky: true };
++    }
++  }
++
+   return { risky: false };
+ };
+ 
+@@ -536,6 +604,10 @@ const parse = (input, options) => {
+       return;
+     }
+ 
++    if (analysis.collapse === true && (token.type === 'plus' || token.type === 'star')) {
++      token.close = token.type === 'plus' ? ')' : ')?';
++    }
++
+     let output = token.close + (opts.capture ? ')' : '');
+     let rest;
+ 
