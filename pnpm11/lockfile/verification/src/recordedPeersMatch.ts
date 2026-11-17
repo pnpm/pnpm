@@ -39,9 +39,10 @@ export function recordedPeersMatch (
       const peer = declared[name]
       return peer != null &&
         peerRangeMatches(ctx, { alias: name, bareSpecifier: peer.version }, recorded[name]) &&
-        (!Object.hasOwn(autoInstallable, name) || autoInstalledPeerMatchesCatalog(ctx, pkgSnapshot, { alias: name, bareSpecifier: peer.version })) &&
         Boolean(peer.optional) === Boolean(pkgSnapshot.peerDependenciesMeta?.[name]?.optional)
-    })
+    }) &&
+    Object.entries(autoInstallable).every(([name, peer]) =>
+      autoInstalledPeerMatchesCatalog(ctx, pkgSnapshot, { alias: name, bareSpecifier: peer.version }))
 }
 
 function peerRangeMatches (

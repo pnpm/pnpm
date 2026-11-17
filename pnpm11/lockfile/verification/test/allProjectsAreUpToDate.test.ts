@@ -1524,11 +1524,12 @@ describe('local file dependency', () => {
 
   describe('catalog peer of local file', () => {
     const checkCatalogPeer = async (
-      { catalogEntry, lockedPeer = '2.0.0', parentDeclaresPeer = false, autoInstallPeers = false }: {
+      { catalogEntry, lockedPeer = '2.0.0', parentDeclaresPeer = false, autoInstallPeers = false, recordsPeer = true }: {
         catalogEntry: string
         lockedPeer?: string
         parentDeclaresPeer?: boolean
         autoInstallPeers?: boolean
+        recordsPeer?: boolean
       }
     ) => {
       const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
@@ -1556,7 +1557,7 @@ describe('local file dependency', () => {
             'local@file:./local-dir': {
               ...localDirSnapshot,
               dependencies: { 'is-positive': lockedPeer },
-              peerDependencies: { 'is-positive': 'catalog:' },
+              ...(recordsPeer ? { peerDependencies: { 'is-positive': 'catalog:' } } : {}),
             },
           } as LockfileObject['packages'],
         },
@@ -1601,6 +1602,8 @@ describe('local file dependency', () => {
       })
       expect(await checkCatalogPeer({ catalogEntry: '^2.0.0', autoInstallPeers: true })).toBeTruthy()
       expect(await checkCatalogPeer({ catalogEntry: '^3.0.0', autoInstallPeers: true })).toBeFalsy()
+      expect(await checkCatalogPeer({ catalogEntry: '^2.0.0', autoInstallPeers: true, recordsPeer: false })).toBeTruthy()
+      expect(await checkCatalogPeer({ catalogEntry: '^3.0.0', autoInstallPeers: true, recordsPeer: false })).toBeFalsy()
     })
   })
 
