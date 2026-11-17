@@ -1483,3 +1483,76 @@ async fn credentials_in_a_stored_url_are_refused_by_the_api_and_import() {
         assert!(result.is_err(), "import with dry_run {dry_run} accepted it");
     }
 }
+
+#[tokio::test]
+async fn a_caller_without_cache_reads_only_what_the_upstream_cache_holds() {
+    let dir = TempDir::new().unwrap();
+    let (address, hits, server) = counting_server().await;
+    let yaml = format!(
+        "storage: {storage}\nauth:\n  admins: [alice]\n  registryAdmins: [root]\n  users:\n    maxUsers: 100\n\
+         routes:\n  allowedPrivateNetworks: ['127.0.0.0/8']\n\
+         registries:\n  up:\n    type: upstream\n    public: true\n    url: http://127.0.0.1:{port}/\n",
+        storage = storage_dir(dir.path()).display(),
+        port = address.port(),
+    );
+    let config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        public_url(),
+    )
+    .await;
+    let replica = Replica::new(config).await;
+    let grant = json!({
+        "registries": ["up"],
+        "subjects": { "alice": ["read", "cache"], "bob": ["read"] },
+    });
+    let (status, stored) = replica.as_root("PUT", "/-/pnpr/v0/admin/grants/up", Some(grant)).await;
+    assert_eq!(status, StatusCode::OK, "{stored}");
+
+    let path = "/npm/~up/example";
+    let (status, body, _) = replica.send("GET", path, Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(hits.load(Ordering::SeqCst), 0);
+
+    let (status, body, _) = replica.send("GET", path, Some(&replica.alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let fetched = hits.load(Ordering::SeqCst);
+    assert!(fetched > 0);
+
+    let (status, body, _) = replica.send("GET", path, Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(hits.load(Ordering::SeqCst), fetched);
+    server.abort();
+}
+
+#[tokio::test]
+async fn publishing_does_not_let_a_caller_change_dist_tags() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    let extra = json!({ "type": "hosted", "namespace": "extra" });
+    assert_eq!(
+        replica.as_root("PUT", &format!("{DOCUMENT}/extra"), Some(extra)).await.0,
+        StatusCode::OK,
+    );
+    let grant = |bob: Value| json!({ "registries": ["extra"], "subjects": { "$all": ["read"], "bob": bob } });
+    let grant_path = "/-/pnpr/v0/admin/grants/extra";
+    let (status, stored) =
+        replica.as_root("PUT", grant_path, Some(grant(json!(["publish"])))).await;
+    assert_eq!(status, StatusCode::OK, "{stored}");
+
+    let publish = crate::npm::publish_doc("tagged-pkg", "1.0.0", b"tarball-contents");
+    let (status, body, _) =
+        replica.send("PUT", "/npm/~extra/tagged-pkg", Some(&replica.bob), Some(publish)).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let tag = "/npm/~extra/-/package/tagged-pkg/dist-tags/beta";
+    let (status, body, _) =
+        replica.send("PUT", tag, Some(&replica.bob), Some(json!("1.0.0"))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+
+    let both = grant(json!(["publish", "annotate"]));
+    assert_eq!(replica.as_root("PUT", grant_path, Some(both)).await.0, StatusCode::OK);
+    let (status, body, _) =
+        replica.send("PUT", tag, Some(&replica.bob), Some(json!("1.0.0"))).await;
+    assert!(status.is_success(), "{status}: {body}");
+}
