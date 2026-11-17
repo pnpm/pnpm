@@ -245,10 +245,9 @@ pub(crate) fn bulk_response_to_audit_report(
             if findings.is_empty() {
                 continue;
             }
-            let key = id.to_string();
             let advisory = normalize_advisory(raw, id, module_name.clone(), severity, findings);
             vulnerabilities.increment(severity);
-            advisories.insert(key, advisory);
+            advisories.insert(advisory.id.to_string(), advisory);
         }
     }
 
