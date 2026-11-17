@@ -152,16 +152,16 @@ fn requires_of_dependents(
 }
 
 #[test]
-fn dependency_specifiers_are_filled_only_when_included() {
+fn dependency_specifiers_fill_the_requested_levels() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = write_workspace(dir.path());
 
-    assert_eq!(
-        requires_of_dependents(dir.path(), &lockfile, DependencySpecifiers::Include),
-        (Some("^2.0.0".to_string()), Some("~1.0.0".to_string())),
-    );
-    assert_eq!(
-        requires_of_dependents(dir.path(), &lockfile, DependencySpecifiers::Omit),
-        (None, None),
-    );
+    for (specifiers, expected) in [
+        (DependencySpecifiers::All, (Some("^2.0.0"), Some("~1.0.0"))),
+        (DependencySpecifiers::DirectDependents, (Some("^2.0.0"), None)),
+        (DependencySpecifiers::Omit, (None, None)),
+    ] {
+        let (dep, importer) = requires_of_dependents(dir.path(), &lockfile, specifiers);
+        assert_eq!((dep.as_deref(), importer.as_deref()), expected, "{specifiers:?}");
+    }
 }

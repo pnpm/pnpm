@@ -162,8 +162,10 @@ impl WhyArgs {
             search: &searcher,
             importer_info: &importer_info,
             manifest_fields: &[],
-            dependency_specifiers: if self.output.json || self.ranges {
-                DependencySpecifiers::Include
+            dependency_specifiers: if self.output.json {
+                DependencySpecifiers::All
+            } else if self.ranges {
+                DependencySpecifiers::DirectDependents
             } else {
                 DependencySpecifiers::Omit
             },

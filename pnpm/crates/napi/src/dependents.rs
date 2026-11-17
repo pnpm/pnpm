@@ -265,7 +265,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
         search: &searcher,
         importer_info: &importer_info,
         manifest_fields: options.manifest_fields.as_deref().unwrap_or_default(),
-        dependency_specifiers: DependencySpecifiers::Include,
+        dependency_specifiers: DependencySpecifiers::All,
     }))
 }
 

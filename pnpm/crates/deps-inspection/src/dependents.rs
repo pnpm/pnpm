@@ -157,12 +157,26 @@ pub struct BuildDependentsOptions<'a> {
     pub dependency_specifiers: DependencySpecifiers,
 }
 
-/// Whether [`build_dependents_tree`] fills [`DependentNode::requires`].
+/// Which [`DependentNode::requires`] fields [`build_dependents_tree`] fills.
+/// A package dependent's specifier costs a read of its `package.json`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DependencySpecifiers {
-    Include,
-    /// Reads no `package.json` for them, for output that does not show them.
+    All,
+    /// Only those of the dependents that depend on a matched package itself.
+    DirectDependents,
     Omit,
+}
+
+impl DependencySpecifiers {
+    /// `depth` counts the reverse edges between a matched package and the
+    /// dependent, starting at 0.
+    fn covers(self, depth: usize) -> bool {
+        match self {
+            DependencySpecifiers::All => true,
+            DependencySpecifiers::DirectDependents => depth == 0,
+            DependencySpecifiers::Omit => false,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -306,7 +320,7 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Ve
     let mut dependents: Vec<DependentNode> = Vec::new();
     for edge in sorted_edges {
         let node = if ctx.visited.contains(&edge.parent) {
-            circular_node(ctx, edge)
+            circular_node(ctx, edge, depth)
         } else {
             expand_parent(ctx, edge, depth)
         };
@@ -317,12 +331,12 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Ve
 
 /// The parent is an ancestor of this position: report the cycle as a leaf
 /// rather than descending into it again.
-fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<DependentNode> {
+fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Option<DependentNode> {
     match &edge.parent {
         TreeNodeId::Importer(importer_id) => {
             let info = ctx.importer_info.get(importer_id)?;
             let mut node = DependentNode::leaf(info.name.clone(), info.version.clone());
-            node.requires = importer_specifier(ctx, edge);
+            node.requires = importer_specifier(ctx, edge, depth);
             node.circular = true;
             node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
             Some(node)
@@ -334,7 +348,7 @@ fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<DependentNode>
             let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
             let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
             let mut node = DependentNode::leaf(name, version);
-            node.requires = package_specifier(ctx, edge);
+            node.requires = package_specifier(ctx, edge, depth);
             node.circular = true;
             node.peers_suffix_hash = peers_suffix_hash(dep_path);
             node.merge_id = merge_id;
@@ -348,7 +362,9 @@ fn circular_node(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<DependentNode>
 /// in unless the tree already carries them elsewhere.
 fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Option<DependentNode> {
     let dep_path = match &edge.parent {
-        TreeNodeId::Importer(importer_id) => return Some(importer_node(ctx, importer_id, edge)),
+        TreeNodeId::Importer(importer_id) => {
+            return Some(importer_node(ctx, importer_id, edge, depth));
+        }
         TreeNodeId::Package(dep_path) => dep_path,
     };
     if !has_snapshot(ctx, dep_path) {
@@ -357,7 +373,7 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
     let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
     let merge_id = package_merge_id(ctx.lockfile_dir, ctx.lockfile, dep_path, &version);
     let mut node = DependentNode::leaf(name, version);
-    node.requires = package_specifier(ctx, edge);
+    node.requires = package_specifier(ctx, edge, depth);
     node.peers_suffix_hash = peers_suffix_hash(dep_path);
     node.merge_id = merge_id;
     node.manifest = ctx.manifest_reader.project(&edge.parent);
@@ -379,34 +395,35 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
 
 /// A workspace project is always a leaf: the search stops at the project
 /// that declares the dependency.
-fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> DependentNode {
+fn importer_node(
+    ctx: &WalkCtx<'_>,
+    importer_id: &str,
+    edge: &ReverseEdge,
+    depth: usize,
+) -> DependentNode {
     let (name, version) = match ctx.importer_info.get(importer_id) {
         Some(info) => (info.name.clone(), info.version.clone()),
         None => (importer_id.to_string(), String::new()),
     };
     let mut node = DependentNode::leaf(name, version);
     node.dep_field = edge.importer_dependency.as_ref().map(|dependency| dependency.field);
-    node.requires = importer_specifier(ctx, edge);
+    node.requires = importer_specifier(ctx, edge, depth);
     node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
     node
 }
 
-fn importer_specifier(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<String> {
-    match ctx.dependency_specifiers {
-        DependencySpecifiers::Include => edge.importer_dependency
-            .as_ref()
-            .map(|dependency| dependency.specifier.clone()),
-        DependencySpecifiers::Omit => None,
+fn importer_specifier(ctx: &WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Option<String> {
+    if !ctx.dependency_specifiers.covers(depth) {
+        return None;
     }
+    edge.importer_dependency.as_ref().map(|dependency| dependency.specifier.clone())
 }
 
-fn package_specifier(ctx: &WalkCtx<'_>, edge: &ReverseEdge) -> Option<String> {
-    match ctx.dependency_specifiers {
-        DependencySpecifiers::Include => {
-            ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.kind)
-        }
-        DependencySpecifiers::Omit => None,
+fn package_specifier(ctx: &WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Option<String> {
+    if !ctx.dependency_specifiers.covers(depth) {
+        return None;
     }
+    ctx.manifest_reader.dependency_specifier(&edge.parent, &edge.alias, edge.kind)
 }
 
 fn importer_identity(lockfile_dir: &std::path::Path, importer_id: &str) -> String {
