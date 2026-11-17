@@ -15,10 +15,7 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::WORKSPACE_STATE_FILENAME;
 use std::{
     fs,
-    os::unix::{
-        fs::PermissionsExt,
-        process::{CommandExt, ExitStatusExt},
-    },
+    os::unix::{fs::PermissionsExt, process::ExitStatusExt},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -38,23 +35,17 @@ const PLAIN_FILE_REL: &str = concat!(
 );
 
 fn pnpm_with_umask(dir: &Path, umask: libc::mode_t, args: &[&str]) {
-    let mut command = Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(dir)
-        .without_ambient_pnpm_config();
-    // SAFETY: `umask` is always safe to call, and this closure runs in the
-    // forked child between `fork` and `exec`, where only async-signal-safe
-    // operations are allowed and a syscall is one.
-    unsafe {
-        command.pre_exec(move || {
-            libc::umask(umask);
-            Ok(())
-        });
-    }
-    let output = command
-        .args(args)
-        .output()
-        .expect("run pnpm");
+    let pnpm = Command::cargo_bin("pnpm").expect("find the pnpm binary");
+    // Set the mask before exec without a `pre_exec` hook.
+    let mut command = Command::new("/bin/sh").with_current_dir(dir).without_ambient_pnpm_config();
+    command
+        .arg("-c")
+        .arg(r#"umask "$1" || exit; shift; exec "$@""#)
+        .arg("sh")
+        .arg(format!("{umask:o}"))
+        .arg(pnpm.get_program())
+        .args(args);
+    let output = command.output().expect("run pnpm");
     assert!(
         output.status.success(),
         "{args:?} under umask {umask:#o} failed: {} (signal: {:?})\nstdout:\n{}\nstderr:\n{}",
