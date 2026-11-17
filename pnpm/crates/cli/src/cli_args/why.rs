@@ -162,13 +162,7 @@ impl WhyArgs {
             search: &searcher,
             importer_info: &importer_info,
             manifest_fields: &[],
-            dependency_specifiers: if self.output.json {
-                DependencySpecifiers::All
-            } else if self.ranges {
-                DependencySpecifiers::DirectDependents
-            } else {
-                DependencySpecifiers::Omit
-            },
+            dependency_specifiers: self.dependency_specifiers(),
         })))
     }
 
@@ -199,6 +193,17 @@ impl WhyArgs {
             searcher.set_finder_results(results);
         }
         Ok(searcher)
+    }
+
+    /// The specifiers shown by the format that [`Self::render`] picks.
+    fn dependency_specifiers(&self) -> DependencySpecifiers {
+        if self.ranges {
+            DependencySpecifiers::DirectDependents
+        } else if self.output.json && !self.output.parseable {
+            DependencySpecifiers::All
+        } else {
+            DependencySpecifiers::Omit
+        }
     }
 
     fn render(&self, trees: &[DependentsTree]) -> String {
