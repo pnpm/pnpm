@@ -33,6 +33,10 @@ pub struct CliLayer {
     /// [`CommandTarget::GlobalPackages`],
     /// which applies [`Config::global_packages_config`].
     pub command_target: CommandTarget,
+
+    /// The dependency groups `pnpm install` includes, which pick the Node.js
+    /// runtime for project engine checks. `None` includes every group.
+    pub included_dependency_groups: Option<Vec<pnpm_package_manifest::DependencyGroup>>,
 }
 
 /// What a command acts on.

@@ -93,6 +93,9 @@ pub enum InitStateError {
 
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<InstallabilityError>),
+
+    #[display("loading the project runtime lockfile: {_0}")]
+    Lockfile(#[error(not(source))] String),
 }
 
 impl State {

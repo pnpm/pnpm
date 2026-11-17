@@ -119,6 +119,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'rootProjectManifest'
 | 'selectedProjectsGraph'
 > & Partial<Pick<Config, 'ci' | 'loglevel' | 'reporter'>>
+& Partial<Pick<ConfigContext, 'nodeVersionFromEnginesRuntime'>>
 & CreateStoreControllerOptions & {
   argv: {
     cooked?: string[]

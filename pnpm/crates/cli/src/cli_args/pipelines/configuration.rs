@@ -116,6 +116,8 @@ fn apply_install_git_branch_lockfiles_config(
 
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
     args.dependency_options.apply(cfg);
+    cfg.cli.included_dependency_groups =
+        Some(args.dependency_options.dependency_groups(cfg.optional).collect());
     args.network_cache.apply(cfg);
     args.lockfile_updates.dedupe.apply(cfg);
     args.scripts.apply(cfg);
