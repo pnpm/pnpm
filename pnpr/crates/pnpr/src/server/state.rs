@@ -172,7 +172,6 @@ impl IdentityServices {
         // changes; see `registry_graph::check_file_references`.
         if config.graph_source == GraphSource::Supplied {
             super::oidc::validate_workloads(config, routing)?;
-            super::oidc_groups::validate_group_grants(config, routing)?;
         }
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;

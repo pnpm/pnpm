@@ -12,7 +12,6 @@ repository.workspace = true
 
 [dependencies]
 pnpr-registry = { workspace = true }
-indexmap = { workspace = true }
 
 [lints]
 workspace = true

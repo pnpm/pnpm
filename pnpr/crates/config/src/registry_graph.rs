@@ -13,8 +13,7 @@ use rules::{build_rules, registry_access_list};
 use super::{
     DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, PackageAccess,
     PackagePattern, Registries, Registry, RegistryConfigError, RegistryError, RegistryFile,
-    TarballFormat, TeamDirectory, UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams,
-    resolve_upstream_config,
+    TarballFormat, UpstreamConfig, UpstreamConfigFile, UpstreamFile, resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -210,12 +209,11 @@ pub(super) fn build_hosted_entry(
     {
         return Err(namespace_collision_error(name, &namespace, other));
     }
-    let teams = TeamDirectory::new(build_teams(name, &registry.teams)?);
-    let access = registry_access_list(name, registry.access.as_ref(), &teams)?;
+    let access = registry_access_list(name, registry.access.as_ref())?;
     let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
-    let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
+    let rules = build_rules(name, ecosystem, &packages, access)?;
     let patterns = rules.patterns();
-    Ok((HostedConfig { namespace, rules, teams }, ecosystem, patterns))
+    Ok((HostedConfig { namespace, rules }, ecosystem, patterns))
 }
 
 /// An environment in which every variable is set to a stand-in, for checking
@@ -243,10 +241,9 @@ pub(super) fn build_upstream_entry<Sys: EnvVar>(
     let ecosystem = upstream.ecosystem.unwrap_or_default();
     // The registry-level default the rules fall back to: the upstream's
     // `access:` gate, or `$all` for a public origin.
-    let teams = TeamDirectory::new(build_teams(name, &upstream.teams)?);
-    let access = registry_access_list(name, upstream.access.as_ref(), &teams)?;
+    let access = registry_access_list(name, upstream.access.as_ref())?;
     let packages = ecosystem_package_keys(name, ecosystem, upstream.packages.clone())?;
-    let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
+    let rules = build_rules(name, ecosystem, &packages, access)?;
     if rules.refines_writes() {
         return Err(RegistryError::InvalidConfig {
             reason: format!(
@@ -257,10 +254,10 @@ pub(super) fn build_upstream_entry<Sys: EnvVar>(
     }
     let patterns = rules.patterns();
     if !resolve_upstreams {
-        resolve_upstream_registry::<UnreadCredentials>(name, upstream, &teams)?;
+        resolve_upstream_registry::<UnreadCredentials>(name, upstream)?;
         return Ok((None, ecosystem, patterns));
     }
-    let mut resolved = resolve_upstream_registry::<Sys>(name, upstream, &teams)?;
+    let mut resolved = resolve_upstream_registry::<Sys>(name, upstream)?;
     resolved.rules = rules;
     Ok((Some(resolved), ecosystem, patterns))
 }
@@ -273,7 +270,6 @@ pub(super) fn build_upstream_entry<Sys: EnvVar>(
 pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
     name: &str,
     file: UpstreamFile,
-    teams: &TeamDirectory,
 ) -> Result<UpstreamConfig, RegistryError> {
     validate_upstream_access(name, &file)?;
     let access = if file.public { None } else { file.access };
@@ -290,7 +286,7 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
         search: file.search,
         access,
     };
-    resolve_upstream_config::<Sys>(name, upstream_config_file, teams)
+    resolve_upstream_config::<Sys>(name, upstream_config_file)
 }
 
 /// Public origins must reject credentials and access gates rather than silently

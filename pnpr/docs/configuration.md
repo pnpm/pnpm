@@ -218,7 +218,7 @@ them, and the grammar is deliberately small:
 | `$authenticated` | Any logged-in user. |
 | `$anonymous` | Callers with no credentials. |
 | `$owners` | The package's owners and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its owner. An npm package's owners are its maintainers. Valid only in `publish` and `unpublish` lists. |
-| `team:<id>` | The members of a [team](#teams) declared on this registry. |
+| `team:<id>` | The members of the [team](#teams) with that ID. |
 | `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
 
 Tokens are validated when the registries are stored:
@@ -228,8 +228,8 @@ Tokens are validated when the registries are stored:
   are errors suggesting the `$` form.
 - `team:` is the only typed prefix; any other `<kind>:` prefix is an error.
   (IDs cannot contain `:`.)
-- `team:<id>` must resolve to a team the **same registry** declares. An
-  undeclared team ID is refused, so a typo can't silently grant to nobody.
+- `team:<id>` must name a team that exists. An unknown team ID is refused, so
+  a typo can't silently grant to nobody.
 - One entry is one token: an entry containing whitespace is an error, so write
   `[<account-id-1>, <account-id-2>]` rather than `<account-id-1> <account-id-2>`.
 - The empty string is an error. To admit nobody, write `[]`; to take the
@@ -256,7 +256,6 @@ registries:
 | --- | --- |
 | `namespace` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
-| `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | Claimed package patterns and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 
@@ -304,7 +303,6 @@ registries:
 | `auth` | Server-owned credential for a private origin. `type` is `bearer` or `basic`; provide `token` as a `${NAME}` reference, or `tokenEnv: true` to read `NPM_TOKEN`, or `tokenEnv: NAME` to read a named environment variable. See [Upstream credentials](#upstream-credentials). |
 | `headers` | Extra request headers to send upstream, each value a `${NAME}` reference. If `headers.Authorization` is set, it overrides the `auth`-derived header. |
 | `access` | Which pnpr users may reach this registry at `/~<name>/` (and resolve through it). Required for a non-`public` upstream. |
-| `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
 | `packumentTtl` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
@@ -429,65 +427,47 @@ You can also set `tarballs: tar` on the main router, so the base every pnpm proj
 
 ## Teams {#teams}
 
-A team has a stable ID, a mutable name, and a list of account IDs. It is declared on the registry that uses it and
-referenced from that registry's access lists as `team:<id>`, in the
-registry-level `access:` default and the per-package `packages:` rules alike:
+A team has a stable ID, a mutable name, and a list of account IDs. Teams belong
+to the pnpr instance, not to one registry. Every registry's access lists can
+name a team as `team:<id>`, in the registry-level `access:` default and the
+per-package `packages:` rules alike:
 
 ```yaml title="registries.yaml"
 registries:
+  private:
+    type: hosted
+    access: team:<platform-team-id>
+
   corp:
     type: upstream
     url: https://npm.corp.example.com/
     auth:
       type: bearer
       tokenEnv: CORP_NPM_TOKEN
-    teams:
-      <platform-team-id>: { name: platform, members: [<account-id-1>, <account-id-2>] }
-      <frontend-team-id>: { name: frontend, members: [<account-id-3>, <account-id-4>] }
     access: team:<platform-team-id>
     packages:
       '@corp/ui':
         access: [team:<platform-team-id>, team:<frontend-team-id>]
 ```
 
-Teams are **registry-scoped**: a registry can only reference teams it declares
-itself, never another registry's. To share one roster between registries, use a
-YAML anchor:
-
-```yaml title="registries.yaml"
-registries:
-  private:
-    type: hosted
-    teams: &corpTeams
-      <platform-team-id>: { name: platform, members: [<account-id-1>, <account-id-2>] }
-    access: team:<platform-team-id>
-
-  corp:
-    type: upstream
-    url: https://npm.corp.example.com/
-    teams: *corpTeams
-    access: team:<platform-team-id>
-```
-
-A team's members are account IDs. A team cannot contain another team. An
-entry with a `:` in it is refused.
-
-The keys under `teams:` are stable team IDs. Keep a key when changing its `name`.
-Use a new key for a replacement team. Access lists and OIDC group grants refer
-to that key. A bare access token refers to an account ID.
+- pnpr keeps the teams in the [database](storage.md#database), apart from the
+  [stored registries](#registries-in-the-database). Restoring an earlier
+  revision of the registries does not change a team or its members.
+- pnpr assigns the ID when the team is created. Access lists and OIDC group
+  grants refer to the ID.
+- A team's members are accounts. A team cannot contain another team.
+- Removing an account removes it from every team.
 
 ### Managing teams through the API {#managing-teams-through-the-api}
 
-The [`auth.admins`](#auth) and `auth.registryAdmins` can edit the teams of a
-hosted npm registry with `pnpm team`.
+The [`auth.admins`](#auth) and `auth.registryAdmins` create and destroy teams
+and edit their members with `pnpm team`.
 
+- `pnpm team` names a team as `@<scope>:<team>`. The scope selects the registry
+  the request is sent to; the team itself is the same in every registry.
 - A change applies at once on the replica that took it. Other replicas follow
   the [replica reload timing](#replica-reloads).
-- A team that a `packages:` rule names cannot be destroyed.
-- The team endpoints edit only npm hosted registries, because team management
-  is specific to the npm org and team API. To change the teams of another
-  registry, replace its entry through the
-  [registry admin endpoints](endpoints.md#registry-admin-endpoints).
+- A team that an access list names cannot be destroyed.
 
 See [Team endpoints](endpoints.md#team-endpoints).
 
@@ -537,15 +517,13 @@ registries:
 
 | In the database | In the config file |
 | --- | --- |
-| `registries`, with their teams and `packages:` rules | `storage`, `cache`, `secret` |
+| `registries`, with their `packages:` rules | `storage`, `cache`, `secret` |
 | `defaultRegistry` | `auth`, including `auth.admins` and `auth.registryAdmins` |
 | `routes.public` | `routes.allowedPrivateNetworks` |
 | | `registryEnv`, and every other setting on this page |
 
 A config file that declares `registries`, `defaultRegistry`, or
-`routes.public` is refused at startup, and so is an
-[`artifacts.owners`](#registry-resolver-and-artifact-surfaces) list that names
-a `team:`. To move registries out of a config file, copy those blocks into a
+`routes.public` is refused at startup. To move registries out of a config file, copy those blocks into a
 file of their own, remove them from the config, and import the file with
 [`pnpr registries import`](cli.md#registries). `pnpr registries export`
 writes the stored registries back out in the same shape.
@@ -578,16 +556,16 @@ pnpr -c ./pnpr.yaml registries import ./registries.yaml
 `pnpr registries import --check` compares the file with the stored registries
 without changing them. It lists what differs and exits with a nonzero code when
 they differ, so a scheduled CI job can detect a change made outside the
-reviewed file. The `auth.admins` can still edit teams and package access
-lists, and `--check` reports those edits too.
+reviewed file. The `auth.admins` can still edit package access lists, and
+`--check` reports those edits too.
 
 ### Who may change the registries
 
 - `auth.registryAdmins` may change everything: add, replace, and remove
   registries, change `defaultRegistry` and `routes.public`, and restore an
   earlier revision.
-- `auth.admins` may read the stored registries and their revisions, edit
-  teams, and change the access lists of declared `packages:` keys. An admin
+- `auth.admins` may read the stored registries and their revisions, and change
+  the access lists of declared `packages:` keys. An admin
   who is not a registry admin cannot change which registry serves a name or
   where an upstream sends its credential.
 
@@ -644,9 +622,8 @@ pnpr also refuses with `409` to:
 
 - remove or rename a hosted registry that holds packages, or move it to
   another `namespace` or `ecosystem`;
-- remove a registry or team that an [OIDC](oidc.md) workload or group grant
-  names;
-- destroy a team that a `packages:` rule names.
+- remove a registry that an [OIDC](oidc.md) workload names;
+- destroy a team that an access list names.
 
 A registry is identified by its name. Renaming one removes it and adds a new
 one.
@@ -1046,8 +1023,7 @@ artifacts:
   - its [pipeline run records](pipeline-runs.md).
 
   `access` and `publish` list pnpr account IDs, or `$authenticated` for every
-  signed-in account. `owners` cannot name a team, because teams belong to the
-  [stored registries](#registries-in-the-database).
+  signed-in account, or `team:<id>` for the members of a [team](#teams).
   Publishing also requires `access`. An empty list denies everyone. An owner nobody may read is invisible: requests for it answer
   as if it did not exist. An undeclared owner is unavailable.
   See [Access evaluation](access.md) for how these rules combine with authentication.

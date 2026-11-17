@@ -51,11 +51,7 @@ fn test_resolver(origin: &str, dir: &TempDir) -> Resolver {
 }
 
 fn caller(id: &str, name: &str) -> Identity {
-    Identity::User {
-        id: id.to_string(),
-        username: name.to_string(),
-        memberships: Vec::new().into(),
-    }
+    Identity::User { id: id.to_string(), username: name.to_string(), teams: Vec::new().into() }
 }
 
 async fn read_http_path(socket: &mut tokio::net::TcpStream) -> String {

@@ -28,6 +28,7 @@ mod schema_monitor;
 mod staged_failure;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 mod startup_timeout;
+mod teams;
 mod timestamps;
 
 use crate::{

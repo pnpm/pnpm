@@ -161,49 +161,40 @@ fn rule_usernames_grant_per_user_access() {
 }
 
 #[test]
-fn teams_are_scoped_to_their_registry() {
-    // `corp` cannot reference `local`'s team: an access list resolves only
-    // against the owning registry's `teams:` map, so cross-registry reuse
-    // is a loud config error (share a roster with a YAML anchor instead).
+fn a_team_token_admits_the_members_of_that_team_in_every_registry() {
     let yaml = r"
 registries:
   local:
     type: hosted
-    teams:
-      platform: { name: platform, members: [alice] }
     packages:
       '@team/*':
-        access: team:platform
+        access: team:platform-id
   corp:
     type: hosted
     namespace: corp
     packages:
       '@corp/*':
-        access: team:platform
+        access: team:platform-id
 ";
-    let err = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            RegistryError::InvalidConfig { reason }
-                if reason.contains(r#"registry "corp""#)
-                    && reason.contains("does not declare")
-                    && reason.contains("no `teams:`"),
-        ),
-        "unexpected error: {err}",
-    );
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
+    let member = Identity::member("alice", vec!["platform-id".to_string()]);
+    for (registry, package) in [("local", "@team/x"), ("corp", "@corp/x")] {
+        let table = config.routing.hosted[registry].rules.snapshot();
+        let access = table.for_package(package).access;
+        assert!(access.allows(&member));
+        assert!(!access.allows(&Identity::user("alice")));
+        assert!(!access.allows(&Identity::user("platform-id")));
+    }
 }
 
 #[test]
 fn bare_token_matching_a_team_name_stays_a_username() {
-    // A bare token is a username even when a team of the same name exists;
-    // only the explicit `team:` form reaches the member set.
+    // A bare token is a username; only the explicit `team:` form reaches a
+    // team's members.
     let yaml = r"
 registries:
   local:
     type: hosted
-    teams:
-      platform: { name: platform, members: [alice] }
     packages:
       '@team/*':
         access: platform
@@ -212,32 +203,7 @@ registries:
     let table = config.routing.hosted["local"].rules.snapshot();
     let access = table.for_package("@team/x").access;
     assert!(access.allows(&Identity::user("platform")));
-    assert!(!access.allows(&Identity::user("alice")));
-}
-
-#[test]
-fn undeclared_team_reference_names_the_declared_teams() {
-    let yaml = r"
-registries:
-  local:
-    type: hosted
-    teams:
-      platform: { name: platform, members: [alice] }
-      release: { name: release, members: [carol] }
-    packages:
-      '@team/*':
-        access: team:platfrm
-";
-    let err = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            RegistryError::InvalidConfig { reason }
-                if reason.contains("team:platfrm")
-                    && reason.contains(r#""platform", "release""#),
-        ),
-        "unexpected error: {err}",
-    );
+    assert!(!access.allows(&Identity::member("alice", vec!["platform".to_string()])));
 }
 
 #[test]
@@ -291,40 +257,22 @@ registries:
 }
 
 #[test]
-fn team_declarations_are_validated() {
-    // A team member list is one username per entry — never a
-    // space-separated string.
-    let split_members = "    teams:\n      platform: { name: platform, members: alice bob }\n";
-    // A team name is spliced into `team:<name>` tokens, so a name the
-    // grammar cannot express is rejected at declaration.
-    let sigil_name = "    teams:\n      $all: { name: platform, members: [alice] }\n";
-    let colon_name = "    teams:\n      'a:b': { name: platform, members: [alice] }\n";
-    // A member is a plain username: a built-in group — in any spelling —
-    // would silently become a user nobody is named after, and a `team:`
-    // reference would be an unsupported nested team.
-    let builtin_member = "    teams:\n      platform: { name: platform, members: [$all] }\n";
-    let alias_member = "    teams:\n      platform: { name: platform, members: [authenticated] }\n";
-    let at_alias_member = "    teams:\n      platform: { name: platform, members: ['@all'] }\n";
-    let nested_team_member =
-        "    teams:\n      platform: { name: platform, members: ['team:release'] }\n";
-    for (teams, needle) in [
-        (split_members, r#""alice bob""#),
-        (sigil_name, "cannot contain `:` or start with `$`"),
-        (colon_name, "cannot contain `:` or start with `$`"),
-        (builtin_member, "built-in groups belong in the access lists"),
-        (alias_member, "built-in groups belong in the access lists"),
-        (at_alias_member, "built-in groups belong in the access lists"),
-        (nested_team_member, "cannot include another team"),
+fn team_and_member_names_are_validated() {
+    for name in ["$all", "a:b", "two words", ""] {
+        assert!(crate::validate_team_name(name).is_err(), "accepted the team name {name:?}");
+    }
+    crate::validate_team_name("platform").unwrap();
+    // A member is one account: a built-in group in any spelling would be an
+    // account nobody has, and a `team:` reference a nested team.
+    for (member, needle) in [
+        ("alice bob", r#""alice bob""#),
+        ("$all", "built-in groups belong in the access lists"),
+        ("authenticated", "built-in groups belong in the access lists"),
+        ("@all", "built-in groups belong in the access lists"),
+        ("team:release", "cannot include another team"),
     ] {
-        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{teams}");
-        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap_err();
-        assert!(
-            matches!(
-                &err,
-                RegistryError::InvalidConfig { reason } if reason.contains(needle),
-            ),
-            "unexpected error for {yaml:?}: {err}",
-        );
+        let reason = crate::validate_member_name(member).unwrap_err();
+        assert!(reason.contains(needle), "unexpected error for {member:?}: {reason}");
     }
 }
 

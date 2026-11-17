@@ -1,6 +1,6 @@
 use super::super::{
     AccessList, AccessSpec, Ecosystem, IndexMap, PackageAccess, PackagePattern, PackageRule,
-    PackageRules, RegistryError, TeamDirectory,
+    PackageRules, RegistryError,
 };
 
 /// Compile a `registries:` entry's registry-level `access:` value, naming the
@@ -8,10 +8,9 @@ use super::super::{
 pub(super) fn registry_access_list(
     name: &str,
     spec: Option<&AccessSpec>,
-    teams: &TeamDirectory,
 ) -> Result<Option<AccessList>, RegistryError> {
     spec.map(|spec| {
-        let list = spec.to_access_list(teams)?;
+        let list = spec.to_access_list()?;
         if list.references_owners() {
             return Err("`$owners` is not valid for registry-level `access` rules".to_string());
         }
@@ -28,13 +27,12 @@ fn compile_rule_access_list(
     key: &str,
     field: &str,
     spec: Option<&AccessSpec>,
-    teams: &TeamDirectory,
 ) -> Result<Option<AccessList>, RegistryError> {
     let Some(spec) = spec else {
         return Ok(None);
     };
     let list = spec
-        .to_access_list(teams)
+        .to_access_list()
         .map_err(|reason| RegistryError::InvalidConfig {
             reason: format!(
                 "registry {registry:?}: {key:?} has an invalid `{field}` list: {reason}",
@@ -74,7 +72,6 @@ fn compile_package_rule(
     ecosystem: Ecosystem,
     pattern: &PackagePattern,
     rule: Option<&PackageAccess>,
-    teams: &TeamDirectory,
 ) -> Result<PackageRule, RegistryError> {
     let key = pattern.to_string();
     let key = key.as_str();
@@ -86,21 +83,18 @@ fn compile_package_rule(
             key,
             "access",
             rule.and_then(|fields| fields.access.as_ref()),
-            teams,
         )?,
         publish: compile_rule_access_list(
             registry,
             key,
             "publish",
             rule.and_then(|fields| fields.publish.as_ref()),
-            teams,
         )?,
         unpublish: compile_rule_access_list(
             registry,
             key,
             "unpublish",
             rule.and_then(|fields| fields.unpublish.as_ref()),
-            teams,
         )?,
     })
 }
@@ -110,11 +104,10 @@ pub(super) fn build_rules(
     ecosystem: Ecosystem,
     packages: &IndexMap<String, (PackagePattern, Option<PackageAccess>)>,
     default_access: Option<AccessList>,
-    teams: &TeamDirectory,
 ) -> Result<PackageRules, RegistryError> {
     let mut rules = Vec::with_capacity(packages.len());
     for (pattern, rule) in packages.values() {
-        rules.push(compile_package_rule(registry, ecosystem, pattern, rule.as_ref(), teams)?);
+        rules.push(compile_package_rule(registry, ecosystem, pattern, rule.as_ref())?);
     }
     Ok(PackageRules::new(rules, default_access))
 }

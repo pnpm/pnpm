@@ -361,6 +361,30 @@ CREATE TABLE IF NOT EXISTS scim_users (
 CREATE INDEX scim_users_by_generation
     ON scim_users (generation);
 
+-- The teams of the instance. Access lists name one as `team:<team_id>`.
+CREATE TABLE IF NOT EXISTS teams (
+    team_id VARBINARY(512) NOT NULL PRIMARY KEY,
+    name VARBINARY(512) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- The accounts in each team.
+CREATE TABLE IF NOT EXISTS team_members (
+    team_id VARBINARY(512) NOT NULL,
+    user_id VARBINARY(512) NOT NULL,
+    PRIMARY KEY (team_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX team_members_by_user
+    ON team_members (user_id);
+
+-- The generation of the last change to `teams` or `team_members`, so a
+-- replica rereads them only after one.
+CREATE TABLE IF NOT EXISTS team_directory (
+    singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
+    generation BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+INSERT INTO team_directory (singleton, generation) VALUES (1, 0)
+    ON DUPLICATE KEY UPDATE singleton = team_directory.singleton;
+
 -- The hosted store this database is bound to.
 CREATE TABLE IF NOT EXISTS hosted_store (
     singleton BIGINT PRIMARY KEY CHECK (singleton = 1),

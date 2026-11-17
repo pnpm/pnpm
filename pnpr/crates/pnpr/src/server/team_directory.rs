@@ -1,0 +1,172 @@
+//! This replica's copy of the instance's teams, which the database holds.
+
+use super::{AppState, Identity, RegistryError, managed_state::read_with_deadline};
+use indexmap::IndexMap;
+use pnpr_auth::oidc::SessionUser;
+use pnpr_storage::database::StoredTeams;
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::{Arc, PoisonError, RwLock},
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Team {
+    pub(super) name: String,
+    /// Account IDs.
+    pub(super) members: BTreeSet<String>,
+}
+
+/// The teams as of one stored generation.
+#[derive(Debug, Default)]
+pub(super) struct Teams {
+    /// `None` before the first read.
+    generation: Option<u64>,
+    /// By team ID, sorted by name.
+    by_id: IndexMap<String, Team>,
+    /// The IDs of each account's teams.
+    by_member: HashMap<String, Vec<String>>,
+}
+
+impl Teams {
+    fn new(stored: StoredTeams) -> Self {
+        let mut by_member: HashMap<String, Vec<String>> = HashMap::new();
+        for team in &stored.teams {
+            for member in &team.members {
+                by_member
+                    .entry(member.clone())
+                    .or_default()
+                    .push(team.id.clone());
+            }
+        }
+        let by_id = stored.teams
+            .into_iter()
+            .map(|team| {
+                (team.id, Team { name: team.name, members: team.members.into_iter().collect() })
+            })
+            .collect();
+        Self { generation: Some(stored.generation), by_id, by_member }
+    }
+
+    pub(super) fn iter(&self) -> impl Iterator<Item = (&str, &Team)> {
+        self.by_id
+            .iter()
+            .map(|(id, team)| (id.as_str(), team))
+    }
+
+    pub(super) fn contains(&self, id: &str) -> bool {
+        self.by_id.contains_key(id)
+    }
+
+    /// The ID and record of the team named `name`.
+    pub(super) fn named(&self, name: &str) -> Option<(&str, &Team)> {
+        self.iter()
+            .find(|(_, team)| team.name == name)
+    }
+
+    fn of_member(&self, user_id: &str) -> &[String] {
+        self.by_member
+            .get(user_id)
+            .map_or(&[], Vec::as_slice)
+    }
+}
+
+/// The teams this replica last read. A failed read keeps them.
+#[derive(Debug, Default)]
+pub(super) struct TeamState(RwLock<Arc<Teams>>);
+
+impl TeamState {
+    pub(super) fn snapshot(&self) -> Arc<Teams> {
+        Arc::clone(&self.0.read().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    fn publish(&self, teams: Teams) {
+        *self.0.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(teams);
+    }
+}
+
+fn teams(state: &AppState) -> Arc<Teams> {
+    state.inner.identity.managed.teams.snapshot()
+}
+
+/// The identity of the account `user_id`, in the teams that list it.
+pub(super) fn account_identity(state: &AppState, user_id: String, username: String) -> Identity {
+    let teams = teams(state).of_member(&user_id).to_vec();
+    Identity::account_member(user_id, username, teams)
+}
+
+/// The identity of a browser session: its account, in the teams that list it
+/// and the teams its groups claim earned.
+pub(super) fn session_identity(state: &AppState, user: SessionUser, username: String) -> Identity {
+    let directory = teams(state);
+    let mut teams = directory.of_member(&user.user_id).to_vec();
+    for grant in user.teams {
+        if directory.contains(&grant.team_id) && !teams.contains(&grant.team_id) {
+            teams.push(grant.team_id);
+        }
+    }
+    Identity::account_member(user.user_id, username, teams)
+}
+
+/// Read the teams when their stored generation moved. Reports whether this
+/// replica now holds the stored teams.
+pub(super) async fn reload_teams(state: &AppState) -> bool {
+    let directory = &state.inner.identity.managed.teams;
+    let known = directory.snapshot().generation;
+    match read_with_deadline(state.inner.storage.read_teams(known)).await {
+        Ok(Some(stored)) => {
+            let teams = Teams::new(stored);
+            warn_of_unknown_group_teams(state, &teams);
+            directory.publish(teams);
+            true
+        }
+        Ok(None) => true,
+        Err(err) => {
+            tracing::error!(error = %err, "could not read the teams; serving the last ones read");
+            false
+        }
+    }
+}
+
+/// An OIDC group grant in the config file that names no team gives nobody
+/// anything, which a typo would cause.
+fn warn_of_unknown_group_teams(state: &AppState, teams: &Teams) {
+    let grants = state.inner.config.identity.auth.oidc
+        .iter()
+        .filter_map(|provider| provider.login.as_ref()?.groups.as_ref())
+        .flat_map(|groups| &groups.teams);
+    for grant in grants.filter(|grant| !teams.contains(&grant.team_id)) {
+        tracing::warn!(
+            group = %grant.group,
+            team_id = %grant.team_id,
+            "an OIDC group grant names a team that does not exist",
+        );
+    }
+}
+
+/// Publish a team write this replica just made. Waits for a reload in
+/// progress, which may have read the teams before the write.
+pub(super) async fn reload_written_teams(state: &AppState) {
+    let _reload = state.inner.identity.managed.reload.lock().await;
+    reload_teams(state).await;
+}
+
+/// The ID of the team named `name`. A name this replica does not hold is
+/// looked up in the database, where another replica may have just created it.
+pub(super) async fn team_id(state: &AppState, name: &str) -> Result<String, RegistryError> {
+    let held = |state: &AppState| teams(state).named(name).map(|(id, _)| id.to_string());
+    if let Some(id) = held(state) {
+        return Ok(id);
+    }
+    reload_written_teams(state).await;
+    held(state).ok_or(RegistryError::NotFound)
+}
+
+/// Remove a deleted account from every team.
+pub(super) async fn remove_from_teams(
+    state: &AppState,
+    user_id: &str,
+) -> Result<(), RegistryError> {
+    state.inner.storage.remove_team_memberships(user_id).await?;
+    reload_written_teams(state).await;
+    Ok(())
+}

@@ -3,7 +3,7 @@ use super::{
     HostedConfig, HostedGate, Identity, Map, Ownership, RegistryError, RegistrySource, Response,
     StatusCode, Value, allows_with_ownership, authorize, default_registry_target,
     discovery_sources, header, hosted_gate, hosted_storage, json, needs_package_owners, not_found,
-    resolve_registry_source,
+    resolve_registry_source, team_directory::Team,
 };
 use axum::response::IntoResponse;
 use pnpr_config::RoutingConfig;
@@ -178,20 +178,14 @@ pub(super) fn upstream_org_package_is_visible(
         && authorize(state, identity, resolved, name, Action::Access).is_ok()
 }
 
-// --------------------------------------------------------------------
-// npm team API — read-only views over the config-declared `teams:` maps.
-// Team membership is part of the registry configuration (it feeds the
-// compiled access lists), so the API serves listings and rejects
-// mutations with an explicit "config-managed" error.
-// --------------------------------------------------------------------
-
-/// The hosted registry whose teams `@{scope}` addresses: the scope routes
+/// The hosted registry `@{scope}` addresses in a team request: the scope routes
 /// through the addressed registry (an explicit `/~<name>/`, or the
 /// path-less default) exactly as a package read in that scope would, then
 /// the registry-level default `access` gates the caller. A denial is
 /// masked as not-found — team and member names must not become an
 /// existence probe for a private registry. Returns the registry's name with
-/// its config.
+/// its config. Teams belong to the instance, so the registry only decides who
+/// may ask.
 pub(super) fn team_registry<'a>(
     state: &AppState,
     routing: &'a RoutingConfig,
@@ -223,41 +217,51 @@ pub(super) fn team_registry<'a>(
     Ok((name, hosted))
 }
 
-pub(super) fn readable_team_registry<'a>(
+/// The teams a caller who reaches `@{scope}`'s registry may see: every team
+/// for an admin, and otherwise the teams the caller is in. A caller in no team
+/// gets not-found.
+pub(super) fn visible_teams(
     state: &AppState,
-    routing: &'a RoutingConfig,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
-) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
-    let (name, hosted) = team_registry(state, routing, identity, registry, scope)?;
+) -> Result<Vec<(String, Team)>, RegistryError> {
+    team_registry(state, &state.routing(), identity, registry, scope)?;
     super::require_caller(identity, "team listing")?;
     let auth = &state.inner.config.identity;
-    if auth.is_admin(identity) || auth.is_registry_admin(identity) {
-        return Ok((name, hosted));
-    }
-    if !identity.belongs_to_directory(&hosted.teams) {
+    let sees_all = auth.is_admin(identity) || auth.is_registry_admin(identity);
+    let teams: Vec<_> = state.inner.identity.managed.teams
+        .snapshot()
+        .iter()
+        .filter(|(id, _)| {
+            sees_all
+                || identity
+                    .teams()
+                    .iter()
+                    .any(|own| own == id)
+        })
+        .map(|(id, team)| (id.to_string(), team.clone()))
+        .collect();
+    if teams.is_empty() && !sees_all {
         return Err(RegistryError::NotFound);
     }
-    Ok((name, hosted))
+    Ok(teams)
 }
 
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
-/// — list the teams of the hosted registry that claims `@{scope}`, in the
-/// shape the pnpm team command consumes: an array of `{"name": ...}`.
+/// — list the teams the caller may see, in the shape the pnpm team command
+/// consumes: an array of `{"name": ...}`.
 pub(super) fn get_org_teams(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
 ) -> Response {
-    let routing = state.routing();
-    let hosted = match readable_team_registry(state, &routing, identity, registry, scope) {
-        Ok((_, hosted)) => hosted,
+    let teams = match visible_teams(state, identity, registry, scope) {
+        Ok(teams) => teams,
         Err(err) => return err.into_response(),
     };
-    let teams: Vec<Value> = hosted.teams
-        .snapshot()
+    let teams: Vec<Value> = teams
         .iter()
         .map(|(id, team)| json!({ "id": id, "name": team.name }))
         .collect();
@@ -274,14 +278,12 @@ pub(super) async fn get_team_members(
     scope: &str,
     team: &str,
 ) -> Response {
-    let routing = state.routing();
-    let hosted = match readable_team_registry(state, &routing, identity, registry, scope) {
-        Ok((_, hosted)) => hosted,
+    let teams = match visible_teams(state, identity, registry, scope) {
+        Ok(teams) => teams,
         Err(err) => return err.into_response(),
     };
-    let roster = hosted.teams.snapshot();
-    let Some((_, record)) = roster
-        .iter()
+    let Some((_, record)) = teams
+        .into_iter()
         .find(|(_, record)| record.name == team)
     else {
         return not_found();

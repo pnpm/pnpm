@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogFormat, LogLevel,
     MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf, ReleaseRecordsFile,
-    ScimConfig, Serialize, TarballFormat, TrustedProxyHeader, UpstreamAuthFile, access::TeamFile,
+    ScimConfig, Serialize, TarballFormat, TrustedProxyHeader, UpstreamAuthFile,
     null_default::deserialize_null_default, oidc, storage_config::StorageFile,
 };
 
@@ -54,16 +54,6 @@ pub(super) struct HostedFile {
     /// no `packages:` entry refines it. Omitted ⇒ `$all`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) access: Option<AccessSpec>,
-    /// This registry's teams: each key is a team ID, each value its name
-    /// and member account IDs. Referenced from this registry's access lists as
-    /// `team:<id>` — teams are registry-scoped, never shared across
-    /// registries (YAML anchors cover a shared roster in one file).
-    #[serde(
-        default,
-        deserialize_with = "deserialize_null_default",
-        skip_serializing_if = "IndexMap::is_empty"
-    )]
-    pub(super) teams: IndexMap<String, TeamFile>,
     /// The package patterns this registry serves and accepts publishes for,
     /// with optional per-package `access`/`publish`/`unpublish`
     /// rules as values (`{}` or null ⇒ the registry defaults). The most
@@ -132,14 +122,6 @@ pub(super) struct UpstreamFile {
     /// non-`public` upstream (otherwise no one could be authorized to use it).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) access: Option<AccessSpec>,
-    /// This registry's teams, exactly as on a hosted registry — referenced
-    /// from `access` and the per-package refinements as `team:<id>`.
-    #[serde(
-        default,
-        deserialize_with = "deserialize_null_default",
-        skip_serializing_if = "IndexMap::is_empty"
-    )]
-    pub(super) teams: IndexMap<String, TeamFile>,
     /// The package patterns that may be requested through this registry,
     /// with optional per-package `access` refinements as values (`{}` or null
     /// ⇒ the registry default; a `publish`/`unpublish` value is a config

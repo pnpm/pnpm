@@ -1,6 +1,4 @@
-use super::{
-    AccessList, AccessToken, Identity, Membership, PackageRule, RuleTable, TeamDirectory, Teams,
-};
+use super::{AccessList, AccessToken, Identity, PackageRule, RuleTable};
 use pnpr_registry::{Ecosystem, PackagePattern};
 
 fn list(token: &str) -> AccessList {
@@ -94,37 +92,13 @@ fn usernames_grant_per_user_access() {
 
 #[test]
 fn team_tokens_admit_members_only() {
-    let list = AccessList::new(vec![team_token("platform", &["alice"]).0]);
-    assert!(list.allows(&user("alice")));
+    let list = AccessList::new(vec![AccessToken::Team("platform-id".to_string())]);
+    assert!(list.allows(&Identity::member("alice", vec!["platform-id".to_string()])));
+    assert!(!list.allows(&Identity::member("bob", vec!["other-id".to_string()])));
     assert!(!list.allows(&user("bob")));
-    // The team's *name* is not a username: a user who happens to be called
-    // like the team gains nothing.
-    assert!(!list.allows(&user("platform")));
+    // A team's ID is not an account ID.
+    assert!(!list.allows(&user("platform-id")));
     assert!(!list.allows(&Identity::Anonymous));
-}
-
-#[test]
-fn team_tokens_follow_roster_replacement() {
-    let (token, directory) = team_token("platform", &["alice"]);
-    let list = AccessList::new(vec![token]);
-    directory.replace(Teams::from([(
-        "platform".to_string(),
-        crate::Team::new("platform", ["bob".to_string()].into()),
-    )]));
-    assert!(list.allows(&user("bob")));
-    assert!(!list.allows(&user("alice")));
-    directory.replace(Teams::default());
-    assert!(!list.allows(&user("bob")));
-}
-
-fn team_token(team: &str, members: &[&str]) -> (AccessToken, TeamDirectory) {
-    let members = members
-        .iter()
-        .map(ToString::to_string)
-        .collect();
-    let directory =
-        TeamDirectory::new(Teams::from([(team.to_string(), crate::Team::new(team, members))]));
-    (AccessToken::Team { id: team.to_string(), directory: directory.clone() }, directory)
 }
 
 #[test]
@@ -299,20 +273,6 @@ fn falls_back_to_safe_defaults_when_no_rules_match() {
 }
 
 #[test]
-fn a_credential_membership_satisfies_team_tokens_of_that_roster_only() {
-    let (token, directory) = team_token("platform", &[]);
-    let list = AccessList::new(vec![token]);
-    let membership =
-        |directory: TeamDirectory, team: &str| Membership { directory, team_id: team.to_string() };
-
-    assert!(list.allows(&Identity::member("bob", vec![membership(directory.clone(), "platform")])));
-    assert!(!list.allows(&Identity::member("bob", vec![membership(directory, "other")])));
-    let other_registry = TeamDirectory::new(Teams::default());
-    assert!(!list.allows(&Identity::member("bob", vec![membership(other_registry, "platform")])));
-    assert!(!list.allows(&user("bob")));
-}
-
-#[test]
 fn admits_every_identity_requires_universal_access() {
     let all = AccessList::from_tokens(["$all"]);
     assert!(all.admits_every_identity());
@@ -331,49 +291,4 @@ fn admits_every_identity_requires_universal_access() {
 
     let empty = AccessList::from_tokens([] as [&str; 0]);
     assert!(!empty.admits_every_identity());
-}
-
-#[test]
-fn replacing_a_team_name_does_not_transfer_a_sessions_membership() {
-    let old = crate::Team::new("release", std::collections::BTreeSet::default());
-    let directory = TeamDirectory::new(Teams::from([("old-team-id".to_string(), old)]));
-    let session = Identity::account_member(
-        "user-id",
-        "member",
-        vec![crate::Membership {
-            directory: directory.clone(),
-            team_id: "old-team-id".to_string(),
-        }],
-    );
-    let old_grant = AccessList::new(vec![AccessToken::Team {
-        id: "old-team-id".to_string(),
-        directory: directory.clone(),
-    }]);
-    assert!(old_grant.allows(&session));
-    directory.replace(Teams::from([(
-        "new-team-id".to_string(),
-        crate::Team::new("release", std::collections::BTreeSet::default()),
-    )]));
-    let new_grant =
-        AccessList::new(vec![AccessToken::Team { id: "new-team-id".to_string(), directory }]);
-    assert!(!old_grant.allows(&session));
-    assert!(!new_grant.allows(&session));
-}
-
-#[test]
-fn directory_membership_uses_live_rosters_and_scoped_credentials() {
-    let (_, directory) = team_token("platform", &["account-id"]);
-    assert!(Identity::account("account-id", "renamed").belongs_to_directory(&directory));
-    assert!(!Identity::Anonymous.belongs_to_directory(&directory));
-    assert!(!user("outsider").belongs_to_directory(&directory));
-    let session = Identity::member(
-        "session-id",
-        vec![Membership { directory: directory.clone(), team_id: "platform".to_string() }],
-    );
-    assert!(session.belongs_to_directory(&directory));
-    let (_, other_directory) = team_token("platform", &[]);
-    assert!(!session.belongs_to_directory(&other_directory));
-    directory.replace(Teams::default());
-    assert!(!session.belongs_to_directory(&directory));
-    assert!(!user("account-id").belongs_to_directory(&directory));
 }

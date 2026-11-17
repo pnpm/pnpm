@@ -1,95 +1,38 @@
-use super::super::oidc_groups::{session_identity, validate_group_grants};
+use super::super::team_directory::{reload_teams, session_identity};
 use pnpr_auth::{AuthState, oidc::SessionUser};
 use pnpr_config::{Config, oidc::OidcTeamGrant};
 use pnpr_fixtures::MockConfigPresets;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
-const PROVIDER: &str = "\
-auth:
-  oidc:
-    - name: company
-      issuer: https://issuer.example
-      audience: pnpr
-      login:
-        users:
-          - subject: '1'
-            userId: bob
-        groups:
-          teams:
-            - group: eng
-              registry: local
-              teamId: platform
-";
-
-fn config(registries: &str) -> Config {
-    let dir = tempfile::TempDir::new().unwrap();
-    let path = dir.path().join("config.yaml");
-    std::fs::write(&path, format!("storage: ./s\n{PROVIDER}registries:\n{registries}")).unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
-    pnpr_fixtures::load_seeded_config(&path, listen, None)
-}
-
-const LOCAL: &str = "  local:
-    type: hosted
-    teams:
-      platform: { name: platform, members: [] }
-    packages:
-      '@secret/*':
-        access: [team:platform]
-      '**': {}
-";
-
-fn session(teams: Vec<(&str, &str)>) -> SessionUser {
+fn session(teams: &[&str]) -> SessionUser {
     let teams = teams
-        .into_iter()
-        .map(|(registry, team)| OidcTeamGrant {
-            group: "eng".to_string(),
-            registry: registry.to_string(),
-            team_id: team.to_string(),
-        })
+        .iter()
+        .map(|team| OidcTeamGrant { group: "eng".to_string(), team_id: (*team).to_string() })
         .collect();
     SessionUser { user_id: "bob".to_string(), teams }
 }
 
-#[test]
-fn a_session_grant_admits_its_holder_to_team_rules() {
-    let config = config(LOCAL);
-    let rules = &config.routing.hosted["local"].rules;
-
-    let member = session_identity(
-        &config.routing,
-        session(vec![("local", "platform")]),
-        "alice".to_string(),
+#[tokio::test]
+async fn a_session_grant_joins_its_holder_to_teams_that_exist() {
+    let directory = tempfile::tempdir().unwrap();
+    let config = Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+        directory.path().to_path_buf(),
     );
-    assert!(rules.access_admits("@secret/x", &member));
-    let other = session_identity(
-        &config.routing,
-        session(vec![("missing", "platform")]),
-        "alice".to_string(),
-    );
-    assert!(!rules.access_admits("@secret/x", &other));
-    assert!(!rules.access_admits(
-        "@secret/x",
-        &session_identity(&config.routing, session(Vec::new()), "alice".to_string())
-    ));
-}
+    let (state, _router) =
+        super::super::routing::state_and_router(config, AuthState::in_memory(), None).unwrap();
+    let storage = &state.inner.storage;
+    storage.create_team("platform-id", "platform").await.unwrap();
+    storage.create_team("release-id", "release").await.unwrap();
+    assert!(storage.add_team_member("release-id", "bob").await.unwrap());
+    assert!(reload_teams(&state).await);
 
-#[test]
-fn group_grants_must_name_a_hosted_registry_and_a_declared_team() {
-    validate_group_grants_of(&config(LOCAL)).unwrap();
-
-    let undeclared = LOCAL
-        .replace(
-            "platform: { name: platform, members: [] }",
-            "release: { name: release, members: [] }",
-        )
-        .replace("team:platform", "$authenticated");
-    let err = validate_group_grants_of(&config(&undeclared)).unwrap_err();
-    assert!(err.to_string().contains("does not declare the team"), "{err}");
-
-    let renamed = LOCAL.replace("  local:", "  other:");
-    let err = validate_group_grants_of(&config(&renamed)).unwrap_err();
-    assert!(err.to_string().contains("is not a hosted registry"), "{err}");
+    let teams = |granted: &[&str]| {
+        session_identity(&state, session(granted), "bob".to_string()).teams().to_vec()
+    };
+    assert_eq!(teams(&["platform-id"]), ["release-id", "platform-id"]);
+    assert_eq!(teams(&["missing-id", "release-id"]), ["release-id"]);
+    assert_eq!(teams(&[]), ["release-id"]);
 }
 
 #[tokio::test]
@@ -109,8 +52,4 @@ async fn retired_identities_without_passwords_are_refused() {
         super::super::authentication::active_account_name(&state, &id).await,
         Err(pnpr_error::RegistryError::Unauthenticated { .. }),
     ));
-}
-
-fn validate_group_grants_of(config: &Config) -> Result<(), pnpr_error::RegistryError> {
-    validate_group_grants(config, &config.routing)
 }

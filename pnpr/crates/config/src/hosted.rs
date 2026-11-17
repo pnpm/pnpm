@@ -1,4 +1,4 @@
-use super::{PackageRules, TeamDirectory};
+use super::PackageRules;
 
 /// A resolved hosted registry: the storage `namespace` it serves and its
 /// `packages:` rules — the package patterns it claims plus the per-package
@@ -14,17 +14,12 @@ pub struct HostedConfig {
     /// reads *and* the write routing (publish, dist-tag, unpublish), with a
     /// denied caller masked as not-found either way.
     pub rules: PackageRules,
-    /// The registry's live team roster, shared with the `team:` tokens in
-    /// [`Self::rules`] and served by the npm team API
-    /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`).
-    pub teams: TeamDirectory,
 }
 
 impl HostedConfig {
-    /// A registry without teams.
     #[must_use]
     pub fn new(namespace: impl Into<String>, rules: PackageRules) -> Self {
-        Self { namespace: namespace.into(), rules, teams: TeamDirectory::default() }
+        Self { namespace: namespace.into(), rules }
     }
 }
 

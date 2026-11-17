@@ -24,8 +24,6 @@ registries:
   local:
     type: hosted
     namespace: \"\"
-    teams:
-      devs: { name: devs, members: [carol] }
     packages:
       '@acme/app':
         access: [root]
@@ -35,14 +33,14 @@ registries:
   fixed:
     type: hosted
     namespace: fixed
-    teams:
-      devs: { name: devs, members: [carol] }
     packages:
       '@fixed/*': {}
   main:
     type: router
     sources: [fixed, local]
 defaultRegistry: main
+teams:
+  devs: { name: devs, members: [carol] }
 ";
 
 const PACKAGES: &str = "/npm/-/team/acme/devs/package";

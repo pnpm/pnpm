@@ -369,6 +369,30 @@ CREATE TABLE IF NOT EXISTS scim_users (
 CREATE INDEX IF NOT EXISTS scim_users_by_generation
     ON scim_users (generation);
 
+-- The teams of the instance. Access lists name one as `team:<team_id>`.
+CREATE TABLE IF NOT EXISTS teams (
+    team_id TEXT COLLATE "C" NOT NULL PRIMARY KEY,
+    name TEXT COLLATE "C" NOT NULL UNIQUE
+);
+
+-- The accounts in each team.
+CREATE TABLE IF NOT EXISTS team_members (
+    team_id TEXT COLLATE "C" NOT NULL,
+    user_id TEXT COLLATE "C" NOT NULL,
+    PRIMARY KEY (team_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS team_members_by_user
+    ON team_members (user_id);
+
+-- The generation of the last change to `teams` or `team_members`, so a
+-- replica rereads them only after one.
+CREATE TABLE IF NOT EXISTS team_directory (
+    singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
+    generation BIGINT NOT NULL
+);
+INSERT INTO team_directory (singleton, generation) VALUES (1, 0)
+    ON CONFLICT DO NOTHING;
+
 -- The hosted store this database is bound to.
 CREATE TABLE IF NOT EXISTS hosted_store (
     singleton BIGINT PRIMARY KEY CHECK (singleton = 1),

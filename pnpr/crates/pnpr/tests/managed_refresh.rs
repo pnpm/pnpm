@@ -116,6 +116,8 @@ auth:
         });
         crate::managed_registries::store_graph(&config, &graph()).await;
         let storage = Storage::from_config(&config.storage).unwrap();
+        storage.create_team("readers", "readers").await.unwrap();
+        assert!(storage.add_team_member("readers", "reader").await.unwrap());
         let package = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
         storage
             .write_hosted_document_if_current(
@@ -212,7 +214,6 @@ fn graph() -> serde_json::Value {
             "local": {
                 "type": "hosted",
                 "namespace": "",
-                "teams": { "readers": { "name": "readers", "members": ["reader"] } },
                 "packages": { "**": { "access": ["team:readers"] } },
             },
         },

@@ -63,22 +63,20 @@ auth:
           claim: groups
           teams:
             - group: 7f3c2a10-0000-0000-0000-000000000000
-              registry: private
               teamId: <team-id>
 ```
 
 - `claim` names the ID-token claim that lists the groups, either as a list of
   strings or as one string. It defaults to `groups`.
 - `teamId` is the stable team ID, not its display name.
-- A session whose claim lists `group` is a member of `teamId` on the hosted
-  registry `registry`, as if the team listed its account ID. `registry` is the
-  registry's key in the
-  [stored registries](configuration.md#registries-in-the-database).
+- A session whose claim lists `group` is a member of the
+  [team](configuration.md#teams) `teamId`, as if the team listed its account
+  ID.
 - The membership lasts as long as the session. Removing someone from a group
   takes effect at their next sign-in, within an hour. It never applies to the
   user's password logins or `npm token`s.
-- The registry must declare the team. pnpr refuses a change to the stored
-  registries that removes a team or registry a grant names.
+- A grant whose team does not exist gives nothing. pnpr logs a warning that
+  names the group and the team ID.
 
 Configure the provider to issue the claim, and use the values it emits as
 `group`. Entra ID emits group object IDs under `groups` once group claims are
@@ -240,7 +238,7 @@ Every block rejects unknown keys.
 | `login.users` | unless `login.scim` is true | Bindings of `subject`, `userId`, and optional `claims`. |
 | `login.scim` | no | Match the verified `sub` to a provisioned SCIM `externalId`. Requires `auth.scim`; only one provider may enable it. Mutually exclusive with nonempty `login.users`. |
 | `login.groups.claim` | no | The ID-token claim that lists groups. Defaults to `groups`. |
-| `login.groups.teams` | yes, with `groups` | Grants of `group`, `registry`, and `teamId`. See [Teams from groups](#teams-from-groups). |
+| `login.groups.teams` | yes, with `groups` | Grants of `group` and `teamId`. See [Teams from groups](#teams-from-groups). |
 | `workloads[].identity` | yes | A binding of `subject`, `userId`, and optional `claims`. |
 | `workloads[].registry` | yes | The hosted npm registry the workload publishes to. |
 | `workloads[].packages` | yes | The exact package names the workload may publish. |

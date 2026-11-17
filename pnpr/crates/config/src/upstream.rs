@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use pnpr_error::RegistryError;
 use pnpr_policy::{AccessList, PackageRules};
 
-use super::{AccessSpec, TeamDirectory};
+use super::AccessSpec;
 
 /// Runtime upstream declaration: the upstream `url`, the request headers
 /// pnpr attaches to every fetch it makes to that upstream, and the
@@ -279,10 +279,9 @@ impl TokenEnv {
 fn resolve_upstream_access(
     name: &str,
     spec: Option<&AccessSpec>,
-    teams: &TeamDirectory,
 ) -> Result<Option<AccessList>, RegistryError> {
     spec.map(|spec| {
-        let list = spec.to_access_list(teams)?;
+        let list = spec.to_access_list()?;
         if list.references_owners() {
             return Err("`$owners` is not valid for upstream `access` rules".to_string());
         }
@@ -299,7 +298,6 @@ fn resolve_upstream_access(
 pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     name: &str,
     file: UpstreamConfigFile,
-    teams: &TeamDirectory,
 ) -> Result<UpstreamConfig, RegistryError> {
     let headers = upstream_headers::<Sys>(name, &file)?;
 
@@ -323,7 +321,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("failTimeout", &file.fail_timeout)?
         .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
-    let access = resolve_upstream_access(name, file.access.as_ref(), teams)?;
+    let access = resolve_upstream_access(name, file.access.as_ref())?;
 
     Ok(UpstreamConfig {
         url: file.url,

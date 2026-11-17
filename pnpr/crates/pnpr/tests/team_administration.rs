@@ -24,8 +24,6 @@ registries:
   local:
     type: hosted
     namespace: \"\"
-    teams:
-      readers: { name: readers, members: [] }
     packages:
       '@secret/*':
         access: [team:readers]
@@ -34,6 +32,8 @@ registries:
     type: router
     sources: [local]
 defaultRegistry: main
+teams:
+  readers: { name: readers, members: [] }
 ";
 
 async fn load_config(dir: &Path) -> Config {
@@ -213,7 +213,7 @@ async fn a_new_process_serves_the_stored_roster() {
     let root = add_user(&restarted, "root").await;
     assert_eq!(
         team_names(&restarted, &root).await,
-        json!([{ "name": "readers" }, { "name": "ops" }]),
+        json!([{ "name": "ops" }, { "name": "readers" }]),
     );
 }
 
@@ -297,7 +297,7 @@ async fn deleting_a_member_prevents_reclaiming_its_team_access() {
         StatusCode::NO_CONTENT,
     );
     let (_, members) = send(&app, "GET", roster, Some(&root), None).await;
-    assert_eq!(members, json!([{ "id": former_id, "name": format!("deleted:{former_id}") }]));
+    assert_eq!(members, json!([]));
     let registration = json!({ "name": "former-member", "password": "secret123" });
     assert_eq!(
         send(&app, "PUT", "/-/user/org.couchdb.user:former-member", None, Some(registration))
@@ -404,4 +404,90 @@ async fn only_members_and_admins_can_read_teams() {
         send(&app, "GET", "/npm/-/org/acme/team", Some(&member), None).await.0,
         StatusCode::NOT_FOUND,
     );
+}
+
+#[tokio::test]
+async fn a_member_sees_only_the_teams_it_is_in() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path()).await).await;
+    let root = add_user(&app, "root").await;
+    let member = add_user(&app, "member").await;
+    let teams = "/npm/-/org/acme/team";
+    assert_eq!(
+        send(&app, "PUT", teams, Some(&root), Some(json!({ "name": "ops" })))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    let roster = "/npm/-/team/acme/readers/user";
+    assert_eq!(
+        send(&app, "PUT", roster, Some(&root), Some(json!({ "user": "member" })))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+
+    assert_eq!(team_names(&app, &root).await, json!([{ "name": "ops" }, { "name": "readers" }]));
+    assert_eq!(team_names(&app, &member).await, json!([{ "name": "readers" }]));
+    for (token, expected) in [(&root, StatusCode::OK), (&member, StatusCode::NOT_FOUND)] {
+        let (status, _) = send(&app, "GET", "/npm/-/team/acme/ops/user", Some(token), None).await;
+        assert_eq!(status, expected);
+    }
+}
+
+const TWO_REGISTRIES: &str = "\
+auth:
+  admins: [root]
+  users:
+    maxUsers: 100
+registries:
+  local:
+    type: hosted
+    namespace: \"\"
+    packages:
+      '@secret/*':
+        access: [team:readers]
+      '**': {}
+  other:
+    type: hosted
+    namespace: other
+    packages:
+      '@other/*':
+        access: [team:readers]
+  main:
+    type: router
+    sources: [other, local]
+defaultRegistry: main
+teams:
+  readers: { name: readers, members: [] }
+";
+
+#[tokio::test]
+async fn one_team_admits_its_members_to_every_registry_that_names_it() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config_with(dir.path(), TWO_REGISTRIES).await).await;
+    let root = add_user(&app, "root").await;
+    let member = add_user(&app, "member").await;
+    let packages = ["/npm/@secret/thing", "/npm/@other/thing"];
+    for path in packages {
+        let (status, _) = send(&app, "GET", path, Some(&member), None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+    }
+
+    // The team is edited under one scope and listed under the other.
+    let roster = "/npm/-/team/secret/readers/user";
+    assert_eq!(
+        send(&app, "PUT", roster, Some(&root), Some(json!({ "user": "member" })))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    for path in packages {
+        let (status, _) = send(&app, "GET", path, Some(&member), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
+    }
+    let (status, members) =
+        send(&app, "GET", "/npm/-/team/other/readers/user", Some(&member), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(members[0]["name"], "member");
 }

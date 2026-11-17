@@ -2,7 +2,7 @@
 //! revision, building its routing, and the checks a new revision must pass
 //! before it is written.
 
-use super::super::{oidc::validate_workloads, oidc_groups::validate_group_grants};
+use super::super::oidc::validate_workloads;
 use pnpm_env_replace::EnvVar;
 use pnpr_config::{Config, GraphSource, RegistryGraphDocument, RoutingConfig, RoutingOptions};
 use pnpr_error::RegistryError;
@@ -80,14 +80,13 @@ pub(crate) fn stored_routing(
     }
 }
 
-/// The config file's references into the graph: the OIDC workloads and group
-/// grants must name hosted registries and teams that exist.
+/// The config file's references into the graph: the OIDC workloads must name
+/// hosted registries that exist.
 pub(crate) fn check_file_references(
     config: &Config,
     routing: &RoutingConfig,
 ) -> Result<(), RegistryError> {
-    validate_workloads(config, routing)?;
-    validate_group_grants(config, routing)
+    validate_workloads(config, routing)
 }
 
 /// A revision that passed [`check_revision`].
@@ -120,8 +119,42 @@ pub(crate) async fn check_revision(
     check_file_references(config, &routing).map_err(refused_change)?;
     check_upstream_hosts(config, &routing, previous, next)?;
     check_public_route_hosts(config, &routing, previous, next)?;
+    check_named_teams(storage, previous, next).await?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
     Ok(CheckedRevision { routing, hosted: HostedChange { vacated, bound: bound_namespaces(next) } })
+}
+
+/// Refuse a team that `next` starts to name and the database does not hold.
+/// A team that is removed afterwards has no members, so its `team:` entry
+/// admits nobody.
+async fn check_named_teams(
+    storage: &Storage,
+    previous: &RegistryGraphDocument,
+    next: &RegistryGraphDocument,
+) -> Result<(), RegistryError> {
+    let known = previous.named_teams();
+    let added: Vec<&str> = next
+        .named_teams()
+        .into_iter()
+        .filter(|team| !known.contains(team))
+        .collect();
+    if added.is_empty() {
+        return Ok(());
+    }
+    let stored = storage
+        .read_teams(None)
+        .await?
+        .map(|stored| stored.teams)
+        .unwrap_or_default();
+    match added
+        .into_iter()
+        .find(|id| !stored.iter().any(|team| team.id == *id))
+    {
+        Some(id) => Err(RegistryError::BadRequest {
+            reason: format!("the access lists name `team:{id}`, and no team has that ID"),
+        }),
+        None => Ok(()),
+    }
 }
 
 /// Every hosted namespace `document` serves.
