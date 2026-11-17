@@ -17,15 +17,14 @@ fn identical_transitive_peers_share_one_copy_under_a_conflicting_host() {
     write_manifest(
         &workspace,
         serde_json::json!({
-            "@pnpm.e2e/has-has-y-peer-only-as-peer": "1.0.0",
+            "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0",
             "@pnpm.e2e/has-has-y-peer-only-as-peer-and-y": "1.0.0",
-            "@pnpm.e2e/has-y-peer": "1.0.0",
             "@pnpm/y": "2.0.0",
         }),
     );
     write_workspace_yaml(
         &workspace,
-        "nodeLinker: hoisted\nautoInstallPeers: false\npackageExtensions:\n  '@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0':\n    peerDependencies:\n      '@pnpm.e2e/has-has-y-peer-only-as-peer': ^1.0.0\n",
+        "nodeLinker: hoisted\nautoInstallPeers: false\npackageExtensions:\n  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':\n    dependencies:\n      '@pnpm.e2e/has-y-peer': 1.0.0\n  '@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0':\n    peerDependencies:\n      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0\n",
     );
     let assert_layout = |install: &str| {
         let output = Command::new("node")
@@ -35,8 +34,8 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const resolve = (name, from = process.cwd()) => require.resolve(`${name}/package.json`, { paths: [from] });
 const host = path.dirname(resolve('@pnpm.e2e/has-has-y-peer-only-as-peer-and-y'));
-const client = resolve('@pnpm.e2e/has-has-y-peer-only-as-peer', host);
-assert.equal(client, resolve('@pnpm.e2e/has-has-y-peer-only-as-peer'));
+const client = resolve('@pnpm.e2e/dep-of-pkg-with-1-dep', host);
+assert.equal(client, resolve('@pnpm.e2e/dep-of-pkg-with-1-dep'));
 const bridge = path.dirname(resolve('@pnpm.e2e/has-y-peer', path.dirname(client)));
 assert.equal(require(resolve('@pnpm/y', bridge)).version, '2.0.0');
 assert.equal(require(resolve('@pnpm/y', host)).version, '1.0.0');
