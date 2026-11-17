@@ -361,7 +361,7 @@ test('pnpm add handles matching workspace project when dir differs from project.
   await add.handler({
     ...DEFAULT_OPTIONS,
     allProjects,
-    dir: `${rootDir}${path.sep}`,
+    dir: `${process.platform === 'win32' ? flipDriveLetterCase(rootDir) : rootDir}${path.sep}`,
     linkWorkspacePackages: false,
     lockfileDir: rootDir,
     rootProjectManifest,
@@ -376,6 +376,12 @@ test('pnpm add handles matching workspace project when dir differs from project.
   })
   project.has('is-positive')
 })
+
+function flipDriveLetterCase (dir: string): string {
+  const driveLetter = dir[0]
+  const flipped = driveLetter === driveLetter.toUpperCase() ? driveLetter.toLowerCase() : driveLetter.toUpperCase()
+  return `${flipped}${dir.slice(1)}`
+}
 
 test('add: fail when global bin directory is not found', async () => {
   prepareEmpty()
