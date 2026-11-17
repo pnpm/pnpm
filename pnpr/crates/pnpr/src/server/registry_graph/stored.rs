@@ -123,8 +123,9 @@ pub(crate) async fn check_revision(
     check_upstream_hosts(config, &routing, previous, next)?;
     check_public_route_hosts(config, &routing, previous, next)?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
-    let hosted =
-        HostedChange { vacated, bound: bound_namespaces(next), teams: added_teams(previous, next) };
+    let teams = added_teams(previous, next);
+    check_teams_exist(storage, &teams).await?;
+    let hosted = HostedChange { vacated, bound: bound_namespaces(next), teams };
     Ok(CheckedRevision { routing, hosted })
 }
 
@@ -136,6 +137,29 @@ fn added_teams(previous: &RegistryGraphDocument, next: &RegistryGraphDocument) -
         .filter(|team| !known.contains(team))
         .map(str::to_string)
         .collect()
+}
+
+/// Refuse a team of `added` that does not exist, so a dry run reports what the
+/// write would refuse in its transaction.
+async fn check_teams_exist(storage: &Storage, added: &[String]) -> Result<(), RegistryError> {
+    if added.is_empty() {
+        return Ok(());
+    }
+    let stored = storage
+        .read_teams(None)
+        .await?
+        .map(|stored| stored.teams)
+        .unwrap_or_default();
+    match added
+        .iter()
+        .find(|id| {
+            !stored
+                .iter()
+                .any(|team| team.id == **id)
+        }) {
+        Some(id) => Err(unknown_team_error(id)),
+        None => Ok(()),
+    }
 }
 
 /// The refusal of a write that names the team `id`, which does not exist.

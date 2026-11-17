@@ -227,18 +227,22 @@ pub(super) struct VisibleTeams {
 }
 
 impl VisibleTeams {
-    pub(super) fn iter(&self) -> impl Iterator<Item = (&str, &Team)> {
-        self.teams
+    /// Sorted by name.
+    pub(super) fn list(&self) -> Vec<(&str, &Team)> {
+        let Some(own) = &self.own else {
+            return self.teams.iter().collect();
+        };
+        let mut teams: Vec<_> = own
             .iter()
-            .filter(|(id, _)| {
-                self.own
-                    .as_ref()
-                    .is_none_or(|own| own.iter().any(|team| team == id))
-            })
+            .filter_map(|id| self.teams.get(id))
+            .collect();
+        teams.sort_by_key(|(_, team)| team.name.as_str());
+        teams
     }
 
     pub(super) fn named(&self, name: &str) -> Result<(&str, &Team), RegistryError> {
-        self.iter()
+        self.list()
+            .into_iter()
             .find(|(_, team)| team.name == name)
             .ok_or(RegistryError::NotFound)
     }
@@ -258,7 +262,7 @@ pub(super) fn visible_teams(
     let sees_all = auth.is_admin(identity) || auth.is_registry_admin(identity);
     let own = (!sees_all).then(|| identity.teams().to_vec());
     let visible = VisibleTeams { teams: state.inner.identity.managed.teams.snapshot(), own };
-    if !sees_all && visible.iter().next().is_none() {
+    if !sees_all && visible.list().is_empty() {
         return Err(RegistryError::NotFound);
     }
     Ok(visible)
@@ -278,7 +282,8 @@ pub(super) fn get_org_teams(
         Err(err) => return err.into_response(),
     };
     let teams: Vec<Value> = teams
-        .iter()
+        .list()
+        .into_iter()
         .map(|(id, team)| json!({ "id": id, "name": team.name }))
         .collect();
     (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()

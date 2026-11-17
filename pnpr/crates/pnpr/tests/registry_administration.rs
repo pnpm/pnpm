@@ -253,6 +253,18 @@ async fn a_dry_run_reports_the_changes_without_storing_them() {
 }
 
 #[tokio::test]
+async fn a_dry_run_refuses_a_team_that_does_not_exist() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    let entry = json!({ "type": "hosted", "namespace": "extra", "access": ["team:absent"] });
+    for path in [format!("{DOCUMENT}/extra?dryRun=true"), format!("{DOCUMENT}/extra")] {
+        let (status, error) = replica.as_root("PUT", &path, Some(entry.clone())).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}: {error}");
+        assert!(error.to_string().contains("team:absent"), "{path}: {error}");
+    }
+}
+
+#[tokio::test]
 async fn a_change_based_on_a_stale_version_is_refused() {
     let dir = TempDir::new().unwrap();
     let replica = Replica::new(load_config(dir.path()).await).await;

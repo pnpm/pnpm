@@ -60,6 +60,12 @@ impl Teams {
         self.by_id.contains_key(id)
     }
 
+    pub(super) fn get(&self, id: &str) -> Option<(&str, &Team)> {
+        self.by_id
+            .get_key_value(id)
+            .map(|(id, team)| (id.as_str(), team))
+    }
+
     /// The ID and record of the team named `name`.
     pub(super) fn named(&self, name: &str) -> Option<(&str, &Team)> {
         self.iter()
@@ -90,6 +96,13 @@ impl TeamState {
 
     fn publish(&self, teams: Teams) {
         *self.teams.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(teams);
+    }
+
+    /// Trust this replica's copy again, which the caller found or made
+    /// current.
+    fn caught_up(&self) -> bool {
+        self.behind_a_write.store(false, Ordering::Release);
+        true
     }
 
     /// The teams a request's identity is built from: none while this replica
@@ -132,17 +145,14 @@ pub(super) async fn reload_teams(state: &AppState) -> bool {
     let directory = &state.inner.identity.managed.teams;
     let known = directory.snapshot().generation;
     let read = read_with_deadline(state.inner.storage.read_teams(known)).await;
-    if read.is_ok() {
-        directory.behind_a_write.store(false, Ordering::Release);
+    if let Ok(Some(stored)) = read {
+        let teams = Teams::new(stored);
+        warn_of_unknown_group_teams(state, &teams);
+        directory.publish(teams);
+        return directory.caught_up();
     }
     match read {
-        Ok(Some(stored)) => {
-            let teams = Teams::new(stored);
-            warn_of_unknown_group_teams(state, &teams);
-            directory.publish(teams);
-            true
-        }
-        Ok(None) => true,
+        Ok(_) => directory.caught_up(),
         Err(err) => {
             tracing::error!(error = %err, "could not read the teams; serving the last ones read");
             false
@@ -184,23 +194,25 @@ pub(super) async fn follow_write(state: &AppState) {
     managed.schedule_retry();
 }
 
-/// The ID of the team named `name`. A name this replica does not hold is
-/// looked up in the database, where another replica may have just created it.
+/// The ID of the team named `name` in the database now, for a write to that
+/// team. This replica's copy may miss a team another replica just created, or
+/// hold the ID of one it removed and created again.
 pub(super) async fn team_id(state: &AppState, name: &str) -> Result<String, RegistryError> {
-    let held = |state: &AppState| teams(state).named(name).map(|(id, _)| id.to_string());
-    if let Some(id) = held(state) {
-        return Ok(id);
-    }
     reload_written_teams(state).await;
-    held(state).ok_or(RegistryError::NotFound)
+    teams(state)
+        .named(name)
+        .map(|(id, _)| id.to_string())
+        .ok_or(RegistryError::NotFound)
 }
 
-/// Remove a deleted account from every team.
-pub(super) async fn remove_from_teams(
-    state: &AppState,
-    user_id: &str,
-) -> Result<(), RegistryError> {
-    state.inner.storage.remove_team_memberships(user_id).await?;
-    reload_written_teams(state).await;
-    Ok(())
+/// Remove a deleted account from every team, for a caller that holds the
+/// reload lock. A failure is logged and does not fail the deletion: the
+/// account can no longer sign in, and an admin can remove its ID from a team.
+pub(super) async fn remove_from_teams(state: &AppState, user_id: &str) {
+    match state.inner.storage.remove_team_memberships(user_id).await {
+        Ok(()) => follow_write(state).await,
+        Err(err) => {
+            tracing::error!(error = %err, user_id, "could not remove a deleted account from its teams");
+        }
+    }
 }
