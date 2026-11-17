@@ -218,11 +218,7 @@ fn importer_divergence(
     manifest_dependencies: &ManifestDependencies<'_>,
 ) -> ImporterDivergence {
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        return if manifest_dependencies.is_empty() {
-            ImporterDivergence::Clean
-        } else {
-            ImporterDivergence::Absorbable
-        };
+        return ImporterDivergence::Absorbable;
     };
     let recorded_but_undeclared = [
         importer.dependencies.as_ref(),
