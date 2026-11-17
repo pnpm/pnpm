@@ -70,7 +70,7 @@ pub(super) fn registry_endpoint(
 /// The cache headers a response needs so a shared HTTP cache can never replay
 /// an authenticated response to an anonymous caller. A response is scoped
 /// when `package` resolves, through the addressed registry, to a source whose
-/// effective per-package access denies anonymous callers, so a URL that
+/// grants do not let anonymous callers read it, so a URL that
 /// answers differently depending on `Authorization` says so. A
 /// publicly-readable resolution stays cacheable on both the path-less base
 /// (the hot install path) and a named one.
@@ -98,8 +98,8 @@ pub(super) fn caller_scoped(
 }
 
 /// Whether some read of `ecosystem` through `registry` is closed to anonymous
-/// callers: a hosted source whose default or package rules deny them, or an
-/// upstream source with an `access:` gate. Drives the Cargo `auth-required`
+/// callers: a hosted source that no grant lets them read in full, or an
+/// upstream source that sends a credential. Drives the Cargo `auth-required`
 /// flag, which makes `cargo` send its token on index and download requests too.
 pub(super) fn registry_requires_auth(
     state: &AppState,

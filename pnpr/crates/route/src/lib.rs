@@ -104,17 +104,17 @@ pub struct RouteContext {
     /// endpoints use, so classification and serving can't disagree about a
     /// package's origin.
     registries: Registries,
-    /// Each hosted registry's `packages:` rules, used to decide whether a
-    /// pnpr-hosted route is public (its effective access admits everyone)
+    /// Each hosted registry's rules, used to decide whether a
+    /// pnpr-hosted route is public (everyone may read the package)
     /// or private, and to gate hosted cache hits for the caller.
     hosted_rules: IndexMap<String, PackageRules>,
-    /// Each upstream registry's `packages:` rules. Alias selection is
-    /// per-package-aware: a caller the upstream's effective access denies
-    /// for a name is never handed the server-owned credential for it, so a
+    /// Each upstream registry's rules. Alias selection is
+    /// per-package-aware: a caller no grant lets read a name through the
+    /// upstream is never handed the server-owned credential for it, so a
     /// fresh resolve fails closed exactly where the serving endpoint would
     /// deny the read. (Cache *replay* granularity stays registry-scoped:
     /// the alias descriptor covers every name the alias resolves, shared
-    /// among callers the registry-level `access:` admits.)
+    /// among callers who may read something through the upstream.)
     upstream_rules: IndexMap<String, PackageRules>,
     /// The addresses a resolver connection may be opened to.
     connect_policy: ConnectPolicy,

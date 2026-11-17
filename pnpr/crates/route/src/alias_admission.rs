@@ -5,7 +5,7 @@ use super::{ConcreteKind, Identity, Resolved, ResolvedAlias, RouteContext};
 impl RouteContext {
     /// Whether the upstream registry's credential may be used for `package`
     /// on behalf of `identity`: the upstream's `packages:` namespace claims
-    /// the name, and its effective per-package access admits the caller. A
+    /// the name, and a grant lets the caller read it. A
     /// non-package fetch gates at the registry level only, which alias
     /// selection already checked. An upstream with no rules entry (a
     /// programmatically folded one) skips the access check.

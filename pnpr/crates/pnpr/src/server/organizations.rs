@@ -178,7 +178,7 @@ pub(super) fn upstream_org_package_is_visible(
 /// The hosted registry `@{scope}` addresses in a team request: the scope routes
 /// through the addressed registry (an explicit `/~<name>/`, or the
 /// path-less default) exactly as a package read in that scope would, then
-/// the registry-level default `access` gates the caller. A denial is
+/// whether the caller may read anything in that registry gates it. A denial is
 /// masked as not-found — team and member names must not become an
 /// existence probe for a private registry. Returns the registry's name with
 /// its config. Teams belong to the instance, so the registry only decides who

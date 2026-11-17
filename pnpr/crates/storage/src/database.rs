@@ -5,8 +5,8 @@
 //! state as rows of a SQL database and renders documents from them. The
 //! registry's handlers reach one namespace of it through [`Storage`]: reading
 //! a package view, committing a package document, changing a tag, removing a
-//! package. The database also owns removed-package claims, SCIM accounts, team
-//! rosters, rule overrides, CDN invalidations, and staged-publish metadata.
+//! package. The database also owns removed-package claims, SCIM accounts,
+//! teams, grants, CDN invalidations, and staged-publish metadata.
 //! Archives and staged bodies stay in the hosted backend.
 
 pub(crate) mod sql;

@@ -533,7 +533,7 @@ fn hosted_storage(state: &AppState, namespace: Option<&str>) -> Storage {
 /// write routes like a publish: through the addressed `/~<name>/` (or,
 /// path-less, the default-target registry) to a hosted registry, rejecting a name
 /// routed to an upstream and 404ing when the path-less base has no default
-/// target or the registry's access list denies the caller.
+/// target or no grant lets the caller read the registry.
 fn resolve_write_target(
     state: &AppState,
     identity: &Identity,
@@ -559,8 +559,8 @@ fn resolve_write_target_for(
     }
 }
 
-/// The hosted registry a write resolved to: its name (for the
-/// `publish`/`unpublish` rule lookup) and its storage namespace.
+/// The hosted registry a write resolved to: its name (for the grant lookup)
+/// and its storage namespace.
 struct WriteTarget {
     source: String,
     namespace: String,

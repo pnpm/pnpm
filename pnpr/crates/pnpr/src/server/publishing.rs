@@ -54,8 +54,8 @@ use super::{
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
 pub(super) enum PublishTarget {
     /// Write into the hosted registry `source`'s storage `namespace`.
-    /// The source name is carried so the write's `publish`/`unpublish`
-    /// authorization can consult that registry's `packages:` rules.
+    /// The source name is carried so the write's authorization can consult
+    /// the grants that cover that registry.
     Hosted { source: String, namespace: String },
     /// The resolved target is not a hosted registry; reject with this reason.
     Reject(String),
@@ -101,8 +101,8 @@ pub(super) fn resolve_publish_target_for(
                 HostedGate::Denied(err) => PublishTarget::Denied(err),
             }
         }
-        // A write can never land on an upstream — but the upstream's `access:`
-        // gates the write endpoints exactly as it gates reads, so a caller the
+        // A write can never land on an upstream — but the upstream's grants
+        // gate the write endpoints exactly as they gate reads, so a caller the
         // upstream denies gets the read path's 403 (`authorized_upstream`), not
         // a rejection that narrates where the name routes.
         RegistrySource::Upstream(source) => match authorized_upstream(state, identity, &source) {
@@ -167,7 +167,7 @@ fn addressed_publish_target(
 }
 
 /// Whether `identity` may learn that the registry `name` exists. A hosted
-/// registry is masked behind its access list — a denied caller sees the same
+/// registry is masked from a caller who may read nothing in it, who sees the same
 /// not-found as for an undefined name on every read, so nothing on the write
 /// path may answer differently. An upstream registry is not masked (a denied
 /// caller gets an explicit 403 on reads), and a router is visible whenever

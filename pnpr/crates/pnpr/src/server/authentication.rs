@@ -105,7 +105,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
 /// both and surfaces them on `npm token list`, so it must enforce them too
 /// — otherwise a token the operator restricted could still publish, or be
 /// used from any network. Basic-auth and anonymous requests carry no
-/// restriction and are still subject to the per-package access policy in
+/// restriction and are still subject to the grants in
 /// the handlers; an unknown or revoked bearer token resolves to anonymous.
 pub(super) async fn authenticate(
     State(state): State<AppState>,

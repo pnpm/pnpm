@@ -114,8 +114,8 @@ pub(super) fn resolve_ecosystem_source(
 }
 
 /// Whether the concrete origin `package` resolves to through `registry` serves
-/// caller-gated content: a hosted registry whose access list denies anonymous
-/// callers, or an upstream registry that declares `access:`. Responses from such
+/// caller-gated content: a hosted package anonymous callers may not read, or
+/// an upstream registry that sends a credential. Responses from such
 /// an origin vary by `Authorization` and must never land in a shared HTTP
 /// cache, whichever URL surface (path-less or `/~<name>/`) served them.
 pub(super) fn resolves_to_private_source(
@@ -197,9 +197,9 @@ pub(super) async fn serve_registry_packument(
             )
             .await
         }
-        // A hosted denial answers per its gate tier (see `hosted_gate`): a
-        // registry-default denial is a not-found mask, an explicit
-        // `packages:` entry denies loudly so clients can prompt for auth.
+        // A hosted denial answers as `hosted_gate` decides: a not-found mask
+        // for a caller who reads nothing in the registry, a loud denial
+        // otherwise, so clients can prompt for auth.
         RegistrySource::Hosted(source) => {
             serve_hosted_packument(state, identity, headers, source, &name, tarball_base, view)
                 .await

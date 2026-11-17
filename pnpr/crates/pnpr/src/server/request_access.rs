@@ -7,9 +7,8 @@ use pnpr_config::RoutingConfig;
 
 /// Resolve the upstream behind an authorized `/~<name>/` endpoint request.
 ///
-/// Fails closed: an upstream that does not exist or carries no `access:` policy
-/// is a `404` (it is not a private-route endpoint), and a caller the policy
-/// does not admit is a `403`. Returns the [`Upstream`] to fetch *through* —
+/// Fails closed: an upstream that does not exist is a `404`, and a caller no
+/// grant lets read through it is a `403`. Returns the [`Upstream`] to fetch *through* —
 /// `/~<name>/` requests never read or write the shared proxy mirror, so a
 /// private upstream's packuments and tarballs can never leak across the public
 /// path or another upstream.
@@ -80,7 +79,7 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// the new one. The cache-first warm tarball path depends on this — it serves
 /// a cached entry without re-binding it against the current packument.
 ///
-/// A **private** registry — any that declares `access:` (so it is not `public`; the
+/// A **private** registry — any that is not `public` (the
 /// config loader forbids a public registry from carrying any credential) — is
 /// namespaced by an HMAC over `(registry, url, credential)` keyed with
 /// the server secret: the on-disk path leaks neither the registry name nor the
@@ -159,7 +158,7 @@ pub(super) fn require_admin(
 }
 
 /// Like [`require_admin`], also admitting the `auth.registryAdmins`: the
-/// callers who may change teams and access lists.
+/// callers who may change teams and grants.
 pub(super) fn require_access_admin(
     state: &AppState,
     identity: &Identity,

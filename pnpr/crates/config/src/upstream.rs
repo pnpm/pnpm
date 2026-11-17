@@ -317,7 +317,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
         cache: file.cache.unwrap_or(true),
         search: file.search,
         public: file.public,
-        // The `packages:` rules are attached by the caller
+        // The claimed patterns are attached by the caller
         // (`build_registries`) — this resolver only handles the serving
         // knobs shared with programmatic construction.
         rules: PackageRules::default(),

@@ -1,5 +1,5 @@
-//! Per-package authorization against the `packages:` rules of the registry
-//! a request resolved to.
+//! Per-package authorization against the grants that cover the registry a
+//! request resolved to.
 
 use std::sync::LazyLock;
 
@@ -9,12 +9,11 @@ use pnpr_policy::{Identity, PackageRules, Permission, RuleTable};
 
 use super::{Action, AppState, RegistrySource};
 
-/// The `packages:` rules of the concrete registry a request resolved to.
-/// Authorization is entirely registry-scoped — there is no global,
-/// name-keyed ACL — so every check consults the one registry that serves
-/// the package. The fallback (safe defaults: reads open, publishes need
-/// ownership, destructive writes denied) only fires for a programmatically
-/// built config whose serving tables miss the graph entry.
+/// The rules of the concrete registry a request resolved to: the grants that
+/// cover it. Every check consults the one registry that serves the package.
+/// The fallback (reads open, publishes need ownership, destructive writes
+/// denied) only fires for a programmatically built config whose serving
+/// tables miss the graph entry.
 fn source_rules(state: &AppState, source: &RegistrySource) -> PackageRules {
     static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
     let routing = state.routing();
@@ -30,8 +29,7 @@ fn source_rules(state: &AppState, source: &RegistrySource) -> PackageRules {
 }
 
 /// Check an already-resolved `identity` against the resolved source
-/// registry's per-package rule (the most specific `packages:` entry, its
-/// omitted fields falling back to the registry defaults). Returns `Ok(())`
+/// registry's grants. Returns `Ok(())`
 /// when the call is allowed; otherwise the appropriate `Unauthenticated` /
 /// `Forbidden` error. The identity is resolved once by [`authenticate`](super::authenticate), so
 /// every handler — including the search endpoint that filters many packages —
