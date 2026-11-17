@@ -203,7 +203,7 @@ impl DeployArgs {
         if legacy {
             install.run_legacy_deploy::<ReporterT>(source_root).await
         } else {
-            install.run_deploy::<ReporterT>(source_root).await
+            install.run::<ReporterT>().await
         }
         .wrap_err("installing deployed dependencies")
     }

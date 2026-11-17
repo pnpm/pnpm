@@ -78,22 +78,6 @@ where
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await
     }
 
-    /// Execute a deploy install, resolving relative overrides from its source workspace.
-    pub async fn run_deploy<Reporter: self::Reporter + 'static>(
-        self,
-        overrides_root_dir: &'a Path,
-    ) -> Result<(), InstallError> {
-        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            manifests: InstallManifestOptions {
-                deploy_hook: true,
-                overrides_root_dir: Some(overrides_root_dir),
-                ..Default::default()
-            },
-            ..Default::default()
-        }))
-        .await
-    }
-
     /// Validate that the wanted lockfile exists, matches every project's
     /// manifest and settings, and passes local tarball and resolution-policy
     /// checks without writing or removing anything on disk.

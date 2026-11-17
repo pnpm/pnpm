@@ -76,14 +76,16 @@ fn deploy_resolves_relative_file_overrides_from_the_source_workspace() {
     )
     .unwrap();
     fs::write(common.join("index.js"), "module.exports = 42\n").unwrap();
-    fs::write(
-        source.join("pnpm-workspace.yaml"),
-        "packages: []\nsharedWorkspaceLockfile: false\ninjectWorkspacePackages: true\nignoreScripts: true\nregistry: https://registry.npmjs.org\noverrides:\n  \"repro-sdk>repro-common\": file:../common\n",
-    )
-    .unwrap();
+    append_workspace_yaml_key(source, "packages", "[]");
+    append_workspace_yaml_key(source, "sharedWorkspaceLockfile", "false");
+    append_workspace_yaml_key(
+        source,
+        "overrides",
+        "\n  \"repro-sdk>repro-common\": file:../common",
+    );
 
     pacquet_cmd(source)
-        .with_args(["install", "--offline"])
+        .with_arg("install")
         .assert()
         .success();
 
