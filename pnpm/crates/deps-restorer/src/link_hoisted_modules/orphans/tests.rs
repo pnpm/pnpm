@@ -4,13 +4,13 @@ use crate::{
 };
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::PackageImportMethod;
-use pnpm_reporter::SilentReporter;
+use pnpm_reporter::{LogEvent, Reporter, SilentReporter, StatsMessage};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
+    sync::{Mutex, atomic::AtomicU8},
 };
 
 fn write_package(dir: &Path) {
@@ -21,7 +21,11 @@ fn write_package(dir: &Path) {
 
 /// Links an empty plan for a workspace of the root and a dependency-free
 /// `packages/foo`, with the root's modules directory at `root_modules_dir`.
-fn link_empty_plan(lockfile_dir: &Path, root_modules_dir: &str, previous_dirs: &BTreeSet<PathBuf>) {
+fn link_empty_plan<LogReporter: Reporter>(
+    lockfile_dir: &Path,
+    root_modules_dir: &str,
+    previous_dirs: &BTreeSet<PathBuf>,
+) {
     let hierarchy = BTreeMap::from([(lockfile_dir.to_path_buf(), DepHierarchy::default())]);
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
@@ -45,7 +49,7 @@ fn link_empty_plan(lockfile_dir: &Path, root_modules_dir: &str, previous_dirs: &
         )
         .with_importers([".", "packages/foo"]),
     };
-    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+    link_hoisted_modules::<LogReporter>(&opts).expect("linker succeeds");
 }
 
 #[test]
@@ -55,7 +59,7 @@ fn a_modules_dir_holding_a_project_is_not_scanned() {
     write_package(&lockfile_dir.join("packages/foo"));
     write_package(&lockfile_dir.join("packages/stray"));
 
-    link_empty_plan(&lockfile_dir, "packages", &BTreeSet::new());
+    link_empty_plan::<SilentReporter>(&lockfile_dir, "packages", &BTreeSet::new());
 
     assert!(lockfile_dir.join("packages/foo/package.json").exists());
     assert!(lockfile_dir.join("packages/stray/package.json").exists());
@@ -70,7 +74,7 @@ fn a_modules_dir_that_is_not_inside_its_importer_is_not_scanned() {
         let stray = modules_dir.join("stray");
         write_package(&stray);
 
-        link_empty_plan(&lockfile_dir, root_modules_dir, &BTreeSet::new());
+        link_empty_plan::<SilentReporter>(&lockfile_dir, root_modules_dir, &BTreeSet::new());
 
         eprintln!("modulesDir: {root_modules_dir}");
         assert!(stray.join("package.json").exists());
@@ -89,8 +93,38 @@ fn a_previous_dir_that_is_the_workspace_or_holds_a_project_is_kept() {
         lockfile_dir.join("packages/foo"),
     ]);
 
-    link_empty_plan(&lockfile_dir, "node_modules", &previous_dirs);
+    link_empty_plan::<SilentReporter>(&lockfile_dir, "node_modules", &previous_dirs);
 
     assert!(lockfile_dir.join("package.json").exists());
     assert!(lockfile_dir.join("packages/foo/package.json").exists());
+}
+
+#[test]
+fn missing_orphan_directories_are_not_counted_as_removed() {
+    static REMOVED: Mutex<u64> = Mutex::new(0);
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Stats(log) = event
+                && let StatsMessage::Removed { removed, .. } = &log.message
+            {
+                *REMOVED.lock().unwrap() = *removed;
+            }
+        }
+    }
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let lockfile_dir = tmp.path();
+    let modules_dir = lockfile_dir.join("node_modules");
+    let installed = modules_dir.join("installed");
+    let missing = modules_dir.join("@scope/skipped");
+    write_package(&installed);
+    fs::create_dir_all(missing.parent().unwrap()).unwrap();
+    let previous_dirs = BTreeSet::from([installed.clone(), missing]);
+
+    link_empty_plan::<RecordingReporter>(lockfile_dir, "node_modules", &previous_dirs);
+    assert_eq!(*REMOVED.lock().unwrap(), 1);
+    assert!(!installed.exists());
+    link_empty_plan::<RecordingReporter>(lockfile_dir, "node_modules", &previous_dirs);
+    assert_eq!(*REMOVED.lock().unwrap(), 0);
 }

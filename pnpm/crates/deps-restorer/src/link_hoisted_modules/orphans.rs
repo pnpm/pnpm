@@ -32,17 +32,23 @@ struct UnplannedDir {
 /// way an alien package directory already is. Both are best-effort with
 /// the same `EPERM`/`EBUSY` tolerance: a directory we cannot clear right
 /// now is no worse than leaving a stale entry, and the next install will
-/// retry. Returns the count attempted, not necessarily cleared — the
-/// same number pnpm reports.
+/// retry. Returns the count of existing paths attempted, not necessarily cleared.
 pub(super) fn remove_orphans(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<u64, LinkHoistedModulesError> {
-    let recorded_dirs: BTreeSet<&PathBuf> = opts.previous_dirs
+    let recorded_dirs = opts.previous_dirs
         .iter()
         .filter(|dir| !opts.graph.contains_key(*dir))
         .filter(|dir| !holds_importer(opts, dir))
         .filter(|dir| confined(dir, opts.modules_dirs.removal_bound(dir)))
-        .collect();
+        .filter_map(|dir| match fs::symlink_metadata(dir) {
+            Ok(_) => Some(Ok(dir)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(source) => {
+                Some(Err(LinkHoistedModulesError::ReadModulesDir { path: dir.clone(), source }))
+            }
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
     let unplanned_dirs = unplanned_dirs(opts, &recorded_dirs)?;
     recorded_dirs
         .par_iter()
