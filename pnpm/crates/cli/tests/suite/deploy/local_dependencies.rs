@@ -1,7 +1,10 @@
+use std::process::Command;
+
+use assert_cmd::assert::OutputAssertExt;
+
 use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, append_workspace_yaml_key, fs, pacquet_cmd,
 };
-use assert_cmd::assert::OutputAssertExt;
 
 /// A `file:` dependency may live outside the lockfile directory. Install
 /// links it, so deploy copies it too.
@@ -44,4 +47,69 @@ fn deploy_copies_file_dependency_outside_the_lockfile_dir() {
     assert_eq!(fs::read_to_string(deployed_file).unwrap(), "module.exports = 42");
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn deploy_resolves_relative_file_overrides_from_the_source_workspace() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let source = &fixture.workspace;
+    let root = source.parent().unwrap();
+    let sdk = root.join("sdk");
+    let common = root.join("common");
+    for package in [&sdk, &common] {
+        fs::create_dir(package).unwrap();
+    }
+    fs::write(
+        source.join("package.json"),
+        r#"{"name":"repro-app","version":"1.0.0","dependencies":{"repro-sdk":"file:../sdk"}}"#,
+    )
+    .unwrap();
+    fs::write(
+        sdk.join("package.json"),
+        r#"{"name":"repro-sdk","version":"1.0.0","main":"index.js","dependencies":{"repro-common":"1.0.0"}}"#,
+    )
+    .unwrap();
+    fs::write(sdk.join("index.js"), "module.exports = require('repro-common')\n").unwrap();
+    fs::write(
+        common.join("package.json"),
+        r#"{"name":"repro-common","version":"1.0.0","main":"index.js"}"#,
+    )
+    .unwrap();
+    fs::write(common.join("index.js"), "module.exports = 42\n").unwrap();
+    fs::write(
+        source.join("pnpm-workspace.yaml"),
+        "packages: []\nsharedWorkspaceLockfile: false\ninjectWorkspacePackages: true\nignoreScripts: true\nregistry: https://registry.npmjs.org\noverrides:\n  \"repro-sdk>repro-common\": file:../common\n",
+    )
+    .unwrap();
+
+    pacquet_cmd(source)
+        .with_args(["install", "--offline"])
+        .assert()
+        .success();
+
+    let output = root.join("output");
+    for (mode, extra) in [
+        ("default", None),
+        ("shared", Some("--config.sharedWorkspaceLockfile=true")),
+        ("legacy", Some("--legacy")),
+    ] {
+        let target = output.join(mode);
+        let mut deploy = pacquet_cmd(source);
+        deploy.args(["--filter=.", "deploy"]);
+        if let Some(extra) = extra {
+            deploy.arg(extra);
+        }
+        deploy.arg(&target);
+        deploy.assert().success();
+    }
+
+    fs::rename(&common, root.join("common-away")).unwrap();
+    fs::rename(&sdk, root.join("sdk-away")).unwrap();
+    for mode in ["default", "shared", "legacy"] {
+        Command::new("node")
+            .current_dir(output.join(mode))
+            .args(["-e", "if (require('repro-sdk') !== 42) process.exit(1)"])
+            .assert()
+            .success();
+    }
 }

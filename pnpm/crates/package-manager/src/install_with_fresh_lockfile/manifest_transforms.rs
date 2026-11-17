@@ -58,8 +58,13 @@ pub(super) fn build_manifest_transforms(
         .as_ref()
         .map(|parsed| {
             Arc::new(
-                VersionsOverrider::new(parsed, config.root_project_manifest_dir(lockfile_dir))
-                    .with_catalogs(catalogs),
+                VersionsOverrider::new(
+                    parsed,
+                    config.overrides_root_dir
+                        .as_deref()
+                        .unwrap_or_else(|| config.root_project_manifest_dir(lockfile_dir)),
+                )
+                .with_catalogs(catalogs),
             )
         });
     let transforms =

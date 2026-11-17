@@ -78,6 +78,8 @@ pub(super) fn create_deploy_install_config(
     let mut deploy_config = base_config.clone();
     deploy_config.modules_dir = deploy_dir.join("node_modules");
     deploy_config.install_state_dir = deploy_virtual_store_dir(base_config, deploy_dir);
+    deploy_config.overrides_root_dir =
+        Some(base_config.root_project_manifest_dir(deploy_dir).to_path_buf());
     // The deploy directory owns the lockfile this install runs against:
     // the generated one for a shared deploy, its own resolution for the
     // legacy path. Pinning it keeps the source workspace, found above the
