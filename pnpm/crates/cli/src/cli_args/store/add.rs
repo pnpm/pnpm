@@ -131,7 +131,7 @@ async fn add_packages<Reporter: self::Reporter>(
     let resolver = store_resolver(config, &http_client)?;
     let resolve_options = store_resolve_options(dir);
     let (store_index_writer, writer_task) =
-        StoreIndexWriter::spawn_in_format(&config.store_dir, config.store_index_format);
+        StoreIndexWriter::spawn_checked(&config.store_dir, config.store_index_format);
     let registry_prefixes: Vec<String> = config
         .merged_registries_by_prefix()
         .into_keys()
@@ -154,7 +154,9 @@ async fn add_packages<Reporter: self::Reporter>(
     let has_failures = adder.add_all::<Reporter>(packages).await;
 
     drop(store_index_writer);
-    StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
+    writer_task.await
+        .map_err(|error| miette::miette!("wait for store-index writes: {error}"))?
+        .wrap_err("write store index")?;
 
     if has_failures { Err(StoreAddFailureError.into()) } else { Ok(()) }
 }

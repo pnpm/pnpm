@@ -350,20 +350,24 @@ impl StoreIndex {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(files) => return files.set_many(&encoded),
         };
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|source| StoreIndexError::Write { source })?;
-        {
-            let mut stmt = tx
-                .prepare_cached("INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)")
+        super::retry_sqlite_write(|| {
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|source| StoreIndexError::Write { source })?;
-            for (key, buf) in &encoded {
-                stmt.execute(rusqlite::params![key, buf])
+            {
+                let mut stmt = tx
+                    .prepare_cached(
+                        "INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)",
+                    )
                     .map_err(|source| StoreIndexError::Write { source })?;
+                for (key, buf) in &encoded {
+                    stmt.execute(rusqlite::params![key, buf])
+                        .map_err(|source| StoreIndexError::Write { source })?;
+                }
             }
-        }
-        tx.commit()
-            .map_err(|source| StoreIndexError::Write { source })
+            tx.commit()
+                .map_err(|source| StoreIndexError::Write { source })
+        })
     }
 
     /// `true` iff a row with this key exists, directly or through an alias.

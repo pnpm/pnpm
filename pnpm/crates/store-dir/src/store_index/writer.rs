@@ -120,6 +120,22 @@ impl StoreIndexWriter {
         store_dir: &StoreDir,
         index_format: StoreIndexFormat,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
+        Self::spawn_with_policy(store_dir, index_format, false)
+    }
+
+    /// Spawn a writer that returns indexing failures to its caller.
+    pub fn spawn_checked(
+        store_dir: &StoreDir,
+        index_format: StoreIndexFormat,
+    ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
+        Self::spawn_with_policy(store_dir, index_format, true)
+    }
+
+    fn spawn_with_policy(
+        store_dir: &StoreDir,
+        index_format: StoreIndexFormat,
+        fail_on_write_error: bool,
+    ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         let store_root = store_dir.root().to_path_buf();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
         let handle = tokio::task::spawn_blocking(move || -> Result<(), StoreIndexError> {
@@ -129,7 +145,12 @@ impl StoreIndexWriter {
             while let Some(first) = rx.blocking_recv() {
                 batch.push(first);
                 drain_queued(&mut rx, &mut batch);
-                flush_batch(&mut index, &mut batch);
+                if let Err(error) = flush_batch(&mut index, &mut batch) {
+                    if fail_on_write_error {
+                        return Err(error);
+                    }
+                    tracing::warn!(target: "pacquet::store_index", ?error, "batched store-index write failed; dropping this batch and continuing");
+                }
             }
             Ok(())
         });
@@ -234,7 +255,7 @@ fn drain_queued(
 }
 
 /// Coalesce the batch by key and write it in one transaction.
-fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
+fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) -> Result<(), StoreIndexError> {
     let mut pending: HashMap<String, PackageFilesIndex> = HashMap::with_capacity(batch.len());
     let mut aliases: Vec<(String, String)> = Vec::new();
     for msg in batch.drain(..) {
@@ -243,28 +264,9 @@ fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
             msg => apply_write_msg(index, &mut pending, msg),
         }
     }
-    if let Err(error) = index.set_many(pending.drain()) {
-        // Drop the batch and keep going. One failed flush (e.g. a disk-full
-        // hiccup) shouldn't silently drop the rest of the install's entries;
-        // the next install will cache-miss those rows and re-populate them,
-        // matching the "best-effort index" stance the read path already
-        // takes.
-        tracing::warn!(
-            target: "pacquet::store_index",
-            ?error,
-            "batched store-index write failed; dropping this batch and continuing",
-        );
-        // An alias of a row this batch failed to write could replace one
-        // that names a row that exists.
-        return;
-    }
-    if let Err(error) = index.set_aliases(&aliases) {
-        tracing::warn!(
-            target: "pacquet::store_index",
-            ?error,
-            "batched store-index alias write failed; dropping these aliases and continuing",
-        );
-    }
+    index.set_many(pending.drain())?;
+    index.set_aliases(&aliases)?;
+    Ok(())
 }
 
 /// `Replace` is a straight overwrite. Three short-circuit
