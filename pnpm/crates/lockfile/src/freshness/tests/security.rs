@@ -58,3 +58,26 @@ fn any_version_range_accepts_a_prerelease_resolution() {
         );
     }
 }
+
+#[test]
+fn npm_alias_with_hyphen_or_space_range_is_not_misparsed_as_bare_range() {
+    for spec in ["npm:bar@6.0.0 - 8.0.0", "npm:bar@>=7.0.0 <8.0.0"] {
+        let lockfile: Lockfile = serde_saphyr::from_str(&format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      my-bar:\n        specifier: '{spec}'\n        version: bar@7.0.0\n",
+        ))
+        .expect("parse fixture lockfile");
+        let importer = lockfile.root_project().expect("root importer present");
+        let manifest_json = serde_json::json!({
+            "name": "x",
+            "version": "1.0.0",
+            "dependencies": { "my-bar": spec },
+        });
+        let (_dir, manifest) = manifest_from_json(&manifest_json.to_string());
+
+        assert_eq!(
+            satisfies_package_manifest(importer, &manifest, true, &|_: &str| false),
+            Ok(()),
+            "for {spec:?}",
+        );
+    }
+}

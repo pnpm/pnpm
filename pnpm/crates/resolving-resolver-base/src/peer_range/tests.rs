@@ -7,6 +7,7 @@ fn is_valid_peer_range_only_accepts_semver_and_workspace_catalog() {
     assert!(is_valid_peer_range("catalog:"));
     assert!(!is_valid_peer_range("work:5.x.x"));
     assert!(!is_valid_peer_range("npm:bar@^5"));
+    assert!(!is_valid_peer_range("npm:bar@>=5.0.0 <6.0.0"));
     assert!(!is_valid_peer_range("file:../foo"));
 }
 
@@ -53,6 +54,8 @@ fn get_peer_version_range_extracts_named_registry_and_npm_bodies() {
     assert_eq!(get_peer_version_range("work:5.x.x"), "5.x.x");
     assert_eq!(get_peer_version_range("work:^5.0.0"), "^5.0.0");
     assert_eq!(get_peer_version_range("npm:bar@^5"), "^5");
+    assert_eq!(get_peer_version_range("npm:bar@>=5.0.0 <6.0.0"), ">=5.0.0 <6.0.0");
+    assert_eq!(get_peer_version_range("work:@scope/bar@>=5.0.0 <6.0.0"), ">=5.0.0 <6.0.0");
     assert_eq!(get_peer_version_range("npm:@scope/bar@~2.1.0"), "~2.1.0");
     assert_eq!(get_peer_version_range("npm:^5.0.0"), "^5.0.0");
 }

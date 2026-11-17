@@ -998,6 +998,8 @@ fn read_package_hook_applied(workspace: &Path) -> bool {
         .any(|key| key.to_string().starts_with("is-positive@"))
 }
 
+mod aliases;
+
 mod peers;
 
 mod hooks;

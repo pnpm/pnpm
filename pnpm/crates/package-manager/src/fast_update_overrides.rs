@@ -14,7 +14,7 @@ use pnpm_lockfile::{
     SnapshotEntry, pick_registry_for_package, registry_server_type,
 };
 use pnpm_resolving_deps_resolver::ManifestHook;
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver};
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, parse_strict_semver_range};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -297,7 +297,9 @@ fn override_applies_to(override_entry: &FastOverride, parent_key: Option<&Packag
         None => true,
         Some(range) => parent_key.suffix
             .version_semver()
-            .is_some_and(|version| Range::parse(range).is_ok_and(|range| range.satisfies(version))),
+            .is_some_and(|version| {
+                parse_strict_semver_range(range).is_some_and(|range| range.satisfies(version))
+            }),
     }
 }
 
@@ -320,7 +322,7 @@ fn validate_dependencies(
         if should_remove_dependency(&name, Some(parent_key), &plan.overrides) {
             continue;
         }
-        let range = Range::parse(&range).ok()?;
+        let range = parse_strict_semver_range(&range)?;
         let dep_ref =
             rewritten_dep_ref(&name, &range, &locked_dependencies, snapshots, packages, plan)?;
         let key = dep_ref.resolve(&name)?;

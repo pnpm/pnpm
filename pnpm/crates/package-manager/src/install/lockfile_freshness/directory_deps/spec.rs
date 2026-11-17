@@ -7,6 +7,7 @@ use super::{
 use pnpm_local_spec::{bare_path_is_unambiguous, is_tarball_filename};
 use pnpm_resolving_deps_resolver::locked_child_admits;
 use pnpm_resolving_local_resolver::{local_spec_path, recorded_local_path};
+use pnpm_resolving_resolver_base::{is_valid_semver_range, parse_strict_semver_range};
 use pnpm_workspace_spec::is_workspace_path_specifier;
 use std::path::Path;
 
@@ -350,7 +351,7 @@ fn npm_or_registry_spec_satisfies(
     if !npm_alias_matches(dep_name, expected_name, lockfile_dep) {
         return Some(false);
     }
-    let range = clean_spec.parse::<node_semver::Range>().ok()?;
+    let range = parse_strict_semver_range(clean_spec)?;
     let version = lockfile_dep.ver_peer().and_then(extract_semver)?;
     Some(range.satisfies(version))
 }
@@ -368,7 +369,7 @@ fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
     let Some(stripped) = spec.strip_prefix("npm:") else {
         return (None, spec);
     };
-    if stripped.parse::<node_semver::Range>().is_ok() {
+    if !stripped.is_empty() && is_valid_semver_range(stripped) {
         return (None, stripped);
     }
     match stripped.rfind('@') {

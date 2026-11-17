@@ -8,6 +8,7 @@
 
 use node_semver::{Range, Version};
 use pnpm_registry::{PackageVersion, RangeSpecStyle};
+use pnpm_resolving_resolver_base::is_valid_semver_range;
 
 use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 
@@ -119,7 +120,7 @@ pub fn calc_prefixed_specifier(
 /// round-trip as a bare range.
 fn npm_alias_target<'a>(bare_specifier: &'a str, alias: Option<&str>) -> Option<&'a str> {
     let rest = bare_specifier.strip_prefix("npm:")?;
-    if rest.parse::<Range>().is_ok() {
+    if is_valid_semver_range(rest) {
         return None;
     }
     let name = match rest.rfind('@') {

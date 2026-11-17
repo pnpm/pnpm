@@ -3,7 +3,6 @@
 #[cfg(feature = "runtime-provisioning")]
 use crate::runtime_specifier::node_runtime_version_spec;
 use crate::{OverriddenDependencyMatcher, VersionsOverrider};
-use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::{
@@ -19,7 +18,7 @@ use pnpm_package_manifest::is_runtime_alias;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::calc_version_range;
-use pnpm_resolving_resolver_base::VersionSelectorType;
+use pnpm_resolving_resolver_base::{VersionSelectorType, is_valid_semver_range};
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 use std::{
@@ -441,7 +440,7 @@ pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str
     };
     // A bare `npm:<range>` or `jsr:<range>` names no other package, so it
     // round-trips as one.
-    if rest.parse::<Range>().is_ok() {
+    if !rest.is_empty() && is_valid_semver_range(rest) {
         return Some((Cow::Borrowed(protocol), rest));
     }
     match rest

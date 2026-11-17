@@ -171,6 +171,21 @@ fn npm_alias_with_inner_scoped_name_and_range() {
 }
 
 #[test]
+fn npm_alias_with_space_separated_comparators_keeps_inner_name() {
+    for (specifier, expected_name, expected_range) in [
+        ("npm:bar@>=7.0.0 <8.0.0", "bar", ">=7.0.0 <8.0.0"),
+        ("npm:@scope/foo@>=1.0.0 <2.0.0", "@scope/foo", ">=1.0.0 <2.0.0"),
+        ("npm:bar@6.0.0 - 8.0.0", "bar", "6.0.0 - 8.0.0"),
+    ] {
+        let spec = parse_bare_specifier(specifier, Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap_or_else(|| panic!("expected a spec for {specifier:?}"));
+        assert_eq!(spec.name, expected_name, "for {specifier:?}");
+        assert_eq!(spec.fetch_spec, expected_range, "for {specifier:?}");
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Range, "for {specifier:?}");
+    }
+}
+
+#[test]
 fn npm_alias_unversioned_falls_back_to_default_tag() {
     let spec = parse_bare_specifier("npm:is-positive", None, DEFAULT_TAG, REGISTRY).unwrap();
     assert_eq!(spec.name, "is-positive");
@@ -675,6 +690,33 @@ fn named_registry_unscoped_body_parses() {
     assert_eq!(spec.spec.name, "lodash");
     assert_eq!(spec.spec.fetch_spec, "latest");
     assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Tag);
+}
+
+#[test]
+fn named_registry_body_with_space_separated_comparators_keeps_inner_name() {
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:@acme/foo@>=1.0.0 <2.0.0",
+        &gh_aliases(),
+        Some("@other/bar"),
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+    assert_eq!(spec.spec.fetch_spec, ">=1.0.0 <2.0.0");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
+
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "work:lodash@>=4.0.0 <5.0.0",
+        &aliases(&["work"]),
+        Some("my-lodash"),
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "lodash");
+    assert_eq!(spec.spec.fetch_spec, ">=4.0.0 <5.0.0");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
 }
 
 #[test]

@@ -4,14 +4,14 @@
 //! Mirrors the TypeScript `@pnpm/deps.peer-range` package; keep the two in
 //! sync.
 
-use node_semver::Range;
+use pnpm_semver_include_prerelease::is_valid_semver_range;
 
 /// Whether `version` is already a valid `peerDependencies` range that needs no
 /// desugaring: a valid semver range, or a `workspace:` / `catalog:` reference.
 /// The protocol can appear inside a wider range expression.
 #[must_use]
 pub fn is_valid_peer_range(version: &str) -> bool {
-    Range::parse(version).is_ok() || version.contains("workspace:") || version.contains("catalog:")
+    is_valid_semver_range(version) || version.contains("workspace:") || version.contains("catalog:")
 }
 
 /// Whether a `peerDependencies` value is accepted at install time.
@@ -58,11 +58,11 @@ pub fn get_peer_version_range(version: &str) -> String {
         .filter(|&colon| colon > 0)
     {
         let body = &version[colon + 1..];
-        if Range::parse(body).is_ok() {
+        if is_valid_semver_range(body) {
             return body.to_string();
         }
         if let Some(at) = body.rfind('@').filter(|&at| at > 0)
-            && Range::parse(&body[at + 1..]).is_ok()
+            && is_valid_semver_range(&body[at + 1..])
         {
             return body[at + 1..].to_string();
         }
@@ -77,7 +77,11 @@ fn desugar_workspace_range(version: &str) -> String {
     let Some(stripped) = version.strip_prefix("workspace:") else {
         return version.to_string();
     };
-    if Range::parse(stripped).is_ok() { stripped.to_string() } else { "*".to_string() }
+    if !stripped.is_empty() && is_valid_semver_range(stripped) {
+        stripped.to_string()
+    } else {
+        "*".to_string()
+    }
 }
 
 #[cfg(test)]

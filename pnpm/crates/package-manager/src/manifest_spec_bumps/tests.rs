@@ -219,11 +219,13 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
     let some = |prefix: &str, range: &str| Some((prefix.to_string(), range.to_string()));
     assert_eq!(split("^1.0.0"), some("", "^1.0.0"));
     assert_eq!(split("npm:foo@^1.0.0"), some("npm:foo@", "^1.0.0"));
+    assert_eq!(split("npm:foo@>=1.0.0 <2.0.0"), some("npm:foo@", ">=1.0.0 <2.0.0"));
     assert_eq!(split("npm:@scope/foo@^1.0.0"), some("npm:@scope/foo@", "^1.0.0"));
     assert_eq!(split("npm:^1.0.0"), some("npm:", "^1.0.0"));
     assert_eq!(split("npm:foo"), some("npm:foo@", ""));
     assert_eq!(split("jsr:^1.0.0"), some("jsr:", "^1.0.0"));
     assert_eq!(split("jsr:@scope/foo@^1.0.0"), some("jsr:@scope/foo@", "^1.0.0"));
+    assert_eq!(split("jsr:@scope/foo@>=1.0.0 <2.0.0"), some("jsr:@scope/foo@", ">=1.0.0 <2.0.0"));
     assert_eq!(split("jsr:@scope/foo"), some("jsr:@scope/foo@", ""));
     assert_eq!(split("workspace:^1.0.0"), None);
     assert_eq!(split("gh:^1.0.0"), None);
