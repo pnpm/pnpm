@@ -2,8 +2,9 @@
 //! version.
 
 use super::{
-    AppState, CanonicalPackageName, Duration, Identity, RegistryError, RegistrySource, Upstream,
-    authorized_upstream, fetch_coalesced_upstream_packument, upstream_cache_namespace,
+    AdmittedPackument, AppState, CanonicalPackageName, DocumentSource, Duration, Identity,
+    RegistryError, RegistrySource, Upstream, authorized_upstream, coalesce_upstream_packument,
+    fetch_and_cache_upstream_packument, upstream_cache_namespace,
 };
 use std::{collections::HashMap, sync::Mutex, time::Instant};
 
@@ -17,8 +18,8 @@ mod tests;
 /// the upstream at most once per package per interval.
 const REFETCH_INTERVAL: Duration = Duration::from_secs(60);
 
-/// Packages tracked before the attempts older than [`REFETCH_INTERVAL`] are
-/// dropped.
+/// Packages tracked before attempts are dropped: those older than
+/// [`REFETCH_INTERVAL`], and a quarter of the rest if that frees none.
 const CAPACITY: usize = 16 * 1024;
 
 /// When each package's packument was last refetched for a version it did
@@ -30,8 +31,7 @@ pub(in crate::server) struct PackumentRefetches {
 
 impl PackumentRefetches {
     /// Record an attempt for the package. `false` when one was recorded
-    /// within [`REFETCH_INTERVAL`], or when [`CAPACITY`] packages all have
-    /// one that recent.
+    /// within [`REFETCH_INTERVAL`].
     fn claim(&self, namespace: &str, name: &CanonicalPackageName) -> bool {
         let mut attempts = self.attempts.lock().expect("packument refetch lock poisoned");
         let key = (namespace.to_string(), name.clone());
@@ -43,8 +43,15 @@ impl PackumentRefetches {
         }
         if attempts.len() >= CAPACITY {
             attempts.retain(|_, attempted| attempted.elapsed() < REFETCH_INTERVAL);
-            if attempts.len() >= CAPACITY {
-                return false;
+        }
+        if attempts.len() >= CAPACITY {
+            let evicted: Vec<_> = attempts
+                .keys()
+                .take(CAPACITY / 4)
+                .cloned()
+                .collect();
+            for evicted in evicted {
+                attempts.remove(&evicted);
             }
         }
         attempts.insert(key, Instant::now());
@@ -67,14 +74,16 @@ pub(in crate::server) async fn reload_source_packument_lacking_version(
 }
 
 /// The packument to read again after its fresh cached copy did not list a
-/// requested version: the cached copy if it was fetched within
-/// [`REFETCH_INTERVAL`], as another request may have refetched it since,
-/// else a refetch. `None` when nothing newer can be read:
+/// requested version:
 ///
-/// - the upstream is not cached;
-/// - the cached copy is past its TTL, so the caller's read already asked the
-///   upstream;
-/// - a refetch was attempted within [`REFETCH_INTERVAL`].
+/// - the cached copy if it was fetched within [`REFETCH_INTERVAL`], as
+///   another request may have refetched it since;
+/// - the result of a refetch already in flight for the package;
+/// - a refetch, unless one was attempted within [`REFETCH_INTERVAL`], which
+///   leaves the cached copy.
+///
+/// `None` when the upstream is not cached, or when the cached copy is past
+/// its TTL, so the caller's read already asked the upstream.
 pub(in crate::server) async fn reload_upstream_packument_lacking_version(
     state: &AppState,
     namespace: &str,
@@ -89,13 +98,24 @@ pub(in crate::server) async fn reload_upstream_packument_lacking_version(
         return Ok(Some(recent));
     }
     let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
-    if storage.fresh_upstream_document_stamp(namespace, name, ttl).await?.is_none()
-        || !state.inner.proxy.packument_refetches.claim(namespace, name)
-    {
+    if storage.fresh_upstream_document_stamp(namespace, name, ttl).await?.is_none() {
         return Ok(None);
     }
-    let document =
-        fetch_coalesced_upstream_packument(state, namespace, upstream, name, REFETCH_INTERVAL)
-            .await?;
+    // The claim is taken by the flight's leader, so a request arriving
+    // during a refetch waits for it rather than finding the claim taken.
+    let document = coalesce_upstream_packument(state, namespace, name, || async {
+        let admissions = &state.inner.packuments.admissions;
+        if !state.inner.proxy.packument_refetches.claim(namespace, name) {
+            let admission = admissions.acquire(DocumentSource::Stored).await;
+            let cached = storage.read_upstream_document_any(namespace, name).await?;
+            return Ok(cached.map(|bytes| AdmittedPackument::new(bytes, admission)));
+        }
+        let admission = admissions.acquire(DocumentSource::Upstream(namespace)).await;
+        let fetched =
+            fetch_and_cache_upstream_packument(state, namespace, upstream, name, REFETCH_INTERVAL)
+                .await?;
+        Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))
+    })
+    .await?;
     Ok(document.map(|document| document.bytes.to_vec()))
 }

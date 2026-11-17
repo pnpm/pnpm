@@ -12,7 +12,7 @@ use super::{
     packument_response, resolve_registry_source, timed, upstream_cache_namespace,
 };
 use axum::{body::Bytes, response::IntoResponse};
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 mod missing_versions;
 
@@ -91,6 +91,12 @@ pub(super) struct AdmittedPackument {
     _admission: SourceAdmission,
 }
 
+impl AdmittedPackument {
+    fn new(bytes: Vec<u8>, admission: SourceAdmission) -> Arc<Self> {
+        Arc::new(Self { bytes: bytes.into(), _admission: admission })
+    }
+}
+
 async fn fetch_coalesced_upstream_packument(
     state: &AppState,
     namespace: &str,
@@ -98,21 +104,32 @@ async fn fetch_coalesced_upstream_packument(
     name: &CanonicalPackageName,
     ttl: Duration,
 ) -> Result<Option<Arc<AdmittedPackument>>, RegistryError> {
-    let key = (namespace.to_string(), name.clone());
-    Box::pin(state.inner.proxy.packument_singleflight.work(key, || {
-        Box::pin(async {
-            let admission =
-                state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace))
-                    .await;
-            let fetched =
-                fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await?;
-            Ok(fetched.map(|bytes| {
-                Arc::new(AdmittedPackument { bytes: bytes.into(), _admission: admission })
-            }))
-        })
-    }))
+    coalesce_upstream_packument(state, namespace, name, || async {
+        let admission =
+            state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace)).await;
+        let fetched =
+            fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await?;
+        Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))
+    })
     .await
-    .map_err(RegistryError::Shared)
+}
+
+/// Run `read` as the one in-flight read of an upstream package's packument,
+/// or wait for the read already in flight for it.
+async fn coalesce_upstream_packument<Read, Pending>(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    read: Read,
+) -> Result<Option<Arc<AdmittedPackument>>, RegistryError>
+where
+    Read: FnOnce() -> Pending + Send,
+    Pending: Future<Output = Result<Option<Arc<AdmittedPackument>>, Arc<RegistryError>>> + Send,
+{
+    let key = (namespace.to_string(), name.clone());
+    Box::pin(state.inner.proxy.packument_singleflight.work(key, || Box::pin(read())))
+        .await
+        .map_err(RegistryError::Shared)
 }
 
 async fn fetch_and_cache_upstream_packument(
