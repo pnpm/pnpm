@@ -202,7 +202,6 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("optimistic_repeat_install", BlocksFastPath(|config| config.optimistic_repeat_install = false)),
     ("optional", Through("the layout's dependency groups, compared as `optional`")),
     ("overrides", Recorded { key: "overrides", change: |config| config.overrides = Some(IndexMap::from([("foo".to_string(), "1.0.0".to_string())])) }),
-    ("overrides_root_dir", BlocksFastPath(|config| config.overrides_root_dir = Some(".".into()))),
     ("package_configs", Through("the settings it sets per project, each classified under its own field")),
     ("package_extensions", Recorded { key: "packageExtensions", change: |config| config.package_extensions = serde_json::from_value(serde_json::json!({ "foo": { "dependencies": { "bar": "1.0.0" } } })).unwrap() }),
     ("package_import_method", NotAnInput("an install does not re-import a package that is in place")),

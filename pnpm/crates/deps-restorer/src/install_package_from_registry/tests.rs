@@ -110,7 +110,6 @@ fn create_config(
         peers_suffix_max_length: pnpm_config::default_peers_suffix_max_length(),
         lockfile: false,
         lockfile_dir: None,
-        overrides_root_dir: None,
         configured_lockfile_dir: None,
         prefer_frozen_lockfile: false,
         frozen_lockfile: None,

@@ -225,6 +225,7 @@ impl FreshInstallExecution {
 #[derive(Clone, Copy)]
 pub(crate) struct FreshManifestOptions<'a> {
     pub(crate) deploy_hook: bool,
+    pub(crate) overrides_root_dir: Option<&'a Path>,
     /// The declared ranges `pacquet update` asks this run to move onto the
     /// versions it resolves, and the sink it reports them back through.
     /// `None` for every other install.

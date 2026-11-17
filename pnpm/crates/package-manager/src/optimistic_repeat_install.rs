@@ -160,9 +160,6 @@ pub(crate) fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
     if !config.optimistic_repeat_install {
         return Some("optimistic_repeat_install disabled");
     }
-    if config.overrides_root_dir.is_some() {
-        return Some("override paths are anchored outside the install root");
-    }
     if config.prune_direct_dependencies {
         return Some("prune_direct_dependencies enabled");
     }

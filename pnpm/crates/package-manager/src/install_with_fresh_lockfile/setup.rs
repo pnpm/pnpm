@@ -352,6 +352,7 @@ pub(super) async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
         &owned.projects.catalogs,
         lockfile_dir,
         install.manifests.deploy_hook,
+        install.manifests.overrides_root_dir,
     )?;
 
     let fixed_wanted_lockfile =

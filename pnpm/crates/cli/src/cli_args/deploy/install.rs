@@ -78,8 +78,6 @@ pub(super) fn create_deploy_install_config(
     let mut deploy_config = base_config.clone();
     deploy_config.modules_dir = deploy_dir.join("node_modules");
     deploy_config.install_state_dir = deploy_virtual_store_dir(base_config, deploy_dir);
-    deploy_config.overrides_root_dir =
-        Some(base_config.root_project_manifest_dir(deploy_dir).to_path_buf());
     // The deploy directory owns the lockfile this install runs against:
     // the generated one for a shared deploy, its own resolution for the
     // legacy path. Pinning it keeps the source workspace, found above the
@@ -133,6 +131,7 @@ impl DeployArgs {
         self.install_deployed_state::<ReporterT>(
             &state,
             deploy_dir,
+            base_config.root_project_manifest_dir(deploy_dir),
             legacy,
             frozen_lockfile,
             pnpmfile_hook,
@@ -153,6 +152,7 @@ impl DeployArgs {
         &self,
         state: &State,
         deploy_dir: &Path,
+        source_root: &Path,
         legacy: bool,
         frozen_lockfile: bool,
         pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
@@ -190,9 +190,9 @@ impl DeployArgs {
             base_install
         };
         if legacy {
-            install.run_legacy_deploy::<ReporterT>().await
+            install.run_legacy_deploy::<ReporterT>(source_root).await
         } else {
-            install.run::<ReporterT>().await
+            install.run_deploy::<ReporterT>(source_root).await
         }
         .wrap_err("installing deployed dependencies")
     }

@@ -238,6 +238,7 @@ impl<'a> RunExecution<'a> {
             .as_ref();
         MaterializationInputs {
             install: self.install,
+            overrides_root_dir: self.options.manifests.overrides_root_dir,
             resolution,
             lockfiles,
             workspace: self.workspace.materialization_workspace(

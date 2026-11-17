@@ -472,9 +472,6 @@ pub struct Config {
     /// goes through [`Config::pin_lockfile_dir`].
     pub lockfile_dir: Option<PathBuf>,
 
-    /// Base for relative paths in overrides.
-    pub overrides_root_dir: Option<PathBuf>,
-
     /// The resolved `lockfileDir` setting before [`pnpm_fs::lexical_normalize`]
     /// collapses `..` or `.` segments or clears a default pin, so containment
     /// checks still see symlinked parent segments in the configured path.
