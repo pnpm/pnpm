@@ -179,6 +179,9 @@ async fn put_grant(
                 .ok_or(RegistryError::NotFound)?;
             check_managed_change(&identity, &existing.content, &content)?;
         }
+        // A manager's right to write comes from the grant as it was read, so
+        // its write holds only while the grants are still at that version.
+        let expected = if is_admin { expected } else { grants.generation };
         validate(&state, &content)?;
         let id =
             existing.map_or_else(pnpr_auth::new_principal_id, |grant| grant.id.clone());

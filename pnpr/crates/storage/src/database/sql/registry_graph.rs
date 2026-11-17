@@ -287,6 +287,17 @@ fn current_generation(connection: &dyn Connection) -> Result<Option<u64>> {
         .transpose()
 }
 
+/// The document of the current revision, `None` when no graph is stored.
+pub(super) fn current_document(connection: &dyn Connection) -> Result<Option<String>> {
+    connection
+        .query_optional(
+            "SELECT document FROM registry_graph_revisions ORDER BY generation DESC LIMIT 1",
+            params![],
+        )?
+        .map(|mut row| row.get(0))
+        .transpose()
+}
+
 fn stored_graph(mut row: Row) -> Result<StoredRegistryGraph> {
     Ok(StoredRegistryGraph {
         generation: decode_generation(row.get(0)?)?,

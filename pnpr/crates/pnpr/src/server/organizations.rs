@@ -138,7 +138,10 @@ pub(super) async fn add_upstream_org_packages(
     let Some(config) = routing.upstreams.get(scan.source) else {
         return Ok(());
     };
-    if !config.search || !config.rules.any_access_admits(identity) {
+    // The listing asks the origin, so it takes `cache` as well as `read`.
+    let admitted = config.rules.any_access_admits(identity)
+        && config.rules.any_admits(pnpr_policy::Action::Cache, identity);
+    if !config.search || !admitted {
         return Ok(());
     }
     let Some(upstream) = routing.upstream_clients.get(scan.source) else {

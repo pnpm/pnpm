@@ -20,6 +20,7 @@ use axum::body::Bytes;
 use pnpr_policy::Action;
 use pnpr_storage::database::{GrantContent, StoredGrant};
 use serde::Deserialize;
+use std::collections::BTreeMap;
 
 /// The body of `npm access grant`.
 #[derive(Deserialize)]
@@ -89,6 +90,7 @@ pub(super) async fn grant_team_access(
                 .collect(),
         };
         super::grant_directory::validate(state, &content)?;
+        reload_written_grants(state).await?;
         let id = existing_id(state, &name).unwrap_or_else(pnpr_auth::new_principal_id);
         written(state.inner.storage.put_grant(&id, content, None).await?, None)?;
         reload_written_grants(state).await?;
@@ -163,29 +165,79 @@ pub(super) fn list_team_packages(
     respond(result)
 }
 
-/// The patterns `grants` give the team `id` in `registry`, each with the most
-/// any of them gives.
+/// The patterns `grants` give the team `id` in `registry`, each with what the
+/// grants naming it give between them. A pattern a grant also excludes is not
+/// counted for that grant. A pattern a grant excludes part of is listed,
+/// which npm's listing cannot qualify.
 fn team_packages(
     grants: &[StoredGrant],
     registry: &str,
     id: &str,
 ) -> serde_json::Map<String, serde_json::Value> {
-    let mut packages = serde_json::Map::new();
-    let granted = grants
+    let mut given: BTreeMap<&str, TeamActions> = BTreeMap::new();
+    for content in grants
         .iter()
-        .filter(|grant| covers(&grant.content, registry))
-        .filter_map(|grant| Some((&grant.content, team_permission(&grant.content, id)?)));
-    for (content, permission) in granted {
-        let all = ["**".to_string()];
-        let patterns = if content.include.is_empty() { &all[..] } else { &content.include };
-        for pattern in patterns {
-            let known = packages.get(pattern).and_then(serde_json::Value::as_str);
-            if known != Some("read-write") {
-                packages.insert(pattern.clone(), json!(permission));
-            }
+        .map(|grant| &grant.content)
+        .filter(|content| covers(content, registry))
+    {
+        let actions = TeamActions::of(content, id);
+        for pattern in listed_patterns(content) {
+            given
+                .entry(pattern)
+                .or_default()
+                .add(actions);
         }
     }
-    packages
+    given
+        .into_iter()
+        .filter_map(|(pattern, actions)| Some((pattern.to_string(), json!(actions.label()?))))
+        .collect()
+}
+
+/// The patterns the grant `content` includes and does not itself exclude.
+fn listed_patterns(content: &GrantContent) -> impl Iterator<Item = &str> {
+    let included: &[String] = &content.include;
+    let all = included.is_empty().then_some("**");
+    let excluded = |pattern: &&str| {
+        content.exclude
+            .iter()
+            .any(|exclude| exclude == pattern || exclude == "**")
+    };
+    included
+        .iter()
+        .map(String::as_str)
+        .chain(all)
+        .filter(move |pattern| !excluded(pattern))
+}
+
+/// What grants let a team do with a pattern, in the actions npm's listing
+/// tells apart.
+#[derive(Debug, Default, Clone, Copy)]
+struct TeamActions {
+    read: bool,
+    publish: bool,
+}
+
+impl TeamActions {
+    fn of(content: &GrantContent, team: &str) -> Self {
+        let subject = format!("team:{team}");
+        let gives = |action: Action| {
+            content.subjects
+                .iter()
+                .any(|(given, name)| *given == subject && name == action.as_str())
+        };
+        Self { read: gives(Action::Read), publish: gives(Action::Publish) }
+    }
+
+    fn add(&mut self, other: Self) {
+        self.read |= other.read;
+        self.publish |= other.publish;
+    }
+
+    /// npm's word for the actions, or `None` when they do not let the team read.
+    fn label(self) -> Option<&'static str> {
+        self.read.then_some(if self.publish { "read-write" } else { "read-only" })
+    }
 }
 
 /// Whether the grant `content` covers `registry`.
@@ -193,18 +245,6 @@ fn covers(content: &GrantContent, registry: &str) -> bool {
     content.registries
         .iter()
         .any(|named| named == registry || named == super::grant_directory::EVERY_REGISTRY)
-}
-
-/// What the grant `content` lets the team `id` do, in npm's two words, or
-/// `None` when it does not let the team read.
-fn team_permission(content: &GrantContent, id: &str) -> Option<&'static str> {
-    let subject = format!("team:{id}");
-    let gives = |action: Action| {
-        content.subjects
-            .iter()
-            .any(|(given, name)| *given == subject && name == action.as_str())
-    };
-    gives(Action::Read).then(|| if gives(Action::Publish) { "read-write" } else { "read-only" })
 }
 
 /// The ID of the grant named `name`, in this replica's copy of the grants.

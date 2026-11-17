@@ -253,7 +253,11 @@ pub(crate) fn apply_declared(routing: &RoutingConfig, yaml: &str) {
         let ecosystem = routing.registries.ecosystem(key).unwrap_or_default();
         let covering = grants
             .iter()
-            .filter(|grant| grant.content.registries.contains(key))
+            .filter(|grant| {
+                grant.content.registries
+                    .iter()
+                    .any(|named| named == key || named == "*")
+            })
             .map(|grant| compile(&grant.content, ecosystem))
             .collect();
         rules.set_grants(covering);

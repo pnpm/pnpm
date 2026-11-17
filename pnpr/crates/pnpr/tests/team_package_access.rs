@@ -177,6 +177,32 @@ async fn a_grant_is_one_grant_of_the_instance() {
 }
 
 #[tokio::test]
+async fn the_listing_adds_up_grants_and_leaves_out_what_a_grant_excludes() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path()).await).await;
+    let root = add_user(&app, "root").await;
+    let grants = [
+        ("readers", json!({ "include": ["@acme/app"], "subjects": { "team:devs": ["read"] } })),
+        ("writers", json!({ "include": ["@acme/app"], "subjects": { "team:devs": ["publish"] } })),
+        (
+            "nothing",
+            json!({
+                "include": ["@acme/lib"],
+                "exclude": ["@acme/lib"],
+                "subjects": { "team:devs": ["read", "publish"] },
+            }),
+        ),
+    ];
+    for (name, mut grant) in grants {
+        grant["registries"] = json!(["local"]);
+        let path = format!("/-/pnpr/v0/admin/grants/{name}");
+        let (status, body) = send(&app, "PUT", &path, Some(&root), Some(grant)).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+    }
+    assert_eq!(team_packages(&app, &root).await, json!({ "@acme/app": "read-write" }));
+}
+
+#[tokio::test]
 async fn grants_need_an_admin_and_a_known_team() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path()).await).await;

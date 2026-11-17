@@ -363,6 +363,45 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
 }
 
 #[test]
+fn a_fetch_keeps_its_package_when_readers_differ_between_packages() {
+    use pnpr_policy::{Action, Grant, GrantSpec};
+    use pnpr_registry::Ecosystem;
+
+    let grant = |name: &str, include: &[&str], subject: &str| {
+        let spec = GrantSpec {
+            name: name.to_string(),
+            include: include
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            exclude: Vec::new(),
+            subjects: vec![
+                (subject.to_string(), Action::Read),
+                (subject.to_string(), Action::Cache),
+            ],
+        };
+        Grant::compile(&spec, Ecosystem::Npm).expect("test grant compiles")
+    };
+    let mut config = base_config();
+    let upstream = upstream_with_access("https://npm.corp.example/", "alice");
+    // Alice reads everything and bob one package, so a resolution alice
+    // cached for another package must not replay for bob.
+    upstream.rules.set_grants(vec![
+        grant("everything", &[], "alice"),
+        grant("one", &["@corp/allowed"], "bob"),
+    ]);
+    config.routing.upstreams.insert("corp".to_string(), upstream);
+    let context = RouteContext::from_config(&config);
+
+    assert_eq!(
+        context.alias_package_qualifier("corp", Some("@corp/secret")),
+        Some("@corp/secret".to_string()),
+    );
+    let url = "https://npm.corp.example/@corp%2fsecret";
+    assert_eq!(context.classify(&user("bob"), url, Some("@corp/secret")), RouteClass::Public);
+}
+
+#[test]
 fn upstream_per_package_rules_gate_alias_selection() {
     use pnpr_policy::{PackageRule, PackageRules};
     use pnpr_registry::{Ecosystem, PackagePattern};

@@ -2,6 +2,7 @@
 
 use super::{AccessList, AccessToken, Identity, PackageRule};
 use pnpr_registry::{Ecosystem, PackagePattern};
+use std::collections::HashMap;
 
 /// What a grant lets a subject do to a package.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -139,6 +140,33 @@ impl Grant {
                 .any(|pattern| pattern.matches(package))
     }
 
+    /// The names the grant includes, when it includes literal names only.
+    fn included_names(&self) -> Option<Vec<&str>> {
+        if self.include.is_empty() {
+            return None;
+        }
+        self.include
+            .iter()
+            .map(|pattern| match pattern {
+                PackagePattern::Exact(name) => Some(name.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Whether the patterns the grant excludes leave it no package.
+    fn covers_nothing(&self) -> bool {
+        let excluded = |pattern: &PackagePattern| {
+            self.exclude
+                .iter()
+                .any(|exclude| exclude.covers(pattern))
+        };
+        if self.include.is_empty() {
+            return excluded(&PackagePattern::All);
+        }
+        self.include.iter().all(excluded)
+    }
+
     /// Whether the grant gives `action` to a subject `identity` matches.
     #[must_use]
     pub fn gives(&self, action: Action, identity: &Identity, is_owner: bool) -> bool {
@@ -165,26 +193,58 @@ impl Grant {
             .any(|(_, action)| *action == Action::Read);
         gives_read && !(self.include.is_empty() && self.exclude.is_empty())
     }
-
-    /// Whether the grant narrows who may read `package` to less than the
-    /// registry at large: it gives `read` and selects packages by pattern.
-    fn refines_read_of(&self, package: &str) -> bool {
-        let gives_read = self.subjects
-            .iter()
-            .any(|(_, action)| *action == Action::Read);
-        gives_read
-            && (self.exclude
-                .iter()
-                .any(|pattern| pattern.matches(package))
-                || (!self.include.is_empty() && self.covers(package)))
-    }
 }
 
-/// The grants that cover one registry.
+/// The grants that cover one registry, indexed so that a check of one
+/// package reads the grants that can cover it and not every grant: a
+/// registry may hold a grant per team and package.
 #[derive(Debug, Default, Clone)]
-pub(super) struct Grants(pub(super) Vec<Grant>);
+pub(super) struct Grants {
+    all: Vec<Grant>,
+    /// The positions of the grants that include nothing or a pattern other
+    /// than a literal name, which any name may match.
+    broad: Vec<usize>,
+    /// The positions of the other grants, under each name they include.
+    named: HashMap<String, Vec<usize>>,
+}
 
 impl Grants {
+    pub(super) fn new(all: Vec<Grant>) -> Self {
+        let mut broad = Vec::new();
+        let mut named: HashMap<String, Vec<usize>> = HashMap::new();
+        for (position, grant) in all.iter().enumerate() {
+            match grant.included_names() {
+                Some(names) => {
+                    for name in names {
+                        named
+                            .entry(name.to_string())
+                            .or_default()
+                            .push(position);
+                    }
+                }
+                None => broad.push(position),
+            }
+        }
+        Self { all, broad, named }
+    }
+
+    pub(super) fn all(&self) -> &[Grant] {
+        &self.all
+    }
+
+    /// The grants that cover `package`.
+    fn covering<'a>(&'a self, package: &'a str) -> impl Iterator<Item = &'a Grant> {
+        let named = self.named
+            .get(package)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        self.broad
+            .iter()
+            .chain(named)
+            .map(|position| &self.all[*position])
+            .filter(move |grant| grant.covers(package))
+    }
+
     pub(super) fn permits(
         &self,
         package: &str,
@@ -192,36 +252,28 @@ impl Grants {
         identity: &Identity,
         is_owner: bool,
     ) -> bool {
-        self.0
-            .iter()
-            .any(|grant| grant.covers(package) && grant.gives(action, identity, is_owner))
+        self.covering(package)
+            .any(|grant| grant.gives(action, identity, is_owner))
     }
 
     pub(super) fn owners_may(&self, package: &str, action: Action) -> bool {
-        self.0
-            .iter()
-            .any(|grant| grant.covers(package) && grant.gives_owners(action))
+        self.covering(package)
+            .any(|grant| grant.gives_owners(action))
     }
 
     pub(super) fn any_admits(&self, action: Action, identity: &Identity) -> bool {
-        self.0
+        self.all
             .iter()
-            .any(|grant| grant.gives(action, identity, false))
+            .any(|grant| !grant.covers_nothing() && grant.gives(action, identity, false))
     }
 
     /// Whether `identity` may do `action` on every package.
     pub(super) fn all_admit(&self, action: Action, identity: &Identity) -> bool {
-        let giving: Vec<&Grant> = self.0
+        let giving: Vec<&Grant> = self.all
             .iter()
             .filter(|grant| grant.gives(action, identity, false))
             .collect();
         covered(&giving, &PackagePattern::All)
-    }
-
-    pub(super) fn refine_read_of(&self, package: &str) -> bool {
-        self.0
-            .iter()
-            .any(|grant| grant.refines_read_of(package))
     }
 }
 

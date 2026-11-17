@@ -87,13 +87,7 @@ impl Upstream {
     }
 
     pub(crate) fn ensure_allowed_url(&self, url: &str) -> Result<()> {
-        if let Some(user) = &self.cached_only {
-            return Err(RegistryError::Forbidden {
-                user: user.clone(),
-                action: "fetch into the cache of",
-                resource: format!("upstream {:?}", self.name),
-            });
-        }
+        self.ensure_may_fetch()?;
         if let Some(guard) = &self.http.fetch_guard
             && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
         {

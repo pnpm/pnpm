@@ -252,6 +252,26 @@ pub(in crate::server) async fn authorize_package(
     Err(denial(identity, package, action))
 }
 
+/// Admit a write to `package` whose body has not been read yet: a `PUT` of a
+/// package document publishes versions or annotates the ones it has, and
+/// only the body says which. The check under the package lock names the one.
+pub(in crate::server) async fn authorize_package_write(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    package: &str,
+    namespace: Option<&str>,
+) -> Result<(), RegistryError> {
+    let Err(denied) =
+        authorize_package(state, identity, source, package, Action::Publish, namespace).await
+    else {
+        return Ok(());
+    };
+    authorize_package(state, identity, source, package, Action::Annotate, namespace)
+        .await
+        .map_err(|_| denied)
+}
+
 async fn is_package_owner(
     state: &AppState,
     identity: &Identity,

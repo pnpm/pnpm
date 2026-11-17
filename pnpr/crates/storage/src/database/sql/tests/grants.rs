@@ -161,9 +161,16 @@ async fn a_grant_and_the_teams_it_names_are_kept_together(db: Db) {
     assert_eq!(stored.grants[0].content.subjects, subjects);
 }
 
-fn revision<'a>(seeded: &'a [StoredGrant], removed: &'a [String]) -> NewRegistryGraph<'a> {
+const LOCAL_AND_CORP: &str = r#"{"registries":{"local":{},"corp":{}}}"#;
+const LOCAL_AND_SHARED: &str = r#"{"registries":{"local":{},"shared":{}}}"#;
+
+fn revision<'a>(
+    document: &'a str,
+    seeded: &'a [StoredGrant],
+    removed: &'a [String],
+) -> NewRegistryGraph<'a> {
     NewRegistryGraph {
-        document: "{}",
+        document,
         actor_id: "-",
         restored_from: None,
         vacated: &[],
@@ -188,7 +195,7 @@ async fn a_graph_write_seeds_and_forgets_the_grants_of_its_registries(db: Db) {
     let seeded = [seed("g-1", "local"), seed("g-2", "corp")];
     assert_eq!(
         storage
-            .write_registry_graph(None, revision(&seeded, &[]))
+            .write_registry_graph(None, revision(LOCAL_AND_CORP, &seeded, &[]))
             .await
             .unwrap(),
         RegistryGraphWrite::Written(1),
@@ -196,12 +203,14 @@ async fn a_graph_write_seeds_and_forgets_the_grants_of_its_registries(db: Db) {
     let shared = content("shared", &["corp", "local"], &[("$authenticated", "read")]);
     written(storage.put_grant("g-3", shared, None).await.unwrap());
 
-    // A seed whose name is taken keeps the grant an admin may have edited.
-    let again = [seed("g-9", "local")];
+    // A seed whose registry the grant of its name covers keeps that grant,
+    // which an admin may have edited. A seed whose name another registry's
+    // grant has takes the next free name.
+    let again = [seed("g-9", "local"), seed("g-8", "shared")];
     let removed = ["corp".to_string()];
     assert_eq!(
         storage
-            .write_registry_graph(Some(1), revision(&again, &removed))
+            .write_registry_graph(Some(1), revision(LOCAL_AND_SHARED, &again, &removed))
             .await
             .unwrap(),
         RegistryGraphWrite::Written(2),
@@ -217,8 +226,23 @@ async fn a_graph_write_seeds_and_forgets_the_grants_of_its_registries(db: Db) {
         [
             ("local".to_string(), vec!["local".to_string()]),
             ("shared".to_string(), vec!["local".to_string()]),
+            ("shared-2".to_string(), vec!["shared".to_string()]),
         ],
     );
+
+    // The registry the graph write removed cannot come back into a grant.
+    let stale = content("stale", &["corp"], &[("$all", "read")]);
+    assert_eq!(
+        storage.put_grant("g-4", stale.clone(), None).await.unwrap(),
+        GrantWrite::UnknownRegistry("corp".to_string()),
+    );
+    let stale = vec![StoredGrant { id: "g-4".to_string(), content: stale }];
+    assert_eq!(
+        storage.replace_grants(stale, None).await.unwrap(),
+        GrantWrite::UnknownRegistry("corp".to_string()),
+    );
+    let every = content("every", &["*"], &[("$all", "read")]);
+    written(storage.put_grant("g-5", every, None).await.unwrap());
 }
 
 conformance!(

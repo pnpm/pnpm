@@ -110,7 +110,9 @@ pub(super) async fn reload_grants(state: &AppState) -> bool {
     match read_with_deadline(state.inner.storage.read_grants(known)).await {
         Ok(Some(StoredGrants { generation, grants })) => {
             let grants = Grants { generation: Some(generation), grants };
-            apply(state, &grants, &state.routing());
+            // The served registries, not the ones this request pinned: a
+            // reload under a request must reach what later requests read.
+            apply(state, &grants, &state.inner.current_routing());
             directory.publish(grants);
             true
         }
@@ -160,6 +162,9 @@ pub(super) fn written(write: GrantWrite, expected: Option<u64>) -> Result<u64, R
         GrantWrite::UnknownTeam(id) => Err(RegistryError::BadRequest {
             reason: format!("the grant names `team:{id}`, and no team has that ID"),
         }),
+        GrantWrite::UnknownRegistry(registry) => Err(RegistryError::BadRequest {
+            reason: format!("the grant names the registry {registry:?}, which does not exist"),
+        }),
     }
 }
 
@@ -167,7 +172,7 @@ pub(super) fn written(write: GrantWrite, expected: Option<u64>) -> Result<u64, R
 /// exist, a pattern its ecosystem does not have, a subject that is not an
 /// access token, or an action that does not exist.
 pub(super) fn validate(state: &AppState, content: &GrantContent) -> Result<(), RegistryError> {
-    validate_for(&state.routing(), content)
+    validate_for(&state.inner.current_routing(), content)
 }
 
 /// [`validate`] against the registries of `routing`.

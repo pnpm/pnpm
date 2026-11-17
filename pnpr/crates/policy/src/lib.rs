@@ -131,7 +131,13 @@ impl RuleTable {
             .into_iter()
             .map(|pattern| PackageRule { pattern, access: None, publish: None, unpublish: None })
             .collect();
-        Self { grants: Grants(grants), ..Self::new(rules, None) }
+        Self {
+            rules,
+            default_access: AccessList::from_tokens(["$all"]),
+            default_publish: AccessList::from_tokens(["$owners"]),
+            default_unpublish: AccessList::default(),
+            grants: Grants::new(grants),
+        }
     }
 
     fn with_grants_of_rules(mut self) -> Self {
@@ -140,7 +146,7 @@ impl RuleTable {
             publish: &self.default_publish,
             unpublish: &self.default_unpublish,
         };
-        self.grants = Grants(grants::grants_of_rules(&self.rules, &defaults));
+        self.grants = Grants::new(grants::grants_of_rules(&self.rules, &defaults));
         self
     }
 
@@ -175,7 +181,7 @@ impl RuleTable {
     /// The grants that cover the registry.
     #[must_use]
     pub fn grants(&self) -> &[Grant] {
-        &self.grants.0
+        self.grants.all()
     }
 
     /// Whether `identity` may do `action` on `package`, given whether it owns
@@ -223,23 +229,20 @@ impl RuleTable {
     /// Whether a grant names the team `team`.
     #[must_use]
     pub fn references_team(&self, team: &str) -> bool {
-        self.grants.0
+        self.grants
+            .all()
             .iter()
             .any(|grant| grant.names_team(team))
-    }
-
-    /// Whether who may read `package` differs from who may read the registry
-    /// at large.
-    #[must_use]
-    pub fn refines_read_of(&self, package: &str) -> bool {
-        self.grants.refine_read_of(package)
     }
 
     /// Whether a grant that gives `read` selects packages by pattern, so who
     /// may read differs between the registry's packages.
     #[must_use]
     pub fn refines_access(&self) -> bool {
-        self.grants.0.iter().any(Grant::refines_read)
+        self.grants
+            .all()
+            .iter()
+            .any(Grant::refines_read)
     }
 
     /// Whether `identity` may read some package: the registry is not hidden

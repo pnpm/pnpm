@@ -3,8 +3,9 @@ pub(super) use slot_writes::{write_attachment_slot, write_attachment_slots};
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
     Integrity, Ownership, PendingAttachment, RegistryError, RegistrySource, Storage, Value,
-    WriteTarget, authorize_against_packument, authorize_package, authorize_with_ownership,
-    cleanup_tmp_slots, extract_attachments, generated_archive, hosted_storage,
+    WriteTarget, authorize_against_packument, authorize_package, authorize_package_write,
+    authorize_with_ownership, cleanup_tmp_slots, extract_attachments, generated_archive,
+    hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
@@ -108,15 +109,9 @@ pub(in super::super) async fn validate_publish_doc(
 
     // Route write to hosted target and enforce the registry's publish rule.
     let target = resolve_write_target(state, identity, registry, &name)?;
-    authorize_package(
-        state,
-        identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Publish,
-        Some(&target.namespace),
-    )
-    .await?;
+    let source = RegistrySource::Hosted(target.source.clone());
+    authorize_package_write(state, identity, &source, name.as_str(), Some(&target.namespace))
+        .await?;
 
     let storage = hosted_storage(state, Some(&target.namespace));
     check_publish_tombstone(state, identity, &storage, &name).await?;
@@ -128,6 +123,11 @@ pub(in super::super) async fn validate_publish_doc(
     // Validate attachment filenames against the package and parse their
     // canonical storage filename, matching version, and payload kind.
     let prepared = prepare_attachments(&name, &incoming, attachments)?;
+    if !prepared.is_empty() {
+        let namespace = Some(target.namespace.as_str());
+        authorize_package(state, identity, &source, name.as_str(), Action::Publish, namespace)
+            .await?;
+    }
     let variants = variants::attached_variants(&prepared);
     let publisher = identity.clone();
     let tarballs = if super::super::tar_registry::is_tar_registry(state, &target.source) {
@@ -273,7 +273,7 @@ pub(in super::super) async fn stage_publish(
     })
 }
 
-/// Repeat the `publish` check against the document or tombstone read under the
+/// Repeat the access check against the document or tombstone read under the
 /// package lock. The first check ran before the lock, so another publish or
 /// unpublish may have changed the package's ownership since.
 fn reauthorize_staged(
@@ -285,13 +285,10 @@ fn reauthorize_staged(
     let source = RegistrySource::Hosted(doc.registry.clone());
     if let Some(packument) = &base.packument {
         let package = (doc.name.as_str(), packument);
-        return authorize_against_packument(
-            state,
-            &doc.publisher,
-            &source,
-            package,
-            Action::Publish,
-        );
+        // A document that attaches no version changes only what the existing
+        // ones say of themselves.
+        let action = if doc.prepared.is_empty() { Action::Annotate } else { Action::Publish };
+        return authorize_against_packument(state, &doc.publisher, &source, package, action);
     }
     let ownership = match tombstone {
         Some(tombstone) => Ownership::Owners(&tombstone.maintainers),

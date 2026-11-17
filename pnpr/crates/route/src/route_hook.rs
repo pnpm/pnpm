@@ -150,9 +150,11 @@ impl ResolvedAlias {
         })
     }
 
-    /// Whether `identity` may read something through the upstream, so it may
-    /// select this alias.
+    /// Whether `identity` may select this alias: it may read something
+    /// through the upstream and have the origin fetched. A fetch through an
+    /// alias always reaches the origin, so `read` alone does not select one.
     pub(super) fn admits(&self, identity: &Identity) -> bool {
         self.rules.any_access_admits(identity)
+            && self.rules.any_admits(pnpr_policy::Action::Cache, identity)
     }
 }

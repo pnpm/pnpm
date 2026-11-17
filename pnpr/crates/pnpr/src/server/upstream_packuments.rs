@@ -411,7 +411,10 @@ impl UpstreamDocument<'_> {
             view,
             self.state,
             self.response.headers,
-            self.ttl.as_secs(),
+            self.upstream
+                .response_ttl()
+                .unwrap_or(self.state.inner.config.http.packument_ttl)
+                .as_secs(),
         )
         .await
     }

@@ -243,12 +243,14 @@ pub(super) async fn append_upstream_source(
     append_upstream_search(context, page, budget).await
 }
 
-/// Whether an upstream's own gates admit this caller to its search.
+/// Whether an upstream's own gates admit this caller to its search, which
+/// asks the origin: the caller reads every package and may have it fetched.
 pub(super) fn upstream_search_admits(
     config: &pnpr_config::UpstreamConfig,
     identity: &Identity,
 ) -> bool {
     config.rules.all_access_admit(identity)
+        && config.rules.any_admits(pnpr_policy::Action::Cache, identity)
 }
 
 /// The hosted names one discovery source contributes to a search, beside the

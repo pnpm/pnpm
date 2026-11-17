@@ -109,18 +109,13 @@ impl PackageRules {
     pub fn refines_access(&self) -> bool {
         self.snapshot().refines_access()
     }
-
-    /// See [`RuleTable::refines_read_of`].
-    #[must_use]
-    pub fn refines_read_of(&self, package: &str) -> bool {
-        self.snapshot().refines_read_of(package)
-    }
 }
 
 impl RuleTable {
     /// This table with `default_access` and the per-pattern `overrides`
     /// applied to its rules. Fails with the first pattern the table does not
-    /// declare.
+    /// declare. The result decides by its rules alone, so this is for a table
+    /// built with [`Self::new`], not one given grants by [`Self::of_grants`].
     pub fn with_overrides(
         &self,
         default_access: Option<AccessList>,

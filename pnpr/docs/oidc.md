@@ -139,9 +139,10 @@ An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](contain
 ## GitHub Actions keyless publishing
 
 Create a dedicated workload account, a named hosted npm registry, and exact
-package names. The package's normal `publish` rule must grant that account ID
-access too, in the
-[stored registries](configuration.md#registries-in-the-database):
+package names. A [grant](configuration.md#grants) must give that account ID
+`publish` on the package too. Store it with
+[`pnpr grants import`](cli.md#grants) or the
+[grants API](endpoints.md#grant-endpoints):
 
 ```yaml title="grants.yaml"
 grants:

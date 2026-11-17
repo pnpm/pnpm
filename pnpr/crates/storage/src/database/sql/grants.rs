@@ -1,6 +1,8 @@
 //! The grants of the instance: which subjects may do which actions on which
 //! packages of which registries.
 
+pub(super) use registries::follow_graph;
+
 use super::{
     adapter::{Connection, Row},
     batch::WriteTransaction,
@@ -10,7 +12,10 @@ use super::{
 };
 use crate::Storage;
 use pnpr_error::{RegistryError, Result};
+use registries::{stored_registries, unknown_registry};
 use std::collections::HashMap;
+
+mod registries;
 
 /// What a grant holds, apart from its ID.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -52,6 +57,8 @@ pub enum GrantWrite {
     NotFound,
     /// A subject names this team ID, which no team has.
     UnknownTeam(String),
+    /// The grant names this registry, which the stored registries do not have.
+    UnknownRegistry(String),
 }
 
 impl Storage {
@@ -176,9 +183,13 @@ fn refused_replacement(
     if let Some(conflict) = conflict(connection, expected)? {
         return Ok(Some(conflict));
     }
+    let registries = stored_registries(connection)?;
     for grant in grants {
         if let Some(team) = unknown_subject_team(connection, &grant.content.subjects)? {
             return Ok(Some(GrantWrite::UnknownTeam(team)));
+        }
+        if let Some(registry) = unknown_registry(registries.as_ref(), &grant.content.registries) {
+            return Ok(Some(GrantWrite::UnknownRegistry(registry)));
         }
     }
     Ok(None)
@@ -192,64 +203,6 @@ fn replace_all(connection: &dyn Connection, grants: &[StoredGrant]) -> Result<()
         insert_grant(connection, &grant.id, &grant.content)?;
     }
     Ok(())
-}
-
-/// What a graph write changes in the grants: the registries it removes leave
-/// every grant, and the registries it adds get their default grants.
-pub(super) fn follow_graph(
-    connection: &dyn Connection,
-    removed: &[String],
-    seeded: &[StoredGrant],
-) -> Result<()> {
-    forget_registries(connection, removed)?;
-    seed_grants(connection, seeded)
-}
-
-/// Create each of `grants` whose name no grant has yet. A graph write seeds a
-/// registry it adds this way, in its transaction.
-fn seed_grants(connection: &dyn Connection, grants: &[StoredGrant]) -> Result<()> {
-    let mut seeded = false;
-    for grant in grants {
-        if name_owner(connection, &grant.content.name)?.is_some() {
-            continue;
-        }
-        insert_grant(connection, &grant.id, &grant.content)?;
-        seeded = true;
-    }
-    if seeded {
-        advance_directory(connection)?;
-    }
-    Ok(())
-}
-
-/// Take each of `registries` out of every grant, and remove the grants left
-/// without a registry. A graph write does this for the registries it removes,
-/// so a registry added later under the same key starts without their grants.
-fn forget_registries(connection: &dyn Connection, registries: &[String]) -> Result<()> {
-    let mut changed = false;
-    for registry in registries {
-        let named = connection.query_optional(
-            "SELECT 1 FROM grant_registries WHERE registry = ?1 LIMIT 1",
-            params![registry],
-        )?;
-        if named.is_none() {
-            continue;
-        }
-        connection.execute("DELETE FROM grant_registries WHERE registry = ?1", params![registry])?;
-        changed = true;
-    }
-    if !changed {
-        return Ok(());
-    }
-    let orphans = connection.query(
-        "SELECT grant_id FROM grants
-         WHERE grant_id NOT IN (SELECT grant_id FROM grant_registries)",
-        params![],
-    )?;
-    for mut orphan in orphans {
-        delete_grant(connection, &orphan.get::<String>(0)?)?;
-    }
-    advance_directory(connection).map(drop)
 }
 
 /// Whether a grant gives an action to the team `id`.
@@ -311,7 +264,11 @@ fn refused_write(
     if name_owner(connection, &content.name)?.is_some_and(|owner| owner != id) {
         return Ok(Some(GrantWrite::NameTaken));
     }
-    Ok(unknown_subject_team(connection, &content.subjects)?.map(GrantWrite::UnknownTeam))
+    if let Some(team) = unknown_subject_team(connection, &content.subjects)? {
+        return Ok(Some(GrantWrite::UnknownTeam(team)));
+    }
+    let registries = stored_registries(connection)?;
+    Ok(unknown_registry(registries.as_ref(), &content.registries).map(GrantWrite::UnknownRegistry))
 }
 
 fn conflict(connection: &dyn Connection, expected: Option<u64>) -> Result<Option<GrantWrite>> {

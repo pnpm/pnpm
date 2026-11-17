@@ -207,6 +207,9 @@ async fn store(
         GrantWrite::UnknownTeam(id) => Err(RegistryError::BadRequest {
             reason: format!("a grant names `team:{id}`, and no team has that ID"),
         }),
+        GrantWrite::UnknownRegistry(registry) => Err(RegistryError::BadRequest {
+            reason: format!("a grant names the registry {registry:?}, which does not exist"),
+        }),
         GrantWrite::NameTaken | GrantWrite::NotFound => {
             Err(RegistryError::Internal { reason: "the grants could not be replaced".to_string() })
         }

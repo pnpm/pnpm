@@ -531,6 +531,32 @@ async fn counting_server() -> (SocketAddr, Arc<AtomicUsize>, tokio::task::JoinHa
     (address, hits, server)
 }
 
+/// A grant for each of `upstreams` that lets everyone read through it and
+/// have it fetched, so a request for it reaches the network guard.
+fn readers(upstreams: &[&str]) -> Vec<pnpr_storage::database::StoredGrant> {
+    upstreams
+        .iter()
+        .map(|name| pnpr_storage::database::StoredGrant {
+            id: format!("g-{name}"),
+            content: pnpr_storage::database::GrantContent {
+                name: (*name).to_string(),
+                registries: vec![(*name).to_string()],
+                subjects: vec![
+                    ("$all".to_string(), "read".to_string()),
+                    ("$all".to_string(), "cache".to_string()),
+                ],
+                ..Default::default()
+            },
+        })
+        .collect()
+}
+
+/// Whether `status` is what a read answers when the network guard refuses the
+/// upstream's address: at once for a literal address, on connecting for a name.
+fn refused_address(status: StatusCode) -> bool {
+    matches!(status, StatusCode::BAD_GATEWAY | StatusCode::SERVICE_UNAVAILABLE)
+}
+
 #[tokio::test]
 async fn a_stored_upstream_never_reaches_a_refused_address() {
     let dir = TempDir::new().unwrap();
@@ -551,7 +577,7 @@ async fn a_stored_upstream_never_reaches_a_refused_address() {
         restored_from: None,
         vacated: &[],
         bound: &[],
-        seeded: &[],
+        seeded: &readers(&["literal", "named"]),
         removed: &[],
     };
     let written = storage
@@ -564,7 +590,7 @@ async fn a_stored_upstream_never_reaches_a_refused_address() {
     for registry in ["literal", "named"] {
         let path = format!("/npm/~{registry}/example");
         let (status, _, _) = replica.send("GET", &path, Some(&replica.bob), None).await;
-        assert_ne!(status, StatusCode::OK, "{path}");
+        assert!(refused_address(status), "{path}: {status}");
     }
     assert_eq!(hits.load(Ordering::SeqCst), 0);
     server.abort();
@@ -594,7 +620,7 @@ async fn the_own_public_host_is_no_exception_for_a_stored_upstream() {
             restored_from: None,
             vacated: &[],
             bound: &[],
-            seeded: &[],
+            seeded: &readers(&["up"]),
             removed: &[],
         };
         storage
@@ -605,7 +631,7 @@ async fn the_own_public_host_is_no_exception_for_a_stored_upstream() {
 
         let (status, _, _) =
             replica.send("GET", "/npm/~up/example", Some(&replica.bob), None).await;
-        assert_ne!(status, StatusCode::OK, "{host}");
+        assert!(refused_address(status), "{host}: {status}");
         let rewrite = Some(upstream(&format!("{own_url}/other/")));
         let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), rewrite).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{host}: {error}");
@@ -642,7 +668,7 @@ async fn a_stored_upstream_at_the_own_public_origin_is_refused_on_an_allowed_net
             restored_from: None,
             vacated: &[],
             bound: &[],
-            seeded: &[],
+            seeded: &readers(&["up"]),
             removed: &[],
         };
         storage
@@ -653,7 +679,7 @@ async fn a_stored_upstream_at_the_own_public_origin_is_refused_on_an_allowed_net
 
         let (status, _, _) =
             replica.send("GET", "/npm/~up/example", Some(&replica.bob), None).await;
-        assert_ne!(status, StatusCode::OK, "{host}");
+        assert!(refused_address(status), "{host}: {status}");
         let rewrite = Some(upstream(&format!("{own_url}/other/")));
         let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), rewrite).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{host}: {error}");
@@ -1527,7 +1553,7 @@ async fn a_caller_without_cache_reads_only_what_the_upstream_cache_holds() {
 }
 
 #[tokio::test]
-async fn publishing_does_not_let_a_caller_change_dist_tags() {
+async fn publishing_and_annotating_are_given_separately() {
     let dir = TempDir::new().unwrap();
     let replica = Replica::new(load_config(dir.path()).await).await;
     let extra = json!({ "type": "hosted", "namespace": "extra" });
@@ -1550,9 +1576,26 @@ async fn publishing_does_not_let_a_caller_change_dist_tags() {
         replica.send("PUT", tag, Some(&replica.bob), Some(json!("1.0.0"))).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
 
-    let both = grant(json!(["publish", "annotate"]));
-    assert_eq!(replica.as_root("PUT", grant_path, Some(both)).await.0, StatusCode::OK);
+    // `npm deprecate` writes the package document back with no new version.
+    let package = "/npm/~extra/tagged-pkg";
+    let (status, mut document, _) = replica.send("GET", package, Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::OK, "{document}");
+    document["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
+    let deprecate = Some(document);
+    let (status, body, _) =
+        replica.send("PUT", package, Some(&replica.bob), deprecate.clone()).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+
+    let annotate = grant(json!(["annotate"]));
+    assert_eq!(replica.as_root("PUT", grant_path, Some(annotate)).await.0, StatusCode::OK);
     let (status, body, _) =
         replica.send("PUT", tag, Some(&replica.bob), Some(json!("1.0.0"))).await;
     assert!(status.is_success(), "{status}: {body}");
+    let (_, mut document, _) = replica.send("GET", package, Some(&replica.bob), None).await;
+    document["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
+    let (status, body, _) = replica.send("PUT", package, Some(&replica.bob), Some(document)).await;
+    assert!(status.is_success(), "{status}: {body}");
+    let next = crate::npm::publish_doc("tagged-pkg", "2.0.0", b"tarball-contents-2");
+    let (status, body, _) = replica.send("PUT", package, Some(&replica.bob), Some(next)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
 }

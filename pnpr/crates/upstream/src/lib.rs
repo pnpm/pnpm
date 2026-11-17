@@ -219,6 +219,13 @@ impl Upstream {
         self.packument_ttl
     }
 
+    /// The configured freshness window to advertise to HTTP caches, which
+    /// [`Self::cached_only`] does not lengthen.
+    #[must_use]
+    pub fn response_ttl(&self) -> Option<Duration> {
+        self.packument_ttl
+    }
+
     /// This upstream for `user`, who may read what the cache holds and no
     /// more: a cached packument never goes stale for it, and every request to
     /// the origin is refused.
@@ -472,10 +479,24 @@ impl Upstream {
         HeaderMap::new()
     }
 
+    /// Refuse a request to the origin for a [`Self::cached_only`] caller.
+    pub(crate) fn ensure_may_fetch(&self) -> Result<()> {
+        let Some(user) = &self.cached_only else {
+            return Ok(());
+        };
+        Err(RegistryError::Forbidden {
+            user: user.clone(),
+            action: "fetch into the cache of",
+            resource: format!("upstream {:?}", self.name),
+        })
+    }
+
     /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
     /// breaker is open, so callers never pay a request to a known-down
     /// upstream.
     pub(crate) fn ensure_available(&self) -> Result<()> {
+        // Before the breaker: a refused caller must not take its probe.
+        self.ensure_may_fetch()?;
         if self.breaker.try_acquire() {
             return Ok(());
         }

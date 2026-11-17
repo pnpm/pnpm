@@ -8,8 +8,8 @@ registries:
     url: https://registry.npmjs.org/
     public: true
 
-  # Hosted registry for private packages, addressable at `/~local/`. Its
-  # default grant lets signed-in callers read it.
+  # Hosted registry for private packages, addressable at `/~local/`. The
+  # grant it gets on first start lets signed-in callers read it.
   local:
     type: hosted
 
