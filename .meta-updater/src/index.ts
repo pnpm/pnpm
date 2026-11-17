@@ -33,6 +33,8 @@ const NON_TYPESCRIPT_PKGS = new Set([
   '@pnpm/pnpr',
   '@pnpm/pnpr-ui',
   '@pnpm/esm-loader',
+  // Plain JavaScript; its typescript dependency comes from the `compiler` catalog.
+  '@pnpm-private/tsgo',
 ])
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
