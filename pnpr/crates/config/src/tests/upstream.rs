@@ -322,43 +322,6 @@ registries:
 }
 
 #[test]
-fn teams_grant_package_and_upstream_access() {
-    let yaml = r"
-registries:
-  local:
-    type: hosted
-    packages:
-      '@team/*':
-        access: team:platform
-  corp:
-    type: upstream
-    url: https://npm.corp.example/
-    access: team:partners
-    auth:
-      type: bearer
-      token: '${CUSTOM_TOKEN}'
-registryEnv: [CUSTOM_TOKEN]
-";
-    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
-    let alice = Identity::member("alice", vec!["platform".to_string(), "partners".to_string()]);
-    let bob = Identity::member("bob", vec!["platform".to_string()]);
-    let carol = Identity::user("carol");
-
-    let rules = &config.routing.hosted["local"].rules;
-    let table = rules.snapshot();
-    let team = table.for_package("@team/widget");
-    assert!(team.access.allows(&alice));
-    assert!(team.access.allows(&bob));
-    assert!(!team.access.allows(&carol));
-    assert!(!team.access.allows(&Identity::Anonymous));
-
-    let access =
-        config.routing.upstreams["corp"].access.as_ref().expect("upstream declares access");
-    assert!(access.allows(&alice));
-    assert!(!access.allows(&bob));
-}
-
-#[test]
 fn upstream_write_rules_are_rejected() {
     // No write can land on an upstream, so a `publish`/`unpublish` value in
     // its `packages:` map is a config mistake — and it fails on every tier,
@@ -512,9 +475,7 @@ registryEnv: [CUSTOM_TOKEN]
     let upstream = &config.routing.upstreams["corp"];
     assert_eq!(upstream.url, "https://npm.corp.example/");
     assert_eq!(auth_header(upstream), Some("Bearer custom-env-token"));
-    let access = upstream.access.as_ref().expect("upstream declares access");
-    assert!(access.allows(&user("alice")));
-    assert!(!access.allows(&Identity::Anonymous));
+    assert!(!upstream.public);
 }
 
 #[test]
@@ -533,9 +494,7 @@ registryEnv: [BASIC_TOKEN]
     let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let upstream = &config.routing.upstreams["corp"];
     assert_eq!(auth_header(upstream), Some("Basic dXNlcjpwYXNz"));
-    let access = upstream.access.as_ref().expect("upstream declares access");
-    assert!(access.allows(&user("bob")));
-    assert!(!access.allows(&Identity::Anonymous));
+    assert!(!upstream.public);
 }
 
 #[test]
@@ -548,9 +507,7 @@ registries:
     public: true
 ";
     let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
-    // A public upstream registry is reachable anonymously and carries no access
-    // policy or upstream credential.
-    assert!(config.routing.upstreams["corp"].access.is_none());
+    assert!(config.routing.upstreams["corp"].public);
 }
 
 #[test]

@@ -29,9 +29,8 @@ defaultRegistry: main
     // Both upstream registries are exposed as upstreams for serving.
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert!(config.routing.upstreams.contains_key("corp"));
-    // The public upstream carries no credential gate; the private one does.
-    assert!(config.routing.upstreams["npmjs"].access.is_none());
-    assert!(config.routing.upstreams["corp"].access.is_some());
+    assert!(config.routing.upstreams["npmjs"].public);
+    assert!(!config.routing.upstreams["corp"].public);
     assert_eq!(config.routing.registries.default_registry(), Some("main"));
     assert!(config.routing.registries.is_router("main"));
     match config.routing.registries.resolve("main", Ecosystem::Npm, "@corp/secret") {

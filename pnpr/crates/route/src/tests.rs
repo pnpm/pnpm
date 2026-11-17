@@ -358,7 +358,7 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static(UPSTREAM_TOKEN));
     let mut upstream = UpstreamConfig::with_defaults(registry.to_string(), headers);
-    upstream.access = Some(AccessList::from_tokens([access]));
+    upstream.set_access(AccessList::from_tokens([access]));
     upstream
 }
 
@@ -611,7 +611,7 @@ fn proxied_alias_accepts_team_member_identity() {
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
-    upstream.access = Some(AccessList::new(vec![AccessToken::Team("platform".to_string())]));
+    upstream.set_access(AccessList::new(vec![AccessToken::Team("platform".to_string())]));
     config.routing.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);
     let url = "https://npm.corp.example/@acme%2fwidget";

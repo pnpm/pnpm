@@ -120,7 +120,7 @@ fn upstream_with_token(registry: &str, access: &str, token: &'static str) -> Ups
         reqwest::header::HeaderValue::from_static(token),
     );
     let mut upstream = UpstreamConfig::with_defaults(registry.to_string(), headers);
-    upstream.access = Some(AccessList::from_tokens([access]));
+    upstream.set_access(AccessList::from_tokens([access]));
     upstream
 }
 

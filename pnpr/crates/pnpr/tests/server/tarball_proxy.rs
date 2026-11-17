@@ -69,7 +69,7 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
     upstream.headers.insert("x-org", "acme".parse().unwrap());
     // A credentialed upstream must be access-gated (server construction
     // enforces it), so the read authenticates as an admitted caller.
-    upstream.access = Some(AccessList::from_tokens(["$authenticated"]));
+    upstream.set_access(AccessList::from_tokens(["$authenticated"]));
     let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
@@ -311,7 +311,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
         .expect("default `npmjs` upstream")
         .clone();
     corp.url = private_upstream.url();
-    corp.access = Some(AccessList::from_tokens(["alice"]));
+    corp.set_access(AccessList::from_tokens(["alice"]));
     config.routing.upstreams.insert("corp".to_string(), corp);
     let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;

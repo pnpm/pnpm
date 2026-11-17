@@ -1,0 +1,160 @@
+//! Access rules written inside a test's registries document, the way a
+//! registry once declared them: a registry-level `access` and, under each
+//! `packages:` key, `access`, `publish` and `unpublish` lists, the most
+//! specific key winning. pnpr decides access by grants, which the database
+//! holds apart from the registries, so the fixtures take the lists out of the
+//! document and store the grants that give the same.
+
+use indexmap::IndexMap;
+use pnpr_config::RoutingConfig;
+use pnpr_policy::{AccessList, AccessToken, PackageRule, RuleTable};
+use pnpr_registry::{Ecosystem, PackagePattern};
+use pnpr_storage::{
+    Storage,
+    database::{GrantContent, GrantWrite, StoredGrant},
+};
+use serde_json::Value;
+
+/// The rules of each hosted and upstream registry of a document, by key.
+pub(crate) type Tables = IndexMap<String, RuleTable>;
+
+/// Take the access lists out of the registries of `graph`, leaving the
+/// document pnpr stores, and return the rules they declare. A registry
+/// without lists gets the rules of its default grant.
+pub(crate) fn take_rules(graph: &mut Value) -> Tables {
+    let mut tables = Tables::new();
+    let Some(registries) = graph.get_mut("registries").and_then(Value::as_object_mut) else {
+        return tables;
+    };
+    for (key, registry) in registries {
+        let Some(registry) = registry.as_object_mut() else { continue };
+        let kind = registry
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        if kind != "hosted" && kind != "upstream" {
+            continue;
+        }
+        let ecosystem: Ecosystem = registry
+            .get("ecosystem")
+            .cloned()
+            .map(|ecosystem| serde_json::from_value(ecosystem).expect("a known ecosystem"))
+            .unwrap_or_default();
+        let public = registry
+            .get("public")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let default_access = registry
+            .remove("access")
+            .map(|access| list(&access))
+            .or_else(|| {
+                (kind == "upstream" && !public).then(|| AccessList::from_tokens(["$authenticated"]))
+            });
+        let mut rules = Vec::new();
+        let packages = registry.get_mut("packages").and_then(Value::as_object_mut);
+        for (pattern, lists) in packages.into_iter().flatten() {
+            let pattern = PackagePattern::parse(pattern, ecosystem)
+                .unwrap_or_else(|error| panic!("registry {key:?} `packages:` key: {error}"));
+            let mut field = |name: &str| {
+                lists
+                    .as_object_mut()
+                    .and_then(|lists| lists.remove(name))
+                    .map(|value| list(&value))
+            };
+            let rule = PackageRule {
+                pattern,
+                access: field("access"),
+                publish: field("publish"),
+                unpublish: field("unpublish"),
+            };
+            rules.push(rule);
+        }
+        tables.insert(key.clone(), RuleTable::new(rules, default_access));
+    }
+    tables
+}
+
+/// A list as a document writes it: one entry, or a sequence of them.
+fn list(value: &Value) -> AccessList {
+    let entries: Vec<&str> = match value {
+        Value::String(entry) => vec![entry.as_str()],
+        Value::Array(entries) => entries
+            .iter()
+            .map(|entry| entry.as_str().expect("an access list entry"))
+            .collect(),
+        _ => panic!("an access list is an entry or a sequence of entries"),
+    };
+    AccessList::new(
+        entries
+            .into_iter()
+            .map(AccessToken::parse)
+            .collect(),
+    )
+}
+
+/// Serve `tables` from `routing`, for a test that reads the rules from the
+/// config it loaded.
+pub(crate) fn apply(routing: &RoutingConfig, tables: &Tables) {
+    for (key, table) in tables {
+        let rules = routing.hosted
+            .get(key)
+            .map(|hosted| &hosted.rules)
+            .or_else(|| routing.upstreams.get(key).map(|upstream| &upstream.rules));
+        if let Some(rules) = rules {
+            rules.replace(table.clone());
+        }
+    }
+}
+
+/// The grants that give what `tables` give, each named after its registry
+/// and pattern and stored under that name as its ID.
+fn rows(tables: &Tables) -> Vec<StoredGrant> {
+    tables
+        .iter()
+        .flat_map(|(key, table)| {
+            table
+                .grants()
+                .iter()
+                .map(move |grant| {
+                    let spec = grant.spec();
+                    let name = if spec.name.is_empty() {
+                        key.clone()
+                    } else {
+                        format!("{key}:{}", spec.name)
+                    };
+                    let content = GrantContent {
+                        name: name.clone(),
+                        registries: vec![key.clone()],
+                        include: spec.include,
+                        exclude: spec.exclude,
+                        subjects: spec.subjects
+                            .into_iter()
+                            .map(|(subject, action)| (subject, action.as_str().to_string()))
+                            .collect(),
+                    };
+                    StoredGrant { id: name, content }
+                })
+        })
+        .collect()
+}
+
+/// Store the grants of `tables`, in place of the grants each of their
+/// registries had to itself.
+pub(crate) async fn store(storage: &Storage, tables: &Tables) {
+    let stored = storage.read_grants(None).await.expect("read the grants");
+    let stale = stored
+        .into_iter()
+        .flat_map(|stored| stored.grants)
+        .filter(
+            |grant| matches!(&grant.content.registries[..], [only] if tables.contains_key(only)),
+        );
+    for grant in stale {
+        storage.remove_grant(&grant.id, None).await.expect("remove a replaced grant");
+    }
+    for grant in rows(tables) {
+        let written =
+            storage.put_grant(&grant.id, grant.content, None).await.expect("store a grant");
+        assert!(matches!(written, GrantWrite::Written(_)), "{written:?}");
+    }
+}

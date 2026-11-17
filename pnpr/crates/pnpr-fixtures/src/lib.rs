@@ -10,11 +10,12 @@ pub use presets::{
 };
 pub use registries::{
     MOCK_REGISTRIES_YAML, load_seeded_config, registries_routing, seed_registries, split_graph,
-    store_document, write_document,
+    store_document, write_document, write_graph,
 };
 
 mod database;
 mod registries;
+mod rules;
 mod tarball;
 use tarball::{build_tarball, fixture_files};
 
@@ -295,9 +296,7 @@ fn build_storage(
 ///
 /// The document does not parse or cannot be stored.
 pub fn seed_storage_registries(storage: &Path, yaml: &str) {
-    let document = pnpr_config::RegistryGraphDocument::from_yaml(yaml)
-        .unwrap_or_else(|error| panic!("parse the registries document: {error}"));
-    registries::store_into(&database::open(storage), &document);
+    registries::store_into(&database::open(storage), &registries::parse_document(yaml));
 }
 
 fn remove_version_field(packuments: &mut [(String, Value)], removed: &RemovedVersionField<'_>) {

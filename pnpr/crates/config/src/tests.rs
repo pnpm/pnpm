@@ -207,7 +207,7 @@ fn upstream_config_file(
         fail_timeout: None,
         cache: None,
         search: false,
-        access: None,
+        public: true,
     }
 }
 

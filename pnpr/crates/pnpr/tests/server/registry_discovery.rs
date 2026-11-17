@@ -401,8 +401,10 @@ async fn upstream_without_a_search_endpoint_is_skipped() {
 async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://example.invalid", tmp.path().to_path_buf());
-    config.routing.upstreams.get_mut("npmjs").unwrap().access =
-        Some(AccessList::from_tokens(["alice"]));
+    config.routing.upstreams
+        .get_mut("npmjs")
+        .unwrap()
+        .set_access(AccessList::from_tokens(["alice"]));
     let mut hosted = hosted_with_access("public", "$all");
     hosted.rules = PackageRules::new(
         vec![access_rule("secret-package", "alice")],

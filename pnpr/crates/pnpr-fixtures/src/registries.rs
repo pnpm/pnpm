@@ -23,6 +23,28 @@ pub fn seed_registries(config: &mut Config, yaml: &str) {
     seed_document(config, &parse_document(yaml));
 }
 
+/// A registries document with the access rules a test wrote in it taken out.
+pub(crate) struct Graph {
+    document: RegistryGraphDocument,
+    rules: crate::rules::Tables,
+}
+
+impl Graph {
+    /// # Panics
+    ///
+    /// The document does not parse.
+    pub(crate) fn of(mut graph: Value) -> Self {
+        let rules = crate::rules::take_rules(&mut graph);
+        let document = serde_json::from_value(graph)
+            .unwrap_or_else(|error| panic!("parse the registries document: {error}"));
+        Self { document, rules }
+    }
+
+    fn of_document(document: &RegistryGraphDocument) -> Self {
+        Self::of(serde_json::to_value(document).expect("serialize the registries document"))
+    }
+}
+
 /// The routing the registries document `yaml` builds under `config`, without
 /// storing it, for a config whose database a test cannot reach.
 ///
@@ -34,15 +56,19 @@ pub fn registries_routing(config: &Config, yaml: &str) -> RoutingConfig {
     build_routing(config, &parse_document(yaml))
 }
 
-fn parse_document(yaml: &str) -> RegistryGraphDocument {
-    RegistryGraphDocument::from_yaml(yaml)
+pub(crate) fn parse_document(yaml: &str) -> Graph {
+    let graph = serde_saphyr::from_str::<Option<Value>>(yaml)
         .unwrap_or_else(|error| panic!("parse the registries document: {error}"))
+        .unwrap_or_else(|| Value::Object(Map::new()));
+    Graph::of(graph)
 }
 
 /// Load the config file at `path`, written with `registries`,
 /// `defaultRegistry`, and `routes.public` in it: those keys move into the
 /// database as its next revision, the empty graph when the file
-/// declares none, and the file keeps the rest.
+/// declares none, and the file keeps the rest. The registries may write
+/// access rules the way a registry once declared them; the grants that give
+/// the same are stored with the graph.
 ///
 /// A top-level `teams` key also moves into the database. It maps each team ID
 /// to `{ name, members }`, with `members` a list of account IDs.
@@ -60,12 +86,8 @@ pub fn load_seeded_config(path: &Path, listen: SocketAddr, public_url: Option<St
         .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
     let mut config = Config::from_yaml(path, listen, public_url)
         .unwrap_or_else(|error| panic!("load {}: {error}", path.display()));
-    let document: RegistryGraphDocument = graph
-        .map(serde_json::from_value)
-        .transpose()
-        .unwrap_or_else(|error| panic!("parse the registries of {}: {error}", path.display()))
-        .unwrap_or_default();
-    seed_document(&mut config, &document);
+    let graph = Graph::of(graph.unwrap_or_else(|| Value::Object(Map::new())));
+    seed_document(&mut config, &graph);
     if let Some(Value::Object(teams)) = teams {
         let storage = Storage::from_config(&config.storage).expect("open the storage");
         crate::database::run(store_teams(&storage, &teams));
@@ -114,13 +136,14 @@ pub fn split_graph(yaml: &str) -> (Map<String, Value>, Option<Value>) {
     (file, (!graph.is_empty()).then_some(Value::Object(graph)))
 }
 
-fn seed_document(config: &mut Config, document: &RegistryGraphDocument) {
-    let routing = build_routing(config, document);
-    store_document(&config.storage, document);
+fn seed_document(config: &mut Config, graph: &Graph) {
+    let routing = build_routing(config, graph);
+    let storage = Storage::from_config(&config.storage).expect("open the storage");
+    store_into(&storage, graph);
     config.routing = routing;
 }
 
-fn build_routing(config: &Config, document: &RegistryGraphDocument) -> RoutingConfig {
+fn build_routing(config: &Config, graph: &Graph) -> RoutingConfig {
     let options = RoutingOptions {
         registry_env: &config.registry_env,
         allowed_private_networks: config.routing.route_policy
@@ -128,8 +151,10 @@ fn build_routing(config: &Config, document: &RegistryGraphDocument) -> RoutingCo
             .clone(),
         resolve_upstreams: config.features.registry.enabled,
     };
-    RoutingConfig::from_document(document, &options)
-        .unwrap_or_else(|error| panic!("build the registries document: {error}"))
+    let routing = RoutingConfig::from_document(&graph.document, &options)
+        .unwrap_or_else(|error| panic!("build the registries document: {error}"));
+    crate::rules::apply(&routing, &graph.rules);
+    routing
 }
 
 /// Store `document` as the next revision in the database of
@@ -140,11 +165,11 @@ fn build_routing(config: &Config, document: &RegistryGraphDocument) -> RoutingCo
 /// The storage cannot be opened or the revision cannot be written.
 pub fn store_document(storage: &StorageConfig, document: &RegistryGraphDocument) {
     let storage = Storage::from_config(storage).expect("open the storage");
-    store_into(&storage, document);
+    store_into(&storage, &Graph::of_document(document));
 }
 
-pub(crate) fn store_into(storage: &Storage, document: &RegistryGraphDocument) {
-    crate::database::run(write_into(storage, document));
+pub(crate) fn store_into(storage: &Storage, graph: &Graph) {
+    crate::database::run(write_into(storage, graph));
 }
 
 /// [`store_document`] on the caller's runtime, for a database served by that
@@ -155,10 +180,22 @@ pub(crate) fn store_into(storage: &Storage, document: &RegistryGraphDocument) {
 /// The storage cannot be opened or the revision cannot be written.
 pub async fn write_document(storage: &StorageConfig, document: &RegistryGraphDocument) {
     let storage = Storage::from_config(storage).expect("open the storage");
-    write_into(&storage, document).await;
+    write_into(&storage, &Graph::of_document(document)).await;
 }
 
-async fn write_into(storage: &Storage, document: &RegistryGraphDocument) {
+/// [`write_document`] for a document in its JSON shape, which may write
+/// access rules the way [`load_seeded_config`] reads them.
+///
+/// # Panics
+///
+/// The document does not parse, or the storage cannot be opened or written.
+pub async fn write_graph(storage: &StorageConfig, graph: &Value) {
+    let storage = Storage::from_config(storage).expect("open the storage");
+    write_into(&storage, &Graph::of(graph.clone())).await;
+}
+
+async fn write_into(storage: &Storage, graph: &Graph) {
+    let document = &graph.document;
     let bound: Vec<HostedNamespace> = document
         .registry_names()
         .filter_map(|name| document.hosted_storage(name))
@@ -179,4 +216,5 @@ async fn write_into(storage: &Storage, document: &RegistryGraphDocument) {
     let written =
         storage.write_registry_graph(current, revision).await.expect("store the registries");
     assert!(matches!(written, RegistryGraphWrite::Written(_)), "{written:?}");
+    crate::rules::store(storage, &graph.rules).await;
 }

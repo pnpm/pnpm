@@ -23,6 +23,5 @@ pub async fn managed_config(
 /// Store `graph`, the JSON shape of a registry graph document, as the next
 /// revision, on the caller's runtime, which may be serving the database.
 pub async fn store_graph(config: &Config, graph: &Value) {
-    let document: RegistryGraphDocument = serde_json::from_value(graph.clone()).unwrap();
-    pnpr_fixtures::write_document(&config.storage, &document).await;
+    pnpr_fixtures::write_graph(&config.storage, graph).await;
 }

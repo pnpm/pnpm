@@ -1,10 +1,7 @@
 use super::{
     Config, FakeEnv, FeatureOverrides, Identity, Path, RegistryError, auth_header, listen, user,
 };
-use crate::{
-    PackageLists, RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions,
-    RuleLists,
-};
+use crate::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions};
 use indexmap::IndexMap;
 use pnpr_registry::Ecosystem;
 
@@ -288,54 +285,6 @@ fn registry_admins_are_separate_from_admins() {
     )
     .expect_err("an access token is not an account ID");
     assert!(error.to_string().contains("auth.registryAdmins"), "{error}");
-}
-
-#[test]
-fn named_teams_lists_the_teams_of_every_access_list() {
-    let mut document = RegistryGraphDocument::from_yaml(RICH_DOCUMENT).unwrap();
-    assert_eq!(
-        document
-            .named_teams()
-            .into_iter()
-            .collect::<Vec<_>>(),
-        ["t1"],
-    );
-    let mut corp = document.registry_entry("corp").unwrap();
-    corp["access"] = serde_json::json!(["team:t9", "$authenticated"]);
-    document.set_registry_entry("corp", corp).unwrap();
-    assert_eq!(
-        document
-            .named_teams()
-            .into_iter()
-            .collect::<Vec<_>>(),
-        ["t1", "t9"],
-    );
-}
-
-#[test]
-fn rule_list_edits_cannot_add_claims() {
-    let mut document = RegistryGraphDocument::from_yaml(RICH_DOCUMENT).unwrap();
-    let mut lists = document.rule_lists("local").unwrap();
-    assert_eq!(lists.access, Some(vec!["$authenticated".to_string()]));
-    lists.access = None;
-    lists.packages = IndexMap::from([(
-        "@acme/open".to_string(),
-        PackageLists { access: Some(vec!["team:t2".to_string()]), ..PackageLists::default() },
-    )]);
-    document.set_rule_lists("local", lists).unwrap();
-    let lists = document.rule_lists("local").unwrap();
-    assert_eq!(lists.access, None);
-    assert_eq!(lists.packages["@acme/open"].access, Some(vec!["team:t2".to_string()]));
-    assert_eq!(lists.packages["@acme/*"].publish, Some(vec!["team:t1".to_string()]));
-
-    let undeclared = RuleLists {
-        packages: IndexMap::from([("@other/*".to_string(), PackageLists::default())]),
-        ..RuleLists::default()
-    };
-    assert!(matches!(
-        document.set_rule_lists("local", undeclared),
-        Err(RegistryError::BadRequest { .. }),
-    ));
 }
 
 #[test]

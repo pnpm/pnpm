@@ -96,6 +96,16 @@ impl UpstreamConfig {
     }
 }
 
+impl UpstreamConfig {
+    /// Make this an upstream that sends a credential and that the callers of
+    /// `access` may read, keeping the patterns it claims. For an embedder
+    /// that builds its routing in code.
+    pub fn set_access(&mut self, access: pnpr_policy::AccessList) {
+        self.public = false;
+        self.rules = PackageRules::new(self.rules.snapshot().rules().to_vec(), Some(access));
+    }
+}
+
 impl fmt::Debug for UpstreamConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("UpstreamConfig")
