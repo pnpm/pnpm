@@ -129,8 +129,11 @@ async function removeDirsOutsidePlan (
   const holdsImporter = holdsAnyOf([lockfileDir, ...importerDirs, ...Object.keys(hierarchy)])
   const rootModulesDir = importerModulesDir(lockfileDir, { lockfileDir, modulesDir })
   const isPermittedDir = (dir: string) => isStrictlyInside(dir, lockfileDir) || isStrictlyInside(dir, rootModulesDir)
-  const dirsToRemove = difference(previousDirs, Object.keys(graph))
+  const orphanDirs = difference(previousDirs, Object.keys(graph))
     .filter((dir) => !holdsImporter(dir) && isPermittedDir(dir))
+  // Probe every candidate before deleting a parent that may contain another candidate.
+  const existingOrphanDirs = await Promise.all(orphanDirs.map((dir) => limitLinking(async () => await orphanPathMayExist(dir) ? dir : null)))
+  const dirsToRemove = existingOrphanDirs.filter((dir) => dir != null)
   // A directory the previous install recorded is pnpm's to delete. One that only
   // the on-disk scan found is not: pnpm has no record of putting it there, so it
   // is quarantined instead, the way an alien package directory already is.
@@ -144,7 +147,7 @@ async function removeDirsOutsidePlan (
   // We should avoid removing unnecessary directories while simultaneously adding new ones.
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
   await Promise.all([
-    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
+    ...dirsToRemove.map((dir) => limitLinking(() => tryRemoveDir(dir))),
     ...dirsToQuarantine.map((unplanned) => quarantineDir(unplanned, lockfileDir)),
   ])
 }
@@ -254,6 +257,17 @@ async function makeRealDir (parent: string, name: string): Promise<string | null
     if (!await isRealDir(dir)) return null
   }
   return dir
+}
+
+async function orphanPathMayExist (dir: string): Promise<boolean> {
+  try {
+    return await pathExistsNoFollow(dir)
+  } catch (error: unknown) {
+    if (isError(error) && 'code' in error && error.code === 'ENOTDIR') return false
+    // Metadata failures must not make best-effort orphan cleanup fatal.
+    logger.debug({ error, message: `Failed to inspect the orphan package at "${dir}"` })
+    return true
+  }
 }
 
 async function tryRemoveDir (dir: string): Promise<void> {

@@ -285,7 +285,7 @@ function createDlxAddOptions (ctx: DlxInstallContext, cachedDir: string): add.Ad
     lockfileDir: cachedDir,
     allowBuilds: ctx.allowBuilds,
     rootProjectManifestDir: cachedDir,
-    saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+    saveProd: true, // dlx will be looking for the package in the "dependencies" field.
     saveDev: false,
     saveOptional: false,
     savePeer: false,
