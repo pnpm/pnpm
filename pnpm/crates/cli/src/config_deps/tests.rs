@@ -166,6 +166,73 @@ fn legacy_registries_warning_keeps_credentials_when_comparing_urls() {
 }
 
 #[test]
+fn legacy_registries_warning_keeps_queries_when_comparing_urls() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://mirror.example/?region=a" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example/?region=b" },
+        "registriesByScope": { "@acme": "https://mirror.example/?region=a" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://mirror.example/?region=a".to_string())]),
+    )
+    .expect("legacy route has a different query");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@acme"));
+}
+
+#[tokio::test]
+async fn update_config_warns_about_scope_left_on_its_registry_by_legacy_routes() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(root.path().join(".npmrc"), "@acme:registry=https://acme.example/\n")
+        .expect("write npmrc");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig: (config) => ({ ...config, registries: { default: 'https://other.example/' } }) } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<RecordingReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.registry, "https://other.example/");
+    let events = EVENTS.lock().unwrap();
+    let warnings: Vec<&str> = events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }) => {
+                Some(message.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    eprintln!("{warnings:?}");
+    assert!(matches!(
+        warnings.as_slice(),
+        [message] if message.contains("still use their configured registry: @acme.")
+    ));
+}
+
+#[test]
 fn legacy_registries_warning_is_present_when_scope_routes_are_omitted() {
     let before = serde_json::json!({
         "registries": { "default": "https://registry-a/" },

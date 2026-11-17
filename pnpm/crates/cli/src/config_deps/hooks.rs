@@ -227,12 +227,15 @@ fn unchanged_legacy_scopes<'a>(
 }
 
 fn same_registry_route(left: &str, right: &str) -> bool {
-    let (Ok(left_url), Ok(right_url)) = (url::Url::parse(left), url::Url::parse(right)) else {
-        return left == right;
-    };
-    left_url.username() == right_url.username()
-        && left_url.password() == right_url.password()
-        && pnpm_lockfile::same_registry(left_url.as_str(), right_url.as_str())
+    normalized_registry_route(left) == normalized_registry_route(right)
+}
+
+fn normalized_registry_route(route: &str) -> String {
+    let mut normalized = url::Url::parse(route).map_or_else(|_| route.to_string(), String::from);
+    if !normalized.ends_with('/') {
+        normalized.push('/');
+    }
+    normalized
 }
 
 fn expected_legacy_route<'a>(

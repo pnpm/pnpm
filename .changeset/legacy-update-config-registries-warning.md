@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`pnpm` warns when an `updateConfig` hook returns registry routes under `registries`. The warning names the routes that still use their configured registry and points to `registriesByScope`.
+`pnpm` warns when an `updateConfig` hook changes `registries` and some routes still use their configured registry. The warning names those routes and points to `registriesByScope`.
