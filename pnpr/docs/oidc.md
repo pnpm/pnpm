@@ -35,7 +35,7 @@ auth:
 `audience` is the application's client ID. `clientSecret` can be omitted for
 providers that support public clients with PKCE. `subject` is the exact `sub`
 claim issued to this application, not an email address. Each binding maps that
-subject to an existing pnpr account ID, and the registry's existing access rules and teams
+subject to an existing pnpr account ID, and the existing grants and teams
 then apply. Extra `claims` are exact string matches and all of them must match.
 Create the account with `pnpr add-user` or SCIM before binding it. There is no
 automatic account creation or linking by email or username. Renaming the
@@ -139,17 +139,19 @@ An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](contain
 ## GitHub Actions keyless publishing
 
 Create a dedicated workload account, a named hosted npm registry, and exact
-package names. The package's normal `publish` rule must grant that account ID
-access too, in the
-[stored registries](configuration.md#registries-in-the-database):
+package names. A [grant](configuration.md#grants) must give that account ID
+`publish` on the package too. Add it with the
+[grants API](endpoints.md#grant-endpoints), or add it to the file
+[`pnpr grants export`](cli.md#grants) writes and import that file. An import
+replaces every stored grant:
 
-```yaml title="registries.yaml"
-registries:
-  private:
-    type: hosted
-    packages:
-      '@example/widget':
-        publish: [<workload-account-id>]
+```yaml title="grants.yaml"
+grants:
+  widget-release:
+    registries: [private]
+    include: ['@example/widget']
+    subjects:
+      <workload-account-id>: [read, publish]
 ```
 
 The workload itself is configured in the config file:
@@ -272,4 +274,4 @@ callbacks perform network operations concurrently.
 pnpr omits OIDC callback query strings from its request logs. Configure reverse
 proxies to omit them too.
 
-See [Access evaluation](access.md) for how sessions, personal tokens, teams, and package rules combine.
+See [Access evaluation](access.md) for how sessions, personal tokens, teams, and grants combine.

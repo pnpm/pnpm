@@ -33,8 +33,7 @@ pub enum TeamCreation {
 pub enum TeamRemoval {
     Removed,
     NotFound,
-    /// An access list of the stored registry graph names the team, so nothing
-    /// was removed.
+    /// A grant names the team, so nothing was removed.
     Named,
 }
 
@@ -47,15 +46,6 @@ impl Storage {
                 return Ok(None);
             }
             read_teams(connection).map(|teams| Some(StoredTeams { generation, teams }))
-        })
-        .await
-    }
-
-    /// The first of `ids` that no team has.
-    pub async fn unknown_team(&self, ids: &[String]) -> Result<Option<String>> {
-        let ids = ids.to_vec();
-        self.database.read(String::new(), Freshness::Current, move |connection, _| {
-            unknown_team(connection, &ids)
         })
         .await
     }
@@ -81,9 +71,9 @@ impl Storage {
         .await
     }
 
-    /// Remove the team and its memberships, unless the stored registry graph
-    /// names it. A graph write that starts to name a team checks for it in
-    /// its own transaction, so no stored graph names a removed team.
+    /// Remove the team and its memberships, unless a grant names it. A grant
+    /// write checks its teams in its own transaction, so no grant names a
+    /// removed team.
     pub async fn remove_team(&self, id: &str) -> Result<TeamRemoval> {
         let id = id.to_string();
         self.database.write(move |connection| {
@@ -91,7 +81,7 @@ impl Storage {
             if !team_exists(&*transaction, &id)? {
                 return Ok(TeamRemoval::NotFound);
             }
-            if graph_names_team(&*transaction, &id)? {
+            if super::grants::grants_name_team(&*transaction, &id)? {
                 return Ok(TeamRemoval::Named);
             }
             transaction.execute("DELETE FROM team_members WHERE team_id = ?1", params![&id])?;
@@ -195,20 +185,6 @@ pub(super) fn unknown_team(connection: &dyn Connection, ids: &[String]) -> Resul
         }
     }
     Ok(None)
-}
-
-/// Whether the stored registry graph holds the access list entry `team:<id>`.
-/// The document is JSON, so the entry is in it as that quoted string.
-fn graph_names_team(connection: &dyn Connection, id: &str) -> Result<bool> {
-    let entry = serde_json::to_string(&format!("team:{id}"))?;
-    let document = connection.query_optional(
-        "SELECT document FROM registry_graph_revisions ORDER BY generation DESC LIMIT 1",
-        params![],
-    )?;
-    match document {
-        Some(mut row) => Ok(row.get::<String>(0)?.contains(&entry)),
-        None => Ok(false),
-    }
 }
 
 fn team_exists(connection: &dyn Connection, id: &str) -> Result<bool> {

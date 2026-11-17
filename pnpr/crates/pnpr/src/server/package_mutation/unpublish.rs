@@ -53,7 +53,7 @@ async fn try_delete_package(
 ) -> Result<Option<Response>, Response> {
     let source = RegistrySource::Hosted(target.source.clone());
     let storage = hosted_storage(state, Some(&target.namespace));
-    match authorize_without_owners(state, identity, &source, name.as_str(), Action::Unpublish)
+    match authorize_without_owners(state, identity, &source, name.as_str(), Action::Delete)
         .map_err(IntoResponse::into_response)?
     {
         AuthorizationDecision::AllowedWithoutOwners => {
@@ -78,7 +78,7 @@ async fn remove_authorized_package(
     (storage, name): (&pnpr_storage::Storage, &CanonicalPackageName),
 ) -> Result<Option<Response>, Response> {
     let Some((_, version)) =
-        read_authorized_packument(state, identity, (target, name), Action::Unpublish)
+        read_authorized_packument(state, identity, (target, name), Action::Delete)
             .await
             .map_err(IntoResponse::into_response)?
     else {
@@ -100,7 +100,7 @@ async fn remove_authorized_package(
                 identity,
                 &source,
                 name.as_str(),
-                Action::Unpublish,
+                Action::Delete,
                 Some(&target.namespace),
             )
             .await

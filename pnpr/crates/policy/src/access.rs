@@ -24,6 +24,19 @@ pub enum AccessToken {
 /// `$...`) and `team:` references are handled where the graph document is
 /// read (`AccessSpec` in the config module). A programmatic caller passing
 /// one of those spellings just gets a username that matches nobody.
+impl AccessToken {
+    /// The token an access list entry or a grant subject spells, `team:<id>`
+    /// included. A malformed entry is an account ID nobody has; the config
+    /// crate validates entries where they are written.
+    #[must_use]
+    pub fn parse(entry: &str) -> Self {
+        match entry.strip_prefix("team:") {
+            Some(id) => Self::Team(id.to_string()),
+            None => Self::from(entry),
+        }
+    }
+}
+
 impl From<&str> for AccessToken {
     fn from(token: &str) -> Self {
         match token {
@@ -87,6 +100,10 @@ impl AccessList {
         self.0
             .iter()
             .any(|token| matches!(token, AccessToken::Owners))
+    }
+
+    pub(crate) fn tokens(&self) -> &[AccessToken] {
+        &self.0
     }
 
     #[must_use]
@@ -186,6 +203,12 @@ impl Identity {
             Self::Anonymous => None,
             Self::User { username, .. } => Some(username),
         }
+    }
+
+    /// Whether the caller is one of the callers `token` names, given
+    /// whether it owns the package in question.
+    pub(crate) fn matches(&self, token: &AccessToken, is_owner: bool) -> bool {
+        self.satisfies_with_context(token, is_owner)
     }
 
     fn satisfies(&self, token: &AccessToken) -> bool {

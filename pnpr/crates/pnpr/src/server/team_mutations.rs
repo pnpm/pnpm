@@ -74,8 +74,8 @@ pub(super) async fn create_team(
     respond(result.await)
 }
 
-/// `DELETE /-/team/{scope}/{team}`. A team an access list names stays, so no
-/// list loses the team it admits.
+/// `DELETE /-/team/{scope}/{team}`. A team a grant names stays, so no grant
+/// loses the team it admits.
 pub(super) async fn destroy_team(
     state: &AppState,
     identity: &Identity,
@@ -86,7 +86,7 @@ pub(super) async fn destroy_team(
         let registry = admin_registry(state, identity, &target, "destroy a team")?;
         let id = team_id(state, team).await?;
         let named = || RegistryError::AdminConflict {
-            reason: format!("team {team:?} is named by access rules; remove it from them first"),
+            reason: format!("team {team:?} is named by a grant; remove it from the grant first"),
         };
         if is_named_outside_the_stored_graph(state, &id) {
             return Err(named());
@@ -205,9 +205,9 @@ pub(super) fn respond(result: Result<impl IntoResponse, RegistryError>) -> Respo
     }
 }
 
-/// Whether an access list that [`pnpr_storage::Storage::remove_team`] does
-/// not read names the team `id`: the `artifacts.owners` lists of the config
-/// file, and the rules of a graph this server was given in code.
+/// Whether something [`pnpr_storage::Storage::remove_team`] does not read
+/// names the team `id`: the `artifacts.owners` lists of the config file, and
+/// the rules of a graph this server was given in code.
 fn is_named_outside_the_stored_graph(state: &AppState, id: &str) -> bool {
     let routing = state.routing();
     let owners = &state.inner.config.features.artifacts.owners;

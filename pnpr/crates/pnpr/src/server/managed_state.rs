@@ -1,5 +1,6 @@
 use super::{
     AppState, Config, RegistryError,
+    grant_directory::{GrantState, reload_grants},
     registry_graph::{GraphState, reload_graph},
     scim::{ScimState, reload_directory},
     team_directory::{TeamState, reload_teams},
@@ -39,6 +40,7 @@ pub(super) struct ManagedState {
     /// `auth.scim`.
     pub(super) scim: Option<ScimState>,
     pub(super) teams: TeamState,
+    pub(super) grants: GrantState,
     /// When the state is next due for a reload. `None` before the first.
     due_at: Mutex<Option<Instant>>,
     /// Held by a reload and by every edit, so a reload that read the store
@@ -57,6 +59,7 @@ impl ManagedState {
             graph,
             scim,
             teams: TeamState::default(),
+            grants: GrantState::default(),
             due_at: Mutex::new(None),
             reload: Arc::default(),
             completed_reloads: AtomicU64::new(0),
@@ -158,7 +161,9 @@ async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     };
     let teams = reload_teams(&state);
     let (registries_read, scim_read, teams_read) = tokio::join!(registries, directory, teams);
-    let all_read = registries_read && scim_read && teams_read;
+    // After the graph, so the grants cover the registries it now serves.
+    let grants_read = reload_grants(&state).await;
+    let all_read = registries_read && scim_read && teams_read && grants_read;
     managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
     managed.completed_reloads.fetch_add(1, Ordering::Release);
 }

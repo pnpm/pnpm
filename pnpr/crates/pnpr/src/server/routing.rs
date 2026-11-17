@@ -3,8 +3,9 @@ pub(super) mod npm_errors;
 pub(super) use super::{
     Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_LOGIN_BODY_BYTES,
     MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, authenticate,
-    authorize_package, batch, caller_scoped, cargo, check_publish_tombstone, delete_package,
-    delete_tarball, get_dist_tags, get_org_teams, get_team_members,
+    authorize_package, authorize_package_write, batch, caller_scoped, cargo,
+    check_publish_tombstone, delete_package, delete_tarball, get_dist_tags, get_org_teams,
+    get_team_members,
     health::{serve_live, serve_ping, serve_ready},
     hosted_storage, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
     pypi, remove_dist_tag, resolve_write_target, serve_metrics, serve_org_packages,
@@ -219,8 +220,8 @@ fn surface_routes(
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())
         .merge(super::user_admin::user_admin_routes())
-        .merge(super::rule_admin::rule_admin_routes())
-        .merge(super::registry_graph::registry_admin_routes());
+        .merge(super::registry_graph::registry_admin_routes())
+        .merge(super::grant_admin::grant_admin_routes());
     if state.inner.config.identity.auth.scim.is_some() {
         router = router.merge(super::scim::scim_routes());
     }

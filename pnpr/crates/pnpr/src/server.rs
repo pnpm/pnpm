@@ -1,11 +1,11 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
+pub(crate) use grant_directory::validate_for as validate_grant;
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
 pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use registry_graph::{
     Credentials, FileReferences, HostedChange, RoutingSnapshot, carry_pinned_routing,
-    check_revision, graph_version, occupied_namespace_error, stored_document, unknown_team_error,
-    with_stored_routing,
+    check_revision, graph_version, occupied_namespace_error, stored_document, with_stored_routing,
 };
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
@@ -149,11 +149,12 @@ mod registry_directory;
 mod registry_graph;
 mod request_id;
 mod routing;
-mod rule_admin;
 mod scim;
 mod security_audit;
 mod singleflight;
 use singleflight::Singleflight;
+mod grant_admin;
+mod grant_directory;
 mod staged;
 mod staged_archives;
 mod striped_locks;
@@ -171,8 +172,8 @@ use self::{
     authentication::{
         Action, AuthedCaller, AuthorizationDecision, Ownership, allows_with_ownership,
         authenticate, authorize, authorize_against_packument, authorize_continuation,
-        authorize_package, authorize_with_ownership, authorize_without_owners,
-        needs_package_owners,
+        authorize_package, authorize_package_write, authorize_with_ownership,
+        authorize_without_owners, needs_package_owners,
     },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
@@ -533,7 +534,7 @@ fn hosted_storage(state: &AppState, namespace: Option<&str>) -> Storage {
 /// write routes like a publish: through the addressed `/~<name>/` (or,
 /// path-less, the default-target registry) to a hosted registry, rejecting a name
 /// routed to an upstream and 404ing when the path-less base has no default
-/// target or the registry's access list denies the caller.
+/// target or no grant lets the caller read the registry.
 fn resolve_write_target(
     state: &AppState,
     identity: &Identity,
@@ -559,8 +560,8 @@ fn resolve_write_target_for(
     }
 }
 
-/// The hosted registry a write resolved to: its name (for the
-/// `publish`/`unpublish` rule lookup) and its storage namespace.
+/// The hosted registry a write resolved to: its name (for the grant lookup)
+/// and its storage namespace.
 struct WriteTarget {
     source: String,
     namespace: String,

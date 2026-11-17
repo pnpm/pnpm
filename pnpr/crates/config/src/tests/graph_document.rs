@@ -1,11 +1,7 @@
 use super::{
     Config, FakeEnv, FeatureOverrides, Identity, Path, RegistryError, auth_header, listen, user,
 };
-use crate::{
-    PackageLists, RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions,
-    RuleLists,
-};
-use indexmap::IndexMap;
+use crate::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions};
 use pnpr_registry::Ecosystem;
 
 const RICH_DOCUMENT: &str = "
@@ -14,13 +10,9 @@ registries:
     type: hosted
     ecosystem: npm
     namespace: acme
-    access: $authenticated
     tarballs: tar
     packages:
       '@acme/*':
-        access: [team:t1]
-        publish: team:t1
-        unpublish: [$owners]
       '@acme/open': {}
       '@acme/bare':
   corp:
@@ -35,7 +27,6 @@ registries:
     failTimeout: 5m
     cache: false
     search: true
-    access: [$authenticated]
     packages: { '@corp/*': {} }
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
   crates:
@@ -61,7 +52,7 @@ fn stored_options(registry_env: &[String]) -> RoutingOptions<'_> {
 
 fn upstream_document(auth_and_headers: &str) -> RegistryGraphDocument {
     let yaml = format!(
-        "registries:\n  corp:\n    type: upstream\n    url: https://npm.corp.example/\n    access: $authenticated\n{auth_and_headers}",
+        "registries:\n  corp:\n    type: upstream\n    url: https://npm.corp.example/\n{auth_and_headers}",
     );
     RegistryGraphDocument::from_yaml(&yaml).unwrap()
 }
@@ -291,54 +282,6 @@ fn registry_admins_are_separate_from_admins() {
 }
 
 #[test]
-fn named_teams_lists_the_teams_of_every_access_list() {
-    let mut document = RegistryGraphDocument::from_yaml(RICH_DOCUMENT).unwrap();
-    assert_eq!(
-        document
-            .named_teams()
-            .into_iter()
-            .collect::<Vec<_>>(),
-        ["t1"],
-    );
-    let mut corp = document.registry_entry("corp").unwrap();
-    corp["access"] = serde_json::json!(["team:t9", "$authenticated"]);
-    document.set_registry_entry("corp", corp).unwrap();
-    assert_eq!(
-        document
-            .named_teams()
-            .into_iter()
-            .collect::<Vec<_>>(),
-        ["t1", "t9"],
-    );
-}
-
-#[test]
-fn rule_list_edits_cannot_add_claims() {
-    let mut document = RegistryGraphDocument::from_yaml(RICH_DOCUMENT).unwrap();
-    let mut lists = document.rule_lists("local").unwrap();
-    assert_eq!(lists.access, Some(vec!["$authenticated".to_string()]));
-    lists.access = None;
-    lists.packages = IndexMap::from([(
-        "@acme/open".to_string(),
-        PackageLists { access: Some(vec!["team:t2".to_string()]), ..PackageLists::default() },
-    )]);
-    document.set_rule_lists("local", lists).unwrap();
-    let lists = document.rule_lists("local").unwrap();
-    assert_eq!(lists.access, None);
-    assert_eq!(lists.packages["@acme/open"].access, Some(vec!["team:t2".to_string()]));
-    assert_eq!(lists.packages["@acme/*"].publish, Some(vec!["team:t1".to_string()]));
-
-    let undeclared = RuleLists {
-        packages: IndexMap::from([("@other/*".to_string(), PackageLists::default())]),
-        ..RuleLists::default()
-    };
-    assert!(matches!(
-        document.set_rule_lists("local", undeclared),
-        Err(RegistryError::BadRequest { .. }),
-    ));
-}
-
-#[test]
 fn changes_name_the_registries_that_differ() {
     let previous = RegistryGraphDocument::from_yaml(RICH_DOCUMENT).unwrap();
     let mut document = previous.clone();
@@ -377,9 +320,7 @@ fn a_stored_url_must_not_carry_credentials() {
         "https://token@npm.corp.example/",
         "https://npm.corp.example/?token=hunter2",
     ] {
-        let yaml = format!(
-            "registries:\n  corp:\n    type: upstream\n    url: {url}\n    access: $authenticated\n",
-        );
+        let yaml = format!("registries:\n  corp:\n    type: upstream\n    url: {url}\n");
         let document = RegistryGraphDocument::from_yaml(&yaml).unwrap();
         let error = document
             .check_stored(&[])

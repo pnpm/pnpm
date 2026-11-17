@@ -164,10 +164,23 @@ pub fn pnpr_command_with_home(
 /// environment. A server started on a database with no stored registries
 /// stores the bundled default ones, so this runs before `serve` does.
 ///
+/// A `grants.yaml` beside `document` is stored with `pnpr grants import`
+/// afterwards. A revision whose registries declare their own access rules
+/// has no such file.
+///
 /// # Panics
 ///
-/// The import cannot be spawned or exits unsuccessfully.
+/// An import cannot be spawned or exits unsuccessfully.
 pub fn import_registries(serve: &Command, document: &Path) {
+    import(serve, "registries", document);
+    let grants = document.with_file_name("grants.yaml");
+    if grants.is_file() {
+        import(serve, "grants", &grants);
+    }
+}
+
+/// Run `pnpr <kind> import <file>` the way `serve` runs `pnpr`.
+fn import(serve: &Command, kind: &str, file: &Path) {
     let mut import = Command::new(serve.get_program());
     for (name, value) in serve.get_envs() {
         match value {
@@ -180,14 +193,14 @@ pub fn import_registries(serve: &Command, document: &Path) {
     }
     let output = import
         .args(serve.get_args())
-        .arg("registries")
+        .arg(kind)
         .arg("import")
-        .arg(document)
+        .arg(file)
         .output()
-        .unwrap_or_else(|err| panic!("spawn `pnpr registries import` for {document:?}: {err}"));
+        .unwrap_or_else(|err| panic!("spawn `pnpr {kind} import` for {file:?}: {err}"));
     assert!(
         output.status.success(),
-        "`pnpr registries import` of {document:?} failed with {}:\n{}{}",
+        "`pnpr {kind} import` of {file:?} failed with {}:\n{}{}",
         output.status,
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),

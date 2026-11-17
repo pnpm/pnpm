@@ -51,9 +51,6 @@ pub enum RegistryGraphWrite {
     /// A namespace the revision vacates holds a package, so nothing was
     /// written.
     HostedNotEmpty(HostedNamespace),
-    /// No team has this ID, which the revision starts to name, so nothing was
-    /// written.
-    UnknownTeam(String),
 }
 
 /// A hosted storage namespace of one ecosystem.
@@ -76,9 +73,12 @@ pub struct NewRegistryGraph<'a> {
     pub vacated: &'a [HostedNamespace],
     /// Every hosted namespace the revision serves.
     pub bound: &'a [HostedNamespace],
-    /// The IDs of the teams the revision's access lists start to name, which
-    /// must exist when it is written.
-    pub teams: &'a [String],
+    /// The grants of the registries the revision adds. Each is created
+    /// unless a grant already has its name.
+    pub seeded: &'a [super::StoredGrant],
+    /// The keys of the registries the revision removes. They leave every
+    /// grant, and a grant left without a registry is removed.
+    pub removed: &'a [String],
 }
 
 /// Lock a namespace's row the way a publish into it does, so a publish and a
@@ -186,15 +186,15 @@ impl Storage {
         let restored_from = revision.restored_from.map(to_column);
         let vacated = revision.vacated.to_vec();
         let bound = revision.bound.to_vec();
-        let teams = revision.teams.to_vec();
+        let grants = (revision.removed.to_vec(), revision.seeded.to_vec());
         self.database.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             let current = current_generation(&*transaction)?;
             if current != expected {
                 return Ok(RegistryGraphWrite::Conflict { current });
             }
-            if let Some(refused) = refused_write(&*transaction, &vacated, &teams)? {
-                return Ok(refused);
+            if let Some(occupied) = occupied_namespace(&*transaction, &vacated)? {
+                return Ok(RegistryGraphWrite::HostedNotEmpty(occupied));
             }
             let generation = current.map_or(1, |current| current + 1);
             transaction.execute(
@@ -209,6 +209,7 @@ impl Storage {
                 params![to_column(oldest_kept)],
             )?;
             retire_namespaces(&*transaction, &vacated, &bound)?;
+            super::grants::follow_graph(&*transaction, &grants.0, &grants.1)?;
             cdn::enqueue(&*transaction, "*")?;
             transaction.commit()?;
             Ok(RegistryGraphWrite::Written(generation))
@@ -276,19 +277,6 @@ fn occupied_namespace(
     Ok(None)
 }
 
-/// Why a revision that vacates `vacated` and starts to name `teams` cannot be
-/// written now.
-fn refused_write(
-    connection: &dyn Connection,
-    vacated: &[HostedNamespace],
-    teams: &[String],
-) -> Result<Option<RegistryGraphWrite>> {
-    if let Some(occupied) = occupied_namespace(connection, vacated)? {
-        return Ok(Some(RegistryGraphWrite::HostedNotEmpty(occupied)));
-    }
-    Ok(super::teams::unknown_team(connection, teams)?.map(RegistryGraphWrite::UnknownTeam))
-}
-
 fn current_generation(connection: &dyn Connection) -> Result<Option<u64>> {
     connection
         .query_optional(
@@ -296,6 +284,17 @@ fn current_generation(connection: &dyn Connection) -> Result<Option<u64>> {
             params![],
         )?
         .map(|mut row| decode_generation(row.get(0)?))
+        .transpose()
+}
+
+/// The document of the current revision, `None` when no graph is stored.
+pub(super) fn current_document(connection: &dyn Connection) -> Result<Option<String>> {
+    connection
+        .query_optional(
+            "SELECT document FROM registry_graph_revisions ORDER BY generation DESC LIMIT 1",
+            params![],
+        )?
+        .map(|mut row| row.get(0))
         .transpose()
 }
 

@@ -41,7 +41,7 @@ async fn try_update_package_maintainers(
     (name, body): (&CanonicalPackageName, &Value),
 ) -> Result<Option<Response>, Response> {
     let Some((mut hosted, version)) =
-        read_authorized_packument(state, identity, (target, name), Action::Publish)
+        read_authorized_packument(state, identity, (target, name), Action::Annotate)
             .await
             .map_err(IntoResponse::into_response)?
     else {

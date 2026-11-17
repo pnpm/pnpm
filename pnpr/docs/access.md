@@ -24,32 +24,29 @@ credentials are rejected even for public resources.
 
 ## Package access
 
-The serving registry determines the package policy. Its most specific matching
-`packages` rule selects `access`, `publish`, or `unpublish`; omitted fields use
-the registry defaults. The rules are the ones
-[stored in the database](configuration.md#registries-in-the-database).
-
-An access list admits a caller when any listed entry matches. Entries can be
+[Grants](configuration.md#grants) decide what a caller may do to a package. A
+caller may do an action when any grant that covers the serving registry and
+the package gives the action to a subject the caller matches. Subjects are
 account IDs, built-in groups, or `team:<teamId>` references to the
 [teams](configuration.md#teams) of the pnpr instance.
 
-`$owners` is available for ownership-aware writes. For an existing package it
-matches the immutable maintainer IDs in the stored package document. On first
-publication it admits an authenticated caller. Accounts listed in `auth.admins`
-also satisfy `$owners`; admin status does not bypass an arbitrary package rule
-that omits `$owners`.
+`$owners` is available for `publish`, `annotate` and `delete`. For an existing
+package it matches the immutable maintainer IDs in the stored package document.
+On first publication it admits an authenticated caller. Accounts listed in
+`auth.admins` also satisfy `$owners`; admin status does not give an action that
+no grant gives `$owners`.
 
-A named upstream's `access` policy is an additional check. It does not replace
-package rules. Upstream credentials stay on the server and do not grant the
-caller access by themselves.
+Upstream credentials stay on the server and do not grant the caller access by
+themselves. Reading through an upstream takes `read`, and having it fetched
+takes `cache`.
 
 ## Teams from OIDC groups and personal tokens
 
-An OIDC browser session carries the team grants earned from its verified groups
-claim. Those grants last for that session. They apply wherever an access list
-names the team, including artifact rules.
+An OIDC browser session carries the team memberships earned from its verified
+groups claim. They last for that session. They apply wherever a grant names the
+team, and in artifact rules.
 
-Personal access tokens do not inherit session group grants. They use their
+Personal access tokens do not inherit those session memberships. They use their
 account's team memberships. To give a session and a personal token the same
 durable access, add the account to the team.
 See [Teams from groups](oidc.md#teams-from-groups).
@@ -57,7 +54,7 @@ See [Teams from groups](oidc.md#teams-from-groups).
 ## Resolver, artifacts, and pipelines
 
 The resolver requires an authenticated caller. Package reads during resolution
-still apply package and upstream access rules.
+still apply the grants.
 
 Artifacts, compiler caches, and pipeline records require an authenticated caller
 and a declared `artifacts.owners` entry. Its `access` list permits reads;
@@ -65,7 +62,7 @@ publication requires both `access` and `publish`. A caller without read access
 gets `404`, as does an undeclared owner.
 
 Artifact lists can name a team with `team:<teamId>`. They use the same team
-members and session grants as package rules.
+members and session memberships as grants.
 `$owners` is not valid here. `auth.admins` does not grant implicit artifact access;
 include the admin account ID or one of its teams in the owner's lists.
 

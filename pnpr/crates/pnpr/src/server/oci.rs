@@ -392,7 +392,7 @@ impl Request {
     async fn authorize_unpublish(&self, repo: &HostedRepo) -> Result<(), RegistryError> {
         let source = RegistrySource::Hosted(repo.source.clone());
         let (key, namespace) = (repo.key.as_str(), Some(repo.namespace.as_str()));
-        authorize_package(&self.state, &self.identity, &source, key, Action::Unpublish, namespace)
+        authorize_package(&self.state, &self.identity, &source, key, Action::Delete, namespace)
             .await
     }
 

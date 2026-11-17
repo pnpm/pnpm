@@ -13,6 +13,9 @@ async fn auth_writes_keep_the_request_pool_deadline() {
 async fn user_and_token_writes_share_one_connection() {
     let mut settings = super::super::tests::saturated_pool_settings("PNPR_TEST_MYSQL_URL");
     settings.timeout = std::time::Duration::from_secs(2);
+    // Creating the schema on MySQL takes about as long as the startup
+    // deadline the saturation tests set.
+    settings.startup_timeout = std::time::Duration::from_mins(1);
     let admin = pnpr_sql::mysql_pool(&settings).unwrap();
     let directory = tempfile::TempDir::new().unwrap();
     let database = super::super::tests::test_database_name(&directory);

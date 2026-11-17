@@ -58,21 +58,15 @@ fn ecosystem_capability(entries: &[Value], ecosystem: Ecosystem) -> (String, Val
     (name, capability)
 }
 
-/// Whether a caller can see a registry at all: it must be one whose default
-/// access admits them.
+/// Whether a caller can see a registry at all: it may read something in it.
 fn registry_is_visible(routing: &RoutingConfig, identity: &Identity, key: &str) -> bool {
     match routing.registries.get(key) {
         Some(Registry::Hosted { .. }) => routing.hosted
             .get(key)
-            .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
+            .is_some_and(|hosted| hosted.rules.any_access_admits(identity)),
         Some(Registry::Upstream { .. }) => routing.upstreams
             .get(key)
-            .is_some_and(|upstream| {
-                upstream.access
-                    .as_ref()
-                    .is_none_or(|access| access.allows(identity))
-                    && upstream.rules.default_access_admits(identity)
-            }),
+            .is_some_and(|upstream| upstream.rules.any_access_admits(identity)),
         _ => false,
     }
 }

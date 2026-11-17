@@ -155,7 +155,7 @@ async fn read_packument_for_rewrite(
 ) -> Result<(Value, HostedDocumentVersion), Response> {
     let registry_source = RegistrySource::Hosted(target.source.clone());
     let Some((hosted, version)) =
-        read_authorized_packument(state, identity, (target, name), Action::Publish)
+        read_authorized_packument(state, identity, (target, name), Action::Annotate)
             .await
             .map_err(IntoResponse::into_response)?
     else {
@@ -164,7 +164,7 @@ async fn read_packument_for_rewrite(
             identity,
             &registry_source,
             name.as_str(),
-            Action::Unpublish,
+            Action::Delete,
             Some(&target.namespace),
         )
         .await
@@ -176,7 +176,7 @@ async fn read_packument_for_rewrite(
         identity,
         &registry_source,
         (name.as_str(), &hosted),
-        Action::Unpublish,
+        Action::Delete,
     )
     .map_err(IntoResponse::into_response)?;
     Ok((hosted, version))

@@ -292,3 +292,69 @@ fn admits_every_identity_requires_universal_access() {
     let empty = AccessList::from_tokens([] as [&str; 0]);
     assert!(!empty.admits_every_identity());
 }
+
+#[test]
+fn a_grant_whose_excludes_leave_no_package_admits_nobody_anywhere() {
+    use crate::{Action, Grant, GrantSpec};
+    use pnpr_registry::Ecosystem;
+
+    let grant = |include: &[&str], exclude: &[&str]| {
+        let spec = GrantSpec {
+            name: "cachers".to_string(),
+            include: include
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            exclude: exclude
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            subjects: vec![("alice".to_string(), Action::Cache)],
+        };
+        Grant::compile(&spec, Ecosystem::Npm).unwrap()
+    };
+    let admits = |grant: Grant| {
+        RuleTable::of_grants(Vec::new(), vec![grant]).any_admits(Action::Cache, &user("alice"))
+    };
+    assert!(admits(grant(&[], &["@acme/*"])));
+    assert!(admits(grant(&["@acme/*"], &["@acme/app"])));
+    assert!(!admits(grant(&[], &["**"])));
+    assert!(!admits(grant(&["@acme/app", "@acme/lib"], &["@acme/*"])));
+}
+
+#[test]
+fn a_grant_for_one_name_is_found_among_grants_for_other_names() {
+    use crate::{Action, Grant, GrantSpec};
+    use pnpr_registry::Ecosystem;
+
+    let grant = |include: &[&str], exclude: &[&str], subject: &str| {
+        let spec = GrantSpec {
+            name: format!("{subject}:{include:?}"),
+            include: include
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            exclude: exclude
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            subjects: vec![(subject.to_string(), Action::Read)],
+        };
+        Grant::compile(&spec, Ecosystem::Npm).unwrap()
+    };
+    let table = RuleTable::of_grants(
+        Vec::new(),
+        vec![
+            grant(&["@acme/app"], &[], "alice"),
+            grant(&["@acme/lib", "@acme/app"], &[], "bob"),
+            grant(&["@acme/*"], &["@acme/app"], "carol"),
+            grant(&["@acme/tool", "@other/*"], &[], "dave"),
+        ],
+    );
+    let reads =
+        |name: &str, package: &str| table.permits(package, Action::Read, &user(name), false);
+    assert!(reads("alice", "@acme/app") && !reads("alice", "@acme/lib"));
+    assert!(reads("bob", "@acme/app") && reads("bob", "@acme/lib") && !reads("bob", "@acme/x"));
+    assert!(reads("carol", "@acme/lib") && !reads("carol", "@acme/app"));
+    assert!(reads("dave", "@acme/tool") && reads("dave", "@other/x") && !reads("dave", "@acme/x"));
+}

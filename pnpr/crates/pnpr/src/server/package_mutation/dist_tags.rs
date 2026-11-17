@@ -151,13 +151,13 @@ async fn try_update_dist_tag(
 ) -> Result<Option<TagOutcome>, Response> {
     let source = RegistrySource::Hosted(target.source.clone());
     let expected =
-        match authorize_without_owners(state, identity, &source, name.as_str(), Action::Publish)
+        match authorize_without_owners(state, identity, &source, name.as_str(), Action::Annotate)
             .map_err(IntoResponse::into_response)?
         {
             AuthorizationDecision::AllowedWithoutOwners => None,
             AuthorizationDecision::NeedsOwners => {
                 let Some((_, version)) =
-                    read_authorized_packument(state, identity, (target, name), Action::Publish)
+                    read_authorized_packument(state, identity, (target, name), Action::Annotate)
                         .await
                         .map_err(IntoResponse::into_response)?
                 else {

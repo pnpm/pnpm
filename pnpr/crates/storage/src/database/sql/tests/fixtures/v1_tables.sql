@@ -391,6 +391,53 @@ CREATE TABLE IF NOT EXISTS team_directory (
 INSERT INTO team_directory (singleton, generation) VALUES (1, 0)
     ON CONFLICT DO NOTHING;
 
+-- The grants of the instance: on the registries of `grant_registries`, for
+-- the packages `grant_patterns` select, each subject of `grant_subjects` may
+-- do its actions.
+CREATE TABLE IF NOT EXISTS grants (
+    grant_id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+) STRICT, WITHOUT ROWID;
+
+-- The registries a grant covers, by key; `*` is every registry.
+CREATE TABLE IF NOT EXISTS grant_registries (
+    grant_id TEXT NOT NULL,
+    registry TEXT NOT NULL,
+    PRIMARY KEY (grant_id, registry)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS grant_registries_by_registry
+    ON grant_registries (registry);
+
+-- The package patterns of a grant. A grant without an including pattern
+-- (`exclude` = 0) covers every package; an excluding one (`exclude` = 1)
+-- takes packages out.
+CREATE TABLE IF NOT EXISTS grant_patterns (
+    grant_id TEXT NOT NULL,
+    exclude INTEGER NOT NULL,
+    pattern TEXT NOT NULL,
+    PRIMARY KEY (grant_id, exclude, pattern)
+) STRICT, WITHOUT ROWID;
+
+-- An action a grant gives a subject: a built-in group, an account ID, or
+-- `team:<team_id>`.
+CREATE TABLE IF NOT EXISTS grant_subjects (
+    grant_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    action TEXT NOT NULL,
+    PRIMARY KEY (grant_id, subject, action)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS grant_subjects_by_subject
+    ON grant_subjects (subject);
+
+-- The generation of the last change to the grant tables, so a replica
+-- rereads them only after one.
+CREATE TABLE IF NOT EXISTS grant_directory (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    generation INTEGER NOT NULL
+) STRICT;
+INSERT INTO grant_directory (singleton, generation) VALUES (1, 0)
+    ON CONFLICT DO NOTHING;
+
 -- The hosted store this database is bound to.
 CREATE TABLE IF NOT EXISTS hosted_store (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),

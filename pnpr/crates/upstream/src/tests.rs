@@ -66,7 +66,7 @@ fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
             },
             cache: true,
             search: false,
-            access: None,
+            public: true,
             rules: pnpr_policy::PackageRules::default(),
         },
     )

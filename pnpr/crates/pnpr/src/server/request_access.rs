@@ -1,15 +1,14 @@
 use super::{
-    AppState, AuthedCaller, HeaderMap, Identity, Next, RegistryError, Request, Response, Upstream,
-    header,
+    Action, AppState, AuthedCaller, HeaderMap, Identity, Next, RegistryError, Request, Response,
+    Upstream, header,
 };
 use axum::response::IntoResponse;
 use pnpr_config::RoutingConfig;
 
 /// Resolve the upstream behind an authorized `/~<name>/` endpoint request.
 ///
-/// Fails closed: an upstream that does not exist or carries no `access:` policy
-/// is a `404` (it is not a private-route endpoint), and a caller the policy
-/// does not admit is a `403`. Returns the [`Upstream`] to fetch *through* —
+/// Fails closed: an upstream that does not exist is a `404`, and a caller no
+/// grant lets read through it is a `403`. Returns the [`Upstream`] to fetch *through* —
 /// `/~<name>/` requests never read or write the shared proxy mirror, so a
 /// private upstream's packuments and tarballs can never leak across the public
 /// path or another upstream.
@@ -22,12 +21,9 @@ pub(super) fn authorized_upstream(
     let Some(config) = routing.upstreams.get(upstream) else {
         return Err(RegistryError::NotFound);
     };
-    // A private upstream registry gates by its `access:` list; a public registry
-    // (no access) is reachable by anyone at its `/~<name>/` URL, its upstream
-    // credential (if any) staying server-side either way.
-    if let Some(access) = config.access.as_ref()
-        && !access.allows(identity)
-    {
+    // A caller no grant lets read anything through the upstream may not reach
+    // it at its `/~<name>/` URL.
+    if !config.rules.any_access_admits(identity) {
         let user = require_caller(identity, "upstream access")
             .unwrap_or_else(|_| "<anonymous>".to_string());
         return Err(RegistryError::Forbidden {
@@ -36,10 +32,16 @@ pub(super) fn authorized_upstream(
             resource: format!("upstream {upstream:?}"),
         });
     }
-    routing.upstream_clients
+    let client = routing.upstream_clients
         .get(upstream)
         .cloned()
-        .ok_or_else(|| RegistryError::NotFound)
+        .ok_or_else(|| RegistryError::NotFound)?;
+    // `cache` on any package of the upstream lets the caller have the origin
+    // fetched. Without it the caller reads what the cache holds.
+    if config.rules.any_admits(Action::Cache, identity) {
+        return Ok(client);
+    }
+    Ok(client.cached_only(identity.username().unwrap_or("<anonymous>")))
 }
 
 pub(super) fn revision_source_registry(state: &AppState, source: &str) -> Option<String> {
@@ -77,7 +79,7 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// the new one. The cache-first warm tarball path depends on this — it serves
 /// a cached entry without re-binding it against the current packument.
 ///
-/// A **private** registry — any that declares `access:` (so it is not `public`; the
+/// A **private** registry — any that is not `public` (the
 /// config loader forbids a public registry from carrying any credential) — is
 /// namespaced by an HMAC over `(registry, url, credential)` keyed with
 /// the server secret: the on-disk path leaks neither the registry name nor the
@@ -101,7 +103,7 @@ pub(crate) fn compute_upstream_cache_namespace(
         .get(upstream)
         .map_or("", |upstream_config| upstream_config.url.as_str());
     if let Some(upstream_config) = routing.upstreams.get(upstream)
-        && upstream_config.access.is_some()
+        && !upstream_config.public
     {
         // The credential epoch covers the origin URL and every header the
         // upstream attaches upstream, not just `Authorization`, so repointing
@@ -156,7 +158,7 @@ pub(super) fn require_admin(
 }
 
 /// Like [`require_admin`], also admitting the `auth.registryAdmins`: the
-/// callers who may change teams and access lists.
+/// callers who may change teams and grants.
 pub(super) fn require_access_admin(
     state: &AppState,
     identity: &Identity,

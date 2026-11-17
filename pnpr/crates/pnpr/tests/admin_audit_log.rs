@@ -368,29 +368,27 @@ async fn audit_log_user_admin_and_registration() {
 }
 
 #[tokio::test]
-async fn audit_log_rule_admin() {
+async fn audit_log_grant_admin() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path()).await).await;
     let root = login(&app, "root", "secret123").await;
 
-    // 1. rules.replace
-    let (status, _) = send(
-        &app,
-        "PUT",
-        "/-/pnpr/v0/admin/rules/npm/local",
-        Some(&root),
-        Some(json!({
-            "packages": {
-                "@secret/*": { "access": ["$authenticated"] }
-            }
-        })),
-    )
-    .await;
+    let path = "/-/pnpr/v0/admin/grants/audited-readers";
+    let grant = json!({
+        "registries": ["local"],
+        "include": ["@secret/*"],
+        "subjects": { "$authenticated": ["read"] },
+    });
+    let (status, _) = send(&app, "PUT", path, Some(&root), Some(grant)).await;
     assert_eq!(status, StatusCode::OK);
-    let ev = find_event(&logs, "rules.replace", "registry", "local");
+    let ev = find_event(&logs, "grant.put", "grant", "audited-readers");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
     assert_request_span(&ev, "PUT");
+
+    assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
+    let ev = find_event(&logs, "grant.delete", "grant", "audited-readers");
+    assert_request_span(&ev, "DELETE");
 }
 
 #[tokio::test]

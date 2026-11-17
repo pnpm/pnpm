@@ -393,6 +393,53 @@ CREATE TABLE IF NOT EXISTS team_directory (
 INSERT INTO team_directory (singleton, generation) VALUES (1, 0)
     ON CONFLICT DO NOTHING;
 
+-- The grants of the instance: on the registries of `grant_registries`, for
+-- the packages `grant_patterns` select, each subject of `grant_subjects` may
+-- do its actions.
+CREATE TABLE IF NOT EXISTS grants (
+    grant_id TEXT COLLATE "C" NOT NULL PRIMARY KEY,
+    name TEXT COLLATE "C" NOT NULL UNIQUE
+);
+
+-- The registries a grant covers, by key; `*` is every registry.
+CREATE TABLE IF NOT EXISTS grant_registries (
+    grant_id TEXT COLLATE "C" NOT NULL,
+    registry TEXT COLLATE "C" NOT NULL,
+    PRIMARY KEY (grant_id, registry)
+);
+CREATE INDEX IF NOT EXISTS grant_registries_by_registry
+    ON grant_registries (registry);
+
+-- The package patterns of a grant. A grant without an including pattern
+-- (`exclude` = 0) covers every package; an excluding one (`exclude` = 1)
+-- takes packages out.
+CREATE TABLE IF NOT EXISTS grant_patterns (
+    grant_id TEXT COLLATE "C" NOT NULL,
+    exclude BIGINT NOT NULL,
+    pattern TEXT COLLATE "C" NOT NULL,
+    PRIMARY KEY (grant_id, exclude, pattern)
+);
+
+-- An action a grant gives a subject: a built-in group, an account ID, or
+-- `team:<team_id>`.
+CREATE TABLE IF NOT EXISTS grant_subjects (
+    grant_id TEXT COLLATE "C" NOT NULL,
+    subject TEXT COLLATE "C" NOT NULL,
+    action TEXT COLLATE "C" NOT NULL,
+    PRIMARY KEY (grant_id, subject, action)
+);
+CREATE INDEX IF NOT EXISTS grant_subjects_by_subject
+    ON grant_subjects (subject);
+
+-- The generation of the last change to the grant tables, so a replica
+-- rereads them only after one.
+CREATE TABLE IF NOT EXISTS grant_directory (
+    singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
+    generation BIGINT NOT NULL
+);
+INSERT INTO grant_directory (singleton, generation) VALUES (1, 0)
+    ON CONFLICT DO NOTHING;
+
 -- The hosted store this database is bound to.
 CREATE TABLE IF NOT EXISTS hosted_store (
     singleton BIGINT PRIMARY KEY CHECK (singleton = 1),

@@ -7,7 +7,7 @@ pnpr assigns each account an opaque, immutable ID. Usernames identify login
 names and can change. `pnpr add-user` prints the account ID; the admin user
 listing also returns it.
 
-Use account IDs in `auth.admins`, access lists, and
+Use account IDs in `auth.admins`, grants, and
 OIDC `userId` bindings. Tokens, package ownership, staged uploads, and publication
 idempotency belong to account IDs. Renaming an account preserves these
 relationships. Deleting it revokes its credentials and retains a deleted record

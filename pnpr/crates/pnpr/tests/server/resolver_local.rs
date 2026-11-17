@@ -121,7 +121,7 @@ async fn resolve_private_upstream(header: &str) {
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.http.public_url = public_url.clone();
     let source = config.routing.upstreams.get_mut("npmjs").unwrap();
-    source.access = Some(AccessList::from_tokens(["reader"]));
+    source.set_access(AccessList::from_tokens(["reader"]));
     source.headers.insert(
         reqwest::header::HeaderName::from_bytes(header.as_bytes()).unwrap(),
         "Bearer upstream-test-token".parse().unwrap(),

@@ -134,12 +134,9 @@ impl RouteHook {
 impl ResolvedAlias {
     /// Resolve upstream access and credential state for route classification.
     pub(super) fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
-        let access = upstream.access
-            .clone()
-            .unwrap_or_else(|| super::AccessList::from_tokens(["$all"]));
         let authorization = upstream.headers
             .get(AUTHORIZATION)
-            .filter(|_| upstream.access.is_some())
+            .filter(|_| !upstream.public)
             .and_then(|value| value.to_str().ok())
             .map(str::to_string);
         Some(Self {
@@ -149,7 +146,22 @@ impl ResolvedAlias {
             origin: nerf_prefix(&upstream.url)?,
             scheme: scheme_of(&upstream.url)?.to_string(),
             authorization,
-            access,
+            rules: upstream.rules.clone(),
         })
+    }
+
+    /// Whether a descriptor recorded for `package` can no longer be checked:
+    /// one without a package was recorded while every package had the same
+    /// readers, and once they differ it names no package to check.
+    pub(super) fn outgrew(&self, package: Option<&str>) -> bool {
+        package.is_none() && self.rules.refines_access()
+    }
+
+    /// Whether `identity` may select this alias: it may read something
+    /// through the upstream and have the origin fetched. A fetch through an
+    /// alias always reaches the origin, so `read` alone does not select one.
+    pub(super) fn admits(&self, identity: &Identity) -> bool {
+        self.rules.any_access_admits(identity)
+            && self.rules.any_admits(pnpr_policy::Action::Cache, identity)
     }
 }

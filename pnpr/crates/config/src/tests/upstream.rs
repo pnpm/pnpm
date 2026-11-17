@@ -1,7 +1,7 @@
 use super::{
-    AUTHORIZATION, Ecosystem, FeatureOverrides, Identity, IndexMap, Interval, Path, RegistryError,
-    TokenEnv, UpstreamAuthFile, UpstreamAuthType, UpstreamConfig, auth_header, listen,
-    load_with_graph, load_with_graph_and_overrides, resolve_upstream, upstream_config_file, user,
+    AUTHORIZATION, Ecosystem, FeatureOverrides, IndexMap, Interval, Path, RegistryError, TokenEnv,
+    UpstreamAuthFile, UpstreamAuthType, UpstreamConfig, auth_header, listen, load_with_graph,
+    load_with_graph_and_overrides, resolve_upstream, upstream_config_file,
 };
 
 #[test]
@@ -178,7 +178,6 @@ registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
-    access: $authenticated
     auth:
       type: bearer
       token: '${CUSTOM_TOKEN}'
@@ -227,39 +226,6 @@ registries:
     assert!(config.routing.upstreams["npmjs"].search);
 }
 
-/// A non-`public` upstream registry must declare who may reach it.
-#[test]
-fn from_yaml_str_rejects_private_upstream_without_access() {
-    let yaml = "\
-storage: ./s
-registries:
-  corp:
-    type: upstream
-    url: https://npm.corp.example/
-";
-    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
-        .expect_err("private upstream without access must be rejected");
-    assert!(err.to_string().contains("public: true"), "unexpected error: {err}");
-}
-
-/// A `public` upstream is anonymous, so declaring `access:` on it is a
-/// contradiction that must fail closed rather than be silently dropped.
-#[test]
-fn from_yaml_str_rejects_public_upstream_with_access() {
-    let yaml = "\
-storage: ./s
-registries:
-  npmjs:
-    type: upstream
-    url: https://registry.npmjs.org/
-    public: true
-    access: $authenticated
-";
-    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
-        .expect_err("public upstream with access must be rejected");
-    assert!(err.to_string().contains("`access`"), "unexpected error: {err}");
-}
-
 /// A `public` upstream is fetched anonymously, so *any* custom header — not just
 /// `Authorization`, but a credential smuggled through `X-Api-Key` — must fail
 /// closed rather than be sent to a supposedly-public origin.
@@ -297,7 +263,6 @@ registries:
   corp:
     type: upstream
     url: https://corp.example/npm/
-    access: [team]
     auth:
       type: bearer
       tokenEnv: PNPR_DEFINITELY_UNSET_TOKEN_VAR
@@ -322,112 +287,6 @@ registries:
 }
 
 #[test]
-fn teams_grant_package_and_upstream_access() {
-    let yaml = r"
-registries:
-  local:
-    type: hosted
-    packages:
-      '@team/*':
-        access: team:platform
-  corp:
-    type: upstream
-    url: https://npm.corp.example/
-    access: team:partners
-    auth:
-      type: bearer
-      token: '${CUSTOM_TOKEN}'
-registryEnv: [CUSTOM_TOKEN]
-";
-    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
-    let alice = Identity::member("alice", vec!["platform".to_string(), "partners".to_string()]);
-    let bob = Identity::member("bob", vec!["platform".to_string()]);
-    let carol = Identity::user("carol");
-
-    let rules = &config.routing.hosted["local"].rules;
-    let table = rules.snapshot();
-    let team = table.for_package("@team/widget");
-    assert!(team.access.allows(&alice));
-    assert!(team.access.allows(&bob));
-    assert!(!team.access.allows(&carol));
-    assert!(!team.access.allows(&Identity::Anonymous));
-
-    let access =
-        config.routing.upstreams["corp"].access.as_ref().expect("upstream declares access");
-    assert!(access.allows(&alice));
-    assert!(!access.allows(&bob));
-}
-
-#[test]
-fn upstream_write_rules_are_rejected() {
-    // No write can land on an upstream, so a `publish`/`unpublish` value in
-    // its `packages:` map is a config mistake — and it fails on every tier,
-    // whether or not the registry surface resolves upstream credentials.
-    let yaml = "\
-storage: ./s
-registries:
-  corp:
-    type: upstream
-    url: https://npm.corp.example/
-    public: true
-    packages:
-      '@corp/*':
-        publish: $authenticated
-";
-    let err = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            RegistryError::InvalidConfig { reason }
-                if reason.contains("publish") && reason.contains("upstream"),
-        ),
-        "unexpected error: {err}",
-    );
-}
-
-#[test]
-fn public_upstream_allows_per_package_access_rules() {
-    // `public: true` describes the upstream *fetch* (anonymous, no
-    // credential, no registry-level access default). A per-package `access`
-    // rule still gates who may read the name through pnpr.
-    let yaml = "\
-storage: ./s
-registries:
-  npmjs:
-    type: upstream
-    url: https://registry.npmjs.org/
-    public: true
-    packages:
-      '@internal/*':
-        access: $authenticated
-      '**': {}
-";
-    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
-    let rules = &config.routing.upstreams["npmjs"].rules;
-    assert!(
-        !rules
-            .snapshot()
-            .for_package("@internal/x")
-            .access
-            .allows(&Identity::Anonymous),
-    );
-    assert!(
-        rules
-            .snapshot()
-            .for_package("@internal/x")
-            .access
-            .allows(&user("alice")),
-    );
-    assert!(
-        rules
-            .snapshot()
-            .for_package("lodash")
-            .access
-            .allows(&Identity::Anonymous),
-    );
-}
-
-#[test]
 fn upstream_packages_map_bounds_the_namespace() {
     let yaml = "\
 storage: ./s
@@ -435,7 +294,6 @@ registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
-    access: $authenticated
     packages:
       '@corp/*': {}
 ";
@@ -502,7 +360,6 @@ registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
-    access: [$authenticated, alice]
     auth:
       type: bearer
       token: '${CUSTOM_TOKEN}'
@@ -512,9 +369,7 @@ registryEnv: [CUSTOM_TOKEN]
     let upstream = &config.routing.upstreams["corp"];
     assert_eq!(upstream.url, "https://npm.corp.example/");
     assert_eq!(auth_header(upstream), Some("Bearer custom-env-token"));
-    let access = upstream.access.as_ref().expect("upstream declares access");
-    assert!(access.allows(&user("alice")));
-    assert!(!access.allows(&Identity::Anonymous));
+    assert!(!upstream.public);
 }
 
 #[test]
@@ -524,7 +379,6 @@ registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
-    access: $authenticated
     auth:
       type: basic
       token: '${BASIC_TOKEN}'
@@ -533,9 +387,7 @@ registryEnv: [BASIC_TOKEN]
     let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let upstream = &config.routing.upstreams["corp"];
     assert_eq!(auth_header(upstream), Some("Basic dXNlcjpwYXNz"));
-    let access = upstream.access.as_ref().expect("upstream declares access");
-    assert!(access.allows(&user("bob")));
-    assert!(!access.allows(&Identity::Anonymous));
+    assert!(!upstream.public);
 }
 
 #[test]
@@ -548,9 +400,7 @@ registries:
     public: true
 ";
     let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
-    // A public upstream registry is reachable anonymously and carries no access
-    // policy or upstream credential.
-    assert!(config.routing.upstreams["corp"].access.is_none());
+    assert!(config.routing.upstreams["corp"].public);
 }
 
 #[test]

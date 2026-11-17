@@ -6,9 +6,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 
 use pnpr_error::RegistryError;
-use pnpr_policy::{AccessList, PackageRules};
-
-use super::AccessSpec;
+use pnpr_policy::PackageRules;
 
 /// Runtime upstream declaration: the upstream `url`, the request headers
 /// pnpr attaches to every fetch it makes to that upstream, and the
@@ -40,17 +38,10 @@ pub struct UpstreamConfig {
     /// Whether browser-facing discovery endpoints may query this upstream.
     /// Disabled by default to preserve local-only search behavior.
     pub search: bool,
-    /// Which pnpr callers may select this upstream as a proxied private-route
-    /// credential, and reach it through its `/~<name>/` registry endpoint.
-    /// `None` means the upstream is registry-proxy only and is never offered as
-    /// a resolver private-route credential — only upstreams that declare
-    /// `access:` participate in route classification.
-    pub access: Option<AccessList>,
-    /// The registry's `packages:` map: the package patterns it claims plus
-    /// per-package `access` refinements (a `publish`/`unpublish` value is a
-    /// config error — no write can land on an upstream). The registry-level
-    /// gate ([`Self::access`], or `$all` for a public upstream) is the default
-    /// an entry's omitted `access` falls back to.
+    /// Whether the origin is fetched anonymously: no credential is sent to
+    /// it, and it is never offered as a resolver private-route credential.
+    pub public: bool,
+    /// The patterns the registry claims and the grants that cover it.
     pub rules: PackageRules,
     pub requests: UpstreamRequestPolicy,
 }
@@ -99,9 +90,19 @@ impl UpstreamConfig {
             },
             cache: true,
             search: false,
-            access: None,
+            public: true,
             rules: PackageRules::default(),
         }
+    }
+}
+
+impl UpstreamConfig {
+    /// Make this an upstream that sends a credential and that the callers of
+    /// `access` may read, keeping the patterns it claims. For an embedder
+    /// that builds its routing in code.
+    pub fn set_access(&mut self, access: pnpr_policy::AccessList) {
+        self.public = false;
+        self.rules = PackageRules::new(self.rules.snapshot().rules().to_vec(), Some(access));
     }
 }
 
@@ -116,7 +117,7 @@ impl fmt::Debug for UpstreamConfig {
             .field("fail_timeout", &self.requests.fail_timeout)
             .field("cache", &self.cache)
             .field("search", &self.search)
-            .field("access", &self.access)
+            .field("public", &self.public)
             .field("rules", &self.rules)
             .finish()
     }
@@ -168,10 +169,8 @@ pub(super) struct UpstreamConfigFile {
     pub(super) fail_timeout: Option<Interval>,
     pub(super) cache: Option<bool>,
     pub(super) search: bool,
-    /// Which pnpr callers may select this upstream as a proxied private-route
-    /// credential. Its presence is what promotes a plain proxy upstream into a
-    /// resolver private-route credential exposed at `/~<name>/`.
-    pub(super) access: Option<AccessSpec>,
+    /// See [`UpstreamConfig::public`].
+    pub(super) public: bool,
 }
 
 /// A verdaccio interval scalar as written in YAML: either a string
@@ -276,23 +275,6 @@ impl TokenEnv {
 /// custom `headers:` are merged on top — so a custom `Authorization`
 /// entry overrides the one derived from `auth:`, matching verdaccio's
 /// merge order. A configured `auth:` block that resolves to no token,
-fn resolve_upstream_access(
-    name: &str,
-    spec: Option<&AccessSpec>,
-) -> Result<Option<AccessList>, RegistryError> {
-    spec.map(|spec| {
-        let list = spec.to_access_list()?;
-        if list.references_owners() {
-            return Err("`$owners` is not valid for upstream `access` rules".to_string());
-        }
-        Ok(list)
-    })
-    .transpose()
-    .map_err(|reason| RegistryError::InvalidConfig {
-        reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
-    })
-}
-
 /// an unknown header name, or a non-ASCII header value is a config
 /// error rather than a silent unauthenticated request.
 pub(super) fn resolve_upstream_config<Sys: EnvVar>(
@@ -321,7 +303,6 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("failTimeout", &file.fail_timeout)?
         .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
-    let access = resolve_upstream_access(name, file.access.as_ref())?;
 
     Ok(UpstreamConfig {
         url: file.url,
@@ -335,8 +316,8 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
         },
         cache: file.cache.unwrap_or(true),
         search: file.search,
-        access,
-        // The `packages:` rules are attached by the caller
+        public: file.public,
+        // The claimed patterns are attached by the caller
         // (`build_registries`) — this resolver only handles the serving
         // knobs shared with programmatic construction.
         rules: PackageRules::default(),

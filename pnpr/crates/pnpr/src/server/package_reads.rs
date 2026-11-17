@@ -115,8 +115,8 @@ pub(super) fn resolve_ecosystem_source(
 }
 
 /// Whether the concrete origin `package` resolves to through `registry` serves
-/// caller-gated content: a hosted registry whose access list denies anonymous
-/// callers, or an upstream registry that declares `access:`. Responses from such
+/// caller-gated content: a hosted package anonymous callers may not read, or
+/// an upstream registry that sends a credential. Responses from such
 /// an origin vary by `Authorization` and must never land in a shared HTTP
 /// cache, whichever URL surface (path-less or `/~<name>/`) served them.
 pub(super) fn resolves_to_private_source(
@@ -137,20 +137,14 @@ pub(super) fn resolves_to_private_source(
                     .access
                     .admits_every_identity()
             }),
-        // A private upstream (registry-level `access:`) is caller-gated for
-        // *every* name — unlike a hosted registry, its registry-level gate is
-        // enforced independently at serving (`authorized_upstream` runs
-        // before per-package rules on every upstream read), so a per-package
-        // `access: $all` entry cannot open a name on it and `access.is_some()`
-        // alone already means the response varies by caller. A public
-        // upstream can still gate individual names through a per-package
-        // `access` rule.
+        // A private upstream sends a credential, so what it answers is never
+        // shared between callers. A public one can still gate a name by grant.
         RegistrySource::Upstream(source) => state
             .routing()
             .upstreams
             .get(&source)
             .is_some_and(|upstream| {
-                upstream.access.is_some()
+                !upstream.public
                     || !upstream.rules
                         .snapshot()
                         .for_package(package)
@@ -189,7 +183,7 @@ pub(super) async fn serve_registry_packument(
             // public upstream. Checked before serving so the decision
             // precedes any existence-revealing signal like an OSV 403.
             if let Err(err) =
-                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Read)
             {
                 return err.into_response();
             }
@@ -204,9 +198,9 @@ pub(super) async fn serve_registry_packument(
             )
             .await
         }
-        // A hosted denial answers per its gate tier (see `hosted_gate`): a
-        // registry-default denial is a not-found mask, an explicit
-        // `packages:` entry denies loudly so clients can prompt for auth.
+        // A hosted denial answers as `hosted_gate` decides: a not-found mask
+        // for a caller who reads nothing in the registry, a loud denial
+        // otherwise, so clients can prompt for auth.
         RegistrySource::Hosted(source) => {
             serve_hosted_packument(state, identity, headers, source, &name, tarball_base, view)
                 .await
@@ -234,7 +228,7 @@ pub(super) async fn serve_registry_tarball(
         RegistrySource::Upstream(source) => {
             // Per-package rules before serving — see `serve_registry_packument`.
             if let Err(err) =
-                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Read)
             {
                 return err.into_response();
             }
@@ -262,15 +256,14 @@ pub(super) enum HostedGate {
     /// The registry default denies the caller: indistinguishable from an
     /// absent package.
     MaskNotFound,
-    /// An explicit `packages:` entry denies the caller: 401 for an
+    /// The caller may read the registry but not this package: 401 for an
     /// anonymous caller (authenticate and retry), 403 for an authenticated
     /// one outside the allowed set.
     Denied(RegistryError),
 }
 
-/// Evaluate the hosted read gate: the effective per-package `access` (most
-/// specific `packages:` entry, falling back to the registry-level default)
-/// gates reads and the write routing alike — a caller who may not read a
+/// Evaluate the hosted read gate: whether a grant lets the caller read the
+/// package gates reads and the write routing alike — a caller who may not read a
 /// hosted package may not publish, tag, or unpublish it either.
 pub(super) fn hosted_gate(
     state: &AppState,
@@ -287,12 +280,10 @@ pub(super) fn hosted_gate(
     if effective.access.allows(identity) {
         return HostedGate::Allowed(hosted.namespace.clone());
     }
-    // Loud denial only inside a registry the caller may see: the explicit
-    // entry gates this name, but the registry-level default admits the
-    // caller to the registry itself. When the default denies them too, the
-    // mask below wins — an explicit rule on a blanket-private registry must
-    // not become an existence probe.
-    if effective.access_is_explicit && rules.default_access().allows(identity) {
+    // Loud denial only inside a registry the caller may see: it may read
+    // something there, though not this name. A caller who may read nothing in
+    // the registry gets the mask below, so a name is not an existence probe.
+    if rules.any_access_admits(identity) {
         return HostedGate::Denied(match identity {
             Identity::Anonymous => {
                 RegistryError::Unauthenticated { resource: format!("package {package:?}") }

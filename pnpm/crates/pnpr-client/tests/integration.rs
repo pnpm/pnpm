@@ -149,13 +149,9 @@ fn registry_upstream(registry_url: &str, token: &str) -> (String, pnpr::Upstream
         reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
             .expect("valid authorization header"),
     );
-    (
-        "test-registry".to_string(),
-        pnpr::UpstreamConfig {
-            access: Some(pnpr::AccessList::from_tokens(["$authenticated"])),
-            ..pnpr::UpstreamConfig::with_defaults(registry_url.to_string(), headers)
-        },
-    )
+    let mut upstream = pnpr::UpstreamConfig::with_defaults(registry_url.to_string(), headers);
+    upstream.set_access(pnpr::AccessList::from_tokens(["$authenticated"]));
+    ("test-registry".to_string(), upstream)
 }
 
 async fn wait_until_ready(addr: SocketAddr) {

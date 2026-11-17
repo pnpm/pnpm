@@ -358,8 +358,72 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static(UPSTREAM_TOKEN));
     let mut upstream = UpstreamConfig::with_defaults(registry.to_string(), headers);
-    upstream.access = Some(AccessList::from_tokens([access]));
+    upstream.set_access(AccessList::from_tokens([access]));
     upstream
+}
+
+#[test]
+fn a_fetch_keeps_its_package_when_readers_differ_between_packages() {
+    use pnpr_policy::{Action, Grant, GrantSpec};
+    use pnpr_registry::Ecosystem;
+
+    let grant = |name: &str, include: &[&str], subject: &str| {
+        let spec = GrantSpec {
+            name: name.to_string(),
+            include: include
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            exclude: Vec::new(),
+            subjects: vec![
+                (subject.to_string(), Action::Read),
+                (subject.to_string(), Action::Cache),
+            ],
+        };
+        Grant::compile(&spec, Ecosystem::Npm).expect("test grant compiles")
+    };
+    let mut config = base_config();
+    let upstream = upstream_with_access("https://npm.corp.example/", "alice");
+    // Alice reads everything and bob one package, so a resolution alice
+    // cached for another package must not replay for bob.
+    upstream.rules.set_grants(vec![
+        grant("everything", &[], "alice"),
+        grant("one", &["@corp/allowed"], "bob"),
+    ]);
+    config.routing.upstreams.insert("corp".to_string(), upstream);
+    let context = Arc::new(RouteContext::from_config(&config));
+
+    assert_eq!(
+        context.alias_package_qualifier("corp", Some("@corp/secret")),
+        Some("@corp/secret".to_string()),
+    );
+    // A descriptor recorded without a package, before readers differed,
+    // names no package to check and does not replay.
+    let unqualified = PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: corp_credential(),
+        package: None,
+    };
+    assert!(!context.allows_descriptor(&user("alice"), &unqualified));
+
+    // What alice resolved replays for her and not for bob.
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let hook = RouteHook::new(
+        Arc::clone(&context),
+        user("alice"),
+        Arc::clone(&footprint),
+        Arc::from(b"secret".as_slice()),
+    );
+    let secret = "https://npm.corp.example/@corp%2fsecret";
+    assert!(
+        hook.authorize(secret, Some("@corp/secret"))
+            .is_some(),
+    );
+    let recorded = footprint.lock().unwrap();
+    assert!(recorded.allows(&context, &user("alice")));
+    assert!(!recorded.allows(&context, &user("bob")));
+    let url = "https://npm.corp.example/@corp%2fsecret";
+    assert_eq!(context.classify(&user("bob"), url, Some("@corp/secret")), RouteClass::Public);
 }
 
 #[test]
@@ -611,7 +675,7 @@ fn proxied_alias_accepts_team_member_identity() {
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
-    upstream.access = Some(AccessList::new(vec![AccessToken::Team("platform".to_string())]));
+    upstream.set_access(AccessList::new(vec![AccessToken::Team("platform".to_string())]));
     config.routing.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);
     let url = "https://npm.corp.example/@acme%2fwidget";

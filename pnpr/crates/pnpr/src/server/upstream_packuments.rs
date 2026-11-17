@@ -29,7 +29,7 @@ pub(super) async fn read_source_packument(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     match resolved_source {
         RegistrySource::Upstream(source) => {
-            authorize(state, identity, resolved_source, name.as_str(), Action::Access)?;
+            authorize(state, identity, resolved_source, name.as_str(), Action::Read)?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
@@ -324,7 +324,7 @@ pub(super) async fn load_packument_for_read(
     let resolved_source = resolve_registry_source(state, &target, name.as_str());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
-            authorize(state, identity, &resolved_source, name.as_str(), Action::Access)?;
+            authorize(state, identity, &resolved_source, name.as_str(), Action::Read)?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
@@ -436,7 +436,10 @@ impl UpstreamDocument<'_> {
             view,
             self.state,
             self.response.headers,
-            self.ttl.as_secs(),
+            self.upstream
+                .response_ttl()
+                .unwrap_or(self.state.inner.config.http.packument_ttl)
+                .as_secs(),
         )
         .await
     }

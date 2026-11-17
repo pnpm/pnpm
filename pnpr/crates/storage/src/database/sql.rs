@@ -14,6 +14,7 @@ pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 
 pub use cache::RenderStats;
 pub use cdn::CdnInvalidation;
+pub use grants::{GrantContent, GrantWrite, StoredGrant, StoredGrants};
 pub use mappings::{Mapping, Unmapping};
 pub use registry_graph::{
     HostedNamespace, NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision,
@@ -34,6 +35,7 @@ mod cargo_rows;
 mod cdn;
 mod commit;
 mod fence;
+mod grants;
 mod log;
 mod mappings;
 mod notes;

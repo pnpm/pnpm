@@ -144,15 +144,15 @@ async fn grant_action(
     grant: &GrantAction<'_>,
 ) -> Result<bool, RegistryError> {
     let operation = match grant.action {
-        "pull" => Action::Access,
+        "pull" => Action::Read,
         "push" => Action::Publish,
-        "delete" => Action::Unpublish,
+        "delete" => Action::Delete,
         _ => return Ok(false),
     };
     if grant.action != "pull" && grant.readonly {
         return Ok(false);
     }
-    if authorize(state, identity, source, grant.name, Action::Access).is_err() {
+    if authorize(state, identity, source, grant.name, Action::Read).is_err() {
         return Ok(false);
     }
     let routing = state.routing();

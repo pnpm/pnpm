@@ -191,7 +191,7 @@ for (const [headers, path, method] of [
   [{ origin: 'https://client.example' }, '/npm/widget', 'GET'],
   [{ accept: 'application/vnd.pnpr.install-v2+json' }, '/npm/widget', 'GET'],
   [{}, '/-/pnpr/v0/staged/example/approve', 'POST'],
-  [{}, '/-/pnpr/v0/admin/rules/npm/local', 'PUT'],
+  [{}, '/-/pnpr/v0/admin/grants/readers', 'PUT'],
 ]) {
   test(`bypass never touches the cache: ${method} ${path} ${JSON.stringify(headers)}`, async () => {
     const server = fixture()

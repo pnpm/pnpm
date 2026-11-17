@@ -1,6 +1,6 @@
 use super::{
-    Ecosystem, FeatureOverrides, Identity, Path, RegistryError, hosted_rules_config, listen,
-    load_with_graph, load_with_graph_and_overrides, user,
+    Ecosystem, FeatureOverrides, Path, RegistryError, listen, load_with_graph,
+    load_with_graph_and_overrides,
 };
 
 /// A router registry routes each package to exactly one concrete source — the
@@ -18,7 +18,6 @@ registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
-    access: $authenticated
     packages: { '@corp/*': {} }
   main:
     type: router
@@ -29,9 +28,8 @@ defaultRegistry: main
     // Both upstream registries are exposed as upstreams for serving.
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert!(config.routing.upstreams.contains_key("corp"));
-    // The public upstream carries no credential gate; the private one does.
-    assert!(config.routing.upstreams["npmjs"].access.is_none());
-    assert!(config.routing.upstreams["corp"].access.is_some());
+    assert!(config.routing.upstreams["npmjs"].public);
+    assert!(!config.routing.upstreams["corp"].public);
     assert_eq!(config.routing.registries.default_registry(), Some("main"));
     assert!(config.routing.registries.is_router("main"));
     match config.routing.registries.resolve("main", Ecosystem::Npm, "@corp/secret") {
@@ -258,26 +256,6 @@ registries:
     let message = err.to_string();
     assert!(message.contains("hosted"), "expected the valid kinds listed, got: {message}");
     assert!(message.contains("upstream"), "expected the valid kinds listed, got: {message}");
-}
-
-#[test]
-fn rules_are_derived_from_the_registry_packages_map() {
-    // The `access` / `publish` tokens in each entry drive the runtime
-    // rules — not a hard-coded default set.
-    let config = hosted_rules_config(
-        "      '@secret/*':\n        access: $authenticated\n        publish: $authenticated\n        unpublish: admin\n      '**':\n        access: $all\n        publish: $authenticated\n",
-    );
-    let rules = &config.routing.hosted["local"].rules;
-    let table = rules.snapshot();
-    let secret = table.for_package("@secret/thing");
-    assert!(!secret.access.allows(&Identity::Anonymous));
-    assert!(secret.access.allows(&user("alice")));
-    let table = rules.snapshot();
-    let public = table.for_package("lodash");
-    assert!(public.access.allows(&Identity::Anonymous));
-    assert!(!public.publish.allows(&Identity::Anonymous));
-    assert!(!secret.unpublish.allows(&user("alice")));
-    assert!(secret.unpublish.allows(&user("admin")));
 }
 
 #[test]
@@ -539,7 +517,6 @@ registries:
     tarballs: tar
     packages:
       '@acme/*':
-        publish: $authenticated
   main:
     type: router
     sources: [local]

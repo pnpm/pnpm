@@ -7,6 +7,7 @@ mod blobs;
 mod cdn;
 mod concurrency;
 mod ecosystems;
+mod grants;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
