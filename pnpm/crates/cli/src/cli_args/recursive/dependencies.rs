@@ -69,7 +69,7 @@ pub fn sequence_graph<Pkg>(
 /// `--filter-prod` selection routes its projects to the prod-pruned graph so
 /// pruned dev edges stay pruned, while regular projects route to the full
 /// graph.
-fn sequence_graph_by_project<'g, Pkg: 'g>(
+pub(super) fn sequence_graph_by_project<'g, Pkg: 'g>(
     projects_graph: &ProjectGraph<Pkg>,
     full_graph_for: impl Fn(&Path) -> &'g ProjectGraph<Pkg>,
 ) -> GraphSequencerResult<PathBuf> {
