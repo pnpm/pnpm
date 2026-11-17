@@ -137,8 +137,8 @@ refused too, unless it is the `--public-url` origin or
 Clients never forward their upstream registry credentials to pnpr. Instead, a
 private registry is configured server-side as an
 [upstream registry](configuration.md#upstream-registries) with a server-owned
-credential and an `access:` policy naming which pnpr users may resolve through
-it. The caller authenticates to pnpr with their own pnpr token; pnpr selects
+credential and a [grant](configuration.md#grants) naming which pnpr users may
+resolve through it. The caller authenticates to pnpr with their own pnpr token; pnpr selects
 its own credential for each upstream fetch. One upstream token, held only by
 the server, serves a whole team.
 

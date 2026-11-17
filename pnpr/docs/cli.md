@@ -17,6 +17,8 @@ pnpr gc [OPTIONS]
 pnpr cache-gc [OPTIONS]
 pnpr registries export [OPTIONS]
 pnpr registries import <file> [OPTIONS]
+pnpr grants export [OPTIONS]
+pnpr grants import <file> [OPTIONS]
 ```
 
 ## Options
@@ -244,6 +246,18 @@ apply. `pnpr registries import --check` compares the file with the stored
 registries and fails when they differ, without storing anything. These
 commands connect to the configured database directly. Run
 `pnpr registries --help` for their options.
+
+### grants
+
+Reads and stores the [grants](configuration.md#grants) kept in the database.
+`pnpr grants export` writes them as YAML under a `grants` key.
+`pnpr grants import` replaces the stored grants with the ones such a file
+declares, after the checks the
+[grant endpoints](endpoints.md#grant-endpoints) apply. A grant the file leaves
+out is removed. `pnpr grants import --check` compares the file with the stored
+grants and fails when they differ, without storing anything. These commands
+connect to the configured database directly. Run `pnpr grants --help` for
+their options.
 
 ## Logging
 

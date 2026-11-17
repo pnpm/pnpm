@@ -88,8 +88,7 @@ registries:
   local:
     type: hosted
     packages:
-      '@mycompany/*':
-        publish: $authenticated
+      '@mycompany/*': {}
 
   npmjs:
     type: upstream
