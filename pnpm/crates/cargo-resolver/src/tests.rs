@@ -1330,3 +1330,45 @@ fn a_registry_serves_its_own_crates_and_crates_io_but_not_another_registry() {
     assert!(!serves_registry(source, "sparse+https://other.example/index/"));
     assert!(!serves_registry(CRATES_IO_SOURCE, source));
 }
+
+/// `foo` 2.0.0 is locked but lacks the requested feature, so the locked
+/// 1.0.0 that has it is kept rather than an unlocked 2.x release.
+#[test]
+fn skips_a_preferred_version_that_lacks_the_requested_features() {
+    const METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [{
+      "name": "foo",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": "*",
+      "features": ["f"]
+    }]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = [
+        r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"f":[]},"yanked":false}"#,
+        r#"{"name":"foo","vers":"2.0.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#,
+        r#"{"name":"foo","vers":"2.1.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"f":[]},"yanked":false}"#,
+    ]
+    .join("\n");
+    let files = BTreeMap::from([("foo".to_string(), foo_index)]);
+    let preferences =
+        BTreeMap::from([("foo".to_string(), vec!["2.0.0".to_string(), "1.0.0".to_string()])]);
+
+    let lockfile = Lockfile::from_str(
+        &resolve_lockfile_with_preferences(METADATA, &files, CRATES_IO_SOURCE, &preferences)
+            .unwrap(),
+    )
+    .unwrap();
+
+    let foo_versions = lockfile.packages
+        .iter()
+        .filter(|package| package.name.as_str() == "foo")
+        .map(|package| package.version.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(foo_versions, ["1.0.0"]);
+}

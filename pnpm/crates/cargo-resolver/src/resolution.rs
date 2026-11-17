@@ -63,12 +63,33 @@ impl CancellableProvider<'_> {
                                 range.contains(representative)
                                     && compatibility_line(representative)
                                         == compatibility_line(preferred)
+                                    && self.line_admits(package, representative, preferred)
                             })
                             .cloned()
                     })
             }
             PackageKey::Root | PackageKey::Unsatisfiable { .. } => None,
         }
+    }
+}
+
+impl CancellableProvider<'_> {
+    /// Whether the line `representative` stands for admits `preferred`: the
+    /// line offers only versions that support the requested features.
+    fn line_admits(
+        &self,
+        package: &PackageKey,
+        representative: &Version,
+        preferred: &Version,
+    ) -> bool {
+        let Ok(Dependencies::Available(lines)) =
+            self.inner.get_dependencies(package, representative)
+        else {
+            return false;
+        };
+        lines
+            .iter()
+            .any(|(_, admitted)| admitted.contains(preferred))
     }
 }
 

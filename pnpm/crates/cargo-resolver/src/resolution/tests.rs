@@ -1,4 +1,6 @@
-use super::{BTreeMap, CancellableProvider, InnerProvider, PackageKey, Ranges, Version};
+use super::{
+    BTreeMap, CancellableProvider, InnerProvider, PackageKey, Ranges, Version, compatibility_line,
+};
 
 #[test]
 fn tries_each_preferred_version_when_earlier_line_is_out_of_range() {
@@ -10,7 +12,12 @@ fn tries_each_preferred_version_when_earlier_line_is_out_of_range() {
     };
     let mut inner = InnerProvider::new();
     for version in [Version::new(1, 0, 0), Version::new(2, 0, 0), Version::new(3, 0, 0)] {
-        inner.add_dependencies(package.clone(), version, []);
+        let line = PackageKey::Registry {
+            name: "foo".to_string(),
+            compatibility: compatibility_line(&version),
+        };
+        let admitted = Ranges::singleton(version.clone());
+        inner.add_dependencies(package.clone(), version, [(line, admitted)]);
     }
     let preferred_versions =
         BTreeMap::from([("foo".to_string(), vec![Version::new(2, 0, 0), Version::new(1, 0, 0)])]);
