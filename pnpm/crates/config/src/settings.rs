@@ -472,8 +472,7 @@ pub struct Config {
     /// goes through [`Config::pin_lockfile_dir`].
     pub lockfile_dir: Option<PathBuf>,
 
-    /// The directory relative `file:` overrides resolve from when it differs
-    /// from the directory owning the install's lockfile, as during deploy.
+    /// Base for relative paths in overrides.
     pub overrides_root_dir: Option<PathBuf>,
 
     /// The resolved `lockfileDir` setting before [`pnpm_fs::lexical_normalize`]
