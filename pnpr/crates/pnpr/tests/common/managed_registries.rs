@@ -2,7 +2,6 @@
 //! stored graph the way `pnpr registries import` seeds one.
 
 use pnpr::Config;
-use pnpr_config::RegistryGraphDocument;
 use serde_json::Value;
 use std::{net::SocketAddr, path::Path};
 

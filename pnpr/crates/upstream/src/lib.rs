@@ -82,6 +82,10 @@ pub struct Upstream {
     breaker: Arc<CircuitBreaker>,
     oci_tokens: Arc<Mutex<std::collections::HashMap<String, oci::CachedToken>>>,
     http: UpstreamHttp,
+    /// The caller this clone serves, when that caller may read what the
+    /// cache holds but may not have the origin fetched. See
+    /// [`Self::cached_only`].
+    cached_only: Option<String>,
 }
 
 impl fmt::Debug for Upstream {
@@ -166,6 +170,7 @@ impl Upstream {
                 config.requests.fail_timeout,
             )),
             oci_tokens: Arc::default(),
+            cached_only: None,
         }
     }
 
@@ -208,7 +213,19 @@ impl Upstream {
     /// defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     #[must_use]
     pub fn packument_ttl(&self) -> Option<Duration> {
+        if self.cached_only.is_some() {
+            return Some(Duration::MAX);
+        }
         self.packument_ttl
+    }
+
+    /// This upstream for `user`, who may read what the cache holds and no
+    /// more: a cached packument never goes stale for it, and every request to
+    /// the origin is refused.
+    #[must_use]
+    pub fn cached_only(mut self, user: &str) -> Self {
+        self.cached_only = Some(user.to_string());
+        self
     }
 
     /// Whether tarballs from this upstream should be written to the local

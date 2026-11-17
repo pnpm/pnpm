@@ -118,7 +118,7 @@ async fn update_file(
             identity,
             &hosted,
             key.as_str(),
-            Action::Publish,
+            Action::Annotate,
             Some(target.namespace.as_str()),
         )
         .await?;
@@ -133,7 +133,7 @@ fn authorize_project_yank(
     (key, document): (&CanonicalPackageName, &ProjectDocument),
 ) -> Result<(), RegistryError> {
     let ownership = Ownership::Owners(&document.owners);
-    authorize_with_ownership(state, identity, hosted, (key.as_str(), &ownership), Action::Publish)
+    authorize_with_ownership(state, identity, hosted, (key.as_str(), &ownership), Action::Annotate)
 }
 
 fn update_document(

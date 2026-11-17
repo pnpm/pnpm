@@ -219,7 +219,7 @@ async fn preauthorize_rewrite(
         identity,
         &source,
         name.as_str(),
-        Action::Publish,
+        Action::Annotate,
         Some(&target.namespace),
     )
     .await

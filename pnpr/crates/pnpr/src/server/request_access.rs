@@ -1,6 +1,6 @@
 use super::{
-    AppState, AuthedCaller, HeaderMap, Identity, Next, RegistryError, Request, Response, Upstream,
-    header,
+    Action, AppState, AuthedCaller, HeaderMap, Identity, Next, RegistryError, Request, Response,
+    Upstream, header,
 };
 use axum::response::IntoResponse;
 use pnpr_config::RoutingConfig;
@@ -33,10 +33,16 @@ pub(super) fn authorized_upstream(
             resource: format!("upstream {upstream:?}"),
         });
     }
-    routing.upstream_clients
+    let client = routing.upstream_clients
         .get(upstream)
         .cloned()
-        .ok_or_else(|| RegistryError::NotFound)
+        .ok_or_else(|| RegistryError::NotFound)?;
+    // `cache` on any package of the upstream lets the caller have the origin
+    // fetched. Without it the caller reads what the cache holds.
+    if config.rules.any_admits(Action::Cache, identity) {
+        return Ok(client);
+    }
+    Ok(client.cached_only(identity.username().unwrap_or("<anonymous>")))
 }
 
 pub(super) fn revision_source_registry(state: &AppState, source: &str) -> Option<String> {
