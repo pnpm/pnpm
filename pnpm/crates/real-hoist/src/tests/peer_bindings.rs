@@ -62,7 +62,7 @@ fn deduplication_compares_every_transitive_peer_provider() {
 #[test]
 fn an_inherited_transitive_peer_is_not_hidden_by_a_recorded_sibling_binding() {
     let schema = |version: &str| tree_node("schema", &format!("schema@{version}"), &[], vec![]);
-    let client = |version: &str| {
+    let client = |version: &str, cyclic: bool| {
         let recorded = tree_node(
             "recorded",
             &format!("recorded@1.0.0(schema@{version})"),
@@ -70,12 +70,26 @@ fn an_inherited_transitive_peer_is_not_hidden_by_a_recorded_sibling_binding() {
             vec![schema(version)],
         );
         let inherited = tree_node("inherited", "inherited@1.0.0", &["schema"], vec![]);
+        if cyclic {
+            let cycle = tree_node("cycle", "cycle@1.0.0", &["schema"], vec![Rc::clone(&inherited)]);
+            inherited.dependencies
+                .borrow_mut()
+                .insert(RcByPtr(cycle));
+        }
         tree_node("client", "client@1.0.0", &["schema"], vec![recorded, inherited])
     };
-    for inherited_version in ["1.0.0", "3.0.0"] {
+    for (cyclic, inherited_version) in
+        [(false, "1.0.0"), (false, "3.0.0"), (true, "1.0.0"), (true, "3.0.0")]
+    {
         for recorded_version in ["2.0.0", "4.0.0"] {
-            let host = tree_node("host", "host@1.0.0", &[], vec![client("2.0.0"), schema("3.0.0")]);
-            let root = tree_root(vec![client(recorded_version), host, schema(inherited_version)]);
+            let host = tree_node(
+                "host",
+                "host@1.0.0",
+                &[],
+                vec![client("2.0.0", cyclic), schema("3.0.0")],
+            );
+            let root =
+                tree_root(vec![client(recorded_version, cyclic), host, schema(inherited_version)]);
 
             let result = nm_hoist(&root, &HoistOpts::default());
             let host = child_of(&result, "host");
@@ -86,9 +100,80 @@ fn an_inherited_transitive_peer_is_not_hidden_by_a_recorded_sibling_binding() {
             assert_eq!(
                 keeps_client,
                 inherited_version != "3.0.0" || recorded_version != "2.0.0",
-                "inherited schema {inherited_version}, recorded schema {recorded_version}",
+                "inherited schema {inherited_version}, recorded schema {recorded_version}, cyclic {cyclic}",
             );
         }
+    }
+}
+
+#[test]
+fn recorded_providers_do_not_mask_a_changed_or_missing_inherited_provider() {
+    let schema = |version: &str| tree_node("schema", &format!("schema@{version}"), &[], vec![]);
+    let client = || {
+        let providers = ["1.0.0", "3.0.0"].map(|version| {
+            let name = format!("provider-{version}");
+            tree_node(&name, &format!("{name}@1.0.0"), &["schema"], vec![schema(version)])
+        });
+        tree_node(
+            "client",
+            "client@1.0.0",
+            &["schema"],
+            providers
+                .into_iter()
+                .chain([tree_node("inherited", "inherited@1.0.0", &["schema"], vec![])])
+                .collect(),
+        )
+    };
+    for root_version in [Some("1.0.0"), Some("3.0.0"), None] {
+        for host_version in ["1.0.0", "3.0.0"] {
+            let host = tree_node("host", "host@1.0.0", &[], vec![client(), schema(host_version)]);
+            let mut roots = vec![client(), host];
+            roots.extend(root_version.map(schema));
+            let mut root = tree_root(roots);
+            if root_version.is_none() {
+                Rc::get_mut(&mut root).unwrap().peer_names.insert("schema".to_string());
+            }
+            let result = nm_hoist(&root, &HoistOpts::default());
+            let host = child_of(&result, "host");
+            let keeps_client = host.dependencies
+                .borrow()
+                .iter()
+                .any(|child| child.0.name == "client");
+            assert_eq!(
+                keeps_client,
+                root_version != Some(host_version),
+                "root {root_version:?}, host {host_version}",
+            );
+        }
+    }
+}
+
+#[test]
+fn a_recorded_provider_binds_every_node_of_a_transitive_peer_cycle() {
+    for provider_name in ["a-provider", "z-provider"] {
+        let schema = tree_node("schema", "schema@2.0.0", &[], vec![]);
+        let provider =
+            tree_node(provider_name, "provider@1.0.0(schema@2.0.0)", &["schema"], vec![schema]);
+        let bridge = tree_node("bridge", "bridge@1.0.0", &["schema"], vec![]);
+        let client = tree_node(
+            "client",
+            "client@1.0.0(schema@2.0.0)",
+            &["schema"],
+            vec![Rc::clone(&bridge), provider],
+        );
+        bridge.dependencies
+            .borrow_mut()
+            .insert(RcByPtr(Rc::clone(&client)));
+        let host = tree_node(
+            "host",
+            "host@1.0.0",
+            &[],
+            vec![Rc::clone(&client), tree_node("schema", "schema@3.0.0", &[], vec![])],
+        );
+        let root = tree_root(vec![client, host, tree_node("schema", "schema@1.0.0", &[], vec![])]);
+
+        let result = nm_hoist(&root, &HoistOpts::default());
+        assert_eq!(child_of(&result, "host").dependencies.borrow().len(), 1);
     }
 }
 
