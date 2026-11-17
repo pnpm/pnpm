@@ -240,6 +240,17 @@ test('an unknown option is not attributed to a shorthand consumed as an option v
   expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([])
 })
 
+test('an unknown option in a shorthand expansion is not attributed to it when read as an option value', async () => {
+  const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalOptionsTypes: { filter: [String, Array] },
+    universalShorthands: { x: ['--bogus', '--filter', '--long'] },
+  }, ['update', '--long', '-x'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['long', 'bogus'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['bogus', '-x']])
+})
+
 test('an unknown option is attributed to a shorthand typed after an option value that matches the script name', async () => {
   const { cmd, unknownOptionShorthands } = await parseCliArgs({
     ...DEFAULT_OPTS,

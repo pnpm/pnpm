@@ -32,9 +32,12 @@ export function attributeUnknownOptionsToShorthands (
   const unknownOptionShorthands = new Map<string, string>()
   if (unknownOptions.size === 0) return unknownOptionShorthands
   const { shorthands } = ctx
-  for (const { typed, shorthand } of findTypedShorthands(ctx, knownOptions, unknownOptions)) {
-    for (const optionName of getShorthandOptionNames(shorthands[shorthand])) {
-      if (!unknownOptions.has(optionName) || unknownOptionShorthands.has(optionName)) continue
+  const typedShorthands = ctx.originalArgv.flatMap((arg) => resolveTypedShorthands(arg, shorthands, knownOptions))
+  if (typedShorthands.length === 0) return unknownOptionShorthands
+  const expandedOptions = findExpandedOptions(ctx, unknownOptions)
+  for (const { typed, shorthand } of typedShorthands) {
+    for (const optionName of expandedOptions.get(shorthand) ?? []) {
+      if (unknownOptionShorthands.has(optionName)) continue
       unknownOptionShorthands.set(optionName, typed)
       unknownOptions.set(optionName, suggestShorthandOfOtherCase(shorthand, shorthands, knownOptions))
     }
@@ -42,34 +45,23 @@ export function attributeUnknownOptionsToShorthands (
   return unknownOptionShorthands
 }
 
-/**
- * An argument that looks like a shorthand is not always read as one: it may be
- * the value of the preceding option, or come after `--` or an escape argument.
- * So only the shorthands that the parser expanded are kept.
- */
-function findTypedShorthands (
-  ctx: ShorthandContext,
-  knownOptions: Set<string>,
-  unknownOptions: Map<string, string[]>
-): TypedShorthand[] {
-  const typedShorthands = ctx.originalArgv.flatMap((arg) => resolveTypedShorthands(arg, ctx.shorthands, knownOptions))
-  if (typedShorthands.length === 0) return []
-  const expandedShorthands = findExpandedShorthands(ctx, unknownOptions)
-  return typedShorthands.filter(({ shorthand }) => expandedShorthands.has(shorthand))
-}
-
 const EXPANSION_MARKER = '\0expanded-shorthand:'
 
 /**
- * Parses the arguments again, with each unknown option in a shorthand
- * expansion renamed after the shorthand, and returns the shorthands whose
- * renamed options were parsed. A renamed option keeps the parser type of the
+ * An argument that looks like a shorthand is not always read as one: it may be
+ * the value of the preceding option, or come after `--` or an escape argument.
+ * Likewise, an option in an expansion may be read as the value of the option
+ * before it.
+ *
+ * So this parses the arguments again, with each unknown option in a shorthand
+ * expansion renamed after the shorthand, and returns the renamed options that
+ * were parsed, by shorthand. A renamed option keeps the parser type of the
  * original, so the second parse reads the same arguments as options.
  */
-function findExpandedShorthands (
+function findExpandedOptions (
   { originalArgv, types, escapeArgs, shorthands }: ShorthandContext,
   unknownOptions: Map<string, string[]>
-): Set<string> {
+): Map<string, Set<string>> {
   const shorthandNames = Object.keys(shorthands)
   const markedTypes: Record<string, unknown> = { ...types }
   const markedShorthands: Record<string, string[]> = {}
@@ -82,13 +74,17 @@ function findExpandedShorthands (
     })
   }
   const parsed = nopt(markedTypes as Parameters<typeof nopt>[0], markedShorthands, originalArgv, 0, { escapeArgs })
-  const expandedShorthands = new Set<string>()
+  const expandedOptions = new Map<string, Set<string>>()
   for (const key of Object.keys(parsed)) {
-    if (key.startsWith(EXPANSION_MARKER)) {
-      expandedShorthands.add(shorthandNames[Number.parseInt(key.slice(EXPANSION_MARKER.length), 10)])
-    }
+    if (!key.startsWith(EXPANSION_MARKER)) continue
+    const marker = key.slice(EXPANSION_MARKER.length)
+    const separatorIndex = marker.indexOf(':')
+    const shorthand = shorthandNames[Number(marker.slice(0, separatorIndex))]
+    const optionNames = expandedOptions.get(shorthand) ?? new Set<string>()
+    optionNames.add(marker.slice(separatorIndex + 1))
+    expandedOptions.set(shorthand, optionNames)
   }
-  return expandedShorthands
+  return expandedOptions
 }
 
 /**
