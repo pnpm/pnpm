@@ -365,3 +365,64 @@ async fn a_new_process_serves_the_stored_grants() {
     let bob = login(&restarted, "bob").await;
     assert_eq!(read(&restarted, "/npm/@secret/thing", &bob).await, StatusCode::NOT_FOUND);
 }
+
+async fn run_grants(config: &Config, action: pnpr::GrantsSubcommand) -> miette::Result<()> {
+    pnpr::run_command(config, pnpr::Command::Grants { action }).await
+}
+
+#[tokio::test]
+async fn an_exported_file_imports_as_no_change_and_an_edited_one_replaces_the_grants() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path()).await).await;
+    let root = login(&app, "root").await;
+    let grant = secret_readers(&json!({ "team:readers": ["read"] }));
+    assert_eq!(put_grant(&app, &root, "secret-readers", grant).await.0, StatusCode::OK);
+    let config = reload_config(dir.path());
+    let file = dir.path().join("grants.yaml");
+    let export = pnpr::GrantsSubcommand::Export { out: Some(file.clone()) };
+    run_grants(&config, export).await.unwrap();
+    let exported = std::fs::read_to_string(&file).unwrap();
+    assert!(exported.contains("secret-readers:"), "{exported}");
+    assert!(exported.contains("team:readers"), "{exported}");
+
+    let check = |file: std::path::PathBuf| pnpr::GrantsSubcommand::Import {
+        file,
+        dry_run: false,
+        check: true,
+    };
+    run_grants(&config, check(file.clone())).await.unwrap();
+
+    let edited = dir.path().join("edited.yaml");
+    let yaml =
+        "grants:\n  only:\n    registries: [local]\n    subjects:\n      $authenticated: [read]\n";
+    std::fs::write(&edited, yaml).unwrap();
+    assert!(run_grants(&config, check(edited.clone())).await.is_err());
+    let import = pnpr::GrantsSubcommand::Import { file: edited, dry_run: false, check: false };
+    run_grants(&config, import).await.unwrap();
+
+    let restarted = app_router(reload_config(dir.path())).await;
+    let root = login(&restarted, "root").await;
+    assert_eq!(grant_names(&restarted, &root).await, ["only"]);
+    let bob = login(&restarted, "bob").await;
+    assert_eq!(read(&restarted, "/npm/@secret/thing", &bob).await, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn an_import_refuses_a_grant_that_cannot_apply() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path()).await).await;
+    let root = login(&app, "root").await;
+    let before = grant_names(&app, &root).await;
+    let config = reload_config(dir.path());
+    for grant in [
+        "registries: [absent]\n    subjects: { $all: [read] }",
+        "registries: [local]\n    subjects: { 'team:absent': [read] }",
+        "registries: [local]\n    subjects: { $all: [own] }",
+    ] {
+        let file = dir.path().join("refused.yaml");
+        std::fs::write(&file, format!("grants:\n  refused:\n    {grant}\n")).unwrap();
+        let import = pnpr::GrantsSubcommand::Import { file, dry_run: false, check: false };
+        assert!(run_grants(&config, import).await.is_err(), "{grant}");
+    }
+    assert_eq!(grant_names(&app, &root).await, before);
+}

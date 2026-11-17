@@ -1,4 +1,5 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
+pub(crate) use grant_directory::validate_for as validate_grant;
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
 pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};

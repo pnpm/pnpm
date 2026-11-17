@@ -167,6 +167,14 @@ pub(super) fn written(write: GrantWrite, expected: Option<u64>) -> Result<u64, R
 /// exist, a pattern its ecosystem does not have, a subject that is not an
 /// access token, or an action that does not exist.
 pub(super) fn validate(state: &AppState, content: &GrantContent) -> Result<(), RegistryError> {
+    validate_for(&state.routing(), content)
+}
+
+/// [`validate`] against the registries of `routing`.
+pub(crate) fn validate_for(
+    routing: &RoutingConfig,
+    content: &GrantContent,
+) -> Result<(), RegistryError> {
     let invalid = |reason: String| RegistryError::BadRequest { reason };
     if content.name.is_empty() || content.name.contains(char::is_whitespace) {
         return Err(invalid("a grant name is one word".to_string()));
@@ -180,7 +188,6 @@ pub(super) fn validate(state: &AppState, content: &GrantContent) -> Result<(), R
             return Err(invalid(format!("unknown action {action:?}")));
         }
     }
-    let routing = state.routing();
     let spec = spec(content);
     for registry in &content.registries {
         if registry == EVERY_REGISTRY {

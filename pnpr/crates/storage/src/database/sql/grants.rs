@@ -87,6 +87,36 @@ impl Storage {
         .await
     }
 
+    /// Make `grants` the grants of the instance, in place of the ones it has,
+    /// if they are still at `expected` when one is given.
+    pub async fn replace_grants(
+        &self,
+        grants: Vec<StoredGrant>,
+        expected: Option<u64>,
+    ) -> Result<GrantWrite> {
+        self.database.write(move |connection| {
+            let transaction = WriteTransaction::begin(connection)?;
+            if let Some(conflict) = conflict(&*transaction, expected)? {
+                return Ok(conflict);
+            }
+            for grant in &grants {
+                if let Some(team) = unknown_subject_team(&*transaction, &grant.content.subjects)? {
+                    return Ok(GrantWrite::UnknownTeam(team));
+                }
+            }
+            for table in ["grant_subjects", "grant_patterns", "grant_registries", "grants"] {
+                transaction.execute(&format!("DELETE FROM {table}"), params![])?;
+            }
+            for grant in &grants {
+                insert_grant(&*transaction, &grant.id, &grant.content)?;
+            }
+            let generation = advance_directory(&*transaction)?;
+            transaction.commit()?;
+            Ok(GrantWrite::Written(generation))
+        })
+        .await
+    }
+
     /// Replace the subjects of the grant `id`, leaving the rest of it.
     pub async fn set_grant_subjects(
         &self,
