@@ -1,7 +1,9 @@
 use super::{
-    HashMap, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident, path_shadowed,
-    same_locator,
+    HashMap, HashSet, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident,
+    node_locator, path_shadowed, same_locator,
 };
+
+use std::collections::hash_map::Entry;
 
 /// Outcome of the per-child hoist decision at the root.
 #[derive(Clone, Copy)]
@@ -226,7 +228,7 @@ pub(super) fn apply_decision(
 /// over ancestor lookup, including edges already hoisted out of a node.
 /// A name the root lacks resolves through `ctx.used`, above the root.
 fn would_shadow_peer(
-    candidate: &HoisterResult,
+    candidate: &Rc<HoisterResult>,
     ancestor_path: &[Rc<HoisterResult>],
     ctx: &HoistCtx<'_>,
     root_index: &HashMap<String, RcByPtr<HoisterResult>>,
@@ -256,7 +258,7 @@ fn would_shadow_peer(
 
 #[derive(Default)]
 struct PeerProviders {
-    recorded: Vec<Rc<HoisterResult>>,
+    recorded: HashSet<String>,
     inherited: InheritedPeerProvider,
 }
 
@@ -270,10 +272,7 @@ enum InheritedPeerProvider {
 
 fn same_peer_providers(left: &PeerProviders, right: &PeerProviders) -> bool {
     same_inherited_peer_provider(&left.inherited, &right.inherited)
-        && left.recorded.len() == right.recorded.len()
-        && left.recorded
-            .iter()
-            .all(|provider| right.recorded.iter().any(|target| same_locator(target, provider)))
+        && left.recorded == right.recorded
 }
 
 fn same_inherited_peer_provider(
@@ -291,7 +290,7 @@ fn same_inherited_peer_provider(
 }
 
 fn target_peer_providers(
-    candidate: &HoisterResult,
+    candidate: &Rc<HoisterResult>,
     peer_name: &str,
     ancestor_path: &[Rc<HoisterResult>],
     ctx: &HoistCtx<'_>,
@@ -312,7 +311,10 @@ fn target_peer_providers(
     if nearest_peer_provider(peer_name, path_below_root(ancestor_path)).is_some()
         && !target.recorded.is_empty()
     {
-        target.recorded = inherited_provider().into_iter().collect();
+        target.recorded = inherited_provider()
+            .map(|provider| node_locator(&provider))
+            .into_iter()
+            .collect();
     }
     target
 }
@@ -335,12 +337,15 @@ fn direct_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<Hois
 }
 
 fn resolved_peer_providers(
-    node: &HoisterResult,
+    node: &Rc<HoisterResult>,
     peer_name: &str,
     inherited_provider: impl FnOnce() -> Option<Rc<HoisterResult>>,
 ) -> PeerProviders {
     if let Some(provider) = direct_peer_provider(node, peer_name) {
-        return PeerProviders { recorded: vec![provider], ..PeerProviders::default() };
+        return PeerProviders {
+            recorded: HashSet::from([node_locator(&provider)]),
+            ..PeerProviders::default()
+        };
     }
     let mut bindings = TransitivePeerProviders::default();
     collect_transitive_peer_providers(node, peer_name, &mut bindings);
@@ -354,7 +359,7 @@ fn resolved_peer_providers(
 
 #[derive(Default)]
 struct TransitivePeerProviders {
-    providers: Vec<Rc<HoisterResult>>,
+    providers: HashSet<String>,
     parents: HashMap<*const HoisterResult, Vec<*const HoisterResult>>,
     bound: Vec<*const HoisterResult>,
 }
@@ -374,39 +379,37 @@ impl TransitivePeerProviders {
 /// Transitive peers belong to descendant snapshots, whose recorded edges
 /// remain authoritative even after their dependencies have hoisted away.
 fn collect_transitive_peer_providers(
-    node: &HoisterResult,
+    node: &Rc<HoisterResult>,
     peer_name: &str,
     bindings: &mut TransitivePeerProviders,
 ) {
-    let node_ptr = std::ptr::from_ref(node);
-    if bindings.parents.contains_key(&node_ptr) {
-        return;
-    }
-    bindings.parents.insert(node_ptr, Vec::new());
-    if let Some(provider) = direct_peer_provider(node, peer_name) {
-        add_peer_provider(&mut bindings.providers, provider);
-        bindings.bound.push(node_ptr);
-        return;
-    }
-    let dependencies = node.dependencies.borrow();
-    let hoisted = node.hoisted_dependencies.borrow();
-    let children = dependencies
-        .iter()
-        .map(|child| &child.0)
-        .chain(hoisted.values())
-        .filter(|child| child.peer_names.contains(peer_name));
-    for child in children {
-        collect_transitive_peer_providers(child, peer_name, bindings);
-        bindings.parents
-            .entry(Rc::as_ptr(child))
-            .or_default()
-            .push(node_ptr);
-    }
-}
-
-fn add_peer_provider(providers: &mut Vec<Rc<HoisterResult>>, provider: Rc<HoisterResult>) {
-    if !providers.iter().any(|existing| same_locator(existing, &provider)) {
-        providers.push(provider);
+    let mut pending = vec![(Rc::clone(node), None)];
+    while let Some((node, parent)) = pending.pop() {
+        let node_ptr = Rc::as_ptr(&node);
+        match bindings.parents.entry(node_ptr) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().extend(parent);
+                continue;
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(parent.into_iter().collect());
+            }
+        }
+        if let Some(provider) = direct_peer_provider(&node, peer_name) {
+            bindings.providers.insert(node_locator(&provider));
+            bindings.bound.push(node_ptr);
+            continue;
+        }
+        let dependencies = node.dependencies.borrow();
+        let hoisted = node.hoisted_dependencies.borrow();
+        let children = dependencies
+            .iter()
+            .map(|child| &child.0)
+            .chain(hoisted.values())
+            .filter(|child| child.peer_names.contains(peer_name));
+        for child in children {
+            pending.push((Rc::clone(child), Some(node_ptr)));
+        }
     }
 }
 
@@ -440,3 +443,6 @@ fn nearest_peer_provider(
                 .map(|dep| Rc::clone(&dep.0))
         })
 }
+
+#[cfg(test)]
+mod tests;
