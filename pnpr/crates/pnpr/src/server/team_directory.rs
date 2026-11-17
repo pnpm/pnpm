@@ -198,7 +198,15 @@ pub(super) async fn follow_write(state: &AppState) {
 /// team. This replica's copy may miss a team another replica just created, or
 /// hold the ID of one it removed and created again.
 pub(super) async fn team_id(state: &AppState, name: &str) -> Result<String, RegistryError> {
-    reload_written_teams(state).await;
+    let read = {
+        let _reload = state.inner.identity.managed.reload.lock().await;
+        reload_teams(state).await
+    };
+    if !read {
+        return Err(RegistryError::StorageUnavailable {
+            reason: "the teams could not be read".to_string(),
+        });
+    }
     teams(state)
         .named(name)
         .map(|(id, _)| id.to_string())
