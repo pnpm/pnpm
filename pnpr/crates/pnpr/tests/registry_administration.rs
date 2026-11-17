@@ -1609,3 +1609,32 @@ async fn publishing_and_annotating_are_given_separately() {
     let (status, body, _) = replica.send("PUT", package, Some(&replica.bob), Some(next)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
 }
+
+#[tokio::test]
+async fn cargo_sends_its_token_when_anonymous_callers_may_not_have_an_upstream_fetched() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    let crates = json!({
+        "type": "upstream",
+        "ecosystem": "cargo",
+        "url": "https://index.crates.example/",
+        "public": true,
+    });
+    let (status, body) = replica.as_root("PUT", &format!("{DOCUMENT}/crates"), Some(crates)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let config = "/cargo/~crates/index/config.json";
+    let (status, served, _) = replica.send("GET", config, None, None).await;
+    assert_eq!(status, StatusCode::OK, "{served}");
+    assert_ne!(served["auth-required"], json!(true), "{served}");
+
+    let grant = json!({
+        "registries": ["crates"],
+        "subjects": { "$all": ["read"], "$authenticated": ["cache"] },
+    });
+    let (status, body) =
+        replica.as_root("PUT", "/-/pnpr/v0/admin/grants/crates", Some(grant)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, served, _) = replica.send("GET", config, None, None).await;
+    assert_eq!(status, StatusCode::OK, "{served}");
+    assert_eq!(served["auth-required"], json!(true), "{served}");
+}
