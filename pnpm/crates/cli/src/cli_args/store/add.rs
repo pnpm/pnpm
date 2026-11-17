@@ -290,7 +290,10 @@ impl<'a> AddOne<'a> {
             None => {
                 let ingestion = self.ingestion(&archive, integrity.as_ref());
                 if integrity.is_some() {
-                    ingestion.run_without_mem_cache::<Reporter>().await
+                    ingestion
+                        .run_without_mem_cache::<Reporter>()
+                        .await
+                        .map(|_| ())
                 } else {
                     ingestion
                         .fetch_and_extract::<Reporter>()
