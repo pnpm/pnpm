@@ -14,8 +14,9 @@ use std::borrow::Cow;
 
 use node_semver::Range;
 use partial::{
-    Component, PartialVersion, canonical_strict_comparator, inc_num, invalid_xrange_order,
-    parse_xrange_plain, strip_build_substrings, strip_gtlt_operator, trim_comparator_whitespace,
+    Component, FastToken, PartialVersion, canonical_strict_comparator, classify_fast_token,
+    inc_num, invalid_xrange_order, parse_xrange_plain, strip_build_substrings, strip_gtlt_operator,
+    trim_comparator_whitespace,
 };
 
 /// The range every any-version spelling normalizes to.
@@ -39,22 +40,31 @@ pub fn is_any_version_range(range: &str) -> bool {
 
 /// The Rust equivalent of JS `semver.validRange(range) != null`, the strict
 /// reading under which any unparsable comparator or comparator set invalidates
-/// the whole range.
+/// the whole range, bounded by [`node_semver::MAX_SAFE_INTEGER`].
 ///
 /// Belongs wherever the TypeScript CLI calls `semver.validRange` without
 /// `loose`: the specifier-shape disambiguations that decide whether a
 /// body is a version range or a package name.
 #[must_use]
 pub fn is_valid_semver_range(range: &str) -> bool {
-    desugar_strict_range(range).is_some()
+    match classify_fast_token(range, is_semver_whitespace) {
+        FastToken::Any | FastToken::Direct => true,
+        FastToken::Reject => false,
+        FastToken::Desugar => desugar_strict_range(range).is_some(),
+    }
 }
 
 /// Parses `range` under the strict [`is_valid_semver_range`] reading,
 /// returning [`Range::any`] for an any-version range and `None` when any
-/// comparator in the union is invalid in strict mode or exceeds
-/// [`Range::parse`]'s integer limit.
+/// comparator in the union is invalid in strict mode.
 #[must_use]
 pub fn parse_strict_semver_range(range: &str) -> Option<Range> {
+    match classify_fast_token(range, is_semver_whitespace) {
+        FastToken::Any => return Some(Range::any()),
+        FastToken::Direct => return Range::parse(range).ok(),
+        FastToken::Reject => return None,
+        FastToken::Desugar => {}
+    }
     let branches = desugar_strict_range(range)?
         .into_iter()
         .map(|comps| eval_branch(&comps))
@@ -65,6 +75,10 @@ pub fn parse_strict_semver_range(range: &str) -> Option<Range> {
     {
         return Some(Range::any());
     }
+    combine_bounded_branches(branches)
+}
+
+fn combine_bounded_branches(branches: Vec<BranchRange>) -> Option<Range> {
     let bounded: Vec<Range> = branches
         .into_iter()
         .filter_map(|branch| match branch {
@@ -139,10 +153,7 @@ fn desugar_branch(trimmed: &str) -> Option<Vec<String>> {
     let without_build = strip_build_substrings(trimmed);
     let after_hyphen = expand_hyphen_range(&without_build)?;
     let trimmed_ops = trim_comparator_whitespace(&after_hyphen);
-    let glued = trimmed_ops
-        .replace("~> ", "~")
-        .replace("~ ", "~")
-        .replace("^ ", "^");
+    let glued = glue_tilde_and_caret(&trimmed_ops);
     let expanded = glued
         .split(' ')
         .map(expand_comparator)
@@ -156,6 +167,17 @@ fn desugar_branch(trimmed: &str) -> Option<Vec<String>> {
         })
         .map(canonical_strict_comparator)
         .collect()
+}
+
+fn glue_tilde_and_caret(text: &str) -> Cow<'_, str> {
+    if !text.contains("~ ") && !text.contains("~> ") && !text.contains("^ ") {
+        return Cow::Borrowed(text);
+    }
+    Cow::Owned(
+        text.replace("~> ", "~")
+            .replace("~ ", "~")
+            .replace("^ ", "^"),
+    )
 }
 
 fn expand_hyphen_range(branch: &str) -> Option<Cow<'_, str>> {
@@ -373,7 +395,10 @@ fn replace_first_star(comp: &str) -> String {
     format!("{}{}", &comp[..start], &comp[star_idx + 1..])
 }
 
-fn collapse_whitespace(input: &str) -> String {
+fn collapse_whitespace(input: &str) -> Cow<'_, str> {
+    if is_already_collapsed_whitespace(input) {
+        return Cow::Borrowed(input);
+    }
     let mut out = String::with_capacity(input.len());
     let mut prev_ws = true;
     for ch in input.chars() {
@@ -390,7 +415,18 @@ fn collapse_whitespace(input: &str) -> String {
     if out.ends_with(' ') {
         out.pop();
     }
-    out
+    Cow::Owned(out)
+}
+
+fn is_already_collapsed_whitespace(input: &str) -> bool {
+    let bytes = input.as_bytes();
+    if bytes.first() == Some(&b' ') || bytes.last() == Some(&b' ') {
+        return false;
+    }
+    !input
+        .chars()
+        .any(|ch| ch != ' ' && is_semver_whitespace(ch))
+        && !input.contains("  ")
 }
 
 fn is_semver_whitespace(ch: char) -> bool {

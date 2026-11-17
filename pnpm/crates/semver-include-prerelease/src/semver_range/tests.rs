@@ -128,7 +128,9 @@ fn a_comparator_set_with_an_unparsable_token_is_not_a_valid_range() {
         "x.1.0",
         "1.2-alpha",
         "1.0.0-01",
-        "^9007199254740991.0.0",
+        "^900719925474099.0.0",
+        "9007199254740991.0.0",
+        ">=1.0.0 <9007199254740991.0.0",
     ] {
         assert!(!is_valid_semver_range(invalid), "expected invalid: {invalid:?}");
         assert!(parse_strict_semver_range(invalid).is_none(), "expected None: {invalid:?}");
@@ -236,8 +238,6 @@ fn parse_strict_semver_range_handles_empty_intersections_and_integer_overflow() 
     assert!(!union_with_disjoint.satisfies(&v05));
     assert!(union_with_disjoint.satisfies(&v30));
 
-    // Exceeds `node_semver::MAX_SAFE_INTEGER`; must return `None` rather than
-    // dropping the upper bound and widening `>=1.0.0 <...` to `>=1.0.0`.
-    assert!(is_valid_semver_range(">=1.0.0 <9007199254740991.0.0"));
-    assert!(parse_strict_semver_range(">=1.0.0 <9007199254740991.0.0").is_none());
+    assert!(is_valid_semver_range("900719925474099.0.0"));
+    assert!(parse_strict_semver_range("900719925474099.0.0").is_some());
 }

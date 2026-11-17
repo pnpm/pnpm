@@ -191,6 +191,13 @@ fn npm_alias_unversioned_falls_back_to_default_tag() {
     assert_eq!(spec.name, "is-positive");
     assert_eq!(spec.fetch_spec, "latest");
     assert_eq!(spec.spec_type, RegistryPackageSpecType::Tag);
+
+    let overflow_spec =
+        parse_bare_specifier("npm:9007199254740991.0.0", Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap();
+    assert_eq!(overflow_spec.name, "9007199254740991.0.0");
+    assert_eq!(overflow_spec.fetch_spec, "latest");
+    assert_eq!(overflow_spec.spec_type, RegistryPackageSpecType::Tag);
 }
 
 #[test]

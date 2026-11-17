@@ -1,8 +1,15 @@
 use std::borrow::Cow;
 
-const MAX_LENGTH: usize = 256;
-const MAX_SAFE_BUILD_LENGTH: usize = 250;
-const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
+use node_semver::{MAX_LENGTH, MAX_SAFE_INTEGER};
+
+const MAX_SAFE_BUILD_LENGTH: usize = MAX_LENGTH - 6;
+
+pub(super) enum FastToken {
+    Reject,
+    Any,
+    Direct,
+    Desugar,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Component<'a> {
@@ -15,6 +22,84 @@ pub(super) struct PartialVersion<'a> {
     pub(super) minor: Option<Component<'a>>,
     pub(super) patch: Option<Component<'a>>,
     pub(super) pre: Option<&'a str>,
+}
+
+pub(super) fn classify_fast_token(range: &str, is_ws: fn(char) -> bool) -> FastToken {
+    if range.is_empty() || range == "*" || range == ">=0.0.0" {
+        return FastToken::Any;
+    }
+    if !starts_with_semver_char(range, is_ws) || range.bytes().any(is_non_semver_byte) {
+        return FastToken::Reject;
+    }
+    if range.bytes().any(needs_desugar_scan) || range.starts_with("~>") {
+        return FastToken::Desugar;
+    }
+    let (_, after_op) = strip_fast_operator(range);
+    if after_op.is_empty() || after_op.starts_with('=') {
+        return FastToken::Desugar;
+    }
+    let main = after_op
+        .split('-')
+        .next()
+        .unwrap_or(after_op);
+    if main
+        .bytes()
+        .filter(|&byte| byte == b'.')
+        .count()
+        < 2
+    {
+        return FastToken::Desugar;
+    }
+    classify_direct_triple(after_op)
+}
+
+fn starts_with_semver_char(range: &str, is_ws: fn(char) -> bool) -> bool {
+    range
+        .chars()
+        .next()
+        .is_some_and(|ch| {
+            ch.is_ascii_digit()
+                || matches!(ch, '^' | '~' | '<' | '>' | '=' | 'v' | 'x' | 'X' | '*' | '+' | '|')
+                || is_ws(ch)
+        })
+}
+
+fn is_non_semver_byte(byte: u8) -> bool {
+    matches!(byte, b':' | b'/' | b'\\' | b'@')
+}
+
+fn needs_desugar_scan(byte: u8) -> bool {
+    byte >= 0x80 || byte.is_ascii_whitespace() || matches!(byte, b'|' | b'+' | b'x' | b'X' | b'*')
+}
+
+fn strip_fast_operator(text: &str) -> (&str, &str) {
+    for prefix in ["^", "~", ">=", "<=", ">", "<", "="] {
+        if let Some(after) = text.strip_prefix(prefix) {
+            return (prefix, after);
+        }
+    }
+    ("", text)
+}
+
+fn classify_direct_triple(ver: &str) -> FastToken {
+    if ver.len() > MAX_LENGTH {
+        return FastToken::Reject;
+    }
+    let after_v = ver.strip_prefix('v').unwrap_or(ver);
+    let (main, pre) = match after_v.split_once('-') {
+        Some((main, pre)) if validate_prerelease(pre).is_some() => (main, Some(pre)),
+        Some(_) => return FastToken::Reject,
+        None => (after_v, None),
+    };
+    let _ = pre;
+    let Some((major, minor, patch)) = parse_strict_triple(main) else {
+        return FastToken::Reject;
+    };
+    if major < MAX_SAFE_INTEGER && minor < MAX_SAFE_INTEGER && patch < MAX_SAFE_INTEGER {
+        FastToken::Direct
+    } else {
+        FastToken::Desugar
+    }
 }
 
 pub(super) fn parse_xrange_plain(text: &str) -> Option<PartialVersion<'_>> {
