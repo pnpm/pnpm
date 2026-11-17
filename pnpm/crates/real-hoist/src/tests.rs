@@ -83,6 +83,9 @@ fn pkg_metadata_with_peer(peer_name: &str) -> pnpm_lockfile::PackageMetadata {
     }
 }
 
+/// Construct a [`HoisterResult`] node directly, for unit-testing the
+/// preference machinery without going through [`hoist`] (which only ever
+/// builds the `.` root with empty `peer_names`).
 pub(super) fn result_node(
     name: &str,
     reference: &str,

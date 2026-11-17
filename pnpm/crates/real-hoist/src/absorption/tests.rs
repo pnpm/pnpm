@@ -13,6 +13,7 @@ fn transitive_peer_providers_handle_deep_chains() {
 
     let bindings =
         resolved_peer_providers(nodes.last().expect("chain has a root"), "schema", || None);
+    // Unlink the chain so dropping it does not recurse 20,000 levels deep.
     for node in &nodes {
         node.dependencies.borrow_mut().clear();
     }
