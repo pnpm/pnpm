@@ -4,13 +4,52 @@ import { getHoistingLimits, hoist } from '@pnpm/installing.linking.real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.utils'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { ProjectId } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 
 const testFixtures = fixtures(import.meta.dirname)
 
 test('hoist', async () => {
   const lockfile = await readWantedLockfile(testFixtures.find('fixture'), { ignoreIncompatible: true })
   expect(hoist(lockfile!)).toBeTruthy()
+})
+
+test('hoist keeps a dependency that is also declared as a required peer when peers are not auto-installed', () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        devDependencies: { parent: '1.0.0' },
+        specifiers: { parent: '1.0.0' },
+      },
+    },
+    packages: {
+      ['parent@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-parent' },
+        dependencies: { peer: '1.0.0' },
+        peerDependencies: { peer: '*' },
+      },
+      ['peer@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-peer' },
+        dependencies: { child: '1.0.0' },
+      },
+      ['child@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-child' },
+      },
+    },
+  }
+
+  const result = hoist(lockfile, { autoInstallPeers: false })
+  const hoistedNames = new Set<string>()
+  const pending = [result]
+  while (pending.length > 0) {
+    const current = pending.pop()!
+    for (const dependency of current.dependencies) {
+      hoistedNames.add(dependency.name)
+      pending.push(dependency)
+    }
+  }
+
+  expect(hoistedNames).toEqual(new Set(['parent', 'peer', 'child']))
 })
 
 test.each([

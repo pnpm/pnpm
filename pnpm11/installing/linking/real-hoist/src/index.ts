@@ -314,7 +314,7 @@ function resolvePeerNames (
     return new Set()
   }
   return new Set([
-    ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
+    ...Object.keys(pkgSnapshot.peerDependencies ?? {}).filter((name) => pkgSnapshot.dependencies?.[name] == null),
     ...(pkgSnapshot.transitivePeerDependencies ?? []),
   ])
 }
