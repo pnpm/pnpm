@@ -4,7 +4,7 @@ import { type PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
+import { type Project, type ProjectManifest, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'
 
@@ -339,6 +339,49 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages).length).toBe(5)
 })
+
+test('pnpm add handles matching workspace project when dir differs from project.rootDir', async () => {
+  const rootProjectManifest: ProjectManifest = {
+    name: 'project',
+    version: '0.0.0',
+  }
+  const project = prepare(rootProjectManifest)
+  const rootDir = process.cwd() as ProjectRootDir
+  const allProjects: Project[] = [
+    {
+      manifest: rootProjectManifest,
+      rootDir,
+      rootDirRealPath: fs.realpathSync(rootDir) as ProjectRootDirRealPath,
+      writeProjectManifest: async (manifest) => {
+        project.writePackageJson(manifest)
+      },
+    },
+  ]
+
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    allProjects,
+    dir: `${process.platform === 'win32' ? flipDriveLetterCase(rootDir) : rootDir}${path.sep}`,
+    linkWorkspacePackages: false,
+    lockfileDir: rootDir,
+    rootProjectManifest,
+    rootProjectManifestDir: rootDir,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: rootDir,
+  }, ['is-positive@1.0.0'])
+
+  const manifest = await loadJsonFile<ProjectManifest>(path.resolve('package.json'))
+  expect(manifest.dependencies).toStrictEqual({
+    'is-positive': '1.0.0',
+  })
+  project.has('is-positive')
+})
+
+function flipDriveLetterCase (dir: string): string {
+  const driveLetter = dir[0]
+  const flipped = driveLetter === driveLetter.toUpperCase() ? driveLetter.toLowerCase() : driveLetter.toUpperCase()
+  return `${flipped}${dir.slice(1)}`
+}
 
 test('add: fail when global bin directory is not found', async () => {
   prepareEmpty()
