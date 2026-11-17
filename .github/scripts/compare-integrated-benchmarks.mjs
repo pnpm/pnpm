@@ -74,9 +74,6 @@ export function parseSyscallSummary (text) {
   for (const line of text.split('\n')) {
     const fields = line.trim().split(/\s+/)
     if (fields[0] === '' || fields[0] === '%' || /^-+$/.test(fields[0])) continue
-    // `<pid> ???( <detached ...>` is strace's note about a traced process it
-    // detached from, not a row.
-    if (line.trim().endsWith(' ???( <detached ...>')) continue
     const name = fields.at(-1)
     const calls = Number(fields[3])
     // strace leaves the errors column empty when no call failed.
