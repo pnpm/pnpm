@@ -66,7 +66,12 @@ impl Walker<'_> {
         let optional = peer_dep.optional;
 
         let scope = PeerScope {
-            inherited: context.parent_refs.get(peer_name),
+            inherited: Self::inherited_provider(
+                context.parent_refs,
+                peer_name,
+                peer_dep,
+                &comparable_range,
+            ),
             inherited_must_win: || false,
             locked: None,
         };
@@ -95,6 +100,22 @@ impl Walker<'_> {
                 }
             }
         }
+    }
+
+    /// The provider `parent_refs` holds for `peer_name`. Like an optional
+    /// peer hoist, a [`super::ParentRef::hoisted_provider`] binds an
+    /// optional peer only inside the peer's range.
+    fn inherited_provider<'refs>(
+        parent_refs: &'refs super::ParentRefs,
+        peer_name: &str,
+        peer_dep: &PeerDep,
+        comparable_range: &ComparablePeerRange,
+    ) -> Option<&'refs super::ParentRef> {
+        let parent = parent_refs.get(peer_name)?;
+        let is_hoisted_outside_optional_range = parent.hoisted_provider
+            && peer_dep.optional
+            && !comparable_range.satisfies(&parent.version);
+        (!is_hoisted_outside_optional_range).then_some(parent)
     }
 
     /// Report that `parent` provides `peer_name` at a version outside

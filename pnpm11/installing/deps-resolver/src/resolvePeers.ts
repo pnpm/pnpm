@@ -15,6 +15,7 @@ import { finalizePeerContexts } from './finalizePeerContexts.js'
 import { getNodeIdsByPreviousDepPath } from './lockedPeerProviders.js'
 import { mergePeers } from './mergePeers.js'
 import type { NodeId } from './nextNodeId.js'
+import { collectOptionalPeerRanges } from './optionalPeerRanges.js'
 import { createPkgsByName } from './parentRefs.js'
 import type {
   CurrentProviderSource,
@@ -151,6 +152,7 @@ function createSharedPeersContext<Pkg extends PartialResolvedPackage> (opts: Res
     purePkgs: new Set<PkgIdWithPatchHash>(),
     dedupePeers: opts.dedupePeers,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
+    optionalPeerRanges: collectOptionalPeerRanges(opts.dependenciesTree),
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   }

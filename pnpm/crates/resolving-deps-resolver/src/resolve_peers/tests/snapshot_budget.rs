@@ -76,6 +76,7 @@ fn resolve_peers_workspace_aborts_on_deep_chain_with_max_snapshots() {
         root_dir: Path::new("/workspace").to_path_buf(),
         modules_dir: None,
         rejected_optional_peers: HashSet::default(),
+        hoisted_peer_provider_node_ids: HashSet::default(),
     }];
     let result = resolve_peers_workspace(
         &mut tree,

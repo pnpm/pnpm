@@ -38,6 +38,10 @@ pub(super) struct ParentRef {
     /// Local install name in `node_modules`. May differ from the
     /// package's real name for npm-alias entries.
     pub(super) alias: Option<String>,
+    /// Set when the importer has this provider only because it was hoisted
+    /// for another subtree's peer. See
+    /// [`crate::ImporterPeerInput::hoisted_peer_provider_node_ids`].
+    pub(super) hoisted_provider: bool,
 }
 
 /// `name → ParentRef` map propagated down the walk. Entries are indexed
@@ -441,12 +445,14 @@ pub(super) fn insert_parent_ref(
     direct_alias: &str,
     parent_node_id: NodeId,
     pkg: &ResolvedPackage,
+    hoisted_provider: bool,
 ) {
     let real_name: &str = pkg.name();
     let parent_ref = ParentRef {
         version: Arc::clone(pkg.version()),
         node_id: Some(parent_node_id),
         alias: (direct_alias != real_name).then(|| direct_alias.to_string()),
+        hoisted_provider,
     };
     update_parent_refs(refs, direct_alias, &parent_ref);
     if direct_alias != real_name {

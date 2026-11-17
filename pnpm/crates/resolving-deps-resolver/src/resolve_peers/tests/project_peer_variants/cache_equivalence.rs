@@ -140,6 +140,7 @@ fn full_walk_keeps_peer_cycle_handling() {
             root_dir: "/repo".into(),
             modules_dir: None,
             rejected_optional_peers: HashSet::default(),
+            hoisted_peer_provider_node_ids: HashSet::default(),
         }];
         let result = resolve_peers_workspace(
             &mut tree,

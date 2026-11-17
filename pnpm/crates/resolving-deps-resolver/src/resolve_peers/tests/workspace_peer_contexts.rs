@@ -31,6 +31,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
             root_dir: std::path::PathBuf::from("/repo/project-a"),
             modules_dir: None,
             rejected_optional_peers: HashSet::default(),
+            hoisted_peer_provider_node_ids: HashSet::default(),
         },
         ImporterPeerInput {
             declared_direct_dependencies: HashSet::default(),
@@ -51,6 +52,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
             root_dir: std::path::PathBuf::from("/repo/project-b"),
             modules_dir: None,
             rejected_optional_peers: HashSet::default(),
+            hoisted_peer_provider_node_ids: HashSet::default(),
         },
     ];
     let mut tree = ResolvedTree {
@@ -125,6 +127,7 @@ fn a_shared_consumer_keeps_each_importers_peer_provider_variant() {
             root_dir: std::path::PathBuf::from("/repo"),
             modules_dir: None,
             rejected_optional_peers: HashSet::default(),
+            hoisted_peer_provider_node_ids: HashSet::default(),
         },
         ImporterPeerInput {
             declared_direct_dependencies: HashSet::default(),
@@ -145,6 +148,7 @@ fn a_shared_consumer_keeps_each_importers_peer_provider_variant() {
             root_dir: std::path::PathBuf::from("/repo/app"),
             modules_dir: None,
             rejected_optional_peers: HashSet::default(),
+            hoisted_peer_provider_node_ids: HashSet::default(),
         },
     ];
 
@@ -251,6 +255,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
         root_dir: std::path::PathBuf::from("/repo/apps/nested/app"),
         modules_dir: None,
         rejected_optional_peers: HashSet::default(),
+        hoisted_peer_provider_node_ids: HashSet::default(),
     };
     let mut tree = ResolvedTree {
         direct: Vec::new(),
@@ -327,6 +332,7 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
         root_dir: std::path::PathBuf::from("/repo/apps/app"),
         modules_dir: Some(std::path::PathBuf::from("/repo/apps/app/node_modules")),
         rejected_optional_peers: HashSet::default(),
+        hoisted_peer_provider_node_ids: HashSet::default(),
     };
     let mut tree = ResolvedTree {
         direct: Vec::new(),

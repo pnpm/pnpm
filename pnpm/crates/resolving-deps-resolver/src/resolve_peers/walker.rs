@@ -416,7 +416,11 @@ impl Walker<'_> {
     /// The multi-importer
     /// [`resolve_peers_workspace`](fn@super::resolve_peers_workspace)
     /// supplies each importer's `direct` from outside [`ResolvedTree`].
-    pub(super) fn build_importer_parents_from(&self, direct_deps: &[DirectDep]) -> ParentRefs {
+    pub(super) fn build_importer_parents_from(
+        &self,
+        direct_deps: &[DirectDep],
+        hoisted_provider_node_ids: &HashSet<NodeId>,
+    ) -> ParentRefs {
         let mut refs = ParentRefs::default();
         for direct in direct_deps {
             let Some(tree_node) = self.tree.dependencies_tree.get(&direct.node_id) else {
@@ -430,7 +434,8 @@ impl Walker<'_> {
             }
             let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, pkg.result())
                 .unwrap_or_else(|| direct.node_id.clone());
-            insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg);
+            let hoisted_provider = hoisted_provider_node_ids.contains(&direct.node_id);
+            insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, hoisted_provider);
         }
         refs
     }

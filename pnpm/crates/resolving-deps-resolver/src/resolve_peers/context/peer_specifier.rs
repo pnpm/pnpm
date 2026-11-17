@@ -208,6 +208,7 @@ pub(super) fn satisfies_with_parsed_prereleases(
 /// yields, paired with its parsed form so a range that many nodes
 /// declare is parsed once. Holding the two together is what keeps the
 /// parsed range in step with the text it came from.
+#[derive(Debug)]
 pub(in super::super) struct ComparablePeerRange {
     /// The comparable range, as peer-dependency issues quote it.
     pub(in super::super) text: String,

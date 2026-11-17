@@ -61,6 +61,7 @@ fn build_projects(
                 root_dir: format!("/repo/{index}").into(),
                 modules_dir: None,
                 rejected_optional_peers: HashSet::default(),
+                hoisted_peer_provider_node_ids: HashSet::default(),
             }
         })
         .collect();

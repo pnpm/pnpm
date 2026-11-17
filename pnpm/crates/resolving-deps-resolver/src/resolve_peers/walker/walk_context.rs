@@ -198,7 +198,10 @@ pub(in super::super) struct RootWalk {
 
 impl RootWalk {
     pub(in super::super) fn of(walker: &Walker<'_>, parents_direct: &[DirectDep]) -> Self {
-        let importer_parents = Arc::new(walker.build_importer_parents_from(parents_direct));
+        let importer_parents = Arc::new(walker.build_importer_parents_from(
+            parents_direct,
+            &walker.opts.scope.hoisted_peer_provider_node_ids,
+        ));
         let parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
         Self {
             importer_parents,
@@ -264,6 +267,8 @@ pub(super) struct ChildrenWalk {
 
 /// The node's peer verdict, shared with its caches and records.
 pub(super) struct SettledPeers {
+    /// The parent context the node's peers were resolved against.
+    pub(super) parent_refs: Arc<ParentRefs>,
     pub(super) dep_path: DepPath,
     pub(super) own_resolved: HashMap<String, NodeId>,
     pub(super) all_resolved: Arc<HashMap<String, NodeId>>,
@@ -276,6 +281,7 @@ pub(super) struct SettledPeers {
 impl SettledPeers {
     pub(super) fn as_walk_result(&self) -> WalkResult<'_> {
         WalkResult {
+            parent_refs: &self.parent_refs,
             dep_path: &self.dep_path,
             all_resolved_peers: &self.all_resolved,
             all_missing_peers: &self.all_missing,
@@ -298,6 +304,8 @@ pub(super) struct DeferredChildren<'a> {
 
 /// What one walked node contributes to the per-`pkgIdWithPatchHash` caches.
 pub(super) struct WalkResult<'a> {
+    /// The parent context the node resolved its peers against.
+    pub(super) parent_refs: &'a ParentRefs,
     pub(super) dep_path: &'a DepPath,
     pub(super) all_resolved_peers: &'a Arc<HashMap<String, NodeId>>,
     pub(super) all_missing_peers: &'a Arc<HashMap<String, MissingPeerInfo>>,
