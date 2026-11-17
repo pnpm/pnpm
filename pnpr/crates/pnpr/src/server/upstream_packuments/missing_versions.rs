@@ -11,8 +11,8 @@ use std::{collections::HashMap, sync::Mutex, time::Instant};
 #[cfg(test)]
 mod tests;
 
-/// How long after a packument's fetch, or after an attempt to refetch it, a
-/// request for a version it does not list waits before refetching it. A
+/// How long after a packument's fetch, a failed fetch, or a refetch attempt,
+/// a request for a version it does not list waits before refetching it. A
 /// version published upstream after the fetch is then served before the
 /// packument TTL expires, and requests for versions that do not exist reach
 /// the upstream at most once per package per interval.
@@ -41,22 +41,37 @@ impl PackumentRefetches {
         {
             return false;
         }
-        if attempts.len() >= CAPACITY {
-            attempts.retain(|_, attempted| attempted.elapsed() < REFETCH_INTERVAL);
-        }
-        if attempts.len() >= CAPACITY {
-            let evicted: Vec<_> = attempts
-                .keys()
-                .take(CAPACITY / 4)
-                .cloned()
-                .collect();
-            for evicted in evicted {
-                attempts.remove(&evicted);
-            }
-        }
-        attempts.insert(key, Instant::now());
+        insert_attempt(&mut attempts, key);
         true
     }
+
+    /// Record a failed upstream fetch of the package's packument, so a
+    /// missing-version refetch does not ask the upstream again within
+    /// [`REFETCH_INTERVAL`].
+    pub(in crate::server) fn record_failure(&self, namespace: &str, name: &CanonicalPackageName) {
+        let mut attempts = self.attempts.lock().expect("packument refetch lock poisoned");
+        insert_attempt(&mut attempts, (namespace.to_string(), name.clone()));
+    }
+}
+
+fn insert_attempt(
+    attempts: &mut HashMap<(String, CanonicalPackageName), Instant>,
+    key: (String, CanonicalPackageName),
+) {
+    if attempts.len() >= CAPACITY {
+        attempts.retain(|_, attempted| attempted.elapsed() < REFETCH_INTERVAL);
+    }
+    if attempts.len() >= CAPACITY {
+        let evicted: Vec<_> = attempts
+            .keys()
+            .take(CAPACITY / 4)
+            .cloned()
+            .collect();
+        for evicted in evicted {
+            attempts.remove(&evicted);
+        }
+    }
+    attempts.insert(key, Instant::now());
 }
 
 /// [`reload_upstream_packument_lacking_version`] for the upstream `source`
@@ -79,11 +94,10 @@ pub(in crate::server) async fn reload_source_packument_lacking_version(
 /// - the cached copy if it was fetched within [`REFETCH_INTERVAL`], as
 ///   another request may have refetched it since;
 /// - the result of a refetch already in flight for the package;
-/// - a refetch, unless one was attempted within [`REFETCH_INTERVAL`], which
-///   leaves the cached copy.
+/// - a refetch, unless a refetch or a failed fetch was attempted within
+///   [`REFETCH_INTERVAL`], which leaves the cached copy.
 ///
-/// `None` when the upstream is not cached, or when the cached copy is past
-/// its TTL, so the caller's read already asked the upstream.
+/// `None` when the upstream is not cached.
 pub(in crate::server) async fn reload_upstream_packument_lacking_version(
     state: &AppState,
     namespace: &str,
@@ -96,10 +110,6 @@ pub(in crate::server) async fn reload_upstream_packument_lacking_version(
     let storage = &state.inner.storage;
     if let Some(recent) = storage.read_upstream_document(namespace, name, REFETCH_INTERVAL).await? {
         return Ok(Some(recent));
-    }
-    let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
-    if storage.fresh_upstream_document_stamp(namespace, name, ttl).await?.is_none() {
-        return Ok(None);
     }
     // The claim is taken by the flight's leader, so a request arriving
     // during a refetch waits for it rather than finding the claim taken.

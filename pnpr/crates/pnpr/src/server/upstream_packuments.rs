@@ -155,6 +155,7 @@ async fn fetch_and_cache_upstream_packument(
     {
         Ok(fetched) => fetched,
         Err(err) => {
+            state.inner.proxy.packument_refetches.record_failure(namespace, name);
             return recover_stale_upstream_packument(state, namespace, upstream, name, err)
                 .await
                 .map_err(Arc::new);

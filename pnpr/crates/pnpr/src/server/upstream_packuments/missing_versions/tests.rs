@@ -107,6 +107,34 @@ async fn a_request_during_a_refetch_gets_its_result() {
     origin.abort();
 }
 
+/// A packument can expire between the caller's read and its reload. Only a
+/// failed fetch, not the clock, says the upstream was already asked.
+#[tokio::test]
+async fn a_packument_that_expired_since_the_read_is_refetched() {
+    let mut upstream = mockito::Server::new_async().await;
+    let listing = r#"{"name":"example-widget","versions":{"2.0.0":{}}}"#;
+    let fetch = upstream
+        .mock("GET", "/example-widget")
+        .with_header("content-type", "application/json")
+        .with_body(listing)
+        .expect(1)
+        .create_async()
+        .await;
+    let storage = TempDir::new().unwrap();
+    let state = proxy_state(&upstream.url(), storage.path());
+    let namespace = crate::server::upstream_cache_namespace(&state, "npmjs");
+    let name = package("example-widget");
+    let cached = br#"{"name":"example-widget","versions":{}}"#;
+    state.inner.storage.write_upstream_document(&namespace, &name, cached).await.unwrap();
+    date_back(storage.path(), Duration::from_hours(25));
+
+    let reloaded: serde_json::Value =
+        serde_json::from_slice(&reload(&state, &name).await.unwrap()).unwrap();
+
+    assert!(reloaded["versions"].get("2.0.0").is_some());
+    fetch.assert_async().await;
+}
+
 fn proxy_state(upstream: &str, storage: &Path) -> AppState {
     let mut config = Config::proxy("127.0.0.1:0".parse().unwrap(), storage.to_path_buf());
     let npmjs = config.routing.upstreams.get_mut("npmjs").unwrap();
