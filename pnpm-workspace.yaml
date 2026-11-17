@@ -78,6 +78,14 @@ auditConfig:
     # exists. The sole path is js-yaml@3 > argparse, which only js-yaml's own
     # CLI binary loads, never the library pnpm and its tools import.
     - GHSA-hp3w-g68c-fv3c
+    # minimatch pattern amplification DoS. Only patched in minimatch 11, which
+    # glob 10 and 13 cannot use. The upstream fix is patched locally into
+    # minimatch 9 and 10 and the copy bundled in glob 13. minimatch 3 and 5
+    # lack the vulnerable code.
+    - GHSA-g3hv-75wg-m249
+    # glob keeps walking directories after its AbortSignal fires. Only patched
+    # in glob 14. The upstream fix is patched locally into glob 10 and 13.
+    - GHSA-3g3m-2fjr-6pw4
 
 catalog:
   '@babel/core': ^7.29.6
@@ -393,7 +401,7 @@ overrides:
   debug@<3.1.0: '>=3.1.0'
   express@<4.22.1: ^4.22.1
   fast-uri@>=3.0.0 <3.1.6: ^3.1.6
-  follow-redirects@<1.16.1: '>=1.16.1'
+  follow-redirects@<1.16.2: ^1.16.2
   glob-parent@<5.1.2: '>=5.1.2'
   handlebars@>=4.0.0 <4.7.10: ^4.7.10
   hosted-git-info@1: 'catalog:'
@@ -418,7 +426,7 @@ overrides:
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
   proxy-addr@>=1.1.0 <2.0.8: ^2.0.8
-  qs@<6.16.0: ^6.16.0
+  qs@<6.16.1: ^6.16.1
   request: npm:postman-request@2.88.1-postman.40
   semver@<7.5.2: 'catalog:'
   send@<0.19.0: ^0.19.0
@@ -452,8 +460,12 @@ packageExtensions:
 patchedDependencies:
   '@yao-pkg/pkg': __patches__/pkg.patch
   '@yao-pkg/pkg-fetch@3.6.6': __patches__/@yao-pkg__pkg-fetch@3.6.6.patch
+  glob@10.5.0: __patches__/glob@10.5.0.patch
+  glob@13.0.6: __patches__/glob@13.0.6.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
+  minimatch@10.2.5: __patches__/minimatch@10.2.5.patch
+  minimatch@9.0.9: __patches__/minimatch@9.0.9.patch
   normalize-package-data@7.0.1: __patches__/normalize-package-data@7.0.1.patch
 
 patchesDir: __patches__
