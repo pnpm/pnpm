@@ -29,7 +29,8 @@ export async function resolveFromTarball (
   } else {
     resolvedUrl = normalizedBareSpecifier
   }
-  await response.body?.cancel()
+  // The resolution is already decided, so a body that failed after its headers must not fail it.
+  await response.body?.cancel().catch(() => {})
 
   return {
     id: normalizedBareSpecifier as PkgResolutionId,

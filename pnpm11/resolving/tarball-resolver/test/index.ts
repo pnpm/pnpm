@@ -147,3 +147,29 @@ test('falls back to GET when HEAD returns 405 Method Not Allowed (immutable)', a
   })
 })
 
+
+test('a rejected body cancellation does not fail the 405 fallback', async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a partial Response stub is enough for the resolver
+  const fetch: any = async (url: string, opts: { method: string }) => {
+    if (opts.method === 'HEAD') {
+      return { status: 405 }
+    }
+    return {
+      status: 200,
+      url,
+      headers: new Map(),
+      body: {
+        cancel: async () => {
+          throw new Error('connection reset')
+        },
+      },
+    }
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, {
+    bareSpecifier: 'https://pkg.pr.new/foo/bar@1.0.0',
+  })
+
+  expect(resolutionResult?.resolution).toStrictEqual({
+    tarball: 'https://pkg.pr.new/foo/bar@1.0.0',
+  })
+})

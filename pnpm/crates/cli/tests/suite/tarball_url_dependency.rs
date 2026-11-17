@@ -938,8 +938,6 @@ fn remote_tarball_peer_of_a_linked_package_uses_the_manifest_version() {
     }
 }
 
-/// A remote tarball whose host returns 405 Method Not Allowed to the HEAD
-/// preflight falls back to GET and resolves the immutable redirect target.
 #[test]
 fn remote_tarball_behind_head_405_falls_back_to_get() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
