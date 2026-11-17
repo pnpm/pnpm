@@ -69,6 +69,7 @@ fn options(dir: &Path, packages: &[&str]) -> DependentsOptions {
         registries: None,
         virtual_store_dir_max_length: None,
         manifest_fields: None,
+        include_requires: None,
         resolve_peers_from_workspace_root: None,
     }
 }
@@ -150,6 +151,20 @@ fn without_manifest_fields_no_manifest_is_read() {
     let trees = build_trees(&options(workspace.path(), &["nested"])).unwrap();
 
     assert!(trees[0].manifest.is_none());
+}
+
+#[test]
+fn requires_is_filled_only_when_asked_for() {
+    let workspace = tempfile::tempdir().unwrap();
+    write_workspace(workspace.path());
+    let mut opts = options(workspace.path(), &["dep"]);
+
+    let trees = build_trees(&opts).unwrap();
+    assert_eq!(trees[0].dependents[0].requires, None);
+
+    opts.include_requires = Some(true);
+    let trees = build_trees(&opts).unwrap();
+    assert_eq!(trees[0].dependents[0].requires.as_deref(), Some("1.0.0"));
 }
 
 #[test]
