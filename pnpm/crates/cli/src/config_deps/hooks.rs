@@ -11,6 +11,7 @@ use super::{
 use miette::WrapErr;
 use pnpm_hooks::IgnoredHook;
 use pnpm_network::redact_and_sanitize;
+use pnpm_reporter::GlobalLog;
 
 /// The pnpmfile paths that contribute hooks for `root_dir`, in
 /// application order (see [`finder::find_pnpmfiles`]). Every hook applies
@@ -128,6 +129,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
+    warn_legacy_registries_for_config::<Reporter>(&input, &current, config);
     Ok(hooks)
 }
 
@@ -164,6 +166,114 @@ fn update_config_hook_error(pnpmfile: &Path, err: pnpm_hooks::HookError) -> miet
             )
         }
     }
+}
+
+pub(super) fn legacy_registries_warning(
+    input: &Value,
+    current: &Value,
+    final_routes: &BTreeMap<String, String>,
+) -> Option<String> {
+    if !has_legacy_registries_update(input, current) {
+        return None;
+    }
+    let routes = input.get("registriesByScope")?.as_object()?;
+    let legacy_routes = current.get("registries")?.as_object()?;
+    if !is_legacy_registry_map(legacy_routes) {
+        return None;
+    }
+    let default_route = legacy_routes.get("default").and_then(Value::as_str);
+    let unchanged_scopes =
+        unchanged_legacy_scopes(routes, legacy_routes, default_route, final_routes);
+    if unchanged_scopes.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "The updateConfig hook changed the `registries` setting, but these routes still use their configured registry: {}. Return `registriesByScope` to replace scope routing.",
+        unchanged_scopes.join(", "),
+    ))
+}
+
+fn has_legacy_registries_update(input: &Value, current: &Value) -> bool {
+    let scope_routes_changed = current
+        .get("registriesByScope")
+        .is_some_and(|routes| input.get("registriesByScope") != Some(routes));
+    input.get("registries") != current.get("registries") && !scope_routes_changed
+}
+
+fn is_legacy_registry_map(legacy_routes: &serde_json::Map<String, Value>) -> bool {
+    legacy_routes
+        .iter()
+        .all(|(key, value)| (key == "default" || key.starts_with('@')) && value.is_string())
+}
+
+fn unchanged_legacy_scopes<'a>(
+    routes: &'a serde_json::Map<String, Value>,
+    legacy_routes: &serde_json::Map<String, Value>,
+    default_route: Option<&str>,
+    final_routes: &BTreeMap<String, String>,
+) -> Vec<&'a str> {
+    routes
+        .iter()
+        .filter(|(scope, _)| {
+            expected_legacy_route(scope, legacy_routes, default_route)
+                .is_some_and(|expected| {
+                    final_routes
+                        .get(*scope)
+                        .is_some_and(|route| !same_registry_route(route, expected))
+                })
+        })
+        .map(|(scope, _)| scope.as_str())
+        .collect()
+}
+
+fn same_registry_route(left: &str, right: &str) -> bool {
+    normalized_registry_route(left) == normalized_registry_route(right)
+}
+
+fn normalized_registry_route(route: &str) -> String {
+    let mut normalized = url::Url::parse(route).map_or_else(|_| route.to_string(), String::from);
+    if !normalized.ends_with('/') {
+        normalized.push('/');
+    }
+    normalized
+}
+
+fn expected_legacy_route<'a>(
+    scope: &str,
+    legacy_routes: &'a serde_json::Map<String, Value>,
+    default_route: Option<&'a str>,
+) -> Option<&'a str> {
+    if scope == "default" {
+        return None;
+    }
+    legacy_routes
+        .get(scope)
+        .and_then(Value::as_str)
+        .or_else(|| if scope == "@jsr" { None } else { default_route })
+}
+
+pub(super) fn warn_legacy_registries<Reporter: self::Reporter>(
+    input: &Value,
+    current: &Value,
+    final_routes: &BTreeMap<String, String>,
+) {
+    let Some(message) = legacy_registries_warning(input, current, final_routes) else {
+        return;
+    };
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
+}
+
+fn warn_legacy_registries_for_config<Reporter: self::Reporter>(
+    input: &Value,
+    current: &Value,
+    config: &Config,
+) {
+    if !has_legacy_registries_update(input, current) {
+        return;
+    }
+    let mut final_routes = config.resolved_registry_lookups().registries_by_scope;
+    final_routes.insert("default".to_string(), config.registry.clone());
+    warn_legacy_registries::<Reporter>(input, current, &final_routes);
 }
 
 fn warn_ignored_hooks<Reporter: self::Reporter>(

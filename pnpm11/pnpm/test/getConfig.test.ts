@@ -32,7 +32,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 }))
 
 const { resolveAndInstallConfigDeps } = await import('@pnpm/installing.env-installer')
-const { logger } = await import('@pnpm/logger')
+const { globalWarn, logger } = await import('@pnpm/logger')
 const { createStoreController } = await import('@pnpm/store.connection-manager')
 const { calcPnpmfilePathsOfPluginDeps, getConfig, installConfigDepsAndLoadHooks } = await import('../src/getConfig.js')
 
@@ -41,6 +41,7 @@ const storeCloseMock = jest.fn<() => Promise<void>>()
 beforeEach(() => {
   jest.spyOn(console, 'warn')
   loggerMock.debug.mockClear()
+  jest.mocked(globalWarn).mockClear()
   jest.mocked(resolveAndInstallConfigDeps).mockReset()
   storeCloseMock.mockReset().mockResolvedValue(undefined)
   jest.mocked(createStoreController).mockReset().mockResolvedValue({
@@ -378,6 +379,114 @@ describe('installConfigDepsAndLoadHooks', () => {
     await installConfigDepsAndLoadHooks(config, context)
 
     expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
+  })
+
+  test('warns when an updateConfig hook changes legacy registry routes but leaves scope routes unchanged', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => { config.registries.default = 'https://other-mirror.example/'; return config }")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
+  })
+
+  test('warns when an updateConfig hook changes legacy registry routes and the default registry', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registry: 'https://other-mirror.example/', registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
+  })
+
+  test('warns when an updateConfig hook omits scope routes while changing the default registry', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registry: 'https://other-mirror.example/', registriesByScope: undefined, registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
+  })
+
+  test('does not name a scope route that already matches the legacy default registry', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://other-mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledTimes(1)
+    expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('@acme'))
+  })
+
+  test('warns that the default registry is unchanged when an updateConfig hook returns only a legacy default route', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('still use their configured registry: default.'))
+  })
+
+  test('does not warn when a scope route matches a legacy registry without a trailing slash', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://mirror.example' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+  })
+
+  test('does not warn when a scope route matches a legacy registry with an explicit default port', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://mirror.example:443/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+  })
+
+  test('warns when a scope route and legacy registry have different credentials', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://mirror.example:443/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://registry-a/' } })
+    config.registriesByScope['@acme'] = 'https://user:pass@mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+  })
+
+  test('does not warn when an updateConfig hook changes registry URL settings', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { 'https://registry.example/': 'npm' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { 'https://registry.example/': 'artifactory' } })
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).not.toHaveBeenCalled()
   })
 
   test.each(['.pnpmfile.cjs', '.pnpmfile.mjs'])('the updateConfig hook of %s runs after the ones of config dependency plugins', async (defaultPnpmfile) => {
