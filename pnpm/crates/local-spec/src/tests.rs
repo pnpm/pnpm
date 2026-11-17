@@ -78,7 +78,7 @@ fn keeps_a_home_relative_specifier_that_leaves_the_home_directory() {
     }
     assert_eq!(
         render_filesystem("~/../shared", Some("packages/foo")).as_deref(),
-        Some("~/../shared")
+        Some("~/../shared"),
     );
 }
 
