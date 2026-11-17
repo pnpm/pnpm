@@ -26,9 +26,12 @@ export interface AuditFinding {
   bundled: boolean
 }
 
+// npm sends a number, while other registries may use their own string ids.
+export type AdvisoryId = number | string
+
 export interface AuditAdvisory {
   findings: AuditFinding[]
-  id: number
+  id: AdvisoryId
   title: string
   module_name: string
   vulnerable_versions: string

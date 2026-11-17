@@ -1202,6 +1202,48 @@ describe('audit', () => {
       await teardownMockAgent()
     }
   })
+
+  test('keeps advisories with string ids in bulk response', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        lodash: [
+          {
+            id: 'CUSTOM-ADVISORY-1',
+            url: 'https://example.com/advisories/CUSTOM-ADVISORY-1',
+            title: 'Test advisory',
+            severity: 'high',
+            vulnerable_versions: '<4.17.21',
+          },
+        ],
+      })
+
+    try {
+      const result = await audit(
+        {
+          importers: {
+            ['.' as ProjectId]: {
+              dependencies: { lodash: '4.17.20' },
+              specifiers: { lodash: '4.17.20' },
+            },
+          },
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            ['lodash@4.17.20' as DepPath]: { resolution: { integrity: 'lodash-integrity' } },
+          },
+        },
+        getAuthHeader,
+        { registry, retry: { retries: 0 } }
+      )
+      expect(result.metadata.vulnerabilities.high).toBe(1)
+      expect(result.advisories['CUSTOM-ADVISORY-1'].id).toBe('CUSTOM-ADVISORY-1')
+    } finally {
+      await teardownMockAgent()
+    }
+  })
 })
 
 function addFanOutToVuln (packages: PackageSnapshots, count: number): { dependencies: Record<string, string>, specifiers: Record<string, string> } {
