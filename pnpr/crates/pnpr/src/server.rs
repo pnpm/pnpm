@@ -151,6 +151,7 @@ mod scim;
 mod security_audit;
 mod singleflight;
 use singleflight::Singleflight;
+mod grant_admin;
 mod grant_directory;
 mod staged;
 mod staged_archives;
