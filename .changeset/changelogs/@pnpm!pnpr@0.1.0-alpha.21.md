@@ -1,8 +1,10 @@
 ## 0.1.0-alpha.21
 
+pnpr 0.1.0-alpha.21 decides access with grants stored in the database and makes teams instance-wide. It cannot open a database from an earlier alpha release, so existing deployments must be reset.
+
 ### Minor Changes
 
-- pnpr refuses a database created by an alpha release. Drop its pnpr tables together with the hosted store, and pnpr creates them afresh.
+- pnpr refuses a database created by an earlier alpha release. Drop its pnpr tables together with the hosted store, and pnpr creates them afresh.
 
   On PostgreSQL, pnpr sorts and compares package names, versions, and other keys by bytes, as it does on SQLite and MySQL.
 
@@ -12,14 +14,14 @@
 
   The `access` key of a registry and the `access`, `publish` and `unpublish` lists under its `packages` keys are removed. Adding a registry creates a default grant for it. The `/-/pnpr/v0/admin/rules` endpoints are replaced by `/-/pnpr/v0/admin/grants`, and the new `pnpr grants export` and `pnpr grants import` commands read and write the grants as a YAML file.
 
-  Changing a dist-tag, a deprecation, a note or the maintainers now takes `annotate`. Reading through an upstream takes `read`, and a caller without `cache` gets only what the cache already holds. This changes the database schema and requires resetting existing alpha deployments.
+  Changing a dist-tag, a deprecation, a note or the maintainers now takes `annotate`. Reading through an upstream takes `read`, and a caller without `cache` gets only what the cache already holds.
 
-- pnpr teams now belong to the instance, not to one registry. The access lists of every registry can name the same team as `team:<id>`. `pnpm team` edits one set of teams, whichever scope it is given. A signed-in caller who is not an admin sees the teams they are in.
+- pnpr teams now belong to the instance, not to one registry. A grant on any registry can name a team as `team:<id>`. `pnpm team` edits one set of teams, whichever scope it is given. A signed-in caller who is not an admin sees the teams they are in.
 
-  The `teams` key of a registry and the `registry` key of an OIDC group grant are removed. Removing an account removes it from every team. An `artifacts.owners` list can name a team. This changes the database schema and requires resetting existing alpha deployments.
+  The `teams` key of a registry and the `registry` key of an OIDC group grant are removed. Removing an account removes it from every team. An `artifacts.owners` list can name a team.
+
+- pnpr now serves a version published upstream after it cached the package's packument. A request for a version, its tarball, or its manifest that the cached packument does not list refetches the packument, at most once a minute per package. Before, pnpr answered `404` until `packumentTtl` expired [#18180](https://github.com/pnpm/pnpm/issues/18180).
 
 - Fixed writes on PostgreSQL waiting until they timed out when more than one pnpr instance wrote through PgBouncer or another connection pool in transaction mode.
 
 - A registry pattern that is not a valid package name now gets an error that names the patterns its ecosystem accepts. The error used to suggest `@scope/*` for every ecosystem, but only npm registries accept it.
-
-- pnpr now serves a version published upstream after it cached the package's packument. A request for a version, its tarball, or its manifest that the cached packument does not list refetches the packument, at most once a minute per package. Before, pnpr answered `404` until `packumentTtl` expired [#18180](https://github.com/pnpm/pnpm/issues/18180).
