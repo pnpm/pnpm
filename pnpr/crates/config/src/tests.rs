@@ -250,26 +250,6 @@ fn write_yaml(dir: &Path, name: &str, contents: &str) -> PathBuf {
 
 const MINIMAL_YAML: &str = "storage: ./s\n";
 
-// ----- per-registry `packages:` rules from YAML -------------------------
-
-/// A one-hosted-registry config whose `packages:` map is the given YAML
-/// fragment (indented under `packages:`).
-fn hosted_rules_config(packages: &str) -> Config {
-    let yaml = format!(
-        "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
-    );
-    load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap()
-}
-
-/// The same one-hosted-registry config as [`hosted_rules_config`], for
-/// the `packages:` fragments that must fail to load.
-fn hosted_rules_err(packages: &str) -> RegistryError {
-    let yaml = format!(
-        "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
-    );
-    load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap_err()
-}
-
 fn s3_settings_for(endpoint: Option<&str>, allow_http: Option<bool>) -> S3Settings {
     S3Settings {
         bucket: "packages".to_string(),

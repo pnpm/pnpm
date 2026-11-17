@@ -5,6 +5,7 @@ pub(super) use package_access::{
     authorize_against_packument, authorize_continuation, authorize_package,
     authorize_with_ownership, authorize_without_owners, needs_package_owners,
 };
+pub(super) use pnpr_policy::Action;
 
 mod accounts;
 mod credentials;
@@ -51,8 +52,6 @@ pub(super) fn carries_bearer_secret(headers: &HeaderMap, expected: &str) -> bool
                 == super::ecosystem::sha256_hex(sent.trim().as_bytes())
         })
 }
-
-pub(super) use pnpr_policy::Action;
 
 /// The verb a denial of `action` names.
 fn action_label(action: Action) -> &'static str {

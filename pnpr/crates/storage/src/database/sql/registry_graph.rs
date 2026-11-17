@@ -186,8 +186,7 @@ impl Storage {
         let restored_from = revision.restored_from.map(to_column);
         let vacated = revision.vacated.to_vec();
         let bound = revision.bound.to_vec();
-        let seeded = revision.seeded.to_vec();
-        let removed = revision.removed.to_vec();
+        let grants = (revision.removed.to_vec(), revision.seeded.to_vec());
         self.database.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             let current = current_generation(&*transaction)?;
@@ -210,8 +209,7 @@ impl Storage {
                 params![to_column(oldest_kept)],
             )?;
             retire_namespaces(&*transaction, &vacated, &bound)?;
-            super::grants::forget_registries(&*transaction, &removed)?;
-            super::grants::seed_grants(&*transaction, &seeded)?;
+            super::grants::follow_graph(&*transaction, &grants.0, &grants.1)?;
             cdn::enqueue(&*transaction, "*")?;
             transaction.commit()?;
             Ok(RegistryGraphWrite::Written(generation))

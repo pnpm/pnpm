@@ -13,7 +13,7 @@ use pnpr_storage::{
     Storage,
     database::{GrantContent, GrantWrite, StoredGrant},
 };
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 /// The rules of one registry of a document.
 #[derive(Clone)]
@@ -33,59 +33,66 @@ pub(crate) type Tables = IndexMap<String, Rules>;
 /// without lists gets the rules of its default grant.
 pub(crate) fn take_rules(graph: &mut Value) -> Tables {
     let mut tables = Tables::new();
-    let Some(registries) = graph.get_mut("registries").and_then(Value::as_object_mut) else {
-        return tables;
-    };
-    for (key, registry) in registries {
-        let Some(registry) = registry.as_object_mut() else { continue };
-        let kind = registry
-            .get("type")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        if kind != "hosted" && kind != "upstream" {
-            continue;
+    let registries = graph.get_mut("registries").and_then(Value::as_object_mut);
+    for (key, registry) in registries.into_iter().flatten() {
+        if let Some(rules) =
+            registry.as_object_mut().and_then(|registry| take_registry_rules(key, registry))
+        {
+            tables.insert(key.clone(), rules);
         }
-        let ecosystem: Ecosystem = registry
-            .get("ecosystem")
-            .cloned()
-            .map(|ecosystem| serde_json::from_value(ecosystem).expect("a known ecosystem"))
-            .unwrap_or_default();
-        let public = registry
-            .get("public")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let default_access = registry
-            .remove("access")
-            .map(|access| list(&access))
-            .or_else(|| {
-                (kind == "upstream" && !public).then(|| AccessList::from_tokens(["$authenticated"]))
-            });
-        let mut rules = Vec::new();
-        let mut spellings = IndexMap::new();
-        let packages = registry.get_mut("packages").and_then(Value::as_object_mut);
-        for (spelling, lists) in packages.into_iter().flatten() {
-            let pattern = PackagePattern::parse(spelling, ecosystem)
-                .unwrap_or_else(|error| panic!("registry {key:?} `packages:` key: {error}"));
-            spellings.insert(pattern.to_string(), spelling.clone());
-            let mut field = |name: &str| {
-                lists
-                    .as_object_mut()
-                    .and_then(|lists| lists.remove(name))
-                    .map(|value| list(&value))
-            };
-            let rule = PackageRule {
-                pattern,
-                access: field("access"),
-                publish: field("publish"),
-                unpublish: field("unpublish"),
-            };
-            rules.push(rule);
-        }
-        let table = RuleTable::new(rules, default_access);
-        tables.insert(key.clone(), Rules { table, spellings });
     }
     tables
+}
+
+/// [`take_rules`] for one registry. A router holds no package and has none.
+fn take_registry_rules(key: &str, registry: &mut Map<String, Value>) -> Option<Rules> {
+    let kind = registry
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    if kind != "hosted" && kind != "upstream" {
+        return None;
+    }
+    let ecosystem: Ecosystem = registry
+        .get("ecosystem")
+        .cloned()
+        .map(|ecosystem| serde_json::from_value(ecosystem).expect("a known ecosystem"))
+        .unwrap_or_default();
+    let public = registry
+        .get("public")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let default_access = registry
+        .remove("access")
+        .map(|access| list(&access))
+        .or_else(|| {
+            (kind == "upstream" && !public).then(|| AccessList::from_tokens(["$authenticated"]))
+        });
+    let mut rules = Vec::new();
+    let mut spellings = IndexMap::new();
+    let packages = registry.get_mut("packages").and_then(Value::as_object_mut);
+    for (spelling, lists) in packages.into_iter().flatten() {
+        let pattern = PackagePattern::parse(spelling, ecosystem)
+            .unwrap_or_else(|error| panic!("registry {key:?} `packages:` key: {error}"));
+        spellings.insert(pattern.to_string(), spelling.clone());
+        rules.push(take_package_rule(pattern, lists));
+    }
+    Some(Rules { table: RuleTable::new(rules, default_access), spellings })
+}
+
+/// The rule the value of one `packages:` key declares, taking its lists out.
+fn take_package_rule(pattern: PackagePattern, lists: &mut Value) -> PackageRule {
+    let mut field = |name: &str| {
+        let lists = lists.as_object_mut()?;
+        lists.remove(name).map(|value| list(&value))
+    };
+    PackageRule {
+        pattern,
+        access: field("access"),
+        publish: field("publish"),
+        unpublish: field("unpublish"),
+    }
 }
 
 /// A list as a document writes it: one entry, or a sequence of them.

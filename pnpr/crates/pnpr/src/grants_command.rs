@@ -136,27 +136,12 @@ async fn export(config: &Config, out: Option<&Path>) -> Result<(), RegistryError
 
 /// Reports whether [`ImportMode::Check`] found the stored grants differ.
 async fn import(config: &Config, file: &Path, mode: ImportMode) -> Result<bool, RegistryError> {
-    let raw = tokio::fs::read_to_string(file).await
-        .map_err(|err| RegistryError::BadRequest {
-            reason: format!("read {}: {err}", file.display()),
-        })?;
-    let declared = serde_saphyr::from_str::<Option<GrantsFile>>(&raw)
-        .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?
-        .unwrap_or_default();
+    let declared = read_file(file).await?;
     let storage = Storage::from_config(&config.storage)?;
     let stored = storage.read_grants(None).await?;
     let generation = stored.as_ref().map(|stored| stored.generation);
     let stored = stored.map(|stored| stored.grants).unwrap_or_default();
-    let next: Vec<StoredGrant> = declared.grants
-        .into_iter()
-        .map(|(name, grant)| {
-            let id = stored
-                .iter()
-                .find(|existing| existing.content.name == name)
-                .map_or_else(pnpr_auth::new_principal_id, |existing| existing.id.clone());
-            StoredGrant { id, content: grant.into_content(&name) }
-        })
-        .collect();
+    let next = declared_grants(declared, &stored);
     let changes = describe(&stored, &next);
     if changes.is_empty() {
         println!("The stored grants already match the file.");
@@ -176,11 +161,45 @@ async fn import(config: &Config, file: &Path, mode: ImportMode) -> Result<bool, 
         println!("Would change: {changes}");
         return Ok(false);
     }
-    match storage.replace_grants(next, generation).await? {
+    store(&storage, next, generation).await?;
+    println!("Stored the grants: {changes}");
+    Ok(false)
+}
+
+async fn read_file(file: &Path) -> Result<GrantsFile, RegistryError> {
+    let raw = tokio::fs::read_to_string(file).await
+        .map_err(|err| RegistryError::BadRequest {
+            reason: format!("read {}: {err}", file.display()),
+        })?;
+    Ok(serde_saphyr::from_str::<Option<GrantsFile>>(&raw)
+        .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?
+        .unwrap_or_default())
+}
+
+/// The grants `declared` declares, each under the ID the stored grant of its
+/// name has, or a new one.
+fn declared_grants(declared: GrantsFile, stored: &[StoredGrant]) -> Vec<StoredGrant> {
+    declared.grants
+        .into_iter()
+        .map(|(name, grant)| {
+            let id = stored
+                .iter()
+                .find(|existing| existing.content.name == name)
+                .map_or_else(pnpr_auth::new_principal_id, |existing| existing.id.clone());
+            StoredGrant { id, content: grant.into_content(&name) }
+        })
+        .collect()
+}
+
+async fn store(
+    storage: &Storage,
+    grants: Vec<StoredGrant>,
+    generation: Option<u64>,
+) -> Result<(), RegistryError> {
+    match storage.replace_grants(grants, generation).await? {
         GrantWrite::Written(version) => {
             crate::audit!(Actor::NONE, "grants.import", version = %version, "grants imported");
-            println!("Stored the grants: {changes}");
-            Ok(false)
+            Ok(())
         }
         GrantWrite::Conflict { .. } => Err(RegistryError::AdminConflict {
             reason: "the grants changed during the import; run it again".to_string(),

@@ -1,8 +1,7 @@
 use super::{
     AmazonS3ConfigKey, BackendConfig, ClientConfigKey, Config, ConfigSource, Duration, Ecosystem,
-    EnvGuard, FeatureOverrides, Identity, MINIMAL_YAML, Path, PathBuf, RegistryError,
-    bundled_registries, hosted_rules_config, hosted_rules_err, listen, load_with_graph,
-    normalize_key_prefix, resolve_relative, s3_settings_for, user, write_yaml,
+    EnvGuard, FeatureOverrides, MINIMAL_YAML, Path, PathBuf, RegistryError, bundled_registries,
+    listen, load_with_graph, normalize_key_prefix, resolve_relative, s3_settings_for, write_yaml,
 };
 
 #[test]

@@ -97,7 +97,7 @@ async fn send_conditional(app: &axum::Router, sent: Sent<'_>) -> (StatusCode, Va
         request = request.header("authorization", format!("Bearer {token}"));
     }
     if let Some(version) = sent.if_match {
-        request = request.header("if-match", format!("\"{version}\""));
+        request = request.header("if-match", format!(r#""{version}""#));
     }
     let body = sent.body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty);
     let response = app
@@ -325,7 +325,7 @@ async fn a_manager_changes_the_subjects_of_its_grant_and_nothing_else() {
     }
     assert_eq!(
         put_grant(&app, &carol, "another", secret_readers(&widened)).await.0,
-        StatusCode::NOT_FOUND
+        StatusCode::NOT_FOUND,
     );
 }
 

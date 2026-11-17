@@ -77,6 +77,7 @@ pub(crate) fn parse_document(yaml: &str) -> Graph {
 ///
 /// The file cannot be read, rewritten, or loaded, or its registries cannot be
 /// stored.
+#[must_use]
 pub fn load_seeded_config(path: &Path, listen: SocketAddr, public_url: Option<String>) -> Config {
     let raw = std::fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));

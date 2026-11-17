@@ -1,6 +1,6 @@
 use super::{
-    Ecosystem, FeatureOverrides, Identity, Path, RegistryError, hosted_rules_config, listen,
-    load_with_graph, load_with_graph_and_overrides, user,
+    Ecosystem, FeatureOverrides, Path, RegistryError, listen, load_with_graph,
+    load_with_graph_and_overrides,
 };
 
 /// A router registry routes each package to exactly one concrete source — the

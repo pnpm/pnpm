@@ -1,7 +1,7 @@
 use super::{
-    AUTHORIZATION, Ecosystem, FeatureOverrides, Identity, IndexMap, Interval, Path, RegistryError,
-    TokenEnv, UpstreamAuthFile, UpstreamAuthType, UpstreamConfig, auth_header, listen,
-    load_with_graph, load_with_graph_and_overrides, resolve_upstream, upstream_config_file, user,
+    AUTHORIZATION, Ecosystem, FeatureOverrides, IndexMap, Interval, Path, RegistryError, TokenEnv,
+    UpstreamAuthFile, UpstreamAuthType, UpstreamConfig, auth_header, listen, load_with_graph,
+    load_with_graph_and_overrides, resolve_upstream, upstream_config_file,
 };
 
 #[test]

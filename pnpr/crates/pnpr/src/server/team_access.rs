@@ -18,7 +18,7 @@ use super::{
 };
 use axum::body::Bytes;
 use pnpr_policy::Action;
-use pnpr_storage::database::GrantContent;
+use pnpr_storage::database::{GrantContent, StoredGrant};
 use serde::Deserialize;
 
 /// The body of `npm access grant`.
@@ -156,41 +156,55 @@ pub(super) fn list_team_packages(
         let routing = state.routing();
         let (registry, _) =
             team_registry(state, &routing, identity, target.registry, target.scope)?;
-        let subject = format!("team:{id}");
         let grants = state.inner.identity.managed.grants.snapshot();
-        let mut packages = serde_json::Map::new();
-        let covering = grants.grants
-            .iter()
-            .filter(|grant| {
-                grant.content.registries
-                    .iter()
-                    .any(|named| {
-                        named == registry || named == super::grant_directory::EVERY_REGISTRY
-                    })
-            });
-        for grant in covering {
-            let gives = |action: Action| {
-                grant.content.subjects
-                    .iter()
-                    .any(|(given, name)| *given == subject && name == action.as_str())
-            };
-            if !gives(Action::Read) {
-                continue;
-            }
-            let permission = if gives(Action::Publish) { "read-write" } else { "read-only" };
-            let all = ["**".to_string()];
-            let patterns =
-                if grant.content.include.is_empty() { &all[..] } else { &grant.content.include };
-            for pattern in patterns {
-                let known = packages.get(pattern).and_then(serde_json::Value::as_str);
-                if known != Some("read-write") {
-                    packages.insert(pattern.clone(), json!(permission));
-                }
-            }
-        }
+        let packages = team_packages(&grants.grants, registry, id);
         Ok((StatusCode::OK, axum::Json(json!(packages))))
     })();
     respond(result)
+}
+
+/// The patterns `grants` give the team `id` in `registry`, each with the most
+/// any of them gives.
+fn team_packages(
+    grants: &[StoredGrant],
+    registry: &str,
+    id: &str,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut packages = serde_json::Map::new();
+    let granted = grants
+        .iter()
+        .filter(|grant| covers(&grant.content, registry))
+        .filter_map(|grant| Some((&grant.content, team_permission(&grant.content, id)?)));
+    for (content, permission) in granted {
+        let all = ["**".to_string()];
+        let patterns = if content.include.is_empty() { &all[..] } else { &content.include };
+        for pattern in patterns {
+            let known = packages.get(pattern).and_then(serde_json::Value::as_str);
+            if known != Some("read-write") {
+                packages.insert(pattern.clone(), json!(permission));
+            }
+        }
+    }
+    packages
+}
+
+/// Whether the grant `content` covers `registry`.
+fn covers(content: &GrantContent, registry: &str) -> bool {
+    content.registries
+        .iter()
+        .any(|named| named == registry || named == super::grant_directory::EVERY_REGISTRY)
+}
+
+/// What the grant `content` lets the team `id` do, in npm's two words, or
+/// `None` when it does not let the team read.
+fn team_permission(content: &GrantContent, id: &str) -> Option<&'static str> {
+    let subject = format!("team:{id}");
+    let gives = |action: Action| {
+        content.subjects
+            .iter()
+            .any(|(given, name)| *given == subject && name == action.as_str())
+    };
+    gives(Action::Read).then(|| if gives(Action::Publish) { "read-write" } else { "read-only" })
 }
 
 /// The ID of the grant named `name`, in this replica's copy of the grants.

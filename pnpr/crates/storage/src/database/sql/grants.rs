@@ -2,8 +2,11 @@
 //! packages of which registries.
 
 use super::{
-    adapter::Connection, batch::WriteTransaction, records::advance_record_generation,
-    to_generation, transactions::Freshness,
+    adapter::{Connection, Row},
+    batch::WriteTransaction,
+    records::advance_record_generation,
+    to_generation,
+    transactions::Freshness,
 };
 use crate::Storage;
 use pnpr_error::{RegistryError, Result};
@@ -96,20 +99,10 @@ impl Storage {
     ) -> Result<GrantWrite> {
         self.database.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
-            if let Some(conflict) = conflict(&*transaction, expected)? {
-                return Ok(conflict);
+            if let Some(refused) = refused_replacement(&*transaction, &grants, expected)? {
+                return Ok(refused);
             }
-            for grant in &grants {
-                if let Some(team) = unknown_subject_team(&*transaction, &grant.content.subjects)? {
-                    return Ok(GrantWrite::UnknownTeam(team));
-                }
-            }
-            for table in ["grant_subjects", "grant_patterns", "grant_registries", "grants"] {
-                transaction.execute(&format!("DELETE FROM {table}"), params![])?;
-            }
-            for grant in &grants {
-                insert_grant(&*transaction, &grant.id, &grant.content)?;
-            }
+            replace_all(&*transaction, &grants)?;
             let generation = advance_directory(&*transaction)?;
             transaction.commit()?;
             Ok(GrantWrite::Written(generation))
@@ -166,9 +159,46 @@ impl Storage {
     }
 }
 
+fn refused_replacement(
+    connection: &dyn Connection,
+    grants: &[StoredGrant],
+    expected: Option<u64>,
+) -> Result<Option<GrantWrite>> {
+    if let Some(conflict) = conflict(connection, expected)? {
+        return Ok(Some(conflict));
+    }
+    for grant in grants {
+        if let Some(team) = unknown_subject_team(connection, &grant.content.subjects)? {
+            return Ok(Some(GrantWrite::UnknownTeam(team)));
+        }
+    }
+    Ok(None)
+}
+
+fn replace_all(connection: &dyn Connection, grants: &[StoredGrant]) -> Result<()> {
+    for table in ["grant_subjects", "grant_patterns", "grant_registries", "grants"] {
+        connection.execute(&format!("DELETE FROM {table}"), params![])?;
+    }
+    for grant in grants {
+        insert_grant(connection, &grant.id, &grant.content)?;
+    }
+    Ok(())
+}
+
+/// What a graph write changes in the grants: the registries it removes leave
+/// every grant, and the registries it adds get their default grants.
+pub(super) fn follow_graph(
+    connection: &dyn Connection,
+    removed: &[String],
+    seeded: &[StoredGrant],
+) -> Result<()> {
+    forget_registries(connection, removed)?;
+    seed_grants(connection, seeded)
+}
+
 /// Create each of `grants` whose name no grant has yet. A graph write seeds a
 /// registry it adds this way, in its transaction.
-pub(super) fn seed_grants(connection: &dyn Connection, grants: &[StoredGrant]) -> Result<()> {
+fn seed_grants(connection: &dyn Connection, grants: &[StoredGrant]) -> Result<()> {
     let mut seeded = false;
     for grant in grants {
         if name_owner(connection, &grant.content.name)?.is_some() {
@@ -186,7 +216,7 @@ pub(super) fn seed_grants(connection: &dyn Connection, grants: &[StoredGrant]) -
 /// Take each of `registries` out of every grant, and remove the grants left
 /// without a registry. A graph write does this for the registries it removes,
 /// so a registry added later under the same key starts without their grants.
-pub(super) fn forget_registries(connection: &dyn Connection, registries: &[String]) -> Result<()> {
+fn forget_registries(connection: &dyn Connection, registries: &[String]) -> Result<()> {
     let mut changed = false;
     for registry in registries {
         let named = connection.query_optional(
@@ -349,36 +379,41 @@ fn read_grants(connection: &dyn Connection) -> Result<Vec<StoredGrant>> {
         .enumerate()
         .map(|(position, grant)| (grant.id.clone(), position))
         .collect();
-    let registries = connection.query(
+    let mut fill = |sql: &str, add: &dyn Fn(&mut GrantContent, &mut Row) -> Result<()>| {
+        for mut row in connection.query(sql, params![])? {
+            if let Some(position) = positions.get(&row.get::<String>(0)?) {
+                add(&mut grants[*position].content, &mut row)?;
+            }
+        }
+        Ok::<_, RegistryError>(())
+    };
+    fill(
         "SELECT grant_id, registry FROM grant_registries ORDER BY grant_id, registry",
-        params![],
+        &add_registry,
     )?;
-    for mut row in registries {
-        if let Some(position) = positions.get(&row.get::<String>(0)?) {
-            grants[*position].content.registries.push(row.get(1)?);
-        }
-    }
-    let patterns = connection.query(
+    fill(
         "SELECT grant_id, exclude, pattern FROM grant_patterns ORDER BY grant_id, exclude, pattern",
-        params![],
+        &add_pattern,
     )?;
-    for mut row in patterns {
-        let Some(position) = positions.get(&row.get::<String>(0)?) else {
-            continue;
-        };
-        let content = &mut grants[*position].content;
-        let list =
-            if row.get::<i64>(1)? == 0 { &mut content.include } else { &mut content.exclude };
-        list.push(row.get(2)?);
-    }
-    let subjects = connection.query(
+    fill(
         "SELECT grant_id, subject, action FROM grant_subjects ORDER BY grant_id, subject, action",
-        params![],
+        &add_subject,
     )?;
-    for mut row in subjects {
-        if let Some(position) = positions.get(&row.get::<String>(0)?) {
-            grants[*position].content.subjects.push((row.get(1)?, row.get(2)?));
-        }
-    }
     Ok(grants)
+}
+
+fn add_registry(content: &mut GrantContent, row: &mut Row) -> Result<()> {
+    content.registries.push(row.get(1)?);
+    Ok(())
+}
+
+fn add_subject(content: &mut GrantContent, row: &mut Row) -> Result<()> {
+    content.subjects.push((row.get(1)?, row.get(2)?));
+    Ok(())
+}
+
+fn add_pattern(content: &mut GrantContent, row: &mut Row) -> Result<()> {
+    let list = if row.get::<i64>(1)? == 0 { &mut content.include } else { &mut content.exclude };
+    list.push(row.get(2)?);
+    Ok(())
 }

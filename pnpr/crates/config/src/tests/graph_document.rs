@@ -2,7 +2,6 @@ use super::{
     Config, FakeEnv, FeatureOverrides, Identity, Path, RegistryError, auth_header, listen, user,
 };
 use crate::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions};
-use indexmap::IndexMap;
 use pnpr_registry::Ecosystem;
 
 const RICH_DOCUMENT: &str = "
@@ -321,7 +320,7 @@ fn a_stored_url_must_not_carry_credentials() {
         "https://token@npm.corp.example/",
         "https://npm.corp.example/?token=hunter2",
     ] {
-        let yaml = format!("registries:\n  corp:\n    type: upstream\n    url: {url}\n",);
+        let yaml = format!("registries:\n  corp:\n    type: upstream\n    url: {url}\n");
         let document = RegistryGraphDocument::from_yaml(&yaml).unwrap();
         let error = document
             .check_stored(&[])

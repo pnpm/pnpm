@@ -1,7 +1,4 @@
-use super::{
-    Config, Identity, Path, RegistryError, hosted_rules_config, hosted_rules_err, listen,
-    load_with_graph, user,
-};
+use super::{Config, Identity, Path, RegistryError, listen, load_with_graph, user};
 
 /// A hosted `namespace` becomes a storage path segment, so a traversal-y value —
 /// including a Windows drive-relative prefix, which `PathBuf::join` treats as

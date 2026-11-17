@@ -40,7 +40,7 @@ async fn another_instance_reads_grants_only_after_they_change(db: Db) {
             .read_grants(Some(empty.generation))
             .await
             .unwrap(),
-        None
+        None,
     );
 
     let mut readers =
@@ -70,7 +70,7 @@ async fn another_instance_reads_grants_only_after_they_change(db: Db) {
             .read_grants(Some(generation))
             .await
             .unwrap(),
-        None
+        None,
     );
 }
 
@@ -130,7 +130,7 @@ async fn a_grant_write_is_refused_on_a_stale_generation_or_a_taken_name(db: Db) 
             .unwrap()
             .unwrap()
             .grants
-            .is_empty()
+            .is_empty(),
     );
 }
 

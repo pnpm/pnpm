@@ -254,33 +254,36 @@ pub(super) struct Defaults<'lists> {
     pub(super) unpublish: &'lists AccessList,
 }
 
+/// The subjects of the grant for `rule`, or for the packages no rule names:
+/// who may read gets `read` and `cache`, who may publish `publish` and
+/// `annotate`, who may unpublish `delete`.
+fn subjects_of(rule: Option<&PackageRule>, defaults: &Defaults<'_>) -> Vec<(AccessToken, Action)> {
+    let access = rule.and_then(|rule| rule.access.as_ref()).unwrap_or(defaults.access);
+    let publish = rule.and_then(|rule| rule.publish.as_ref()).unwrap_or(defaults.publish);
+    let unpublish = rule.and_then(|rule| rule.unpublish.as_ref()).unwrap_or(defaults.unpublish);
+    let given = [
+        (access, &[Action::Read, Action::Cache][..]),
+        (publish, &[Action::Publish, Action::Annotate][..]),
+        (unpublish, &[Action::Delete][..]),
+    ];
+    let mut subjects = Vec::new();
+    for (list, actions) in given {
+        for token in list.tokens() {
+            subjects.extend(
+                actions
+                    .iter()
+                    .map(|action| (token.clone(), *action)),
+            );
+        }
+    }
+    subjects
+}
+
 /// The grants that give what `rules` and `defaults` give under
 /// most-specific-rule-wins: one grant for each rule, over its pattern less
 /// the patterns of the more specific rules it covers, and one for every
 /// package no rule names.
 pub(super) fn grants_of_rules(rules: &[PackageRule], defaults: &Defaults<'_>) -> Vec<Grant> {
-    let subjects = |rule: Option<&PackageRule>| {
-        let access = rule.and_then(|rule| rule.access.as_ref()).unwrap_or(defaults.access);
-        let publish = rule.and_then(|rule| rule.publish.as_ref()).unwrap_or(defaults.publish);
-        let unpublish = rule.and_then(|rule| rule.unpublish.as_ref()).unwrap_or(defaults.unpublish);
-        let given = [
-            (access, &[Action::Read, Action::Cache][..]),
-            (publish, &[Action::Publish, Action::Annotate][..]),
-            (unpublish, &[Action::Delete][..]),
-        ];
-        given
-            .into_iter()
-            .flat_map(|(list, actions)| {
-                list.tokens()
-                    .iter()
-                    .flat_map(|token| {
-                        actions
-                            .iter()
-                            .map(move |action| (token.clone(), *action))
-                    })
-            })
-            .collect::<Vec<_>>()
-    };
     let mut grants: Vec<Grant> = rules
         .iter()
         .map(|rule| Grant {
@@ -293,7 +296,7 @@ pub(super) fn grants_of_rules(rules: &[PackageRule], defaults: &Defaults<'_>) ->
                 })
                 .map(|other| other.pattern.clone())
                 .collect(),
-            subjects: subjects(Some(rule)),
+            subjects: subjects_of(Some(rule), defaults),
         })
         .collect();
     grants.push(Grant {
@@ -303,7 +306,7 @@ pub(super) fn grants_of_rules(rules: &[PackageRule], defaults: &Defaults<'_>) ->
             .iter()
             .map(|rule| rule.pattern.clone())
             .collect(),
-        subjects: subjects(None),
+        subjects: subjects_of(None, defaults),
     });
     grants
 }

@@ -189,24 +189,26 @@ pub(crate) fn validate_for(
         }
     }
     let spec = spec(content);
-    for registry in &content.registries {
-        if registry == EVERY_REGISTRY {
-            if !(content.include.is_empty() && content.exclude.is_empty()) {
-                return Err(invalid(
-                    "a grant on every registry cannot select packages by pattern".to_string(),
-                ));
-            }
-            Grant::compile(&spec, pnpr_registry::Ecosystem::default()).map_err(invalid)?;
-            continue;
+    content.registries
+        .iter()
+        .try_for_each(|registry| applies_to(routing, &spec, registry))
+        .map_err(invalid)
+}
+
+/// Whether the grant `spec` can cover `registry`: it exists, holds packages,
+/// and its ecosystem has the grant's patterns. The error is the reason only.
+fn applies_to(routing: &RoutingConfig, spec: &GrantSpec, registry: &str) -> Result<(), String> {
+    if registry == EVERY_REGISTRY {
+        if !(spec.include.is_empty() && spec.exclude.is_empty()) {
+            return Err("a grant on every registry cannot select packages by pattern".to_string());
         }
-        let holds_packages =
-            routing.hosted.contains_key(registry) || routing.upstreams.contains_key(registry);
-        if !holds_packages {
-            return Err(invalid(format!("{registry:?} is not a hosted or upstream registry")));
-        }
-        let ecosystem = routing.registries.ecosystem(registry).unwrap_or_default();
-        Grant::compile(&spec, ecosystem)
-            .map_err(|reason| invalid(format!("registry {registry:?}: {reason}")))?;
+        return Grant::compile(spec, pnpr_registry::Ecosystem::default()).map(drop);
     }
-    Ok(())
+    if !(routing.hosted.contains_key(registry) || routing.upstreams.contains_key(registry)) {
+        return Err(format!("{registry:?} is not a hosted or upstream registry"));
+    }
+    let ecosystem = routing.registries.ecosystem(registry).unwrap_or_default();
+    Grant::compile(spec, ecosystem)
+        .map(drop)
+        .map_err(|reason| format!("registry {registry:?}: {reason}"))
 }

@@ -40,9 +40,31 @@ pub(super) enum RegistryFile {
 /// The value of a `packages:` key: nothing. Who may do what to the packages a
 /// key claims is decided by the grants, which the database holds apart from
 /// the registries.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct ClaimFile {}
+#[derive(Debug, Default, Clone)]
+pub(super) struct ClaimFile;
+
+impl Serialize for ClaimFile {
+    fn serialize<Target: serde::Serializer>(
+        &self,
+        serializer: Target,
+    ) -> Result<Target::Ok, Target::Error> {
+        serde::ser::SerializeMap::end(serializer.serialize_map(Some(0))?)
+    }
+}
+
+impl<'de> Deserialize<'de> for ClaimFile {
+    fn deserialize<Source: serde::Deserializer<'de>>(
+        deserializer: Source,
+    ) -> Result<Self, Source::Error> {
+        let fields = IndexMap::<String, serde::de::IgnoredAny>::deserialize(deserializer)?;
+        match fields.keys().next() {
+            Some(field) => Err(serde::de::Error::custom(format!(
+                "unknown field `{field}`; a `packages:` value is empty, and grants decide access",
+            ))),
+            None => Ok(Self),
+        }
+    }
+}
 
 /// Disk shape of a `hosted:` registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
