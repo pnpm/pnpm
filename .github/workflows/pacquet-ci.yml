@@ -593,7 +593,7 @@ jobs:
 
       - name: Bundle pnpm v11
         run: |
-          pnpm --filter pnpm exec tsgo --build
+          pnpm --filter pnpm exec tsc --build
           pnpm --filter pnpm run bundle
 
       - name: Run the convergence harnesses through v11 and v12
