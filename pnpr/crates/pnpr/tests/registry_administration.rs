@@ -222,7 +222,7 @@ async fn a_hosted_registry_added_at_runtime_survives_a_restart() {
     let replica = Replica::new(config.clone()).await;
     let graph = json!({
         "registries": {
-            "local": { "type": "hosted", "namespace": "", "packages": { "**": { "publish": "$authenticated" } } },
+            "local": { "type": "hosted", "namespace": "", "packages": { "**": {} } },
         },
         "defaultRegistry": "local",
     });
@@ -250,18 +250,6 @@ async fn a_dry_run_reports_the_changes_without_storing_them() {
         replica.as_root("GET", &format!("{DOCUMENT}/extra"), None).await.0,
         StatusCode::NOT_FOUND,
     );
-}
-
-#[tokio::test]
-async fn a_dry_run_refuses_a_team_that_does_not_exist() {
-    let dir = TempDir::new().unwrap();
-    let replica = Replica::new(load_config(dir.path()).await).await;
-    let entry = json!({ "type": "hosted", "namespace": "extra", "access": ["team:absent"] });
-    for path in [format!("{DOCUMENT}/extra?dryRun=true"), format!("{DOCUMENT}/extra")] {
-        let (status, error) = replica.as_root("PUT", &path, Some(entry.clone())).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}: {error}");
-        assert!(error.to_string().contains("team:absent"), "{path}: {error}");
-    }
 }
 
 #[tokio::test]
@@ -343,10 +331,10 @@ async fn admins_read_and_only_registry_admins_change_the_structure() {
         let (status, _, _) = replica.send(method, path, Some(&replica.alice), extra()).await;
         assert_eq!(status, StatusCode::FORBIDDEN, "{method} {path}");
     }
-    let rules = json!({ "access": ["$authenticated"] });
-    let rules_path = "/-/pnpr/v0/admin/rules/npm/local";
+    let grant = json!({ "registries": ["local"], "subjects": { "$authenticated": ["read"] } });
+    let grant_path = "/-/pnpr/v0/admin/grants/readers";
     assert_eq!(
-        replica.send("PUT", rules_path, Some(&replica.alice), Some(rules)).await.0,
+        replica.send("PUT", grant_path, Some(&replica.alice), Some(grant)).await.0,
         StatusCode::OK,
     );
 
@@ -434,7 +422,7 @@ async fn stored_upstream_credentials_must_be_listed_references() {
     let replica = Replica::new(load_config(dir.path()).await).await;
     let private = |auth: Value, headers: Value| {
         json!({
-            "type": "upstream", "url": "https://npm.example.com/", "access": "$authenticated",
+            "type": "upstream", "url": "https://npm.example.com/",
             "auth": auth, "headers": headers,
         })
     };
@@ -806,7 +794,7 @@ async fn a_replica_that_still_serves_a_removed_hosted_registry_cannot_publish_in
     let doomed = json!({
         "type": "hosted",
         "namespace": "doomed",
-        "packages": { "**": { "publish": "$authenticated" } },
+        "packages": { "**": {} },
     });
     assert_eq!(writer.as_root("PUT", &path, Some(doomed.clone())).await.0, StatusCode::OK);
     let stale = Replica::with_auth(reload_config(dir.path()), auth).await;
@@ -856,7 +844,7 @@ async fn a_write_that_changes_nothing_serves_the_version_it_answers() {
 }
 
 #[tokio::test]
-async fn rules_change_on_a_registry_another_replica_just_added() {
+async fn a_grant_changes_on_a_registry_another_replica_just_added() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path()).await;
     let auth = crate::tokens::seeded_auth(&config, ACCOUNTS);
@@ -868,14 +856,17 @@ async fn rules_change_on_a_registry_another_replica_just_added() {
         StatusCode::OK,
     );
 
-    let rules = "/-/pnpr/v0/admin/rules/npm/fresh";
-    let (status, before) = behind.as_root("GET", rules, None).await;
+    let seeded = "/-/pnpr/v0/admin/grants/fresh";
+    let (status, before) = behind.as_root("GET", seeded, None).await;
     assert_eq!(status, StatusCode::OK, "{before}");
-    let change = json!({ "packages": { "@fresh/*": { "access": ["$authenticated"] } } });
-    let (status, after) = behind.as_root("PUT", rules, Some(change)).await;
+    let change = json!({
+        "registries": ["fresh"],
+        "include": ["@fresh/*"],
+        "subjects": { "$authenticated": ["read"] },
+    });
+    let (status, after) = behind.as_root("PUT", seeded, Some(change)).await;
     assert_eq!(status, StatusCode::OK, "{after}");
-    assert_eq!(after["packages"]["@fresh/*"]["access"], json!(["$authenticated"]));
-    assert_eq!(after["version"], json!("3"));
+    assert_eq!(after["subjects"], json!({ "$authenticated": ["read"] }));
 }
 
 /// Keeps the runtime busy so database I/O cannot auto-advance the paused
@@ -1061,7 +1052,7 @@ async fn an_unchanged_import_is_checked_against_the_current_config() {
     let file = dir.path().join("registries.yaml");
     std::fs::write(
         &file,
-        "registries:\n  up:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: $authenticated\n    auth: { type: bearer, token: '${PATH}' }\n",
+        "registries:\n  up:\n    type: upstream\n    url: https://registry.npmjs.org/\n    auth: { type: bearer, token: '${PATH}' }\n",
     )
     .unwrap();
     let import = || pnpr::Command::Registries {
@@ -1325,7 +1316,6 @@ async fn config_check_accepts_a_stored_upstream_whose_credential_is_unset_here()
     let corp = json!({
         "type": "upstream",
         "url": "https://npm.corp.example/",
-        "access": "$authenticated",
         "auth": { "type": "bearer", "tokenEnv": "PNPR_TEST_UNSET_TOKEN" },
     });
     crate::managed_registries::store_graph(&config, &json!({ "registries": { "corp": corp } }))

@@ -15,8 +15,18 @@ use pnpr_storage::{
 };
 use serde_json::Value;
 
+/// The rules of one registry of a document.
+#[derive(Clone)]
+pub(crate) struct Rules {
+    table: RuleTable,
+    /// Each `packages:` key as the document spells it, by the pattern it
+    /// parses to. A grant spells the pattern the same way, because a parsed
+    /// pattern does not always parse again.
+    spellings: IndexMap<String, String>,
+}
+
 /// The rules of each hosted and upstream registry of a document, by key.
-pub(crate) type Tables = IndexMap<String, RuleTable>;
+pub(crate) type Tables = IndexMap<String, Rules>;
 
 /// Take the access lists out of the registries of `graph`, leaving the
 /// document pnpr stores, and return the rules they declare. A registry
@@ -52,10 +62,12 @@ pub(crate) fn take_rules(graph: &mut Value) -> Tables {
                 (kind == "upstream" && !public).then(|| AccessList::from_tokens(["$authenticated"]))
             });
         let mut rules = Vec::new();
+        let mut spellings = IndexMap::new();
         let packages = registry.get_mut("packages").and_then(Value::as_object_mut);
-        for (pattern, lists) in packages.into_iter().flatten() {
-            let pattern = PackagePattern::parse(pattern, ecosystem)
+        for (spelling, lists) in packages.into_iter().flatten() {
+            let pattern = PackagePattern::parse(spelling, ecosystem)
                 .unwrap_or_else(|error| panic!("registry {key:?} `packages:` key: {error}"));
+            spellings.insert(pattern.to_string(), spelling.clone());
             let mut field = |name: &str| {
                 lists
                     .as_object_mut()
@@ -70,7 +82,8 @@ pub(crate) fn take_rules(graph: &mut Value) -> Tables {
             };
             rules.push(rule);
         }
-        tables.insert(key.clone(), RuleTable::new(rules, default_access));
+        let table = RuleTable::new(rules, default_access);
+        tables.insert(key.clone(), Rules { table, spellings });
     }
     tables
 }
@@ -96,7 +109,7 @@ fn list(value: &Value) -> AccessList {
 /// Serve `tables` from `routing`, for a test that reads the rules from the
 /// config it loaded.
 pub(crate) fn apply(routing: &RoutingConfig, tables: &Tables) {
-    for (key, table) in tables {
+    for (key, Rules { table, .. }) in tables {
         let rules = routing.hosted
             .get(key)
             .map(|hosted| &hosted.rules)
@@ -112,7 +125,18 @@ pub(crate) fn apply(routing: &RoutingConfig, tables: &Tables) {
 fn rows(tables: &Tables) -> Vec<StoredGrant> {
     tables
         .iter()
-        .flat_map(|(key, table)| {
+        .flat_map(|(key, Rules { table, spellings })| {
+            let spelled = move |patterns: Vec<String>| {
+                patterns
+                    .into_iter()
+                    .map(|pattern| {
+                        spellings
+                            .get(&pattern)
+                            .cloned()
+                            .unwrap_or(pattern)
+                    })
+                    .collect::<Vec<_>>()
+            };
             table
                 .grants()
                 .iter()
@@ -126,8 +150,8 @@ fn rows(tables: &Tables) -> Vec<StoredGrant> {
                     let content = GrantContent {
                         name: name.clone(),
                         registries: vec![key.clone()],
-                        include: spec.include,
-                        exclude: spec.exclude,
+                        include: spelled(spec.include),
+                        exclude: spelled(spec.exclude),
                         subjects: spec.subjects
                             .into_iter()
                             .map(|(subject, action)| (subject, action.as_str().to_string()))

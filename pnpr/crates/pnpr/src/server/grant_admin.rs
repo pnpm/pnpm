@@ -106,9 +106,11 @@ fn version_of(grants: &Grants) -> String {
     grants.generation.unwrap_or(0).to_string()
 }
 
-/// This replica's copy of the grants, read again from the database first, so
-/// an admin sees what another replica just wrote.
+/// This replica's copy of the grants, read again from the database first
+/// along with the registries, so an admin sees what another replica just
+/// wrote and may name a registry it just added.
 async fn current(state: &AppState) -> Result<std::sync::Arc<Grants>, RegistryError> {
+    super::grant_directory::reload_written_registries(state).await;
     reload_written_grants(state).await?;
     Ok(state.inner.identity.managed.grants.snapshot())
 }

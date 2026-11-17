@@ -117,7 +117,7 @@ auth:
         let storage = Storage::from_config(&config.storage).unwrap();
         storage.create_team("readers", "readers").await.unwrap();
         assert!(storage.add_team_member("readers", "reader").await.unwrap());
-        crate::managed_registries::store_graph(&config, &graph()).await;
+        crate::managed_registries::store_graph(&config, &graph_with_rules()).await;
         let package = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
         storage
             .write_hosted_document_if_current(
@@ -206,19 +206,23 @@ auth:
     }
 }
 
-/// The stored graph: one registry whose packages only the `readers` team,
-/// holding `reader`, may read.
+/// The stored graph: one registry.
 fn graph() -> serde_json::Value {
     serde_json::json!({
         "registries": {
-            "local": {
-                "type": "hosted",
-                "namespace": "",
-                "packages": { "**": { "access": ["team:readers"] } },
-            },
+            "local": { "type": "hosted", "namespace": "", "packages": { "**": {} } },
         },
         "defaultRegistry": "local",
     })
+}
+
+/// [`graph`] with the rule the fixtures store as its grants: only the
+/// `readers` team, holding `reader`, may read its packages.
+fn graph_with_rules() -> serde_json::Value {
+    let mut graph = graph();
+    graph["registries"]["local"]["packages"]["**"] =
+        serde_json::json!({ "access": ["team:readers"] });
+    graph
 }
 
 async fn store_unreadable_graph(storage: &Storage) {

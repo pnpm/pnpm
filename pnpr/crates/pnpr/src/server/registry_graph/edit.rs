@@ -143,6 +143,7 @@ where
         base.is_stored && serde_json::to_value(&base.document)? == serde_json::to_value(&next)?;
     if request.effect == Effect::DryRun || unchanged {
         if request.effect == Effect::Write {
+            follow_grants(state).await;
             serve_generation(state, checked.routing, base.generation);
         }
         let version = base.version.clone();
@@ -152,9 +153,17 @@ where
     let Some(generation) = store_revision(state, request, target, &next).await? else {
         return Ok(None);
     };
+    follow_grants(state).await;
     publish_routing(state, checked.routing, Some(generation));
     let version = graph_version(Some(generation));
     Ok(Some(EditOutcome { previous_version: base.version, version, changes }))
+}
+
+/// Read the grants before a graph is served, so the registries it adds are
+/// covered by the grants their write seeded. The caller holds the reload
+/// lock.
+async fn follow_grants(state: &AppState) {
+    crate::server::grant_directory::reload_grants(state).await;
 }
 
 /// Serve `routing`, of the stored generation `generation`, unless this

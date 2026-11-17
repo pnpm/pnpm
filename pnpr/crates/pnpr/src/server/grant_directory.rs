@@ -122,6 +122,16 @@ pub(super) async fn reload_grants(state: &AppState) -> bool {
     }
 }
 
+/// Follow the stored registry graph now, so a grant may name a registry
+/// another replica just added.
+pub(super) async fn reload_written_registries(state: &AppState) {
+    let managed = &state.inner.identity.managed;
+    let _reload = managed.reload.lock().await;
+    if let Some(graph) = &managed.graph {
+        super::registry_graph::reload_graph(state, graph).await;
+    }
+}
+
 /// Publish a grant write this replica just made. Waits for a reload in
 /// progress, which may have read the grants before the write.
 pub(super) async fn reload_written_grants(state: &AppState) -> Result<(), RegistryError> {

@@ -199,7 +199,7 @@ async fn upstream_endpoint_rejects_unauthorized_caller() {
     let tmp = TempDir::new().unwrap();
     let config = upstream_endpoint_config("http://127.0.0.1:1", tmp.path().to_path_buf(), "alice");
     let app = router(config);
-    // Anonymous caller is not admitted by the upstream's access policy, and the
+    // No grant lets an anonymous caller read through the upstream, and the
     // request fails closed before any upstream fetch.
     let response = app
         .oneshot(
@@ -209,7 +209,7 @@ async fn upstream_endpoint_rejects_unauthorized_caller() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
