@@ -81,8 +81,10 @@ impl Storage {
             if let Some(refused) = refused_write(&*transaction, &id, &content, expected)? {
                 return Ok(refused);
             }
+            let was_public = gives_public_read(&*transaction, Some(&id))?;
             delete_grant(&*transaction, &id)?;
             insert_grant(&*transaction, &id, &content)?;
+            purge_public_reads(&*transaction, was_public || is_public(&content.subjects))?;
             let generation = advance_directory(&*transaction)?;
             transaction.commit()?;
             Ok(GrantWrite::Written(generation))
@@ -102,7 +104,10 @@ impl Storage {
             if let Some(refused) = refused_replacement(&*transaction, &grants, expected)? {
                 return Ok(refused);
             }
+            let public = gives_public_read(&*transaction, None)?
+                || grants.iter().any(|grant| is_public(&grant.content.subjects));
             replace_all(&*transaction, &grants)?;
+            purge_public_reads(&*transaction, public)?;
             let generation = advance_directory(&*transaction)?;
             transaction.commit()?;
             Ok(GrantWrite::Written(generation))
@@ -129,8 +134,10 @@ impl Storage {
             if let Some(team) = unknown_subject_team(&*transaction, &subjects)? {
                 return Ok(GrantWrite::UnknownTeam(team));
             }
+            let was_public = gives_public_read(&*transaction, Some(&id))?;
             transaction.execute("DELETE FROM grant_subjects WHERE grant_id = ?1", params![&id])?;
             insert_subjects(&*transaction, &id, &subjects)?;
+            purge_public_reads(&*transaction, was_public || is_public(&subjects))?;
             let generation = advance_directory(&*transaction)?;
             transaction.commit()?;
             Ok(GrantWrite::Written(generation))
@@ -150,7 +157,9 @@ impl Storage {
             if !grant_exists(&*transaction, &id)? {
                 return Ok(GrantWrite::NotFound);
             }
+            let was_public = gives_public_read(&*transaction, Some(&id))?;
             delete_grant(&*transaction, &id)?;
+            purge_public_reads(&*transaction, was_public)?;
             let generation = advance_directory(&*transaction)?;
             transaction.commit()?;
             Ok(GrantWrite::Written(generation))
@@ -252,6 +261,42 @@ pub(super) fn grants_name_team(connection: &dyn Connection, id: &str) -> Result<
             params![&subject],
         )?
         .is_some())
+}
+
+/// Whether `subjects` let a caller read without signing in.
+fn is_public(subjects: &[(String, String)]) -> bool {
+    subjects
+        .iter()
+        .any(|(subject, action)| {
+            action == "read" && matches!(subject.as_str(), "$all" | "$anonymous")
+        })
+}
+
+/// Whether the grant `id`, or any grant when `None`, lets a caller read
+/// without signing in.
+fn gives_public_read(connection: &dyn Connection, id: Option<&str>) -> Result<bool> {
+    const PUBLIC: &str = "action = 'read' AND subject IN ('$all', '$anonymous')";
+    let found = match id {
+        Some(id) => connection.query_optional(
+            &format!("SELECT 1 FROM grant_subjects WHERE grant_id = ?1 AND {PUBLIC} LIMIT 1"),
+            params![id],
+        )?,
+        None => connection.query_optional(
+            &format!("SELECT 1 FROM grant_subjects WHERE {PUBLIC} LIMIT 1"),
+            params![],
+        )?,
+    };
+    Ok(found.is_some())
+}
+
+/// Invalidate every CDN-cached response when a write changed a grant that
+/// lets callers read without signing in, the only reads a shared cache holds.
+/// A write to any other grant leaves the cache alone.
+fn purge_public_reads(connection: &dyn Connection, public: bool) -> Result<()> {
+    if public {
+        super::cdn::enqueue(connection, "*")?;
+    }
+    Ok(())
 }
 
 fn refused_write(

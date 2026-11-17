@@ -184,7 +184,51 @@ async fn cdn_delivery_prioritizes_policy_and_retains_oldest_package_changes(db: 
     );
 }
 
+async fn cdn_invalidates_everything_only_for_grants_that_let_anyone_read(db: Db) {
+    let storage = storage(&db);
+    storage.enable_cdn_invalidations("example").await.unwrap();
+    let startup = storage.pending_cdn_invalidations().await.unwrap();
+    storage.acknowledge_cdn_invalidations(startup).await.unwrap();
+    let grant = |subject: &str| crate::database::GrantContent {
+        name: "readers".to_string(),
+        registries: vec!["local".to_string()],
+        subjects: vec![(subject.to_string(), "read".to_string())],
+        ..crate::database::GrantContent::default()
+    };
+    let pending = || async { storage.pending_cdn_invalidations().await.unwrap() };
+
+    storage
+        .put_grant("g-1", grant("$authenticated"), None)
+        .await
+        .unwrap();
+    storage
+        .set_grant_subjects("g-1", Vec::new(), None)
+        .await
+        .unwrap();
+    assert!(pending().await.is_empty());
+
+    // Opening the grant to everyone and closing it again both change what a
+    // shared cache may serve.
+    storage
+        .put_grant("g-1", grant("$all"), None)
+        .await
+        .unwrap();
+    let opened = pending().await;
+    assert_eq!(opened[0].package, "*");
+    storage.acknowledge_cdn_invalidations(opened).await.unwrap();
+    storage
+        .put_grant("g-1", grant("$authenticated"), None)
+        .await
+        .unwrap();
+    let closed = pending().await;
+    assert_eq!(closed[0].package, "*");
+    storage.acknowledge_cdn_invalidations(closed).await.unwrap();
+    storage.remove_grant("g-1", None).await.unwrap();
+    assert!(pending().await.is_empty());
+}
+
 conformance!(
+    cdn_invalidates_everything_only_for_grants_that_let_anyone_read,
     cdn_invalidations_survive_restarts_and_concurrent_acknowledgement,
     cdn_policy_changes_invalidate_all_aliases,
     cdn_ignores_scim_and_staged_writes_while_invalidating_registry_graphs,
