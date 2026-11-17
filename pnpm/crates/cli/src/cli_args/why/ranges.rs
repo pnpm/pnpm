@@ -14,26 +14,24 @@ const UNKNOWN_RANGE: &str = "<unknown>";
 
 struct Section<'a> {
     name: &'a str,
-    version: &'a str,
+    installed: &'a str,
     packages_by_range: BTreeMap<String, Vec<String>>,
 }
 
 /// One section per installed version. Peer variants of a version share
-/// a section.
+/// a section. A package without a version, such as a `file:` directory,
+/// is identified by its installed path.
 #[must_use]
 pub fn render_dependents_ranges(trees: &[DependentsTree]) -> String {
     let mut sections: Vec<Section<'_>> = Vec::new();
     for tree in trees {
         let name = tree.display_name.as_deref().unwrap_or(&tree.name);
+        let installed = installed_label(tree);
         let existing = sections
             .iter()
-            .position(|section| section.name == name && section.version == tree.version);
+            .position(|section| section.name == name && section.installed == installed);
         let index = existing.unwrap_or_else(|| {
-            sections.push(Section {
-                name,
-                version: &tree.version,
-                packages_by_range: BTreeMap::new(),
-            });
+            sections.push(Section { name, installed, packages_by_range: BTreeMap::new() });
             sections.len() - 1
         });
         collect_declarers(&tree.dependents, &mut sections[index].packages_by_range);
@@ -44,12 +42,16 @@ pub fn render_dependents_ranges(trees: &[DependentsTree]) -> String {
             format!(
                 "{}\n{}\n{}",
                 bold_styled(&plain(section.name)),
-                render_installed(section.version),
+                render_installed(section.installed),
                 render_wanted(&section.packages_by_range),
             )
         })
         .collect::<Vec<_>>()
         .join("\n\n")
+}
+
+fn installed_label(tree: &DependentsTree) -> &str {
+    if tree.version.is_empty() { tree.path.as_deref().unwrap_or_default() } else { &tree.version }
 }
 
 fn collect_declarers(

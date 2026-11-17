@@ -54,3 +54,28 @@ esbuild
       legacy@1.0.0",
     );
 }
+
+#[test]
+fn local_copies_without_a_version_get_a_section_per_path() {
+    let local = |path: &str, declarer: &str| {
+        let mut tree = tree("", None, vec![dependent(declarer, "1.0.0", Some("file:../foo"))]);
+        tree.path = Some(path.to_string());
+        tree
+    };
+    let trees = [local("/repo/app/foo", "app"), local("/repo/lib/foo", "lib")];
+
+    assert_eq!(
+        render_dependents_ranges(&trees),
+        "esbuild
+  Installed: /repo/app/foo
+  Wanted:
+    file:../foo:
+      app@1.0.0
+
+esbuild
+  Installed: /repo/lib/foo
+  Wanted:
+    file:../foo:
+      lib@1.0.0",
+    );
+}
