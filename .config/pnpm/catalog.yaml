@@ -29,7 +29,7 @@ catalog:
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
   '@rushstack/worker-pool': 0.7.32
-  '@stylistic/eslint-plugin': ^6.0.0
+  '@stylistic/eslint-plugin': ^6.0.1
   '@tybys/wasm-util': 0.10.4
   '@types/adm-zip': ^0.6.0
   '@types/archy': 0.0.36

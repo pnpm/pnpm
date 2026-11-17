@@ -9,4 +9,6 @@ This patch adds `Archive::set_max_metadata_size(Option<u64>)`. Raw and logical e
 iteration check GNU long-name, GNU long-link, and PAX payload sizes
 before buffering them. GNU sparse extension chains share the same byte bound. The default remains unrestricted for compatibility.
 
+`Cargo.toml` also caps `filetime` below 0.2.30; the comment there says why and when to drop the cap.
+
 Remove this local patch when upstream provides an equivalent metadata bound.
