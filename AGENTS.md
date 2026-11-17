@@ -100,7 +100,7 @@ pnpm --filter <package_name> run compile
 pnpm --filter pnpm run compile
 ```
 
-This runs `tsgo --build`, linting, and `pnpm run bundle` (which bundles all TypeScript packages into `pnpm11/pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
+This runs `tsc --build`, linting, and `pnpm run bundle` (which bundles all TypeScript packages into `pnpm11/pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
 
 ## Testing
 

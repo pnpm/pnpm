@@ -29,7 +29,7 @@
     "prepublishOnly": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "compile": "tsgo --build && pn lint --fix"
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/network.fetch": "workspace:*",

@@ -25,10 +25,10 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsgo --build && pn lint --fix",
+    "compile": "tsc --build && pn lint --fix",
     "test": "pn compile && pn .test",
     ".test": "node --test test/test.js test/e2e.test.js",
-    "prepublishOnly": "tsgo --build"
+    "prepublishOnly": "tsc --build"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",

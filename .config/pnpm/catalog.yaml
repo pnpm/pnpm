@@ -73,6 +73,7 @@ catalog:
   '@types/yauzl': ^3.4.0
   '@types/zkochan__table': npm:@types/table@6.3.2
   '@typescript-eslint/utils': ^8.72.2
+  '@typescript/native': npm:typescript@7.0.2
   '@webcontainer/api': ^1.6.4
   # @yarnpkg/core 4.9.2 was published with a Yarn `patch:` specifier for its
   # `got` dependency, which pnpm resolves to a nonexistent local path. The
@@ -273,10 +274,10 @@ catalog:
   touch: 3.1.1
   tree-kill: ^1.2.2
   ts-jest-resolver: 2.0.1
-  # Kept on 6.x because typescript-eslint does not support the TypeScript 7.0 API
-  # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940). The
-  # build compiles with TypeScript 7 from the `compiler` catalog.
-  typescript: 6.0.3
+  # The TypeScript 6.0 API, for typescript-eslint, which does not support
+  # TypeScript 7.0 yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940).
+  # Its bin is `tsc6`, so `tsc` is the 7.x compiler from '@typescript/native'.
+  typescript: npm:@typescript/typescript6@6.0.2
   typescript-eslint: ^8.72.2
   uid-number: 0.0.6
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
@@ -310,9 +311,6 @@ catalogs:
     confbox: 0.3.2
     picomatch: 4.0.7
     semver: 7.8.6
-  # The compiler that `tsgo` runs (pnpm11/__utils__/tsgo).
-  compiler:
-    typescript: 7.0.2
 
 catalogMode: strict
 
@@ -322,8 +320,8 @@ catalogPrune: true
 # update-lockfile workflow) would otherwise bump. Most of them are packages
 # whose newer versions require a Node.js version above pnpm's supported floor
 # (>=22.13); the comment at each catalog entry above records the reason.
-# typescript is held on 6.x in the default catalog because typescript-eslint does
-# not support the TypeScript 7.0 API yet.
+# typescript is held on 6.x because typescript-eslint does not support the
+# TypeScript 7.0 API yet.
 # The rusqlite crate is held on 0.39: from 0.41 its bundled SQLite collides
 # with libsql-ffi's copy when both link into one binary.
 update:

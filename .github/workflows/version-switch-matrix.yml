@@ -75,7 +75,7 @@ jobs:
       - name: Bundle pnpm v11
         shell: bash
         run: |
-          pnpm --filter pnpm exec tsgo --build
+          pnpm --filter pnpm exec tsc --build
           pnpm --filter pnpm run bundle
 
       - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11, 12, HEAD)

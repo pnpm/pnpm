@@ -25,11 +25,11 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "start": "tsgo --watch",
-    "compile": "tsgo --build && pn lint --fix"
+    "start": "tsc --watch",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/installing.client": "workspace:*",

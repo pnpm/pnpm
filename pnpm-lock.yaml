@@ -176,9 +176,6 @@ snapshots:
 		"excludeLinksFromLockfile": false,
 		"linkWorkspacePackages": false,
 		"catalogs": {
-			"compiler": {
-				"typescript": "7.0.2",
-			},
 			"default": {
 				"@babel/core": {
 					"specifier": "^7.29.7",
@@ -381,6 +378,7 @@ snapshots:
 					"specifier": "^8.72.2",
 					"version": "8.72.2",
 				},
+				"@typescript/native": "npm:typescript@7.0.2",
 				"@webcontainer/api": {
 					"specifier": "^1.6.4",
 					"version": "1.6.4",
@@ -930,7 +928,7 @@ snapshots:
 					"version": "1.2.2",
 				},
 				"ts-jest-resolver": "2.0.1",
-				"typescript": "6.0.3",
+				"typescript": "npm:@typescript/typescript6@6.0.2",
 				"typescript-eslint": {
 					"specifier": "^8.72.2",
 					"version": "8.72.2",
@@ -1080,7 +1078,6 @@ snapshots:
 				"@commitlint/cli": "catalog:",
 				"@commitlint/config-conventional": "catalog:",
 				"@commitlint/prompt-cli": "catalog:",
-				"@pnpm-private/tsgo": "workspace:*",
 				"@pnpm/eslint-config": "workspace:*",
 				"@pnpm/jest-config": "workspace:*",
 				"@pnpm/meta-updater": "catalog:",
@@ -1089,6 +1086,7 @@ snapshots:
 				"@types/jest": "catalog:",
 				"@types/node": "catalog:",
 				"@types/picomatch": "catalog:",
+				"@typescript/native": "catalog:",
 				"c8": "catalog:",
 				"cross-env": "catalog:",
 				"cspell": "catalog:",
@@ -1433,13 +1431,6 @@ snapshots:
 					"specifier": "workspace:*",
 					"version": "link:",
 				},
-			},
-		},
-
-		"pnpm11/__utils__/tsgo": {
-			"name": "@pnpm-private/tsgo",
-			"dependencies": {
-				"typescript": "catalog:compiler",
 			},
 		},
 
@@ -7315,7 +7306,7 @@ snapshots:
 					"below": true,
 				},
 				"typescript": {
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 					"below": true,
 				},
 			},
@@ -7397,7 +7388,7 @@ snapshots:
 			"engines": {"node": ">=22.12.0"},
 			"peerDependencies": {
 				"typescript": {
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 					"below": true,
 				},
 			},
@@ -7439,7 +7430,7 @@ snapshots:
 					"below": true,
 				},
 				"typescript": {
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 					"below": true,
 				},
 			},
@@ -7459,7 +7450,7 @@ snapshots:
 					"below": true,
 				},
 				"typescript": {
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 					"below": true,
 				},
 			},
@@ -9540,7 +9531,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.7",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 					"optional": true,
 				},
 			},
@@ -12122,7 +12113,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.8.4 <6.1.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 			"dependencies": {
@@ -12151,7 +12142,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.8.4 <6.1.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 			"dependencies": {
@@ -12173,7 +12164,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.8.4 <6.1.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 			"dependencies": {
@@ -12198,7 +12189,7 @@ snapshots:
 			"peerDependencies": {
 				"typescript": {
 					"specifier": ">=4.8.4 <6.1.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 		},
@@ -12217,7 +12208,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.8.4 <6.1.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 			"dependencies": {
@@ -12244,7 +12235,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.8.4 <6.1.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 			"dependencies": {
@@ -12274,7 +12265,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.8.4 <6.1.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 			"dependencies": {
@@ -12452,6 +12443,14 @@ snapshots:
 			"cpu": ["x64"],
 			"os": ["win32"],
 			"optional": true,
+		},
+
+		"@typescript/typescript6@6.0.2": {
+			"integrity": "sha512-mbCddXd+jm7hfx7w2YU64/Av4/NqqeG3GoRZgxPcgoTxYjhrcfJRw9ULch71SS4G+Q3bOXFhRvPqjguN0Hyp5w==",
+			"hasBin": true,
+			"dependencies": {
+				"@typescript/old": "typescript@6.0.3",
+			},
 		},
 
 		"@ungap/structured-clone@1.4.0": {
@@ -14055,7 +14054,7 @@ snapshots:
 			"peerDependencies": {
 				"typescript": {
 					"specifier": ">=4.9.5",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 					"optional": true,
 				},
 			},
@@ -14823,7 +14822,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.8.4 <8.0.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 					"optional": true,
 				},
 			},
@@ -14846,7 +14845,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=5.0.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 					"optional": true,
 				},
 			},
@@ -21084,7 +21083,7 @@ snapshots:
 			"peerDependencies": {
 				"typescript": {
 					"specifier": ">=4.8.4",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 		},
@@ -21261,7 +21260,7 @@ snapshots:
 				},
 				"typescript": {
 					"specifier": ">=4.8.4 <6.1.0",
-					"version": "6.0.3",
+					"version": "@typescript/typescript6@6.0.2",
 				},
 			},
 			"dependencies": {

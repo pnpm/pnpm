@@ -143,10 +143,8 @@ function setCompileScripts (manifest: ProjectManifest, scripts: Record<string, s
   }
   delete scripts._test
   delete scripts._compile
-  scripts.compile = 'tsgo --build && pn lint --fix'
+  scripts.compile = 'tsc --build && pn lint --fix'
   delete scripts.tsc
-  if (scripts.start?.includes('tsc --watch')) scripts.start = scripts.start.replace('tsc --watch', 'tsgo --watch')
-  if (scripts['.compile']?.includes('tsc --build')) scripts['.compile'] = scripts['.compile'].replace('tsc --build', 'tsgo --build')
 }
 
 function setLintScripts (manifest: ProjectManifest, scripts: Record<string, string>, dir: string): void {
@@ -164,7 +162,7 @@ function setPublishScripts (
   if (manifest.name === CLI_PKG_NAME) {
     manifest.publishConfig!.tag = nextTag
     manifest.publishConfig!.executableFiles = [...PUBLISH_EXECUTABLE_FILES]
-    scripts.build = 'tsgo --build && rimraf dist bin/nodes && pn bundle \
+    scripts.build = 'tsc --build && rimraf dist bin/nodes && pn bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
 && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates \
 && shx cp -r node_modules/ps-list/vendor dist/vendor \
@@ -173,7 +171,7 @@ function setPublishScripts (
     scripts.prepublishOnly = 'pn build && node bundle-deps.ts'
     return
   }
-  scripts.prepublishOnly = 'tsgo --build'
+  scripts.prepublishOnly = 'tsc --build'
 }
 
 function createRepository (manifest: ProjectManifest, relative: string): {
