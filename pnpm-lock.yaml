@@ -4723,6 +4723,7 @@ snapshots:
 				"@pnpm/config.normalize-registries": "workspace:*",
 				"@pnpm/crypto.hash": "workspace:*",
 				"@pnpm/deps.path": "workspace:*",
+				"@pnpm/deps.peer-range": "workspace:*",
 				"@pnpm/error": "workspace:*",
 				"@pnpm/installing.context": "workspace:*",
 				"@pnpm/installing.deps-resolver": "workspace:*",

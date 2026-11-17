@@ -151,6 +151,31 @@ test('installs a peer that consumers request through equivalent catalog referenc
   ])
 })
 
+test('re-resolves an auto-installed catalog peer of a file dependency when the catalog entry changes', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('consumer')
+  fs.writeFileSync('consumer/package.json', JSON.stringify({
+    name: 'consumer',
+    version: '1.0.0',
+    peerDependencies: { '@pnpm.e2e/peer-c': 'catalog:' },
+  }))
+  const manifest = { dependencies: { consumer: 'file:consumer' } }
+  const opts = (catalogEntry: string, frozenLockfile = false) => testDefaults({
+    autoInstallPeers: true,
+    catalogs: { default: { '@pnpm.e2e/peer-c': catalogEntry } },
+    frozenLockfile,
+  })
+  const lockedPeers = () => Object.keys(project.readLockfile().snapshots).filter((key) => key.startsWith('@pnpm.e2e/peer-c@'))
+
+  await install(manifest, opts('^1.0.0'))
+  expect(lockedPeers()).toStrictEqual(['@pnpm.e2e/peer-c@1.0.1'])
+  await install(manifest, opts('^1.0.0', true))
+
+  await install(manifest, opts('^2.0.0'))
+  expect(lockedPeers()).toStrictEqual(['@pnpm.e2e/peer-c@2.0.0'])
+  await install(manifest, opts('^2.0.0', true))
+})
+
 test('auto install latest when there is no common peer dependency range intersection', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
   const project = prepareEmpty()
