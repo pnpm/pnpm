@@ -29,6 +29,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_workspace_projects_graph::BaseProject;
+use ranges::render_dependents_ranges;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -49,6 +50,10 @@ pub struct WhyArgs {
     /// Search by a finder function declared in `.pnpmfile.cjs`.
     #[clap(long = "find-by")]
     pub find_by: Vec<String>,
+    /// Show the version ranges that the direct dependents of each matched
+    /// package declare, instead of the tree.
+    #[clap(long, conflicts_with_all = ["json", "parseable"])]
+    pub ranges: bool,
     #[clap(flatten)]
     pub output: crate::cli_args::list::TreeOutputArgs,
     #[clap(flatten)]
@@ -157,10 +162,10 @@ impl WhyArgs {
             search: &searcher,
             importer_info: &importer_info,
             manifest_fields: &[],
-            dependency_specifiers: if self.output.parseable {
-                DependencySpecifiers::Omit
-            } else {
+            dependency_specifiers: if self.output.json || self.ranges {
                 DependencySpecifiers::Include
+            } else {
+                DependencySpecifiers::Omit
             },
         })))
     }
@@ -196,7 +201,9 @@ impl WhyArgs {
 
     fn render(&self, trees: &[DependentsTree]) -> String {
         let render_opts = RenderDependentsOptions { long: self.output.long, depth: self.depth };
-        if self.output.parseable {
+        if self.ranges {
+            render_dependents_ranges(trees)
+        } else if self.output.parseable {
             render_dependents_parseable(trees, &render_opts)
         } else if self.output.json {
             render_dependents_json(trees, &render_opts)
@@ -255,3 +262,5 @@ fn why_project_dirs(
 fn state_project_dirs(state: &State, lockfile_dir: &Path) -> miette::Result<Vec<PathBuf>> {
     why_project_dirs(state.config, lockfile_dir, state.project_dir().to_path_buf())
 }
+
+mod ranges;

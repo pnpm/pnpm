@@ -224,10 +224,6 @@ fn why_shows_reverse_tree_for_direct_dep() {
     assert!(stdout.contains(PKG), "should mention the package: {stdout}");
     assert!(stdout.contains("100.0.0"), "should show the version: {stdout}");
     assert!(stdout.contains("test-why"), "should show the project as a dependent: {stdout}");
-    assert!(
-        stdout.contains("test-why@1.0.0 (dependencies) (requires 100.0.0)"),
-        "should show the direct dependency constraint: {stdout}",
-    );
 }
 
 #[test]
@@ -243,14 +239,6 @@ fn why_shows_reverse_tree_for_transitive_dep() {
     assert!(stdout.contains(DEP), "should mention the package: {stdout}");
     assert!(stdout.contains(PKG), "should show PKG as a dependent: {stdout}");
     assert!(stdout.contains("test-why"), "should show the project as a dependent: {stdout}");
-    assert!(
-        stdout.contains(&format!("{PKG}@100.0.0 (requires ^100.0.0)")),
-        "should show the transitive dependency constraint: {stdout}",
-    );
-    assert!(
-        stdout.contains("test-why@1.0.0 (dependencies) (requires 100.0.0)"),
-        "should show the root dependency constraint: {stdout}",
-    );
 }
 
 #[test]
@@ -706,7 +694,7 @@ fn why_marks_importer_dep_field_and_prints_summary() {
     assert_eq!(
         stdout,
         format!(
-            "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies) (requires 100.0.0)\n\nFound 1 version of {PKG}\n"
+            "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies)\n\nFound 1 version of {PKG}\n"
         ),
     );
 }

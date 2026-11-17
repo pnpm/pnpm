@@ -18,7 +18,9 @@
 pub use undeclared::{UndeclaredPeer, UndeclaredPeerInspector, WorkspaceRootScope};
 
 pub use filter::filter_peer_issues;
-pub use render::{BadPeerIssue, MissingPeerIssue, render_peer_issues};
+pub use render::{
+    BadPeerIssue, MissingPeerIssue, render_installed, render_peer_issues, render_wanted,
+};
 
 use std::{
     borrow::Cow,

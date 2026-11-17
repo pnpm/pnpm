@@ -68,3 +68,24 @@ fn why_preserves_selected_dependency_constraints() {
         assert_eq!(dependents[0]["depField"], field, "{flag}: {tree}");
     }
 }
+
+#[test]
+fn why_ranges_lists_the_ranges_direct_dependents_declare() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    for (package, installed, range, declarer) in [
+        (DEP, "100.1.0", "^100.0.0", format!("{PKG}@100.0.0")),
+        (PKG, "100.0.0", "100.0.0", "test-why@1.0.0".to_string()),
+    ] {
+        let output = pacquet(&workspace, ["why", "--ranges", package]).output().unwrap();
+        assert!(output.status.success(), "{package}: {output:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!(
+                "{package}\n  Installed: {installed}\n  Wanted:\n    {range}:\n      {declarer}\n"
+            ),
+        );
+    }
+}

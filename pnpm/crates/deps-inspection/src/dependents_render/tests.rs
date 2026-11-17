@@ -226,7 +226,7 @@ fn renders_package_with_no_dependents_and_a_search_message() {
 }
 
 #[test]
-fn renders_requires_in_tree_output() {
+fn tree_output_omits_requires() {
     let results = vec![tree(
         "target",
         "1.0.0",
@@ -244,11 +244,7 @@ fn renders_requires_in_tree_output() {
     )];
 
     let output = render_dependents_tree(&results, &opts(None));
-    assert!(output.contains("mid-a@2.0.0 (requires ^2.0.0)"), "output: {output}");
-    assert!(
-        output.contains("root-project@0.0.0 (dependencies) (requires workspace:*)"),
-        "output: {output}",
-    );
+    assert!(!output.contains("requires"), "output: {output}");
 }
 
 // Port of upstream's 'whySummary > single package, single version' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -581,9 +577,6 @@ fn merged_trees_keep_distinct_declared_constraints() {
     assert_eq!(merged[0].dependents[1].requires.as_deref(), Some("~1.0.0"));
     assert_eq!(merged[0].dependents[0].root_paths, ["/workspace/app/node_modules/target"]);
     assert_eq!(merged[0].dependents[1].root_paths, ["/workspace/lib/node_modules/target"]);
-    let output = render_dependents_tree(&merged, &opts(None));
-    assert!(output.contains("requires ^1.0.0"), "{output}");
-    assert!(output.contains("requires ~1.0.0"), "{output}");
     let json: Value = serde_json::from_str(&render_dependents_json(&merged, &opts(None))).unwrap();
     assert_eq!(json[0]["dependents"][0]["requires"], "^1.0.0");
     assert_eq!(json[0]["dependents"][1]["requires"], "~1.0.0");

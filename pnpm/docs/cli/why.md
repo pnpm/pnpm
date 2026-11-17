@@ -19,8 +19,6 @@ A package name or [`--find-by`](#--find-by-finder_name) is required. Without eit
 
 The output is a reverse dependency tree: the searched package appears at the root, with its dependents as branches, walking back to workspace roots.
 
-Tree output includes `(requires <specifier>)` on a dependent when its declared version constraint is available.
-
 Duplicate subtrees are deduplicated in the output and shown as "deduped".
 
 ## Options
@@ -40,7 +38,23 @@ Show verbose output.
 
 ### --parseable
 
-Show parseable output instead of tree view. Dependency constraints are omitted from this format.
+Show parseable output instead of tree view.
+
+### --ranges
+
+Show the version range that each direct dependent declares for the package, in place of the tree. Dependents that declare the same range are listed under it, and each installed version gets its own section:
+
+```text
+esbuild
+  Installed: 0.28.1
+  Wanted:
+    ^0.28.0:
+      vite@6.1.0
+    ~0.28.0:
+      tsx@4.23.1
+```
+
+A dependent whose `package.json` cannot be read is listed under `<unknown>`.
 
 ### --prod, -P, --production
 

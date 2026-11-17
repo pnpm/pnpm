@@ -70,8 +70,12 @@ fn push_bad_sections(project_issues: &PeerIssues, sections: &mut Vec<String>) {
     for (peer_name, issues) in &project_issues.bad {
         let header = format!("{} {}", yellow_bright("✕ unmet peer"), bold(peer_name));
         for (found_version, group) in &group_by_found_version(issues) {
-            let installed = format!("  {} {}", cyan("Installed:"), dim(found_version));
-            sections.push(format!("{}\n{}\n{}", header, installed, format_required_by(group)));
+            sections.push(format!(
+                "{}\n{}\n{}",
+                header,
+                render_installed(found_version),
+                format_required_by(group),
+            ));
         }
     }
 }
@@ -111,9 +115,21 @@ fn format_required_by(issues: &[impl RequiredByIssue]) -> String {
             pkgs.push(pkg);
         }
     }
+    render_wanted(&by_range)
+}
 
+/// The `Installed:` line of a report section.
+#[must_use]
+pub fn render_installed(version: &str) -> String {
+    format!("  {} {}", cyan("Installed:"), dim(version))
+}
+
+/// The `Wanted:` block of a report section: each range, followed by the
+/// packages that declare it.
+#[must_use]
+pub fn render_wanted(packages_by_range: &BTreeMap<String, Vec<String>>) -> String {
     let mut lines: Vec<String> = vec![format!("  {}", cyan("Wanted:"))];
-    for (range, pkgs) in &by_range {
+    for (range, pkgs) in packages_by_range {
         lines.push(format!("    {}{}", cyan_bright(&format_range(range)), cyan(":")));
         for pkg in pkgs {
             lines.push(format!("      {}", dim(pkg)));

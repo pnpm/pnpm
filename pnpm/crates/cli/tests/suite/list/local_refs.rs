@@ -104,7 +104,7 @@ fn list_and_why_format_aliased_file_and_scoped_link_dependencies() {
     let why_tree = run_ok(&app_dir, &["why", "my-local-pkg"]);
     assert_eq!(
         why_tree,
-        "my-local-pkg\n\u{2514}\u{2500}\u{2500} my-app@1.0.0 (dependencies) (requires file:../../local-pkg)\n\nFound 1 version of my-local-pkg\n",
+        "my-local-pkg\n\u{2514}\u{2500}\u{2500} my-app@1.0.0 (dependencies)\n\nFound 1 version of my-local-pkg\n",
     );
 
     let why_parseable = run_ok(&app_dir, &["why", "my-local-pkg", "--parseable", "--long"]);
