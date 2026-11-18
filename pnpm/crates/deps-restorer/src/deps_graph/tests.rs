@@ -69,6 +69,7 @@ fn variations_metadata() -> PackageMetadata {
     PackageMetadata {
         specifiers: None,
         resolution: LockfileResolution::Variations(VariationsResolution {
+            fallback: None,
             revision: None,
             variants: vec![
                 variant("sha512-AAAA".parse().unwrap(), "linux", None),

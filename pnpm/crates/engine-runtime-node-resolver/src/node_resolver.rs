@@ -193,7 +193,7 @@ impl NodeResolver {
         Ok(Some(node_resolve_result(
             wanted_dependency,
             format!("node@runtime:{version}").into(),
-            VariationsResolution::new(variants).into(),
+            VariationsResolution::without_fallback(variants).into(),
             &version,
             Some(format!("{RUNTIME_PROTOCOL}{range}")),
         )))

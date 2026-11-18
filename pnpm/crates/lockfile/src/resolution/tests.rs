@@ -124,8 +124,6 @@ mod behavior;
 
 mod variant_selection;
 
-mod variant_lockfile_form;
-
 mod streaming;
 
 mod security;

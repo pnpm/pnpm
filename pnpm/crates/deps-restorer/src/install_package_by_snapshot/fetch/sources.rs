@@ -158,7 +158,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_key: fetch.package_key,
                 package_id: fetch.package_id,
                 allow_build: &allow_build,
-                source: ArchiveSource::Any,
+                source: ArchiveSource::Primary,
             },
             tarball,
             cas_paths,

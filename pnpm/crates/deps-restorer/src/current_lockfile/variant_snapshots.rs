@@ -5,7 +5,8 @@
 use std::collections::HashMap;
 
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PlatformSelector, Prefix, SnapshotEntry, VersionPart,
+    Lockfile, LockfileResolution, PackageKey, PlatformSelector, Prefix, SelectedVariant,
+    SnapshotEntry, VersionPart,
 };
 
 const VARIANT_SEGMENT: &str = "/variants/";
@@ -64,7 +65,7 @@ fn take_variant_snapshots(lockfile: &mut Lockfile) -> Vec<(PackageKey, SnapshotE
 }
 
 /// The tag of the variant `platform` selects for the package of `base`, or
-/// `None` when it selects the variant that targets `any`, or nothing.
+/// `None` when it selects the primary or nothing.
 fn selected_tag(
     lockfile: &Lockfile,
     base: &PackageKey,
@@ -74,10 +75,10 @@ fn selected_tag(
         .as_ref()?
         .get(&base.without_peer())?;
     let LockfileResolution::Variations(variations) = &metadata.resolution else { return None };
-    variations
-        .select(platform)
-        .ok()??
-        .variant_tag()
+    match variations.select(platform).ok()?? {
+        SelectedVariant::Variant(variant) => variant.variant_tag(),
+        SelectedVariant::Fallback(_) => None,
+    }
 }
 
 /// Whether `lockfile` has a platform variant's own snapshot, so installing

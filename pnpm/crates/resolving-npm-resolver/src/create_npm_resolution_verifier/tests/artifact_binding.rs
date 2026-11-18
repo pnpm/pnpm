@@ -458,6 +458,7 @@ async fn verifies_variations_resolution_matching_tarball_url() {
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         revision: None,
         variants: vec![PlatformAssetResolution {
             resolution: LockfileResolution::Tarball(TarballResolution {
@@ -507,6 +508,7 @@ async fn rejects_variations_resolution_with_mismatched_tarball_url() {
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         revision: None,
         variants: vec![PlatformAssetResolution {
             resolution: LockfileResolution::Tarball(TarballResolution {
@@ -533,6 +535,7 @@ async fn rejects_variations_resolution_with_missing_integrity() {
     let opts = default_opts("https://registry.example/");
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         revision: None,
         variants: vec![PlatformAssetResolution {
             resolution: LockfileResolution::Tarball(TarballResolution {
@@ -554,23 +557,22 @@ async fn rejects_variations_resolution_with_missing_integrity() {
     assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
 }
 
-/// A host that no other variant matches installs the variant that targets
-/// `any`, so it is verified like every variant.
+/// A host that no variant matches installs the fallback, so the fallback
+/// is verified like a variant.
 #[tokio::test]
-async fn rejects_variations_resolution_with_an_unverifiable_any_variant() {
+async fn rejects_variations_resolution_with_an_unverifiable_fallback() {
     let opts = default_opts("https://registry.example/");
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: Some(Box::new(LockfileResolution::Tarball(TarballResolution {
+            tarball: "https://registry.example/pkg-1.0.0.tgz".to_string(),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }))),
         revision: None,
-        variants: vec![pnpm_lockfile::PlatformAssetResolution::any(LockfileResolution::Tarball(
-            TarballResolution {
-                tarball: "https://registry.example/pkg-1.0.0.tgz".to_string(),
-                integrity: None,
-                revision: None,
-                git_hosted: None,
-                path: None,
-            },
-        ))],
+        variants: vec![],
     });
     let name: PkgName = "variations-pkg".parse().expect("parse");
     assert!(verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
@@ -630,6 +632,7 @@ async fn verifies_a_variant_tarball_url_on_its_own_route() {
     let name: PkgName = "variations-pkg".parse().expect("parse");
 
     let on_route = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         revision: None,
         variants: vec![variant(format!("{server_url}/variations-pkg@1.0.0/variants/{tag}"))],
     });
@@ -637,6 +640,7 @@ async fn verifies_a_variant_tarball_url_on_its_own_route() {
     assert_eq!(result, ResolutionVerification::Ok);
 
     let other_version = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         revision: None,
         variants: vec![variant(format!("{server_url}/variations-pkg@2.0.0/variants/{tag}"))],
     });
@@ -694,6 +698,7 @@ async fn checks_a_variant_on_its_route_against_the_registry_it_is_fetched_from()
         path: None,
     });
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         revision: None,
         variants: vec![variant],
     });
@@ -732,6 +737,7 @@ async fn matches_a_variant_route_up_to_scheme_and_scope_encoding() {
         format!("https://registry.example/@scope%2fvariations-pkg@1.0.0/variants/{tag}"),
     ] {
         let resolution = LockfileResolution::Variations(VariationsResolution {
+            fallback: None,
             revision: None,
             variants: vec![PlatformAssetResolution {
                 resolution: LockfileResolution::Tarball(TarballResolution {

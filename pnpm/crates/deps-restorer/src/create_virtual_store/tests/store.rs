@@ -716,18 +716,16 @@ fn snapshot_cache_key_for_package_variants_follows_the_host() {
     let pkg = key("variations-pkg", "1.0.0");
     let mut metadata = git_metadata();
     metadata.resolution = LockfileResolution::Variations(VariationsResolution {
-        variants: vec![
-            PlatformAssetResolution::any(registry('A')),
-            PlatformAssetResolution {
-                resolution: registry('B'),
-                targets: vec![PlatformAssetTarget {
-                    os: host.os,
-                    cpu: host.cpu,
-                    libc: host.libc.filter(|libc| libc == "musl"),
-                    ..Default::default()
-                }],
-            },
-        ],
+        variants: vec![PlatformAssetResolution {
+            resolution: registry('B'),
+            targets: vec![PlatformAssetTarget {
+                os: host.os,
+                cpu: host.cpu,
+                libc: host.libc.filter(|libc| libc == "musl"),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(registry('A'))),
         revision: None,
     });
     let packages = HashMap::from([(pkg.clone(), metadata)]);
@@ -747,31 +745,27 @@ fn snapshot_cache_key_for_package_variants_follows_the_host() {
 /// lone one is, so an explicit build denial narrows it to the not-built
 /// key as the fetch path does.
 #[test]
-fn snapshot_cache_key_for_a_git_hosted_variations_any_archive_is_git_hosted() {
+fn snapshot_cache_key_for_a_git_hosted_variations_fallback_is_git_hosted() {
     use pnpm_lockfile::{
         LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
         VariationsResolution,
     };
     let pkg = key("foo", "1.0.0");
     let mut metadata = git_hosted_tarball_metadata();
-    let any_archive = metadata.resolution.clone();
+    let fallback = metadata.resolution.clone();
     metadata.resolution = LockfileResolution::Variations(VariationsResolution {
-        variants: vec![
-            PlatformAssetResolution::any(any_archive),
-            PlatformAssetResolution {
-                resolution: LockfileResolution::Registry(RegistryResolution {
-                    integrity: format!("sha512-{}==", "B".repeat(86))
-                        .parse()
-                        .expect("parse integrity"),
-                    revision: None,
-                }),
-                targets: vec![PlatformAssetTarget {
-                    os: "aix".to_string(),
-                    cpu: "ppc64".to_string(),
-                    ..Default::default()
-                }],
-            },
-        ],
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: format!("sha512-{}==", "B".repeat(86)).parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
         revision: None,
     });
     let packages = HashMap::from([(pkg.clone(), metadata)]);
@@ -784,7 +778,7 @@ fn snapshot_cache_key_for_a_git_hosted_variations_any_archive_is_git_hosted() {
 /// The warm build-policy check sees a git-hosted archive a `variations`
 /// resolution selects by its key, as it sees a lone git-hosted tarball.
 #[test]
-fn a_git_hosted_variations_any_archive_key_is_a_git_hosted_archive() {
+fn a_git_hosted_variations_fallback_key_is_a_git_hosted_archive() {
     use crate::create_virtual_store::warm::keys_git_hosted_archive;
     use pnpm_lockfile::{
         LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
@@ -793,22 +787,20 @@ fn a_git_hosted_variations_any_archive_key_is_a_git_hosted_archive() {
     let pkg = key("foo", "1.0.0");
     let package_id = pkg.pkg_id();
     let integrity = format!("sha512-{}==", "B".repeat(86));
-    let any_archive = git_hosted_tarball_metadata().resolution;
+    let fallback = git_hosted_tarball_metadata().resolution;
     let resolution = LockfileResolution::Variations(VariationsResolution {
-        variants: vec![
-            PlatformAssetResolution::any(any_archive),
-            PlatformAssetResolution {
-                resolution: LockfileResolution::Registry(RegistryResolution {
-                    integrity: integrity.parse().expect("parse integrity"),
-                    revision: None,
-                }),
-                targets: vec![PlatformAssetTarget {
-                    os: "aix".to_string(),
-                    cpu: "ppc64".to_string(),
-                    ..Default::default()
-                }],
-            },
-        ],
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity.parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
         revision: None,
     });
 
@@ -823,7 +815,7 @@ fn a_git_hosted_variations_any_archive_key_is_a_git_hosted_archive() {
 /// selects runs the build-permission check the fetch path runs: a package
 /// that needs preparing and that no policy allows is refused.
 #[test]
-fn warm_reuse_of_a_git_hosted_variations_any_archive_checks_build_permission() {
+fn warm_reuse_of_a_git_hosted_variations_fallback_checks_build_permission() {
     use crate::{AllowBuildPolicy, create_virtual_store::warm::enforce_cached_git_prepare_policy};
     use pnpm_lockfile::{
         LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
@@ -831,24 +823,20 @@ fn warm_reuse_of_a_git_hosted_variations_any_archive_checks_build_permission() {
     };
     let pkg = key("foo", "1.0.0");
     let mut metadata = git_hosted_tarball_metadata();
-    let any_archive = metadata.resolution.clone();
+    let fallback = metadata.resolution.clone();
     metadata.resolution = LockfileResolution::Variations(VariationsResolution {
-        variants: vec![
-            PlatformAssetResolution::any(any_archive),
-            PlatformAssetResolution {
-                resolution: LockfileResolution::Registry(RegistryResolution {
-                    integrity: format!("sha512-{}==", "B".repeat(86))
-                        .parse()
-                        .expect("parse integrity"),
-                    revision: None,
-                }),
-                targets: vec![PlatformAssetTarget {
-                    os: "aix".to_string(),
-                    cpu: "ppc64".to_string(),
-                    ..Default::default()
-                }],
-            },
-        ],
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: format!("sha512-{}==", "B".repeat(86)).parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
         revision: None,
     });
     let packages = HashMap::from([(pkg.clone(), metadata)]);

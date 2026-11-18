@@ -283,7 +283,7 @@ impl InstallPackageBySnapshot<'_> {
 
     /// Fetch the archive a `variations` resolution selects for this
     /// install's platform: a runtime's binary archive, or a registry
-    /// package's platform variant or its variant that targets `any`.
+    /// package's variant or primary tarball.
     async fn fetch_variations<Reporter: self::Reporter>(
         &self,
         fetch: &SnapshotFetch<'_>,
@@ -393,7 +393,7 @@ impl InstallPackageBySnapshot<'_> {
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
-            source: ArchiveSource::Any,
+            source: ArchiveSource::Primary,
         })
         .await
     }
