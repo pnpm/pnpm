@@ -2925,6 +2925,87 @@ test('allProjectsAreUpToDate(): returns true for an injected workspace dependenc
   expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
 })
 
+test('allProjectsAreUpToDate(): checks a plain-range workspace child of a directory dependency against its target and injection mode', async () => {
+  prepareEmpty()
+  await mkdir('vendor/lib', { recursive: true })
+  await mkdir('packages/workspace-child', { recursive: true })
+  await writeFile('./packages/workspace-child/package.json', JSON.stringify({
+    name: 'workspace-child',
+    version: '1.0.0',
+  }))
+  const projects = [
+    {
+      id: 'app' as ProjectId,
+      manifest: {
+        dependencies: {
+          lib: 'file:vendor/lib',
+        },
+      },
+      rootDir: 'app' as ProjectRootDir,
+    },
+  ]
+  const check = async ({
+    range = '^1.0.0',
+    ref,
+    depInjected = false,
+    injectWorkspacePackages = false,
+  }: {
+    range?: string
+    ref: string
+    depInjected?: boolean
+    injectWorkspacePackages?: boolean
+  }) => {
+    await writeFile('./vendor/lib/package.json', JSON.stringify({
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: { 'workspace-child': range },
+      ...(depInjected ? { dependenciesMeta: { 'workspace-child': { injected: true } } } : {}),
+    }))
+    return allProjectsAreUpToDate(projects, {
+      autoInstallPeers: false,
+      catalogs: {},
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      wantedLockfile: {
+        settings: {
+          autoInstallPeers: false,
+          excludeLinksFromLockfile: false,
+          injectWorkspacePackages,
+        },
+        importers: {
+          app: {
+            dependencies: { lib: 'file:vendor/lib' },
+            specifiers: { lib: 'file:vendor/lib' },
+          },
+        },
+        packages: {
+          'lib@file:vendor/lib': {
+            resolution: { directory: 'vendor/lib', type: 'directory' },
+            version: '1.0.0',
+            dependencies: { 'workspace-child': ref },
+          },
+          'workspace-child@file:packages/workspace-child': {
+            resolution: { directory: 'packages/workspace-child', type: 'directory' },
+            version: '1.0.0',
+          },
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+      } as LockfileObject,
+      workspacePackages: new Map(),
+      lockfileDir: process.cwd(),
+    })
+  }
+
+  expect(await check({ ref: 'link:packages/workspace-child' })).toBe(true)
+  expect(await check({ ref: 'link:packages/workspace-child', range: '^2.0.0' })).toBe(false)
+  expect(await check({ ref: 'link:packages/workspace-child', depInjected: true })).toBe(false)
+  expect(await check({ ref: 'link:packages/workspace-child', injectWorkspacePackages: true })).toBe(false)
+  expect(await check({ ref: 'file:packages/workspace-child', depInjected: true })).toBe(true)
+  expect(await check({ ref: 'file:packages/workspace-child', injectWorkspacePackages: true })).toBe(true)
+  expect(await check({ ref: 'file:packages/workspace-child' })).toBe(false)
+  expect(await check({ ref: 'file:packages/workspace-child', depInjected: true, range: '^2.0.0' })).toBe(false)
+})
+
 test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry even when skipping local directory dependencies', async () => {
   expect(await checkLinkedPackagesAreUpToDate({
     linkWorkspacePackages: true,

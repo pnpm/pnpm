@@ -372,7 +372,7 @@ fn local_spec_satisfies_injected(
         local_dep_dir,
         dep_name,
         spec,
-        Some(injected),
+        injected,
         lockfile_dep,
     )
     .expect("a local spec is judged")

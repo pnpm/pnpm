@@ -33,13 +33,10 @@ pub(super) fn spec_satisfies_snapshot_dep(
     local_dep_dir: &Path,
     dep_name: &str,
     spec: &str,
-    injected: Option<bool>,
+    injected: bool,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
-    if let Some(injected) = injected
-        && uses_injection_setting(spec)
-        && lockfile_dep.as_link_target().is_none() != injected
-    {
+    if uses_injection_setting(spec) && lockfile_dep.as_link_target().is_none() != injected {
         return Some(false);
     }
     if let Some(matches) =

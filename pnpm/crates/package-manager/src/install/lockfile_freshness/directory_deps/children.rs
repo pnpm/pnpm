@@ -140,8 +140,7 @@ fn peer_replaces_child(
             .ok()
             .and_then(|name| recorded.resolve(&name))
             .is_some_and(|provider| bound.binds(&provider)))
-        || implicit_workspace_target_satisfies(dep, child, recorded)
-            .unwrap_or_else(|| recorded_child_satisfies_spec(check, dep, child, recorded))
+        || recorded_child_satisfies_spec(check, dep, child, recorded)
 }
 
 fn recorded_catalog_spec_matches(
@@ -168,9 +167,7 @@ pub(super) fn catalog_child_is_fresh(
     snapshot: &pnpm_lockfile::SnapshotEntry,
     child: &DependencySpec,
 ) -> bool {
-    recorded_child(snapshot, &child.alias, RecordedDeps::of(child))
-        .and_then(|recorded| implicit_workspace_target_satisfies(dep, child, recorded))
-        .unwrap_or_else(|| child_is_fresh(check, dep, snapshot, child))
+    child_is_fresh(check, dep, snapshot, child)
 }
 
 fn recorded_local_target_is_fresh(
@@ -180,9 +177,9 @@ fn recorded_local_target_is_fresh(
     child: &DependencySpec,
 ) -> bool {
     let recorded = recorded_child(snapshot, &child.alias, RecordedDeps::of(child));
-    if let Some(satisfied) =
-        recorded.and_then(|recorded| implicit_workspace_target_satisfies(dep, child, recorded))
-    {
+    if let Some(satisfied) = recorded.and_then(|recorded| {
+        implicit_workspace_target_satisfies(check, dep, child, recorded)
+    }) {
         return satisfied;
     }
     let local = child.bare_specifier.starts_with("workspace:")
@@ -193,28 +190,23 @@ fn recorded_local_target_is_fresh(
         return true;
     }
     child_is_fresh(check, dep, snapshot, child)
-        && recorded
-            .and_then(|recorded| recorded.as_link_target())
-            .is_none_or(|target| {
-                super::spec::importer_range_link_satisfies(
-                    &dep.dirs,
-                    check.lockfile_dir,
-                    &child.alias,
-                    &child.bare_specifier,
-                    target,
-                )
-            })
 }
 
 fn implicit_workspace_target_satisfies(
+    check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     child: &DependencySpec,
     recorded: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
-    if recorded
-        .ver_peer()
-        .is_some_and(|version| matches!(version.version(), pnpm_lockfile::VersionPart::File(_)))
+    let recorded_local = recorded.as_link_target().is_some()
+        || recorded
+            .ver_peer()
+            .is_some_and(|version| {
+                matches!(version.version(), pnpm_lockfile::VersionPart::File(_))
+            });
+    if recorded_local
         && !child.bare_specifier.starts_with("workspace:")
+        && !child.bare_specifier.starts_with("link:")
         && !super::is_declared_by_path(&child.bare_specifier)
     {
         let spec = child.bare_specifier.strip_prefix("npm:").unwrap_or(&child.bare_specifier);
@@ -225,7 +217,7 @@ fn implicit_workspace_target_satisfies(
                 dep.dir,
                 &child.alias,
                 &workspace_spec,
-                None,
+                child.injected || workspace_packages_injected(check),
                 recorded,
             )
             .unwrap_or(false),
@@ -307,24 +299,30 @@ fn recorded_child_satisfies_spec(
     child: &DependencySpec,
     recorded: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    spec_satisfies_snapshot_dep(
-        &dep.dirs,
-        dep.dir,
-        &child.alias,
-        &child.bare_specifier,
-        Some(child_is_injected(check, child)),
-        recorded,
-    )
-    .unwrap_or(check.optional_exclusions.frozen_lockfile)
+    implicit_workspace_target_satisfies(check, dep, child, recorded)
+        .unwrap_or_else(|| {
+            spec_satisfies_snapshot_dep(
+                &dep.dirs,
+                dep.dir,
+                &child.alias,
+                &child.bare_specifier,
+                child_is_injected(check, child),
+                recorded,
+            )
+            .unwrap_or(check.optional_exclusions.frozen_lockfile)
+        })
 }
 
 fn child_is_injected(check: &ImporterSatisfactionCheck<'_>, child: &DependencySpec) -> bool {
     child.injected
-        || (child.bare_specifier.starts_with("workspace:")
-            && (check.config.inject_workspace_packages
-                || check.lockfile.settings
-                    .as_ref()
-                    .is_some_and(|settings| settings.inject_workspace_packages)))
+        || (child.bare_specifier.starts_with("workspace:") && workspace_packages_injected(check))
+}
+
+fn workspace_packages_injected(check: &ImporterSatisfactionCheck<'_>) -> bool {
+    check.config.inject_workspace_packages
+        || check.lockfile.settings
+            .as_ref()
+            .is_some_and(|settings| settings.inject_workspace_packages)
 }
 
 /// Which of a snapshot's two dependency maps a child is recorded in.

@@ -1546,3 +1546,96 @@ fn filtered_frozen_install_accepts_a_peer_a_read_package_hook_adds_to_an_injecte
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn frozen_install_checks_a_plain_range_workspace_child_of_a_directory_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlinkWorkspacePackages: deep\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::create_dir_all(workspace.join("packages/app")).expect("mkdir packages/app");
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "file:../../vendor/lib" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+    fs::create_dir_all(workspace.join("packages/workspace-child"))
+        .expect("mkdir packages/workspace-child");
+    fs::write(
+        workspace.join("packages/workspace-child/package.json"),
+        serde_json::json!({ "name": "workspace-child", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/workspace-child/package.json");
+    fs::create_dir_all(workspace.join("vendor/lib")).expect("mkdir vendor/lib");
+    let write_lib = |injected: &[&str]| {
+        let mut manifest = serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "dependencies": { "workspace-child": "^1.0.0" },
+        });
+        for child in injected {
+            manifest["dependenciesMeta"][child]["injected"] = serde_json::json!(true);
+        }
+        fs::write(workspace.join("vendor/lib/package.json"), manifest.to_string())
+            .expect("write vendor/lib/package.json");
+    };
+    let assert_frozen_outdated = || {
+        let output = pnpm_in(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .failure()
+            .get_output()
+            .clone();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("STDERR:\n{stderr}\n");
+        assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "stderr: {stderr}");
+    };
+
+    write_lib(&[]);
+    pnpm_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    eprintln!("LOCKFILE (linked):\n{lockfile}\n");
+    assert!(lockfile.contains("workspace-child: link:packages/workspace-child"));
+    pnpm_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    write_lib(&["workspace-child"]);
+    assert_frozen_outdated();
+
+    pnpm_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    eprintln!("LOCKFILE (injected):\n{lockfile}\n");
+    assert!(lockfile.contains("workspace-child: file:packages/workspace-child"));
+    pnpm_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    write_lib(&[]);
+    assert_frozen_outdated();
+
+    drop((root, mock_instance));
+}
