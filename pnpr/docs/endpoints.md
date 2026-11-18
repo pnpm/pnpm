@@ -306,8 +306,6 @@ are checked against the serving registry's matching
 | `GET` | `/@scope/{name}` | Scoped package packument. |
 | `GET` | `/{name}/{version-or-tag}` | Unscoped version manifest by exact version or dist-tag. |
 | `GET` | `/@scope/{name}/{version-or-tag}` | Scoped version manifest by exact version or dist-tag. |
-| `GET` | `/{name}@{version}/variants/{tag}` | Unscoped [platform variant](#platform-variants) tar. |
-| `GET` | `/@scope/{name}@{version}/variants/{tag}` | Scoped platform variant tar. |
 | `GET` | `/{name}/{version}+r{revision}` | Unscoped release record. See [pnpr's package document](#pnprs-package-document). |
 | `GET` | `/@scope/{name}/{version}+r{revision}` | Scoped release record. |
 | `GET` | `/{name}/{version}+r{revision}/evidence` | Unscoped release record's evidence. See [Release record logs](#release-record-logs). |
@@ -461,11 +459,8 @@ has:
 
 `interpretation` is the profile the manifest was derived under, and `inputs`
 are the digests it was derived from: the `.tgz` as published, and its
-`package.json` and `npm-shrinkwrap.json` by their paths in the archive. Each
-platform variant in `variants` has `inputs` of its own, and a `purl`: the
-record's with a `variant` qualifier naming its tag, with `+` written `%2B`, such
-as `pkg:npm/fast-thing@1.5.0?variant=linux-x64%2Blinux-x64-musl`. A registry with
-`tarballs: tar` serves the record with the tar's `integrity`.
+`package.json` and `npm-shrinkwrap.json` by their paths in the archive. A
+registry with `tarballs: tar` serves the record with the tar's `integrity`.
 
 Revision `0` is the original artifact, also of a version without registry
 revisions. A release record never changes once pnpr has verified the archive
@@ -559,6 +554,15 @@ pnpr rejects an invalid version with `400`, including versions in DELETE request
 Publish version keys with build metadata, such as `1.0.0+build.5`, return `400`
 with a message explaining that build metadata cannot be published.
 
+Publishing a version that already exists is a `409`. On the S3 backend, where
+several stateless replicas can write to one bucket, concurrent writers are
+resolved by conditional writes rather than last-write-wins. A publish or
+partial unpublish computed from a packument that another replica has since
+changed is rejected with a `409`; a dist-tag write instead replays its mutation
+against the fresh packument, and reports `409` only if it keeps losing. Either
+way no writer's update is silently discarded. See
+[Packument revisions](#packument-revisions) and [Storage backends](storage.md#concurrent-writers).
+
 ### Packument revisions
 
 A hosted package's full metadata document includes `_rev`. A partial unpublish
@@ -569,75 +573,6 @@ versions. Read the package metadata again before retrying.
 A deprecation PUT to `/{package}` must include the current `_rev`. It changes
 only the versions' `deprecated` fields. Dist-tags and other package metadata
 stay unchanged. A missing or stale `_rev` returns `409`.
-
-### Platform variants
-
-A hosted version can carry platform variants: archives that pnpm links in
-place of the version's own archive on the platforms they declare. Each variant
-is a complete package whose `package.json` has the version's `name` and
-`version` and declares its platforms as platform tags:
-
-```json
-{ "name": "fast-thing", "version": "1.4.0", "variant": { "platforms": ["linux-x64", "linux-x64-musl"] } }
-```
-
-A tag is `<os>-<cpu>`, then optionally `musl` or a glibc floor
-(`manylinux_2_28`), a macOS or Windows floor (`macos_11_0`, `windows_10_0`), an
-N-API floor (`napi8`) or a Node.js or Electron ABI (`node127`, `electron130`);
-or `wasm32`. Only the canonical form is accepted.
-
-A variant's tag is its platforms' tags, sorted and joined with `+`, such as
-`linux-x64+linux-x64-musl`, and at most 128 bytes long. The publish document
-attaches each variant as `<basename>-<version>~<tag>.tgz`, with the `.tgz`'s
-`integrity` beside its `data`, or with `integrity` alone for an archive
-[staged](ecosystems.md#staged-archives) before the publish, so a version's
-archives are not bounded by one request body.
-pnpr rejects the version when a variant:
-
-- has another `name` or `version`, or other `peerDependencies` or
-  `peerDependenciesMeta`, than the version;
-- requires a build;
-- has no `variant` field, one that does not parse, or an `os`, `cpu`, or
-  `libc` field;
-- declares platforms that give another tag than the one that names it;
-- lists a platform another variant lists;
-- is attached for a version the publish document does not describe, or
-  without an `integrity`.
-
-A version published with a provenance statement (its `.sigstore` attachment) is
-rejected unless the statement names every archive of the version: the `.tgz`
-that `dist.tarball` names by the version's PURL, such as `pkg:npm/%40acme/fast@1.0.0`, and each
-variant's `.tgz` by its PURL with the `variant` qualifier, each with its SHA-512.
-
-A variant may differ from the version in its files, dependencies, bundled
-dependencies, `bin`, `main`, `exports`, and `engines`. pnpr serves a
-variant's tar at `/{name}@{version}/variants/{tag}`, and at
-`/{name}@{version}+r{revision}/variants/{tag}` while that revision is selected.
-
-Only [pnpr's package document](#pnprs-package-document) and release records
-list the variants, under `variants`: each with its `tag`, structured
-`platforms`, tar `integrity`, sizes, `bins`, and a `manifest` of the fields
-that differ from the version's (`null` for a removed field). npm's documents
-do not list them, so npm clients install the version's own archive, its
-`any` archive.
-
-A version can also be published with variants only: its publish document has
-no `dist` and no `<basename>-<version>.tgz` attachment. pnpr then generates the
-archive npm's documents point to, a `package.json` that lists the union of the
-variants' `os`, `cpu`, and Linux `libc`, so npm reports an unsupported platform
-instead of installing an empty package. pnpr's package document and the release
-record describe such a version without a top-level `integrity`, by the manifest
-its variants share: their peer dependencies, and each dependency every variant
-declares with the same specifier.
-
-Publishing a version that already exists is a `409`. On the S3 backend, where
-several stateless replicas can write to one bucket, concurrent writers are
-resolved by conditional writes rather than last-write-wins. A publish or
-partial unpublish computed from a packument that another replica has since
-changed is rejected with a `409`; a dist-tag write instead replays its mutation
-against the fresh packument, and reports `409` only if it keeps losing. Either
-way no writer's update is silently discarded. See
-[Packument revisions](#packument-revisions) and [Storage backends](storage.md#concurrent-writers).
 
 ### Publish-time manifest verification {#publish-time-manifest-verification}
 
@@ -697,6 +632,10 @@ archive's exact `package.json` and `npm-shrinkwrap.json` bytes:
 ```
 
 A staged publish is verified when it is approved.
+
+A version published with a provenance statement (its `.sigstore` attachment) is
+rejected unless the statement names the `.tgz` that `dist.tarball` names: by the
+version's PURL, such as `pkg:npm/%40acme/fast@1.0.0`, with its SHA-512.
 
 ## Staged publishing endpoints
 

@@ -4,7 +4,7 @@
 //! spellings pnpm read before tags, which still name the same platform.
 
 use crate::{NamedPlatform, SupportedPlatform};
-use pnpm_platform_variants::{Floor, Libc, NodeAbi, Platform};
+use pnpm_platform_tags::{Floor, Libc, NodeAbi, Platform};
 use pretty_assertions::assert_eq;
 
 fn named(entry: &str) -> NamedPlatform {

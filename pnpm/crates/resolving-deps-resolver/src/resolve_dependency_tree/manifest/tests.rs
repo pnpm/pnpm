@@ -303,24 +303,6 @@ fn directory_specifiers_distinguish_empty_records_and_manifest_changes() {
     );
 }
 
-/// A child only a platform variant declares is injected by the variant's own
-/// `dependenciesMeta`, as the resolver injects it.
-#[test]
-fn directory_specifiers_record_a_variant_child_the_variant_injects() {
-    let manifest = serde_json::json!({
-        "dependencies": { "base": "^1.0.0" },
-        "dist": { "pnpr": { "variants": [{
-            "platforms": [{ "os": "linux", "cpu": "x64", "libc": "glibc" }],
-            "manifest": {
-                "dependencies": { "base": "^1.0.0", "native": "file:../native" },
-                "dependenciesMeta": { "native": { "injected": true } },
-            },
-        }] } },
-    });
-    let record = super::declared_specifiers(&manifest, "directory").expect("extract inputs");
-    assert_eq!(record.injected, Some(std::collections::BTreeSet::from(["native".to_string()])));
-}
-
 #[test]
 fn directory_specifiers_preserve_every_dependency_source() {
     for specifier in [

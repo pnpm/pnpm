@@ -10,7 +10,7 @@ pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fe
 use std::collections::{BTreeMap, HashSet};
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{AuthHeaders, ThrottledClient, escaped_package_name, redact_url_credentials};
+use pnpm_network::{AuthHeaders, ThrottledClient, escaped_package_name};
 use pnpm_network_web_auth::{
     Clock as WebAuthClock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError,
     OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
@@ -334,19 +334,14 @@ pub(crate) fn join_registry(
     registry: &NormalizedRegistryUrl,
     path: &str,
 ) -> Result<String, PublishPackedPkgError> {
-    url::Url::parse(registry.as_str())
-        .and_then(|base| base.join(path))
-        .map(|url| url.to_string())
-        .map_err(PublishPackedPkgError::InvalidUrl)
+    registry.join(path).map_err(PublishPackedPkgError::InvalidUrl)
 }
 
-/// Render the registry URL for logging with any `user:pass@` userinfo stripped,
-/// so credentials a user embedded in a `registry=` URL don't leak into CI logs.
-/// A typed entry point over [`redact_url_credentials`] for the
-/// `NormalizedRegistryUrl` log site; the unsanitized URL is still used for the
-/// request and auth-header lookup.
+/// Render the registry URL for logging (see
+/// [`NormalizedRegistryUrl::for_display`]); the unsanitized URL is still used
+/// for the request and auth-header lookup.
 pub(crate) fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
-    redact_url_credentials(registry.as_str())
+    registry.for_display()
 }
 
 /// Failure surface of [`publish_packed_pkg`].

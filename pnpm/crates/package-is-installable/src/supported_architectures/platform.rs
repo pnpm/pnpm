@@ -4,7 +4,7 @@ pub use architecture::Architecture;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_platform_variants::{Floor, Platform};
+use pnpm_platform_tags::{Floor, Platform};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::{fmt, str::FromStr};
 
@@ -178,10 +178,10 @@ impl NamedPlatform {
         let family = libc
             .as_ref()
             .map(|libc| match libc.family {
-                LibcFamily::Glibc => pnpm_platform_variants::Libc::Glibc,
-                LibcFamily::Musl => pnpm_platform_variants::Libc::Musl,
+                LibcFamily::Glibc => pnpm_platform_tags::Libc::Glibc,
+                LibcFamily::Musl => pnpm_platform_tags::Libc::Musl,
             });
-        let musl = family == Some(pnpm_platform_variants::Libc::Musl);
+        let musl = family == Some(pnpm_platform_tags::Libc::Musl);
         let platform = Platform {
             os: Some(os.name().to_string()),
             cpu: Some(architecture.cpu().to_string()),
@@ -211,8 +211,8 @@ impl NamedPlatform {
     #[must_use]
     pub fn libc(&self) -> Option<&'static str> {
         self.platform.libc.map(|libc| match libc {
-            pnpm_platform_variants::Libc::Glibc => LibcFamily::Glibc.name(),
-            pnpm_platform_variants::Libc::Musl => LibcFamily::Musl.name(),
+            pnpm_platform_tags::Libc::Glibc => LibcFamily::Glibc.name(),
+            pnpm_platform_tags::Libc::Musl => LibcFamily::Musl.name(),
         })
     }
 

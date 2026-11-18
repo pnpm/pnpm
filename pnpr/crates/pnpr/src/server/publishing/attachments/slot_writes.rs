@@ -8,7 +8,7 @@ use super::{
     },
     AttachmentKind, CanonicalPackageName, PendingAttachment, PreparedAttachment, PublishedTar,
     RegistryError, Storage, TarDerivation, TarballStorage, Value, WrittenAttachments,
-    cleanup_tmp_slots, variants,
+    cleanup_tmp_slots,
 };
 use crate::server::staged_archives::claim_staged_archive;
 use std::sync::Arc;
@@ -26,21 +26,14 @@ pub(in super::super) async fn write_attachment_slots(
     tarballs: TarballStorage,
     decodes: &Arc<Semaphore>,
 ) -> Result<WrittenAttachments, RegistryError> {
-    let mut written = WrittenAttachments {
-        slots: Vec::with_capacity(prepared.len()),
-        tars: Vec::new(),
-        variants: Vec::new(),
-    };
+    let mut written =
+        WrittenAttachments { slots: Vec::with_capacity(prepared.len()), tars: Vec::new() };
     for attachment in prepared {
         match write_attachment_slot((storage, claimant), name, attachment, tarballs, decodes).await
         {
             Ok((slot, tar)) => {
                 written.slots.push(slot);
-                match tar.map(variants::split_variant) {
-                    Some(Ok(variant)) => written.variants.push(variant),
-                    Some(Err(tar)) => written.tars.push(tar),
-                    None => {}
-                }
+                written.tars.extend(tar);
             }
             Err(err) => {
                 cleanup_tmp_slots(written.slots).await;
@@ -57,7 +50,7 @@ pub(in super::super) async fn write_attachment_slots(
 /// full to a readable package archive fails with a 400. Under
 /// [`TarballStorage::Tar`] the slot holds the tar. A tarball holds a permit
 /// from `decodes` until its tar is read.
-pub(in super::super) async fn write_attachment_slot(
+async fn write_attachment_slot(
     (storage, claimant): (&Storage, Option<&str>),
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
@@ -93,7 +86,7 @@ pub(in super::super) async fn write_attachment_slot(
             return Err(err);
         }
     }
-    Ok((slot, Some(published_tar(prepared.version, prepared.variant_tag, derived))))
+    Ok((slot, Some(published_tar(prepared.version, derived))))
 }
 
 async fn staged_bytes(
@@ -108,30 +101,14 @@ async fn staged_bytes(
     Ok((Some(bytes), Some(permit)))
 }
 
-fn published_tar(
-    version: String,
-    variant_tag: Option<String>,
-    derived: TarDerivation,
-) -> PublishedTar {
-    let variant = variant_tag.map(|tag| {
-        let tgz = derived.tgz_integrity.as_deref();
-        variants::variant_tar(tag, &derived.integrity, tgz, &derived.archive)
-    });
+fn published_tar(version: String, derived: TarDerivation) -> PublishedTar {
     let TarDerivation {
         tgz_integrity,
         integrity,
         inspection,
         archive,
     } = derived;
-    PublishedTar {
-        version,
-        tgz_integrity,
-        integrity,
-        inspection,
-        archive,
-        variant,
-        generated: false,
-    }
+    PublishedTar { version, tgz_integrity, integrity, inspection, archive }
 }
 
 async fn record_published_tar(
@@ -210,8 +187,8 @@ async fn acquire_decode_permit(
     held: Option<OwnedSemaphorePermit>,
 ) -> Option<OwnedSemaphorePermit> {
     match (kind, held) {
-        (AttachmentKind::Tarball | AttachmentKind::Variant, Some(permit)) => Some(permit),
-        (AttachmentKind::Tarball | AttachmentKind::Variant, None) => Some(
+        (AttachmentKind::Tarball, Some(permit)) => Some(permit),
+        (AttachmentKind::Tarball, None) => Some(
             Arc::clone(decodes)
                 .acquire_owned()
                 .await
@@ -293,10 +270,10 @@ fn decode_and_write_attachment(
     let filename = &attachment.filename;
     let length = attachment.declared_length;
     match (kind, attachment.inline_data(), staged) {
-        (AttachmentKind::Tarball | AttachmentKind::Variant, Some(data), _) => {
+        (AttachmentKind::Tarball, Some(data), _) => {
             stream_decode_verify_and_write(filename, data, length, dist_ref, tmp_path)?;
         }
-        (AttachmentKind::Tarball | AttachmentKind::Variant, None, Some(bytes)) => {
+        (AttachmentKind::Tarball, None, Some(bytes)) => {
             verify_and_write(filename, bytes.as_slice(), length, dist_ref, tmp_path)?;
         }
         (AttachmentKind::Sigstore, Some(data), _) => {

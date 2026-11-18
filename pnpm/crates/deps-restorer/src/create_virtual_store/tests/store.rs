@@ -695,3 +695,20 @@ fn group_slots_by_dir_is_identity_without_gvs() {
     assert_eq!(groups.len(), 2, "non-GVS slots are unique per key; nothing may merge");
     assert!(groups.iter().all(|group| group.duplicates.is_empty()));
 }
+
+/// An `integrity` with no hash pins nothing, so the fetch path refuses the
+/// tarball as it refuses one with no `integrity`, and it gets no warm key.
+#[test]
+fn snapshot_cache_key_for_a_tarball_with_an_empty_integrity_is_absent() {
+    let pkg = key("foo", "1.0.0");
+    let mut metadata = tarball_metadata_without_integrity();
+    let pnpm_lockfile::LockfileResolution::Tarball(tarball) = &mut metadata.resolution else {
+        panic!("the fixture is a tarball resolution");
+    };
+    tarball.integrity = Some(ssri::Integrity { hashes: Vec::new() });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+
+    let received = snapshot_cache_key(&pkg, &packages, false, &crate::host_platform_selector())
+        .expect("snapshot_cache_key must not error");
+    assert_eq!(received.value, None);
+}

@@ -28,7 +28,7 @@ fn typed_bundle(subjects: &serde_json::Value, statement_type: &str, payload_type
 fn reads_subjects_from_a_bundle_as_json_or_base64() {
     let subjects = json!([
         { "name": "pkg:npm/a@1.0.0", "digest": { "sha512": "AB" } },
-        { "name": "pkg:npm/a@1.0.0?variant=x", "digest": { "sha256": "cd" } },
+        { "name": "pkg:npm/b@1.0.0", "digest": { "sha256": "cd" } },
     ]);
     let raw = bundle(&subjects);
     let expected = vec![("pkg:npm/a@1.0.0".to_string(), "ab".to_string())];
@@ -65,15 +65,12 @@ fn refuses_a_bundle_that_is_not_an_in_toto_statement() {
 }
 
 #[test]
-fn names_an_archive_by_any_spelling_of_its_name_but_not_of_its_variant() {
+fn names_an_archive_by_any_spelling_of_its_name() {
     let legacy = Purl::npm("legacy!pkg", "1.0.0").unwrap();
     assert!(names("pkg:npm/legacy!pkg@1.0.0", &legacy));
     assert!(names("pkg:npm/legacy%21pkg@1.0.0", &legacy));
     assert!(!names("pkg:npm/legacy!pkg@1.0.1", &legacy));
-    let variant = Purl::npm_variant("legacy!pkg", "1.0.0", "linux-x64+linux-arm64").unwrap();
-    assert!(names("pkg:npm/legacy!pkg@1.0.0?variant=linux-x64%2Blinux-arm64", &variant));
-    assert!(!names("pkg:npm/legacy!pkg@1.0.0?variant=linux-x64+linux-arm64", &variant));
-    assert!(!names("pkg:npm/legacy!pkg@1.0.0", &variant));
+    assert!(!names("pkg:npm/legacy!pkg@1.0.0?vcs_url=x", &legacy));
 }
 
 #[test]

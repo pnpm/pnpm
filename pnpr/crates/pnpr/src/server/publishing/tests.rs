@@ -1,5 +1,5 @@
 use super::{
-    attachments::{AttachmentKind, PreparedAttachment, TarballStorage, write_attachment_slot},
+    attachments::{AttachmentKind, PreparedAttachment, TarballStorage, write_attachment_slots},
     manifest::record_publisher,
 };
 use base64::Engine;
@@ -56,18 +56,22 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
         version: "1.0.0".to_string(),
         dist: json!({ "integrity": sha512(&tgz).to_string() }),
         kind: AttachmentKind::Tarball,
-        variant_tag: None,
     };
     let decodes = Arc::new(tokio::sync::Semaphore::new(0));
-    let write =
-        write_attachment_slot((&storage, None), &name, prepared, TarballStorage::Tgz, &decodes);
+    let write = write_attachment_slots(
+        (&storage, None),
+        &name,
+        vec![prepared],
+        TarballStorage::Tgz,
+        &decodes,
+    );
     tokio::pin!(write);
 
     let waited = tokio::time::timeout(Duration::from_millis(200), &mut write).await;
     assert!(waited.is_err(), "the write must wait for a decode permit");
     decodes.add_permits(1);
-    let (_slot, published) = write.await.unwrap();
-    assert!(published.is_some());
+    let written = write.await.unwrap();
+    assert_eq!(written.tars.len(), 1);
     let integrities = storage.read_tar_integrities(&name).await.unwrap();
     assert_eq!(
         integrities
@@ -143,20 +147,6 @@ fn a_response_carries_a_bounded_size_of_notices() {
     assert!(total <= 2048, "{total}");
     let longest_summary = format!("{} more versions were accepted with a notice", usize::MAX);
     assert!(longest_summary.len() <= 64);
-}
-
-#[test]
-fn a_tilde_in_the_package_name_does_not_make_a_variant_attachment() {
-    let name = CanonicalPackageName::parse("a~b", Ecosystem::Npm).unwrap();
-    assert!(super::variants::parse_variant_attachment(&name, "a~b-1.0.0.tgz").is_none());
-    let (blob, version, label) =
-        super::variants::parse_variant_attachment(&name, "a~b-1.0.0~musl.tgz")
-            .expect("a variant attachment")
-            .expect("a valid label");
-    assert_eq!(
-        (blob.as_str(), version.as_str(), label.as_str()),
-        ("a~b-1.0.0~musl.tgz", "1.0.0", "musl"),
-    );
 }
 
 #[test]

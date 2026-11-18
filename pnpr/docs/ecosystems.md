@@ -383,9 +383,7 @@ them, each reference counted. An archive the publishing account has not staged, 
 that has expired, fails the whole publish with `400`, and nothing of it is
 published. A retry of a
 committed request gets the recorded outcome without reading its archives
-again, so it succeeds even after they are gone. A version's
-[platform variants](endpoints.md#platform-variants) can be staged the same
-way. A sigstore bundle and a publish
+again, so it succeeds even after they are gone. A sigstore bundle and a publish
 [held for approval](endpoints.md#staged-publishing-endpoints) carry their bytes
 inline.
 

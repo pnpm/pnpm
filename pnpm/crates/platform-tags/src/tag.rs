@@ -140,34 +140,3 @@ impl Platform {
         Ok(parts.join("-"))
     }
 }
-
-/// The variant's name in routes and the lockfile: its platforms' tags,
-/// sorted by their bytes and joined with `+`.
-pub fn variant_tag(platforms: &[Platform]) -> Result<String, TagError> {
-    let mut tags = platforms
-        .iter()
-        .map(Platform::tag)
-        .collect::<Result<Vec<_>, _>>()?;
-    tags.sort_unstable();
-    Ok(tags.join("+"))
-}
-
-/// The longest variant tag, in bytes. A tag is one segment of a route and
-/// part of an archive's file name, so a variant that needs more platforms is
-/// split into several variants.
-pub const MAX_VARIANT_TAG_BYTES: usize = 128;
-
-/// Whether `tag` can name a variant in a route: `[a-z0-9._+-]+`, at most
-/// [`MAX_VARIANT_TAG_BYTES`], never `.` or `..`.
-#[must_use]
-pub fn is_valid_variant_tag(tag: &str) -> bool {
-    !tag.is_empty()
-        && tag.len() <= MAX_VARIANT_TAG_BYTES
-        && tag != "."
-        && tag != ".."
-        && tag
-            .bytes()
-            .all(|byte| {
-                byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._+-".contains(&byte)
-            })
-}

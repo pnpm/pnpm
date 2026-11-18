@@ -1,20 +1,9 @@
-//! Platform tags of package variants (the pnpr platform-variants RFC).
+//! Platform tags.
 //!
-//! A variant archive declares the platforms it runs on as tags, such as
-//! `linux-x64-musl` or `linux-x64-manylinux_2_28-napi8`. pnpr parses them
-//! into [`Platform`]s, the structured form its package document and pnpm's
-//! lockfile carry, and names the variant by [`variant_tag`]. pnpm derives
-//! the same name from the lockfile's targets and picks a variant for a host
-//! with [`select`].
+//! A platform tag, such as `linux-x64-musl` or
+//! `linux-x64-manylinux_2_28-napi8`, names one combination of OS, CPU, C
+//! library, version floors and ABI. [`Platform`] is its structured form.
 
-pub use manifests::variant_manifests;
-pub(crate) use pnpm_process as process;
-pub use selection::{AmbiguousSelection, Host, HostFloors, Purpose, select};
-pub use tag::{MAX_VARIANT_TAG_BYTES, is_valid_variant_tag, variant_tag};
-
-mod host_floors;
-mod manifests;
-mod selection;
 mod tag;
 
 use derive_more::{Display, Error};
@@ -109,9 +98,8 @@ impl<'de> Deserialize<'de> for NodeAbi {
     }
 }
 
-/// One platform a variant runs on, in the structured form of pnpr's package
-/// document and pnpm's lockfile. A field this vocabulary does not know fails
-/// to deserialize, so a client never selects a platform it cannot match.
+/// One platform, in structured form. A field this vocabulary does not know
+/// fails to deserialize.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Platform {
@@ -138,35 +126,6 @@ pub struct Platform {
     /// Matches every host, ranked last.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub wasm32: bool,
-}
-
-impl Platform {
-    /// The platform with glibc written out on Linux, as pnpr's document
-    /// writes it.
-    #[must_use]
-    pub fn with_explicit_glibc(mut self) -> Platform {
-        if self.os.as_deref() == Some("linux") && self.libc.is_none() {
-            self.libc = Some(Libc::Glibc);
-        }
-        self
-    }
-
-    /// The platform with glibc left out, as the lockfile writes it.
-    #[must_use]
-    pub fn without_explicit_glibc(mut self) -> Platform {
-        if self.libc == Some(Libc::Glibc) {
-            self.libc = None;
-        }
-        self
-    }
-
-    /// The C library, with an absent one on Linux read as glibc.
-    fn effective_libc(&self) -> Option<Libc> {
-        match self.libc {
-            None if self.os.as_deref() == Some("linux") => Some(Libc::Glibc),
-            libc => libc,
-        }
-    }
 }
 
 /// A platform tag that does not parse, or a platform that has no tag.

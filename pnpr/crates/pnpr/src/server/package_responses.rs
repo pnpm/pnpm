@@ -243,7 +243,6 @@ impl Representation {
         now: chrono::DateTime<Utc>,
     ) -> Result<(Vec<u8>, &'static str), RegistryError> {
         if self == Representation::InstallV2 {
-            super::publishing::variants::describe_variants(&mut doc);
             let anchor = super::split_packuments::document_anchor(&doc).unwrap_or(now);
             let trimmed = abbreviate_packument(&doc, anchor);
             let body = super::split_packuments::install_v2_body(&trimmed, documents)?;
