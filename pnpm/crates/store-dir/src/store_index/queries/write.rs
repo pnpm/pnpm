@@ -1,5 +1,7 @@
-use super::super::{PackageFilesIndex, StoreIndexError};
-use super::EncodingErrorPolicy;
+use super::{
+    super::{PackageFilesIndex, StoreIndexError},
+    EncodingErrorPolicy,
+};
 use rusqlite::Connection;
 
 pub(super) fn encode_index_entry(
