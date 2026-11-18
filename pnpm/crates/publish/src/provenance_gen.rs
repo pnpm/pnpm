@@ -64,11 +64,9 @@ where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
-    let sha512_hex = format!("{:x}", Sha512::digest(tarball_data));
-    let subject = json!([{
-        "name": npm_purl(package_name, package_version),
-        "digest": { "sha512": sha512_hex },
-    }]);
+    let ProvenanceSubject { name, sha512_hex } =
+        ProvenanceSubject::of(package_name, package_version, tarball_data);
+    let subject = json!([{ "name": name, "digest": { "sha512": sha512_hex } }]);
 
     let statement = build_statement::<Sys>(&subject)?;
     let statement_bytes = serde_json::to_vec(&statement).expect("serialize provenance statement");
@@ -107,6 +105,23 @@ pub trait SignProvenance {
 pub struct SignedProvenance {
     pub media_type: String,
     pub data: String,
+}
+
+/// The subject of a version's provenance statement: its archive, by the
+/// version's PURL and the archive's SHA-512.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ProvenanceSubject {
+    pub(crate) name: String,
+    pub(crate) sha512_hex: String,
+}
+
+impl ProvenanceSubject {
+    pub(crate) fn of(package_name: &str, package_version: &str, tarball_data: &[u8]) -> Self {
+        ProvenanceSubject {
+            name: npm_purl(package_name, package_version),
+            sha512_hex: format!("{:x}", Sha512::digest(tarball_data)),
+        }
+    }
 }
 
 /// Format the npm package coordinate as a PURL

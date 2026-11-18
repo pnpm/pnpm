@@ -651,6 +651,21 @@ fn local_directory_scope<'a>(
     is_local_directory(metadata, suffix).then_some(lockfile_dir).flatten()
 }
 
+/// [`gvs_layout_cache::load`], logging a hit.
+fn load_cached_suffixes(
+    cache_file: Option<gvs_layout_cache::CacheFile<'_>>,
+    expected: gvs_layout_cache::Expected<'_>,
+) -> Option<HashMap<PackageKey, String>> {
+    let gvs_suffixes = gvs_layout_cache::load(cache_file?, expected)?;
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "gvs.layout_cache_hit",
+        entries = gvs_suffixes.len(),
+        "phase complete",
+    );
+    Some(gvs_suffixes)
+}
+
 #[cfg(test)]
 mod tests;
 

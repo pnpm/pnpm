@@ -232,11 +232,11 @@ Use [`provenance`](#provenance) to set a default.
 
 Running a publish to a registry declared with [`serverType: pnpr`](../registries.md#servertype) again is safe, with or without provenance. A rerun that signs provenance again sends a new statement, so the registry answers that the version is already published. pnpm then reports the version as published only when all of these hold:
 
-- the version's release record names the same archives, the archive that targets `any` and each platform variant;
-- when the rerun signs provenance, the version has a statement naming every one of those archives;
+- the version's release record names the same archive;
+- when the rerun signs provenance, the version has a statement naming that archive;
 - the dist-tag the publish sets points at the version.
 
-Otherwise it fails with `ERR_PNPM_PUBLISHED_RELEASE_DIFFERS` and names what differs. A version without an `any` archive is compared by its variants only.
+Otherwise it fails with `ERR_PNPM_PUBLISHED_RELEASE_DIFFERS` and names what differs.
 
 ### --filter &lt;package_selector\>
 

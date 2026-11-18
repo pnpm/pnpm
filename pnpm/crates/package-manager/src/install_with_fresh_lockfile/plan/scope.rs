@@ -25,7 +25,6 @@ pub(in crate::install_with_fresh_lockfile) struct MaterializationScope {
 /// The second closure, with the importers that anchor project links.
 pub(in crate::install_with_fresh_lockfile) struct FinalScope {
     closure: Option<crate::MaterializationClosure>,
-    groups: crate::GroupSelection,
     pub(in crate::install_with_fresh_lockfile) project_anchor_importer_ids: HashSet<String>,
 }
 

@@ -1,5 +1,4 @@
 use super::{CreateVirtualStoreOutput, immutable_download, retain_dependency_closure};
-use crate::platform_selection::VariantPlatforms;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use std::collections::HashMap;
 
@@ -11,7 +10,6 @@ struct CachedBuildInputs<'a> {
     config: &'a pnpm_config::Config,
     allow_build_policy: &'a crate::AllowBuildPolicy,
     engine_name: Option<&'a str>,
-    supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
 impl CachedBuildInputs<'_> {
@@ -34,8 +32,7 @@ impl CachedBuildInputs<'_> {
         {
             return HashMap::new();
         }
-        let variant_platforms = VariantPlatforms::of(self.supported_architectures);
-        let graph = crate::build_deps_subgraph(snapshots, packages, (roots, &variant_platforms));
+        let graph = crate::build_deps_subgraph(snapshots, packages, roots);
         let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
         self.fetched.requires_build_by_snapshot
             .iter()
@@ -93,7 +90,6 @@ pub(super) fn retain(
     packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
     fetched: &CreateVirtualStoreOutput,
     context: &crate::InstallContext<'_>,
-    supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
 ) -> HashMap<PackageKey, String> {
     CachedBuildInputs {
         selected,
@@ -103,7 +99,6 @@ pub(super) fn retain(
         config: context.config,
         allow_build_policy: context.allow_build_policy,
         engine_name: context.linker.layout.engine_name(),
-        supported_architectures,
     }
     .retain()
 }

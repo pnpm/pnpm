@@ -18,10 +18,7 @@ use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry}
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache};
 use pnpm_tarball::PrefetchResult;
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
+use std::collections::HashMap;
 
 impl<'a> CreateVirtualStore<'a> {
     /// Execute the subroutine. Returns the set of bundled manifests
