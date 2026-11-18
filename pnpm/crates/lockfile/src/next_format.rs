@@ -78,6 +78,16 @@ impl LockfileFormat {
         crate::LockfileVersion::<9>::try_from(crate::ComVer::new(major, 0))
             .expect("both formats are supported")
     }
+
+    /// Whether a lockfile in this format records the `deprecated` notice of
+    /// a package, which the registry can change after the version is locked.
+    #[must_use]
+    pub fn records_deprecations(self) -> bool {
+        match self {
+            LockfileFormat::V9 => true,
+            LockfileFormat::V13 => false,
+        }
+    }
 }
 
 /// The next format's `snapshots`: every peer snapshot of a package, under the

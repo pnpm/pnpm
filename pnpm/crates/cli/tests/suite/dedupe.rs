@@ -258,6 +258,56 @@ fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
     drop((root, mock_instance));
 }
 
+/// The registry requests of `dedupe_args` run on the metadata cache that
+/// locking a pinned dependency left behind.
+fn warm_cache_dedupe_requests(
+    workspace_yaml: &str,
+    dedupe_args: &[&str],
+) -> Vec<pnpm_testing_utils::registry::RecordedRequest> {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_recording_mocked_registry_without_fields(&[]);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/deprecated": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(!mock_instance.take_requests().is_empty(), "the install must fill the cache");
+
+    pacquet_at(&workspace)
+        .with_args(dedupe_args)
+        .assert()
+        .success();
+
+    let requests = mock_instance.take_requests();
+    drop((root, mock_instance));
+    requests
+}
+
+#[test]
+fn dedupe_check_reads_cached_registry_metadata_for_locked_versions() {
+    assert_eq!(warm_cache_dedupe_requests("", &["dedupe", "--check"]), []);
+}
+
+#[test]
+fn dedupe_reads_cached_registry_metadata_when_the_lockfile_records_no_deprecations() {
+    assert_eq!(
+        warm_cache_dedupe_requests("lockfile:\n  format: v13\n", &["dedupe", "--lockfile-only"]),
+        [],
+    );
+}
+
 #[test]
 fn dedupe_materializes_node_modules_unless_lockfile_only() {
     let CommandTempCwd {
