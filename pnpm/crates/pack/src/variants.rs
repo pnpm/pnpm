@@ -13,16 +13,13 @@
 //! [`check_archive`] runs the checks of one packed archive.
 
 pub(crate) use export::export_entry_dependencies;
-pub use packing::{PackedArchive, PackedArchives, archive_result_json, pack_archives};
-pub(crate) use warnings::warn_about_declaration;
+pub use packing::{PackedArchive, archive_result_json, pack_archives};
 
 mod packing;
 
 mod export;
-
 #[cfg(test)]
 mod tests;
-mod warnings;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -261,7 +258,7 @@ impl VariantDeclaration {
 }
 
 /// `base` without the declaration, which no archive publishes.
-pub(crate) fn base_manifest(base: &Value) -> Value {
+fn base_manifest(base: &Value) -> Value {
     let mut manifest = base.clone();
     let Some(publish_config) = manifest.get_mut("publishConfig").and_then(Value::as_object_mut)
     else {

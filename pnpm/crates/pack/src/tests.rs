@@ -1355,8 +1355,6 @@ mod dotenv;
 mod output;
 mod variants;
 
-mod variant_warnings;
-
 #[test]
 fn bin_with_crlf_shebang_is_rejected() {
     use miette::Diagnostic;

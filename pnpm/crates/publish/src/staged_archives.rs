@@ -182,7 +182,7 @@ pub enum StagingError {
     #[diagnostic(
         code(ERR_PNPM_BATCH_PUBLISH_STAGING_FAILED),
         help(
-            "A registry declared `serverType: pnpr` receives each archive on its own request before the publish that references it. Nothing was published to this registry. Running the publish again uploads only the archives it still lacks."
+            "A registry declared `serverType: pnpr` receives each archive on its own request before the batch commit. Nothing was published to this registry. Running the publish again uploads only the archives it still lacks."
         )
     )]
     Failed {
