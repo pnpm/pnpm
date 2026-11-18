@@ -13,7 +13,10 @@ test('hoist', async () => {
   expect(hoist(lockfile!)).toBeTruthy()
 })
 
-test('hoist keeps a dependency that is also declared as a required peer when peers are not auto-installed', () => {
+test.each([
+  'dependencies',
+  'optionalDependencies',
+] as const)('hoist keeps a package from %s that is also declared as a peer when peers are not auto-installed', (depField) => {
   const lockfile: LockfileObject = {
     lockfileVersion: '9.0',
     importers: {
@@ -25,7 +28,7 @@ test('hoist keeps a dependency that is also declared as a required peer when pee
     packages: {
       ['parent@1.0.0' as DepPath]: {
         resolution: { integrity: 'sha512-parent' },
-        dependencies: { peer: '1.0.0' },
+        [depField]: { peer: '1.0.0' },
         peerDependencies: { peer: '*' },
       },
       ['peer@1.0.0' as DepPath]: {

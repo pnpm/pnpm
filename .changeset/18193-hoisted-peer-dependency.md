@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Fixed hoisted installs omitting a dependency that a package also declares as a required peer [#18193](https://github.com/pnpm/pnpm/issues/18193).
+Fixed `nodeLinker: hoisted` installs omitting a dependency that its parent also declares as a peer dependency when `autoInstallPeers` is disabled [#18193](https://github.com/pnpm/pnpm/issues/18193).

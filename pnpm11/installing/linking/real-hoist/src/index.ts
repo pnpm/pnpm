@@ -313,8 +313,14 @@ function resolvePeerNames (
   if (autoInstallPeers) {
     return new Set()
   }
-  return new Set([
-    ...Object.keys(pkgSnapshot.peerDependencies ?? {}).filter((name) => pkgSnapshot.dependencies?.[name] == null),
+  const peerNames = new Set([
+    ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
     ...(pkgSnapshot.transitivePeerDependencies ?? []),
   ])
+  // The lockfile records a peer even when the package's own dependency
+  // provides it. That dependency is a child of the node, not a peer.
+  for (const name of Object.keys({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })) {
+    peerNames.delete(name)
+  }
+  return peerNames
 }
