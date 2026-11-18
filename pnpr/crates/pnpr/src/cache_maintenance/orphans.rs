@@ -134,7 +134,10 @@ fn prune_orphan_entries(
 ) {
     for name in names {
         let ns = format!("{prefix}/{}", name.to_string_lossy());
-        if active.contains(&ns) {
+        if active
+            .iter()
+            .any(|active_ns| ns.starts_with(active_ns))
+        {
             continue;
         }
         if let Err(err) = remove_orphan_child(parent, &name, effect, outcome) {

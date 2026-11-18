@@ -6,6 +6,13 @@ use super::{
 use sha2::{Digest, Sha256};
 
 #[derive(Deserialize)]
+pub(super) struct OsvSeverity {
+    #[serde(rename = "type")]
+    pub(super) kind: String,
+    pub(super) score: String,
+}
+
+#[derive(Deserialize)]
 pub(super) struct OsvRecord {
     pub(super) id: String,
     #[serde(default)]
@@ -18,6 +25,10 @@ pub(super) struct OsvRecord {
     pub(super) database_specific: Option<OsvDatabaseSpecific>,
     #[serde(default)]
     pub(super) references: Vec<OsvReference>,
+    #[serde(default)]
+    pub(super) aliases: Option<Vec<String>>,
+    #[serde(default)]
+    pub(super) severity: Option<Vec<OsvSeverity>>,
 }
 
 #[derive(Deserialize)]
@@ -45,6 +56,10 @@ pub(super) struct OsvAffected {
     pub(super) versions: Vec<String>,
     #[serde(default)]
     pub(super) database_specific: Option<OsvAffectedDatabaseSpecific>,
+    #[serde(default)]
+    pub(super) severity: Option<Vec<OsvSeverity>>,
+    #[serde(default)]
+    pub(super) ecosystem_specific: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -156,7 +171,7 @@ fn process_one_affected(affected: OsvAffected, bounds: &mut AffectedBounds) {
         bounds.range_clauses.push(explicit.to_string());
     }
     for range in affected.ranges {
-        if explicit.is_none() {
+        if (range.kind == "SEMVER" || range.kind == "ECOSYSTEM") && explicit.is_none() {
             bounds.range_clauses.extend(format_range_events(&range.events));
         }
         if let Some(semver_range) = semver_range_from_osv(&range) {
@@ -215,21 +230,29 @@ fn build_bulk_advisory(record: &OsvRecord, vulnerable_versions: String) -> BulkA
 }
 
 fn build_vulnerable_versions_str(range_clauses: &[String], versions: &HashSet<String>) -> String {
+    let mut parts = Vec::new();
     if !range_clauses.is_empty() {
-        range_clauses.join(" || ")
-    } else if !versions.is_empty() {
+        parts.push(range_clauses.join(" || "));
+    }
+    if !versions.is_empty() {
         let mut sorted: Vec<&str> = versions
             .iter()
             .map(String::as_str)
             .collect();
         sorted.sort_unstable();
-        sorted.join(" || ")
-    } else {
-        "*".to_string()
+        parts.push(sorted.join(" || "));
     }
+    if parts.is_empty() { "*".to_string() } else { parts.join(" || ") }
 }
 
 fn advisory_url(record: &OsvRecord) -> String {
+    if let Some(aliases) = &record.aliases {
+        for alias in aliases {
+            if alias.starts_with("GHSA-") {
+                return format!("https://github.com/advisories/{}", alias);
+            }
+        }
+    }
     if record.id.starts_with("GHSA-") {
         return format!("https://github.com/advisories/{}", record.id);
     }
@@ -284,16 +307,31 @@ fn format_range_events(events: &[OsvEvent]) -> Vec<String> {
     let mut clauses = Vec::new();
     let mut current_intro: Option<&str> = None;
 
-    for (event, _) in sorted_format_events(events) {
-        if let Some(intro) = &event.introduced {
-            current_intro = Some(intro.as_str());
-        }
-        if let Some(fixed) = &event.fixed {
-            clauses.push(format_fixed_clause(current_intro, fixed));
-            current_intro = None;
-        } else if let Some(last) = &event.last_affected {
-            clauses.push(format_last_affected_clause(current_intro, last));
-            current_intro = None;
+    for (event, semver_event) in sorted_format_events(events) {
+        match semver_event {
+            SemverEvent::Introduced(_) => {
+                if let Some(intro) = &event.introduced {
+                    current_intro = Some(intro.as_str());
+                }
+            }
+            SemverEvent::Fixed(_) => {
+                if let Some(fixed) = &event.fixed {
+                    clauses.push(format_fixed_clause(current_intro, fixed));
+                    current_intro = None;
+                }
+            }
+            SemverEvent::LastAffected(_) => {
+                if let Some(last) = &event.last_affected {
+                    clauses.push(format_last_affected_clause(current_intro, last));
+                    current_intro = None;
+                }
+            }
+            SemverEvent::Limit(_) => {
+                if let Some(limit) = &event.limit {
+                    clauses.push(format_fixed_clause(current_intro, limit));
+                    current_intro = None;
+                }
+            }
         }
     }
 

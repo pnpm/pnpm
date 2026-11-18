@@ -39,11 +39,8 @@ pub(crate) async fn seed_default_graph(storage: &Storage) -> Result<(), Registry
     }
     let document = default_graph()?;
     let bound = super::stored::bound_namespaces(&document);
-    let mut seeded = super::stored::default_grants(
-        &document,
-        &pnpr_config::RegistryGraphDocument::default(),
-        None,
-    );
+    let mut seeded =
+        super::stored::default_grants(&document, &pnpr_config::RegistryGraphDocument::default());
     keep_hosted_registries_private(&mut seeded, &document);
     let document = serde_json::to_string(&document)?;
     let revision = NewRegistryGraph {
