@@ -4,8 +4,6 @@ use super::{
 };
 mod pending;
 use pending::apply_write_msg;
-#[cfg(test)]
-use pending::invalidate_side_effects;
 
 /// Handle producers use to hand rows off to the batched writer task. Clone
 /// cheaply via [`Arc`] to share across tokio tasks.

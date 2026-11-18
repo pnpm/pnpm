@@ -1,4 +1,4 @@
-use super::{WriteMsg, apply_write_msg, invalidate_side_effects};
+use super::{WriteMsg, apply_write_msg, pending::invalidate_side_effects};
 use crate::store_index::{
     MAX_WRITE_RETRIES, SideEffectsDiff, StoreIndex, StoreIndexError, retry_sqlite_write,
     tests::sample_index,
