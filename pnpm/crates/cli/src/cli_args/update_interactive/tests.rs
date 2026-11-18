@@ -594,6 +594,25 @@ async fn a_package_excluded_from_the_trust_policy_offers_its_downgrade() {
     );
 }
 
+/// `trustPolicyIgnoreAfter` waives the check for a version published
+/// longer ago than the cutoff, so the downgrade is offered.
+#[tokio::test]
+async fn a_downgrade_older_than_the_ignore_after_cutoff_is_offered() {
+    let choices = trust_of_choices(
+        ("foo", "^1.0.0", "1.0.0"),
+        TRUSTED_THEN_PROVENANCE,
+        |config, registry| {
+            no_downgrade(config, registry);
+            config.trust_policy_ignore_after = Some(60);
+        },
+    )
+    .await;
+    assert_eq!(
+        choices,
+        [trust_offer("1.1.0", TrustEvidence::TrustedPublisher, TrustEvidence::Provenance)],
+    );
+}
+
 #[tokio::test]
 async fn trust_is_not_looked_up_without_the_no_downgrade_policy() {
     let choices =

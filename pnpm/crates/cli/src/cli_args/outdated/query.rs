@@ -52,6 +52,7 @@ fn trust_gate(
             .map(pnpm_config::version_policy::create_package_version_policy)
             .transpose()
             .map_err(miette::Report::new)?,
+        trust_policy_ignore_after: config.trust_policy_ignore_after,
         ..Default::default()
     })
 }
