@@ -60,6 +60,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Download the release tarball and verify its provenance
+        timeout-minutes: 15
         # The release workflow attests every archive it uploads. Verifying here
         # is what keeps a substituted tarball from being republished as an
         # official RPM, which no later check would catch.

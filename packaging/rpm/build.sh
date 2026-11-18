@@ -12,7 +12,7 @@
 # a repository that cannot install offline.
 #
 # Outputs into $OUT_DIR (default dist/rpm):
-#   pnpm-<version>-1.x86_64.rpm
+#   pnpm-<version>-1.el8.x86_64.rpm
 #   repo/                                    dnf repository (repodata + pnpm.repo)
 #   pnpm-<version>-redos8-x86_64-repo.tar.gz the same repository, packed
 #
@@ -68,9 +68,9 @@ rpmbuild -bb "$spec_dir/pnpm.spec" \
 rpm_file=$(find "$work/RPMS/x86_64" -name '*.rpm' -print -quit)
 test -n "$rpm_file"
 
-# Named rather than globbed: OUT_DIR may be a directory that holds more than
-# this script's output, and a stale RPM left beside the current one would be
-# picked up by anything copying the directory.
+# Only this script's own outputs are removed: OUT_DIR may hold other files, and
+# a stale RPM left beside the current one would be picked up by anything copying
+# the directory.
 mkdir -p "$out_dir"
 rm -rf "${out_dir:?}/repo"
 rm -f "$out_dir"/pnpm-*.rpm "$out_dir"/pnpm-*-redos8-x86_64-repo.tar.gz
