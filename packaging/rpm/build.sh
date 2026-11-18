@@ -72,6 +72,11 @@ rpmbuild -bb "$spec_dir/pnpm.spec" \
 
 rpm_file=$(find "$work/RPMS/x86_64" -name '*.rpm' -print -quit)
 test -n "$rpm_file"
+# The file carries the release version even when the package version has '~',
+# so a prerelease's asset names match its tag. dnf reads the version from the
+# package header, not the file name.
+rpm_name=$(basename "$rpm_file")
+rpm_name=${rpm_name/"$rpm_version"/"$version"}
 
 # Outputs are assembled in a staging directory inside OUT_DIR, so replacing the
 # previous ones is a rename on one filesystem, done only once all are built.
@@ -92,8 +97,8 @@ if [ -z "$(find "$stage/repo" -name 'libatomic*.rpm' -print -quit)" ]; then
 fi
 test -n "$(find "$stage/repo" -name 'libatomic*.rpm' -print -quit)"
 
-cp "$rpm_file" "$stage/"
-cp "$rpm_file" "$stage/repo/"
+cp "$rpm_file" "$stage/$rpm_name"
+cp "$rpm_file" "$stage/repo/$rpm_name"
 cat > "$stage/repo/pnpm.repo" <<'EOF'
 [pnpm]
 name=pnpm
@@ -112,4 +117,4 @@ rm -rf "${out_dir:?}/repo"
 rm -f "$out_dir"/pnpm-*.rpm "$out_dir"/pnpm-*-el8-x86_64-repo.tar.gz
 mv "$stage"/* "$out_dir/"
 
-echo "Built $(basename "$rpm_file") for glibc $required_glibc in $out_dir"
+echo "Built $rpm_name for glibc $required_glibc in $out_dir"
