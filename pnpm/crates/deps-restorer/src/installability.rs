@@ -28,7 +28,6 @@ use reachability::{LockfileEdgeReach, walk_lockfile_edges};
 mod patched;
 mod platform;
 mod project;
-mod variants;
 use patched::without_published_engines;
 use platform::manifest_from_metadata;
 
@@ -442,8 +441,7 @@ fn cached_check(
     let manifest = manifest_from_metadata(metadata_key, metadata);
     let pkg_id = metadata_key.to_string();
     let options = InstallabilityOptions { optional, ..*base_options };
-    let verdict = check_installability(&pkg_id, &manifest, &options)?
-        .or_else(|| variants::variants_installability(&pkg_id, metadata, &options));
+    let verdict = check_installability(&pkg_id, &manifest, &options)?;
     check_cache.insert(cache_key, verdict.clone());
     Ok(verdict)
 }
@@ -469,9 +467,7 @@ pub fn package_metadata_is_installable(
         current_libc: host.libc,
         supported_architectures: host.supported_architectures.as_ref(),
     };
-    let package_id = metadata_key.to_string();
-    Ok(check_installability(&package_id, &manifest, &options)?.is_none()
-        && variants::variants_installability(&package_id, metadata, &options).is_none())
+    Ok(check_installability(&metadata_key.to_string(), &manifest, &options)?.is_none())
 }
 
 fn emit_skipped<Reporter: self::Reporter>(

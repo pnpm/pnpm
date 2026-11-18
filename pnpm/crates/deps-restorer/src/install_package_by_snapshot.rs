@@ -173,14 +173,9 @@ pub enum InstallPackageBySnapshotError {
     /// or whether the lockfile was generated without the host's
     /// architecture in mind.
     #[display(
-        "No archive of `{package_key}` runs on the selected platform ({selected_target}). It is published for: {available_targets}"
+        "Package `{package_key}` is a runtime dependency, but none of its declared variants matches the selected triple ({selected_target}). Available variants: {available_targets}"
     )]
-    #[diagnostic(
-        code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT),
-        help(
-            "Install it on one of those platforms, or depend on it as an optional dependency so a host it does not support skips it."
-        )
-    )]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT))]
     NoMatchingPlatformVariant {
         package_key: String,
         selected_target: String,
