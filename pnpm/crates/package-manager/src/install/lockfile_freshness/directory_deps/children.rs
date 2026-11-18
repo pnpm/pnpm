@@ -140,7 +140,19 @@ fn peer_replaces_child(
             .ok()
             .and_then(|name| recorded.resolve(&name))
             .is_some_and(|provider| bound.binds(&provider)))
-        || recorded_child_satisfies_spec(check, dep, child, recorded)
+        || recorded_child_satisfies_spec(
+            check,
+            dep,
+            &DependencySpec {
+                injected: recorded
+                    .ver_peer()
+                    .is_some_and(|version| {
+                        matches!(version.version(), pnpm_lockfile::VersionPart::File(_))
+                    }),
+                ..child.clone()
+            },
+            recorded,
+        )
 }
 
 fn recorded_catalog_spec_matches(
