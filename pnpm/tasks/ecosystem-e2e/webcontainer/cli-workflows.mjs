@@ -86,7 +86,7 @@ export function inspectionWorkflowSteps (entry) {
     { name: 'unlink with the dislink alias', command: 'node', args: [entry, '--dir', '.link-audit', 'dislink', '@fixture/local'] },
     { name: 'verify dislink removed the installed symlink', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('node:fs').existsSync('./.link-audit/node_modules/@fixture/local'), false)"] },
     { name: 'preview a package version bump', command: 'node', args: [entry, '--dir', 'packages/local', 'version', 'patch', '--dry-run'], expectOutput: '1.0.1' },
-    { name: 'show release lane membership', command: 'node', args: [entry, 'lane'], expectOutput: '@fixture/local' },
+    { name: 'show packages on the main lane', command: 'node', args: [entry, 'lane'], expectOutput: 'All packages are on the main lane.' },
     { name: 'move a package to a prerelease lane', command: 'node', args: [entry, 'lane', 'preview', '--filter', '@fixture/local'], expectOutput: 'preview' },
     { name: 'show the updated release lane', command: 'node', args: [entry, 'lane'], expectOutput: 'preview' },
     { name: 'move the package back to the main lane', command: 'node', args: [entry, 'lane', 'main', '--filter', '@fixture/local'], expectOutput: 'main lane' },
