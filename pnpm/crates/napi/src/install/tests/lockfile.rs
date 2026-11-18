@@ -48,8 +48,6 @@ fn lockfile_records_overrides_in_declaration_order() {
     assert!(zzz < aaa, "overrides must keep declaration order (zzz before aaa), got:\n{lockfile}");
 }
 
-/// `lockfileFormat: "v13"` writes the wanted lockfile in the next format,
-/// and an install without the option keeps writing `9.0`.
 #[test]
 fn lockfile_format_selects_the_written_lockfile_version() {
     let registry = TestRegistry::start();
@@ -86,22 +84,78 @@ fn lockfile_format_selects_the_written_lockfile_version() {
 
         let lockfile =
             std::fs::read_to_string(project_dir.join("pnpm-lock.yaml")).expect("read lockfile");
-        let version = lockfile
-            .lines()
-            .find_map(|line| {
-                line.trim()
-                    .strip_prefix("lockfileVersion: ")
-                    .or_else(|| line.trim().strip_prefix(r#""lockfileVersion": "#))
-            })
-            .map(|value| {
-                value
-                    .trim_end_matches(',')
-                    .trim_matches(['\'', '"'])
-            });
         assert_eq!(
-            version,
+            lockfile_version(&lockfile),
             Some(expected_version),
             "lockfileFormat {lockfile_format:?} must write lockfileVersion {expected_version}, got:\n{lockfile}",
         );
     }
+}
+
+/// Removing a dependency is absorbed by the fast lockfile update, which
+/// writes the loaded lockfile instead of a freshly resolved one.
+#[test]
+fn lockfile_format_applies_to_a_fast_updated_lockfile() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let project = |manifest: serde_json::Value| NodeApiProject {
+        root_dir: project_dir_string.clone(),
+        manifest,
+        dependency_manifest: None,
+    };
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![project(serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/foo": "100.0.0",
+            "@pnpm.e2e/bar": "100.0.0"
+        }
+    }))];
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("install with v9");
+
+    options.projects = vec![project(serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/foo": "100.0.0"
+        }
+    }))];
+    options.lockfile_format = Some("v13".to_string());
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("install with v13");
+
+    let lockfile =
+        std::fs::read_to_string(project_dir.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert_eq!(lockfile_version(&lockfile), Some("13.0"), "got:\n{lockfile}");
+    assert!(
+        !lockfile.contains("@pnpm.e2e/bar"),
+        "the removed dependency is gone, got:\n{lockfile}",
+    );
+}
+
+/// The `lockfileVersion` of a lockfile in either the YAML (`9.0`) or the
+/// JSON-shaped (`13.0`) format.
+fn lockfile_version(lockfile: &str) -> Option<&str> {
+    lockfile
+        .lines()
+        .find_map(|line| {
+            line.trim()
+                .strip_prefix("lockfileVersion: ")
+                .or_else(|| line.trim().strip_prefix(r#""lockfileVersion": "#))
+        })
+        .map(|value| {
+            value
+                .trim_end_matches(',')
+                .trim_matches(['\'', '"'])
+        })
 }
