@@ -169,7 +169,7 @@ fn make_outdated_query<'a>(
         ignore_names,
         include_deprecated: false,
         full_metadata: false,
-        trust_evidence: false,
+        apply_trust_policy: false,
     }
 }
 

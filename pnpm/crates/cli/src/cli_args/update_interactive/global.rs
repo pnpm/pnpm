@@ -56,7 +56,7 @@ fn global_outdated_query<'a>(
         ignore_names: ignored,
         include_deprecated: false,
         full_metadata: false,
-        trust_evidence: false,
+        apply_trust_policy: false,
     }
 }
 

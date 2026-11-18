@@ -16,6 +16,7 @@ use crate::cli_args::{
     engine_deps::{DeclaredEngineDep, declared_engine_deps, min_version_of_spec},
 };
 use candidates::{collect_importer_candidates, outdated_dependency};
+use pnpm_config::TrustPolicy;
 use pnpm_resolving_npm_resolver::TrustEvidence;
 
 mod candidates;
@@ -32,6 +33,27 @@ pub(crate) struct OutdatedRun {
     pub(super) resolver: DefaultResolver,
     pub(super) resolve_options: ResolveOptions,
     pub(super) catalogs: Catalogs,
+}
+
+/// The `trustPolicy` gate `pnpm update` resolves under, when `query`
+/// applies it.
+fn trust_gate(
+    config: &Config,
+    query: &OutdatedQuery<'_>,
+) -> miette::Result<pnpm_resolving_resolver_base::ResolutionPolicyOptions> {
+    if !query.apply_trust_policy || config.trust_policy == TrustPolicy::Off {
+        return Ok(pnpm_resolving_resolver_base::ResolutionPolicyOptions::default());
+    }
+    Ok(pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+        trust_policy: Some(config.trust_policy),
+        trust_policy_exclude: config.trust_policy_exclude
+            .as_deref()
+            .filter(|patterns| !patterns.is_empty())
+            .map(pnpm_config::version_policy::create_package_version_policy)
+            .transpose()
+            .map_err(miette::Report::new)?,
+        ..Default::default()
+    })
 }
 
 impl OutdatedRun {
@@ -61,7 +83,7 @@ impl OutdatedRun {
                 policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                     published_by: policy.published_by,
                     published_by_exclude: policy.published_by_exclude,
-                    ..Default::default()
+                    ..trust_gate(config, query)?
                 },
                 ..ResolveOptions::default()
             },
@@ -264,7 +286,7 @@ pub(crate) struct OutdatedMetadata {
     /// differs from 3-component semver (e.g. PEP 440 `"1.0"`).
     pub display_versions: Option<Box<OutdatedDisplayVersions>>,
     /// The trust evidence of `current` and `target`, set only when the
-    /// query asked for it with [`OutdatedQuery::trust_evidence`].
+    /// query asked for it with [`OutdatedQuery::apply_trust_policy`].
     pub trust: Option<TrustChange>,
 }
 
@@ -319,10 +341,11 @@ pub struct OutdatedQuery<'a> {
     /// metadata. The full document is the only source of `homepage`,
     /// which the `--long` details column renders.
     pub full_metadata: bool,
-    /// Look up the trust evidence of each registry dependency's current
-    /// and target versions, for the interactive update list's `Trust`
-    /// column.
-    pub trust_evidence: bool,
+    /// Pick targets under the configured `trustPolicy`, as `pnpm update`
+    /// does, and record the trust evidence of each registry dependency's
+    /// current and target versions for the interactive update list's
+    /// `Trust` column.
+    pub apply_trust_policy: bool,
 }
 
 impl OutdatedQuery<'_> {

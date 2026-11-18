@@ -262,12 +262,13 @@ pub(crate) fn colorize_target(pkg: &OutdatedPackage) -> String {
 }
 
 /// The interactive update list's `Trust` cell: the target version's
-/// evidence, red with the installed version's evidence beside it when the
-/// update would weaken it.
+/// evidence, in yellow with the installed version's evidence beside it when
+/// the target's is weaker. The `trustPolicy` gate has already set aside
+/// such a target unless `trustPolicyExclude` exempts it.
 pub(crate) fn render_trust_change(change: TrustChange) -> String {
     let target = trust_label(change.target);
     if change.target < change.current {
-        return red(&format!("{target} (was {})", trust_label(change.current)));
+        return yellow(&format!("{target} (was {})", trust_label(change.current)));
     }
     match change.target {
         Some(_) => green(target),

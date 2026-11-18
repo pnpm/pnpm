@@ -8,6 +8,10 @@ use super::{
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_resolving_resolver_base::VersionSelectorType;
 use pnpm_resolving_npm_resolver::{TrustEvidence, get_manifest_trust_evidence};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+};
+use std::sync::Arc;
 
 pub(super) struct OutdatedCandidate<'a> {
     pub(super) alias: &'a str,
@@ -129,11 +133,12 @@ pub(super) async fn outdated_dependency(
             .0
             .to_string()
     };
+    let bare_specifier = bare_specifier.into_owned();
     let latest = resolve_outdated_target(
         run,
         query,
         &candidate,
-        bare_specifier.into_owned(),
+        bare_specifier.clone(),
         &resolved_package_name,
     )
     .await?;
@@ -146,46 +151,60 @@ pub(super) async fn outdated_dependency(
     else {
         return Ok(None);
     };
-    if query.trust_evidence && !is_engine {
+    if query.apply_trust_policy && !is_engine {
         package.metadata.trust = Some(TrustChange {
-            current: current_trust_evidence(run, &package, &resolved_package_name).await,
+            current: current_trust_evidence(run, &package, bare_specifier).await,
             target: get_manifest_trust_evidence(&target_manifest),
         });
     }
     Ok(Some(package))
 }
 
-/// The trust evidence of the version `package` has installed. The lookup
-/// reads the packument the target resolution already fetched. A version
-/// the registry no longer serves reads as having no evidence: the column
-/// it feeds is advisory, and the install's own trust check still runs.
+/// The trust evidence of the version `package` has installed, or `None`
+/// when it cannot be read.
+///
+/// `bare_specifier` is resolved again with the installed version
+/// preferred, so the lookup goes to the registry the specifier names and
+/// reads the packument the target resolution already fetched. The release
+/// age and trust filters are dropped: they decide what to install, and the
+/// installed version is already chosen. A pick other than the installed
+/// version, such as a dist-tag's, is discarded.
 async fn current_trust_evidence(
     run: &OutdatedRun,
     package: &OutdatedPackage,
-    resolved_package_name: &str,
+    bare_specifier: String,
 ) -> Option<TrustEvidence> {
-    let bare_specifier = if resolved_package_name == package.alias {
-        package.current.to_string()
-    } else {
-        format!("npm:{resolved_package_name}@{}", package.current)
-    };
-    run.resolver
+    let mut options = run.resolve_options.clone();
+    options.policy = pnpm_resolving_resolver_base::ResolutionPolicyOptions::default();
+    options.version.preferred_versions = Arc::new(PreferredVersions::from([(
+        package.package_name.clone(),
+        VersionSelectors::from([(
+            package.current.to_string(),
+            VersionSelectorEntry::Plain(VersionSelectorType::Version),
+        )]),
+    )]));
+    let manifest = run.resolver
         .resolve_latest(
             &LatestQuery {
                 wanted_dependency: ResolverWantedDependency {
                     alias: Some(package.alias.clone()),
                     bare_specifier: Some(bare_specifier),
+                    optional: Some(package.belongs_to == DependencyGroup::Optional),
                     ..ResolverWantedDependency::default()
                 },
                 compatible: true,
             },
-            &run.resolve_options,
+            &options,
         )
         .await
-        .ok()
-        .flatten()
-        .and_then(|latest| latest.latest_manifest)
-        .and_then(|manifest| get_manifest_trust_evidence(&manifest))
+        .ok()??
+        .latest_manifest?;
+    let picked = manifest
+        .get("version")
+        .and_then(serde_json::Value::as_str)?
+        .parse::<Version>()
+        .ok()?;
+    (picked == package.current).then(|| get_manifest_trust_evidence(&manifest)).flatten()
 }
 
 fn dereference_catalog<'a>(
