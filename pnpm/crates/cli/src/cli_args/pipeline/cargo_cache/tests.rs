@@ -159,8 +159,8 @@ fn the_names_above_the_build_directory_do_not_classify_it() {
     let fingerprint = root.join("out/.fingerprint/dep-1");
     fs::create_dir_all(&fingerprint).unwrap();
     fs::write(fingerprint.join("lib-dep"), "").unwrap();
-    invalidate_fingerprints(&root, None).unwrap();
-    assert!(!root.join("out/.fingerprint").exists());
+    invalidate_fingerprints(&root, Some(&["dep".to_string()])).unwrap();
+    assert!(!fingerprint.exists());
 }
 
 struct Unit {
