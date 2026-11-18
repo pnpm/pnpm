@@ -27,6 +27,7 @@ use serde_json::Value;
 use pnpm_config::standalone_install_command;
 use pnpm_matcher::{Matcher, create_matcher};
 
+use self::approvals::{PendingApprovals, pending_approval_packages};
 use crate::{
     MaxLogLevel, SummaryScope,
     colors::Colors,
@@ -202,10 +203,7 @@ struct NoticeState {
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
     reported_peer_issues: bool,
-    pending_builds: Vec<String>,
-    pending_skills: Vec<String>,
-    approvals_emitted: bool,
-    approvals_slot: BlockSlot,
+    approvals: PendingApprovals,
 }
 
 #[derive(Default)]
@@ -441,6 +439,8 @@ use manifest_diff::{
 };
 
 mod lifecycle;
+
+mod approvals;
 
 mod notices;
 

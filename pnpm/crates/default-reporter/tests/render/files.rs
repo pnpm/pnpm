@@ -152,7 +152,7 @@ fn append_only_output_emits_approval_notice_once_for_multiple_failed_scripts() {
             .join("\n")
             .matches("Packages awaiting approval:")
             .count(),
-        1
+        1,
     );
     assert!(!second.join("\n").contains("Packages awaiting approval"));
 }

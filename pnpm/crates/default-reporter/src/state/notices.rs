@@ -4,35 +4,10 @@ use super::{
     LockfileVerificationMessage, LogLevel, MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState,
     PendingSkillsLog, ReporterState, RequestRetryLog, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog, cached_verdict,
-    detect_install_source, is_strictly_newer, normalize, pretty_ms, progress_label, relative,
-    update_command, zoom_out,
+    detect_install_source, is_strictly_newer, normalize, pending_approval_packages, pretty_ms,
+    progress_label, relative, update_command, zoom_out,
 };
 use jiff::Timestamp;
-use pnpm_package_name::short_package_label;
-
-fn pending_approval_packages(
-    pending_builds: &[String],
-    pending_skills: &[String],
-) -> BTreeMap<String, BTreeSet<&'static str>> {
-    let mut packages = BTreeMap::<String, BTreeSet<&'static str>>::new();
-    for package in pending_builds {
-        packages
-            .entry(short_package_label(package))
-            .or_default()
-            .insert("build");
-    }
-    for package in pending_skills {
-        let build_label = packages
-            .keys()
-            .find(|label| *label == package)
-            .cloned();
-        packages
-            .entry(build_label.unwrap_or_else(|| package.clone()))
-            .or_default()
-            .insert("skills");
-    }
-    packages
-}
 
 fn format_pending_approval_packages(packages: &BTreeMap<String, BTreeSet<&str>>) -> String {
     packages
@@ -84,9 +59,9 @@ impl ReporterState {
     pub(super) fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
         let pending_builds =
             if log.strict_dep_builds { Vec::new() } else { log.package_names.clone() };
-        if self.notices.pending_builds != pending_builds {
-            self.notices.pending_builds = pending_builds;
-            self.notices.approvals_emitted = false;
+        if self.notices.approvals.builds != pending_builds {
+            self.notices.approvals.builds = pending_builds;
+            self.notices.approvals.emitted = false;
         }
         // Suppress the warning box under `strictDepBuilds` — the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
@@ -98,9 +73,9 @@ impl ReporterState {
     }
 
     pub(super) fn on_pending_skills(&mut self, log: &PendingSkillsLog) {
-        if self.notices.pending_skills != log.package_names {
-            self.notices.pending_skills.clone_from(&log.package_names);
-            self.notices.approvals_emitted = false;
+        if self.notices.approvals.skills != log.package_names {
+            self.notices.approvals.skills.clone_from(&log.package_names);
+            self.notices.approvals.emitted = false;
         }
         if !self.options.append_only {
             self.render_pending_approvals();
@@ -108,11 +83,13 @@ impl ReporterState {
     }
 
     pub(super) fn render_pending_approvals(&mut self) {
-        if self.options.append_only && self.notices.approvals_emitted {
+        if self.options.append_only && self.notices.approvals.emitted {
             return;
         }
-        let packages =
-            pending_approval_packages(&self.notices.pending_builds, &self.notices.pending_skills);
+        let packages = pending_approval_packages(
+            &self.notices.approvals.builds,
+            &self.notices.approvals.skills,
+        );
         if packages.is_empty() {
             return;
         }
@@ -128,12 +105,12 @@ impl ReporterState {
             r#"Run "pnpm approve" to review the packages awaiting approval."#
         };
         self.display.frame.emit(
-            &mut self.notices.approvals_slot,
+            &mut self.notices.approvals.slot,
             format!("Packages awaiting approval:\n{list}\n\n{instruction}"),
             BlockPlacement::Scrolling,
         );
         if self.options.append_only {
-            self.notices.approvals_emitted = true;
+            self.notices.approvals.emitted = true;
         }
     }
 
