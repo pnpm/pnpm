@@ -75,7 +75,7 @@ fn an_older_spelling_names_the_platform_its_tag_names() {
 #[test]
 fn a_system_without_python_wheels_has_no_machine() {
     assert_eq!(named("freebsd-x64").machine(), None);
-    assert_eq!(named("linux-loong64").machine(), None);
+    assert_eq!(named("linux-mips64el").machine(), None);
     assert!(named("linux-x64").machine().is_some());
 }
 

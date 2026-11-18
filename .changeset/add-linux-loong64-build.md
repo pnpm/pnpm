@@ -1,6 +1,6 @@
 ---
 "pacquet": minor
-"@pnpm/napi": minor
+"get-pnpm": minor
 ---
 
-pnpm now runs on Linux systems with LoongArch (loong64) CPUs that use glibc.
+pnpm now provides a prebuilt binary for Linux on LoongArch (loong64) with glibc.
