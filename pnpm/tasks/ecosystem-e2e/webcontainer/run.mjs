@@ -16,7 +16,7 @@ import { parseArgs, stripVTControlCharacters } from 'node:util'
 
 import { chromium } from 'playwright-core'
 
-import { coreWorkflowSteps, inspectionWorkflowSteps, networkCapabilitySteps, packageInstallSteps, packageWorkflowSteps } from './cli-workflows.mjs'
+import { cleanCapabilitySteps, coreWorkflowSteps, inspectionWorkflowSteps, networkCapabilitySteps, packageInstallSteps, packageWorkflowSteps } from './cli-workflows.mjs'
 
 const STEP_TIMEOUT_MS = 10 * 60_000
 
@@ -106,6 +106,7 @@ const steps = opts['wasm-package'] ? [
     { name: 'create inspection workspace fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs'] },
     { name: 'install inspection workspace fixture', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'install'] },
     ...inspectionWorkflowSteps('../pnpm/runtime/pnpm.mjs'),
+    ...cleanCapabilitySteps('../pnpm/runtime/pnpm.mjs'),
   ] : opts['wasm-network'] ? [
     { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
     ...networkCapabilitySteps('../pnpm/runtime/pnpm.mjs'),
@@ -235,6 +236,7 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     { name: 'pin a different pnpm release', command: 'node', args: ['-e', "const fs = require('node:fs'); const manifest = require('./package.json'); manifest.packageManager = 'pnpm@12.8.1'; fs.writeFileSync('package.json', JSON.stringify(manifest))"] },
     { name: 'reject native version switching', command: 'node', args: [entry, 'install'], expectExitCode: 1, expectOutput: 'ERR_PNPM_UNSUPPORTED_RUNTIME' },
     { name: 'use installed WASM version explicitly', command: 'node', args: [entry, 'install'], env: { npm_config_manage_package_manager_versions: 'false' } },
+    ...cleanCapabilitySteps(entry),
   ]
 }
 

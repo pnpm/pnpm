@@ -90,6 +90,11 @@ export function inspectionWorkflowSteps (entry) {
     { name: 'verify deleted metadata cache entry', command: 'node', args: [entry, 'cache', 'view', 'semver'], expectOutput: '{}' },
     { name: 'prune unused store packages', command: 'node', args: [entry, 'store', 'prune'] },
     { name: 'verify installed packages survive store pruning', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('./packages/local/node_modules/semver').valid('1.2.3'), '1.2.3')"] },
+  ]
+}
+
+export function cleanCapabilitySteps (entry) {
+  return [
     { name: 'clean workspace dependencies', command: 'node', args: [entry, 'clean'], expectExitCode: 1, expectOutput: 'Directory not empty' },
     { name: 'inspect entries left by WASI cleanup', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--list-clean-remnants'], expectOutput: 'clean left' },
     { name: 'clean alias purge reports the same filesystem error', command: 'node', args: [entry, 'purge'], expectExitCode: 1, expectOutput: 'Directory not empty' },
