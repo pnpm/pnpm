@@ -287,9 +287,22 @@ pub(super) fn importer_range_link_satisfies(
     if !is_valid_semver_range(range) {
         return true;
     }
-    let target_dir = project_dir.join(link_target);
+    range_link_target_satisfies(dirs, project_dir, link_target, target.unwrap_or(dep_name), range)
+}
+
+/// Whether the project a `link:` records, relative to `base_dir`, is named
+/// `expected_name` with a version in `range`. A target missing from the
+/// checkout is accepted.
+pub(super) fn range_link_target_satisfies(
+    dirs: &SpecDirs<'_>,
+    base_dir: &Path,
+    link_target: &str,
+    expected_name: &str,
+    range: &str,
+) -> bool {
+    let target_dir = base_dir.join(link_target);
     is_missing_from_checkout(dirs, &target_dir)
-        || target_dir_satisfies(dirs, &target_dir, target.unwrap_or(dep_name), range)
+        || target_dir_satisfies(dirs, &target_dir, expected_name, range)
 }
 
 /// An unbuilt `publishConfig.directory` is absent too, but its project is

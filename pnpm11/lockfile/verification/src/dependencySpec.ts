@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { barePathIsUnambiguous, isTarballFilename } from '@pnpm/resolving.local-resolver'
-import { findWorkspaceLinkTarget, type WorkspaceLinkContext } from '@pnpm/resolving.npm-resolver'
+import { findWorkspaceLinkTarget, parseBareSpecifier, type WorkspaceLinkContext } from '@pnpm/resolving.npm-resolver'
 import type { DependencyManifest } from '@pnpm/types'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import semver from 'semver'
@@ -30,7 +30,20 @@ export function getLocalPath (lockfileDep: string): string | null {
     return lockfileDep.slice(5)
   }
   const aliasEnd = lockfileDep.indexOf('@file:', 1)
-  return aliasEnd === -1 ? null : lockfileDep.slice(aliasEnd + 6)
+  // A package name has no colon. A URL that contains `@file:` does.
+  if (aliasEnd === -1 || lockfileDep.slice(0, aliasEnd).includes(':')) return null
+  return lockfileDep.slice(aliasEnd + 6)
+}
+
+/**
+ * The range the resolver picks a workspace version with for a plain or `npm:`
+ * spec. A tag picks the highest version. `null` for a spec that names no
+ * version, such as a URL.
+ */
+export function registrySpecWorkspaceRange (spec: string, alias: string): string | null {
+  const parsed = parseBareSpecifier(spec, alias, 'latest', '')
+  if (parsed == null) return null
+  return parsed.type === 'tag' ? '*' : parsed.fetchSpec
 }
 
 export function getDepActualName (lockfileDep: string, defaultName: string): string {
@@ -127,11 +140,7 @@ export function isExcludedLink (
 }
 
 export async function linkedWorkspaceTargetSatisfies (
-  localDep: {
-    lockfileDir: string
-    manifestsByDir: Record<string, DependencyManifest>
-    workspaceRoot: string
-  },
+  localDep: LinkedWorkspaceDep,
   { depName, currentSpec, range, lockfilePath }: {
     depName: string
     currentSpec: string
@@ -154,54 +163,102 @@ export async function linkedWorkspaceTargetSatisfies (
   return versionSatisfies(targetPkg.version, range)
 }
 
-async function readTargetManifest (
-  localDep: { manifestsByDir: Record<string, DependencyManifest>, workspaceRoot: string },
-  targetDir: string
-): Promise<DependencyManifest | null> {
-  if (await realPathStaysInsideWorkspace(localDep.workspaceRoot, targetDir)) {
-    return localDep.manifestsByDir[targetDir] ?? safeReadPackageJsonFromDir(targetDir)
-  }
-  return publishingProjectManifest(localDep, targetDir)
+type ManifestSource = Pick<LinkedWorkspaceDep, 'manifestsByDir' | 'workspaceRoot'>
+
+interface LinkedWorkspaceDep {
+  lockfileDir: string
+  manifestsByDir: Record<string, DependencyManifest>
+  workspaceRoot: string
 }
 
+/**
+ * The manifest that describes a recorded workspace target: a loaded project
+ * at the target, else the project publishing from it, else the target's own
+ * `package.json`. A target or manifest that resolves outside the workspace
+ * has none.
+ */
+async function readTargetManifest (localDep: ManifestSource, targetDir: string): Promise<DependencyManifest | null> {
+  const realWorkspaceRoot = await realpathOrNull(localDep.workspaceRoot)
+  if (realWorkspaceRoot == null) return null
+  if (localDep.manifestsByDir[targetDir] == null) {
+    const publishing = await publishingProjectManifest(localDep, realWorkspaceRoot, targetDir)
+    if (publishing != null) return publishing
+  }
+  return readContainedManifest(localDep, realWorkspaceRoot, targetDir)
+}
+
+/**
+ * The manifest of the project whose `publishConfig.directory` the resolver
+ * links to `targetDir`. An unbuilt directory is described by that project.
+ */
 async function publishingProjectManifest (
-  localDep: { manifestsByDir: Record<string, DependencyManifest>, workspaceRoot: string },
+  localDep: ManifestSource,
+  realWorkspaceRoot: string,
   targetDir: string
 ): Promise<DependencyManifest | null> {
-  for (let candidate = path.dirname(targetDir); isSubdirectory(localDep.workspaceRoot, candidate); candidate = path.dirname(candidate)) {
+  if (await entryExists(targetDir) && !await realPathStaysInside(realWorkspaceRoot, targetDir)) {
+    return null
+  }
+  let candidate = path.dirname(targetDir)
+  while (isSubdirectory(localDep.workspaceRoot, candidate)) {
     // eslint-disable-next-line no-await-in-loop -- climbs one ancestor at a time and stops at the first match
-    const manifest = await projectPublishesFromDir(localDep, candidate, targetDir)
-    if (manifest != null) return manifest
+    const manifest = await readContainedManifest(localDep, realWorkspaceRoot, candidate)
+    if (linksPublishDirectory(manifest, candidate, targetDir)) return manifest
+    const parent = path.dirname(candidate)
+    if (parent === candidate) return null
+    candidate = parent
   }
   return null
 }
 
-async function projectPublishesFromDir (
-  localDep: { manifestsByDir: Record<string, DependencyManifest>, workspaceRoot: string },
-  candidate: string,
+function linksPublishDirectory (
+  manifest: DependencyManifest | null,
+  projectDir: string,
   targetDir: string
-): Promise<DependencyManifest | null> {
-  if (!await realPathStaysInsideWorkspace(localDep.workspaceRoot, candidate)) {
-    return null
-  }
-  const manifest = localDep.manifestsByDir[candidate] ?? await safeReadPackageJsonFromDir(candidate)
-  return manifest?.publishConfig?.directory != null && path.resolve(candidate, manifest.publishConfig.directory) === targetDir
-    ? manifest
-    : null
+): manifest is DependencyManifest {
+  const publishConfig = manifest?.publishConfig
+  return publishConfig?.directory != null &&
+    publishConfig.linkDirectory !== false &&
+    path.resolve(projectDir, publishConfig.directory) === targetDir
 }
 
-async function realPathStaysInsideWorkspace (workspaceRoot: string, targetDir: string): Promise<boolean> {
-  let realTargetDir: string
-  let realWorkspaceRoot: string
-  let realManifestPath: string
+/**
+ * The manifest of `dir`, the loaded one first, when `dir` and any
+ * `package.json` in it resolve inside the workspace. A loaded project may
+ * have no `package.json`.
+ */
+async function readContainedManifest (
+  localDep: ManifestSource,
+  realWorkspaceRoot: string,
+  dir: string
+): Promise<DependencyManifest | null> {
+  if (!await realPathStaysInside(realWorkspaceRoot, dir)) return null
+  const loaded = localDep.manifestsByDir[dir]
+  const realManifestPath = await realpathOrNull(path.join(dir, 'package.json'))
+  if (realManifestPath == null) return loaded ?? null
+  if (!isSubdirectory(realWorkspaceRoot, realManifestPath)) return null
+  return loaded ?? safeReadPackageJsonFromDir(dir)
+}
+
+async function realPathStaysInside (realRoot: string, target: string): Promise<boolean> {
+  const realTarget = await realpathOrNull(target)
+  return realTarget != null && isSubdirectory(realRoot, realTarget)
+}
+
+async function realpathOrNull (target: string): Promise<string | null> {
   try {
-    [realTargetDir, realWorkspaceRoot, realManifestPath] = await Promise.all([
-      fs.promises.realpath(targetDir),
-      fs.promises.realpath(workspaceRoot),
-      fs.promises.realpath(path.join(targetDir, 'package.json')),
-    ])
+    return await fs.promises.realpath(target)
+  } catch {
+    return null
+  }
+}
+
+/** A dangling symlink counts as present, unlike in `path-exists`. */
+async function entryExists (target: string): Promise<boolean> {
+  try {
+    await fs.promises.lstat(target)
+    return true
   } catch {
     return false
   }
-  return isSubdirectory(realWorkspaceRoot, realTargetDir) && isSubdirectory(realWorkspaceRoot, realManifestPath)
 }

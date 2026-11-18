@@ -1358,6 +1358,48 @@ fn plain_range_workspace_children_require_a_matching_injection_mode() {
     }));
 }
 
+#[test]
+fn tag_workspace_children_check_the_linked_target_name() {
+    let linked = WorkspaceTargetChild {
+        workspace_name: "child",
+        workspace_version: "2.0.0",
+        bare_specifier: "latest",
+        recorded_ref: "link:packages/child",
+        dep_injected: false,
+        inject_workspace_packages: false,
+    };
+    assert!(workspace_target_child_is_fresh(&linked));
+    assert!(workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        bare_specifier: "npm:child@next",
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "other",
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        recorded_ref: "file:packages/child",
+        ..linked
+    }));
+}
+
+#[test]
+fn plain_range_workspace_children_accept_a_link_missing_from_the_checkout() {
+    let missing = WorkspaceTargetChild {
+        workspace_name: "child",
+        workspace_version: "2.0.0",
+        bare_specifier: "^1.0.0",
+        recorded_ref: "link:packages/missing",
+        dep_injected: false,
+        inject_workspace_packages: false,
+    };
+    assert!(workspace_target_child_is_fresh(&missing));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        dep_injected: true,
+        ..missing
+    }));
+}
+
 #[derive(Clone, Copy)]
 struct WorkspaceTargetChild<'a> {
     workspace_name: &'a str,

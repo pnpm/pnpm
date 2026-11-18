@@ -32,6 +32,7 @@ import {
   getVersionRange,
   isWorkspacePath,
   linkedWorkspaceTargetSatisfies,
+  registrySpecWorkspaceRange,
   usesInjectionSetting,
 } from './dependencySpec.js'
 import { recordedPeersMatch } from './recordedPeersMatch.js'
@@ -466,7 +467,10 @@ async function workspaceDependencyIsUpToDate (
   if (currentSpec.startsWith('workspace:') && isWorkspacePath(currentSpec.slice(10))) {
     return localPathMatches(localDep, currentSpec, lockfilePath)
   }
-  const range = getVersionRange(currentSpec)
+  const range = currentSpec.startsWith('workspace:')
+    ? getVersionRange(currentSpec)
+    : registrySpecWorkspaceRange(currentSpec, depName)
+  if (range == null) return false
   if (lockfilePath != null) {
     return linkedWorkspaceTargetSatisfies(localDep, { depName, currentSpec, range, lockfilePath })
   }
