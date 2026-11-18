@@ -55,7 +55,10 @@ test.each([
   expect(hoistedNames).toEqual(new Set(['parent', 'peer', 'child']))
 })
 
-test('hoist does not give a package its own copy of a peer that its parent provides', () => {
+test.each([
+  ['unpatched', '17.0.0', '17.0.0'],
+  ['patched, with deduplicated peers', '17.0.0(patch_hash=abc)', '17.0.0'],
+])('hoist does not give a package its own copy of a peer that its parent provides (%s)', (_, react17, peerSuffixVersion) => {
   const lockfile: LockfileObject = {
     lockfileVersion: '9.0',
     importers: {
@@ -67,14 +70,14 @@ test('hoist does not give a package its own copy of a peer that its parent provi
     packages: {
       ['app@1.0.0' as DepPath]: {
         resolution: { integrity: 'sha512-app' },
-        dependencies: { react: '17.0.0', widget: '1.0.0(react@17.0.0)' },
+        dependencies: { react: react17, widget: `1.0.0(react@${peerSuffixVersion})` },
       },
-      ['widget@1.0.0(react@17.0.0)' as DepPath]: {
+      [`widget@1.0.0(react@${peerSuffixVersion})` as DepPath]: {
         resolution: { integrity: 'sha512-widget' },
-        dependencies: { react: '17.0.0' },
+        dependencies: { react: react17 },
         peerDependencies: { react: '*' },
       },
-      ['react@17.0.0' as DepPath]: {
+      [`react@${react17}` as DepPath]: {
         resolution: { integrity: 'sha512-react17' },
       },
       ['react@18.0.0' as DepPath]: {

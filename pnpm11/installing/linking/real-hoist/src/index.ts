@@ -327,12 +327,14 @@ function getOwnDependenciesDeclaredAsPeers (depPath: DepPath, pkgSnapshot: Packa
   const declaredPeers = Object.keys(pkgSnapshot.peerDependencies ?? {})
   if (declaredPeers.length === 0) return []
   const bindings = dp.parsePeerBindings(depPath)
-  const boundProviders = bindings == null ? new Set<string>() : dp.getBoundPeerProviders(bindings)
-  if (boundProviders == null) return []
+  if (bindings?.kind === 'hashed') return []
+  // `dedupePeers` writes a provider as its name and version only, without its
+  // patch hash, so both sides are compared without suffixes.
+  const boundProviders = new Set(bindings == null ? [] : dp.getPeerBindingProviders(bindings).map(dp.removeSuffix))
   return declaredPeers.filter((name) => {
     const ref = getOwnDependencyRef(pkgSnapshot, name)
     const target = ref == null ? null : dp.refToRelative(ref, name)
-    return target != null && !boundProviders.has(dp.removePeersSuffix(target))
+    return target != null && !boundProviders.has(dp.removeSuffix(target))
   })
 }
 
