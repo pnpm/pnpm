@@ -230,13 +230,14 @@ fn implicit_workspace_target_satisfies(
         ));
     }
     let workspace_spec = format!("workspace:{expected_name}@{range}");
+    let recorded_as_file = true;
     Some(
         super::spec::spec_satisfies_snapshot_dep(
             &dep.dirs,
             dep.dir,
             &child.alias,
             &workspace_spec,
-            true,
+            recorded_as_file,
             recorded,
         )
         .unwrap_or(false),

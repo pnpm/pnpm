@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { isError } from '@pnpm/error'
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { barePathIsUnambiguous, isTarballFilename } from '@pnpm/resolving.local-resolver'
@@ -258,7 +259,8 @@ async function entryExists (target: string): Promise<boolean> {
   try {
     await fs.promises.lstat(target)
     return true
-  } catch {
-    return false
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    throw err
   }
 }

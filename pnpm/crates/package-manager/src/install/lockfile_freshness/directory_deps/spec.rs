@@ -291,8 +291,8 @@ pub(super) fn importer_range_link_satisfies(
 }
 
 /// Whether the project a `link:` records, relative to `base_dir`, is named
-/// `expected_name` with a version in `range`. A target missing from the
-/// checkout is accepted.
+/// `expected_name` with a version in `range`. A target inside the workspace
+/// that is missing from the checkout is accepted.
 pub(super) fn range_link_target_satisfies(
     dirs: &SpecDirs<'_>,
     base_dir: &Path,
@@ -300,7 +300,13 @@ pub(super) fn range_link_target_satisfies(
     expected_name: &str,
     range: &str,
 ) -> bool {
+    if Path::new(link_target).is_absolute() {
+        return false;
+    }
     let target_dir = base_dir.join(link_target);
+    if !pnpm_fs::is_subdir(dirs.workspace_root, &pnpm_fs::lexical_normalize(&target_dir)) {
+        return false;
+    }
     is_missing_from_checkout(dirs, &target_dir)
         || target_dir_satisfies(dirs, &target_dir, expected_name, range)
 }

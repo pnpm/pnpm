@@ -1398,6 +1398,10 @@ fn plain_range_workspace_children_accept_a_link_missing_from_the_checkout() {
         dep_injected: true,
         ..missing
     }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        recorded_ref: "link:../outside/missing",
+        ..missing
+    }));
 }
 
 #[derive(Clone, Copy)]
