@@ -470,7 +470,7 @@ fn store_add_indexes_a_direct_tarball_url_without_integrity() {
     let CommandTempCwd {
         pacquet, root: _root, npmrc_info, ..
     } = CommandTempCwd::init().add_mocked_registry();
-    let tarball_url = format!("{}@pnpm.e2e/foo/-/foo-100.0.0.tgz", npmrc_info.mock_instance.url(),);
+    let tarball_url = format!("{}@pnpm.e2e/foo/-/foo-100.0.0.tgz", npmrc_info.mock_instance.url());
 
     pacquet
         .with_args(["store", "add", &tarball_url])
