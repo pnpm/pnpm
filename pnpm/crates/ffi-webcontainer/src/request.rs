@@ -207,27 +207,27 @@ fn read_response(
         (false, Value::Null, Some(error)) => return Err(error),
         _ => return Err(HostError::new("Invalid WASM host response envelope")),
     };
-    let bytes = if matches!(read_mode, ResponseReadMode::Binary) {
-        if let Some(length) = binary_length {
-            if length > MAX_BINARY_RESPONSE_BYTES {
-                return Err(HostError::new("Binary WASM host response exceeds 1 MiB"));
+    let bytes = match read_mode {
+        ResponseReadMode::Json => None,
+        ResponseReadMode::Binary => match binary_length {
+            Some(length) => {
+                if length > MAX_BINARY_RESPONSE_BYTES {
+                    return Err(HostError::new("Binary WASM host response exceeds 1 MiB"));
+                }
+                let mut bytes = vec![0; length];
+                // SAFETY: `bytes` is a live `Vec` of exactly `bytes.len()`
+                // initialized bytes, which is the capacity the import is told
+                // it may write, and it is borrowed exclusively for the whole call.
+                let copied = unsafe {
+                    sys::response_binary_read(identifier, bytes.as_mut_ptr(), bytes.len())
+                };
+                if usize::try_from(copied) != Ok(length) {
+                    return Err(HostError::new("Failed to read binary WASM host response"));
+                }
+                Some(bytes)
             }
-            let mut bytes = vec![0; length];
-            // SAFETY: `bytes` is a live `Vec` of exactly `bytes.len()`
-            // initialized bytes, which is the capacity the import is told it
-            // may write, and it is borrowed exclusively for the whole call.
-            let copied = unsafe {
-                sys::response_binary_read(identifier, bytes.as_mut_ptr(), bytes.len())
-            };
-            if usize::try_from(copied) != Ok(length) {
-                return Err(HostError::new("Failed to read binary WASM host response"));
-            }
-            Some(bytes)
-        } else {
-            None
-        }
-    } else {
-        None
+            None => None,
+        },
     };
     Ok((value, bytes))
 }
