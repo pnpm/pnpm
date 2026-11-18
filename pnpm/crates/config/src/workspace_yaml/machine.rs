@@ -226,7 +226,7 @@ impl TrustedSettings {
     /// [`Self::substitute_env_trusted`] for a load that leaves out what this
     /// pnpm cannot read, which leaves out a setting with a placeholder that
     /// has no value and no fallback.
-    pub(crate) fn substitute_env_trusted_readable<Sys: EnvVar>(&mut self) {
+    pub fn substitute_env_trusted_readable<Sys: EnvVar>(&mut self) {
         self.substitute_values::<Sys>(&mut UnresolvedPlaceholders::leave_out());
     }
 

@@ -94,15 +94,16 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        // Noted rather than assigned, so an `enableGlobalVirtualStore` /
-        // `virtualStoreDir` set in the global `config.yaml` still counts as
-        // "explicitly set" when the workspace yaml leaves it unset.
-        explicit.note(&settings);
         let ignored_settings = if self.settings_read.skips_unreadable() {
             settings.substitute_env_untrusted_readable::<Sys>()
         } else {
             settings.substitute_env_untrusted::<Sys>()?
         };
+        // Noted rather than assigned, so an `enableGlobalVirtualStore` /
+        // `virtualStoreDir` set in the global `config.yaml` still counts as
+        // "explicitly set" when the workspace yaml leaves it unset. Noted
+        // after substitution, which may leave a setting out.
+        explicit.note(&settings);
         self.npmrc_warnings.extend(ignored_settings);
         if for_self_update {
             settings.clear_self_update_policy();

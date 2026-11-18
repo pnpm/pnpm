@@ -221,6 +221,7 @@ fn first_unreadable_unresolved_placeholder<Sys: EnvVar, Settings: DeserializeOwn
     let unresolved: Vec<(usize, String)> = placeholders.items
         .iter()
         .enumerate()
+        .filter(|(_, placeholder)| placeholder.in_value)
         .filter_map(|(index, placeholder)| {
             let (_, unresolved) = env_replace_lossy::<Sys>(&text[placeholder.range.clone()]);
             unresolved
@@ -257,13 +258,14 @@ fn first_unreadable_unresolved_placeholder<Sys: EnvVar, Settings: DeserializeOwn
 /// resolvable one expanded, and the rest as their sentinels.
 ///
 /// A dropped placeholder that fills a quoted scalar takes the quotes with it,
-/// so it leaves a null rather than the string `"null"`.
+/// so it leaves a null rather than the string `"null"`. A quote another
+/// dropped placeholder already took stays with that one.
 fn render_dropping(text: &str, placeholders: &DocumentPlaceholders, dropped: &[bool]) -> String {
     let mut rendered = String::with_capacity(text.len());
     let mut copied = 0;
     for (placeholder, &dropped) in placeholders.items.iter().zip(dropped) {
         if dropped {
-            let range = with_enclosing_quotes(text, placeholder.range.clone());
+            let range = with_enclosing_quotes(text, placeholder.range.clone(), copied);
             rendered.push_str(&text[copied..range.start]);
             rendered.push_str("null");
             copied = range.end;
@@ -277,11 +279,12 @@ fn render_dropping(text: &str, placeholders: &DocumentPlaceholders, dropped: &[b
     rendered
 }
 
-fn with_enclosing_quotes(text: &str, range: Range<usize>) -> Range<usize> {
+fn with_enclosing_quotes(text: &str, range: Range<usize>, copied: usize) -> Range<usize> {
     let bytes = text.as_bytes();
     match (
         range.start
             .checked_sub(1)
+            .filter(|&before| before >= copied)
             .map(|before| bytes[before]),
         bytes.get(range.end),
     ) {

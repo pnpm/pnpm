@@ -143,6 +143,24 @@ fn an_unresolved_placeholder_in_a_typed_setting_names_the_variable() {
     }
 }
 
+#[test]
+fn unresolved_placeholders_sharing_a_quote_keep_the_yaml_error() {
+    let message =
+        parse_error_of("nodeLinker: ${PNPM_TEST_UNSET}\n# '${PNPM_TEST_A}'${PNPM_TEST_B}'\n");
+
+    assert_eq!(message, "Failed to replace env in config: ${PNPM_TEST_UNSET}");
+    let message = parse_error_of("nodeLinker: \"${PNPM_TEST_A}\"${PNPM_TEST_B}\"\n");
+    assert!(message.starts_with("Failed to parse"), "unexpected error: {message}");
+}
+
+/// Dropping the placeholder would leave the tag `!null`, which reads.
+#[test]
+fn an_unresolved_placeholder_in_a_tag_keeps_the_yaml_error() {
+    let message = parse_error_of("nodeLinker: !${PNPM_TEST_UNSET} isolated\n");
+
+    assert!(message.starts_with("Failed to parse"), "unexpected error: {message}");
+}
+
 /// The placeholder at fault is found by halving, so it is reported however
 /// many unresolved placeholders the file carries ahead of it.
 #[test]

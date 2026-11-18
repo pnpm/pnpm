@@ -31,6 +31,9 @@ pub(super) fn has_env_placeholder(value: &str) -> bool {
 /// used while probing whether the target setting accepts free text.
 pub(super) struct Placeholder {
     pub(super) range: Range<usize>,
+    /// Whether the placeholder sits where a value can stand, outside a YAML
+    /// anchor, alias, or tag token and outside an incomplete escape.
+    pub(super) in_value: bool,
     pub(super) resolved: Option<String>,
     pub(super) sentinel: String,
 }
@@ -59,7 +62,16 @@ pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentP
     if ranges.is_empty() {
         return None;
     }
-    let resolved_values = resolve_bare_tokens::<Sys>(text, &ranges);
+    let in_values = value_positions(text, &ranges);
+    let resolved_values: Vec<Option<String>> = ranges
+        .iter()
+        .zip(&in_values)
+        .map(|(range, &in_value)| {
+            in_value
+                .then(|| resolve_bare_token::<Sys>(&text[range.clone()]))
+                .flatten()
+        })
+        .collect();
     let sentinels = SentinelPlaceholders::with_extra(
         text,
         ranges.clone(),
@@ -67,34 +79,31 @@ pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentP
     )?;
     let mut items = Vec::with_capacity(ranges.len());
     let mut resolvable = Vec::new();
-    for (index, (range, resolved)) in ranges
+    for (index, ((range, in_value), resolved)) in ranges
         .into_iter()
+        .zip(in_values)
         .zip(resolved_values)
         .enumerate()
     {
         if resolved.is_some() {
             resolvable.push(index);
         }
-        items.push(Placeholder { range, resolved, sentinel: sentinels.sentinel(index) });
+        items.push(Placeholder { range, in_value, resolved, sentinel: sentinels.sentinel(index) });
     }
     Some(DocumentPlaceholders { sentinels, items, resolvable })
 }
 
-fn resolve_bare_tokens<Sys: EnvVar>(text: &str, ranges: &[Range<usize>]) -> Vec<Option<String>> {
+fn value_positions(text: &str, ranges: &[Range<usize>]) -> Vec<bool> {
     let mut in_meta_token = false;
     let mut cursor = 0;
-    let mut resolved = Vec::with_capacity(ranges.len());
-    for range in ranges {
-        advance_yaml_meta_state(&mut in_meta_token, &text[cursor..range.start]);
-        cursor = range.end;
-        let eligible = !in_meta_token && !has_incomplete_hex_escape_before(&text[..range.start]);
-        resolved.push(
-            eligible
-                .then(|| resolve_bare_token::<Sys>(&text[range.clone()]))
-                .flatten(),
-        );
-    }
-    resolved
+    ranges
+        .iter()
+        .map(|range| {
+            advance_yaml_meta_state(&mut in_meta_token, &text[cursor..range.start]);
+            cursor = range.end;
+            !in_meta_token && !has_incomplete_hex_escape_before(&text[..range.start])
+        })
+        .collect()
 }
 
 fn advance_yaml_meta_state(in_meta_token: &mut bool, segment: &str) {
