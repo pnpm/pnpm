@@ -145,7 +145,8 @@ export interface InstallOptions extends SharedEngineOptions {
   /**
    * The format the wanted lockfile is written in (the `lockfile.format`
    * setting). `'v13'` writes the experimental `lockfileVersion: '13.0'`
-   * format. Defaults to `'v9'`.
+   * format. When omitted, the `lockfile.format` setting of
+   * `pnpm-workspace.yaml` applies, which defaults to `'v9'`.
    */
   lockfileFormat?: 'v9' | 'v13'
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
