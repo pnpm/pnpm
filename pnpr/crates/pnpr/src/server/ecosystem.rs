@@ -248,6 +248,34 @@ pub(super) async fn load_upstream_document(
     }
 }
 
+/// Sub-caches nested inside an upstream's cache namespace directory so
+/// [`crate::cache_maintenance::active_cache_namespaces`] and orphan pruning
+/// retain and reclaim the upstream's whole tree under `<cache>/<namespace>/`
+/// without colliding with `<cache>/<namespace>/packages/`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UpstreamCacheSubtree<'key> {
+    /// Cargo `.crate` and Python wheel or sdist blobs keyed by SRI integrity.
+    Artifact(&'key [u8]),
+    /// Python PEP 658 `.metadata` documents keyed by URL and descriptor.
+    Metadata(&'key [u8]),
+    /// OCI upstream manifests keyed by tag or digest reference.
+    OciManifest(&'key [u8]),
+    /// OCI upstream blobs.
+    OciBlobs,
+}
+
+impl UpstreamCacheSubtree<'_> {
+    #[must_use]
+    pub(crate) fn within(self, namespace: &str) -> String {
+        match self {
+            Self::Artifact(key) => format!("{namespace}/artifacts/{}", sha256_hex(key)),
+            Self::Metadata(key) => format!("{namespace}/metadata/{}", sha256_hex(key)),
+            Self::OciManifest(key) => format!("{namespace}/oci-manifests/{}", sha256_hex(key)),
+            Self::OciBlobs => format!("{namespace}/oci-blobs"),
+        }
+    }
+}
+
 /// Serve an upstream artifact: the cached copy when there is one, else the
 /// bytes streamed from `url` into the cache while verified against
 /// `integrity` (see `streaming::stream_verified_to_cache` for what a
@@ -262,7 +290,8 @@ pub(super) async fn serve_upstream_artifact(
     url: &str,
     integrity: &Integrity,
 ) -> Response {
-    let namespace = format!("{namespace}-{}", sha256_hex(integrity.to_string().as_bytes()));
+    let namespace =
+        UpstreamCacheSubtree::Artifact(integrity.to_string().as_bytes()).within(namespace);
     let namespace = namespace.as_str();
     if upstream.caches()
         && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await

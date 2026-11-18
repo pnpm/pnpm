@@ -1,10 +1,13 @@
 use super::{
+    CacheGcEffect,
     inventory::{cas_digest_of_store_file, is_cache_tmp_file, is_managed_sqlite_file},
     is_abandoned_tmp_age,
-    orphans::count_dir_contents,
+    orphans::{PrivateScopePolicy, count_dir_contents, prune_orphaned_namespaces},
 };
+use crate::server::ecosystem::UpstreamCacheSubtree;
 use pnpm_fs::OpenDir;
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -189,4 +192,118 @@ fn windows_backslash_paths_classify_temps_sqlite_and_cas_digests() {
     assert!(is_managed_sqlite_file(cache, wal));
     let cas = Path::new(r"C:\pnpr\cache\resolver-store\v11\files\0a\bcdef01234-exec");
     assert_eq!(cas_digest_of_store_file(cache, cas), Some("0abcdef01234".to_string()));
+}
+
+fn write_cached_file(cache_dir: &Path, namespace: &str, rel: &str, bytes: &[u8]) -> PathBuf {
+    let mut path = cache_dir.to_path_buf();
+    path.extend(
+        namespace
+            .split('/')
+            .filter(|segment| !segment.is_empty()),
+    );
+    path.extend(rel.split('/'));
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+fn populate_upstream_ecosystem_subtrees(cache_dir: &Path, namespace: &str) -> Vec<PathBuf> {
+    let cargo_artifact = UpstreamCacheSubtree::Artifact(b"sha256-cargo").within(namespace);
+    let pypi_artifact = UpstreamCacheSubtree::Artifact(b"sha256-pypi").within(namespace);
+    let pypi_metadata =
+        UpstreamCacheSubtree::Metadata(b"https://pypi.org/whl\ntrue").within(namespace);
+    let oci_manifest = UpstreamCacheSubtree::OciManifest(b"latest").within(namespace);
+    let oci_blobs = UpstreamCacheSubtree::OciBlobs.within(namespace);
+    vec![
+        write_cached_file(cache_dir, namespace, "packages/@/mycrate/document.json", b"{}"),
+        write_cached_file(
+            cache_dir,
+            &cargo_artifact,
+            "packages/@/mycrate/blobs/1.0.0.crate",
+            b"crate-bytes",
+        ),
+        write_cached_file(
+            cache_dir,
+            &pypi_artifact,
+            "packages/@/requests/blobs/requests-1.0.0-py3-none-any.whl",
+            b"wheel-bytes",
+        ),
+        write_cached_file(
+            cache_dir,
+            &pypi_metadata,
+            "packages/@/requests/document.json",
+            b"Metadata-Version: 2.1\n",
+        ),
+        write_cached_file(
+            cache_dir,
+            &oci_manifest,
+            "packages/@library/alpine/document.json",
+            b"{\"schemaVersion\":2}",
+        ),
+        write_cached_file(
+            cache_dir,
+            &oci_blobs,
+            "packages/@library/alpine/blobs/sha256-deadbeef",
+            b"layer-bytes",
+        ),
+    ]
+}
+
+#[tokio::test]
+async fn prune_orphaned_namespaces_keeps_active_ecosystem_subtrees_and_prunes_prefixed_siblings() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cache_dir = tmp.path();
+    let active = HashSet::from(["~public/abc".to_string(), "~upstreams/priv".to_string()]);
+
+    let active_public = populate_upstream_ecosystem_subtrees(cache_dir, "~public/abc");
+    let active_private = populate_upstream_ecosystem_subtrees(cache_dir, "~upstreams/priv");
+    let removed_public = populate_upstream_ecosystem_subtrees(cache_dir, "~public/zzz");
+    let removed_private = populate_upstream_ecosystem_subtrees(cache_dir, "~upstreams/old");
+
+    let prefix_without_dash =
+        write_cached_file(cache_dir, "~public/abcdef", "packages/@/pkg/document.json", b"123");
+    let prefix_with_dash =
+        write_cached_file(cache_dir, "~public/abc-stale", "packages/@/pkg/document.json", b"456");
+    let private_prefix_without_dash =
+        write_cached_file(cache_dir, "~upstreams/privdef", "packages/@/pkg/document.json", b"789");
+
+    let dry = prune_orphaned_namespaces(
+        cache_dir,
+        &active,
+        PrivateScopePolicy::Keep,
+        CacheGcEffect::DryRun,
+    )
+    .await
+    .unwrap();
+    assert_eq!(dry.report.namespaces_removed, 5);
+    assert_eq!(dry.report.files_evicted, removed_public.len() + removed_private.len() + 3);
+    assert!(prefix_without_dash.exists());
+
+    let applied = prune_orphaned_namespaces(
+        cache_dir,
+        &active,
+        PrivateScopePolicy::Keep,
+        CacheGcEffect::Apply,
+    )
+    .await
+    .unwrap();
+    assert_eq!(applied.report, dry.report);
+
+    for path in active_public.iter().chain(&active_private) {
+        eprintln!("ACTIVE PATH: {}", path.display());
+        assert!(path.exists());
+    }
+    for path in removed_public
+        .iter()
+        .chain(&removed_private)
+        .chain([&prefix_without_dash, &prefix_with_dash, &private_prefix_without_dash])
+    {
+        eprintln!("ORPHAN PATH: {}", path.display());
+        assert!(!path.exists());
+    }
+    assert!(!cache_dir.join("~public/zzz").exists());
+    assert!(!cache_dir.join("~upstreams/old").exists());
+    assert!(!cache_dir.join("~public/abcdef").exists());
+    assert!(!cache_dir.join("~public/abc-stale").exists());
+    assert!(!cache_dir.join("~upstreams/privdef").exists());
 }
