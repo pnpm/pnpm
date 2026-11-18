@@ -400,6 +400,51 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
   expect(patchedIndexJsAfterFetch).toContain('FIRST LINE')
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/11034
+test('fetch applies patches to dependencies that are only reachable through a skipped file: dependency', async () => {
+  const testFixtures = fixtures(import.meta.dirname)
+  const project = prepare({
+    dependencies: { 'local-pkg': 'file:./local-pkg' },
+  })
+  fs.mkdirSync('local-pkg')
+  fs.writeFileSync('local-pkg/package.json', JSON.stringify({
+    name: 'local-pkg',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
+  }))
+  fs.mkdirSync('patches')
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+
+  const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
+  const cacheDir = path.resolve(project.dir(), 'cache')
+  const storeDir = path.resolve(project.dir(), 'store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    linkWorkspacePackages: false,
+    lockfileOnly: true,
+    storeDir,
+    patchedDependencies,
+  })
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    storeDir,
+    patchedDependencies,
+  })
+
+  const virtualStoreDir = path.resolve(project.dir(), 'node_modules', '.pnpm')
+  const consoleLogDirs = fs.readdirSync(virtualStoreDir).filter(d => d.startsWith('@pnpm.e2e+console-log@'))
+  expect(consoleLogDirs).toHaveLength(1)
+
+  const patchedIndexJs = fs.readFileSync(path.join(virtualStoreDir, consoleLogDirs[0], 'node_modules/@pnpm.e2e/console-log/index.js'), 'utf8')
+  expect(patchedIndexJs).toContain('FIRST LINE')
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/5268
 test.each(['isolated', 'hoisted'] as const)('fetch with nodeLinker=%s fails with ERR_PNPM_PATCH_NOT_FOUND when a patch file is missing', async (nodeLinker) => {
   const testFixtures = fixtures(import.meta.dirname)

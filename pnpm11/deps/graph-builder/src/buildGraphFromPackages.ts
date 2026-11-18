@@ -17,6 +17,7 @@ import { logger } from '@pnpm/logger'
 import { getPatchInfo } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type { FetchResponse } from '@pnpm/store.controller-types'
+import type { DepPath } from '@pnpm/types'
 import { pathExists } from 'path-exists'
 import { equals, isEmpty } from 'ramda'
 
@@ -32,6 +33,8 @@ export interface GraphFromPackages {
   graph: DependenciesGraph
   locationByDepPath: Record<string, string>
   injectionTargetsByDepPath: Map<string, string[]>
+  /** Directory dependencies left out of the graph because `ignoreLocalPackages` is set. */
+  skippedLocalDepPaths: Set<DepPath>
 }
 
 interface BuildGraphContext extends GraphFromPackages {
@@ -76,6 +79,7 @@ export async function buildGraphFromPackages (
     locationByDepPath: {},
     // Only populated for directory deps (injected workspace packages)
     injectionTargetsByDepPath: new Map<string, string[]>(),
+    skippedLocalDepPaths: new Set<DepPath>(),
     getPatchInfo: getPatchInfo.bind(null, opts.patchedDependencies),
   }
   const promises: Array<Promise<void>> = []
@@ -83,8 +87,8 @@ export async function buildGraphFromPackages (
     promises.push(addPkgToGraph(ctx, pkgLocation))
   }
   await Promise.all(promises)
-  const { graph, locationByDepPath, injectionTargetsByDepPath } = ctx
-  return { graph, locationByDepPath, injectionTargetsByDepPath }
+  const { graph, locationByDepPath, injectionTargetsByDepPath, skippedLocalDepPaths } = ctx
+  return { graph, locationByDepPath, injectionTargetsByDepPath, skippedLocalDepPaths }
 }
 
 async function addPkgToGraph (ctx: BuildGraphContext, { dirInVirtualStore, pkgMeta }: PkgSnapshotWithLocation): Promise<void> {
@@ -104,6 +108,7 @@ async function addPkgToGraph (ctx: BuildGraphContext, { dirInVirtualStore, pkgMe
       message: `Skipping local dependency ${pkgMeta.name}@${pkgMeta.version} (file: protocol)`,
       prefix: opts.lockfileDir,
     })
+    ctx.skippedLocalDepPaths.add(depPath)
     return
   }
 
