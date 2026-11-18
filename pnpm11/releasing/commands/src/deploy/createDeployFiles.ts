@@ -157,7 +157,10 @@ function convertWorkspaceImporters (
   opts: CreateDeployFilesOptions,
   ctx: { deployedProjectRealPath: string, targetPackageSnapshots: PackageSnapshots }
 ): Map<DepPath, LinkedWorkspaceProject> {
-  const peerBearingProjects = indexPeerBearingProjects(opts.allProjects)
+  const projectIndexes = {
+    peerBearing: indexProjects(opts.allProjects, declaresPeers),
+    publishing: indexProjects(opts.allProjects, (manifest) => manifest.publishConfig?.directory != null),
+  }
   const linkedWorkspaceProjects = new Map<DepPath, LinkedWorkspaceProject>()
   const injectedWorkspace = opts.lockfile.settings?.injectWorkspacePackages === true
   for (const importerPath in opts.lockfile.importers) {
@@ -171,12 +174,20 @@ function convertWorkspaceImporters (
       deployedProjectRealPath: ctx.deployedProjectRealPath,
       projectRootDirRealPath,
     }
-    const manifest = peerBearingProjects.get(projectRootDirRealPath)
+    const manifest = projectIndexes.peerBearing.get(projectRootDirRealPath)
     const packageSnapshot = {
       ...convertProjectSnapshotToPackageSnapshot(projectSnapshot, convertOptions),
       ...(manifest == null ? {} : getLockfilePeerDependencies(manifest)),
     }
-    const depPaths = addLinkedWorkspaceSnapshots(ctx.targetPackageSnapshots, { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot })
+    const depPaths = addLinkedWorkspaceSnapshots(ctx.targetPackageSnapshots, {
+      opts,
+      packageSnapshot,
+      projectRootDirRealPath,
+      linkedPublishDir: getImporterLinkedPublishDir(projectSnapshot, {
+        manifest: projectIndexes.publishing.get(projectRootDirRealPath),
+        projectRootDir: projectRootDirRealPath,
+      }),
+    })
     // Own dependencies declared as peers still need manifest-based edge classification.
     if (manifest == null || Object.keys(getPeerSet(manifest).declared).length === 0) continue
     const linkedWorkspaceProject = createLinkedWorkspaceProject(manifest, { convertOptions, injectedWorkspace, projectSnapshot })
@@ -207,12 +218,11 @@ function addLinkedWorkspaceSnapshots (
     opts: CreateDeployFilesOptions
     packageSnapshot: PackageSnapshot
     projectRootDirRealPath: string
-    projectSnapshot: ProjectSnapshot
+    linkedPublishDir: string | undefined
   }
 ): DepPath[] {
-  const { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot } = importer
+  const { opts, packageSnapshot, projectRootDirRealPath, linkedPublishDir } = importer
   const directories = [projectRootDirRealPath]
-  const linkedPublishDir = getImporterLinkedPublishDir(projectSnapshot, { allProjects: opts.allProjects, projectRootDirRealPath })
   if (linkedPublishDir != null) directories.push(linkedPublishDir)
   const added: DepPath[] = []
   for (const directory of directories) {
@@ -234,14 +244,18 @@ function addLinkedWorkspaceSnapshots (
  * importer path is resolved lexically, while a project directory reached
  * through a symlink has a different real path.
  */
-function indexPeerBearingProjects (allProjects: DeployAllProjects): Map<string, ProjectManifest> {
-  const peerBearingProjects = new Map<string, ProjectManifest>()
+function indexProjects (allProjects: DeployAllProjects, include: (manifest: ProjectManifest) => boolean): Map<string, ProjectManifest> {
+  const projects = new Map<string, ProjectManifest>()
   for (const project of allProjects) {
-    if (project.manifest.peerDependencies == null && project.manifest.peerDependenciesMeta == null) continue
-    peerBearingProjects.set(project.rootDir, project.manifest)
-    peerBearingProjects.set(project.rootDirRealPath, project.manifest)
+    if (!include(project.manifest)) continue
+    projects.set(project.rootDir, project.manifest)
+    projects.set(project.rootDirRealPath, project.manifest)
   }
-  return peerBearingProjects
+  return projects
+}
+
+function declaresPeers (manifest: ProjectManifest): boolean {
+  return manifest.peerDependencies != null || manifest.peerDependenciesMeta != null
 }
 
 function createDeployImporterSnapshot (opts: CreateDeployFilesOptions, deployedProjectRealPath: string): ProjectSnapshot {

@@ -11,7 +11,7 @@ import type {
   ResolvedDependencies,
   TarballResolution,
 } from '@pnpm/lockfile.types'
-import type { DepPath, Project } from '@pnpm/types'
+import type { DepPath, Project, ProjectManifest } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
 export type DeployAllProjects = Array<Pick<Project, 'manifest' | 'rootDir' | 'rootDirRealPath'>>
@@ -173,18 +173,20 @@ export function getLinkedPublishDir (project: DeployAllProjects[number]): string
 }
 
 /**
- * The publish directory the importer at `projectRootDirRealPath` is linked
- * from, when its lockfile record and its project manifest name the same one.
- * A directory only the lockfile records is ignored.
+ * The publish directory the importer at `projectRootDir` is linked from, when
+ * its lockfile record and its project manifest name the same one. A
+ * directory only the lockfile records is ignored.
  */
 export function getImporterLinkedPublishDir (
   projectSnapshot: ProjectSnapshot,
-  importer: { allProjects: DeployAllProjects, projectRootDirRealPath: string }
+  importer: { manifest: ProjectManifest | undefined, projectRootDir: string }
 ): string | undefined {
-  if (projectSnapshot.publishDirectory == null || projectSnapshot.linkDirectory === false) return undefined
-  const project = importer.allProjects.find(({ rootDirRealPath }) => rootDirRealPath === importer.projectRootDirRealPath)
-  const linkedPublishDir = project && getLinkedPublishDir(project)
-  return linkedPublishDir === path.join(importer.projectRootDirRealPath, projectSnapshot.publishDirectory)
-    ? linkedPublishDir
-    : undefined
+  const { publishDirectory } = projectSnapshot
+  const publishConfig = importer.manifest?.publishConfig
+  if (
+    publishDirectory == null || projectSnapshot.linkDirectory === false ||
+    publishConfig?.directory == null || publishConfig.linkDirectory === false
+  ) return undefined
+  const linkedPublishDir = path.resolve(importer.projectRootDir, publishDirectory)
+  return linkedPublishDir === path.resolve(importer.projectRootDir, publishConfig.directory) ? linkedPublishDir : undefined
 }
