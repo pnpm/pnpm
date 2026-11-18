@@ -104,6 +104,6 @@ fn patch_state_config(config: &'static Config, manifest_path: &Path) -> &'static
         return config;
     }
     let mut config = config.clone();
-    config.modules_dir = modules_dir.clone();
+    config.modules_dir.clone_from(modules_dir);
     Config::leak(config)
 }

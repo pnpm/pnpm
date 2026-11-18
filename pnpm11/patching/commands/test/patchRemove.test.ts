@@ -214,6 +214,46 @@ test('patch-remove rejects a malformed state.json before deleting any patch', as
   expect(updatePatchedDependenciesMock).not.toHaveBeenCalled()
 })
 
+test('patch-remove keeps state.json when a patch key names it', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const otherEditDir = path.join(pnpmPatches, 'other@1.0.0')
+  const patchFile = path.join(projectDir, 'patches/state.json.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(otherEditDir, { recursive: true })
+  fs.writeFileSync(path.join(pnpmPatches, 'state.json'), JSON.stringify({
+    [otherEditDir]: { patchedPkg: 'other@1.0.0', applyToAll: false },
+  }), 'utf8')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    'state.json': 'patches/state.json.patch',
+  }), ['state.json'])
+
+  expect(JSON.parse(fs.readFileSync(path.join(pnpmPatches, 'state.json'), 'utf8'))).toStrictEqual({
+    [otherEditDir]: { patchedPkg: 'other@1.0.0', applyToAll: false },
+  })
+})
+
+test('patch-remove removes the empty scope directory of a scoped edit directory', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const editDir = path.join(pnpmPatches, '@scope/pkg@1.0.0')
+  const patchFile = path.join(projectDir, 'patches/@scope__pkg@1.0.0.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(editDir, { recursive: true })
+  fs.writeFileSync(path.join(pnpmPatches, 'state.json'), JSON.stringify({
+    [editDir]: { patchedPkg: '@scope/pkg@1.0.0', applyToAll: false },
+  }), 'utf8')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    '@scope/pkg@1.0.0': 'patches/@scope__pkg@1.0.0.patch',
+  }), ['@scope/pkg@1.0.0'])
+
+  expect(fs.existsSync(pnpmPatches)).toBe(false)
+})
+
 test('patch-remove keeps other edit directories when a patch key names .pnpm_patches itself', async () => {
   const projectDir = path.join(tempRoot, 'project')
   const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
@@ -267,7 +307,7 @@ testOnNonWindows('patch-remove does not delete directories outside .pnpm_patches
   const projectDir = path.join(tempRoot, 'project-traversal')
   const modulesDir = path.join(projectDir, 'node_modules')
   const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
-  const outsideVictim = path.join(tempRoot, 'victim')
+  const outsideVictim = path.join(projectDir, 'victim')
   const patchFile = path.join(projectDir, 'patches/traversal.patch')
   fs.mkdirSync(path.dirname(patchFile), { recursive: true })
   fs.writeFileSync(patchFile, 'patch', 'utf8')

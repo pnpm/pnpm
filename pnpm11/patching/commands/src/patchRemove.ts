@@ -149,15 +149,33 @@ async function removeEditDirs (patches: string[], ctx: EditDirsContext): Promise
   const realPnpmPatches = await realpathIfExists(ctx.pnpmPatches)
   if (realPnpmPatches == null) return
   await Promise.all(Array.from(new Set([...defaultEditDirs, ...recordedEditDirs])).map(async (editDir) => {
-    if (!isStrictSubdirectory(ctx.pnpmPatches, editDir)) return
+    if (!isStrictSubdirectory(ctx.pnpmPatches, editDir) || !(await lstatIfExists(editDir))?.isDirectory()) return
     const realEditDir = await realpathIfExists(editDir)
     if (realEditDir == null || !isStrictSubdirectory(realPnpmPatches, realEditDir)) return
     await fs.rm(editDir, { recursive: true, force: true })
+    await removeEmptyAncestors(ctx.pnpmPatches, editDir)
   }))
+  await removeDirIfEmpty(ctx.pnpmPatches)
+}
+
+/**
+ * Removes the directories between `pnpmPatches` and a removed edit directory,
+ * such as the scope directory of `@scope/pkg@1.0.0`, while they are empty.
+ */
+async function removeEmptyAncestors (pnpmPatches: string, removedDir: string): Promise<void> {
+  for (let dir = path.dirname(removedDir); isStrictSubdirectory(pnpmPatches, dir); dir = path.dirname(dir)) {
+    // eslint-disable-next-line no-await-in-loop -- each parent can only be removed after its child
+    if (!await removeDirIfEmpty(dir)) return
+  }
+}
+
+async function removeDirIfEmpty (dir: string): Promise<boolean> {
   try {
-    await fs.rmdir(ctx.pnpmPatches)
+    await fs.rmdir(dir)
+    return true
   } catch (err: unknown) {
-    if (!isErrorWithCode(err, 'ENOENT') && !isErrorWithCode(err, 'ENOTEMPTY')) throw err
+    if (isErrorWithCode(err, 'ENOENT') || isErrorWithCode(err, 'ENOTEMPTY')) return false
+    throw err
   }
 }
 

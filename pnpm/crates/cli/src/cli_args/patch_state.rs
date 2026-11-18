@@ -174,7 +174,9 @@ fn remove_matching_state_entries(
         .collect();
     let target_keys: HashSet<String> = patches
         .iter()
-        .map(|patch| edit_dir_key(&state_dir.join(patch)))
+        .map(|patch| state_dir.join(patch))
+        .filter(|edit_dir| !is_symlink(edit_dir))
+        .map(|edit_dir| edit_dir_key(&edit_dir))
         .collect::<Result<_, _>>()?;
     state.retain(|key, entry| {
         let matches = patches_set.contains(entry.patched_pkg.as_str()) || target_keys.contains(key);
@@ -211,21 +213,45 @@ fn save_or_remove_state_file(
 fn remove_edit_dirs(state_dir: &Path, dirs: &HashSet<PathBuf>) -> Result<(), StateFileError> {
     let canonical_state_dir = dunce::canonicalize(state_dir).ok();
     for dir in dirs {
-        let is_under_state = if let Some(parent) = &canonical_state_dir {
-            dunce::canonicalize(dir)
-                .is_ok_and(|child| child != *parent && is_subdir(parent, &child))
-        } else {
-            dir != state_dir && is_subdir(state_dir, dir)
-        };
-        if is_under_state
-            && dir.exists()
-            && let Err(source) = fs::remove_dir_all(dir)
+        if !is_real_dir(dir) || !is_strictly_under(state_dir, canonical_state_dir.as_deref(), dir) {
+            continue;
+        }
+        if let Err(source) = fs::remove_dir_all(dir)
             && source.kind() != io::ErrorKind::NotFound
         {
             return Err(StateFileError::RemoveEditDir { path: dir.clone(), source });
         }
+        remove_empty_ancestors(state_dir, dir);
     }
     Ok(())
+}
+
+fn is_strictly_under(state_dir: &Path, canonical_state_dir: Option<&Path>, dir: &Path) -> bool {
+    match canonical_state_dir {
+        Some(parent) => {
+            dunce::canonicalize(dir).is_ok_and(|child| child != parent && is_subdir(parent, &child))
+        }
+        None => dir != state_dir && is_subdir(state_dir, dir),
+    }
+}
+
+/// Whether `path` is a directory itself, not a file or a link to a directory.
+fn is_real_dir(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|meta| meta.is_dir())
+}
+
+fn is_symlink(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|meta| meta.is_symlink())
+}
+
+/// Removes the directories between `state_dir` and a removed edit directory,
+/// such as the scope directory of `@scope/pkg@1.0.0`, while they are empty.
+fn remove_empty_ancestors(state_dir: &Path, removed_dir: &Path) {
+    for dir in removed_dir.ancestors().skip(1) {
+        if dir == state_dir || !is_subdir(state_dir, dir) || fs::remove_dir(dir).is_err() {
+            break;
+        }
+    }
 }
 
 fn remove_state_dir_if_empty(state_dir: &Path) {
