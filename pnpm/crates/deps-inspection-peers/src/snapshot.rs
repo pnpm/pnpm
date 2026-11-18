@@ -73,18 +73,9 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
     let issues = inputs.issues;
     let Some(meta) = inputs.packages.get(&inputs.key.without_peer()) else { return };
     let Some(peers) = &meta.peer_dependencies else { return };
-    let directory_package = matches!(meta.resolution, LockfileResolution::Directory(_));
 
     for (peer_name, peer_range) in peers {
-        // The lockfile records a directory package's peers as written. A range
-        // the catalogs cannot resolve is kept, and so reported as unmet.
-        let peer_range = if directory_package {
-            resolve_peer_range(peer_name, peer_range, inputs.catalogs)
-                .unwrap_or_else(|_| peer_range.clone())
-        } else {
-            peer_range.clone()
-        };
-        let peer_range = get_peer_version_range(&peer_range);
+        let peer_range = wanted_peer_range(meta, peer_name, peer_range, inputs.catalogs);
         let optional = meta.peer_dependencies_meta
             .as_ref()
             .and_then(|meta_map| meta_map.get(peer_name))
@@ -104,6 +95,23 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
         };
         record_bad_peer(issues, peer_name, inputs.parents, optional, &peer_range, found_version);
     }
+}
+
+/// The range a package's declared peer has to satisfy.
+fn wanted_peer_range(
+    meta: &PackageMetadata,
+    peer_name: &str,
+    peer_range: &str,
+    catalogs: Option<&Catalogs>,
+) -> String {
+    // The lockfile records a directory package's peers as written. A range
+    // the catalogs cannot resolve is kept, and so reported as unmet.
+    if !matches!(meta.resolution, LockfileResolution::Directory(_)) {
+        return get_peer_version_range(peer_range);
+    }
+    let resolved = resolve_peer_range(peer_name, peer_range, catalogs)
+        .unwrap_or_else(|_| peer_range.to_string());
+    get_peer_version_range(&resolved)
 }
 
 pub(super) fn snapshot_dependency<'a>(
