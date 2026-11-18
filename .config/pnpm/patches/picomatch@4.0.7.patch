@@ -1,90 +1,95 @@
 diff --git a/lib/parse.js b/lib/parse.js
-index 29207512c60183b4bb9bf5112be3b9b5f4a9a9fd..9b37d8a54ca004b0514a8f469e14d02eaa8d35b5 100644
+index 29207512c60183b4bb9bf5112be3b9b5f4a9a9fd..7342f303ca9270c315536508b70ab19d1f88102c 100644
 --- a/lib/parse.js
 +++ b/lib/parse.js
-@@ -284,6 +284,60 @@ const repeatedExtglobRecursion = pattern => {
-   return depth;
- };
- 
-+// Scans the branch outside escapes, quotes, and brackets. Returns whether it
-+// has a wildcard (a `*` that does not open an extglob, or a `!(...)`), and
-+// whether the whole branch is one `!(...)`.
-+const scanBranch = branch => {
-+  let bracket = 0;
-+  let paren = 0;
-+  let quote = 0;
-+  let escaped = false;
-+  let wildcard = false;
-+  let negationEnd = -1;
-+
-+  for (let i = 0; i < branch.length; i++) {
-+    const ch = branch[i];
-+
-+    if (escaped === true) {
-+      escaped = false;
-+      continue;
-+    }
-+
-+    if (ch === '\\') {
-+      escaped = true;
-+      continue;
-+    }
-+
-+    if (ch === '"') {
-+      quote = quote === 1 ? 0 : 1;
-+      continue;
-+    }
-+
-+    if (quote === 1) {
-+      continue;
-+    }
-+
-+    if (ch === '[') {
-+      bracket++;
-+    } else if (ch === ']' && bracket > 0) {
-+      bracket--;
-+    } else if (bracket > 0) {
-+      continue;
-+    } else if (ch === '(') {
-+      paren++;
-+    } else if (ch === ')' && paren > 0) {
-+      paren--;
-+      if (paren === 0 && negationEnd === -1 && branch.startsWith('!(')) {
-+        negationEnd = i;
-+      }
-+    } else if ((ch === '*' && branch[i + 1] !== '(') || (ch === '!' && branch[i + 1] === '(')) {
-+      wildcard = true;
-+    }
-+  }
-+
-+  return { wildcard, wholeNegation: negationEnd === branch.length - 1 };
-+};
-+
- const analyzeRepeatedExtglob = (body, options) => {
-   if (options.maxExtglobRecursion === false) {
-     return { risky: false };
-@@ -343,6 +397,20 @@ const analyzeRepeatedExtglob = (body, options) => {
-       : { risky: true };
-   }
- 
-+  // GHSA-fc5q-39xc-vjpf: repeating a wildcard nests its unbounded quantifier.
-+  // A branch that is one `!(...)`, or that has stars but no slashes or groups,
-+  // matches every repetition of itself: its first star absorbs the repeats.
-+  // Its repetition is dropped. Any other wildcard branch is risky.
-+  if (branches.length === 1) {
-+    const { wildcard, wholeNegation } = scanBranch(branches[0]);
-+
-+    if (wildcard) {
-+      return wholeNegation || !/[()/]/.test(branches[0])
-+        ? { risky: false, collapse: true }
-+        : { risky: true };
-+    }
-+  }
-+
+@@ -346,6 +346,68 @@ const analyzeRepeatedExtglob = (body, options) => {
    return { risky: false };
  };
  
-@@ -565,6 +633,10 @@ const parse = (input, options) => {
++// GHSA-fc5q-39xc-vjpf: repeating a wildcard (a `*` that does not open an
++// extglob, or a `!(...)`) nests its unbounded quantifier and backtracks
++// exponentially. A body that is one `!(...)`, or that is a sequence of
++// stars and single-segment characters, matches every repetition of itself:
++// its first star absorbs the repeats, so the repetition is dropped. Any
++// other body with a wildcard is risky. Reads the parser's tokens of a
++// single-branch body.
++const SEGMENT_TOKEN_TYPES = new Set(['text', 'star', 'qmark', 'dot', 'bracket', 'plus', 'comma']);
++
++// Quoted text is appended to the previous token, so slashes are checked in
++// the raw body. A POSIX class such as `[[:punct:]]` matches a slash too.
++const staysInSegment = tok => {
++  if (!SEGMENT_TOKEN_TYPES.has(tok.type)) return false;
++  if (tok.type !== 'bracket') return true;
++
++  try {
++    return !new RegExp(`^(?:${tok.output || tok.value})$`).test('/');
++  } catch {
++    return false;
++  }
++};
++
++const analyzeWildcardBody = (body, bodyTokens) => {
++  const opensExtglob = index => {
++    const next = bodyTokens[index + 1];
++    return next !== undefined && next.type === 'paren' && next.extglob === true && next.value[0] === '(';
++  };
++
++  const hasWildcard = bodyTokens.some((tok, index) => {
++    return tok.type === 'negate' || (tok.type === 'star' && tok.value !== '' && !opensExtglob(index));
++  });
++
++  if (!hasWildcard) {
++    return { risky: false };
++  }
++
++  if (isWholeNegation(bodyTokens) || (!body.includes('/') && bodyTokens.every(staysInSegment))) {
++    return { risky: false, collapse: true };
++  }
++
++  return { risky: true };
++};
++
++const isWholeNegation = bodyTokens => {
++  if (bodyTokens.length < 3 || bodyTokens[0].type !== 'negate' || !bodyTokens[1].extglob) {
++    return false;
++  }
++
++  let depth = 0;
++
++  for (let i = 1; i < bodyTokens.length; i++) {
++    const tok = bodyTokens[i];
++
++    if (tok.type !== 'paren') continue;
++    if (tok.value === '(') depth++;
++    if (tok.value === ')') depth--;
++    if (depth === 0) return i === bodyTokens.length - 1;
++  }
++
++  return false;
++};
++
+ /**
+  * Parse the given input string.
+  * @param {String} input
+@@ -539,7 +601,16 @@ const parse = (input, options) => {
+   const extglobClose = token => {
+     const literal = input.slice(token.startIndex, state.index + 1);
+     const body = input.slice(token.startIndex + 2, state.index);
+-    const analysis = analyzeRepeatedExtglob(body, opts);
++    let analysis = analyzeRepeatedExtglob(body, opts);
++
++    if (
++      !analysis.risky &&
++      token.conditions === 1 &&
++      opts.maxExtglobRecursion !== false &&
++      (token.type === 'plus' || token.type === 'star')
++    ) {
++      analysis = analyzeWildcardBody(body, tokens.slice(token.tokensIndex + 2));
++    }
+ 
+     if ((token.type === 'plus' || token.type === 'star') && analysis.risky) {
+       const safeOutput = analysis.safeOutput
+@@ -565,6 +636,10 @@ const parse = (input, options) => {
        return;
      }
  
