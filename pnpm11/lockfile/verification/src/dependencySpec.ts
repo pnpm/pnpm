@@ -189,7 +189,7 @@ async function readTargetManifest (localDep: ManifestSource, targetDir: string):
 
 /**
  * The manifest of the project whose `publishConfig.directory` the resolver
- * links to `targetDir`. An unbuilt directory is described by that project.
+ * links to `targetDir`. A directory not built yet is described by that project.
  */
 async function publishingProjectManifest (
   localDep: ManifestSource,
