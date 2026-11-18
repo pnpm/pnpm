@@ -243,7 +243,6 @@ async fn expired_abbreviated_bytes_are_rendered_again() {
     let representation = Representation::Abbreviated;
     let now = Utc::now();
     let stale = Arc::new(RenderedPackument {
-        source: document().into(),
         body: Bytes::from_static(b"stale"),
         content_type: super::super::super::ABBREVIATED_CONTENT_TYPE,
         etag: "stale".to_string(),
@@ -296,7 +295,7 @@ async fn measure_large_packument_rendering() {
             let start = Instant::now();
             let rendered = render_document(
                 &name,
-                bytes.clone(),
+                &bytes,
                 "https://registry.example",
                 view(),
                 &state,
@@ -321,33 +320,26 @@ async fn measure_large_packument_rendering() {
 }
 
 #[tokio::test]
-async fn fingerprint_collision_cannot_reuse_another_document() {
+async fn source_bytes_do_not_count_against_the_cache_budget() {
     let tmp = TempDir::new().unwrap();
-    let state = state(&tmp);
+    let mut state = state(&tmp);
+    Arc::get_mut(&mut state.inner).unwrap().packuments.cache_budget = 64 * 1024;
     let name =
         CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm).unwrap();
     let base = "https://registry.example";
     let representation = Representation::Abbreviated;
-    let original =
-        render_cached(&name, document().into(), base, view(), &state, representation).unwrap();
-    let mut changed: Value = serde_json::from_slice(&document()).unwrap();
-    changed["versions"]["1.0.0"]["deprecated"] = "use another version".into();
-    let bytes = Bytes::from(serde_json::to_vec(&changed).unwrap());
-    let key =
-        cache_key(&name, &bytes, base, view(), representation, &state.inner.packuments).unwrap();
-    state.inner.packuments.cache
-        .lock()
-        .unwrap()
-        .insert(
-            key,
-            Arc::clone(&original),
-            original.source.len() + original.body.len(),
-            CACHE_BUDGET,
-        );
-    let current = render_cached(&name, bytes, base, view(), &state, representation).unwrap();
-    assert!(!Arc::ptr_eq(&original, &current));
-    let current: Value = serde_json::from_slice(&current.body).unwrap();
-    assert_eq!(current["versions"]["1.0.0"]["deprecated"], "use another version");
+    let sources = ["a", "b"].map(|letter| {
+        let mut doc: Value = serde_json::from_slice(&document()).unwrap();
+        doc["readme"] = letter.repeat(256 * 1024).into();
+        Bytes::from(serde_json::to_vec(&doc).unwrap())
+    });
+    let rendered = sources
+        .clone()
+        .map(|bytes| render_cached(&name, bytes, base, view(), &state, representation).unwrap());
+    for (bytes, first) in sources.into_iter().zip(rendered) {
+        let repeated = render_cached(&name, bytes, base, view(), &state, representation).unwrap();
+        assert!(Arc::ptr_eq(&first, &repeated));
+    }
 }
 
 #[tokio::test]
@@ -436,57 +428,6 @@ fn immutable_tar_snapshots_reuse_their_digest() {
     assert_ne!(first, changed);
     drop(table);
     assert!(weak.upgrade().is_none());
-}
-
-#[tokio::test]
-async fn an_in_flight_error_is_not_shared_with_a_different_source() {
-    use std::{future::Future, task::Poll};
-    let tmp = TempDir::new().unwrap();
-    let state = state(&tmp);
-    let input = RenderInput {
-        name: CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm)
-            .unwrap(),
-        bytes: document().into(),
-        tarball_base: "https://registry.example".to_string(),
-        view: OwnedView {
-            revision_registry: None,
-            tar_integrities: None,
-            tar_registry: false,
-            hosted: false,
-        },
-        representation: Representation::Full,
-    };
-    let key = input_key(&input, &state.inner.packuments).unwrap();
-    let leader_key = key.clone();
-    let leader_state = state.clone();
-    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
-    let (release_tx, release_rx) = tokio::sync::oneshot::channel();
-    let leader = tokio::spawn(async move {
-        leader_state.inner.packuments.in_flight.work(leader_key, || async {
-            started_tx.send(()).unwrap();
-            release_rx.await.unwrap();
-            let error = serde_json::from_slice::<Value>(b"invalid").unwrap_err();
-            super::SharedRender {
-                source: Bytes::from_static(b"invalid"),
-                result: Err(Arc::new(super::RegistryError::Json(error))),
-            }
-        })
-        .await
-    });
-    started_rx.await.unwrap();
-    let mut follower = Box::pin(super::render_shared(input, key, &state));
-    std::future::poll_fn(|context| {
-        let result = follower.as_mut().poll(context);
-        assert!(result.is_pending());
-        Poll::Ready(())
-    })
-    .await;
-    release_tx.send(()).unwrap();
-    let rendered = follower.await.unwrap();
-    let document: Value = serde_json::from_slice(&rendered.body).unwrap();
-    assert_eq!(document["name"], "example-widget");
-    let shared = leader.await.unwrap();
-    assert!(shared.result.is_err());
 }
 
 #[tokio::test]

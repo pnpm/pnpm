@@ -9,7 +9,6 @@ const MI_OPTION_PURGE_DELAY: c_int = 15;
 
 unsafe extern "C" {
     fn mi_option_set_default(option: c_int, value: c_long);
-    #[cfg(test)]
     fn mi_option_get(option: c_int) -> c_long;
 }
 
@@ -28,5 +27,8 @@ pub(super) fn purge_freed_memory_immediately() {
     unsafe { mi_option_set_default(MI_OPTION_PURGE_DELAY, 0) };
 }
 
-#[cfg(test)]
-mod tests;
+pub(super) fn purge_delay() -> c_long {
+    // SAFETY: `mimalloc` links the library that defines this function, and
+    // the index is a valid option in mimalloc v2 and v3.
+    unsafe { mi_option_get(MI_OPTION_PURGE_DELAY) }
+}

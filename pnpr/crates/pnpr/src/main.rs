@@ -35,6 +35,14 @@ struct Args {
 
     #[command(flatten)]
     server: ServerArgs,
+
+    /// Print the allocator's purge delay and exit. A test reads it.
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    #[arg(long, hide = true)]
+    allocator_purge_delay: bool,
 }
 
 #[derive(Debug, Default, Clone, clap::Args)]
@@ -66,6 +74,14 @@ fn main() -> miette::Result<()> {
 async fn run() -> miette::Result<()> {
     let matches = Args::command().get_matches();
     let mut args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    if args.allocator_purge_delay {
+        println!("{}", allocator::purge_delay());
+        return Ok(());
+    }
     let auto_path = Config::auto_config_path();
 
     let server_args = match args.command.take() {
