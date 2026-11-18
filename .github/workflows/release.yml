@@ -1400,6 +1400,13 @@ jobs:
               echo "pnpm version mismatch: expected $VERSION, got $installed" >&2
               exit 1
             }
+            test "$(pn --version)" = "$VERSION"
+            for alias in pnpx pnx; do
+              "$alias" --help | grep -q "pnpm dlx" || {
+                echo "$alias does not run pnpm dlx" >&2
+                exit 1
+              }
+            done
             # A login shell sources /etc/profile.d/pnpm.sh; pnpm refuses
             # `pnpm add -g` unless its global bin directory is on PATH.
             bash -lc '"'"'case ":$PATH:" in *":$(pnpm bin -g):"*) ;; *) echo "pnpm bin -g is not on PATH" >&2; exit 1 ;; esac'"'"'

@@ -10,14 +10,15 @@ The package installs:
 
 | Path                       | Contents                                        |
 | -------------------------- | ----------------------------------------------- |
-| `/usr/lib/pnpm/`           | the standalone binary and its `dist/` payload   |
-| `/usr/bin/pnpm`            | symlink to it                                   |
+| `/usr/lib/pnpm/`           | the standalone binary, its `pn`, `pnpx`, and `pnx` aliases, and its `dist/` payload |
+| `/usr/bin/pnpm`, `pn`, `pnpx`, `pnx` | symlinks to them                      |
 | `/etc/profile.d/pnpm.sh`   | `PNPM_HOME` and `PATH`, as the install script sets them |
 
 ## Where to get it
 
-Every pnpm release page carries two RPM assets, built by the release workflow
-from that release's `pnpm-linux-x64.tar.gz`:
+pnpm releases made after the release workflow gained its RPM job carry two RPM
+assets, built from that release's `pnpm-linux-x64.tar.gz`. For an earlier
+release, [build them locally](#build-locally).
 
 - `pnpm-<version>-1.el8.x86_64.rpm`, the bare package.
 - `pnpm-<version>-el8-x86_64-repo.tar.gz`, a dnf repository with `repodata`,
@@ -27,7 +28,7 @@ from that release's `pnpm-linux-x64.tar.gz`:
 Both carry a build provenance attestation:
 
 ```sh
-gh attestation verify pnpm-11.25.0-el8-x86_64-repo.tar.gz --repo pnpm/pnpm
+gh attestation verify pnpm-<version>-el8-x86_64-repo.tar.gz --repo pnpm/pnpm
 ```
 
 ## Install on a host without network access
@@ -36,7 +37,7 @@ Copy the repository tarball into the image and unpack it at the path its
 `pnpm.repo` points to:
 
 ```sh
-tar xzf pnpm-11.25.0-el8-x86_64-repo.tar.gz -C /tmp
+tar xzf pnpm-<version>-el8-x86_64-repo.tar.gz -C /tmp
 rm -rf /opt/pnpm-repo
 mv /tmp/repo /opt/pnpm-repo
 cp /opt/pnpm-repo/pnpm.repo /etc/yum.repos.d/
@@ -47,7 +48,7 @@ The bare `.rpm` installs directly too, if the host already has `libatomic` and
 a repository is more than you need:
 
 ```sh
-dnf install -y ./pnpm-11.25.0-1.el8.x86_64.rpm
+dnf install -y ./pnpm-<version>-1.el8.x86_64.rpm
 ```
 
 Node.js is not a dependency and is not bundled as a runtime you can call: pnpm

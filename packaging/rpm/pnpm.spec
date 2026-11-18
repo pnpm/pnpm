@@ -43,11 +43,20 @@ install -d %{buildroot}%{pnpm_root}
 cp -a pnpm dist %{buildroot}%{pnpm_root}/
 install -d %{buildroot}%{_bindir}
 ln -s %{pnpm_root}/pnpm %{buildroot}%{_bindir}/pnpm
+# The aliases are hard links beside the binary, as the standalone installers
+# lay them out: the binary picks its behaviour from the name it runs as.
+for alias in pn pnpx pnx; do
+  ln %{buildroot}%{pnpm_root}/pnpm %{buildroot}%{pnpm_root}/$alias
+  ln -s %{pnpm_root}/$alias %{buildroot}%{_bindir}/$alias
+done
 install -D -m 0644 %{SOURCE1} %{buildroot}%{_sysconfdir}/profile.d/pnpm.sh
 
 %files
 %{pnpm_root}
 %{_bindir}/pnpm
+%{_bindir}/pn
+%{_bindir}/pnpx
+%{_bindir}/pnx
 %config(noreplace) %{_sysconfdir}/profile.d/pnpm.sh
 
 %changelog
