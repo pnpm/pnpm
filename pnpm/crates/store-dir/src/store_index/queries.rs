@@ -361,7 +361,7 @@ impl StoreIndex {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(files) => return files.set_many(&encoded),
         };
-        super::retry_sqlite_write(|| write::write_many_transaction(conn, &encoded))
+        write::write_many_transaction(conn, &encoded)
     }
 
     /// `true` iff a row with this key exists, directly or through an alias.

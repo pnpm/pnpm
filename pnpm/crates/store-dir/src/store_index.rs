@@ -54,28 +54,6 @@ enum Backend {
 /// then hands off to per-file work without holding the lock.
 pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 
-const MAX_WRITE_RETRIES: usize = 4;
-
-pub(super) fn retry_sqlite_write<Output>(
-    mut write: impl FnMut() -> Result<Output, StoreIndexError>,
-) -> Result<Output, StoreIndexError> {
-    let mut retries = 0;
-    loop {
-        match write() {
-            Err(StoreIndexError::Write { source })
-                if matches!(
-                    source.sqlite_error_code(),
-                    Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked),
-                ) && retries < MAX_WRITE_RETRIES =>
-            {
-                retries += 1;
-                std::thread::sleep(std::time::Duration::from_millis(25 * (1 << (retries - 1))));
-            }
-            result => return result,
-        }
-    }
-}
-
 impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
     /// same PRAGMAs pnpm v11 uses.

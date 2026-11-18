@@ -244,6 +244,9 @@ fn handle_batch_write_error(
 ) -> Result<(), StoreIndexError> {
     match policy {
         WriteErrorPolicy::Return => Err(error),
+        // One failed flush (e.g. a disk-full hiccup) shouldn't drop the rest
+        // of the install's entries; the next install cache-misses those rows
+        // and re-populates them.
         WriteErrorPolicy::Continue => {
             tracing::warn!(target: "pacquet::store_index", ?error, "batched store-index write failed; dropping this batch and continuing");
             Ok(())
@@ -287,6 +290,8 @@ fn flush_batch(
         WriteErrorPolicy::Continue => index.set_many(pending.drain())?,
         WriteErrorPolicy::Return => index.set_many_checked(pending.drain())?,
     }
+    // Skipped when the rows failed: an alias of a row this batch failed to
+    // write could replace one that names a row that exists.
     index.set_aliases(&aliases)?;
     Ok(())
 }

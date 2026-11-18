@@ -5,6 +5,11 @@ use super::{
 
 const MAX_QUARANTINED_REMOTE_SIDE_EFFECTS: usize = 64;
 
+/// `Replace` is a straight overwrite. Three short-circuit
+/// branches log and skip without removing the row from
+/// `pending`, so a same-batch `Replace` for the same key still
+/// flushes — see the docs on
+/// [`WriteMsg::SideEffectsUpload`].
 pub(super) fn apply_write_msg(
     index: &StoreIndex,
     pending: &mut HashMap<String, PackageFilesIndex>,
@@ -50,6 +55,9 @@ pub(super) fn apply_write_msg(
     }
 }
 
+/// Diff the built package against the row's own files and record the result
+/// under `cache_key`. A row written with another hash algorithm cannot be
+/// diffed against.
 fn record_local_side_effects(
     row: &mut PackageFilesIndex,
     key: &str,
@@ -70,6 +78,8 @@ fn record_local_side_effects(
     Some(diff)
 }
 
+/// Remember a rejected remote envelope so it is not re-fetched, keeping only
+/// the most recent [`MAX_QUARANTINED_REMOTE_SIDE_EFFECTS`] per channel.
 fn quarantine_digest(row: &mut PackageFilesIndex, channel: String, envelope_digest: String) {
     let digests = row.remote_side_effects_quarantine
         .get_or_insert_with(HashMap::new)
@@ -83,6 +93,7 @@ fn quarantine_digest(row: &mut PackageFilesIndex, channel: String, envelope_dige
     }
 }
 
+/// Remove `cache_key` from `key`'s side-effects map and persist the updated row.
 pub(super) fn invalidate_side_effects(
     index: &StoreIndex,
     pending: &mut HashMap<String, PackageFilesIndex>,
@@ -114,6 +125,12 @@ fn remove_side_effects(row: &mut PackageFilesIndex, cache_key: &str) -> bool {
     true
 }
 
+/// Return a mutable reference to the [`PackageFilesIndex`] row for
+/// `key`, loading from `SQLite` when this is the row's first
+/// sighting in the batch. Returns `None` (and logs at `debug!` /
+/// `warn!` as appropriate) when no base row exists or the `SQLite`
+/// read fails — both cases mean the caller should skip the
+/// side-effects mutation without disturbing `pending`.
 fn load_pending_row<'a>(
     index: &StoreIndex,
     pending: &'a mut HashMap<String, PackageFilesIndex>,
