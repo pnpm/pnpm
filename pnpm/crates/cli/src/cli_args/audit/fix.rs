@@ -225,20 +225,27 @@ pub(crate) async fn fetch_publish_times(
 
     let body = response.json::<PackumentTimes>().await.ok()?;
     Some(PackumentPublishInfo {
-        time: publish_timestamps(body.time?),
+        time: publish_timestamps(body.time?)?,
         deprecated: deprecated_versions(body.versions.unwrap_or_default()),
     })
 }
 
-/// The string entries of a packument `time` map. Other entries, such as an
-/// `unpublished` marker that is `null` or an object, are dropped.
-fn publish_timestamps(time: HashMap<String, serde_json::Value>) -> HashMap<String, String> {
-    time.into_iter()
-        .filter_map(|(key, value)| match value {
-            serde_json::Value::String(published_at) => Some((key, published_at)),
-            _ => None,
-        })
-        .collect()
+/// The publish timestamps of a packument `time` map. Non-version entries
+/// that are not strings, such as an `unpublished` marker that is `null` or an
+/// object, are dropped. `None` when a version's timestamp is not a string, so
+/// a malformed map is not mistaken for the complete list of releases.
+fn publish_timestamps(time: HashMap<String, serde_json::Value>) -> Option<HashMap<String, String>> {
+    let mut timestamps = HashMap::with_capacity(time.len());
+    for (key, value) in time {
+        match value {
+            serde_json::Value::String(published_at) => {
+                timestamps.insert(key, published_at);
+            }
+            _ if key.parse::<Version>().is_ok() => return None,
+            _ => {}
+        }
+    }
+    Some(timestamps)
 }
 
 /// Compute the age-gate exclusions for `advisories` using the publish-time
