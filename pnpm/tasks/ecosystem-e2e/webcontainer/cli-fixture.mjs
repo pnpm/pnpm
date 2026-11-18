@@ -657,7 +657,7 @@ function assertCommandRouting (entry, inventoryPath) {
     const commandPath = path.startsWith('alias:') ? aliasCommandPath(path) : path
     const args = commandPath.split(' ')
     const help = spawnSync(process.execPath, [entry, ...args, '--help'], { encoding: 'utf8' })
-    if (path === 'test' || path === 'alias:test=t' || path === 'alias:test=tst') {
+    if (['test', 'start', 'stop', 'restart'].includes(path) || path === 'alias:test=t' || path === 'alias:test=tst') {
       assert.equal(help.status, 1, `${path} should dispatch to the project script: ${help.stderr || help.stdout}`)
       assert.match(`${help.stderr}${help.stdout}`, /ERR_PNPM_NO_SCRIPT/)
       tested++
