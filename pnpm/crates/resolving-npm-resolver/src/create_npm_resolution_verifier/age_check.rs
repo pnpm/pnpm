@@ -114,7 +114,12 @@ impl NpmResolutionVerifier {
             .as_deref()
             .and_then(|value| httpdate::parse_http_date(value).ok())
             .and_then(|time| Timestamp::try_from(time).ok())
-            .is_some_and(|parsed| parsed + jiff::SignedDuration::from_secs(1) <= cutoff)
+            .and_then(|parsed| {
+                parsed
+                    .checked_add(jiff::SignedDuration::from_secs(1))
+                    .ok()
+            })
+            .is_some_and(|upper_bound| upper_bound <= cutoff)
     }
 
     async fn fetch_head_modified(&self, registry: &str, name: &PkgName) -> Option<String> {

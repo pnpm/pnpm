@@ -153,6 +153,41 @@ async fn planned_fetch_head_shortcut_skips_the_metadata_body() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
+#[tokio::test]
+async fn planned_fetch_head_shortcut_declines_the_latest_representable_date() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _head_mock = server
+        .mock("HEAD", "/acme")
+        .with_status(200)
+        .with_header("last-modified", "Thu, 30 Dec 9999 22:00:00 GMT")
+        .expect(1)
+        .create_async()
+        .await;
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .with_status(403)
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
+    planned
+        .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string(), None)]))
+        .expect("first fill");
+    opts.artifacts.canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"),
+    )
+    .await;
+    dbg!(&result);
+    assert!(matches!(result, ResolutionVerification::FetchFailed { .. }));
+}
+
 /// A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
 /// authorized to read a private package) must not be reported as a lockfile
 /// tarball-URL mismatch: the lockfile is correct, the fetch is the problem. The

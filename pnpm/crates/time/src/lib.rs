@@ -26,9 +26,8 @@ fn parse_rfc3339_nanos(input: &str) -> Result<i128, &'static str> {
         .ok_or("invalid RFC 3339 timestamp")?;
     let offset = suffix
         .strip_prefix('.')
-        .map_or(suffix, |fraction| {
-            fraction.trim_start_matches(|character: char| character.is_ascii_digit())
-        });
+        .map(|fraction| fraction.trim_start_matches(|character: char| character.is_ascii_digit()))
+        .unwrap_or(suffix);
     if !is_rfc3339_offset(offset) {
         return Err("invalid RFC 3339 offset");
     }
