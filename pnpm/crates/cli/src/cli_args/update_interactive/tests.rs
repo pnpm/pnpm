@@ -864,6 +864,29 @@ async fn interactive_tag_update_skips_aliased_dependencies() {
 }
 
 #[tokio::test]
+async fn interactive_tag_update_skips_catalog_dependencies() {
+    let fixture = UpdateFixture::with_workspace();
+    fs::write(
+        fixture.dir.path().join("pnpm-workspace.yaml"),
+        format!("packages:\n  - 'project'\ncatalog:\n  '{MULTI_B}': ^2.0.0\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fixture.write_manifest(&json!({ MULTI_B: "catalog:" }));
+    fixture.update(&["update"]).await;
+    fixture.set_dist_tag(MULTI_B, "1.0.0", "next");
+
+    let scripted = scripted_prompts();
+    fixture.update(&["update", "--interactive", "--tag", "next"]).await;
+
+    let prompts = scripted.seen();
+    assert!(
+        prompts.is_empty(),
+        "the catalog dependency must not be offered: {} prompt(s) shown",
+        prompts.len(),
+    );
+}
+
+#[tokio::test]
 async fn interactive_tag_update_offers_tag_change_when_resolved_version_matches() {
     let fixture = UpdateFixture::new();
 

@@ -109,17 +109,19 @@ pub(super) async fn outdated_dependency(
     workspace: &str,
     candidate: OutdatedCandidate<'_>,
 ) -> miette::Result<Option<OutdatedPackage>> {
-    let bare_specifier =
-        dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
     if matches!(query.target_version, TargetVersion::Tag(_))
-        && (candidate.is_engine || bare_specifier.starts_with("npm:"))
+        && (candidate.is_engine
+            || dereference_catalog_protocol(candidate.bare_specifier).is_some()
+            || candidate.bare_specifier.starts_with("npm:"))
     {
-        // The `--tag` rewrite leaves engine declarations and `npm:` aliases
-        // unchanged, so they are not offered an update that cannot apply.
-        // Querying `<alias>@<tag>` for an alias would also fetch the wrong
-        // packument.
+        // The `--tag` rewrite leaves engine declarations, catalog entries,
+        // and `npm:` aliases unchanged, so they are not offered an update
+        // that cannot apply. Querying `<alias>@<tag>` for an alias would
+        // also fetch the wrong packument.
         return Ok(None);
     }
+    let bare_specifier =
+        dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
     let resolved_package_name = if candidate.is_engine {
         candidate.alias.to_string()
     } else {
