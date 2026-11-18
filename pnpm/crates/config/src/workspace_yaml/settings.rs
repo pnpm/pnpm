@@ -8,7 +8,7 @@ use super::{
     RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol,
     SideEffectsCacheSetting, SkillsSettings, StoreIndexFormat, SupportedArchitectures, SystemEnv,
     TaskSettings, TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, parse_settings, read_workspace_document,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, parse_settings_file, read_workspace_document,
 };
 
 /// `serde` helper for fields that need to distinguish "missing key"
@@ -816,11 +816,7 @@ impl WorkspaceSettings {
 
     /// Parse and validate the text of the `pnpm-workspace.yaml` at `path`.
     fn read_valid(text: &str, path: &Path) -> Result<Self, LoadWorkspaceYamlError> {
-        let settings = parse_settings::<SystemEnv, Self>(text)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                path: path.to_path_buf(),
-                source,
-            })?;
+        let settings = parse_settings_file::<SystemEnv, Self>(text, path)?;
         settings.validate_all_sections()?;
         settings.reject_repo_controlled_trust_material(path)?;
         Ok(settings)

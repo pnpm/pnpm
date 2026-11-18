@@ -1,6 +1,10 @@
-use super::{DocumentPlaceholders, EnvVar, Placeholder, document_placeholders};
+use super::{
+    DocumentPlaceholders, EnvVar, LoadWorkspaceYamlError, Path, Placeholder, document_placeholders,
+    env_replace_lossy,
+};
 use restore::deserialize_restoring;
 use serde::de::DeserializeOwned;
+use std::ops::Range;
 
 mod restore;
 
@@ -188,4 +192,102 @@ fn read_candidate<Settings: DeserializeOwned + Default>(
 ) -> Option<Settings> {
     let candidate = render_choices(text, placeholders, choices);
     deserialize_restoring(&candidate, text, placeholders)
+}
+
+/// [`parse_settings`] for the file at `path`.
+///
+/// A document that cannot be read because a setting is written as a
+/// placeholder with no value and no fallback reports that placeholder.
+pub(crate) fn parse_settings_file<Sys: EnvVar, Settings: DeserializeOwned + Default>(
+    text: &str,
+    path: &Path,
+) -> Result<Settings, LoadWorkspaceYamlError> {
+    parse_settings::<Sys, Settings>(text)
+        .map_err(|source| match first_unreadable_unresolved_placeholder::<Sys, Settings>(text) {
+            Some(var) => LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var },
+            None => LoadWorkspaceYamlError::ParseYaml { path: path.to_path_buf(), source },
+        })
+}
+
+/// The first placeholder with no value and no fallback that the document
+/// cannot be read with, if the document reads once those are all dropped.
+///
+/// The search halves the candidates on each read, so it costs about one read
+/// per doubling of their number, however many the file holds.
+fn first_unreadable_unresolved_placeholder<Sys: EnvVar, Settings: DeserializeOwned + Default>(
+    text: &str,
+) -> Option<String> {
+    let placeholders = document_placeholders::<Sys>(text)?;
+    let unresolved: Vec<(usize, String)> = placeholders.items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, placeholder)| {
+            let (_, unresolved) = env_replace_lossy::<Sys>(&text[placeholder.range.clone()]);
+            unresolved
+                .into_iter()
+                .next()
+                .map(|var| (index, var))
+        })
+        .collect();
+    let reads_keeping = |kept: Range<usize>| {
+        let mut dropped = vec![false; placeholders.items.len()];
+        for (position, (index, _)) in unresolved.iter().enumerate() {
+            dropped[*index] = !kept.contains(&position);
+        }
+        let candidate = render_dropping(text, &placeholders, &dropped);
+        deserialize_restoring::<Settings>(&candidate, text, &placeholders).is_some()
+    };
+    if unresolved.is_empty() || !reads_keeping(0..0) {
+        return None;
+    }
+    let mut candidates = 0..unresolved.len();
+    while candidates.len() > 1 {
+        let middle = candidates.start + candidates.len() / 2;
+        candidates = if reads_keeping(candidates.start..middle) {
+            middle..candidates.end
+        } else {
+            candidates.start..middle
+        };
+    }
+    let (_, var) = &unresolved[candidates.start];
+    (!reads_keeping(candidates)).then(|| var.clone())
+}
+
+/// Render `text` with each `dropped` placeholder replaced by `null`, every
+/// resolvable one expanded, and the rest as their sentinels.
+///
+/// A dropped placeholder that fills a quoted scalar takes the quotes with it,
+/// so it leaves a null rather than the string `"null"`.
+fn render_dropping(text: &str, placeholders: &DocumentPlaceholders, dropped: &[bool]) -> String {
+    let mut rendered = String::with_capacity(text.len());
+    let mut copied = 0;
+    for (placeholder, &dropped) in placeholders.items.iter().zip(dropped) {
+        if dropped {
+            let range = with_enclosing_quotes(text, placeholder.range.clone());
+            rendered.push_str(&text[copied..range.start]);
+            rendered.push_str("null");
+            copied = range.end;
+        } else {
+            rendered.push_str(&text[copied..placeholder.range.start]);
+            rendered.push_str(placeholder.resolved.as_deref().unwrap_or(&placeholder.sentinel));
+            copied = placeholder.range.end;
+        }
+    }
+    rendered.push_str(&text[copied..]);
+    rendered
+}
+
+fn with_enclosing_quotes(text: &str, range: Range<usize>) -> Range<usize> {
+    let bytes = text.as_bytes();
+    match (
+        range.start
+            .checked_sub(1)
+            .map(|before| bytes[before]),
+        bytes.get(range.end),
+    ) {
+        (Some(open @ (b'"' | b'\'')), Some(&close)) if open == close => {
+            range.start - 1..range.end + 1
+        }
+        _ => range,
+    }
 }

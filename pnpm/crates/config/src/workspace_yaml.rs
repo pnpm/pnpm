@@ -3,7 +3,7 @@ pub mod registries;
 pub use error::LoadWorkspaceYamlError;
 pub(crate) use includes::read_workspace_document;
 pub use machine::{MachineSettings, TrustedSettings};
-pub(crate) use parse_settings::parse_settings;
+pub(crate) use parse_settings::{parse_settings, parse_settings_file};
 pub use permissions::{
     PackagePermissions, PermissionCapability, SkillsSettings, decided_permissions,
 };
@@ -437,9 +437,9 @@ use env::expand_home_prefix;
 
 mod environment_values;
 use environment_values::{
-    DocumentPlaceholders, Placeholder, document_placeholders, has_env_placeholder, no_proxy_scalar,
-    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
-    substitute_optional_string_map, substitute_registry_entries,
+    DocumentPlaceholders, Placeholder, UnresolvedPlaceholders, document_placeholders,
+    has_env_placeholder, no_proxy_scalar, substitute_json_string, substitute_optional_inner_string,
+    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
 };
 
 mod apply;
