@@ -347,7 +347,7 @@ impl StoreIndex {
     ) -> Result<(), StoreIndexError> {
         let mut encoded: Vec<(String, Vec<u8>)> = Vec::new();
         for (key, value) in entries {
-            if let Some(entry) = encode_index_entry(key, value, policy)? {
+            if let Some(entry) = encode_index_entry(key, &value, policy)? {
                 encoded.push(entry);
             }
         }
@@ -470,7 +470,7 @@ enum EncodingErrorPolicy {
 
 fn encode_index_entry(
     key: String,
-    value: PackageFilesIndex,
+    value: &PackageFilesIndex,
     policy: EncodingErrorPolicy,
 ) -> Result<Option<(String, Vec<u8>)>, StoreIndexError> {
     match crate::msgpackr_records::encode_package_files_index(&value) {
