@@ -82,10 +82,11 @@ impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
     pub(super) fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
-        if log.strict_dep_builds {
-            self.notices.pending_builds.clear();
-        } else {
-            self.notices.pending_builds.clone_from(&log.package_names);
+        let pending_builds =
+            if log.strict_dep_builds { Vec::new() } else { log.package_names.clone() };
+        if self.notices.pending_builds != pending_builds {
+            self.notices.pending_builds = pending_builds;
+            self.notices.approvals_emitted = false;
         }
         // Suppress the warning box under `strictDepBuilds` — the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
@@ -97,13 +98,19 @@ impl ReporterState {
     }
 
     pub(super) fn on_pending_skills(&mut self, log: &PendingSkillsLog) {
-        self.notices.pending_skills.clone_from(&log.package_names);
+        if self.notices.pending_skills != log.package_names {
+            self.notices.pending_skills.clone_from(&log.package_names);
+            self.notices.approvals_emitted = false;
+        }
         if !self.options.append_only {
             self.render_pending_approvals();
         }
     }
 
     pub(super) fn render_pending_approvals(&mut self) {
+        if self.options.append_only && self.notices.approvals_emitted {
+            return;
+        }
         let packages =
             pending_approval_packages(&self.notices.pending_builds, &self.notices.pending_skills);
         if packages.is_empty() {
@@ -125,6 +132,9 @@ impl ReporterState {
             format!("Packages awaiting approval:\n{list}\n\n{instruction}"),
             BlockPlacement::Scrolling,
         );
+        if self.options.append_only {
+            self.notices.approvals_emitted = true;
+        }
     }
 
     /// pnpm's `reportUpdateCheck`: tell the user a newer pnpm exists and

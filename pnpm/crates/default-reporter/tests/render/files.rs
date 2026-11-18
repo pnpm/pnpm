@@ -114,7 +114,7 @@ fn append_only_output_emits_one_combined_pending_approval_notice() {
 }
 
 #[test]
-fn append_only_output_flushes_pending_approvals_before_an_install_error() {
+fn append_only_output_flushes_pending_approvals_before_a_failed_lifecycle_script() {
     let mut reporter =
         state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
     let _ = reporter.handle(&ignored_scripts(&["esbuild@1.0.0"]));
@@ -131,4 +131,28 @@ fn append_only_output_flushes_pending_approvals_before_an_install_error() {
     assert_eq!(output.matches("Packages awaiting approval:").count(), 1, "{output}");
     assert!(output.contains("  esbuild  build, skills"), "{output}");
     assert!(output.contains("Failed"), "{output}");
+}
+
+#[test]
+fn append_only_output_emits_approval_notice_once_for_multiple_failed_scripts() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let _ = reporter.handle(&ignored_scripts(&["esbuild@1.0.0"]));
+    let _ = reporter.handle(&LogEvent::PendingSkills(PendingSkillsLog {
+        level: LogLevel::Debug,
+        package_names: vec!["esbuild".to_string()],
+    }));
+    let first = reporter.handle(&super::lifecycle_exit("/repo/packages/first", "postinstall", 1));
+    let second = reporter.handle(&super::lifecycle_exit("/repo/packages/second", "postinstall", 1));
+
+    let Output::Lines(first) = first else { panic!("expected first appended lines") };
+    let Output::Lines(second) = second else { panic!("expected second appended lines") };
+    assert_eq!(
+        first
+            .join("\n")
+            .matches("Packages awaiting approval:")
+            .count(),
+        1
+    );
+    assert!(!second.join("\n").contains("Packages awaiting approval"));
 }

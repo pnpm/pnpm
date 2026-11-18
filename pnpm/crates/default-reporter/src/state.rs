@@ -204,6 +204,7 @@ struct NoticeState {
     reported_peer_issues: bool,
     pending_builds: Vec<String>,
     pending_skills: Vec<String>,
+    approvals_emitted: bool,
     approvals_slot: BlockSlot,
 }
 
