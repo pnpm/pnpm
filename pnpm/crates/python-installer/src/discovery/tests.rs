@@ -264,3 +264,27 @@ async fn an_unmanaged_environment_skips_only_a_project_that_installs_into_it() {
     assert_eq!(discovery.project_roots().collect::<Vec<_>>(), [member]);
     assert_eq!(discovery.unmanaged, [standalone]);
 }
+
+#[tokio::test]
+async fn a_nested_workspace_that_shares_nothing_keeps_its_members_out_of_the_outer_environment() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['nested/*']\n\n[tool.pnpm.python]\nshared-environment = true\n",
+    )
+    .unwrap();
+    let nested = root.path().join("nested");
+    let tools = nested.join("tools");
+    fs::create_dir_all(tools.join(".venv")).unwrap();
+    fs::write(nested.join("pyproject.toml"), "[tool.uv.workspace]\nmembers = ['tools']\n").unwrap();
+    fs::write(tools.join("requirements.txt"), "--index-url https://example.com/simple\n").unwrap();
+    let manifests = vec![
+        root.path().join("pyproject.toml"),
+        nested.join("pyproject.toml"),
+        tools.join("requirements.txt"),
+    ];
+
+    let discovery = discover(&Config::default(), root.path(), &manifests).await.unwrap();
+
+    assert_eq!(discovery.unmanaged, [tools]);
+}

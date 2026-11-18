@@ -200,13 +200,15 @@ impl DeclaredWorkspaces {
         }
     }
 
-    /// Whether `candidate` installs into the environment of a workspace
-    /// that contains it, not into one of its own.
+    /// Whether `candidate` installs into the environment of the nearest
+    /// workspace declared at or above it, not into one of its own.
     pub(crate) fn shares_environment(&self, candidate: &Path) -> bool {
         candidate
             .ancestors()
-            .filter(|root| self.sharing.contains(*root))
-            .any(|root| self.declarations[root].contain(root, candidate))
+            .find_map(|root| Some((root, self.declarations.get(root)?)))
+            .is_some_and(|(root, patterns)| {
+                self.sharing.contains(root) && patterns.contain(root, candidate)
+            })
     }
 
     /// Whether the nearest workspace declaration contains `candidate`.
