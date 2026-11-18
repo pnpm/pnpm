@@ -3,6 +3,8 @@ use super::{
 };
 use rusqlite::Connection;
 
+mod write;
+
 /// Per-query placeholder cap for [`StoreIndex::get_many`]. `SQLite`'s
 /// `SQLITE_MAX_VARIABLE_NUMBER` defaulted to 999 before 3.32.0 and is
 /// 32766 in newer builds (rusqlite ships a recent `SQLite`, so the
@@ -330,16 +332,25 @@ impl StoreIndex {
         &mut self,
         entries: impl IntoIterator<Item = (String, PackageFilesIndex)>,
     ) -> Result<(), StoreIndexError> {
+        self.set_many_with_encoding_policy(entries, EncodingErrorPolicy::Skip)
+    }
+
+    pub(super) fn set_many_checked(
+        &mut self,
+        entries: impl IntoIterator<Item = (String, PackageFilesIndex)>,
+    ) -> Result<(), StoreIndexError> {
+        self.set_many_with_encoding_policy(entries, EncodingErrorPolicy::Return)
+    }
+
+    fn set_many_with_encoding_policy(
+        &mut self,
+        entries: impl IntoIterator<Item = (String, PackageFilesIndex)>,
+        policy: EncodingErrorPolicy,
+    ) -> Result<(), StoreIndexError> {
         let mut encoded: Vec<(String, Vec<u8>)> = Vec::new();
         for (key, value) in entries {
-            match crate::msgpackr_records::encode_package_files_index(&value) {
-                Ok(buf) => encoded.push((key, buf)),
-                Err(source) => tracing::warn!(
-                    target: "pacquet::store_index",
-                    ?key,
-                    error = ?source,
-                    "failed to encode package_index row; skipping",
-                ),
+            if let Some(entry) = write::encode_index_entry(key, &value, policy)? {
+                encoded.push(entry);
             }
         }
         if encoded.is_empty() {
@@ -350,20 +361,7 @@ impl StoreIndex {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(files) => return files.set_many(&encoded),
         };
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|source| StoreIndexError::Write { source })?;
-        {
-            let mut stmt = tx
-                .prepare_cached("INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)")
-                .map_err(|source| StoreIndexError::Write { source })?;
-            for (key, buf) in &encoded {
-                stmt.execute(rusqlite::params![key, buf])
-                    .map_err(|source| StoreIndexError::Write { source })?;
-            }
-        }
-        tx.commit()
-            .map_err(|source| StoreIndexError::Write { source })
+        write::write_many_transaction(conn, &encoded)
     }
 
     /// `true` iff a row with this key exists, directly or through an alias.
@@ -464,6 +462,12 @@ impl StoreIndex {
             Backend::Files(_) => panic!("the store index is not an SQLite database"),
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum EncodingErrorPolicy {
+    Skip,
+    Return,
 }
 
 fn sqlite_get(conn: &Connection, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {

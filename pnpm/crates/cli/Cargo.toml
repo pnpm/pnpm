@@ -168,6 +168,7 @@ flate2 = { workspace = true }
 insta = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
+rusqlite = { workspace = true }
 sha2 = { workspace = true }
 ssri = { workspace = true }
 tar = { workspace = true }
