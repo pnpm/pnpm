@@ -723,3 +723,34 @@ fn cyclic_gvs_slots_are_stable_across_runs() {
         assert_eq!(cyclic_slot_suffixes(), first);
     }
 }
+
+/// A `variations` resolution is identified by the archive the platform
+/// selects, so projects that prepare different platforms get different slots.
+#[test]
+fn a_variations_resolution_is_identified_by_the_selected_archive() {
+    use pnpm_lockfile::{
+        PkgIdWithPatchHash, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
+        VariationsResolution,
+    };
+
+    let x64 = format!("sha512-{}==", "A".repeat(86));
+    let arm64 = format!("sha512-{}==", "B".repeat(86));
+    let variant = |cpu: &str, digest: &str| PlatformAssetResolution {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: digest.parse().expect("parse integrity"),
+            revision: None,
+        }),
+        targets: vec![PlatformAssetTarget { os: "linux".into(), cpu: cpu.into(), libc: None }],
+    };
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![variant("x64", &x64), variant("arm64", &arm64)],
+    });
+    let id = PkgIdWithPatchHash::from("node@22.0.0".to_string());
+    let identified_on = |cpu: &str| {
+        let platform = PlatformSelector { os: "linux".into(), cpu: cpu.into(), libc: None };
+        super::super::graph_hash::create_full_pkg_id(&id, Some(&resolution), &platform)
+    };
+
+    assert_eq!(identified_on("x64"), format!("node@22.0.0:{x64}"));
+    assert_eq!(identified_on("arm64"), format!("node@22.0.0:{arm64}"));
+}

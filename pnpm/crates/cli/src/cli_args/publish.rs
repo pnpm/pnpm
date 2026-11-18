@@ -11,6 +11,9 @@
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
 mod notes;
 mod options;
+mod packed;
+
+use packed::PackedDirectory;
 mod scope;
 
 use scope::PublishScope;
@@ -80,30 +83,6 @@ pub struct PublishFlags {
 pub(super) enum PublishedPackages {
     Single(Box<PublishSummary>),
     Recursive(Vec<PublishSummary>),
-}
-
-struct PackedDirectory {
-    project_dir: std::path::PathBuf,
-    source_manifest: Value,
-    published_manifest: Value,
-    tarball_data: Vec<u8>,
-    tarball_path: String,
-    contents: Vec<String>,
-    unpacked_size: u64,
-    notes: Option<String>,
-}
-
-impl PackedDirectory {
-    fn packed_pkg(&self) -> PackedPkg<'_> {
-        PackedPkg {
-            published_manifest: &self.published_manifest,
-            tarball_data: &self.tarball_data,
-            tarball_path: &self.tarball_path,
-            contents: &self.contents,
-            unpacked_size: self.unpacked_size,
-            notes: self.notes.as_deref(),
-        }
-    }
 }
 
 impl PublishedPackages {

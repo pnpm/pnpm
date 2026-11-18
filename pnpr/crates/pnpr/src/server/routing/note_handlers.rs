@@ -7,7 +7,10 @@
 //! - `{base}/{name}/-/notes` and `{base}/@{scope}/{name}/-/notes` list a
 //!   package's notes; no tarball is named `notes`.
 
-use super::npm_handlers::{NamePath, ScopedVersionPath, get_scoped_version_manifest};
+use super::{
+    npm_handlers::{NamePath, ScopedVersionPath},
+    serve_version_manifest,
+};
 use crate::server::{
     AppState, AuthedCaller, Path, Response, State, TargetRegistry, not_found,
     notes::{NoteRequest, read_note_body, serve_package_notes, serve_version_note},
@@ -28,6 +31,22 @@ const EVIDENCE: &str = "evidence";
 pub(super) struct ScopedNamePath {
     scope: String,
     name: String,
+}
+
+/// `GET {base}/@{scope}/{pkg}/{version-or-tag}` — a scoped package's version
+/// manifest. A first segment that is not a scope names no package.
+async fn get_scoped_version_manifest(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopedVersionPath>,
+) -> Response {
+    let ScopedVersionPath { scope, name, version } = path;
+    if !scope.starts_with('@') {
+        return not_found();
+    }
+    let full = format!("{scope}/{name}");
+    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version).await
 }
 
 /// `{base}/{a}/{b}/{c}`: a scoped version document, or an unscoped (or
