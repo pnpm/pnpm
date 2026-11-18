@@ -618,7 +618,7 @@ fn audit_reports_the_published_patch_when_the_time_map_has_an_unpublished_marker
 
     assert_eq!(output.status.code(), Some(1));
     let stdout = stdout(&output);
-    assert!(stdout.contains(">=2.1.0"), "the report should name the published patch:\n{stdout}",);
+    assert!(stdout.contains(">=2.1.0"), "the report should name the published patch:\n{stdout}");
     mock.assert();
     packument_mock.assert();
 }
