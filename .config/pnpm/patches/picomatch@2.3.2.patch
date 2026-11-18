@@ -1,8 +1,8 @@
 diff --git a/lib/parse.js b/lib/parse.js
-index caa2b86aa5a567df33cef4bda3c7a97794f439f8..ba9a08674c457736b89319949555cd5f17682cc7 100644
+index caa2b86aa5a567df33cef4bda3c7a97794f439f8..e17f709aeb518a89eddfb968d6179754ce4b528c 100644
 --- a/lib/parse.js
 +++ b/lib/parse.js
-@@ -316,6 +316,68 @@ const analyzeRepeatedExtglob = (body, options) => {
+@@ -316,6 +316,71 @@ const analyzeRepeatedExtglob = (body, options) => {
    return { risky: false };
  };
  
@@ -17,8 +17,11 @@ index caa2b86aa5a567df33cef4bda3c7a97794f439f8..ba9a08674c457736b89319949555cd5f
 +
 +// Quoted text is appended to the previous token, so slashes are checked in
 +// the raw body. A POSIX class such as `[[:punct:]]` matches a slash too.
++// With `regex: true`, a `*` after a bracket or a group is a regex quantifier.
++const isRegexQuantifier = tok => tok.type === 'star' && tok.output === '*';
++
 +const staysInSegment = tok => {
-+  if (!SEGMENT_TOKEN_TYPES.has(tok.type)) return false;
++  if (!SEGMENT_TOKEN_TYPES.has(tok.type) || isRegexQuantifier(tok)) return false;
 +  if (tok.type !== 'bracket') return true;
 +
 +  try {
@@ -35,7 +38,7 @@ index caa2b86aa5a567df33cef4bda3c7a97794f439f8..ba9a08674c457736b89319949555cd5f
 +  };
 +
 +  const hasWildcard = bodyTokens.some((tok, index) => {
-+    return tok.type === 'negate' || (tok.type === 'star' && tok.value !== '' && !opensExtglob(index));
++    return tok.type === 'negate' || (tok.type === 'star' && tok.value !== '' && !isRegexQuantifier(tok) && !opensExtglob(index));
 +  });
 +
 +  if (!hasWildcard) {
@@ -71,7 +74,7 @@ index caa2b86aa5a567df33cef4bda3c7a97794f439f8..ba9a08674c457736b89319949555cd5f
  /**
   * Parse the given input string.
   * @param {String} input
-@@ -510,7 +572,16 @@ const parse = (input, options) => {
+@@ -510,7 +575,16 @@ const parse = (input, options) => {
    const extglobClose = token => {
      const literal = input.slice(token.startIndex, state.index + 1);
      const body = input.slice(token.startIndex + 2, state.index);
@@ -89,7 +92,7 @@ index caa2b86aa5a567df33cef4bda3c7a97794f439f8..ba9a08674c457736b89319949555cd5f
  
      if ((token.type === 'plus' || token.type === 'star') && analysis.risky) {
        const safeOutput = analysis.safeOutput
-@@ -536,6 +607,10 @@ const parse = (input, options) => {
+@@ -536,6 +610,10 @@ const parse = (input, options) => {
        return;
      }
  
