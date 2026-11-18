@@ -478,3 +478,6 @@ pub fn needs_deferred_engine_probe(
                     && allow_build_policy.check(&key.without_peer().to_string()) == Some(true))
         })
 }
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests;

@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm install --frozen-lockfile` no longer waits for an unused Node.js version check before it exits. A frozen install with nothing to do is about 3x faster with Homebrew's Node.js.
+`pnpm install --frozen-lockfile` no longer waits for a Node.js version check it does not use before it exits. With Homebrew's Node.js, a frozen install with nothing to do can be about 3x faster.
