@@ -1,5 +1,5 @@
 use super::{
-    BTreeMap, Digest, HashMap, JsonValue, ReleaseAgeCheck, Sha256, Timestamp, TrustCheck,
+    BTreeMap, Digest, HashMap, JsonValue, Pipe, ReleaseAgeCheck, Sha256, Timestamp, TrustCheck,
     TrustPolicy, VerificationMetadataClient, VerificationRegistryRoutes,
     VerificationReleaseAgeOptions, normalized_registry_key,
 };
@@ -113,8 +113,9 @@ pub(super) fn build_policy_snapshot(
     map
 }
 
-/// Checked arithmetic makes an unrepresentable age disable the cutoff rather
-/// than wrap into a date in the wrong direction.
+/// `Some` whenever the age check is active. An age older than the earliest
+/// representable instant saturates to [`Timestamp::MIN`], so it rejects every
+/// version instead of disabling the check.
 pub(super) fn minimum_release_age_cutoff(
     opts: &VerificationReleaseAgeOptions,
     now: Option<Timestamp>,
@@ -128,6 +129,8 @@ pub(super) fn minimum_release_age_cutoff(
             .ok()
             .and_then(pnpm_time::duration_minutes)
             .and_then(|duration| now.checked_sub(duration).ok())
+            .unwrap_or(Timestamp::MIN)
+            .pipe(Some)
     } else {
         None
     }
