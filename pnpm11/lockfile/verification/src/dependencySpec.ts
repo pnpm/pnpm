@@ -1,8 +1,11 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { barePathIsUnambiguous, isTarballFilename } from '@pnpm/resolving.local-resolver'
 import { findWorkspaceLinkTarget, type WorkspaceLinkContext } from '@pnpm/resolving.npm-resolver'
+import type { DependencyManifest } from '@pnpm/types'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import semver from 'semver'
 
@@ -121,4 +124,84 @@ export function isExcludedLink (
   return workspacePackages != null &&
     importer.specifiers[depName] == null &&
     findWorkspaceLinkTarget({ workspacePackages, catalogs }, { alias: depName, bareSpecifier: spec }) != null
+}
+
+export async function linkedWorkspaceTargetSatisfies (
+  localDep: {
+    lockfileDir: string
+    manifestsByDir: Record<string, DependencyManifest>
+    workspaceRoot: string
+  },
+  { depName, currentSpec, range, lockfilePath }: {
+    depName: string
+    currentSpec: string
+    range: string
+    lockfilePath: string
+  }
+): Promise<boolean> {
+  if (path.isAbsolute(lockfilePath)) {
+    return false
+  }
+  const targetDir = path.resolve(localDep.lockfileDir, lockfilePath)
+  if (!isSubdirectory(localDep.workspaceRoot, targetDir)) {
+    return false
+  }
+  const targetPkg = await readTargetManifest(localDep, targetDir)
+  const expectedName = getTargetPkgName(currentSpec, depName)
+  if (!targetPkg || targetPkg.name !== expectedName) {
+    return false
+  }
+  return versionSatisfies(targetPkg.version, range)
+}
+
+async function readTargetManifest (
+  localDep: { manifestsByDir: Record<string, DependencyManifest>, workspaceRoot: string },
+  targetDir: string
+): Promise<DependencyManifest | null> {
+  if (await realPathStaysInsideWorkspace(localDep.workspaceRoot, targetDir)) {
+    return localDep.manifestsByDir[targetDir] ?? safeReadPackageJsonFromDir(targetDir)
+  }
+  return publishingProjectManifest(localDep, targetDir)
+}
+
+async function publishingProjectManifest (
+  localDep: { manifestsByDir: Record<string, DependencyManifest>, workspaceRoot: string },
+  targetDir: string
+): Promise<DependencyManifest | null> {
+  for (let candidate = path.dirname(targetDir); isSubdirectory(localDep.workspaceRoot, candidate); candidate = path.dirname(candidate)) {
+    // eslint-disable-next-line no-await-in-loop -- climbs one ancestor at a time and stops at the first match
+    const manifest = await projectPublishesFromDir(localDep, candidate, targetDir)
+    if (manifest != null) return manifest
+  }
+  return null
+}
+
+async function projectPublishesFromDir (
+  localDep: { manifestsByDir: Record<string, DependencyManifest>, workspaceRoot: string },
+  candidate: string,
+  targetDir: string
+): Promise<DependencyManifest | null> {
+  if (!await realPathStaysInsideWorkspace(localDep.workspaceRoot, candidate)) {
+    return null
+  }
+  const manifest = localDep.manifestsByDir[candidate] ?? await safeReadPackageJsonFromDir(candidate)
+  return manifest?.publishConfig?.directory != null && path.resolve(candidate, manifest.publishConfig.directory) === targetDir
+    ? manifest
+    : null
+}
+
+async function realPathStaysInsideWorkspace (workspaceRoot: string, targetDir: string): Promise<boolean> {
+  let realTargetDir: string
+  let realWorkspaceRoot: string
+  let realManifestPath: string
+  try {
+    [realTargetDir, realWorkspaceRoot, realManifestPath] = await Promise.all([
+      fs.promises.realpath(targetDir),
+      fs.promises.realpath(workspaceRoot),
+      fs.promises.realpath(path.join(targetDir, 'package.json')),
+    ])
+  } catch {
+    return false
+  }
+  return isSubdirectory(realWorkspaceRoot, realTargetDir) && isSubdirectory(realWorkspaceRoot, realManifestPath)
 }

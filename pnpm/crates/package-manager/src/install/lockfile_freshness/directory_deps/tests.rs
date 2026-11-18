@@ -1300,13 +1300,17 @@ fn recorded_workspace_catalog_children_reject_catalog_range_changes() {
 #[test]
 fn recorded_catalog_ranges_accept_matching_injected_workspace_targets() {
     assert!(workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "child",
         workspace_version: "2.0.0",
+        bare_specifier: "2.0.0",
         recorded_ref: "file:packages/child",
         dep_injected: true,
         inject_workspace_packages: false,
     }));
     assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "child",
         workspace_version: "1.0.0",
+        bare_specifier: "2.0.0",
         recorded_ref: "file:packages/child",
         dep_injected: true,
         inject_workspace_packages: false,
@@ -1316,12 +1320,24 @@ fn recorded_catalog_ranges_accept_matching_injected_workspace_targets() {
 #[test]
 fn plain_range_workspace_children_require_a_matching_injection_mode() {
     let linked = WorkspaceTargetChild {
+        workspace_name: "child",
         workspace_version: "2.0.0",
+        bare_specifier: "2.0.0",
         recorded_ref: "link:packages/child",
         dep_injected: false,
         inject_workspace_packages: false,
     };
     assert!(workspace_target_child_is_fresh(&linked));
+    assert!(workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "@scope/child",
+        bare_specifier: "npm:@scope/child",
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "other",
+        bare_specifier: "npm:@scope/child",
+        ..linked
+    }));
     assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
         workspace_version: "1.0.0",
         ..linked
@@ -1344,7 +1360,9 @@ fn plain_range_workspace_children_require_a_matching_injection_mode() {
 
 #[derive(Clone, Copy)]
 struct WorkspaceTargetChild<'a> {
+    workspace_name: &'a str,
     workspace_version: &'a str,
+    bare_specifier: &'a str,
     recorded_ref: &'a str,
     dep_injected: bool,
     inject_workspace_packages: bool,
@@ -1363,7 +1381,7 @@ fn workspace_target_child_is_fresh(case: &WorkspaceTargetChild<'_>) -> bool {
     );
     let target_manifest = PackageManifest::from_value(
         target_dir.join("package.json"),
-        serde_json::json!({ "name": "child", "version": case.workspace_version }),
+        serde_json::json!({ "name": case.workspace_name, "version": case.workspace_version }),
     );
     let manifests_by_dir =
         HashMap::from([(pnpm_fs::lexical_normalize(&target_dir), &target_manifest)]);
@@ -1416,7 +1434,7 @@ fn workspace_target_child_is_fresh(case: &WorkspaceTargetChild<'_>) -> bool {
     .expect("parse snapshot");
     let child = pnpm_resolving_deps_resolver::DependencySpec {
         alias: "child".to_string(),
-        bare_specifier: "2.0.0".to_string(),
+        bare_specifier: case.bare_specifier.to_string(),
         optional: false,
         injected: case.dep_injected,
     };

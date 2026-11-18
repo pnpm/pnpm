@@ -221,8 +221,11 @@ fn implicit_workspace_target_satisfies(
         && !child.bare_specifier.starts_with("link:")
         && !super::is_declared_by_path(&child.bare_specifier)
     {
-        let spec = child.bare_specifier.strip_prefix("npm:").unwrap_or(&child.bare_specifier);
-        let workspace_spec = format!("workspace:{spec}");
+        let (target, range) = super::spec::parse_npm_spec(&child.bare_specifier);
+        let workspace_spec = match target {
+            Some(target) => format!("workspace:{target}@{range}"),
+            None => format!("workspace:{range}"),
+        };
         return Some(
             super::spec::spec_satisfies_snapshot_dep(
                 &dep.dirs,

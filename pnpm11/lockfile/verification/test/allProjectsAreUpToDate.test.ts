@@ -2949,11 +2949,13 @@ test('allProjectsAreUpToDate(): checks a plain-range workspace child of a direct
     ref,
     depInjected = false,
     injectWorkspacePackages = false,
+    includeChildSnapshot = true,
   }: {
     range?: string
     ref: string
     depInjected?: boolean
     injectWorkspacePackages?: boolean
+    includeChildSnapshot?: boolean
   }) => {
     await writeFile('./vendor/lib/package.json', JSON.stringify({
       name: 'lib',
@@ -2961,6 +2963,7 @@ test('allProjectsAreUpToDate(): checks a plain-range workspace child of a direct
       dependencies: { 'workspace-child': range },
       ...(depInjected ? { dependenciesMeta: { 'workspace-child': { injected: true } } } : {}),
     }))
+    const childDirectory = ref.startsWith('file:') ? ref.slice(5) : 'packages/workspace-child'
     return allProjectsAreUpToDate(projects, {
       autoInstallPeers: false,
       catalogs: {},
@@ -2984,10 +2987,14 @@ test('allProjectsAreUpToDate(): checks a plain-range workspace child of a direct
             version: '1.0.0',
             dependencies: { 'workspace-child': ref },
           },
-          'workspace-child@file:packages/workspace-child': {
-            resolution: { directory: 'packages/workspace-child', type: 'directory' },
-            version: '1.0.0',
-          },
+          ...(includeChildSnapshot
+            ? {
+              [`workspace-child@file:${childDirectory}`]: {
+                resolution: { directory: childDirectory, type: 'directory' },
+                version: '1.0.0',
+              },
+            }
+            : {}),
         },
         lockfileVersion: LOCKFILE_VERSION,
       } as LockfileObject,
@@ -3001,9 +3008,19 @@ test('allProjectsAreUpToDate(): checks a plain-range workspace child of a direct
   expect(await check({ ref: 'link:packages/workspace-child', depInjected: true })).toBe(false)
   expect(await check({ ref: 'link:packages/workspace-child', injectWorkspacePackages: true })).toBe(false)
   expect(await check({ ref: 'file:packages/workspace-child', depInjected: true })).toBe(true)
+  expect(await check({ ref: 'file:packages/workspace-child', depInjected: true, includeChildSnapshot: false })).toBe(false)
   expect(await check({ ref: 'file:packages/workspace-child', injectWorkspacePackages: true })).toBe(true)
   expect(await check({ ref: 'file:packages/workspace-child' })).toBe(false)
   expect(await check({ ref: 'file:packages/workspace-child', depInjected: true, range: '^2.0.0' })).toBe(false)
+
+  await writeFile('./packages/workspace-child/package.json', JSON.stringify({
+    name: 'workspace-child',
+    version: '1.0.0',
+    publishConfig: { directory: 'dist' },
+  }))
+  expect(await check({ ref: 'link:packages/workspace-child/dist' })).toBe(true)
+  expect(await check({ ref: 'link:packages/workspace-child/dist', range: '^2.0.0' })).toBe(false)
+  expect(await check({ ref: 'file:packages/workspace-child/dist', depInjected: true })).toBe(true)
 })
 
 test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry even when skipping local directory dependencies', async () => {

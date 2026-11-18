@@ -373,7 +373,7 @@ pub(crate) fn spec_target_and_range(spec: &str) -> (Option<&str>, &str) {
     parse_npm_spec(spec)
 }
 
-fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
+pub(super) fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
     let Some(stripped) = spec.strip_prefix("npm:") else {
         return (None, spec);
     };
