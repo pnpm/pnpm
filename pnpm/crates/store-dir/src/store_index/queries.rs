@@ -3,6 +3,8 @@ use super::{
 };
 use rusqlite::Connection;
 
+mod write;
+
 /// Per-query placeholder cap for [`StoreIndex::get_many`]. `SQLite`'s
 /// `SQLITE_MAX_VARIABLE_NUMBER` defaulted to 999 before 3.32.0 and is
 /// 32766 in newer builds (rusqlite ships a recent `SQLite`, so the
@@ -347,7 +349,7 @@ impl StoreIndex {
     ) -> Result<(), StoreIndexError> {
         let mut encoded: Vec<(String, Vec<u8>)> = Vec::new();
         for (key, value) in entries {
-            if let Some(entry) = encode_index_entry(key, &value, policy)? {
+            if let Some(entry) = write::encode_index_entry(key, &value, policy)? {
                 encoded.push(entry);
             }
         }
@@ -359,7 +361,7 @@ impl StoreIndex {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(files) => return files.set_many(&encoded),
         };
-        super::retry_sqlite_write(|| write_many_transaction(conn, &encoded))
+        super::retry_sqlite_write(|| write::write_many_transaction(conn, &encoded))
     }
 
     /// `true` iff a row with this key exists, directly or through an alias.
@@ -466,54 +468,6 @@ impl StoreIndex {
 enum EncodingErrorPolicy {
     Skip,
     Return,
-}
-
-fn encode_index_entry(
-    key: String,
-    value: &PackageFilesIndex,
-    policy: EncodingErrorPolicy,
-) -> Result<Option<(String, Vec<u8>)>, StoreIndexError> {
-    match crate::msgpackr_records::encode_package_files_index(value) {
-        Ok(encoded) => Ok(Some((key, encoded))),
-        Err(source) => match policy {
-            EncodingErrorPolicy::Return => Err(StoreIndexError::Encode { source }),
-            EncodingErrorPolicy::Skip => {
-                tracing::warn!(
-                    target: "pacquet::store_index",
-                    ?key,
-                    error = ?source,
-                    "failed to encode package_index row; skipping",
-                );
-                Ok(None)
-            }
-        },
-    }
-}
-
-fn write_many_transaction(
-    conn: &mut Connection,
-    entries: &[(String, Vec<u8>)],
-) -> Result<(), StoreIndexError> {
-    let tx = conn
-        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-        .map_err(|source| StoreIndexError::Write { source })?;
-    write_many_entries(&tx, entries)?;
-    tx.commit()
-        .map_err(|source| StoreIndexError::Write { source })
-}
-
-fn write_many_entries(
-    tx: &rusqlite::Transaction<'_>,
-    entries: &[(String, Vec<u8>)],
-) -> Result<(), StoreIndexError> {
-    let mut stmt = tx
-        .prepare_cached("INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)")
-        .map_err(|source| StoreIndexError::Write { source })?;
-    for (key, buf) in entries {
-        stmt.execute(rusqlite::params![key, buf])
-            .map_err(|source| StoreIndexError::Write { source })?;
-    }
-    Ok(())
 }
 
 fn sqlite_get(conn: &Connection, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
