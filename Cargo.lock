@@ -4973,6 +4973,7 @@ dependencies = [
  "regress",
  "reqwest",
  "rmp-serde",
+ "rusqlite",
  "rustc-hash 2.1.3",
  "same-file",
  "semver",

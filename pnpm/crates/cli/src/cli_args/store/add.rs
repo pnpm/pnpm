@@ -151,14 +151,28 @@ async fn add_packages<Reporter: self::Reporter>(
             registry_prefixes: &registry_prefixes,
         },
     };
-    let has_failures = adder.add_all::<Reporter>(packages).await;
+    let outcome = adder.add_all::<Reporter>(packages).await;
 
     drop(store_index_writer);
     writer_task.await
         .map_err(|error| miette::miette!("wait for store-index writes: {error}"))?
         .wrap_err("write store index")?;
 
-    if has_failures { Err(StoreAddFailureError.into()) } else { Ok(()) }
+    for package_id in &outcome.added {
+        Reporter::emit(&LogEvent::Global(GlobalLog {
+            level: LogLevel::Info,
+            message: format!("+ {package_id}"),
+        }));
+    }
+    if outcome.has_failures { Err(StoreAddFailureError.into()) } else { Ok(()) }
+}
+
+/// Specifiers [`AddOne::add_all`] fetched. Their `+ <id>` lines are printed
+/// only after the store index write succeeds.
+#[derive(Default)]
+struct AddAllOutcome {
+    added: Vec<String>,
+    has_failures: bool,
 }
 
 fn store_resolve_options(dir: &Path) -> ResolveOptions {
@@ -172,29 +186,17 @@ fn store_resolve_options(dir: &Path) -> ResolveOptions {
     }
 }
 
-/// Report one specifier's outcome; `true` when it failed.
+/// Report a failed specifier.
 ///
 /// The command keeps going so one bad specifier doesn't strand
 /// the rest, which leaves this line as the only place the cause
 /// is reported — so it carries the code the top-level handler
 /// would otherwise have printed.
-fn report_add_outcome<Reporter: self::Reporter>(outcome: miette::Result<String>) -> bool {
-    match outcome {
-        Ok(package_id) => {
-            Reporter::emit(&LogEvent::Global(GlobalLog {
-                level: LogLevel::Info,
-                message: format!("+ {package_id}"),
-            }));
-            false
-        }
-        Err(error) => {
-            let code = error
-                .code()
-                .map_or_else(String::new, |code| format!("{code}: "));
-            emit_global_warning::<Reporter>(&format!("{code}{error}"));
-            true
-        }
-    }
+fn report_add_failure<Reporter: self::Reporter>(error: &miette::Report) {
+    let code = error
+        .code()
+        .map_or_else(String::new, |code| format!("{code}: "));
+    emit_global_warning::<Reporter>(&format!("{code}{error}"));
 }
 
 /// Everything one specifier's resolve-and-fetch needs. Grouped so the
@@ -254,13 +256,19 @@ struct ArchiveToAdd<'r> {
 }
 
 impl<'a> AddOne<'a> {
-    async fn add_all<Reporter: self::Reporter>(&self, packages: Vec<String>) -> bool {
+    async fn add_all<Reporter: self::Reporter>(&self, packages: Vec<String>) -> AddAllOutcome {
         futures_util::stream::iter(packages)
             .map(|package| async move { self.add_one::<Reporter>(&package).await })
             .buffer_unordered(self.config.network_concurrency.max(1))
-            .fold(false, |failed, outcome| {
-                let outcome_failed = report_add_outcome::<Reporter>(outcome);
-                std::future::ready(failed || outcome_failed)
+            .fold(AddAllOutcome::default(), |mut all, outcome| {
+                match outcome {
+                    Ok(package_id) => all.added.push(package_id),
+                    Err(error) => {
+                        report_add_failure::<Reporter>(&error);
+                        all.has_failures = true;
+                    }
+                }
+                std::future::ready(all)
             })
             .await
     }
