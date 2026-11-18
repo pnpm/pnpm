@@ -249,14 +249,14 @@ fn advisory_url(record: &OsvRecord) -> String {
         }
     }
     if record.id.starts_with("GHSA-") {
-        return format!("https://github.com/advisories/{}", record.id);
+        return format!("https://github.com/advisories/{id}", id = record.id);
     }
     for reference in &record.references {
         if reference.kind == "ADVISORY" {
             return reference.url.clone();
         }
     }
-    format!("https://github.com/advisories/{}", record.id)
+    format!("https://github.com/advisories/{id}", id = record.id)
 }
 
 fn normalize_severity(raw: Option<&str>) -> String {
