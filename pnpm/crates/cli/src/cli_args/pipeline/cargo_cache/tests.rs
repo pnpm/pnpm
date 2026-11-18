@@ -119,6 +119,10 @@ fn restore_invalidates_local_units_and_build_script_runs_in_both_layouts() {
         },
         Unit { file: "debug/build/dep/6/fingerprint/lib-dep", after_restore: Kept },
         Unit { file: "debug/build/my-probe/7/out/fingerprint/data", after_restore: Kept },
+        Unit {
+            file: "debug/build/dep-8/out/fingerprint/run-build-script-data",
+            after_restore: Kept,
+        },
     ];
     for unit in &units {
         let path = publisher.target.join(unit.file);

@@ -107,12 +107,21 @@ fn invalidate_local_fingerprints(fingerprint_dir: &Path, packages: &[String]) ->
 }
 
 /// The package of a `build/<package>/<hash>/fingerprint` directory.
+///
+/// The hash must be hexadecimal: in the `.fingerprint` layout, a build
+/// script's `build/<package>-<hash>/out/fingerprint` has the same shape.
 fn unit_fingerprint_package(path: &Path) -> Option<&str> {
     if path.file_name()? != "fingerprint" {
         return None;
     }
-    let package_dir = path.parent()?.parent()?;
-    if package_dir.parent()?.file_name()? != "build" {
+    let hash_dir = path.parent()?;
+    let is_hash = hash_dir
+        .file_name()?
+        .to_str()?
+        .bytes()
+        .all(|byte| byte.is_ascii_hexdigit());
+    let package_dir = hash_dir.parent()?;
+    if !is_hash || package_dir.parent()?.file_name()? != "build" {
         return None;
     }
     package_dir.file_name()?.to_str()
