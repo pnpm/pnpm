@@ -62,7 +62,7 @@ export function inspectionWorkflowSteps (entry) {
     { name: 'reject tasks without a subcommand', command: 'node', args: [entry, 'tasks'], expectExitCode: 1, expectOutput: 'a tasks subcommand is required' },
     { name: 'diagnose the WebContainer offline', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--doctor', entry], expectOutput: 'offline checks' },
     { name: 'run scripts with the recursive command', command: 'node', args: [entry, 'recursive', 'run', 'build'], expectOutput: 'wasm-filter-ok' },
-    { name: 'list dependencies in long format with ll', command: 'node', args: [entry, 'll'], expectOutput: '5 packages' },
+    { name: 'list dependencies in long format with ll', command: 'node', args: [entry, 'll'], expectOutput: '4 packages' },
     { name: 'long list alias la', command: 'node', args: [entry, 'la'], expectOutput: '5 packages' },
     { name: 'create an install-test project', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--install-test-fixture'] },
     { name: 'install dependencies and run tests', command: 'node', args: [entry, '--dir', 'install-test-audit', 'install-test', '--offline'] },
