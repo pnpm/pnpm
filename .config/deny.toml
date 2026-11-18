@@ -65,11 +65,6 @@ ignore = [
   # store index and pnpr only its own data directory; a party that can write
   # either can already change package contents or registry state.
   { id = "RUSTSEC-2026-0459", reason = "Temporary risk acceptance: pnpm and pnpr open SQLite databases only in directories they own, and rusqlite 0.41 cannot link next to libsql-ffi in pnpr." },
-  # Informational: `chrono` is unmaintained, with no vulnerability reported.
-  # Workspace crates use it for timestamps, and `libsql`, `oauth2`,
-  # `openidconnect`, and `object_store` depend on it themselves. Remove this
-  # entry once the workspace crates are off `chrono`.
-  { id = "RUSTSEC-2026-0543", reason = "Temporary risk acceptance: the advisory reports that chrono is unmaintained, not a vulnerability, and the workspace crates have not been moved to another date-time crate yet." },
 ]
 
 # --- Licenses ------------------------------------------------------------

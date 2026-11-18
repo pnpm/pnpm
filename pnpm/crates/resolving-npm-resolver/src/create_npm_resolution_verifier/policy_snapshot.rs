@@ -1,6 +1,6 @@
 use super::{
-    BTreeMap, DateTime, Digest, HashMap, JsonValue, ReleaseAgeCheck, Sha256, TrustCheck,
-    TrustPolicy, Utc, VerificationMetadataClient, VerificationRegistryRoutes,
+    BTreeMap, Digest, HashMap, JsonValue, ReleaseAgeCheck, Sha256, Timestamp, TrustCheck,
+    TrustPolicy, VerificationMetadataClient, VerificationRegistryRoutes,
     VerificationReleaseAgeOptions, normalized_registry_key,
 };
 
@@ -117,17 +117,17 @@ pub(super) fn build_policy_snapshot(
 /// than wrap into a date in the wrong direction.
 pub(super) fn minimum_release_age_cutoff(
     opts: &VerificationReleaseAgeOptions,
-    now: Option<DateTime<Utc>>,
-) -> Option<DateTime<Utc>> {
+    now: Option<Timestamp>,
+) -> Option<Timestamp> {
     let age_check_active = opts.minimum_minutes.is_some_and(|minutes| minutes > 0);
 
     if age_check_active {
         let minutes = opts.minimum_minutes.unwrap_or(0);
-        let now = now.unwrap_or_else(Utc::now);
+        let now = now.unwrap_or_else(Timestamp::now);
         i64::try_from(minutes)
             .ok()
-            .and_then(chrono::Duration::try_minutes)
-            .and_then(|duration| now.checked_sub_signed(duration))
+            .and_then(pnpm_time::duration_minutes)
+            .and_then(|duration| now.checked_sub(duration).ok())
     } else {
         None
     }

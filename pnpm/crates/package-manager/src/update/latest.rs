@@ -6,7 +6,7 @@ use crate::{
     package_manifest_prefix,
     resolution_policy::{PickPolicy, create_configured_registry_resolver},
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use node_semver::Version;
 use pnpm_config::{Config, version_policy::PackageVersionPolicy};
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
@@ -153,7 +153,7 @@ pub(super) async fn tag_version(
 /// specifier stands.
 pub(super) struct LatestResolverChain {
     resolver: DefaultResolver,
-    published_by: Option<DateTime<Utc>>,
+    published_by: Option<Timestamp>,
     published_by_exclude: Option<PackageVersionPolicy>,
 }
 pub(super) fn ensure_latest_resolver_chain<'chain>(

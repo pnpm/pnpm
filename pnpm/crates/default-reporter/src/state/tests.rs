@@ -1,11 +1,11 @@
 use super::{
     cached_verdict, standalone_install_command, update_check::PnpmInstallSource, update_command,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pretty_assertions::assert_eq;
 
-fn at(rfc3339: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(rfc3339).expect("parse timestamp").with_timezone(&Utc)
+fn at(rfc3339: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(rfc3339).expect("parse timestamp")
 }
 
 #[test]

@@ -14,7 +14,7 @@ use super::{
     http::UPSTREAM_ERROR_BODY_LIMIT, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
     tarball_basename,
 };
-use chrono::{DateTime, TimeZone, Utc};
+use jiff::Timestamp;
 use pnpr_config::UpstreamConfig;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
@@ -34,8 +34,8 @@ fn upstream(url: String, headers: HeaderMap) -> Upstream {
 
 /// Fixed "current time" for abbreviation tests so the `time`-map
 /// coarsening (which buckets entries by age) is deterministic.
-fn now() -> DateTime<Utc> {
-    Utc.with_ymd_and_hms(2024, 3, 20, 12, 0, 0).unwrap()
+fn now() -> Timestamp {
+    "2024-03-20T12:00:00Z".parse::<jiff::Timestamp>().unwrap()
 }
 
 /// Build a header map carrying a bearer `Authorization` plus one

@@ -11,7 +11,7 @@ const OLD: &str = "2024-01-10T08:30:00.000Z";
 #[tokio::test]
 async fn an_immature_running_pnpm_gives_way_to_the_newest_mature_version() {
     let older = older_than_running();
-    let fresh = chrono::Utc::now().to_rfc3339();
+    let fresh = pnpm_time::format_rfc3339(jiff::Timestamp::now());
     let server = serve_pnpm(&[(&older, OLD), (PNPM_VERSION, &fresh)]).await;
     let (config, _cache) = config_with_cutoff(&server, None);
 
@@ -36,7 +36,7 @@ async fn a_mature_running_pnpm_is_recorded_even_when_a_newer_one_is_mature() {
 
 #[tokio::test]
 async fn the_running_pnpm_is_kept_when_nothing_in_the_range_is_mature() {
-    let fresh = chrono::Utc::now().to_rfc3339();
+    let fresh = pnpm_time::format_rfc3339(jiff::Timestamp::now());
     let server = serve_pnpm(&[("1.0.0", OLD), ("2.0.0", &fresh), ("2.1.0", &fresh)]).await;
     let (config, _cache) = config_with_cutoff(&server, None);
 
@@ -49,7 +49,7 @@ async fn the_running_pnpm_is_kept_when_nothing_in_the_range_is_mature() {
 
 #[tokio::test]
 async fn an_excluded_running_pnpm_is_recorded() {
-    let fresh = chrono::Utc::now().to_rfc3339();
+    let fresh = pnpm_time::format_rfc3339(jiff::Timestamp::now());
     let server = serve_pnpm(&[("1.0.0", OLD), ("1.1.0", &fresh)]).await;
     let (config, _cache) = config_with_cutoff(&server, Some(vec!["pnpm@1.1.0".to_string()]));
 
@@ -64,7 +64,7 @@ async fn an_excluded_running_pnpm_is_recorded() {
 /// contributor installs, so it has to pass the trust policy too.
 #[tokio::test]
 async fn the_range_fallback_skips_a_trust_downgrade() {
-    let fresh = chrono::Utc::now().to_rfc3339();
+    let fresh = pnpm_time::format_rfc3339(jiff::Timestamp::now());
     let body = serde_json::json!({
         "name": "pnpm",
         "dist-tags": { "latest": "1.2.0" },

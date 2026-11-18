@@ -19,7 +19,7 @@ use super::{
 use crate::cli_args::audit::fix::update::{
     InstalledPackages, advisory_choices, classify_for_update, report_fixed_remaining,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pnpm_lockfile::{
     EnvLockfile, Lockfile, PeerEdgeOptions, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
 };
@@ -738,8 +738,8 @@ async fn vulnerability_guard_rejects_only_vulnerable_versions() {
     assert_eq!(guard.exhaustion_policy(), GuardExhaustionPolicy::AcceptRejected);
 }
 
-fn age_cutoff() -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z").expect("valid cutoff").with_timezone(&Utc)
+fn age_cutoff() -> Timestamp {
+    pnpm_time::parse_rfc3339("2026-01-01T00:00:00Z").expect("valid cutoff")
 }
 
 fn publish_times(

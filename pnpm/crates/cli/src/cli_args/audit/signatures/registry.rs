@@ -55,7 +55,7 @@ pub(super) struct Packument {
 /// `None` when it can't be parsed (mirroring JS `Date.parse` yielding `NaN`,
 /// which then compares false).
 pub(super) fn parse_timestamp(value: &str) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(value).ok().map(|datetime| datetime.timestamp_millis())
+    pnpm_time::parse_rfc3339_millis(value).ok()
 }
 
 const MAX_KEYS_RESPONSE_BYTES: usize = 1024 * 1024;

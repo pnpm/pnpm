@@ -1,7 +1,6 @@
 //! The TUF metadata fields this client reads.
 
 use super::TufError;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -41,10 +40,10 @@ impl Header {
     pub(super) fn check_expiry(
         &self,
         role: &'static str,
-        now: DateTime<Utc>,
+        now: jiff::Timestamp,
     ) -> Result<(), TufError> {
-        let expires = DateTime::parse_from_rfc3339(&self.expires)
-            .map_err(|_| TufError::InvalidExpiry { role })?;
+        let expires =
+            pnpm_time::parse_rfc3339(&self.expires).map_err(|_| TufError::InvalidExpiry { role })?;
         if now >= expires {
             return Err(TufError::Expired { role });
         }

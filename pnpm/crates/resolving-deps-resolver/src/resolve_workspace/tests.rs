@@ -35,7 +35,7 @@ use std::{
     },
 };
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, RegistryContext};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
@@ -52,7 +52,7 @@ use crate::{
 };
 
 /// The `(pick_lowest_version, published_by)` pair recorded per alias.
-type RecordedOpts = (bool, Option<DateTime<Utc>>);
+type RecordedOpts = (bool, Option<Timestamp>);
 
 /// Resolver fed from a `(alias, range)` → `ResolveResult` table that
 /// records the [`RecordedOpts`] each alias was last resolved with.
@@ -230,7 +230,7 @@ fn fake_manifest(deps: serde_json::Value) -> (tempfile::TempDir, PackageManifest
 
 fn importer_opts(
     project_dir: std::path::PathBuf,
-    published_by: Option<DateTime<Utc>>,
+    published_by: Option<Timestamp>,
 ) -> ResolveImporterOptions {
     ResolveImporterOptions {
         base_opts: ResolveOptions {

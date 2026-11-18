@@ -632,7 +632,7 @@ async fn warn_stale_convergence_overrides_if_any<Reporter: pnpm_reporter::Report
     versions_overrider: Option<&crate::VersionsOverrider>,
     lockfile_dir: &Path,
     published_by: (
-        Option<chrono::DateTime<chrono::Utc>>,
+        Option<jiff::Timestamp>,
         Option<&pnpm_config::version_policy::PackageVersionPolicy>,
     ),
 ) {

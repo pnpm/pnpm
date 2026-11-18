@@ -1,9 +1,10 @@
 use super::{
     AppState, Bytes, CACHE_BUDGET, CanonicalPackageName, DistView, HeaderMap, OwnedView,
-    PackumentProcessing, RenderInput, RenderedPackument, Representation, Utc, Value, cache_key,
+    PackumentProcessing, RenderInput, RenderedPackument, Representation, Value, cache_key,
     input_key, next_precision_change, render, render_document, render_job, render_miss,
     workers::Workers,
 };
+use jiff::Timestamp;
 use pnpr_config::Config;
 use pnpr_fixtures::MockConfigPresets;
 use std::{
@@ -151,12 +152,13 @@ async fn reuses_each_representation_and_invalidates_changed_inputs() {
 
 #[test]
 fn abbreviation_expires_when_a_timestamp_crosses_the_precision_horizon() {
-    let now = Utc::now();
-    let crossing = now + chrono::Duration::minutes(1);
-    let timestamp = crossing - chrono::Duration::days(pnpr_upstream::TIME_PRECISION_HORIZON_DAYS);
-    let doc = serde_json::json!({"time": {"1.0.0": timestamp.to_rfc3339(), "invalid": "other"}});
+    let now = Timestamp::now();
+    let crossing = now + jiff::SignedDuration::from_mins(1);
+    let timestamp = crossing
+        - jiff::SignedDuration::from_hours(24 * (pnpr_upstream::TIME_PRECISION_HORIZON_DAYS));
+    let doc = serde_json::json!({"time": {"1.0.0": pnpm_time::format_rfc3339(timestamp), "invalid": "other"}});
     assert_eq!(next_precision_change(&doc, now), Some(crossing));
-    assert_eq!(next_precision_change(&doc, crossing + chrono::Duration::nanoseconds(1)), None);
+    assert_eq!(next_precision_change(&doc, crossing + jiff::SignedDuration::from_nanos(1)), None);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -241,14 +243,14 @@ async fn expired_abbreviated_bytes_are_rendered_again() {
         CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm).unwrap();
     let base = "https://registry.example";
     let representation = Representation::Abbreviated;
-    let now = Utc::now();
+    let now = Timestamp::now();
     let stale = Arc::new(RenderedPackument {
         body: Bytes::from_static(b"stale"),
         content_type: super::super::super::ABBREVIATED_CONTENT_TYPE,
         etag: "stale".to_string(),
         last_modified: None,
-        rendered_at: now - chrono::Duration::minutes(2),
-        expires: Some(now - chrono::Duration::minutes(1)),
+        rendered_at: now - jiff::SignedDuration::from_mins(2),
+        expires: Some(now - jiff::SignedDuration::from_mins(1)),
     });
     let key = cache_key(&name, &document(), base, view(), representation, &state.inner.packuments)
         .unwrap();
@@ -300,7 +302,7 @@ async fn measure_large_packument_rendering() {
                 view(),
                 &state,
                 representation,
-                Utc::now(),
+                Timestamp::now(),
             )
             .unwrap();
             uncached.push(start.elapsed());

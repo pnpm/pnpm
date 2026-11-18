@@ -59,7 +59,7 @@ fn runtime_and_companion_policies_share_the_add_release_age_cutoff() {
     let names = [];
     let (mut add, owned) = test_add(config, &http_client, &names, None);
     add.save_types = true;
-    let started_at = chrono::DateTime::parse_from_rfc3339("2026-01-01T12:00:00Z").unwrap().to_utc();
+    let started_at = pnpm_time::parse_rfc3339("2026-01-01T12:00:00Z").unwrap();
     let resolution = crate::add::AddResolution { started_at, ..crate::add::AddResolution::new() };
     let inputs = crate::add::AddResolveInputs {
         add,
@@ -73,7 +73,7 @@ fn runtime_and_companion_policies_share_the_add_release_age_cutoff() {
     };
     let runtime = crate::add::registry::add_pick_policy(&inputs, "foo").unwrap();
     let companion = crate::add::registry::add_pick_policy(&inputs, "@types/foo").unwrap();
-    let expected = Some(started_at - chrono::Duration::minutes(60));
+    let expected = Some(started_at - jiff::SignedDuration::from_mins(60));
     assert_eq!(runtime.published_by, expected);
     assert_eq!(companion.published_by, expected);
 }

@@ -3,7 +3,7 @@
 //! check the mirror's content: whether it holds the version and whether its
 //! pick agrees.
 
-use chrono::{DateTime, TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 use pnpm_resolving_resolver_base::{NetworkPolicy, TrustPolicy};
 
 use super::PackumentSource;
@@ -17,7 +17,7 @@ use crate::{
 /// than this and stored without an `ETag` is reused for a range the cache can
 /// already satisfy. The public npm registry sends `ETag`s, so it keeps
 /// conditional revalidation. After this age the mirror is fetched again.
-pub(crate) const UNVALIDATED_MIRROR_MAX_AGE: TimeDelta = TimeDelta::minutes(5);
+pub(crate) const UNVALIDATED_MIRROR_MAX_AGE: SignedDuration = SignedDuration::from_mins(5);
 
 /// What [`MirrorShortcuts::decide`] reads.
 #[derive(Clone, Copy)]
@@ -73,7 +73,7 @@ impl RouteInputs<'_> {
     /// may answer the pick: such a mirror cannot be missing a mature version.
     /// The last mirror read, asked only after [`MirrorShortcuts::decide`]
     /// let the mirror answer and the reads it returned missed.
-    pub(super) fn written_after(&self) -> Option<DateTime<Utc>> {
+    pub(super) fn written_after(&self) -> Option<Timestamp> {
         let cutoff = self.policy.published_by?;
         let range_offline = self.network.forbids_registry()
             && self.request.spec_type == RegistryPackageSpecType::Range;
@@ -181,8 +181,8 @@ impl CacheHitCheck {
 /// for example after the clock was set back, has an unknown age and is not
 /// reused. A few milliseconds of skew between the file system and the clock
 /// are tolerated.
-pub(super) fn unvalidated_mirror_is_fresh(mtime: DateTime<Utc>, now: DateTime<Utc>) -> bool {
-    now.signed_duration_since(mtime).abs() < UNVALIDATED_MIRROR_MAX_AGE
+pub(super) fn unvalidated_mirror_is_fresh(mtime: Timestamp, now: Timestamp) -> bool {
+    now.duration_since(mtime).abs() < UNVALIDATED_MIRROR_MAX_AGE
 }
 
 /// Whether a pick reads the mirror after taking the fetch permit, before it

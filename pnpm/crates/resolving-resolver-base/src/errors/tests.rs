@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::{TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 use miette::Diagnostic;
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 
@@ -197,8 +197,9 @@ fn a_release_older_than_a_day_is_dated_without_a_time_of_day() {
 
 #[test]
 fn a_release_published_within_the_day_carries_its_time_of_day() {
-    let an_hour_ago = Utc::now() - TimeDelta::hours(1);
-    let rendered = stringify_date(&an_hour_ago.to_rfc3339()).expect("a parsable timestamp");
+    let an_hour_ago = Timestamp::now() - SignedDuration::from_hours(1);
+    let rendered =
+        stringify_date(&pnpm_time::format_rfc3339(an_hour_ago)).expect("a parsable timestamp");
     dbg!(&rendered);
     assert!(
         rendered.ends_with(" AM") || rendered.ends_with(" PM"),

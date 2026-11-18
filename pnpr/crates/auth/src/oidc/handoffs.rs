@@ -1,8 +1,7 @@
+use jiff::Timestamp;
 use std::time::Duration;
 
-use super::{
-    LoginSession, MAX_ENTRIES, OidcState, Result, Utc, random_secret, rejected, unavailable,
-};
+use super::{LoginSession, MAX_ENTRIES, OidcState, Result, random_secret, rejected, unavailable};
 
 /// How long a handoff code can be redeemed. The UI redeems it on the page the
 /// sign-in redirects to.
@@ -18,7 +17,7 @@ impl OidcState {
     /// `session`, so the sign-in redirect to the web UI carries no token.
     pub fn hand_off(&self, session: LoginSession) -> Result<String> {
         let code = random_secret()?;
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let mut handoffs = self.browser.handoffs.lock().expect("OIDC handoff mutex poisoned");
         handoffs.retain(|_, handoff| handoff.expires > now);
         if handoffs.len() >= MAX_ENTRIES {
@@ -32,7 +31,7 @@ impl OidcState {
     /// The session a handoff code was issued for. A code works once and only
     /// before it expires.
     pub fn redeem_handoff(&self, code: &str) -> Result<LoginSession> {
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let hash = super::super::sha256_hex(code.as_bytes());
         self.browser.handoffs
             .lock()

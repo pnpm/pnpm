@@ -2,7 +2,7 @@
 //! chain and command-level registry lookups, so they pick byte-identical
 //! versions (`minimumReleaseAge` and `resolutionMode` included).
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_config::Tool;
 use pnpm_config::{
@@ -51,7 +51,7 @@ pub struct PickPolicy {
     pub filter_metadata: bool,
     /// `minimumReleaseAge` cutoff: only versions published at or before
     /// this instant are eligible. `None` disables the maturity filter.
-    pub published_by: Option<DateTime<Utc>>,
+    pub published_by: Option<Timestamp>,
     /// `minimumReleaseAgeExclude` policy, exempting matching packages from
     /// the cutoff.
     pub published_by_exclude: Option<PackageVersionPolicy>,
@@ -66,7 +66,7 @@ impl PickPolicy {
     /// returned policy across an operation so every lookup uses the same
     /// cutoff instant.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
-        Self::from_config_at(config, chrono::Utc::now())
+        Self::from_config_at(config, jiff::Timestamp::now())
     }
 
     /// [`Self::from_config`] with extra `minimumReleaseAgeExclude` specs
@@ -105,7 +105,7 @@ impl PickPolicy {
     /// `minimumReleaseAge` cutoff to the same instant.
     pub(crate) fn from_config_at(
         config: &Config,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Result<Self, VersionPolicyError> {
         let time_based = config.resolution_mode == ResolutionMode::TimeBased;
         let pick_lowest_direct = config.resolution_mode.picks_lowest_direct();
@@ -115,8 +115,8 @@ impl PickPolicy {
         let published_by = config
             .resolved_minimum_release_age()
             .and_then(|minutes| {
-                let duration = chrono::Duration::try_minutes(i64::try_from(minutes).ok()?)?;
-                now.checked_sub_signed(duration)
+                let duration = pnpm_time::duration_minutes(i64::try_from(minutes).ok()?)?;
+                now.checked_sub(duration).ok()
             });
         let published_by_exclude = config.minimum_release_age_exclude
             .as_deref()

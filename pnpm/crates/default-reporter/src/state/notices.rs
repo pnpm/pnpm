@@ -3,10 +3,11 @@ use super::{
     IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
     LockfileVerificationMessage, LogLevel, MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState,
     PendingSkillsLog, ReporterState, RequestRetryLog, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog, Utc, cached_verdict,
+    SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog, cached_verdict,
     detect_install_source, is_strictly_newer, normalize, pretty_ms, progress_label, relative,
     update_command, zoom_out,
 };
+use jiff::Timestamp;
 
 /// `name@version` as a deprecation warning prints it.
 ///
@@ -129,7 +130,7 @@ impl ReporterState {
             LockfileVerificationMessage::Cached { verified_at, .. } => format!(
                 "{} Lockfile{path} passes supply-chain policies ({})",
                 self.rendering.colors.green("✓"),
-                cached_verdict(verified_at.as_deref(), Utc::now()),
+                cached_verdict(verified_at.as_deref(), Timestamp::now()),
             ),
             LockfileVerificationMessage::Started { entries, .. } => format!(
                 "{} Verifying lockfile{path} against supply-chain policies ({})...",

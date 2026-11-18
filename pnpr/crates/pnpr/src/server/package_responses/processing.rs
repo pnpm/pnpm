@@ -8,7 +8,7 @@ use super::{
     AppState, CanonicalPackageName, DistView, HeaderMap, RegistryError, Representation, Value,
 };
 use axum::body::Bytes;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pnpr_storage::BoundedCache;
 use std::sync::{Arc, Mutex};
 
@@ -91,8 +91,8 @@ pub(super) struct RenderedPackument {
     pub(super) content_type: &'static str,
     pub(super) etag: String,
     pub(super) last_modified: Option<String>,
-    rendered_at: DateTime<Utc>,
-    expires: Option<DateTime<Utc>>,
+    rendered_at: Timestamp,
+    expires: Option<Timestamp>,
 }
 
 pub(super) async fn render(
@@ -172,7 +172,7 @@ fn cached_document(
         .expect("packument cache poisoned")
         .get(key)
         .cloned();
-    let now = Utc::now();
+    let now = Timestamp::now();
     cached.filter(|rendered| {
         now >= rendered.rendered_at && rendered.expires.is_none_or(|expires| now <= expires)
     })
@@ -193,7 +193,7 @@ fn render_miss(
         input.view.view(),
         state,
         input.representation,
-        Utc::now(),
+        Timestamp::now(),
     )?);
     let weight = rendered.body.len() + key.source.len() + key.context.len() + 256;
     state.inner.packuments.cache
@@ -236,7 +236,7 @@ fn render_document(
     view: DistView<'_>,
     state: &AppState,
     representation: Representation,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> Result<RenderedPackument, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
     if view.hosted && representation == Representation::Full {
@@ -270,11 +270,7 @@ fn render_document(
     })
 }
 
-fn cache_expiry(
-    representation: Representation,
-    doc: &Value,
-    now: DateTime<Utc>,
-) -> Option<DateTime<Utc>> {
+fn cache_expiry(representation: Representation, doc: &Value, now: Timestamp) -> Option<Timestamp> {
     match representation {
         Representation::Abbreviated => next_precision_change(doc, now),
         Representation::InstallV2
@@ -286,17 +282,17 @@ fn cache_expiry(
     }
 }
 
-fn next_precision_change(doc: &Value, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+fn next_precision_change(doc: &Value, now: Timestamp) -> Option<Timestamp> {
     doc.get("time")?
         .as_object()?
         .values()
         .filter_map(Value::as_str)
-        .filter_map(|value| DateTime::parse_from_rfc3339(value).ok())
+        .filter_map(|value| pnpm_time::parse_rfc3339(value).ok())
         .filter_map(|time| {
-            time.with_timezone(&Utc)
-                .checked_add_signed(chrono::Duration::days(
-                    pnpr_upstream::TIME_PRECISION_HORIZON_DAYS,
-                ))
+            time.checked_add(jiff::SignedDuration::from_hours(
+                24 * pnpr_upstream::TIME_PRECISION_HORIZON_DAYS,
+            ))
+            .ok()
         })
         .filter(|time| *time >= now)
         .min()

@@ -550,7 +550,7 @@ fn changing_default_or_scoped_registry_invalidates_lockfile_verified_cache() {
         gzipped_tarball(&[("package/package.json", r#"{"name":"@corp/acme","version":"1.0.0"}"#)]);
     let integrity = ssri::Integrity::from(&tarball).to_string();
     let mature = "2020-01-01T00:00:00.000Z";
-    let immature = chrono::Utc::now().to_rfc3339();
+    let immature = pnpm_time::format_rfc3339(jiff::Timestamp::now());
 
     let meta_a = registry_a
         .mock("GET", "/@corp%2Facme")

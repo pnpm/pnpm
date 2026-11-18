@@ -1,10 +1,10 @@
 use super::{
-    Algorithm, Arc, DateTime, Integrity, InvalidTarballIntegrityError, LockfileResolution,
+    Algorithm, Arc, Integrity, InvalidTarballIntegrityError, LockfileResolution,
     MissingTarballUrlError, Package, PackageDistribution, PackageVersion, PackageVersionPolicy,
     PickedFromRegistry, PkgName, PkgNameVer, PkgResolutionId, RangeSpecStyle, RegistryPackageSpec,
     RegistryResponseError, RegistryRevisionSelector, RegistryServerType, ResolveError,
     ResolveOptions, ResolveResult, TarballResolution, TarballRevision, TarballUrlOptions,
-    TrustCheckOptions, TrustPolicy, Utc, Version, WantedDependency, npm_tarball_url,
+    Timestamp, TrustCheckOptions, TrustPolicy, Version, WantedDependency, npm_tarball_url,
     redact_and_sanitize,
     release_policy::{
         detect_min_release_age_violation, installable_under_policy, latest_allowed_by_policy,
@@ -20,7 +20,7 @@ use pnpm_resolving_resolver_base::NonDeprecatedAlternative;
 pub(crate) struct BuildResolveResult<'a> {
     pub meta: &'a Package,
     pub picked: &'a PackageVersion,
-    pub published_by: Option<DateTime<Utc>>,
+    pub published_by: Option<Timestamp>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
     pub registry: RegistryResolutionSource<'a>,
@@ -265,7 +265,7 @@ fn find_non_deprecated_alternative(
     meta: &Package,
     picked_version: &str,
     spec: &RegistryPackageSpec,
-    published_by: Option<DateTime<Utc>>,
+    published_by: Option<Timestamp>,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> Option<NonDeprecatedAlternative> {
     if !meta.versions.is_deprecated(picked_version) {

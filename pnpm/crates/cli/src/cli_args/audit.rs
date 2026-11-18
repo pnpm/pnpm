@@ -31,12 +31,12 @@ use advisories::{
     audit, correct_inferred_patched_versions, filter_ignored_advisories, parse_audit_level,
     remove_advisories_by_ghsa, severity_name, severity_number,
 };
-use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]
 use dialoguer::MultiSelect;
 use importers::{select_audited_importers, signature_packages};
+use jiff::Timestamp;
 
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::{Range, Version};

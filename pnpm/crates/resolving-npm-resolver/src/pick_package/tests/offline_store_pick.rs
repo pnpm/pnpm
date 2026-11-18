@@ -334,7 +334,7 @@ async fn offline_pick_with_published_by_still_narrows_to_store_held_version() {
     );
 
     let mut opts = default_opts("https://registry.invalid/");
-    opts.policy.published_by = Some(chrono::Utc::now() + chrono::Duration::hours(1));
+    opts.policy.published_by = Some(jiff::Timestamp::now() + jiff::SignedDuration::from_hours(1));
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await
         .expect("offline pick succeeds");

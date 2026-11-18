@@ -632,7 +632,7 @@ async fn registry_with_fresh_latest(mature: &str, fresh: &str) -> mockito::Serve
     };
     let body = format!(
         r#"{{"name":"pnpm","dist-tags":{{"latest":"{fresh}"}},"time":{{"{mature}":"2024-01-10T08:30:00.000Z","{fresh}":"{now}"}},"versions":{{"{mature}":{mature_dist},"{fresh}":{fresh_dist}}}}}"#,
-        now = chrono::Utc::now().to_rfc3339(),
+        now = pnpm_time::format_rfc3339(jiff::Timestamp::now()),
         mature_dist = dist(mature),
         fresh_dist = dist(fresh),
     );

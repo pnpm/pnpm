@@ -1,6 +1,7 @@
 use super::{
-    HashMap, LoginReturn, OidcLogin, OidcState, Url, Utc, config, groups, mock_provider, rejected,
+    HashMap, LoginReturn, OidcLogin, OidcState, Url, config, groups, mock_provider, rejected,
 };
+use jiff::Timestamp;
 
 #[tokio::test]
 async fn browser_login_binds_verified_subjects_through_scim() {
@@ -112,7 +113,7 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
         .map(|grant| grant.team_id.as_str())
         .collect();
     assert_eq!(teams, ["platform"]);
-    assert!(session.expires <= Utc::now().timestamp() + 300);
+    assert!(session.expires <= Timestamp::now().as_second() + 300);
     assert_eq!(session.returns_to, LoginReturn::Token);
     assert!(
         state

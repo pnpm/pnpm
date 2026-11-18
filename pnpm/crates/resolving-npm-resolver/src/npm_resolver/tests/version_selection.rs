@@ -2,7 +2,6 @@ use super::{
     HashMap, JSR_PACKAGE_BODY, LatestQuery, LockfileResolution, PACKAGE_BODY, ResolveOptions,
     UpdateBehavior, WantedDependency, assert_eq, build_resolver, build_resolver_with_registries,
 };
-use chrono::TimeZone;
 use pnpm_resolving_resolver_base::Resolver;
 
 #[tokio::test]
@@ -227,7 +226,7 @@ async fn latest_is_suppressed_when_all_versions_are_immature_fallback_case() {
 
     // Cutoff 2023-12-01 is before both versions → the pick falls back to the
     // lowest version; latest stays suppressed because the raw tag is immature.
-    let published_by = Some(chrono::Utc.with_ymd_and_hms(2023, 12, 1, 0, 0, 0).unwrap());
+    let published_by = Some("2023-12-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap());
     let opts = ResolveOptions {
         policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
             published_by,

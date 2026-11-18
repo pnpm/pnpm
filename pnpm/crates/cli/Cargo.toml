@@ -83,6 +83,7 @@ pnpm-text-sanitize = { workspace = true }
 pnpm-text-section = { workspace = true }
 pnpm-diagnostics = { workspace = true }
 pnpm-directory-fetcher = { workspace = true }
+pnpm-time = { workspace = true }
 pnpm-tool-protocol = { workspace = true }
 pnpm-versioning = { workspace = true }
 pnpm-workspace = { workspace = true }
@@ -93,7 +94,7 @@ pnpm-workspace-state = { workspace = true }
 pnpm-workspace-task-scheduler = { workspace = true }
 
 cargo-lock = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 clap = { workspace = true }
 console = { workspace = true }
 derive_more = { workspace = true }

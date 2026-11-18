@@ -2,13 +2,12 @@ use super::{
     ResolveOptions, TRUST_DOWNGRADE_PACKAGE_BODY, TrustPolicy, WantedDependency, assert_eq,
     build_resolver, trust_downgrade_body_without_time,
 };
-use chrono::TimeZone;
 use pnpm_resolving_resolver_base::Resolver;
 
 async fn resolve_under_no_downgrade(
     body: &str,
     bare_specifier: &str,
-    published_by: Option<chrono::DateTime<chrono::Utc>>,
+    published_by: Option<jiff::Timestamp>,
 ) -> Result<
     Option<pnpm_resolving_resolver_base::ResolveResult>,
     pnpm_resolving_resolver_base::ResolveError,
@@ -68,7 +67,7 @@ async fn trust_downgrade_fallback_also_skips_versions_younger_than_minimum_relea
     body["versions"]["1.2.0"] = trusted_release;
     body["time"]["1.2.0"] = "2025-01-10T08:30:00.000Z".into();
     body["dist-tags"]["latest"] = "1.2.0".into();
-    let published_by = Some(chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap());
+    let published_by = Some("2025-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap());
 
     let result = resolve_under_no_downgrade(&body.to_string(), "^1.0.0", published_by)
         .await

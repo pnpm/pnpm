@@ -1,6 +1,6 @@
 use super::{
-    Arc, DateTime, MINIMUM_RELEASE_AGE_VIOLATION_CODE, NpmResolutionVerifier, OnceCell, PkgName,
-    ResolutionVerification, SkippedTimeCheck, Utc, package_key, parse_packument_timestamp,
+    Arc, MINIMUM_RELEASE_AGE_VIOLATION_CODE, NpmResolutionVerifier, OnceCell, PkgName,
+    ResolutionVerification, SkippedTimeCheck, Timestamp, package_key, parse_packument_timestamp,
     to_registry_url, uncheckable, version_key, warn_missing_time_once,
 };
 
@@ -71,7 +71,7 @@ impl NpmResolutionVerifier {
                 code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
                 reason: format!(
                     "was published at {published}, within the minimumReleaseAge cutoff ({cutoff})",
-                    cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                    cutoff = pnpm_time::format_millis(cutoff),
                 ),
             });
         }
@@ -95,7 +95,7 @@ impl NpmResolutionVerifier {
         &self,
         registry: &str,
         name: &PkgName,
-        cutoff: DateTime<Utc>,
+        cutoff: Timestamp,
     ) -> bool {
         if self.metadata.offline {
             return false;
@@ -113,8 +113,8 @@ impl NpmResolutionVerifier {
         modified
             .as_deref()
             .and_then(|value| httpdate::parse_http_date(value).ok())
-            .map(DateTime::<Utc>::from)
-            .is_some_and(|parsed| parsed + chrono::Duration::seconds(1) <= cutoff)
+            .and_then(|time| Timestamp::try_from(time).ok())
+            .is_some_and(|parsed| parsed + jiff::SignedDuration::from_secs(1) <= cutoff)
     }
 
     async fn fetch_head_modified(&self, registry: &str, name: &PkgName) -> Option<String> {
@@ -272,10 +272,7 @@ impl NpmResolutionVerifier {
 }
 
 impl super::ReleaseAgeCheck {
-    pub(super) fn new(
-        opts: super::VerificationReleaseAgeOptions,
-        now: Option<DateTime<Utc>>,
-    ) -> Self {
+    pub(super) fn new(opts: super::VerificationReleaseAgeOptions, now: Option<Timestamp>) -> Self {
         let cutoff = super::policy_snapshot::minimum_release_age_cutoff(&opts, now);
         let sorted_excludes = super::policy_snapshot::sorted_unique(&opts.exclude_patterns);
         Self {

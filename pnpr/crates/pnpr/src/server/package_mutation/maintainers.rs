@@ -183,7 +183,10 @@ async fn bind_maintainer_ids(
 
 fn update_modified_time(hosted: &mut Value) {
     if let Some(time_obj) = hosted.get_mut("time").and_then(Value::as_object_mut) {
-        time_obj.insert("modified".to_string(), json!(chrono::Utc::now().to_rfc3339()));
+        time_obj.insert(
+            "modified".to_string(),
+            json!(pnpm_time::format_rfc3339(jiff::Timestamp::now())),
+        );
     }
 }
 

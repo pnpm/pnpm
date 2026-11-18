@@ -73,7 +73,7 @@ use crate::{
     trust_checks::TrustCheckOptions,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use node_semver::Version;
 use pnpm_lockfile::{
     DeclaredRegistryPrefixes, LockfileResolution, PkgName, PkgNameVer, RegistryOptions,

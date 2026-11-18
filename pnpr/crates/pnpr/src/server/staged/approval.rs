@@ -81,10 +81,11 @@ pub(super) async fn claim_for_approval(
 /// one running behind. An unparsable timestamp is expired instead — a value
 /// pnpr cannot read must not be able to hold a stage forever.
 pub(super) fn approval_claim_is_live(since: &str) -> bool {
-    let Ok(started) = chrono::DateTime::parse_from_rfc3339(since) else {
+    let Ok(started) = pnpm_time::parse_rfc3339(since) else {
         return false;
     };
-    let Ok(held) = chrono::Utc::now().signed_duration_since(started).to_std() else {
+    let Ok(held) = std::time::Duration::try_from(jiff::Timestamp::now().duration_since(started))
+    else {
         return true;
     };
     held < APPROVAL_CLAIM_LEASE

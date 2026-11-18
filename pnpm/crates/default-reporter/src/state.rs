@@ -13,7 +13,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pnpm_reporter::{
     AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
     FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
@@ -395,13 +395,17 @@ fn progress_label(checked: u64, entries: u64) -> String {
 /// when the record carries a parseable timestamp, timeless otherwise. The
 /// age is clamped at zero so a clock that moved backwards between the
 /// verification run and this install cannot render a negative age.
-fn cached_verdict(verified_at: Option<&str>, now: DateTime<Utc>) -> String {
+fn cached_verdict(verified_at: Option<&str>, now: Timestamp) -> String {
     let elapsed_ms = verified_at
-        .and_then(|verified_at| DateTime::parse_from_rfc3339(verified_at).ok())
-        .map(|verified_at| (now - verified_at.with_timezone(&Utc)).num_milliseconds().max(0));
+        .and_then(|verified_at| pnpm_time::parse_rfc3339(verified_at).ok())
+        .map(|verified_at| {
+            now.duration_since(verified_at)
+                .as_millis()
+                .max(0)
+        });
     match elapsed_ms {
         Some(elapsed_ms) => {
-            format!("verified {} ago", pretty_ms_compact(elapsed_ms.unsigned_abs().into()))
+            format!("verified {} ago", pretty_ms_compact(elapsed_ms.unsigned_abs()))
         }
         None => "previously verified".to_string(),
     }

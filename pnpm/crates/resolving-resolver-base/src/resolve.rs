@@ -4,8 +4,8 @@
 
 use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
 
-use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
+use jiff::Timestamp;
 use pnpm_lockfile::{LockfileResolution, PkgNameVer};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_version_policy::PackageVersionPolicy;
@@ -320,10 +320,10 @@ pub struct ResolutionPolicyOptions {
     /// are filtered out by the npm picker (or reported inline via
     /// [`ResolveResult::policy_violation`] when no mature pick exists).
     /// `None` disables the maturity filter.
-    pub published_by: Option<DateTime<Utc>>,
+    pub published_by: Option<Timestamp>,
     /// Release-age cutoff to try when the time-based cutoff has no match.
     /// Only used when later than `published_by`.
-    pub fallback_published_by: Option<DateTime<Utc>>,
+    pub fallback_published_by: Option<Timestamp>,
     /// Per-package exclude policy for the maturity filter. `None`
     /// applies the filter uniformly.
     pub published_by_exclude: Option<PackageVersionPolicy>,

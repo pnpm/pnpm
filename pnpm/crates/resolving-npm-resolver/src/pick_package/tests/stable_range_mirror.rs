@@ -1,9 +1,9 @@
 use super::{
-    ABBREVIATED_META_DIR, AuthHeaders, DateTime, EXISTING_VERSION_SELECTOR_WEIGHT,
-    InMemoryPackageMetaCache, PACKAGE_BODY, TempDir, ThrottledClient, Utc, VersionSelectorEntry,
-    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, assert_eq,
-    create_package_version_policy, default_opts, get_pkg_mirror_path, parse_cutoff,
-    persist_meta_to_mirror, pick_package, range_spec, shared_packument_fetch_locker,
+    ABBREVIATED_META_DIR, AuthHeaders, EXISTING_VERSION_SELECTOR_WEIGHT, InMemoryPackageMetaCache,
+    PACKAGE_BODY, TempDir, ThrottledClient, Timestamp, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight, VersionSelectors, assert_eq, create_package_version_policy,
+    default_opts, get_pkg_mirror_path, parse_cutoff, persist_meta_to_mirror, pick_package,
+    range_spec, shared_packument_fetch_locker,
     version_selection::{public_ctx, set_mirror_mtime},
 };
 use pnpm_version_policy::PackageVersionPolicy;
@@ -19,7 +19,7 @@ const CUTOFF: &str = "2024-06-01T00:00:00Z";
 struct Mirror<'a> {
     fresh: bool,
     dropped_after_first_pick: bool,
-    published_by: Option<DateTime<Utc>>,
+    published_by: Option<Timestamp>,
     published_by_exclude: Option<&'a PackageVersionPolicy>,
 }
 

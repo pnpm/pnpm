@@ -19,7 +19,7 @@ use crate::{
     mirror::{ABBREVIATED_META_DIR, get_pkg_mirror_path, load_meta},
     persist_meta_to_mirror,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pnpm_lockfile::{
     LockfileResolution, PkgName, PlatformAssetResolution, RegistryResolution, TarballResolution,
     TarballRevision, VariationsResolution,
@@ -37,8 +37,8 @@ use tempfile::TempDir;
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
-fn now_at(date: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(date).expect("parse rfc3339").with_timezone(&Utc)
+fn now_at(date: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(date).expect("parse rfc3339")
 }
 
 fn fake_integrity() -> Integrity {

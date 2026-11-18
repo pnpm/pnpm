@@ -291,7 +291,7 @@ fn aliased_fake_result(
 mod resolution_mode {
     use super::{StubResolver, default_opts, fake_manifest, fake_result};
     use crate::resolve_importer;
-    use chrono::{DateTime, TimeZone, Utc};
+    use jiff::Timestamp;
     use pnpm_package_manifest::DependencyGroup;
     use pnpm_resolving_resolver_base::{
         ResolveFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
@@ -301,7 +301,7 @@ mod resolution_mode {
     use std::sync::Mutex;
 
     /// The `(pick_lowest_version, published_by)` pair recorded per alias.
-    type RecordedOpts = (bool, Option<DateTime<Utc>>);
+    type RecordedOpts = (bool, Option<Timestamp>);
 
     /// Resolver that records the [`RecordedOpts`] each `(alias, range)`
     /// query was resolved with, so a test can assert the depth-specific
@@ -380,7 +380,7 @@ mod resolution_mode {
     async fn highest_mode_picks_highest_everywhere() {
         let resolver = RecordingResolver::new(one_dep_one_subdep_table());
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
-        let maximum = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        let maximum = "2024-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
         let mut opts = default_opts();
         opts.base_opts.policy.published_by = Some(maximum);
         opts.resolution.pick_lowest_direct = false;
@@ -422,8 +422,8 @@ mod resolution_mode {
     async fn time_based_mode_threads_cutoff_to_subdeps_only() {
         let resolver = RecordingResolver::new(one_dep_one_subdep_table());
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
-        let maximum = Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap();
-        let cutoff = Utc.with_ymd_and_hms(2024, 3, 1, 0, 0, 0).unwrap();
+        let maximum = "2024-06-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+        let cutoff = "2024-03-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
         let mut opts = default_opts();
         opts.base_opts.policy.published_by = Some(maximum);
         opts.resolution.pick_lowest_direct = true;

@@ -10,7 +10,7 @@ use axum::{
     routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
-use chrono::Utc;
+use jiff::Timestamp;
 use openidconnect::core::CoreJsonWebKeySet;
 use p256::ecdsa::{Signature, SigningKey, signature::Signer as _};
 use pnpr_config::oidc::{
@@ -63,7 +63,7 @@ fn config(issuer: &str) -> OidcProvider {
 }
 
 fn payload(issuer: &str) -> Value {
-    let now = Utc::now().timestamp();
+    let now = Timestamp::now().as_second();
     json!({"iss": issuer, "aud": "pnpr-ci", "sub": "repo:org/repo:ref:refs/heads/main",
         "repository_id": "123", "groups": ["platform-eng", "sales"],
         "iat": now, "nbf": now, "exp": now + 300})
@@ -96,8 +96,8 @@ fn verifies_signature_issuer_audience_and_times() {
         ("iss", json!("https://attacker.example")),
         ("aud", json!("other")),
         ("exp", json!(0)),
-        ("nbf", json!(Utc::now().timestamp() + 100)),
-        ("iat", json!(Utc::now().timestamp() + 100)),
+        ("nbf", json!(Timestamp::now().as_second() + 100)),
+        ("iat", json!(Timestamp::now().as_second() + 100)),
         ("nbf", json!("tomorrow")),
         ("azp", json!("another-client")),
     ] {
@@ -270,7 +270,7 @@ async fn discovers_caches_and_enforces_workload_bindings() {
 fn revoking_a_user_drops_only_that_users_sessions() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
     let user = |name: &str| SessionUser { user_id: name.to_string(), teams: Vec::new() };
-    let expires = Utc::now().timestamp() + 60;
+    let expires = Timestamp::now().as_second() + 60;
     let alice = state
         .issue_session(user("alice"), expires, LoginReturn::Token)
         .unwrap();
@@ -304,7 +304,7 @@ fn sessions_expire_and_configuration_fails_closed() {
             .is_err(),
     );
     let session = state
-        .issue_session(alice(), Utc::now().timestamp() + 60, LoginReturn::Token)
+        .issue_session(alice(), Timestamp::now().as_second() + 60, LoginReturn::Token)
         .unwrap();
     state.browser.sessions
         .lock()
@@ -462,7 +462,7 @@ async fn rejects_expired_state_and_wrong_nonce() {
     );
     let start = state.start("example", LoginReturn::Token).await.unwrap();
     let mut login = state.open_login(&start.browser_secret).unwrap();
-    login.expires = Utc::now().timestamp() - 1;
+    login.expires = Timestamp::now().as_second() - 1;
     let expired_cookie = state.seal_login(&login).unwrap();
     assert!(
         state
@@ -718,7 +718,7 @@ fn a_handoff_code_redeems_its_session_once() {
     let state = OidcState::new(&[], "https://registry.example").unwrap();
     let alice = SessionUser { user_id: "alice".to_string(), teams: Vec::new() };
     let session = state
-        .issue_session(alice, Utc::now().timestamp() + 60, LoginReturn::Ui)
+        .issue_session(alice, Timestamp::now().as_second() + 60, LoginReturn::Ui)
         .unwrap();
     let token = session.token.clone();
     let code = state.hand_off(session).unwrap();

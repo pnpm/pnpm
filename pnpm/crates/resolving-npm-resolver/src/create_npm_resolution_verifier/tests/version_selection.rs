@@ -1,8 +1,9 @@
 use super::{
-    FAKE_INTEGRITY, LockfileResolution, PkgName, ResolutionVerification, TarballResolution, Utc,
+    FAKE_INTEGRITY, LockfileResolution, PkgName, ResolutionVerification, TarballResolution,
     assert_eq, create_npm_resolution_verifier, ctx, default_opts, fake_integrity,
     registry_resolution,
 };
+use jiff::Timestamp;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 #[tokio::test]
@@ -27,16 +28,16 @@ async fn reads_version_time_from_abbreviated_meta_that_carries_it() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let server_url = server.url();
-    let now = Utc::now();
+    let now = Timestamp::now();
     let meta = serde_json::json!({
         "name": "aged-pkg",
         "dist-tags": { "latest": "1.0.0" },
         // Package touched *inside* the cutoff window: the modified
         // shortcut must fall through.
-        "modified": now.to_rfc3339(),
+        "modified": pnpm_time::format_rfc3339(now),
         "time": {
             "created": "2020-01-01T00:00:00.000Z",
-            "modified": now.to_rfc3339(),
+            "modified": pnpm_time::format_rfc3339(now),
             // The pinned version itself is years old.
             "1.0.0": "2020-01-01T00:00:00.000Z"
         },

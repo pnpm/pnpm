@@ -9,10 +9,10 @@ pub(crate) use update::{
 };
 
 use super::{
-    Arc, AuditAdvisory, AuditError, AuditReport, BTreeMap, Config, ConfigAuditLevel, DateTime,
+    Arc, AuditAdvisory, AuditError, AuditReport, BTreeMap, Config, ConfigAuditLevel,
     DependencyGroup, Deserialize, HashMap, HashSet, IntoDiagnostic, Lockfile, MultiSelect,
-    PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Update, Utc,
-    Version, blue, color_severity, encode_package_name, green, normalize_ghsa_id,
+    PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Timestamp,
+    Update, Version, blue, color_severity, encode_package_name, green, normalize_ghsa_id,
     parse_packument_timestamp, red, satisfies_including_prerelease, send_with_retry, severity_name,
     severity_number,
 };
@@ -261,8 +261,8 @@ fn resolve_minimum_release_age_excludes(
     // does; with no effective gate no bypass entries are needed.
     let Some(cutoff) = i64::try_from(minimum_release_age)
         .ok()
-        .and_then(chrono::Duration::try_minutes)
-        .and_then(|age| Utc::now().checked_sub_signed(age))
+        .and_then(pnpm_time::duration_minutes)
+        .and_then(|age| Timestamp::now().checked_sub(age).ok())
     else {
         return Ok(Vec::new());
     };
@@ -281,7 +281,7 @@ fn resolve_minimum_release_age_excludes(
 pub(crate) fn minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
-    cutoff: DateTime<Utc>,
+    cutoff: Timestamp,
 ) -> miette::Result<Vec<String>> {
     let specs: Vec<String> = advisories
         .values()

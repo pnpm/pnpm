@@ -1,13 +1,11 @@
 use super::{
-    Arc, DependencyGroup, FailureShape, HashMap, Mutex, RecordingResolver, Utc,
-    WarmupProbeResolver, WorkspaceImporter, assert_eq, caret_entry, deps, fake_manifest,
-    fake_result, graph_versions_of, importer_opts, importer_scoped_update_lockfile,
-    lockfile_recording_time, lockfile_with_package, optional_failure_fixture,
-    optional_failure_fixture_with_specifier, recorded_time, resolve_pinned_versus_fresh,
-    resolve_single_importer, resolve_workspace, reuse_graph_lockfile, reuse_steal_lockfile,
-    workspace_opts,
+    Arc, DependencyGroup, FailureShape, HashMap, Mutex, RecordingResolver, WarmupProbeResolver,
+    WorkspaceImporter, assert_eq, caret_entry, deps, fake_manifest, fake_result, graph_versions_of,
+    importer_opts, importer_scoped_update_lockfile, lockfile_recording_time, lockfile_with_package,
+    optional_failure_fixture, optional_failure_fixture_with_specifier, recorded_time,
+    resolve_pinned_versus_fresh, resolve_single_importer, resolve_workspace, reuse_graph_lockfile,
+    reuse_steal_lockfile, workspace_opts,
 };
-use chrono::TimeZone;
 
 /// Against a registry whose abbreviated metadata omits publish times,
 /// the dates the lockfile already recorded are what the cutoff is
@@ -45,7 +43,7 @@ async fn time_based_cutoff_falls_back_to_the_lockfiles_recorded_time() {
 
     assert_eq!(
         resolver.opts_for("sub"),
-        (false, Some(Utc.with_ymd_and_hms(2024, 5, 20, 9, 0, 0).unwrap())),
+        (false, Some("2024-05-20T09:00:00Z".parse::<jiff::Timestamp>().unwrap())),
         "the recorded publish date stands in for the missing one",
     );
     assert_eq!(
