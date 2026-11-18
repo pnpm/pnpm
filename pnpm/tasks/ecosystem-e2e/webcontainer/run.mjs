@@ -85,7 +85,7 @@ if (opts['wasm-network'] || opts['wasm-cli'] || opts['wasm-package']) {
   servedFiles.set('network-ca.pem', path.join(fixtures, 'test-ca.pem'))
   servedFiles.set('network-client-key.pem', path.join(fixtures, 'test-client-pkcs1.key'))
 }
-if (opts['wasm-cli']) servedFiles.set('metadata-bench.mjs', fileURLToPath(new URL('./metadata-bench.mjs', import.meta.url)))
+if (opts['wasm-cli'] || opts['wasm-package']) servedFiles.set('metadata-bench.mjs', fileURLToPath(new URL('./metadata-bench.mjs', import.meta.url)))
 for (const file of servedFiles.values()) fs.accessSync(file, fs.constants.R_OK)
 const steps = opts['wasm-package'] ? [
   ...packageInstallSteps(),
@@ -183,7 +183,7 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
   return [
     ...(opts['wasm-cli'] ? [{ name: 'prepare mounted executable launcher', command: 'node', args: ['-e', `require('node:fs').chmodSync(${JSON.stringify(entry)}, 0o755)`] }] : []),
     { name: 'Rust WASM CLI version', command: 'node', args: [entry, '--version'], expectOutput: '12.' },
-    ...(opts['wasm-cli'] ? [{ name: 'measure WebContainer filesystem metadata calls', command: 'node', args: ['../pnpm/metadata-bench.mjs'], expectOutput: 'webcontainer-metadata-bench-ok' }] : []),
+    ...((opts['wasm-cli'] || opts['wasm-package']) ? [{ name: 'measure WebContainer filesystem metadata calls', command: 'node', args: ['../pnpm/metadata-bench.mjs'], expectOutput: 'webcontainer-metadata-bench-ok' }] : []),
     { name: 'Rust WASM CLI help', command: 'node', args: [entry, '--help'], expectOutput: 'Usage:' },
     { name: 'isolated WASM store namespace', command: 'node', args: [entry, 'store', 'path'], expectOutput: 'v11-wasm' },
     { name: 'resolve metadata cache path', command: 'node', args: [entry, 'cache', 'path'], expectOutput: '/home/.cache/pnpm' },
