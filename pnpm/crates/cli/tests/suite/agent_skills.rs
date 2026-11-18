@@ -88,7 +88,7 @@ fn install_records_unapproved_skills_and_links_nothing() {
     let output = output_of(pnpm(&workspace).with_arg("install"));
 
     assert!(
-        output.contains("Agent skills awaiting approval: @pnpm.e2e/with-agent-skills."),
+        output.contains("Packages awaiting approval:\n  @pnpm.e2e/with-agent-skills  skills"),
         "{output}",
     );
     assert_eq!(pending_skills(&workspace), Some(vec![format!("{PACKAGE}@1.0.0")]));

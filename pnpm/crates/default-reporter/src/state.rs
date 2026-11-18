@@ -9,7 +9,7 @@ pub use options::{LifecycleOptions, ProgressOptions, ReporterOptions, ScopeOptio
 mod options;
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Component, Path, PathBuf},
 };
 
@@ -202,6 +202,9 @@ struct NoticeState {
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
     reported_peer_issues: bool,
+    pending_builds: Vec<String>,
+    pending_skills: Vec<String>,
+    approvals_slot: BlockSlot,
 }
 
 #[derive(Default)]

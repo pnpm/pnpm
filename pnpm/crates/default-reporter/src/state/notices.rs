@@ -1,6 +1,6 @@
 use super::{
-    BlockPlacement, Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog,
-    IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
+    BTreeMap, BTreeSet, BlockPlacement, Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog,
+    Frame, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
     LockfileVerificationMessage, LogLevel, MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState,
     PendingSkillsLog, ReporterState, RequestRetryLog, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog, cached_verdict,
@@ -8,6 +8,17 @@ use super::{
     update_command, zoom_out,
 };
 use jiff::Timestamp;
+
+fn short_package_label(package: &str) -> String {
+    let separator = if let Some(scoped_package) = package.strip_prefix('@') {
+        scoped_package
+            .find('@')
+            .map(|index| index + 1)
+    } else {
+        package.find('@')
+    };
+    separator.map_or_else(|| package.to_owned(), |index| package[..index].to_owned())
+}
 
 /// `name@version` as a deprecation warning prints it.
 ///
@@ -40,31 +51,73 @@ impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
     pub(super) fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
-        if log.package_names.is_empty() {
-            return;
+        if log.strict_dep_builds {
+            self.notices.pending_builds.clear();
+        } else {
+            self.notices.pending_builds.clone_from(&log.package_names);
         }
         // Suppress the warning box under `strictDepBuilds` — the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
         // only duplicate the error. The structured event still carries the
         // names for NDJSON consumers.
-        if log.strict_dep_builds {
-            return;
-        }
-        let list = log.package_names.join(", ");
-        let instruction = self.options.ignored_builds_instruction_text.as_deref().unwrap_or(
-            r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#,
-        );
-        self.display.frame.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
+        self.render_pending_approvals();
     }
 
     pub(super) fn on_pending_skills(&mut self, log: &PendingSkillsLog) {
-        if log.package_names.is_empty() {
+        self.notices.pending_skills.clone_from(&log.package_names);
+        self.render_pending_approvals();
+    }
+
+    fn render_pending_approvals(&mut self) {
+        let mut packages = BTreeMap::<String, BTreeSet<&str>>::new();
+        for package in &self.notices.pending_builds {
+            packages
+                .entry(short_package_label(package))
+                .or_default()
+                .insert("build");
+        }
+        for package in &self.notices.pending_skills {
+            let build_label = packages
+                .keys()
+                .find(|label| package.starts_with(&format!("{label}@")))
+                .cloned();
+            packages
+                .entry(build_label.unwrap_or_else(|| package.clone()))
+                .or_default()
+                .insert("skills");
+        }
+        if packages.is_empty() {
             return;
         }
-        self.display.frame.push_block(format!(
-            "Agent skills awaiting approval: {}.\nRun \"pnpm approve\" to review them.",
-            log.package_names.join(", "),
-        ));
+        let list = packages
+            .iter()
+            .map(|(name, capabilities)| {
+                format!(
+                    "  {name}  {}",
+                    capabilities
+                        .iter()
+                        .copied()
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let instruction = if packages
+            .values()
+            .all(|capabilities| capabilities.len() == 1 && capabilities.contains("build"))
+        {
+            self.options.ignored_builds_instruction_text
+                .as_deref()
+                .unwrap_or(r#"Run "pnpm approve" to review the packages awaiting approval."#)
+        } else {
+            r#"Run "pnpm approve" to review the packages awaiting approval."#
+        };
+        self.display.frame.emit(
+            &mut self.notices.approvals_slot,
+            format!("Packages awaiting approval:\n{list}\n\n{instruction}"),
+            BlockPlacement::Scrolling,
+        );
     }
 
     /// pnpm's `reportUpdateCheck`: tell the user a newer pnpm exists and
