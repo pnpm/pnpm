@@ -1331,9 +1331,8 @@ jobs:
             pnpm-*.tar.gz
             pnpm-*.zip
 
-  # Packages the drafted pnpm-linux-x64.tar.gz as an RPM for RED OS 8, RHEL 8
-  # derivatives, and newer RPM-based systems, plus a dnf repository that installs
-  # it on hosts with no network access. It adds both to the draft, so it runs
+  # Packages the drafted pnpm-linux-x64.tar.gz as an RPM for RHEL 8 and newer,
+  # plus a dnf repository that installs it on hosts with no network access. It adds both to the draft, so it runs
   # before a maintainer publishes the release: a published release is
   # immutable. Its failure leaves the draft without the RPM and blocks nothing.
   github-release-rpm:
@@ -1388,9 +1387,9 @@ jobs:
 
       - name: Install it the way an offline host will
         # AlmaLinux 8 is the oldest system the package targets: glibc 2.28 and
-        # rpm 4.14. RED OS 8 is newer on both. `--network none` and the
-        # disabled distribution repositories are the point of the test: they
-        # prove the repository needs nothing but itself.
+        # rpm 4.14. `--network none` and the disabled distribution repositories
+        # are the point of the test: they prove the repository needs nothing but
+        # itself.
         run: |
           docker run --rm --network none -e VERSION \
             -v "$PWD/dist/rpm/repo:/opt/pnpm-repo:ro" "$RHEL8_IMAGE" bash -euc '
@@ -1411,7 +1410,7 @@ jobs:
         with:
           subject-path: |
             dist/rpm/pnpm-*.rpm
-            dist/rpm/pnpm-*-redos8-x86_64-repo.tar.gz
+            dist/rpm/pnpm-*-el8-x86_64-repo.tar.gz
 
       - name: Upload to the draft release
         # --clobber keeps a rerun of this job idempotent.
@@ -1419,7 +1418,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "v${VERSION}" --repo "$GITHUB_REPOSITORY" --clobber \
-            dist/rpm/pnpm-*.rpm dist/rpm/pnpm-*-redos8-x86_64-repo.tar.gz
+            dist/rpm/pnpm-*.rpm dist/rpm/pnpm-*-el8-x86_64-repo.tar.gz
 
   build-pnpr:
     needs: plan

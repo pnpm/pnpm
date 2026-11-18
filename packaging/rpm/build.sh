@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Build the pnpm RPM for RED OS 8, RHEL 8 derivatives, and anything newer from a
-# released standalone Linux x64 tarball, plus a dnf repository that installs on
-# a host with no network access at all.
+# Build the pnpm RPM for RHEL 8 and newer from a released standalone Linux x64
+# tarball, plus a dnf repository that installs on a host with no network access
+# at all.
 #
 #   packaging/rpm/build.sh <version> [pnpm-linux-x64.tar.gz]
 #
@@ -14,7 +14,7 @@
 # Outputs into $OUT_DIR (default dist/rpm):
 #   pnpm-<version>-1.el8.x86_64.rpm
 #   repo/                                    dnf repository (repodata + pnpm.repo)
-#   pnpm-<version>-redos8-x86_64-repo.tar.gz the same repository, packed
+#   pnpm-<version>-el8-x86_64-repo.tar.gz the same repository, packed
 #
 # Requires: rpmbuild, createrepo_c, dnf, dnf-plugins-core, binutils, curl, tar.
 
@@ -30,8 +30,8 @@ spec_dir=$(cd "$(dirname "$0")" && pwd)
 # precedes, so 11.1.0~rc.1 upgrades to 11.1.0.
 rpm_version=${version//-/'~'}
 
-# The package targets the RHEL 8 baseline, glibc 2.28. RED OS 8 ships 2.36. A
-# binary that needs a newer glibc installs fine and then dies at exec.
+# The package targets the RHEL 8 baseline, glibc 2.28. A binary that needs a
+# newer glibc installs fine and then dies at exec.
 readonly max_glibc=2.28
 
 work=$(mktemp -d)
@@ -105,14 +105,14 @@ gpgcheck=0
 EOF
 createrepo_c --quiet "$stage/repo"
 
-tar czf "$stage/pnpm-${version}-redos8-x86_64-repo.tar.gz" -C "$stage" repo
+tar czf "$stage/pnpm-${version}-el8-x86_64-repo.tar.gz" -C "$stage" repo
 
 # Only this script's own outputs are removed: OUT_DIR may hold other files, and
 # a stale RPM left beside the current one would be picked up by anything copying
 # the directory.
 mkdir -p "$out_dir"
 rm -rf "${out_dir:?}/repo"
-rm -f "$out_dir"/pnpm-*.rpm "$out_dir"/pnpm-*-redos8-x86_64-repo.tar.gz
+rm -f "$out_dir"/pnpm-*.rpm "$out_dir"/pnpm-*-el8-x86_64-repo.tar.gz
 mv "$stage"/* "$out_dir/"
 
 echo "Built $(basename "$rpm_file") for glibc $required_glibc in $out_dir"

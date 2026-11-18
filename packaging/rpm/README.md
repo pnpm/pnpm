@@ -1,10 +1,10 @@
-# pnpm RPM for RED OS 8
+# pnpm RPM for RHEL 8 and newer
 
 An RPM of the standalone pnpm build — the same binary
 `https://get.pnpm.io/install.sh` installs, bundled with its own Node.js runtime
-— for RED OS 8, RHEL 8 derivatives, and newer RPM-based systems on `x86_64`.
-The package targets the RHEL 8 baseline (glibc 2.28, rpm 4.14). RED OS 8 ships
-glibc 2.36, above that baseline.
+— for `x86_64` RHEL 8 and newer, and the distributions built on it, such as
+AlmaLinux, Rocky Linux, and Oracle Linux. The package targets the RHEL 8
+baseline: glibc 2.28 and rpm 4.14.
 
 The package installs:
 
@@ -20,14 +20,14 @@ Every pnpm release page carries two RPM assets, built by the release workflow
 from that release's `pnpm-linux-x64.tar.gz`:
 
 - `pnpm-<version>-1.el8.x86_64.rpm`, the bare package.
-- `pnpm-<version>-redos8-x86_64-repo.tar.gz`, a dnf repository with `repodata`,
+- `pnpm-<version>-el8-x86_64-repo.tar.gz`, a dnf repository with `repodata`,
   a ready `pnpm.repo`, and the runtime dependencies a stock RHEL 8 install is
   missing (`libatomic`).
 
 Both carry a build provenance attestation:
 
 ```sh
-gh attestation verify pnpm-11.25.0-redos8-x86_64-repo.tar.gz --repo pnpm/pnpm
+gh attestation verify pnpm-11.25.0-el8-x86_64-repo.tar.gz --repo pnpm/pnpm
 ```
 
 ## Install on a host without network access
@@ -36,7 +36,7 @@ Copy the repository tarball into the image and unpack it at the path its
 `pnpm.repo` points to:
 
 ```sh
-tar xzf pnpm-11.25.0-redos8-x86_64-repo.tar.gz -C /tmp
+tar xzf pnpm-11.25.0-el8-x86_64-repo.tar.gz -C /tmp
 rm -rf /opt/pnpm-repo
 mv /tmp/repo /opt/pnpm-repo
 cp /opt/pnpm-repo/pnpm.repo /etc/yum.repos.d/
