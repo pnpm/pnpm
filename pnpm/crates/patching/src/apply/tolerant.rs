@@ -1,8 +1,9 @@
 //! Hunk application with pnpm's tolerances.
 //!
-//! pnpm applies patches through `@pnpm/patch-package`, whose matcher is
-//! deliberately loose in two ways [`diffy::apply`] is not, and real
-//! patch files in the wild depend on both:
+//! pnpm 11's applier (`@pnpm/patching.apply-patch`, derived from
+//! patch-package) has a matcher that is deliberately loose in two ways
+//! [`diffy::apply`] is not, and real patch files in the wild depend on
+//! both:
 //!
 //! 1. Lines are compared with trailing whitespace stripped, so an LF
 //!    patch applies to a CRLF file (and a hunk whose last line is
@@ -15,7 +16,7 @@
 //! [`drop_context_no_newline_markers`].
 //!
 //! The file is modeled as `split('\n')` throughout — the same
-//! representation `patch-package` uses — so a line's own ending is
+//! representation pnpm 11's applier uses — so a line's own ending is
 //! whatever the surrounding text carried: untouched CRLF lines keep
 //! their `\r`, replacement lines take the patch's LF, and a file
 //! without a final newline keeps that shape through the round trip.
@@ -35,7 +36,7 @@ const NO_NEWLINE_MARKER: &str = r"\ No newline at end of file";
 // that only lost its final newline as unchanged, so git prints it as context
 // carrying the marker, followed by the deletions after it. `diffy` rejects
 // anything but the end of the hunk after a marked context line. Both
-// `patch-package` and `apply` ignore that marker, so dropping it loses
+// pnpm 11's applier and `apply` ignore that marker, so dropping it loses
 // nothing.
 pub(super) fn drop_context_no_newline_markers(text: String) -> String {
     if !text.contains(NO_NEWLINE_MARKER) {
@@ -78,7 +79,7 @@ const VALUE_EXTENDED_HEADERS: [&str; 9] = [
 /// patch saved with CRLF line endings each of those values keeps its `\r`
 /// and then fails the match it feeds: `invalid file mode: 100644`, an
 /// unparsable rename path, or an invalid `diff --git` fallback. Hunk
-/// lines are left alone — a `\r` there is content both `patch-package` and
+/// lines are left alone — a `\r` there is content both pnpm 11's applier and
 /// [`diffy`] preserve, and an LF patch for a CRLF file relies on it.
 pub(super) fn strip_cr_from_extended_headers(text: String) -> String {
     if !text.contains('\r') {
@@ -235,18 +236,40 @@ fn evaluate_hunk<'a>(
     }
 
     let mut modifications = Vec::new();
+    let mut pre_image_end = PreImageEnd::Elsewhere;
     for part in parts {
         match part.kind {
             Kind::Context | Kind::Delete => {
                 index = match_pre_image(part, lines, index)?;
+                pre_image_end = PreImageEnd::of(part, lines, index);
                 if part.kind == Kind::Delete {
                     push_deletion(&mut modifications, part, index);
                 }
             }
-            Kind::Insert => push_insertion(&mut modifications, part, index),
+            Kind::Insert => push_insertion(&mut modifications, part, index, pre_image_end),
         }
     }
     Some(modifications)
+}
+
+/// Where the pre-image lines walked so far stop in the file.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PreImageEnd {
+    /// On the file's last line, which has no final newline, although the
+    /// hunk carries no `\ No newline at end of file` marker for it.
+    UnterminatedLastLine,
+    Elsewhere,
+}
+
+impl PreImageEnd {
+    fn of(part: &Part<'_>, lines: &[&str], index: usize) -> Self {
+        let unterminated = !part.ends_file
+            && index == lines.len()
+            && lines
+                .last()
+                .is_some_and(|line| !line.is_empty());
+        if unterminated { PreImageEnd::UnterminatedLastLine } else { PreImageEnd::Elsewhere }
+    }
 }
 
 /// Walk the pre-image lines of one part past `index`, returning where it
@@ -276,7 +299,19 @@ fn push_deletion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>,
     }
 }
 
-fn push_insertion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>, index: usize) {
+fn push_insertion<'a>(
+    modifications: &mut Vec<Modification<'a>>,
+    part: &Part<'a>,
+    index: usize,
+    pre_image_end: PreImageEnd,
+) {
+    // `git diff --ignore-cr-at-eol`, which `pnpm patch-commit` runs, writes
+    // lines appended to a file without a final newline as context followed
+    // by the insertion. The newline is restored so that the insertion's
+    // `Pop` removes it rather than the last inserted line.
+    if part.ends_file && pre_image_end == PreImageEnd::UnterminatedLastLine {
+        modifications.push(Modification::Push);
+    }
     modifications.push(Modification::Splice { index, delete: 0, insert: part.lines.clone() });
     if part.ends_file {
         modifications.push(Modification::Pop);

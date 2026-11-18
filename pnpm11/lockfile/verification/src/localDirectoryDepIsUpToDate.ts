@@ -36,6 +36,7 @@ import {
   isWorkspacePath,
   versionSatisfies,
 } from './dependencySpec.js'
+import { recordedPeersMatch } from './recordedPeersMatch.js'
 
 export interface LocalDirectoryDepContext {
   lockfileDir: string
@@ -166,11 +167,17 @@ async function localDirectoryDepIsUpToDateRec (
   // A revisit in the same peer scope is a cycle or a shared dependency that
   // is already being checked.
   if (!markVisited(walk, pkgSnapshot, manifest)) return true
-  if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
-  const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
+  const preparedManifest = prepareDependencyManifest(clone(manifest), {
     autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
     parentPkgAliases: walk.parentPkgAliases,
-  }))
+  })
+  if (!recordedPeersMatch(manifest, pkgSnapshot, {
+    declaredByPath: walk.declaredByPath && !walk.declarationAssumed,
+    parentPkgAliases: walk.parentPkgAliases,
+    preparedManifest,
+    resolveCatalogSpec: (peer) => resolveCatalogSpec(ctx, peer),
+  })) return false
+  const children = getNonDevWantedDependencies(preparedManifest)
   if (!recordedChildrenAreExpected(manifest, children, pkgSnapshot)) return false
   const localDep: LocalDirectoryDep = {
     lockfileDir: ctx.lockfileDir,
@@ -248,32 +255,6 @@ async function applyReadPackageHook (ctx: LocalDirectoryDepContext, declared: De
   const hook = ctx.resolution?.readPackageHook
   if (hook == null) return declared
   return (await hook(clone(declared)) as DependencyManifest | undefined) ?? declared
-}
-
-/**
- * The lockfile records the peers the package declares. A lockfile written
- * before it recorded every declared peer records only the peers taken without
- * any shadowing, the ones that are not also `dependencies`.
- */
-function recordedPeersMatch (ctx: LocalDirectoryDepContext, manifest: DependencyManifest, pkgSnapshot: PackageSnapshot): boolean {
-  const { declared, taken } = getPeerSet(manifest)
-  const recorded = pkgSnapshot.peerDependencies ?? {}
-  return Object.keys(taken).every((name) => Object.hasOwn(recorded, name)) &&
-    Object.keys(recorded).every((name) => {
-      const peer = declared[name]
-      return peer != null &&
-        peerRangeMatches(ctx, { alias: name, bareSpecifier: peer.version }, recorded[name]) &&
-        Boolean(peer.optional) === Boolean(pkgSnapshot.peerDependenciesMeta?.[name]?.optional)
-    })
-}
-
-function peerRangeMatches (
-  ctx: LocalDirectoryDepContext,
-  peer: { alias: string, bareSpecifier: string },
-  recordedRange: string | undefined
-): boolean {
-  if (recordedRange == null) return false
-  return recordedRange === peer.bareSpecifier || recordedRange === resolveCatalogSpec(ctx, peer)
 }
 
 /** Every child the snapshot records is one the resolver walks, or a peer, whose resolution it records too. */

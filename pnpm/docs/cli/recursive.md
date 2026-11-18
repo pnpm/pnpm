@@ -38,6 +38,7 @@ By default, recursive `run`, `exec`, and `test` execute projects in
 topological order: dependencies run before their dependents. Use `--no-sort`
 to disable graph ordering, or `--parallel` to start tasks without waiting for
 dependencies.
+Recursive `list` prints projects in the same order.
 
 ## Options
 

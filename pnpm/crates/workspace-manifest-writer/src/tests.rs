@@ -879,4 +879,6 @@ mod scalar_aliases;
 
 mod permissions;
 
+mod global_packages;
+
 mod includes;

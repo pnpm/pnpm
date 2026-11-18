@@ -64,7 +64,7 @@ use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
 use pnpr_config::{Config, PublicRoute, RoutePolicy, RoutingConfig, UpstreamConfig};
-use pnpr_policy::{AccessList, Identity, PackageRules};
+use pnpr_policy::{Identity, PackageRules};
 use pnpr_registry::{ConcreteKind, Ecosystem, Registries, Resolved};
 
 /// The classification of a single fetch route.
@@ -104,17 +104,17 @@ pub struct RouteContext {
     /// endpoints use, so classification and serving can't disagree about a
     /// package's origin.
     registries: Registries,
-    /// Each hosted registry's `packages:` rules, used to decide whether a
-    /// pnpr-hosted route is public (its effective access admits everyone)
+    /// Each hosted registry's rules, used to decide whether a
+    /// pnpr-hosted route is public (everyone may read the package)
     /// or private, and to gate hosted cache hits for the caller.
     hosted_rules: IndexMap<String, PackageRules>,
-    /// Each upstream registry's `packages:` rules. Alias selection is
-    /// per-package-aware: a caller the upstream's effective access denies
-    /// for a name is never handed the server-owned credential for it, so a
+    /// Each upstream registry's rules. Alias selection is
+    /// per-package-aware: a caller no grant lets read a name through the
+    /// upstream is never handed the server-owned credential for it, so a
     /// fresh resolve fails closed exactly where the serving endpoint would
     /// deny the read. (Cache *replay* granularity stays registry-scoped:
     /// the alias descriptor covers every name the alias resolves, shared
-    /// among callers the registry-level `access:` admits.)
+    /// among callers who may read something through the upstream.)
     upstream_rules: IndexMap<String, PackageRules>,
     /// The addresses a resolver connection may be opened to.
     connect_policy: ConnectPolicy,
@@ -149,8 +149,9 @@ struct ResolvedAlias {
     /// The fully-formed `Authorization` header value the alias sends
     /// upstream (`Bearer ...` / `Basic ...`).
     authorization: Option<String>,
-    /// Which pnpr callers may select this alias.
-    access: AccessList,
+    /// The upstream's grants, which decide which pnpr callers may select this
+    /// alias.
+    rules: pnpr_policy::PackageRules,
 }
 
 impl fmt::Debug for ResolvedAlias {
@@ -164,7 +165,7 @@ impl fmt::Debug for ResolvedAlias {
             .field("origin", &self.origin)
             .field("scheme", &self.scheme)
             .field("authorization", &"<redacted>")
-            .field("access", &self.access)
+            .field("rules", &self.rules)
             .finish()
     }
 }
@@ -340,7 +341,7 @@ impl RouteContext {
         match admitted {
             Some(alias)
                 if alias.authorization.is_some()
-                    || !alias.access.allows(&Identity::Anonymous)
+                    || !alias.admits(&Identity::Anonymous)
                     || !self.upstream_admits(registry, &Identity::Anonymous, Some(package)) =>
             {
                 RouteClass::Proxied {
@@ -355,7 +356,7 @@ impl RouteContext {
     fn authorized_alias(&self, identity: &Identity, registry: &str) -> Option<&ResolvedAlias> {
         self.aliases
             .iter()
-            .find(|alias| alias.name == registry && alias.access.allows(identity))
+            .find(|alias| alias.name == registry && alias.admits(identity))
     }
 
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
@@ -459,12 +460,10 @@ impl RouteContext {
         let Some(rules) = self.hosted_rules.get(registry) else {
             return RouteClass::Public;
         };
-        let table = rules.snapshot();
-        let access = table.for_package(package).access;
-        if access.allows(&Identity::Anonymous) {
+        if rules.access_admits(package, &Identity::Anonymous) {
             return RouteClass::Public;
         }
-        if access.allows(identity) {
+        if rules.access_admits(package, identity) {
             RouteClass::Hosted { policy_id: hosted_policy_id(registry, package) }
         } else {
             // The caller can't read this hosted package: classify it as an
@@ -482,31 +481,7 @@ impl RouteContext {
     ) -> bool {
         match descriptor {
             PrivateAccessDescriptor::Alias { alias, credential_digest, package } => {
-                // Reuse the cached resolution only if `identity` would *select*
-                // this exact alias for its origin — the first authorized alias
-                // [`Self::select_alias`] returns there — and its credential
-                // still hashes to the same digest. Not merely an alias the
-                // caller is authorized for: with overlapping upstream access
-                // (several aliases on one origin a caller can use), an
-                // authorization-only check could replay a lockfile routed
-                // through a different `/~<name>/` endpoint than this caller
-                // resolves through. A since-removed alias (`find` → `None`) or
-                // a rotated credential also fails closed here.
-                self.aliases
-                    .iter()
-                    .find(|candidate| candidate.name == alias.as_str())
-                    .is_some_and(|candidate| {
-                        if candidate.authorization.is_none() {
-                            return candidate.access.allows(identity)
-                                && candidate.credential_digest == *credential_digest
-                                && self.upstream_admits(alias, identity, package.as_deref());
-                        }
-                        self.select_alias(identity, &candidate.origin, package.as_deref())
-                            .is_some_and(|selected| {
-                                selected.name == alias.as_str()
-                                    && selected.credential_digest == *credential_digest
-                            })
-                    })
+                self.allows_alias(identity, (alias, credential_digest), package.as_deref())
             }
             PrivateAccessDescriptor::Hosted { policy_id } => {
                 // The id is registry-qualified (see `hosted_policy_id`); a
@@ -530,7 +505,7 @@ impl RouteContext {
     pub fn upstream_registry(&self, identity: &Identity, upstream: &str) -> Option<String> {
         self.aliases
             .iter()
-            .find(|candidate| candidate.name == upstream && candidate.access.allows(identity))
+            .find(|candidate| candidate.name == upstream && candidate.admits(identity))
             .map(|candidate| candidate.registry.clone())
     }
 }

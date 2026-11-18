@@ -352,13 +352,22 @@ pub fn can_write_and_search(path: &Path) -> bool {
     };
     // SAFETY: the string is NUL-terminated and borrowed for the whole call,
     // which writes no memory. `AT_FDCWD` resolves the path as an ordinary
-    // relative or absolute path, and `AT_EACCESS` asks about the effective
-    // user rather than the real one.
+    // relative or absolute path.
     let permitted = unsafe {
-        libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::W_OK | libc::X_OK, libc::AT_EACCESS)
+        libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::W_OK | libc::X_OK, EFFECTIVE_IDS)
     };
     permitted == 0
 }
+
+/// Selects the effective ids rather than the real ones.
+#[cfg(all(unix, not(target_os = "android")))]
+const EFFECTIVE_IDS: libc::c_int = libc::AT_EACCESS;
+
+/// Bionic defines no `AT_EACCESS` and fails for every non-zero flag. It
+/// never runs code whose effective user differs from its real one, so `0`
+/// asks about the same ids there.
+#[cfg(target_os = "android")]
+const EFFECTIVE_IDS: libc::c_int = 0;
 
 fn entry_time(seconds: libc::time_t, nanoseconds: libc::c_long) -> SystemTime {
     let Ok(seconds) = u64::try_from(seconds) else {

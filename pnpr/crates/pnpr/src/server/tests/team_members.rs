@@ -14,16 +14,21 @@ async fn a_large_roster_uses_one_targeted_bulk_account_lookup() {
         .chain(["retired".to_string()])
         .collect();
     let yaml = format!(
-        "storage: '{}'\nauth:\n  admins: [alice]\nregistries:\n  local:\n    type: hosted\n    namespace: ''\n    teams:\n      readers:\n        name: readers\n        members: [{}]\ndefaultRegistry: local\n",
+        "storage: '{}'\nauth:\n  admins: [alice]\nregistries:\n  local:\n    type: hosted\n    namespace: ''\ndefaultRegistry: local\n",
         directory
             .path()
             .join("storage")
             .display(),
-        members.join(", "),
     );
     let path = directory.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
     let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    storage.create_team("readers-id", "readers").await.unwrap();
+    for member in &members {
+        assert!(storage.add_team_member("readers-id", member).await.unwrap());
+    }
+    drop(storage);
     let mut accounts: BTreeSet<_> = members
         .iter()
         .filter(|id| id.as_str() != "retired")

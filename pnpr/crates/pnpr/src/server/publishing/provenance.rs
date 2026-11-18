@@ -1,17 +1,14 @@
-//! The publisher's provenance statement of a version names every archive the
-//! version publishes
-//! ([platform variants](https://github.com/pnpm/rfcs/blob/1a9891a2073f7c03a89fc6756eb78881853fa218/pnpr/text/0000-platform-variants.md#publication)),
-//! so no archive enters the version outside it.
+//! The publisher's provenance statement of a version names the archive the
+//! version publishes, so no archive enters the version outside it.
 //!
 //! The statement is the in-toto payload of the `.sigstore` bundle's DSSE
-//! envelope. Each archive is a subject named by its PURL, a variant's with
-//! the `variant` qualifier, with the SHA-512 of its `.tgz` as npm provenance
-//! names it. The signature is not checked here.
+//! envelope. The archive is a subject named by the version's PURL, with the
+//! SHA-512 of its `.tgz` as npm provenance names it. The signature is not
+//! checked here.
 
 use super::{
     attachments::{AttachmentKind, PreparedAttachment, PublishedTar},
-    release_records::{variant_purl, version_purl},
-    variants::PublishedVariant,
+    release_records::version_purl,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_release_record::{IN_TOTO_PAYLOAD_TYPE, Purl, STATEMENT_TYPE, decode_base64};
@@ -88,25 +85,28 @@ struct IncomingSubject {
     digest: BTreeMap<String, String>,
 }
 
-/// Refuse a version with a statement unless the statement names each
-/// archive the version publishes: its `any` archive and every variant.
+/// Refuse a version with a statement unless the statement names the
+/// archive the version publishes.
 pub(super) fn check_statements(
     name: &CanonicalPackageName,
     statements: &Statements,
     tars: &[PublishedTar],
-    variants: &[PublishedVariant],
 ) -> Result<(), RegistryError> {
     for (version, subjects) in statements {
         let refuse = |reason: String| RegistryError::BadRequest {
             reason: format!(
-                "the provenance statement of {}@{version} {reason}; a statement must name every \
+                "the provenance statement of {}@{version} {reason}; a statement must name the \
                  archive the version publishes",
                 name.as_str(),
             ),
         };
         let subjects = subjects.as_ref().map_err(|reason| refuse(reason.clone()))?;
-        for (purl, tgz_integrity) in archives(name, version, tars, variants)? {
-            let digest = sha512_hex(tgz_integrity.as_deref())
+        let purl = version_purl(name, version)?;
+        for tar in tars
+            .iter()
+            .filter(|tar| tar.version == *version)
+        {
+            let digest = sha512_hex(tar.tgz_integrity.as_deref())
                 .ok_or_else(|| {
                     refuse(format!("cannot name {purl}, which has no single SHA-512"))
                 })?;
@@ -123,43 +123,9 @@ pub(super) fn check_statements(
 
 /// Whether a statement's `subject` names the archive whose PURL is `purl`.
 /// npm and pnpm percent-encode only a leading `@` of a package name, so the
-/// name and version are compared by their canonical spelling; the qualifiers
-/// that name a variant must be spelled exactly as `purl` spells them.
+/// two are compared by their canonical spelling.
 fn names(subject: &str, purl: &Purl) -> bool {
-    let (subject_path, subject_qualifiers) = split_qualifiers(subject);
-    let (purl_path, purl_qualifiers) = split_qualifiers(purl.as_str());
-    subject_qualifiers == purl_qualifiers
-        && Purl::from_string_unchecked(subject_path.to_owned())
-            .canonical()
-            .is_some_and(|canonical| canonical.as_str() == purl_path)
-}
-
-/// A PURL's text before its `?`, and the qualifiers after it.
-fn split_qualifiers(purl: &str) -> (&str, Option<&str>) {
-    match purl.split_once('?') {
-        Some((path, qualifiers)) => (path, Some(qualifiers)),
-        None => (purl, None),
-    }
-}
-
-/// The PURL and `.tgz` integrity of each archive `version` publishes.
-fn archives(
-    name: &CanonicalPackageName,
-    version: &str,
-    tars: &[PublishedTar],
-    variants: &[PublishedVariant],
-) -> Result<Vec<(Purl, Option<String>)>, RegistryError> {
-    let any_archive = tars
-        .iter()
-        .filter(|tar| tar.version == version && tar.variant.is_none() && !tar.generated)
-        .map(|tar| Ok((version_purl(name, version)?, tar.tgz_integrity.clone())));
-    let variants = variants
-        .iter()
-        .filter(|variant| variant.version == version)
-        .map(|variant| {
-            Ok((variant_purl(name, version, &variant.tar.tag)?, variant.tar.tgz_integrity.clone()))
-        });
-    any_archive.chain(variants).collect()
+    Purl::from_string_unchecked(subject.to_owned()).canonical().as_ref() == Some(purl)
 }
 
 /// The lowercase hex SHA-512 an SRI `integrity` carries, or `None` unless it

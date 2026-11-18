@@ -74,6 +74,16 @@ test('--ignore exits with 0 when the remaining vulnerabilities were ignored befo
   })).toBe(0)
 })
 
+test('ignoring other advisories keeps an advisory whose id is "__proto__"', async () => {
+  const response = {
+    axios: [
+      { ...MIXED_RESPONSE.axios[0], id: '__proto__' },
+      UNFIXABLE_RESPONSE.axios[0],
+    ],
+  }
+  expect(await auditWithIgnores(response, { auditConfig: { ignoreGhsas: ['GHSA-unfixable-test-0001'] } })).toBe(1)
+})
+
 test('--ignore-unfixable exits with 1 when a fixable vulnerability remains', async () => {
   expect(await auditWithIgnores(MIXED_RESPONSE, { ignoreUnfixable: true })).toBe(1)
 })
@@ -202,6 +212,7 @@ test.each([
     ...flags,
   })).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_FIX_WITH_IGNORE', message })
 
+  expect(getMockAgent().pendingInterceptors()).toMatchObject([{ pending: true, timesInvoked: 0 }])
   expect(fs.readFileSync(workspaceManifestPath, 'utf8')).toBe(workspaceManifest)
 })
 

@@ -70,7 +70,7 @@ pub(super) fn registry_endpoint(
 /// The cache headers a response needs so a shared HTTP cache can never replay
 /// an authenticated response to an anonymous caller. A response is scoped
 /// when `package` resolves, through the addressed registry, to a source whose
-/// effective per-package access denies anonymous callers, so a URL that
+/// grants do not let anonymous callers read it, so a URL that
 /// answers differently depending on `Authorization` says so. A
 /// publicly-readable resolution stays cacheable on both the path-less base
 /// (the hot install path) and a named one.
@@ -98,8 +98,8 @@ pub(super) fn caller_scoped(
 }
 
 /// Whether some read of `ecosystem` through `registry` is closed to anonymous
-/// callers: a hosted source whose default or package rules deny them, or an
-/// upstream source with an `access:` gate. Drives the Cargo `auth-required`
+/// callers: a source that no grant lets them read in full, or an upstream
+/// source that sends a credential or that they may not have fetched. Drives the Cargo `auth-required`
 /// flag, which makes `cargo` send its token on index and download requests too.
 pub(super) fn registry_requires_auth(
     state: &AppState,
@@ -116,7 +116,11 @@ pub(super) fn registry_requires_auth(
                 .is_some_and(|hosted| !hosted.rules.all_access_admit(&Identity::Anonymous)),
             Some(Registry::Upstream { .. }) => routing.upstreams
                 .get(source)
-                .is_some_and(|upstream| upstream.access.is_some()),
+                .is_some_and(|upstream| {
+                    !upstream.public
+                        || !upstream.rules.all_access_admit(&Identity::Anonymous)
+                        || !upstream.rules.any_admits(Action::Cache, &Identity::Anonymous)
+                }),
             Some(Registry::Router { .. }) | None => false,
         })
 }
@@ -184,7 +188,7 @@ pub(super) fn upstream_for(
     let RegistrySource::Upstream(name) = source else {
         return Err(RegistryError::NotFound);
     };
-    authorize(state, identity, source, key.as_str(), Action::Access)?;
+    authorize(state, identity, source, key.as_str(), Action::Read)?;
     let upstream = authorized_upstream(state, identity, name)?;
     Ok((upstream, upstream_cache_namespace(state, name)))
 }

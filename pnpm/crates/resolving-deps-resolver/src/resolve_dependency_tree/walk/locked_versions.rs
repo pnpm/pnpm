@@ -1,4 +1,5 @@
 use pnpm_lockfile::RegistryContext;
+use pnpm_resolving_resolver_base::is_valid_semver_range;
 
 use super::{
     Arc, CurrentPkg, LockfileResolution, PkgNameVerPeer, PreferredVersionsOverlay,
@@ -110,7 +111,7 @@ pub(super) fn pin_locked_version(
         && let Some(version) = key.suffix.registry_version()
         && wanted.bare_specifier
             .as_deref()
-            .is_some_and(|spec| spec.parse::<node_semver::Range>().is_ok())
+            .is_some_and(|spec| !spec.trim().is_empty() && is_valid_semver_range(spec))
     {
         wanted.bare_specifier = Some(version.to_string());
     }
@@ -150,7 +151,7 @@ pub(super) fn exact_registry_specifier_for_revision_refresh(
     if has_registry_revision_specifier(specifier) {
         return specifier.to_string();
     }
-    if specifier.parse::<node_semver::Range>().is_ok() {
+    if !specifier.trim().is_empty() && is_valid_semver_range(specifier) {
         return version.to_string();
     }
     let Some((protocol, body)) = specifier.split_once(':') else {
@@ -163,7 +164,7 @@ pub(super) fn exact_registry_specifier_for_revision_refresh(
     if protocol != "npm" && protocol != "jsr" && !names_locked_registry {
         return specifier.to_string();
     }
-    if body.parse::<node_semver::Range>().is_ok() {
+    if !body.trim().is_empty() && is_valid_semver_range(body) {
         return format!("{protocol}:{version}");
     }
     let Some(delimiter) = body

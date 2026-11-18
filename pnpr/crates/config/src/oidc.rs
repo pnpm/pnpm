@@ -40,13 +40,12 @@ pub struct OidcGroups {
     pub teams: Vec<OidcTeamGrant>,
 }
 
-/// A session whose groups claim lists `group` is a member of `team` on the
-/// hosted registry `registry`.
+/// A session whose groups claim lists `group` is a member of the team
+/// `team_id`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OidcTeamGrant {
     pub group: String,
-    pub registry: String,
     pub team_id: String,
 }
 

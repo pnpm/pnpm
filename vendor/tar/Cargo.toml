@@ -70,8 +70,12 @@ path = "tests/all.rs"
 name = "entry"
 path = "tests/entry.rs"
 
+# filetime 0.2.30 calls `std::fs::set_times` on any rustc that reports 1.99 or
+# later. The nightly that the dylint library in `dylint.toml` pins reports
+# 1.99 and still gates that function, so 0.2.30 does not compile under it.
+# Drop the upper bound once that nightly has `fs_set_times` stable.
 [dependencies.filetime]
-version = "0.2.8"
+version = ">=0.2.8, <0.2.30"
 
 [dev-dependencies.astral-tokio-tar]
 version = "0.6.2"

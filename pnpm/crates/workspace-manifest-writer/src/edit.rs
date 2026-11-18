@@ -13,7 +13,9 @@
 
 pub(crate) use allow_builds::{add_allow_build, add_undecided_allow_build, prune_allow_builds};
 pub(crate) use catalogs::{CatalogReferences, add_catalogs, remove_unused_catalogs};
-pub(crate) use permissions::{remove_allow_build, set_permission};
+pub(crate) use permissions::{
+    remove_allow_build, set_global_packages_build_permission, set_permission,
+};
 pub(crate) use policies::{
     prune_minimum_release_age_excludes, prune_trust_policy_excludes, set_audit_ignore_ghsas,
     set_minimum_release_age_excludes,
@@ -434,9 +436,15 @@ fn append_top_level_block(text: &str, block_text: &str, blank_style: bool) -> St
     out
 }
 
+/// Insert the whole lines of `insertion` at `offset`, the start of a line or
+/// the end of `text`. A last line `text` leaves unterminated is ended first,
+/// so the insertion does not join it.
 fn splice(text: &str, offset: usize, insertion: &str) -> String {
-    let mut out = String::with_capacity(text.len() + insertion.len());
+    let mut out = String::with_capacity(text.len() + insertion.len() + 1);
     out.push_str(&text[..offset]);
+    if offset == text.len() && !text.is_empty() && !text.ends_with('\n') {
+        out.push('\n');
+    }
     out.push_str(insertion);
     out.push_str(&text[offset..]);
     out
@@ -457,9 +465,10 @@ use allow_builds::render_bool;
 
 mod mapping;
 use mapping::{
-    replace_value_at, replace_value_text_at, upsert, write_entry_at, write_named_subblock,
-    write_rendered_entry_at,
+    replace_value_at, replace_value_text_at, upsert, write_entry_at, write_rendered_entry_at,
 };
+
+mod nested;
 
 mod permissions;
 

@@ -425,14 +425,7 @@ impl CliCommand {
                 | CliCommand::Prefix(_)
                 | CliCommand::Root(_)
                 | CliCommand::Bin(_),
-        ) || self.prints_upload_values()
-            || self.prints_structured_stdout()
-    }
-
-    /// `publish --upload-variant` prints the values a later publish takes,
-    /// which a CI job captures from stdout.
-    fn prints_upload_values(&self) -> bool {
-        matches!(self, CliCommand::Publish(args) if !args.flags.variants.upload_variant.is_empty())
+        ) || self.prints_structured_stdout()
     }
 
     fn prints_structured_stdout(&self) -> bool {

@@ -41,11 +41,7 @@ use super::{
 };
 
 fn caller(id: &str, name: &str) -> Identity {
-    Identity::User {
-        id: id.to_string(),
-        username: name.to_string(),
-        memberships: Vec::new().into(),
-    }
+    Identity::User { id: id.to_string(), username: name.to_string(), teams: Vec::new().into() }
 }
 
 fn test_resolver(origin: &str, dir: &TempDir) -> Resolver {
@@ -199,7 +195,15 @@ async fn cargo_deadline_expiry_inside_resolve_returns_504_timeout() {
     let source = pnpm_cargo_resolver::registry_source(&registry);
     let index = IndexFetcher::new(&resolver, identity.clone(), registry);
     let expired = Instant::now() - Duration::from_millis(1);
-    let direct = solve_cargo(index, empty_metadata, source, permit, expired).await;
+    let direct = solve_cargo(
+        index,
+        empty_metadata,
+        source,
+        std::collections::BTreeMap::new(),
+        permit,
+        expired,
+    )
+    .await;
     assert_eq!(direct.status(), StatusCode::GATEWAY_TIMEOUT);
     let direct_body: Value =
         serde_json::from_slice(&to_bytes(direct.into_body(), usize::MAX).await.unwrap()).unwrap();

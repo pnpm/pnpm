@@ -62,6 +62,7 @@ impl RunMode {
             effective_node_version: effective_node_version(
                 install.context.config,
                 install.context.manifest,
+                &owned.projects.dependency_groups,
             ),
             verified_file_integrity_baseline,
         })

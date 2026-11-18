@@ -40,7 +40,7 @@ fn local_dep_children(
     (dep, manifest): (&LocalDepContext<'_>, &PackageManifest),
     shadowed: &HashSet<&str>,
 ) -> Result<Vec<DependencySpec>, FreshnessCheckError> {
-    let catalogs = (!dep.declared_by_path).then_some(ChildCatalogs {
+    let catalogs = Some(ChildCatalogs {
         catalogs: dep.catalogs,
         workspace_dir: check.config.workspace_dir.as_deref(),
         package_dir: dep.dir,
@@ -98,9 +98,6 @@ fn local_child_catalogs(
     dep: &LocalDepContext<'_>,
     manifest: &PackageManifest,
 ) -> Result<HashMap<String, String>, FreshnessCheckError> {
-    if dep.declared_by_path {
-        return Ok(HashMap::new());
-    }
     Ok(pnpm_resolving_deps_resolver::manifest_child_specs(manifest.value(), dep.name)
         .map_err(|_| dep.outdated())?
         .into_iter()
@@ -268,8 +265,7 @@ fn check_child_directory_dep_freshness(
     let snapshot = check.lockfile.snapshots
         .as_ref()
         .and_then(|s| s.get(&pkg_key));
-    let child_dep =
-        parent_dep.child(&child.alias, &child.bare_specifier, &dir_res.directory, &local_dep_dir);
+    let child_dep = parent_dep.child(&child.alias, &dir_res.directory, &local_dep_dir);
     check_single_directory_dep_freshness(
         check,
         scope,
@@ -293,13 +289,6 @@ fn child_is_fresh(
         return recorded_child(snapshot, name, RecordedDeps::Required).is_none();
     }
     match recorded_child(snapshot, name, RecordedDeps::of(child)) {
-        // No resolver accepts the `catalog:` spec of a child of a package
-        // declared by path, so a frozen install must not keep the old one.
-        Some(_)
-            if dep.declared_by_path && parse_catalog_protocol(&child.bare_specifier).is_some() =>
-        {
-            dep.declaration_assumed
-        }
         Some(recorded) => recorded_child_satisfies_spec(check, dep, child, recorded),
         // A child recorded as required has changed, not gone unresolved.
         None => {

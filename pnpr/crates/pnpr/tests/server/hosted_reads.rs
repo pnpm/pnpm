@@ -495,7 +495,7 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
         .get("npmjs")
         .expect("default `npmjs` upstream")
         .clone();
-    corp.access = Some(AccessList::from_tokens(["alice"]));
+    corp.set_access(AccessList::from_tokens(["alice"]));
     config.routing.upstreams.insert("corp".to_string(), corp);
     let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let member = issue_token(&auth, "alice").await;

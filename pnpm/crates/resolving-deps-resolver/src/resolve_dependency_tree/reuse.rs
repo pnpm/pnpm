@@ -28,7 +28,7 @@ use async_recursion::async_recursion;
 use pnpm_lockfile::{
     PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
 };
-use pnpm_resolving_resolver_base::{Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{Resolver, WantedDependency, is_valid_semver_range};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
@@ -233,7 +233,7 @@ pub fn real_package_name_of<'edge>(
     let bare = bare_specifier?;
     if let Some(rest) = bare.strip_prefix("npm:") {
         let alias_keeps_name = alias.is_some_and(|alias| {
-            !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok()
+            !alias.is_empty() && !rest.is_empty() && is_valid_semver_range(rest)
         });
         if !alias_keeps_name {
             let last_at = rest

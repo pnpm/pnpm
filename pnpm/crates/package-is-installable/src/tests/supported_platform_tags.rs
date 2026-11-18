@@ -1,10 +1,10 @@
-//! `supportedArchitectures` entries written as platform tags, the
-//! vocabulary pnpr and package variants share: the floors and ABI they
-//! state, the systems beyond Linux, macOS, and Windows they name, and the
-//! spellings pnpm read before tags, which still name the same platform.
+//! `supportedArchitectures` entries written as platform tags: the floors
+//! and ABI they state, the systems beyond Linux, macOS, and Windows they
+//! name, and the spellings pnpm read before tags, which still name the same
+//! platform.
 
 use crate::{NamedPlatform, SupportedPlatform};
-use pnpm_platform_variants::{Floor, Libc, NodeAbi, Platform};
+use pnpm_platform_tags::{Floor, Libc, NodeAbi, Platform};
 use pretty_assertions::assert_eq;
 
 fn named(entry: &str) -> NamedPlatform {

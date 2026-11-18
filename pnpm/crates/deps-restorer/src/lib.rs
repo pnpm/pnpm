@@ -25,7 +25,6 @@ pub mod link_root_component_members;
 pub mod linking;
 pub mod materialization_plan;
 pub mod package_map;
-pub mod platform_selection;
 pub mod pnp;
 pub mod prune_direct_deps;
 pub mod prune_stale_modules;
@@ -69,8 +68,8 @@ pub use importer_modules_dirs::ImporterModulesDirs;
 pub use install_context::*;
 pub use install_frozen_lockfile::*;
 pub use install_options::{
-    DirectLinkPolicy, ImporterDependencyGraph, ImporterLinkContext, PlatformLockfile,
-    SkipSetClosure, SnapshotSelection, VirtualStoreFetchInputs,
+    DirectLinkPolicy, ImporterDependencyGraph, ImporterLinkContext, SkipSetClosure,
+    SnapshotSelection, VirtualStoreFetchInputs,
 };
 pub use install_package_by_snapshot::*;
 pub use install_package_from_registry::*;

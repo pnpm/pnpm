@@ -51,10 +51,14 @@ impl TrustedSettings {
                 MachineSettings::default()
             },
         };
-        if settings_read.skips_unreadable() {
-            settings.settings.drop_invalid_sections();
-        } else {
-            settings.settings.validate_all_sections()?;
+        let sections = std::iter::once(&mut settings.settings)
+            .chain(settings.machine.global_packages_config.as_deref_mut());
+        for section in sections {
+            if settings_read.skips_unreadable() {
+                section.drop_invalid_sections();
+            } else {
+                section.validate_all_sections()?;
+            }
         }
         settings.settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);

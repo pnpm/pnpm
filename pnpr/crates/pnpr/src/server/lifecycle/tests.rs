@@ -921,8 +921,8 @@ async fn a_graph_loaded_at_startup_that_lacks_what_the_config_names_is_served_wi
     let yaml = format!(
         "storage: {}\nsecret: test-secret-key-32-chars-long-12\n\
          auth:\n  oidc:\n    - name: company\n      issuer: https://issuer.example\n      \
-         audience: pnpr\n      login:\n        groups:\n          teams:\n            \
-         - group: eng\n              registry: local\n              teamId: platform\n",
+         audience: pnpr\n      workloads:\n        - identity: {{ subject: ci, userId: ci }}\n          \
+         registry: absent\n          packages: ['@org/pkg']\n",
         tmp.path().join("storage").display(),
     );
     std::fs::write(&config_path, yaml).unwrap();
@@ -944,5 +944,5 @@ async fn a_graph_loaded_at_startup_that_lacks_what_the_config_names_is_served_wi
         output.contains("the stored registry graph lacks what the config file names"),
         "{output}",
     );
-    assert!(output.contains(r#"OIDC group "eng""#), "{output}");
+    assert!(output.contains("OIDC workloads require a hosted npm registry"), "{output}");
 }

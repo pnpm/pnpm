@@ -349,6 +349,61 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
     );
 }
 
+/// An empty `with` on a project's dependency names the copy that binds no
+/// peers, where the project's scope would pick the copy that binds one, and
+/// it survives a round trip.
+#[test]
+fn importer_dependency_on_the_unbound_copy_keeps_an_empty_with() {
+    let lockfile = parse(text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      child:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "      react:"
+        "        specifier: 18.0.0"
+        "        version: 18.0.0"
+        ""
+        "  packages/a:"
+        "    dependencies:"
+        "      child:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0(react@18.0.0)"
+        "      react:"
+        "        specifier: 18.0.0"
+        "        version: 18.0.0"
+        ""
+        "packages:"
+        ""
+        "  child@1.0.0:"
+        "    resolution: {integrity: sha512-AAAA}"
+        "    peerDependencies:"
+        "      react: '*'"
+        "    peerDependenciesMeta:"
+        "      react:"
+        "        optional: true"
+        ""
+        "  react@18.0.0:"
+        "    resolution: {integrity: sha512-DDDD}"
+        ""
+        "snapshots:"
+        ""
+        "  child@1.0.0: {}"
+        ""
+        "  child@1.0.0(react@18.0.0):"
+        "    optionalDependencies:"
+        "      react: 18.0.0"
+        ""
+        "  react@18.0.0: {}"
+    });
+    let (yaml, _) = written_and_read(&lockfile);
+    assert!(yaml.contains(r#""with": {}"#), "the unbound copy is named:\n{yaml}");
+}
+
 /// A patched package's key and references carry no patch hash: the hash is
 /// in `patchedDependencies`, which the reader applies to the package.
 #[test]
@@ -466,9 +521,11 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         ""
         "  injected@file:packages/injected:"
         "    resolution: {directory: packages/injected, type: directory}"
+        "    specifiers: {}"
         ""
         "  lib@file:packages/lib:"
         "    resolution: {directory: packages/lib, type: directory}"
+        "    specifiers: {}"
         ""
         "  pinned@3.0.0:"
         "    resolution: {integrity: sha512-EEEE}"
@@ -985,19 +1042,17 @@ fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
 fn directory_specifiers_survive_next_format_round_trip() {
     for specifiers in [
         serde_json::json!({}),
-        serde_json::json!({ "manifestSource": "path" }),
-        serde_json::json!({ "manifestSource": "workspace" }),
         serde_json::json!({
             "dependencies": { "host": "workspace:../host", "registry": "catalog:" },
             "optionalDependencies": { "extra": "npm:alias@^1" },
-            "dependenciesMeta": { "host": { "injected": true } }
+            "injected": ["host"]
         }),
     ] {
         let lockfile = parse(&format!(
             "lockfileVersion: '9.0'\nimporters: {{}}\npackages:\n  local@file:../local:\n    resolution: {{type: directory, directory: ../local}}\n    specifiers: {specifiers}\nsnapshots:\n  local@file:../local: {{}}\n",
         ));
         let (written, restored) = written_and_read(&lockfile);
-        assert!(written.contains(r#""specifiers""#), "{written}");
+        assert!(!written.contains("specifiers"), "{written}");
         let metadata = restored.packages
             .expect("package entries")
             .remove(&"local@file:../local".parse().expect("package key"))
@@ -1009,22 +1064,66 @@ fn directory_specifiers_survive_next_format_round_trip() {
     }
 }
 
+/// A declared dependency is its specifier alone when the specifier is also
+/// the reference, and a map with the `version` otherwise.
+#[test]
+fn directory_declarations_fold_into_the_dependencies() {
+    let lockfile = parse(text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        "importers: {}"
+        "packages:"
+        "  exact@1.0.0:"
+        "    resolution: {integrity: sha512-AAAA}"
+        "  local@file:local:"
+        "    resolution: {type: directory, directory: local}"
+        "    specifiers:"
+        "      dependencies: {exact: 1.0.0, ranged: ^1.0.0, unlinked: ^3.0.0}"
+        "      injected: [unlinked]"
+        "  ranged@1.2.0:"
+        "    resolution: {integrity: sha512-BBBB}"
+        "snapshots:"
+        "  exact@1.0.0: {}"
+        "  local@file:local:"
+        "    dependencies:"
+        "      exact: 1.0.0"
+        "      ranged: 1.2.0"
+        "  ranged@1.2.0: {}"
+    });
+    let (written, _) = written_and_read(&lockfile);
+    let start = written.find(r#""local@file:local""#).expect("the directory entry");
+    assert_eq!(
+        &written[start..start + written[start..].find("\n\t\t},").expect("the entry's end")],
+        text_block_macros::text_block! {
+            r#""local@file:local": {"#
+            r#"			"dependencies": {"#
+            r#"				"exact": "1.0.0","#
+            r#"				"ranged": {"#
+            r#"					"specifier": "^1.0.0","#
+            r#"					"version": "1.2.0","#
+            "				},"
+            r#"				"unlinked": {"#
+            r#"					"specifier": "^3.0.0","#
+            r#"					"injected": true,"#
+            "				},"
+            "			},"
+        },
+    );
+}
+
 #[test]
 fn a_directory_without_recorded_inputs_keeps_the_legacy_fallback() {
-    let lockfile = parse(
-        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  local@file:local:\n    resolution: {type: directory, directory: local}\nsnapshots:\n  local@file:local: {}\n",
-    );
-    let (written, restored) = written_and_read(&lockfile);
-    assert!(!written.contains("specifiers"), "{written}");
-    let packages = restored.packages.expect("package entries");
-    assert_eq!(
-        packages
-            .values()
-            .next()
-            .expect("directory metadata")
-            .specifiers,
-        None,
-    );
+    for snapshot in ["{}", "{dependencies: {exact: 1.0.0}}"] {
+        let lockfile = parse(&format!(
+            "lockfileVersion: '9.0'\nimporters: {{}}\npackages:\n  exact@1.0.0:\n    resolution: {{integrity: sha512-AAAA}}\n  local@file:local:\n    resolution: {{type: directory, directory: local}}\nsnapshots:\n  exact@1.0.0: {{}}\n  local@file:local: {snapshot}\n",
+        ));
+        let (written, restored) = written_and_read(&lockfile);
+        assert!(!written.contains("specifier"), "{written}");
+        let local = restored.packages
+            .expect("package entries")
+            .remove(&"local@file:local".parse().expect("package key"))
+            .expect("directory entry");
+        assert_eq!(local.specifiers, None, "{written}");
+    }
 }
 
 #[test]
@@ -1519,4 +1618,176 @@ fn lockfile_with_recorded_peers(bound_count: usize) -> Lockfile {
         "packages": packages,
     });
     parse(&document.to_string())
+}
+
+/// Only the `injected` flags of `dependenciesMeta` are written, on the
+/// dependencies they mark.
+#[test]
+fn importer_dependencies_meta_becomes_injected_flags() {
+    let mut lockfile = parse(text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      injected:"
+        "        specifier: workspace:*"
+        "        version: file:packages/injected"
+        "      linked:"
+        "        specifier: workspace:*"
+        "        version: link:packages/linked"
+        "    dependenciesMeta:"
+        "      injected: {injected: true, other: 1}"
+        "      linked: {injected: false}"
+        "      undeclared: {injected: true}"
+        "packages:"
+        "  injected@file:packages/injected:"
+        "    resolution: {directory: packages/injected, type: directory}"
+        "    specifiers: {}"
+        "snapshots:"
+        "  injected@file:packages/injected: {}"
+    });
+    lockfile = as_next(lockfile);
+    let written = lockfile.to_yaml_string().expect("render the next format");
+    assert!(!written.contains("dependenciesMeta"), "{written}");
+    assert!(
+        written.contains(text_block_macros::text_block! {
+            r#"				"injected": {"#
+            r#"					"specifier": "workspace:*","#
+            r#"					"injected": true,"#
+            "				},"
+        }),
+        "{written}",
+    );
+    let read = Lockfile::parse(&written, Path::new("pnpm-lock.yaml"))
+        .expect("parse the next format")
+        .expect("the lockfile has content");
+    assert_eq!(
+        read.importers["."].dependencies_meta,
+        Some(serde_json::json!({ "injected": { "injected": true } })),
+    );
+}
+
+/// The peer `compiler` is bound to `compiler-next`, installed under the alias
+/// `compiler`, while the peer `native` is bound to the package `compiler`.
+/// `native` is the own peer of `consumer` or a peer bound below it.
+#[test]
+fn transitive_peer_named_like_the_provider_of_another_peer_round_trips() {
+    for (native_range, consumer_entry) in [
+        ("", "    transitivePeerDependencies:\n      - compiler\n      - native"),
+        (
+            "\n      native: '*'",
+            "      native: compiler@7.0.0\n    transitivePeerDependencies:\n      - compiler",
+        ),
+    ] {
+        let lockfile = parse(&format!(
+            r"lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      compiler:
+        specifier: npm:compiler-next@6.0.0
+        version: compiler-next@6.0.0
+      consumer:
+        specifier: 1.0.0
+        version: 1.0.0(compiler-next@6.0.0)(compiler@7.0.0)
+      native:
+        specifier: npm:compiler@7.0.0
+        version: compiler@7.0.0
+packages:
+  compiler-next@6.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  compiler@7.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+  consumer@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+    peerDependencies:{native_range}
+  parser@1.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+    peerDependencies:
+      compiler: '*'
+      native: '*'
+snapshots:
+  compiler-next@6.0.0: {{}}
+  compiler@7.0.0: {{}}
+  consumer@1.0.0(compiler-next@6.0.0)(compiler@7.0.0):
+    dependencies:
+      parser: 1.0.0(compiler-next@6.0.0)(compiler@7.0.0)
+{consumer_entry}
+  parser@1.0.0(compiler-next@6.0.0)(compiler@7.0.0):
+    dependencies:
+      compiler: compiler-next@6.0.0
+      native: compiler@7.0.0
+",
+        ));
+        written_and_read(&lockfile);
+    }
+}
+
+/// `wrapper` and `hub` depend on each other, so a walk that starts at `hub`
+/// can reach `wrapper` before it reaches `parser`, the only package that
+/// links the peers. Each parse orders the maps differently.
+#[test]
+fn aliased_transitive_peer_round_trips_through_a_dependency_cycle() {
+    let suffix = "(compiler-next@6.0.0)(compiler@7.0.0)";
+    let yaml = format!(
+        r"lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      compiler:
+        specifier: npm:compiler-next@6.0.0
+        version: compiler-next@6.0.0
+      consumer:
+        specifier: 1.0.0
+        version: 1.0.0{suffix}
+      native:
+        specifier: npm:compiler@7.0.0
+        version: compiler@7.0.0
+packages:
+  compiler-next@6.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  compiler@7.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+  consumer@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+  hub@1.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+  parser@1.0.0:
+    resolution: {{integrity: sha512-EEEE}}
+    peerDependencies:
+      compiler: '*'
+      native: '*'
+  wrapper@1.0.0:
+    resolution: {{integrity: sha512-FFFF}}
+snapshots:
+  compiler-next@6.0.0: {{}}
+  compiler@7.0.0: {{}}
+  consumer@1.0.0{suffix}:
+    dependencies:
+      wrapper: 1.0.0{suffix}
+    transitivePeerDependencies:
+      - compiler
+      - native
+  hub@1.0.0{suffix}:
+    dependencies:
+      parser: 1.0.0{suffix}
+      wrapper: 1.0.0{suffix}
+    transitivePeerDependencies:
+      - compiler
+      - native
+  parser@1.0.0{suffix}:
+    dependencies:
+      compiler: compiler-next@6.0.0
+      native: compiler@7.0.0
+  wrapper@1.0.0{suffix}:
+    dependencies:
+      hub: 1.0.0{suffix}
+    transitivePeerDependencies:
+      - compiler
+      - native
+",
+    );
+    for _ in 0..32 {
+        written_and_read(&parse(&yaml));
+    }
 }

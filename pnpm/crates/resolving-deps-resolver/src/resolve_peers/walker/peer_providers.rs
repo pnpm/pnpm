@@ -144,6 +144,7 @@ impl Walker<'_> {
                 version: Arc::clone(version),
                 node_id: Some(peer_node_id.clone()),
                 alias: Some(peer_name.to_string()),
+                hoisted_provider: false,
             },
         ))
     }

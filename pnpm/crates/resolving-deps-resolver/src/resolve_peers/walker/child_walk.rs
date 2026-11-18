@@ -1,8 +1,8 @@
 use super::{
     Arc, BTreeMap, ChildEdge, ChildOutputs, ChildParentRefs, DeferredChildContext,
-    DeferredChildren, DepPathRecording, HashMap, NodeId, NodeOutput, NodeWalkContext, ParentRefs,
-    PeerWalkMode, PeersCacheItem, ResolvedPackage, SharedChain, SubtreePaths, TreeChildren,
-    WalkResult, Walker, insert_parent_ref,
+    DeferredChildren, DepPathRecording, HashMap, NodeId, NodeOutput, NodeWalkContext, ParentRef,
+    ParentRefs, PeerWalkMode, PeersCacheItem, ResolvedPackage, SharedChain, SubtreePaths,
+    TreeChildren, WalkResult, Walker, insert_parent_ref,
 };
 
 impl Walker<'_> {
@@ -164,6 +164,10 @@ impl Walker<'_> {
                 owner_node_id: node_id.clone(),
                 dep_path: result.dep_path.clone(),
                 resolved_peers: Arc::clone(result.all_resolved_peers),
+                restricted_providers: self.restricted_providers(
+                    result.parent_refs,
+                    result.all_resolved_peers.keys().chain(result.all_missing_peers.keys()),
+                ),
                 missing_peers: Arc::clone(result.all_missing_peers),
                 missing_peers_of_children: Arc::clone(result.missing_peers_of_children),
                 subtree_missing_by_pkg: result.subtree_missing_by_pkg.clone(),
@@ -247,14 +251,22 @@ impl Walker<'_> {
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
-            insert_parent_ref(&mut new_parent_refs, alias, child_node_id.clone(), child_pkg);
+            let hoisted_provider = false;
+            insert_parent_ref(
+                &mut new_parent_refs,
+                alias,
+                child_node_id.clone(),
+                child_pkg,
+                hoisted_provider,
+            );
         }
         new_parent_refs
     }
 
     /// Overlay this node's own providers onto the inherited parent context.
     /// A name the inherited context already binds is only shadowed when the
-    /// two providers disagree.
+    /// two providers disagree. When they agree, the inherited provider is
+    /// kept, and it is no longer only a hoisted provider.
     pub(super) fn apply_own_parent_refs(
         &self,
         refs: &mut ParentRefs,
@@ -280,6 +292,9 @@ impl Walker<'_> {
                     )
                 {
                     refs.insert(name, new_parent_ref);
+                } else if existing.hoisted_provider {
+                    let provider = ParentRef { hoisted_provider: false, ..existing.clone() };
+                    refs.insert(name, provider);
                 }
             } else {
                 refs.insert(name, new_parent_ref);

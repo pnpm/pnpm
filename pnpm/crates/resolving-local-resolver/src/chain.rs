@@ -206,6 +206,7 @@ fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
     LocalResolverOptions {
         project_dir: opts.project.project_dir.clone(),
         lockfile_dir: Some(opts.project.lockfile_dir.clone()),
+        workspace_dir: opts.project.workspace_dir.clone(),
         current_pkg: opts.refresh.current_pkg
             .as_ref()
             .filter(|current| matches!(current.resolution, LockfileResolution::Tarball(_)))

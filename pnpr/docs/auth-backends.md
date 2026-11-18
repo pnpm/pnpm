@@ -90,6 +90,20 @@ schema with the `options` URL parameter, for example
 must exist before pnpr starts, and the database user needs permission to create
 tables in it.
 
+### Connection poolers {#postgresql-poolers}
+
+pnpr works behind a connection pooler in session mode. Behind a pooler in
+transaction mode:
+
+- The pooler must support prepared statements. PgBouncer does from version
+  1.21, with `max_prepared_statements` above `0`.
+- Set the schema as the database user's default, with
+  `ALTER ROLE <user> SET search_path = <schema>`. PgBouncer does not apply the
+  `options` URL parameter to the connections pnpr's transactions run on, so
+  pnpr would use the default schema.
+  The setting applies to connections opened after it. Reconnect the pooler's
+  open server connections before pnpr starts.
+
 ## MySQL
 
 :::warning
@@ -135,9 +149,8 @@ This applies to registration, login, administrator-created accounts, and passwor
 
 Account creation and renaming reject usernames that mix Unicode scripts, contain
 restricted Unicode characters, or share a case- and accent-folded Unicode
-confusable skeleton with another account. Recreate pre-1.0 SQL auth databases
-that lack a `schema_migrations` table; databases at schema version `1` or later
-migrate automatically at startup (see
+confusable skeleton with another account. Recreate SQL auth databases created
+by a pre-1.0 release. Later databases migrate automatically at startup (see
 [Schema migrations](storage.md#metadata-schema-changes)).
 
 ## Extensibility model

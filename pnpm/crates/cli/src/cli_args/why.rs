@@ -6,8 +6,8 @@ use crate::{
         deps_tree::{
             build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
             dependents::{
-                BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree,
-                merge_trees,
+                BuildDependentsOptions, DependencySpecifiers, DependentsTree, ImporterInfo,
+                build_dependents_tree, merge_trees,
             },
             dependents_render::{
                 RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
@@ -29,6 +29,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_workspace_projects_graph::BaseProject;
+use ranges::render_dependents_ranges;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -49,6 +50,10 @@ pub struct WhyArgs {
     /// Search by a finder function declared in `.pnpmfile.cjs`.
     #[clap(long = "find-by")]
     pub find_by: Vec<String>,
+    /// Show the version ranges that the direct dependents of each matched
+    /// package declare, instead of the tree.
+    #[clap(long, conflicts_with_all = ["json", "parseable"])]
+    pub ranges: bool,
     #[clap(flatten)]
     pub output: crate::cli_args::list::TreeOutputArgs,
     #[clap(flatten)]
@@ -157,6 +162,7 @@ impl WhyArgs {
             search: &searcher,
             importer_info: &importer_info,
             manifest_fields: &[],
+            dependency_specifiers: self.dependency_specifiers(),
         })))
     }
 
@@ -189,9 +195,22 @@ impl WhyArgs {
         Ok(searcher)
     }
 
+    /// The specifiers shown by the format that [`Self::render`] picks.
+    fn dependency_specifiers(&self) -> DependencySpecifiers {
+        if self.ranges {
+            DependencySpecifiers::DirectDependents
+        } else if self.output.json && !self.output.parseable {
+            DependencySpecifiers::All
+        } else {
+            DependencySpecifiers::Omit
+        }
+    }
+
     fn render(&self, trees: &[DependentsTree]) -> String {
         let render_opts = RenderDependentsOptions { long: self.output.long, depth: self.depth };
-        if self.output.parseable {
+        if self.ranges {
+            render_dependents_ranges(trees)
+        } else if self.output.parseable {
             render_dependents_parseable(trees, &render_opts)
         } else if self.output.json {
             render_dependents_json(trees, &render_opts)
@@ -250,3 +269,8 @@ fn why_project_dirs(
 fn state_project_dirs(state: &State, lockfile_dir: &Path) -> miette::Result<Vec<PathBuf>> {
     why_project_dirs(state.config, lockfile_dir, state.project_dir().to_path_buf())
 }
+
+mod ranges;
+
+#[cfg(test)]
+mod tests;

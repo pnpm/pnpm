@@ -2,39 +2,19 @@
 //! the version's release record and dist-tags, and reports it as published
 //! only when they are the release the retry would have made.
 
-use super::{
-    hosted::{host_targets, start_hosted_pnpr},
-    pacquet_at,
-};
+use super::{hosted::start_hosted_pnpr, pacquet_at};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{fs, path::Path, process::Output};
 
-/// A package `@acme/cli@1.0.0` with an `any` archive and a variant for the
-/// host, set up to publish to `registry` with `token`.
+/// A package `@acme/cli@1.0.0`, set up to publish to `registry` with `token`.
 fn write_package(workspace: &Path, registry: &str, token: &str) {
     fs::write(
         workspace.join("package.json"),
-        json!({
-            "name": "@acme/cli",
-            "version": "1.0.0",
-            "files": [],
-            "publishConfig": {
-                "variants": [
-                    { "targets": ["any"], "files": ["portable/any"] },
-                    { "targets": host_targets(), "files": ["native/host"] },
-                ],
-            },
-        })
-        .to_string(),
+        json!({ "name": "@acme/cli", "version": "1.0.0" }).to_string(),
     )
     .expect("write package.json");
-    for file in ["portable/any", "native/host"] {
-        let path = workspace.join(file);
-        fs::create_dir_all(path.parent().expect("a file in a directory")).expect("create dir");
-        fs::write(&path, file).expect("write file");
-    }
     let authority = registry.trim_start_matches("http:");
     fs::write(
         workspace.join(".npmrc"),
@@ -60,7 +40,7 @@ fn publish(workspace: &Path, args: &[&str]) -> Output {
 }
 
 /// A retry that sets another dist-tag is a new request, which pnpr refuses
-/// as already published. Its archives are the recorded ones, so pnpm names
+/// as already published. Its archive is the recorded one, so pnpm names
 /// the dist-tag as what differs, and once the dist-tag points at the
 /// version, the retry succeeds.
 #[test]

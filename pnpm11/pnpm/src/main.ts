@@ -155,7 +155,7 @@ async function readCommandConfig (
     })
   }
   if (rejectUnknownOptions) {
-    printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+    printError(formatUnknownOptionsError(unknownOptions, parsedCliArgs.unknownOptionShorthands), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
     process.exitCode = 1
     await finishWorkers()
     return undefined

@@ -5,7 +5,6 @@
 
 use super::{
     super::{AppState, RegistryError, managed_state::WRITE_ATTEMPTS},
-    RoutingSnapshot,
     reload::publish_routing,
     stored::{
         Credentials, HostedChange, check_revision, graph_version, occupied_namespace_error,
@@ -15,7 +14,6 @@ use super::{
 use crate::audit::Actor;
 use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig};
 use pnpr_storage::database::{NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphWrite};
-use std::sync::Arc;
 
 /// The version the caller expects the stored graph to have.
 #[derive(Debug, Clone, Copy)]
@@ -85,9 +83,6 @@ pub(crate) struct EditOutcome {
     /// and for an edit that changes nothing, which stores no revision.
     pub(crate) version: String,
     pub(crate) changes: RegistryGraphChanges,
-    /// The routing of `version`, which this replica serves once the edit
-    /// returns. For a dry run, the routing it served before.
-    pub(crate) routing: Arc<RoutingSnapshot>,
 }
 
 impl EditOutcome {
@@ -147,35 +142,37 @@ where
     let unchanged =
         base.is_stored && serde_json::to_value(&base.document)? == serde_json::to_value(&next)?;
     if request.effect == Effect::DryRun || unchanged {
-        let routing = match request.effect {
-            Effect::DryRun => state.inner.current_routing(),
-            Effect::Write => serve_generation(state, checked.routing, base.generation),
-        };
+        if request.effect == Effect::Write {
+            follow_grants(state).await;
+            serve_generation(state, checked.routing, base.generation);
+        }
         let version = base.version.clone();
-        return Ok(Some(EditOutcome { previous_version: base.version, version, changes, routing }));
+        return Ok(Some(EditOutcome { previous_version: base.version, version, changes }));
     }
     let target = Target { current: base.generation, hosted: &checked.hosted };
     let Some(generation) = store_revision(state, request, target, &next).await? else {
         return Ok(None);
     };
-    let routing = publish_routing(state, checked.routing, Some(generation));
+    follow_grants(state).await;
+    publish_routing(state, checked.routing, Some(generation));
     let version = graph_version(Some(generation));
-    Ok(Some(EditOutcome { previous_version: base.version, version, changes, routing }))
+    Ok(Some(EditOutcome { previous_version: base.version, version, changes }))
 }
 
-/// The routing of the stored generation `generation`, published from
-/// `routing` when this replica serves an older one, so an edit that stored
-/// nothing still answers with the version this replica serves.
-fn serve_generation(
-    state: &AppState,
-    routing: RoutingConfig,
-    generation: Option<u64>,
-) -> Arc<RoutingSnapshot> {
-    let current = state.inner.current_routing();
-    if current.generation == generation {
-        return current;
+/// Read the grants before a graph is served, so the registries it adds are
+/// covered by the grants their write seeded. The caller holds the reload
+/// lock.
+async fn follow_grants(state: &AppState) {
+    crate::server::grant_directory::reload_grants(state).await;
+}
+
+/// Serve `routing`, of the stored generation `generation`, unless this
+/// replica serves that generation already, so an edit that stored nothing
+/// still leaves the replica on the version it answers with.
+fn serve_generation(state: &AppState, routing: RoutingConfig, generation: Option<u64>) {
+    if state.inner.current_routing().generation != generation {
+        publish_routing(state, routing, generation);
     }
-    publish_routing(state, routing, generation)
 }
 
 async fn read_base(state: &AppState, request: GraphEdit<'_>) -> Result<Base, RegistryError> {
@@ -216,6 +213,8 @@ async fn store_revision(
         restored_from: request.restored_from,
         vacated: &target.hosted.vacated,
         bound: &target.hosted.bound,
+        seeded: &target.hosted.seeded,
+        removed: &target.hosted.removed,
     };
     match state.inner.storage.write_registry_graph(target.current, revision).await? {
         RegistryGraphWrite::Written(generation) => Ok(Some(generation)),

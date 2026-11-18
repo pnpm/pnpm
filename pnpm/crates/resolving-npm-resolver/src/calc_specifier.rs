@@ -6,8 +6,9 @@
 //! round-trips as `npm:<real name>@<range>`, or how a prerelease pick
 //! is pinned.
 
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_registry::{PackageVersion, RangeSpecStyle};
+use pnpm_resolving_resolver_base::{is_valid_semver_range, parse_strict_semver_range};
 
 use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 
@@ -33,10 +34,10 @@ pub fn calc_version_range(
     let prev_style = prev_specifier.and_then(infer_range_spec_style);
     if prev_style.is_none()
         && requested.is_none_or(|requested| Some(requested) == prev_specifier)
-        && let Some(prev_range) = prev_specifier.and_then(range_of_specifier)
-        && prev_range
-            .parse::<Range>()
-            .is_ok_and(|range| range.satisfies(version))
+        && let Some(prev_range) = prev_specifier
+            .and_then(range_of_specifier)
+            .filter(|prev_range| !prev_range.trim().is_empty())
+        && parse_strict_semver_range(prev_range).is_some_and(|range| range.satisfies(version))
     {
         return prev_range.to_string();
     }
@@ -119,7 +120,7 @@ pub fn calc_prefixed_specifier(
 /// round-trip as a bare range.
 fn npm_alias_target<'a>(bare_specifier: &'a str, alias: Option<&str>) -> Option<&'a str> {
     let rest = bare_specifier.strip_prefix("npm:")?;
-    if rest.parse::<Range>().is_ok() {
+    if is_valid_semver_range(rest) {
         return None;
     }
     let name = match rest.rfind('@') {

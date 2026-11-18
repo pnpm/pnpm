@@ -839,6 +839,113 @@ fn warn_action_warns_and_runs_the_script() {
     drop(root);
 }
 
+/// `runtimeOnFail` keeps the runtime that `devEngines.runtime` asks to
+/// download out of the install, and the gate reads the manifest the same way
+/// ([pnpm/pnpm#18155](https://github.com/pnpm/pnpm/issues/18155)).
+#[cfg(unix)]
+#[test]
+fn error_action_applies_runtime_on_fail_to_the_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_manifest_with_dependency_groups(
+        &workspace,
+        &marker,
+        json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "24.22.3", "onFail": "download" },
+            },
+        }),
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "runtimeOnFail: warn\n")
+        .expect("write pnpm-workspace.yaml");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(!lockfile.contains("runtime:"), "the install must skip the runtime:\n{lockfile}");
+
+    let run_hello = || {
+        pacquet_in(&workspace)
+            .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+            .assert()
+            .success();
+    };
+    run_hello();
+    assert!(marker.exists(), "the script must run");
+
+    // An edit outside the dependency fields makes the gate check the
+    // manifest's content against the lockfile.
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).expect("read package.json"))
+            .expect("parse package.json");
+    manifest["description"] = json!("edited");
+    fs::write(&manifest_path, manifest.to_string()).expect("write the edited package.json");
+    bump_mtime(&manifest_path);
+    run_hello();
+
+    drop(root);
+}
+
+/// [`error_action_applies_runtime_on_fail_to_the_manifest`] for a workspace
+/// project, after an install that reads the workspace projects itself.
+#[cfg(unix)]
+#[test]
+fn error_action_applies_runtime_on_fail_to_workspace_projects() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
+        .expect("write the root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nruntimeOnFail: warn\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let project_dir = workspace.join("packages/project");
+    fs::create_dir_all(&project_dir).expect("create the workspace project");
+    let marker = workspace.join("marker.txt");
+    write_named_manifest_with_dependency_groups(
+        &project_dir,
+        "project",
+        &marker,
+        json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "24.22.3", "onFail": "download" },
+            },
+        }),
+    );
+    let linked = workspace.join("linked-dep");
+    fs::create_dir_all(&linked).expect("create the linked package");
+    fs::write(linked.join("package.json"), json!({ "name": "linked-dep" }).to_string())
+        .expect("write the linked package manifest");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    // Not recursive, so the install reads the other workspace projects itself.
+    pacquet_in(&workspace)
+        .with_args(["add", "--workspace-root", "link:./linked-dep"])
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(!lockfile.contains("runtime:"), "the install must skip the runtime:\n{lockfile}");
+
+    let manifest_path = project_dir.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).expect("read package.json"))
+            .expect("parse package.json");
+    manifest["description"] = json!("edited");
+    fs::write(&manifest_path, manifest.to_string()).expect("write the edited package.json");
+    bump_mtime(&manifest_path);
+    pacquet_in(&project_dir)
+        .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the script must run");
+
+    drop(root);
+}
+
 /// A lockfile that records overrides the root manifest now keeps only in its
 /// ignored `pnpm` field must not be rewritten by an implicit install, which
 /// would drop them. The gate refuses and leaves the lockfile alone

@@ -3,6 +3,7 @@ use super::{
 };
 use crate::server::{
     AppState, RegistryError, managed_state::WRITE_ATTEMPTS, scim::resources::apply_patch,
+    team_directory::remove_from_teams,
 };
 use pnpr_auth::{AccountLifecycle, AccountStatusOutcome};
 use pnpr_storage::database::{NewScimUser, ScimUserRemoval, ScimUserWrite, StoredScimUser};
@@ -268,6 +269,7 @@ pub(in super::super) async fn delete_user(
         .await;
     state.inner.identity.oidc.revoke_user_sessions(user_id);
     pending.disarm();
+    remove_from_teams(state, user_id).await;
     Ok(username)
 }
 

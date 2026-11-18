@@ -406,7 +406,7 @@ fn reached_importers(
         lockfile,
         check.workspace_root,
         &selected_ids,
-        &crate::GroupSelection::all().linking_for(check.layout.supported_architectures),
+        &crate::GroupSelection::all(),
         &crate::SkippedSnapshots::new(),
     )
     .importer_ids;

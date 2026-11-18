@@ -1,7 +1,278 @@
-use super::{resolve_engine_version, run_update_config_hooks};
+use super::{
+    hooks::{legacy_registries_warning, warn_legacy_registries},
+    resolve_engine_version, run_update_config_hooks,
+};
 use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
-use pnpm_reporter::SilentReporter;
-use std::{fs, path::Path};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use std::{collections::BTreeMap, fs, path::Path, sync::Mutex};
+
+#[test]
+fn legacy_registries_warning_names_routes_left_unchanged() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": {
+            "@zz": "https://registry-a/",
+            "@other": "https://registry-a/",
+            "@jsr": "https://npm.jsr.io/"
+        }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/", "@zz": "https://registry-b/" },
+        "registriesByScope": {
+            "@zz": "https://registry-a/",
+            "@other": "https://registry-a/",
+            "@jsr": "https://npm.jsr.io/"
+        }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([
+            ("@zz".to_string(), "https://registry-b/".to_string()),
+            ("@other".to_string(), "https://registry-a/".to_string()),
+            ("@jsr".to_string(), "https://npm.jsr.io/".to_string()),
+        ]),
+    )
+    .expect("legacy routes warning");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@other"));
+    assert!(!warning.contains("@zz"));
+    assert!(!warning.contains("@jsr"));
+    assert!(warning.contains("registriesByScope"));
+}
+
+#[test]
+fn legacy_registries_warning_uses_the_global_log_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+
+    warn_legacy_registries::<RecordingReporter>(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://registry-a/".to_string())]),
+    );
+
+    assert!(matches!(
+        EVENTS.lock().unwrap().as_slice(),
+        [LogEvent::Global(GlobalLog { level: LogLevel::Warn, message })]
+            if message.contains("@acme")
+    ));
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_scope_routes_are_updated() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@zz": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" },
+        "registriesByScope": { "@zz": "https://registry-b/" }
+    });
+
+    assert_eq!(
+        legacy_registries_warning(
+            &before,
+            &after,
+            &BTreeMap::from([("@zz".to_string(), "https://registry-b/".to_string())]),
+        ),
+        None,
+    );
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_urls_differ_only_by_trailing_slash() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+
+    assert_eq!(
+        legacy_registries_warning(
+            &before,
+            &after,
+            &BTreeMap::from([("@acme".to_string(), "https://mirror.example/".to_string())]),
+        ),
+        None,
+    );
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_urls_differ_only_by_default_port() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example:443/" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+
+    assert_eq!(
+        legacy_registries_warning(
+            &before,
+            &after,
+            &BTreeMap::from([("@acme".to_string(), "https://mirror.example/".to_string())]),
+        ),
+        None,
+    );
+}
+
+#[test]
+fn legacy_registries_warning_keeps_credentials_when_comparing_urls() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://user:pass@mirror.example/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example:443/" },
+        "registriesByScope": { "@acme": "https://user:pass@mirror.example/" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://user:pass@mirror.example/".to_string())]),
+    )
+    .expect("legacy route has different credentials");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@acme"));
+}
+
+#[test]
+fn legacy_registries_warning_keeps_queries_when_comparing_urls() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://mirror.example/?region=a" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example/?region=b" },
+        "registriesByScope": { "@acme": "https://mirror.example/?region=a" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://mirror.example/?region=a".to_string())]),
+    )
+    .expect("legacy route has a different query");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@acme"));
+}
+
+#[tokio::test]
+async fn update_config_warns_about_scope_left_on_its_registry_by_legacy_routes() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(root.path().join(".npmrc"), "@acme:registry=https://acme.example/\n")
+        .expect("write npmrc");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig: (config) => ({ ...config, registries: { default: 'https://other.example/' } }) } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<RecordingReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.registry, "https://other.example/");
+    let events = EVENTS.lock().unwrap();
+    let warnings: Vec<&str> = events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }) => {
+                Some(message.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    eprintln!("{warnings:?}");
+    assert!(matches!(
+        warnings.as_slice(),
+        [message] if message.contains("still use their configured registry: @acme.")
+    ));
+}
+
+#[test]
+fn legacy_registries_warning_is_present_when_scope_routes_are_omitted() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://registry-a/".to_string())]),
+    )
+    .expect("legacy routes warning");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@acme"));
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_registry_setting_is_unchanged() {
+    let config = serde_json::json!({ "registries": { "default": "https://registry-a/" } });
+
+    assert_eq!(legacy_registries_warning(&config, &config, &BTreeMap::new()), None);
+}
+
+#[test]
+fn legacy_registries_warning_ignores_registry_url_settings() {
+    let before = serde_json::json!({
+        "registries": { "https://registry.example/": "artifactory" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "https://registry.example/": "npm" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+
+    assert_eq!(legacy_registries_warning(&before, &after, &BTreeMap::new()), None);
+}
 
 #[tokio::test]
 async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
@@ -818,6 +1089,28 @@ async fn update_config_hook_cannot_read_or_change_the_symlinked_lockfile_dirs() 
         .expect("run updateConfig hook");
 
     assert_eq!(config.symlinked_lockfile_target_dirs, allowed_dirs);
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_read_or_change_the_global_packages_settings() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { if ('globalPackagesConfig' in config) throw new Error('global packages settings leaked'); config.globalPackagesConfig = { dangerouslyAllowAllBuilds: true }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let global_packages_config = std::sync::Arc::new(pnpm_config::WorkspaceSettings {
+        trust_policy_exclude: Some(vec!["vercel".to_string()]),
+        ..pnpm_config::WorkspaceSettings::default()
+    });
+    config.global_packages_config = Some(std::sync::Arc::clone(&global_packages_config));
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.global_packages_config, Some(global_packages_config));
 }
 
 /// `Accept` header the resolver sends for full metadata

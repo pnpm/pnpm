@@ -47,6 +47,7 @@ mod cache;
 mod context;
 mod discovery;
 mod finalize;
+mod optional_peer_ranges;
 mod provider_peers;
 mod walker;
 mod workspace_graph;
@@ -298,6 +299,11 @@ pub struct ImporterPeerInput {
     /// A variant of this importer's closure that leaves one of
     /// them unbound never collapses into a variant that resolves it.
     pub rejected_optional_peers: HashSet<String>,
+    /// This importer's share of
+    /// [`PeerResolutionScope::hoisted_peer_provider_node_ids`]. A leaf's
+    /// [`NodeId`] is the same in every importer, so another importer's hoist
+    /// does not make this importer's own dependency a hoisted provider.
+    pub hoisted_peer_provider_node_ids: HashSet<NodeId>,
 }
 
 /// Reason a workspace or discovery peer walk stopped early.
@@ -491,7 +497,7 @@ fn walk_importers(
             (walker.opts.project_dir.clone(), walker.opts.links.modules_dir.clone());
         walker.opts.project_dir = Some(importer.root_dir.clone());
         walker.opts.links.modules_dir.clone_from(&importer.modules_dir);
-        let parents = walker.build_importer_parents_from(&importer.direct);
+        let parents = importer_own_parent_refs(walker, importer);
         (walker.opts.project_dir, walker.opts.links.modules_dir) = previous_dirs;
         parents
     });
@@ -573,10 +579,14 @@ fn importer_parent_refs(
 ) -> ParentRefs {
     if root_importer.is_some_and(|root| root.id != importer.id) {
         let mut refs = root_parents.cloned().unwrap_or_default();
-        refs.extend(walker.build_importer_parents_from(&importer.direct));
+        refs.extend(importer_own_parent_refs(walker, importer));
         return refs;
     }
-    walker.build_importer_parents_from(&importer.direct)
+    importer_own_parent_refs(walker, importer)
+}
+
+fn importer_own_parent_refs(walker: &Walker<'_>, importer: &ImporterPeerInput) -> ParentRefs {
+    walker.build_importer_parents_from(&importer.direct, &importer.hoisted_peer_provider_node_ids)
 }
 
 /// The current-provider sources visible while walking `importer`: its

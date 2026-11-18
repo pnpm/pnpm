@@ -1,20 +1,19 @@
-//! Per-package authorization against the `packages:` rules of the registry
-//! a request resolved to.
+//! Per-package authorization against the grants that cover the registry a
+//! request resolved to.
 
 use std::sync::LazyLock;
 
 use pnpr_error::RegistryError;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_policy::{AccessList, Identity, PackageRules, RuleTable};
+use pnpr_policy::{Identity, PackageRules, Permission, RuleTable};
 
 use super::{Action, AppState, RegistrySource};
 
-/// The `packages:` rules of the concrete registry a request resolved to.
-/// Authorization is entirely registry-scoped — there is no global,
-/// name-keyed ACL — so every check consults the one registry that serves
-/// the package. The fallback (safe defaults: reads open, publishes need
-/// ownership, destructive writes denied) only fires for a programmatically
-/// built config whose serving tables miss the graph entry.
+/// The rules of the concrete registry a request resolved to: the grants that
+/// cover it. Every check consults the one registry that serves the package.
+/// The fallback (reads open, publishes need ownership, destructive writes
+/// denied) only fires for a programmatically built config whose serving
+/// tables miss the graph entry.
 fn source_rules(state: &AppState, source: &RegistrySource) -> PackageRules {
     static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
     let routing = state.routing();
@@ -30,8 +29,7 @@ fn source_rules(state: &AppState, source: &RegistrySource) -> PackageRules {
 }
 
 /// Check an already-resolved `identity` against the resolved source
-/// registry's per-package rule (the most specific `packages:` entry, its
-/// omitted fields falling back to the registry defaults). Returns `Ok(())`
+/// registry's grants. Returns `Ok(())`
 /// when the call is allowed; otherwise the appropriate `Unauthenticated` /
 /// `Forbidden` error. The identity is resolved once by [`authenticate`](super::authenticate), so
 /// every handler — including the search endpoint that filters many packages —
@@ -130,7 +128,7 @@ fn owns(state: &AppState, identity: &Identity, ownership: &Ownership<'_>, action
         return true;
     }
     match ownership {
-        Ownership::Unclaimed => matches!(action, Action::Publish),
+        Ownership::Unclaimed => action == Action::Publish,
         Ownership::Owners(owners) => owners.iter().any(|owner| owner == user),
     }
 }
@@ -157,13 +155,8 @@ fn permission_list<'rules>(
     rules: &'rules RuleTable,
     package: &str,
     action: Action,
-) -> &'rules AccessList {
-    let effective = rules.for_package(package);
-    match action {
-        Action::Access => effective.access,
-        Action::Publish => effective.publish,
-        Action::Unpublish => effective.unpublish,
-    }
+) -> Permission<'rules> {
+    rules.permission(package, action)
 }
 
 /// An anonymous caller gets a chance to authenticate (401); an authenticated
@@ -172,7 +165,7 @@ fn denial(identity: &Identity, package: &str, action: Action) -> RegistryError {
     match identity {
         Identity::User { username, .. } => RegistryError::Forbidden {
             user: username.clone(),
-            action: action.label(),
+            action: super::action_label(action),
             resource: format!("package {package:?}"),
         },
         _ => RegistryError::Unauthenticated { resource: format!("package {package:?}") },
@@ -257,6 +250,26 @@ pub(in crate::server) async fn authorize_package(
         return Ok(());
     }
     Err(denial(identity, package, action))
+}
+
+/// Admit a write to `package` whose body has not been read yet: a `PUT` of a
+/// package document publishes versions or annotates the ones it has, and
+/// only the body says which. The check under the package lock names the one.
+pub(in crate::server) async fn authorize_package_write(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    package: &str,
+    namespace: Option<&str>,
+) -> Result<(), RegistryError> {
+    let Err(denied) =
+        authorize_package(state, identity, source, package, Action::Publish, namespace).await
+    else {
+        return Ok(());
+    };
+    authorize_package(state, identity, source, package, Action::Annotate, namespace)
+        .await
+        .map_err(|_| denied)
 }
 
 async fn is_package_owner(

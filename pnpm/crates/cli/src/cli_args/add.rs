@@ -8,6 +8,7 @@ use crate::{
     State,
     cargo_manifest::CargoDependencyKind,
     cli_args::{
+        approve_builds::ApprovalStore,
         install::{included_dependency_groups, resolve_bool_override},
         lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
@@ -35,7 +36,6 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::WorkspacePackages;
-use pnpm_workspace_manifest_writer::set_allow_builds;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -258,6 +258,7 @@ impl AddArgs {
         }
         config.optional =
             resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
+        config.cli.included_dependency_groups = Some(self.included_groups(config));
         if self.install.force {
             config.cli_settings.insert("force".to_string());
         }
@@ -386,14 +387,12 @@ pub(crate) fn parse_allow_build_selectors(
 }
 
 /// Honor `--allow-build`: reject any package the root project explicitly
-/// disallows (`allowBuilds: false`), persist the allowed names to
-/// `settings_dir`'s `pnpm-workspace.yaml`, and enable them for this
-/// install. `settings_dir` is the workspace root, or the project
-/// directory outside a workspace. Mirrors pnpm's `add` handler.
+/// disallows (`allowBuilds: false`), persist the allowed names to `store`,
+/// and enable them for this install. Mirrors pnpm's `add` handler.
 pub(crate) fn apply_allow_build(
     config: &mut Config,
     allow_build: &[String],
-    settings_dir: &Path,
+    store: ApprovalStore<'_>,
 ) -> miette::Result<()> {
     if allow_build.is_empty() {
         return Ok(());
@@ -411,13 +410,11 @@ pub(crate) fn apply_allow_build(
         }
         .into());
     }
-    set_allow_builds(
-        settings_dir,
+    store.write_allow_builds(
         selectors
             .iter()
             .map(|&AllowBuildSelector { name, allowed }| (name, allowed)),
-    )
-    .into_diagnostic()?;
+    )?;
     for AllowBuildSelector { name, allowed } in selectors {
         config.allow_builds.insert(name.to_string(), allowed);
     }

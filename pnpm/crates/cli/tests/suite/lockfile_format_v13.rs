@@ -452,7 +452,11 @@ fn directory_input_record_rejects_a_range_edit_that_keeps_the_locked_version() {
             .success();
         let lockfile_path = workspace.join("pnpm-lock.yaml");
         let original = fs::read_to_string(&lockfile_path).expect("read lockfile");
-        assert_eq!(original.contains(r#""specifiers""#), format == "v13", "{original}");
+        assert_eq!(
+            records_directory_inputs(&original, &lockfile_path),
+            format == "v13",
+            "{original}",
+        );
         fs::write(
             &local,
             json!({ "name": "local", "dependencies": {
@@ -610,7 +614,7 @@ fn directory_input_case(hook: &str, location: &str, layout: LockfileLayout, sele
         LockfileLayout::PerProject => app.join("pnpm-lock.yaml"),
     };
     let original = fs::read_to_string(&lockfile_path).expect("read lockfile");
-    assert!(original.contains(r#""specifiers""#), "{original}");
+    assert!(records_directory_inputs(&original, &lockfile_path), "{original}");
     if hook != "none" {
         let lockfile = pnpm_lockfile::Lockfile::parse(&original, &lockfile_path)
             .expect("parse lockfile")
@@ -741,4 +745,19 @@ fn recorded_inputs_cover_a_directory_beneath_a_registry_package() {
         .with_args(["install", "--frozen-lockfile", "--reporter=append-only"])
         .assert()
         .failure();
+}
+
+/// Whether every directory package of the lockfile `text` records the
+/// dependencies its manifest declares.
+fn records_directory_inputs(text: &str, path: &std::path::Path) -> bool {
+    pnpm_lockfile::Lockfile::parse(text, path)
+        .expect("parse lockfile")
+        .expect("lockfile content")
+        .packages
+        .expect("packages")
+        .values()
+        .filter(|metadata| {
+            matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+        })
+        .all(|metadata| metadata.specifiers.is_some())
 }

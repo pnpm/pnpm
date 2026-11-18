@@ -1,9 +1,12 @@
+import path from 'node:path'
+
 import { UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, createProjectConfigRecord, getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { ProjectRootDir } from '@pnpm/types'
+import { scheduleGraph } from '@pnpm/workspace.task-scheduler'
 import { renderHelp } from 'render-help'
 
 import { cliOptionsTypes } from './install.js'
@@ -46,10 +49,52 @@ export function help (): string {
   })
 }
 
-type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'optional' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'nodeLinker' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
+type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'optional' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'nodeLinker' | 'patchedDependencies' | 'recursive' | 'sharedWorkspaceLockfile' | 'workspaceConcurrency' | 'bail' | 'packageConfigs' | 'lockfileDir'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir' | 'selectedProjectsGraph'> & CreateStoreControllerOptions
 
 export async function handler (opts: FetchCommandOptions): Promise<void> {
   const store = await createStoreController(opts)
+  if (opts.recursive && opts.sharedWorkspaceLockfile === false && opts.lockfileDir == null && opts.selectedProjectsGraph) {
+    await fetchProjects(opts, store)
+    return
+  }
+  await fetchProject(opts, store, path.resolve(opts.dir ?? process.cwd()) as ProjectRootDir)
+}
+
+async function fetchProjects (
+  opts: FetchCommandOptions,
+  store: Awaited<ReturnType<typeof createStoreController>>
+): Promise<void> {
+  const projectConfigs = createProjectConfigRecord(opts)
+  const projects = Object.values(opts.selectedProjectsGraph!).map(({ package: project }) => project)
+  let firstError: unknown
+  await scheduleGraph(new Map(projects.map(project => [project, []])), {
+    bail: opts.bail !== false,
+    concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
+    continueOnFailure: opts.bail === false,
+    onNodeSkipped: () => {},
+    runNode: async (project) => {
+      try {
+        await fetchProject({
+          ...opts,
+          ...(project.manifest.name ? projectConfigs?.[project.manifest.name] : undefined),
+          dir: project.rootDir,
+          lockfileDir: project.rootDir,
+        }, store, project.rootDir)
+        return 'passed'
+      } catch (error: unknown) {
+        firstError ??= error
+        return 'failed'
+      }
+    },
+  })
+  if (firstError) throw firstError
+}
+
+async function fetchProject (
+  opts: FetchCommandOptions,
+  store: Awaited<ReturnType<typeof createStoreController>>,
+  rootDir: ProjectRootDir
+): Promise<void> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -59,7 +104,7 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     manifest: {},
     mutation: 'install',
     pruneDirectDependencies: true,
-    rootDir: process.cwd() as ProjectRootDir,
+    rootDir,
   }, {
     ...opts,
     ignorePackageManifest: true,

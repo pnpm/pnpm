@@ -1,9 +1,142 @@
 use super::InstallPackageBySnapshotError;
-use pnpm_lockfile::{BinaryArchive, BinaryResolution, BinarySpec, PackageKey};
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_lockfile::{
+    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+    select_platform_variant,
+};
+use pnpm_package_is_installable::{SupportedArchitectures, SupportedPlatform};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{IgnoreEntryFilter, IngestTarballToStore, IngestZipArchiveToStore};
 use std::sync::Arc;
 
+/// The archive a `Variations` resolution offers for this host.
+///
+/// A platform asset resolution is always atomic (`BinaryResolution`);
+/// pacquet's type widens to the full `LockfileResolution` for serde
+/// uniformity but [`select_platform_variant`]'s docs spell out that
+/// nested `Variations` would just route their picked variant's inner
+/// shape back through the resolution dispatcher (no infinite recursion,
+/// because this function does not call back into the variant selector).
+/// Only `Binary` is recognised; anything else is either a corrupt
+/// lockfile or a future shape pacquet hasn't learned about yet, so it is
+/// rejected loudly rather than silently routed through.
+pub(super) fn binary_variant_for_host<'a>(
+    variations: &'a pnpm_lockfile::VariationsResolution,
+    package_key: &PackageKey,
+    runtime_platform_selector: &pnpm_lockfile::PlatformSelector,
+) -> Result<&'a pnpm_lockfile::BinaryResolution, InstallPackageBySnapshotError> {
+    let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
+    else {
+        return Err(InstallPackageBySnapshotError::NoMatchingPlatformVariant {
+            package_key: package_key.to_string(),
+            selected_target: format!(
+                "os = `{}`, cpu = `{}`, libc = `{:?}`",
+                runtime_platform_selector.os,
+                runtime_platform_selector.cpu,
+                runtime_platform_selector.libc,
+            ),
+            available_targets: render_variant_targets(&variations.variants),
+        });
+    };
+    let LockfileResolution::Binary(binary) = &variant.resolution else {
+        return Err(InstallPackageBySnapshotError::VariantHasNonBinaryResolution {
+            package_key: package_key.to_string(),
+            inner_kind: match &variant.resolution {
+                LockfileResolution::Tarball(_) => "tarball",
+                LockfileResolution::Registry(_) => "registry",
+                LockfileResolution::Directory(_) => "directory",
+                LockfileResolution::Git(_) => "git",
+                LockfileResolution::Variations(_) => "variations",
+                LockfileResolution::Custom(_) => "custom",
+                // Already matched above; reach is unreachable.
+                LockfileResolution::Binary(_) => "binary",
+            },
+        });
+    };
+    Ok(binary)
+}
+/// Build the host's [`PlatformSelector`] for runtime-variant
+/// matching, from the host's os, cpu, and libc (the latter only on
+/// Linux).
+///
+/// Translating `host_libc()`'s `"unknown"` to `None` lets
+/// [`select_platform_variant`]'s asymmetric libc rule apply
+/// consistently: `None` and `Some("glibc")` both require the
+/// variant to omit `libc`, and `Some("musl")` requires an exact
+/// match.
+#[must_use]
+pub fn host_platform_selector() -> PlatformSelector {
+    let libc = match host_libc() {
+        "unknown" => None,
+        other => Some(other.to_string()),
+    };
+    PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
+}
+/// Resolve the runtime archive selector from `supportedArchitectures`.
+///
+/// Exactly one archive is installed per runtime, so the host's own
+/// platform is preferred: an archive built for another platform cannot
+/// run here.
+///
+/// <https://github.com/pnpm/pnpm/issues/13898>
+#[must_use]
+pub fn runtime_platform_selector(supported: Option<&SupportedArchitectures>) -> PlatformSelector {
+    let host = host_platform_selector();
+    match supported {
+        Some(SupportedArchitectures::Platforms(platforms)) => runtime_platform_of(platforms, host),
+        Some(SupportedArchitectures::Axes(axes)) => PlatformSelector {
+            os: pick_supported(axes.os.as_deref(), Some(&host.os)).unwrap_or(&host.os).to_string(),
+            cpu: pick_supported(axes.cpu.as_deref(), Some(&host.cpu))
+                .unwrap_or(&host.cpu)
+                .to_string(),
+            libc: pick_supported(axes.libc.as_deref(), host.libc.as_deref()).map(str::to_string),
+        },
+        None => host,
+    }
+}
+
+/// The archive a platform list asks for: this machine's own platform
+/// when the list names it, and the first platform it names otherwise.
+///
+/// A C library pnpm could not read leaves the host without one, so it
+/// matches no Linux platform and the first named one is taken. That is
+/// the right way to be wrong: which C library this machine has is
+/// exactly what could not be determined, and a platform the list names
+/// is at least one the workspace prepared for.
+pub(super) fn runtime_platform_of(
+    platforms: &[SupportedPlatform],
+    host: PlatformSelector,
+) -> PlatformSelector {
+    let mut first = None;
+    for platform in platforms {
+        let SupportedPlatform::Named(named) = platform else { return host };
+        let selector = PlatformSelector {
+            os: named.os().to_string(),
+            cpu: named.cpu().to_string(),
+            libc: named.libc().map(str::to_string),
+        };
+        if selector == host {
+            return host;
+        }
+        first.get_or_insert(selector);
+    }
+    first.unwrap_or(host)
+}
+pub(super) fn pick_supported<'a>(
+    requested: Option<&'a [String]>,
+    host_value: Option<&'a str>,
+) -> Option<&'a str> {
+    let Some(requested) = requested.filter(|requested| !requested.is_empty()) else {
+        return host_value;
+    };
+    if requested
+        .iter()
+        .any(|value| value == "current" || Some(value.as_str()) == host_value)
+    {
+        return host_value;
+    }
+    requested.first().map(String::as_str)
+}
 /// Hand-coded matcher for the
 /// `^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$)`
 /// regex. Used as the archive-entry filter when extracting a Node.js

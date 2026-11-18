@@ -15,6 +15,7 @@ mod ini;
 mod tests;
 
 use clap::{Args, Subcommand, ValueEnum};
+use credentials::carries_global_credentials;
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
@@ -357,15 +358,6 @@ fn set_yaml_setting(
     write(&key, &cast)
 }
 
-fn carries_global_credentials(camel_key: &str, value: &Value) -> bool {
-    !value.is_null()
-        && (matches!(camel_key, "remoteCache" | "remoteSideEffectsCache")
-            || (camel_key == "sideEffectsCache"
-                && value
-                    .as_object()
-                    .is_some_and(|object| object.contains_key("remote"))))
-}
-
 fn validate_yaml_target_key(key: &str, target: YamlConfigTarget) -> Result<String, ConfigError> {
     match target {
         YamlConfigTarget::Project => {
@@ -514,5 +506,6 @@ fn global_config_dir(config: &Config) -> Result<PathBuf, ConfigError> {
     config.config_dir.clone().ok_or(ConfigError::NoGlobalConfigDir)
 }
 
+mod credentials;
 mod incomplete;
 mod values;

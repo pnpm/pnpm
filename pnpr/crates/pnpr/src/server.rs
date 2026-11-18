@@ -1,4 +1,5 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
+pub(crate) use grant_directory::validate_for as validate_grant;
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
 pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
@@ -91,8 +92,6 @@ use package_reads::{
 mod revision_tarballs;
 use revision_tarballs::serve_revision_tarball;
 
-mod variant_tarballs;
-
 mod upstream_tarballs;
 use upstream_tarballs::{
     BackgroundTarScans, TarballOrigin, UpstreamTarball, cached_upstream_tarball,
@@ -102,8 +101,9 @@ use upstream_tarballs::{
 mod upstream_integrity;
 mod upstream_packuments;
 use upstream_packuments::{
-    load_packument_for_read, load_upstream_packument, read_source_packument,
-    recover_stale_upstream_packument, serve_packument_via_upstream,
+    PackumentRefetches, load_packument_for_read, load_upstream_packument, read_source_packument,
+    recover_stale_upstream_packument, reload_source_packument_lacking_version,
+    reload_upstream_packument_lacking_version, serve_packument_via_upstream,
 };
 
 mod request_access;
@@ -134,7 +134,6 @@ mod metrics;
 mod notes;
 mod oci;
 mod oidc;
-mod oidc_groups;
 mod owner_access;
 use owner_access::CallerOwners;
 mod package_mutation;
@@ -148,15 +147,17 @@ mod registry_directory;
 mod registry_graph;
 mod request_id;
 mod routing;
-mod rule_admin;
 mod scim;
 mod security_audit;
 mod singleflight;
 use singleflight::Singleflight;
+mod grant_admin;
+mod grant_directory;
 mod staged;
 mod staged_archives;
 mod striped_locks;
 mod team_access;
+mod team_directory;
 mod team_mutations;
 mod user_admin;
 mod web_login;
@@ -169,8 +170,8 @@ use self::{
     authentication::{
         Action, AuthedCaller, AuthorizationDecision, Ownership, allows_with_ownership,
         authenticate, authorize, authorize_against_packument, authorize_continuation,
-        authorize_package, authorize_with_ownership, authorize_without_owners,
-        needs_package_owners,
+        authorize_package, authorize_package_write, authorize_with_ownership,
+        authorize_without_owners, needs_package_owners,
     },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
@@ -531,7 +532,7 @@ fn hosted_storage(state: &AppState, namespace: Option<&str>) -> Storage {
 /// write routes like a publish: through the addressed `/~<name>/` (or,
 /// path-less, the default-target registry) to a hosted registry, rejecting a name
 /// routed to an upstream and 404ing when the path-less base has no default
-/// target or the registry's access list denies the caller.
+/// target or no grant lets the caller read the registry.
 fn resolve_write_target(
     state: &AppState,
     identity: &Identity,
@@ -557,8 +558,8 @@ fn resolve_write_target_for(
     }
 }
 
-/// The hosted registry a write resolved to: its name (for the
-/// `publish`/`unpublish` rule lookup) and its storage namespace.
+/// The hosted registry a write resolved to: its name (for the grant lookup)
+/// and its storage namespace.
 struct WriteTarget {
     source: String,
     namespace: String,

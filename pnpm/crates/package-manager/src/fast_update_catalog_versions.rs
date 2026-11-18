@@ -1,9 +1,10 @@
 use crate::fast_update_overrides::{
     FastOverride, RewriteContext, apply_rewrite_plan, build_replacement_plan,
 };
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{Lockfile, PkgName, ResolvedCatalogEntry};
+use pnpm_semver_include_prerelease::parse_strict_semver_range;
 use std::collections::BTreeMap;
 
 /// Move a catalog entry to a version the lockfile does not have, without
@@ -84,7 +85,7 @@ fn catalog_version_update(
     let locked = Version::parse(&entry.version).ok()?;
     // A specifier the locked version still satisfies moves nothing
     // but the specifier, exactly as the range-only path would.
-    if Range::parse(specifier).is_ok_and(|range| locked.satisfies(&range)) {
+    if parse_strict_semver_range(specifier).is_some_and(|range| locked.satisfies(&range)) {
         return Some(CatalogVersionUpdate::Unmoved(ResolvedCatalogEntry {
             specifier: specifier.clone(),
             version: entry.version.clone(),

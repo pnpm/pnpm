@@ -378,7 +378,7 @@ fn unfixable_ghsa_ids(report: &AuditReport) -> miette::Result<Vec<String>> {
         .map(|advisory| {
             if advisory.github_advisory_id.is_empty() {
                 return Err(AuditError::MissingGhsa {
-                    id: advisory.id,
+                    id: advisory.id.clone(),
                     module_name: advisory.module_name.clone(),
                 }
                 .into());

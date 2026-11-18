@@ -4,7 +4,10 @@ use super::{
     cache::{DistOrigin, VersionTgz, version_manifest_tgz, version_tgz},
     hosted_read_namespace, timed, upstream_cache_namespace,
 };
-use crate::server::{authorize, read_source_packument, recover_stale_upstream_packument};
+use crate::server::{
+    authorize, read_source_packument, recover_stale_upstream_packument,
+    reload_source_packument_lacking_version,
+};
 use pnpr_storage::DocumentStamp;
 use std::{sync::Arc, time::Instant};
 
@@ -105,6 +108,27 @@ impl VersionRequest<'_> {
         else {
             return Ok(None);
         };
+        if let Some(read) = self.packument_tgz(source, name, cached, packument, stamp).await? {
+            return Ok(Some(read));
+        }
+        let Some(packument) =
+            reload_source_packument_lacking_version(self.state, self.identity, source, name).await?
+        else {
+            return Ok(None);
+        };
+        self.packument_tgz(source, name, cached, packument, None).await
+    }
+
+    /// The version's dist in `packument`, whose cached copy has `stamp` when
+    /// the caller already read it.
+    async fn packument_tgz(
+        &self,
+        source: &RegistrySource,
+        name: &CanonicalPackageName,
+        cached: Option<&CachedPackument>,
+        packument: Vec<u8>,
+        stamp: Option<DocumentStamp>,
+    ) -> Result<Option<(VersionTgz, Option<DistOrigin>)>, RegistryError> {
         let packument = self.wait_for_packument_pin(source, name, cached, packument).await?;
         let stamp = match (stamp, cached) {
             (Some(stamp), _) => Some(stamp),
@@ -238,7 +262,7 @@ impl VersionRequest<'_> {
         name: &CanonicalPackageName,
     ) -> Result<Option<CachedPackument>, RegistryError> {
         let RegistrySource::Upstream(id) = source else { return Ok(None) };
-        authorize(self.state, self.identity, source, name.as_str(), Action::Access)?;
+        authorize(self.state, self.identity, source, name.as_str(), Action::Read)?;
         let upstream = authorized_upstream(self.state, self.identity, id)?;
         if !upstream.caches() {
             return Ok(None);

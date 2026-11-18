@@ -84,7 +84,6 @@ fn applied_groups(inputs: &ApplyMaterializationInputs<'_, '_>) -> crate::GroupSe
                 )
             },
         )
-        .linking_for(inputs.projects.supported_architectures.as_ref())
 }
 
 async fn link_apply_projects<Reporter: self::Reporter + 'static>(

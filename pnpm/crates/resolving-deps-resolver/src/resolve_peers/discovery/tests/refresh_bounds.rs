@@ -414,6 +414,7 @@ fn discovery_and_workspace_peer_walks_honor_cancellation() {
         root_dir: Path::new("/workspace").to_path_buf(),
         modules_dir: None,
         rejected_optional_peers: HashSet::default(),
+        hoisted_peer_provider_node_ids: HashSet::default(),
     };
     let ws_polls = Arc::new(AtomicUsize::new(0));
     let ws_result = resolve_peers_workspace(

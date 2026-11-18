@@ -255,11 +255,11 @@ fn write_dev_engines_pin(
     Ok(pin_specifier)
 }
 
-/// Rewrite the manifest's `engines.pnpm` range the way
-/// [`update_version_constraint`] rewrites the `devEngines` pin, keeping a
-/// range such as `*` or `12.2` that accepts the target as is, and report
-/// whether that changed the manifest.
-fn write_engines_pnpm(manifest: &mut Value, target_version: &str) -> bool {
+/// Rewrite the manifest's `engines.pnpm` with [`update_version_constraint`] and
+/// report whether that changed the manifest. A range that already accepts
+/// `target_version`, such as `*` or `^12.2`, stays as is unless it names a full
+/// version, bare or after `^`, `~`, or `=`.
+pub(crate) fn write_engines_pnpm(manifest: &mut Value, target_version: &str) -> bool {
     let Some(engines) = manifest.get_mut("engines") else {
         return false;
     };
@@ -327,7 +327,7 @@ pub(super) fn package_manager_pin_specifier(
 /// Complex ranges that still satisfy the new version are left as-is (the
 /// lockfile pins the exact version); otherwise the new version is written
 /// as a caret range.
-pub(super) fn update_version_constraint(current: Option<&str>, new_version: &str) -> String {
+pub(crate) fn update_version_constraint(current: Option<&str>, new_version: &str) -> String {
     let Some(current) = current else {
         return new_version.to_string();
     };

@@ -3,9 +3,7 @@
 
 pub mod oidc;
 
-pub use access::{
-    AccessSpec, PackageAccess, compile_access_list, validate_member_name, validate_team_name,
-};
+pub use access::{AccessSpec, validate_access_token, validate_member_name, validate_team_name};
 pub use artifacts::{ArtifactQuota, ArtifactsFeature, StorageAccess};
 pub use backend_config::{
     AuthConfig, BackendConfig, IdentityConfig, LibsqlSettings, MaxUsers, SqlBackendSettings,
@@ -15,8 +13,7 @@ pub use byte_size::{ByteSize, parse_byte_size};
 pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
 pub use graph_document::{
-    HostedStorage, PackageLists, RegistryGraphChanges, RegistryGraphDocument, RoutingOptions,
-    RuleLists,
+    HostedStorage, RegistryGraphChanges, RegistryGraphDocument, RegistryKind, RoutingOptions,
 };
 pub use hosted::{GraphSource, HostedConfig};
 pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
@@ -25,7 +22,6 @@ pub use metrics::MetricsConfig;
 pub use oci::OciConfig;
 pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_error::redact_connection_url;
-pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
@@ -45,7 +41,7 @@ pub(crate) use secrets::resolve_secrets;
 pub(crate) use storage_config::{resolve_relative, resolve_storage_paths};
 
 mod access;
-use access::{build_admins, build_teams};
+use access::build_admins;
 
 mod artifacts;
 use artifacts::{parse_artifact_quota, parse_storage_access};
@@ -114,7 +110,7 @@ use object_store::{
 };
 use pnpm_env_replace::{EnvVar, SystemEnv};
 use pnpr_error::{RegistryError, redact_url_credentials};
-use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
+use pnpr_policy::{AccessList, AccessToken, Identity, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
 use serde::{Deserialize, Serialize};
 use std::{

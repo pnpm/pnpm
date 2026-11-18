@@ -23,6 +23,11 @@ to list other workspace projects.
 Perform command on every package in subdirectories or on every workspace
 package, when executed inside a workspace.
 
+Workspace projects are listed in dependency order: a project appears after the
+workspace projects it depends on. Pass [`--no-sort`](./recursive.md#--no-sort) to
+keep workspace order, or [`--reverse`](./recursive.md#--reverse) to list
+dependents first.
+
 ### --json
 
 Log output in JSON format.

@@ -45,12 +45,11 @@
 use crate::{
     AllowBuildPolicy, VirtualStoreLayout,
     import_indexed_dir::{ImportIndexedDirOpts, marker_present},
-    platform_selection::VariantPlatforms,
     safe_join_modules_dir::safe_join_modules_dir,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_fs::{LinkFailure, LinkFallback, LinkFallbackPolicy};
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry};
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashMap,
@@ -369,7 +368,7 @@ struct CanonicalLayoutInputs<'install> {
     packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
     gating: crate::BuildGating<'install>,
     lockfile_dir: Option<&'install Path>,
-    platform: VariantPlatforms,
+    platform: PlatformSelector,
 }
 
 impl CanonicalLayoutInputs<'_> {

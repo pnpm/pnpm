@@ -23,7 +23,6 @@ registries document such as this one with
 registries:
   local:
     type: hosted
-    access: $all
     packages:
       '@example/*': {}
   npmjs:

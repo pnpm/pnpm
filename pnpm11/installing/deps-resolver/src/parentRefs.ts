@@ -11,8 +11,9 @@ import type { DependenciesTree } from './resolveDependencies.js'
 
 export function createPkgsByName<Pkg extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<Pkg>,
-  { directNodeIdsByAlias, topParents }: {
+  { directNodeIdsByAlias, hoistedPeerProviderNodeIds, topParents }: {
     directNodeIdsByAlias: Map<string, NodeId>
+    hoistedPeerProviderNodeIds?: Set<NodeId>
     topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }>
   }
 ): ParentRefs {
@@ -23,6 +24,7 @@ export function createPkgsByName<Pkg extends PartialResolvedPackage> (
         node: dependenciesTree.get(nodeId)!,
         nodeId,
         parentNodeIds: [],
+        ...(hoistedPeerProviderNodeIds?.has(nodeId) ? { hoistedPeerProvider: true } as const : {}),
       }))
   )
   const _updateParentRefs = updateParentRefs.bind(null, parentRefs)
@@ -46,14 +48,15 @@ export function createPkgsByName<Pkg extends PartialResolvedPackage> (
 export function toPkgByName<Pkg extends PartialResolvedPackage> (nodes: Array<ParentPkgNode<Pkg>>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   const _updateParentRefs = updateParentRefs.bind(null, pkgsByName)
-  for (const { alias, node, nodeId, parentNodeIds } of nodes) {
-    const pkg = {
+  for (const { alias, node, nodeId, parentNodeIds, hoistedPeerProvider } of nodes) {
+    const pkg: ParentRef = {
       alias,
       depth: node.depth,
       nodeId,
       version: node.resolvedPackage.version,
       occurrence: 0,
       parentNodeIds,
+      ...(hoistedPeerProvider ? { hoistedPeerProvider } : {}),
     }
     _updateParentRefs(alias, pkg)
     if (alias !== node.resolvedPackage.name) {

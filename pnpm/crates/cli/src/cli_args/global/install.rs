@@ -2,9 +2,9 @@ use super::{
     AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
     GlobalPackageInfo, GlobalUpdateMode, HashMap, HashSet, Lockfile, PackageBinSource, Path,
     PathBuf, RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
-    add_packages, apply_allow_build, apply_runtime_range_bumps, can_update_to_latest,
-    infer_local_package_alias, installed_versions, needs_runtime_range_bump,
-    prompt_approve_install_builds, update_selectors,
+    add_packages, apply_allow_build, apply_global_build_policy, apply_runtime_range_bumps,
+    can_update_to_latest, global_approval_store, infer_local_package_alias, installed_versions,
+    needs_runtime_range_bump, prompt_approve_install_builds, update_selectors,
 };
 use pnpm_config::Host;
 
@@ -252,7 +252,11 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
         install.global_pkg_dir,
         install.supported_architectures,
     )?;
-    apply_allow_build(&mut cfg, install.allow_build, install.global_pkg_dir)?;
+    apply_allow_build(
+        &mut cfg,
+        install.allow_build,
+        global_approval_store(install.base_config, install.global_pkg_dir)?,
+    )?;
 
     let config: &'static Config = Config::leak(cfg);
 
@@ -277,7 +281,7 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
         prompt_approve_install_builds::<Reporter>(
             config,
             install.install_dir,
-            install.global_pkg_dir,
+            global_approval_store(install.base_config, install.global_pkg_dir)?,
         )
         .await?;
     }
@@ -310,12 +314,11 @@ pub(super) fn global_group_config(
     cfg.lockfile_dir = None;
     // Pin the group's workspace root to its own install dir (pnpm's
     // `rootProjectManifestDir: installDir`, `workspaceDir: undefined`). The
-    // install dir sits *under* the global packages dir, which carries a
-    // `pnpm-workspace.yaml` of global settings (`allowBuilds`, `catalog`,
-    // ...). Leaving this unset would let the install pipeline walk up, adopt
-    // that file as the workspace, and then fail trying to enumerate its
-    // non-existent root project. Anchoring here keeps the group install an
-    // isolated single project.
+    // install dir sits *under* the global packages dir, which may carry a
+    // `pnpm-workspace.yaml`. Leaving this unset would let the install
+    // pipeline walk up, adopt that file as the workspace, and then fail
+    // trying to enumerate its non-existent root project. Anchoring here
+    // keeps the group install an isolated single project.
     cfg.workspace_dir = Some(install_dir.to_path_buf());
     cfg.supported_architectures = supported_architectures;
     merge_persisted_minimum_release_age_excludes(&mut cfg, install_dir)?;
@@ -341,26 +344,8 @@ pub(super) fn global_group_config(
     cfg.extra_env.remove("NODE_OPTIONS");
     cfg.apply_global_virtual_store_node_path::<Host>();
 
-    // Build-script policy for global installs comes from the global packages
-    // directory, never the caller's repo — otherwise a repo-controlled
-    // `pnpm-workspace.yaml` could decide which lifecycle scripts run during
-    // `add -g` / `update -g`. Drop the inherited repo policy and load the
-    // global `allowBuilds` (where the approval prompt persists its
-    // decisions) instead.
-    cfg.dangerously_allow_all_builds = false;
-    cfg.allow_builds.clear();
     cfg.disable_agent_skills();
-    if let Some((_, settings)) = WorkspaceSettings::find_and_load(global_pkg_dir)
-        .map_err(miette::Report::new)
-        .wrap_err("load global allowBuilds")?
-    {
-        if let Some(allow_builds) = settings.decided_build_approvals() {
-            cfg.allow_builds = allow_builds;
-        }
-        if let Some(allow_all) = settings.dangerously_allow_all_builds {
-            cfg.dangerously_allow_all_builds = allow_all;
-        }
-    }
+    apply_global_build_policy(&mut cfg, global_pkg_dir)?;
     // Don't fail the install when a dependency's build is ignored; the
     // global approval prompt (run after the install) records the ignored
     // builds and prompts rather than erroring under `strictDepBuilds`.

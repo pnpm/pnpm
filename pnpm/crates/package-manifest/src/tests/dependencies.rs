@@ -340,6 +340,40 @@ fn downloaded_node_version_ignores_a_runtime_pnpm_does_not_download() {
 }
 
 #[test]
+fn downloaded_node_version_uses_the_runtime_from_the_linked_dependency_group() {
+    let manifest = json!({
+        "devEngines": {
+            "runtime": { "name": "node", "version": "22.0.0", "onFail": "download" },
+        },
+        "engines": {
+            "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" },
+        },
+    });
+
+    assert_eq!(
+        downloaded_node_version_from_engines_runtime(&manifest, None),
+        Some("24.0.0".to_string()),
+    );
+}
+
+#[test]
+fn downloaded_node_version_continues_when_a_runtime_is_not_downloaded() {
+    let manifest = json!({
+        "devEngines": {
+            "runtime": { "name": "node", "version": "22.0.0", "onFail": "error" },
+        },
+        "engines": {
+            "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" },
+        },
+    });
+
+    assert_eq!(
+        downloaded_node_version_from_engines_runtime(&manifest, None),
+        Some("24.0.0".to_string()),
+    );
+}
+
+#[test]
 fn downloaded_node_version_follows_the_runtime_on_fail_override() {
     let manifest = json!({
         "devEngines": { "runtime": { "name": "node", "version": "^24.2.0", "onFail": "warn" } },

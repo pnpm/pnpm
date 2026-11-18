@@ -31,8 +31,7 @@ registries:
   local:
     type: hosted
     packages:
-      '@mycompany/*':
-        publish: $authenticated
+      '@mycompany/*': {}
 
   # The public npm registry. No `packages:` map — it serves every name,
   # so it must be the last source in the router below.

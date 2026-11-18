@@ -224,6 +224,9 @@ pub enum LockedPackagePolicy {
 pub struct ResolverProjectOptions {
     pub project_dir: PathBuf,
     pub lockfile_dir: PathBuf,
+    /// The workspace root. `None` outside a workspace, where `lockfile_dir`
+    /// stands for it.
+    pub workspace_dir: Option<PathBuf>,
     /// Behind [`Arc`] for the same reason as
     /// [`VersionSelectionOptions::preferred_versions`]: the tree walker clones
     /// [`ResolveOptions`] per adjusted resolve and every workspace

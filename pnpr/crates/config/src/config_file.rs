@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogFormat, LogLevel,
-    MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf, ReleaseRecordsFile,
-    ScimConfig, Serialize, TarballFormat, TrustedProxyHeader, UpstreamAuthFile, access::TeamFile,
+    MetricsConfig, OciFile, PackageDocumentsFile, PathBuf, ReleaseRecordsFile, ScimConfig,
+    Serialize, TarballFormat, TrustedProxyHeader, UpstreamAuthFile,
     null_default::deserialize_null_default, oidc, storage_config::StorageFile,
 };
 
@@ -37,6 +37,35 @@ pub(super) enum RegistryFile {
     Router(RouterFile),
 }
 
+/// The value of a `packages:` key: nothing. Who may do what to the packages a
+/// key claims is decided by the grants, which the database holds apart from
+/// the registries.
+#[derive(Debug, Default, Clone)]
+pub(super) struct ClaimFile;
+
+impl Serialize for ClaimFile {
+    fn serialize<Target: serde::Serializer>(
+        &self,
+        serializer: Target,
+    ) -> Result<Target::Ok, Target::Error> {
+        serde::ser::SerializeMap::end(serializer.serialize_map(Some(0))?)
+    }
+}
+
+impl<'de> Deserialize<'de> for ClaimFile {
+    fn deserialize<Source: serde::Deserializer<'de>>(
+        deserializer: Source,
+    ) -> Result<Self, Source::Error> {
+        let fields = IndexMap::<String, serde::de::IgnoredAny>::deserialize(deserializer)?;
+        match fields.keys().next() {
+            Some(field) => Err(serde::de::Error::custom(format!(
+                "unknown field `{field}`; a `packages:` value is empty, and grants decide access",
+            ))),
+            None => Ok(Self),
+        }
+    }
+}
+
 /// Disk shape of a `hosted:` registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -50,31 +79,14 @@ pub(super) struct HostedFile {
     /// namespace (`""`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) namespace: Option<String>,
-    /// The registry-level default: who may read this registry's packages when
-    /// no `packages:` entry refines it. Omitted ⇒ `$all`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) access: Option<AccessSpec>,
-    /// This registry's teams: each key is a team ID, each value its name
-    /// and member account IDs. Referenced from this registry's access lists as
-    /// `team:<id>` — teams are registry-scoped, never shared across
-    /// registries (YAML anchors cover a shared roster in one file).
+    /// The package patterns this registry serves and accepts publishes for.
+    /// A value is `{}` or null. Omitted ⇒ every name.
     #[serde(
         default,
         deserialize_with = "deserialize_null_default",
         skip_serializing_if = "IndexMap::is_empty"
     )]
-    pub(super) teams: IndexMap<String, TeamFile>,
-    /// The package patterns this registry serves and accepts publishes for,
-    /// with optional per-package `access`/`publish`/`unpublish`
-    /// rules as values (`{}` or null ⇒ the registry defaults). The most
-    /// specific matching key wins; key order carries no meaning. Omitted ⇒
-    /// every name, default rules.
-    #[serde(
-        default,
-        deserialize_with = "deserialize_null_default",
-        skip_serializing_if = "IndexMap::is_empty"
-    )]
-    pub(super) packages: IndexMap<String, Option<PackageAccess>>,
+    pub(super) packages: IndexMap<String, Option<ClaimFile>>,
     /// The format this registry serves tarballs in at its own URL. Omitted ⇒
     /// `tgz`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -128,30 +140,16 @@ pub(super) struct UpstreamFile {
     /// Opt an upstream into browser-facing search and organization discovery.
     #[serde(default, skip_serializing_if = "is_false")]
     pub(super) search: bool,
-    /// Which pnpr callers may reach this registry at `/~<name>/`. Required for a
-    /// non-`public` upstream (otherwise no one could be authorized to use it).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) access: Option<AccessSpec>,
-    /// This registry's teams, exactly as on a hosted registry — referenced
-    /// from `access` and the per-package refinements as `team:<id>`.
+    /// The package patterns that may be requested through this registry. A
+    /// value is `{}` or null. Omitted ⇒ every name. Bounding a private
+    /// upstream stops a caller from pulling arbitrary public names through
+    /// its server-owned credential.
     #[serde(
         default,
         deserialize_with = "deserialize_null_default",
         skip_serializing_if = "IndexMap::is_empty"
     )]
-    pub(super) teams: IndexMap<String, TeamFile>,
-    /// The package patterns that may be requested through this registry,
-    /// with optional per-package `access` refinements as values (`{}` or null
-    /// ⇒ the registry default; a `publish`/`unpublish` value is a config
-    /// error, since no write can land on an upstream). Omitted ⇒ every name.
-    /// Bounding a private upstream stops an authorized caller from pulling
-    /// arbitrary public names through its server-owned credential.
-    #[serde(
-        default,
-        deserialize_with = "deserialize_null_default",
-        skip_serializing_if = "IndexMap::is_empty"
-    )]
-    pub(super) packages: IndexMap<String, Option<PackageAccess>>,
+    pub(super) packages: IndexMap<String, Option<ClaimFile>>,
     /// The format this registry serves tarballs in at its own URL. Omitted ⇒
     /// `tgz`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

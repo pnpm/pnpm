@@ -131,6 +131,8 @@ async fn store_import(storage: &Storage, import: Import<'_>) -> Result<String, R
         restored_from: None,
         vacated: &import.hosted.vacated,
         bound: &import.hosted.bound,
+        seeded: &import.hosted.seeded,
+        removed: &import.hosted.removed,
     };
     match storage.write_registry_graph(import.current, revision).await? {
         RegistryGraphWrite::Written(generation) => {

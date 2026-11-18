@@ -1,4 +1,4 @@
-use super::{CandidatePeer, missing_peers, peers_accept_versions};
+use super::{CandidatePeer, ComparablePeerRange, missing_peers, peers_accept_versions};
 use serde_json::json;
 
 #[test]
@@ -23,24 +23,28 @@ fn candidate_fallbacks_follow_manifest_peer_classification() {
                 CandidatePeer {
                     name: "external".into(),
                     range: "^1".into(),
+                    comparable: ComparablePeerRange::new("^1"),
                     optional: false,
                     has_fallback_child: false,
                 },
                 CandidatePeer {
                     name: "metadata".into(),
                     range: "*".into(),
+                    comparable: ComparablePeerRange::new("*"),
                     optional: true,
                     has_fallback_child: true,
                 },
                 CandidatePeer {
                     name: "optional".into(),
                     range: "^1".into(),
+                    comparable: ComparablePeerRange::new("^1"),
                     optional: true,
                     has_fallback_child: true,
                 },
                 CandidatePeer {
                     name: "required".into(),
                     range: "^1".into(),
+                    comparable: ComparablePeerRange::new("^1"),
                     optional: false,
                     has_fallback_child: !auto_install_peers,
                 },

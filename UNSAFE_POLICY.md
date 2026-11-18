@@ -118,7 +118,7 @@ does not go in.
    is one place to make the argument rather than one per call site:
    `SingleThreaded` in [`pnpm-ffi-process`](./pnpm/crates/ffi-process) is
    claimed once at the top of `main` and moved to each write, and
-   `clippy.toml` leaves no other way to write the environment.
+   `.config/clippy.toml` leaves no other way to write the environment.
    So does `EnvGuard` in
    [`pnpm-testing-utils`](./pnpm/crates/testing-utils), which holds a
    process-wide lock for a test's lifetime. A function that takes one of

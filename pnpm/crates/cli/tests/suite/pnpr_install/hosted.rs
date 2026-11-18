@@ -57,20 +57,3 @@ pub(super) fn start_hosted_pnpr() -> (String, String) {
     });
     (format!("http://{addr}/npm/"), token)
 }
-
-/// The targets of a variant this machine installs: its OS and CPU, with
-/// both C libraries on Linux.
-pub(super) fn host_targets() -> Vec<String> {
-    let os = match std::env::consts::OS {
-        "macos" => "darwin",
-        "windows" => "win32",
-        other => other,
-    };
-    let cpu = match std::env::consts::ARCH {
-        "x86_64" => "x64",
-        "aarch64" => "arm64",
-        other => other,
-    };
-    let tag = format!("{os}-{cpu}");
-    if os == "linux" { vec![tag.clone(), format!("{tag}-musl")] } else { vec![tag] }
-}

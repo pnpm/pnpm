@@ -2,13 +2,12 @@
 //! importer provides — so an optional peer provider taken from elsewhere
 //! in the graph is not hoisted where its own peers would conflict.
 
-use super::context;
+use super::context::ComparablePeerRange;
 use crate::{
     peer_provider::peer_shadowed_dependency_names,
     resolve_dependency_tree::WorkspaceTreeCtx,
     resolved_tree::{PeerDep, PeerSet, ResolvedPackage},
 };
-use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     cell::{OnceCell, RefCell},
@@ -25,6 +24,7 @@ pub(crate) fn resolved_name_and_version(package: &ResolvedPackage) -> (String, S
 pub(crate) struct CandidatePeer {
     pub(crate) name: String,
     pub(crate) range: String,
+    pub(crate) comparable: ComparablePeerRange,
     pub(crate) optional: bool,
     has_fallback_child: bool,
 }
@@ -142,6 +142,7 @@ fn lockfile_peers(metadata: &pnpm_lockfile::PackageMetadata) -> Vec<CandidatePee
         .flatten()
         .map(|(peer_name, range)| CandidatePeer {
             name: peer_name.clone(),
+            comparable: ComparablePeerRange::new(range),
             range: range.clone(),
             has_fallback_child: false,
             optional: metadata.peer_dependencies_meta
@@ -179,6 +180,7 @@ fn candidate_peers(
         .iter()
         .map(|(name, peer)| CandidatePeer {
             name: name.clone(),
+            comparable: ComparablePeerRange::new(&peer.version),
             range: peer.version.clone(),
             optional: peer.optional,
             has_fallback_child: classification.is_some_and(|peers| {
@@ -261,15 +263,7 @@ fn peers_accept_versions<'a>(
 ) -> bool {
     peers
         .iter()
-        .all(|peer| {
-            version_of(&peer.name)
-                .is_none_or(|version| {
-                    context::satisfies_with_prereleases(
-                        version,
-                        &get_peer_version_range(&peer.range),
-                    )
-                })
-        })
+        .all(|peer| version_of(&peer.name).is_none_or(|version| peer.comparable.satisfies(version)))
 }
 
 #[cfg(test)]

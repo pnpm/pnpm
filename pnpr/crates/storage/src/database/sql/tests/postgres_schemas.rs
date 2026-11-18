@@ -1,7 +1,10 @@
 //! pnpr instances on different schemas of one `PostgreSQL` database.
 
 use super::{Adapter as Backend, Db};
-use crate::database::sql::adapter::{Adapter, WriteTransaction};
+use crate::database::sql::{
+    adapter::{Adapter, WriteTransaction},
+    schema,
+};
 use pnpr_config::SqlBackendSettings;
 use pnpr_error::Result;
 use std::time::Duration;
@@ -34,6 +37,9 @@ mod on_postgres {
 /// Commit a write through `second` while a write through `first` holds its
 /// write lock.
 fn write_while_holding(first: &dyn Adapter, second: &dyn Adapter) -> Result<()> {
+    for adapter in [first, second] {
+        assert!(schema::prepare_adapter_with_steps(adapter, schema::STEPS)?.is_none());
+    }
     first.write(&mut |connection| {
         let held = WriteTransaction::begin(connection)?;
         second.write(&mut |other| WriteTransaction::begin(other)?.commit())?;

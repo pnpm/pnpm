@@ -135,7 +135,7 @@ impl Request {
                     &self.identity,
                     &source,
                     (repo.key.as_str(), &ownership),
-                    Action::Unpublish,
+                    Action::Delete,
                 )?;
                 authorized = true;
                 remove_manifest_or_tag(document, &repo.key, reference, referenced_child)

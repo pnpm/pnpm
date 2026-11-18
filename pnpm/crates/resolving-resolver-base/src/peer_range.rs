@@ -4,14 +4,16 @@
 //! Mirrors the TypeScript `@pnpm/deps.peer-range` package; keep the two in
 //! sync.
 
-use node_semver::Range;
+use pnpm_semver_include_prerelease::{
+    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
+};
 
 /// Whether `version` is already a valid `peerDependencies` range that needs no
 /// desugaring: a valid semver range, or a `workspace:` / `catalog:` reference.
 /// The protocol can appear inside a wider range expression.
 #[must_use]
 pub fn is_valid_peer_range(version: &str) -> bool {
-    Range::parse(version).is_ok() || version.contains("workspace:") || version.contains("catalog:")
+    is_valid_semver_range(version) || version.contains("workspace:") || version.contains("catalog:")
 }
 
 /// Whether a `peerDependencies` value is accepted at install time.
@@ -58,26 +60,37 @@ pub fn get_peer_version_range(version: &str) -> String {
         .filter(|&colon| colon > 0)
     {
         let body = &version[colon + 1..];
-        if Range::parse(body).is_ok() {
+        if is_non_empty_semver_range(body) {
             return body.to_string();
         }
         if let Some(at) = body.rfind('@').filter(|&at| at > 0)
-            && Range::parse(&body[at + 1..]).is_ok()
+            && is_non_empty_semver_range(&body[at + 1..])
         {
             return body[at + 1..].to_string();
         }
     }
-    "*".to_string()
+    ANY_VERSION_RANGE.to_string()
 }
 
 /// The comparable range a value [`is_valid_peer_range`] accepted stands for:
 /// what follows a `workspace:` prefix when that is itself a range, `*` when it
 /// is not, and the value unchanged when it carries no such prefix.
 fn desugar_workspace_range(version: &str) -> String {
+    if is_any_version_range(version) {
+        return ANY_VERSION_RANGE.to_string();
+    }
     let Some(stripped) = version.strip_prefix("workspace:") else {
         return version.to_string();
     };
-    if Range::parse(stripped).is_ok() { stripped.to_string() } else { "*".to_string() }
+    if is_non_empty_semver_range(stripped) {
+        stripped.to_string()
+    } else {
+        ANY_VERSION_RANGE.to_string()
+    }
+}
+
+fn is_non_empty_semver_range(spec: &str) -> bool {
+    !is_any_version_range(spec) && is_valid_semver_range(spec)
 }
 
 #[cfg(test)]

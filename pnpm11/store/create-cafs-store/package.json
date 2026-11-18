@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.create-cafs-store",
-  "version": "1100.0.40",
+  "version": "1100.0.41",
   "description": "Create a CAFS store controller",
   "keywords": [
     "pnpm",
@@ -34,12 +34,12 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/building.pkg-requires-build": "workspace:*",

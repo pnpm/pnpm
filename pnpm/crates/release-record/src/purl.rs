@@ -45,18 +45,6 @@ impl Purl {
     /// The PURL of an npm package version, with the scope as its namespace:
     /// `@example/widgets` at `1.2.0` is `pkg:npm/%40example/widgets@1.2.0`.
     pub fn npm(name: &str, version: &str) -> Result<Self, PurlError> {
-        Purl::npm_with(name, version, &[])
-    }
-
-    /// The PURL of one platform variant's archive of an npm package version:
-    /// the version's PURL with a `variant` qualifier whose value is the
-    /// variant's tag, so `+` is written `%2B`, as in
-    /// `pkg:npm/example-cli@4.0.0?variant=linux-x64%2Blinux-x64-musl`.
-    pub fn npm_variant(name: &str, version: &str, tag: &str) -> Result<Self, PurlError> {
-        Purl::npm_with(name, version, &[("variant", tag)])
-    }
-
-    fn npm_with(name: &str, version: &str, qualifiers: &[(&str, &str)]) -> Result<Self, PurlError> {
         let (namespace, bare_name) = match name.strip_prefix('@') {
             Some(scoped) => {
                 let (scope, bare_name) = scoped
@@ -69,7 +57,7 @@ impl Purl {
             }
             None => (None, name),
         };
-        Purl::build("npm", namespace, bare_name, version, qualifiers)
+        Purl::build("npm", namespace, bare_name, version, &[])
     }
 
     /// The PURL of a crate version, such as `pkg:cargo/serde@1.0.210`.
@@ -115,7 +103,7 @@ impl Purl {
     }
 
     /// The npm package name and version this PURL names, or `None` for
-    /// another PURL type, a variant PURL, or a non-canonical spelling.
+    /// another PURL type, a PURL with qualifiers, or a non-canonical spelling.
     #[must_use]
     pub fn npm_package(&self) -> Option<(String, String)> {
         let parts = Components::parse(&self.0)?;
@@ -131,8 +119,7 @@ impl Purl {
     }
 
     /// Checks that an `npm`, `cargo`, or `pypi` PURL is exactly the one
-    /// [`Purl::npm`], [`Purl::npm_variant`], [`Purl::cargo`], or
-    /// [`Purl::pypi_file`] builds from its components, so one release has one
+    /// [`Purl::npm`], [`Purl::cargo`], or [`Purl::pypi_file`] builds from its components, so one release has one
     /// spelling. A `pypi` PURL must name its file. Text that is not a `pkg:<type>/` PURL is refused; PURLs of
     /// other types are not checked further.
     pub fn check_canonical(&self) -> Result<(), PurlError> {
@@ -180,10 +167,7 @@ impl Purl {
                     Some(scope) => format!("{scope}/{name}"),
                     None => name.to_owned(),
                 };
-                match parts.qualifier("variant") {
-                    Some(tag) => Purl::npm_variant(&name, version, tag).ok(),
-                    None => Purl::npm(&name, version).ok(),
-                }
+                Purl::npm(&name, version).ok()
             }
             ("cargo", None) => Purl::cargo(name, version).ok(),
             ("pypi", None) => {

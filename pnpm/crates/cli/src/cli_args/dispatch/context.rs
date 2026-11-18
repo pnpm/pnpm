@@ -67,6 +67,10 @@ pub(crate) struct CommandLoaders<'a> {
     /// `--dir`, so a `-g` install can't inherit the caller project's
     /// `.npmrc` network / TLS / registry settings.
     pub(crate) global_config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+    /// Like [`Self::global_config`], with the `globalPackagesConfig` settings of
+    /// the global `config.yaml` applied. For the commands that act on the
+    /// global packages.
+    pub(crate) global_packages_config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     /// Like [`Self::config`] but loaded through
     /// [`Config::current_for_self_update`], so a repo-controlled
     /// `pnpm-workspace.yaml` can only tighten the release-age policy that

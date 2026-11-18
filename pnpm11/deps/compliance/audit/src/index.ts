@@ -15,7 +15,7 @@ import {
   lockfileToAuditRequest,
   type PathInfo,
 } from './lockfileToAuditIndex.js'
-import type { AuditAdvisory, AuditFinding, AuditLevelString, AuditReport, AuditVulnerabilityCounts } from './types.js'
+import type { AdvisoryId, AuditAdvisory, AuditFinding, AuditLevelString, AuditReport, AuditVulnerabilityCounts } from './types.js'
 
 export type { AuditIndexRequest, AuditPathIndex, PathInfo } from './lockfileToAuditIndex.js'
 export { buildAuditPathIndex, lockfileToAuditRequest } from './lockfileToAuditIndex.js'
@@ -26,7 +26,7 @@ export * from './types.js'
 // are derived from it: github_advisory_id from `url` and patched_versions
 // from `vulnerable_versions`. findings are built from the lockfile walk.
 interface BulkAdvisory {
-  id: number
+  id: AdvisoryId
   url?: string
   title?: string
   severity: AuditLevelString
@@ -138,9 +138,14 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
 }
 
 // Guard against registry-supplied values that could corrupt the report:
-// only accept finite numeric ids and severities from the known set.
+// only accept finite numeric or non-blank string ids, and severities from the known set.
 function isAcceptedAdvisory (adv: BulkAdvisory): boolean {
-  return typeof adv.id === 'number' && Number.isFinite(adv.id) && isKnownSeverity(adv.severity)
+  return isAcceptedId(adv.id) && isKnownSeverity(adv.severity)
+}
+
+function isAcceptedId (id: unknown): id is AdvisoryId {
+  if (typeof id === 'number') return Number.isFinite(id)
+  return typeof id === 'string' && id.trim() !== ''
 }
 
 function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | undefined): AuditFinding[] {

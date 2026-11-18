@@ -6,6 +6,9 @@ use super::{BoundProviders, is_patch_marker, is_peer_suffix_hash, split_peer_suf
 use crate::{
     LockfileEntries, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotDepRef, SnapshotEntry,
 };
+use cycle_probe::CycleProbe;
+
+mod cycle_probe;
 
 const MAX_COMBINATIONS: usize = 4096;
 const MAX_VISITED_SNAPSHOTS: usize = 1024;
@@ -20,7 +23,7 @@ pub(super) fn recover_hashed_providers(
     let package = entries.packages?.get(&key.without_peer())?;
 
     let candidates = peer_candidates_by_name(snapshots, snapshot, package, key)?;
-    match_candidates(&candidates, &hash_hex)
+    match_candidates(&candidates, &hash_hex, &mut CycleProbe::new(snapshots, key))
 }
 
 fn suffix_hash_segment(peer_suffix: &str) -> Option<String> {
@@ -223,6 +226,7 @@ fn lists_transitive_peer(snapshot: &SnapshotEntry, peer_name: &str) -> bool {
 fn match_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
     hash_hex: &str,
+    cycle_probe: &mut CycleProbe<'_>,
 ) -> Option<HashSet<PkgNameVerPeer>> {
     for mode in [PeerGroups::Full, PeerGroups::Bare] {
         if let Some(matched) = CombinationSearch::new(mode, hash_hex).find(candidates) {
@@ -237,14 +241,17 @@ fn match_candidates(
         return None;
     }
     // Cycle cuts can omit nested groups from only some providers.
-    let mixed = mixed_cycle_cut_candidates(candidates);
+    let mixed = mixed_cycle_cut_candidates(candidates, cycle_probe);
     if mixed.as_slice() == candidates {
         return None;
     }
     CombinationSearch::new(PeerGroups::Full, hash_hex).find(&mixed)
 }
 
-fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<PkgNameVerPeer>> {
+fn mixed_cycle_cut_candidates(
+    candidates: &[Vec<PkgNameVerPeer>],
+    cycle_probe: &mut CycleProbe<'_>,
+) -> Vec<Vec<PkgNameVerPeer>> {
     candidates
         .iter()
         .map(|targets| {
@@ -252,7 +259,8 @@ fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<Pkg
             let mut seen: HashSet<_> = targets.iter().cloned().collect();
             for target in targets {
                 let bare = target.without_peer();
-                if seen.insert(bare.clone()) {
+                if !seen.contains(&bare) && cycle_probe.may_be_cut(target) {
+                    seen.insert(bare.clone());
                     variants.push(bare);
                 }
             }

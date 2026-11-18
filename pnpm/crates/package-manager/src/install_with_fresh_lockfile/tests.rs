@@ -90,6 +90,7 @@ fn builtin_compatibility_extensions_do_not_apply_to_importer_manifests() {
         dir.path(),
         &importer_manifests,
         false,
+        None,
     )
     .unwrap();
     let effective_manifest = transforms.effective_importer_manifests.get(".").unwrap();

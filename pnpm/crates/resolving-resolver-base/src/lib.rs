@@ -26,7 +26,7 @@ pub use network_policy::NetworkPolicy;
 pub use package_extension::{PackageExtension, PeerDependencyMeta};
 pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
 pub use pnpm_semver_include_prerelease::{
-    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
+    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range, parse_strict_semver_range,
 };
 pub use policy::{LinkWorkspacePackages, ResolutionMode, SaveWorkspaceProtocol, TrustPolicy};
 pub use preferred_versions::{

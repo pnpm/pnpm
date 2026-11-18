@@ -1,4 +1,4 @@
-use super::{Db, npm, packument, schema::execute, storage, write};
+use super::{Db, npm, packument, read, schema::execute, storage, write};
 use crate::{
     DocumentWrite,
     database::{TagChange, TagUpdate},
@@ -364,6 +364,79 @@ async fn pypi_yank_accepts_canonical_defaults_added_by_protocol_round_trip(db: D
     );
 }
 
+/// The tables named after an ecosystem have no `ecosystem` column, so a
+/// package of another ecosystem with the same name in the same namespace must
+/// never reach their rows.
+async fn same_named_packages_of_two_ecosystems_stay_apart(db: Db) {
+    let npm_store = storage(&db).for_hosted("", Ecosystem::Npm);
+    let cargo_store = storage(&db).for_hosted("", Ecosystem::Cargo);
+    let mut document = packument("core", &["1.0.0"]);
+    document["dist-tags"]["next"] = json!("1.0.0");
+    write(&npm_store, "core", &document).await;
+    let crate_name = CanonicalPackageName::parse("core", Ecosystem::Cargo).unwrap();
+    let crate_document = cargo_document("core", &[("1.0.0", false)]);
+    cargo_store
+        .write_hosted_document_if_current(&crate_name, &crate_document, None, None)
+        .await
+        .unwrap();
+
+    let database = npm_store.sql_database();
+    assert!(!database.has_version(&crate_name, "", "1.0.0").await.unwrap());
+    assert!(
+        database
+            .tag_history(&crate_name, "", "next")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert!(
+        database
+            .release_record_entry(&crate_name, "", "1.0.0")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+
+    assert!(cargo_store.remove_package(&crate_name, None).await.unwrap());
+    let npm_document = read(&npm_store, "core").await;
+    assert_eq!(npm_document["dist-tags"]["next"], "1.0.0");
+    assert!(npm_document["versions"].get("1.0.0").is_some());
+    assert_eq!(npm_store.hosted_package_names().await.unwrap(), ["core"]);
+    assert_eq!(
+        database
+            .tag_history(&npm("core"), "", "next")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+
+    write(&npm_store, "util", &packument("util", &["1.0.0"])).await;
+    let util_crate = CanonicalPackageName::parse("util", Ecosystem::Cargo).unwrap();
+    cargo_store
+        .write_hosted_document_if_current(
+            &util_crate,
+            &cargo_document("util", &[("1.0.0", false)]),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(
+        npm_store
+            .remove_package(&npm("util"), None)
+            .await
+            .unwrap(),
+    );
+    let crate_bytes = cargo_store
+        .read_hosted_document(&util_crate)
+        .await
+        .unwrap()
+        .unwrap();
+    let rendered: Value = serde_json::from_slice(&crate_bytes).unwrap();
+    assert_eq!(rendered["versions"][0]["vers"], "1.0.0");
+}
+
 conformance!(
     cargo_versions_normalize_and_yank_in_place,
     cargo_yank_accepts_canonical_defaults_added_by_protocol_round_trip,
@@ -371,4 +444,5 @@ conformance!(
     pypi_yank_accepts_canonical_defaults_added_by_protocol_round_trip,
     oci_manifests_and_tags_round_trip_and_clear,
     package_state_version_from_newer_format_is_refused,
+    same_named_packages_of_two_ecosystems_stay_apart,
 );

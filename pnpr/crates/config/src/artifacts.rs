@@ -45,8 +45,7 @@ pub struct StorageAccess {
     pub publish: AccessList,
 }
 
-/// The `artifacts.owners` policies. They name accounts, not registry teams,
-/// which live in the database.
+/// The `artifacts.owners` policies.
 pub(super) fn parse_storage_access(
     policies: IndexMap<String, StorageAccessFile>,
 ) -> Result<IndexMap<String, StorageAccess>, RegistryError> {
@@ -56,7 +55,7 @@ pub(super) fn parse_storage_access(
             validate_artifact_owner_name(&name)?;
             let parse = |field: &str, spec: &AccessSpec| {
                 let list = spec
-                    .to_access_list_resolving(|_| Err("artifact owners name accounts, not teams".to_string()))
+                    .to_access_list()
                     .map_err(|reason| RegistryError::InvalidConfig {
                         reason: format!("artifact owner {name:?}: {reason}"),
                     })?;

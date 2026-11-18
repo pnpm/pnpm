@@ -236,6 +236,12 @@ jobs:
             cp pnpr/.fixtures/registries.yaml "$(dirname "$fixture")/registries.yaml"
             files+=("$(dirname "$fixture")/registries.yaml")
           fi
+          # A revision whose pnpr decides access by grants has this file,
+          # and the benchmark imports it after the registries.
+          if [ -f pnpr/.fixtures/grants.yaml ]; then
+            cp pnpr/.fixtures/grants.yaml "$(dirname "$fixture")/grants.yaml"
+            files+=("$(dirname "$fixture")/grants.yaml")
+          fi
           if [ "$REVISION" = HEAD ]; then
             mkdir -p target/release
             cp "$release/pnpr" target/release/pnpr
@@ -463,7 +469,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes strace
 
       - name: Install just
-        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: just
 

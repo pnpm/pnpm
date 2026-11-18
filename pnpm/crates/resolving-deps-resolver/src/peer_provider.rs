@@ -31,7 +31,7 @@ use std::{collections::BTreeMap, path::Path};
 use node_semver::{Range, Version};
 use pnpm_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
-    get_peer_version_range,
+    get_peer_version_range, is_valid_semver_range, parse_strict_semver_range,
 };
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
@@ -157,7 +157,7 @@ fn preferred_version_specifier(
 ) -> Option<String> {
     let non_versions = non_version_selectors(selectors);
     let range_for_match = get_peer_version_range(range);
-    let is_semver_range = range_for_match.parse::<Range>().is_ok();
+    let is_semver_range = is_valid_semver_range(&range_for_match);
     if is_semver_range {
         let parsed_range = IncludePrereleaseRange::parse(&range_for_match);
         // A version only the wanted lockfile holds is a weight whose
@@ -347,9 +347,8 @@ fn max_hoistable_optional_version(
     // peer matches failing the check per candidate.
     let parsed_ranges: Vec<Range> = ranges
         .iter()
-        .map(|range| range.parse::<Range>())
-        .collect::<Result<_, _>>()
-        .ok()?;
+        .map(|range| parse_strict_semver_range(range))
+        .collect::<Option<_>>()?;
     // The workspace root's own specifier bounds the candidates the
     // same way it short-circuits `hoist_peers` above. Maximizing over
     // every version in the graph instead lets one importer's newer
@@ -362,7 +361,7 @@ fn max_hoistable_optional_version(
     // fall back to the root's own out-of-range version, so it is dropped.
     let root_range = root_dep
         .and_then(|dep| dep.normalized_bare_specifier.as_deref())
-        .and_then(|spec| get_peer_version_range(spec).parse::<Range>().ok())
+        .and_then(|spec| parse_strict_semver_range(&get_peer_version_range(spec)))
         .filter(|root| {
             parsed_ranges
                 .iter()

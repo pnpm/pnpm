@@ -1,7 +1,9 @@
 use super::{
     AppState, Config, RegistryError,
+    grant_directory::{GrantState, reload_grants},
     registry_graph::{GraphState, reload_graph},
     scim::{ScimState, reload_directory},
+    team_directory::{TeamState, reload_teams},
 };
 use pnpr_config::GraphSource;
 use std::{
@@ -27,9 +29,9 @@ const STATE_RETRY: Duration = Duration::from_secs(1);
 pub(super) const WRITE_ATTEMPTS: usize = 5;
 
 /// The state admins and identity providers manage at runtime: the registry
-/// graph and the SCIM directory (`auth.scim`).
+/// graph, the teams, and the SCIM directory (`auth.scim`).
 ///
-/// The database holds both, so every replica sees the same state.
+/// The database holds them, so every replica sees the same state.
 pub(super) struct ManagedState {
     /// The stored registry graph this replica follows. `None` when the config
     /// file declares the registries.
@@ -37,6 +39,8 @@ pub(super) struct ManagedState {
     /// The account IDs the SCIM directory marks inactive. `None` without
     /// `auth.scim`.
     pub(super) scim: Option<ScimState>,
+    pub(super) teams: TeamState,
+    pub(super) grants: GrantState,
     /// When the state is next due for a reload. `None` before the first.
     due_at: Mutex<Option<Instant>>,
     /// Held by a reload and by every edit, so a reload that read the store
@@ -54,14 +58,12 @@ impl ManagedState {
         Self {
             graph,
             scim,
+            teams: TeamState::default(),
+            grants: GrantState::default(),
             due_at: Mutex::new(None),
             reload: Arc::default(),
             completed_reloads: AtomicU64::new(0),
         }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.graph.is_none() && self.scim.is_none()
     }
 
     fn graph_is_stale(&self) -> bool {
@@ -89,9 +91,6 @@ impl ManagedState {
 /// keep the current state.
 pub(super) async fn refresh_managed_state(state: &AppState, patience: Patience) {
     let managed = &state.inner.identity.managed;
-    if managed.is_empty() {
-        return;
-    }
     match managed.due_at() {
         Some(due_at) if Instant::now() < due_at => {}
         // Past the stale limit the request could not be served from the
@@ -145,7 +144,7 @@ async fn reload_stale_graph(state: &AppState, patience: Patience) {
     reload_managed_state(state.clone(), guard).await;
 }
 
-/// Reload the registry graph alongside the SCIM directory.
+/// Reload the registry graph alongside the teams and the SCIM directory.
 async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     let managed = &state.inner.identity.managed;
     let directory = async {
@@ -160,8 +159,11 @@ async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
             None => true,
         }
     };
-    let (registries_read, scim_read) = tokio::join!(registries, directory);
-    let all_read = registries_read && scim_read;
+    let teams = reload_teams(&state);
+    let (registries_read, scim_read, teams_read) = tokio::join!(registries, directory, teams);
+    // After the graph, so the grants cover the registries it now serves.
+    let grants_read = reload_grants(&state).await;
+    let all_read = registries_read && scim_read && teams_read && grants_read;
     managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
     managed.completed_reloads.fetch_add(1, Ordering::Release);
 }

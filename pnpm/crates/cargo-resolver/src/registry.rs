@@ -1,8 +1,11 @@
-use crate::model::{DependencyKind, RegistryDependency, RegistryVersion, ensure_not_cancelled};
+use crate::{
+    model::{DependencyKind, RegistryDependency, RegistryVersion, ensure_not_cancelled},
+    preferences::{PreferredVersions, is_selectable},
+};
 use cargo_util_schemas::index::{IndexPackage, RegistryDependency as IndexDependency};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use semver::{Version, VersionReq};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The source identifier `cargo` writes for a crates.io package. A crate is
 /// locked against it when its dependency named crates.io or named no
@@ -112,7 +115,7 @@ impl Registry {
     /// entries it copies.
     pub(crate) fn validate_dependency_source(&self, registry: Option<&str>) -> Result<()> {
         let Some(registry) = registry else { return Ok(()) };
-        if is_crates_io_source(registry) || same_registry(registry, &self.source) {
+        if serves_registry(&self.source, registry) {
             return Ok(());
         }
         Err(miette::miette!(
@@ -125,6 +128,21 @@ impl Registry {
         self.packages
             .get(&normalize_name(name))
             .map(Vec::as_slice)
+    }
+
+    /// Drop the preferred versions this registry does not offer, so no list
+    /// is longer than the crate's index entry.
+    pub(crate) fn retain_offered(&self, preferred_versions: &mut PreferredVersions) {
+        preferred_versions.retain(|name, versions| {
+            let offered = self
+                .versions(name)
+                .unwrap_or_default()
+                .iter()
+                .map(|version| &version.version)
+                .collect::<BTreeSet<_>>();
+            versions.retain(|version| offered.contains(version));
+            !versions.is_empty()
+        });
     }
 
     pub(crate) fn package(&self, name: &str) -> Result<&[RegistryVersion]> {
@@ -272,16 +290,18 @@ fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<Reg
 }
 
 /// The compatibility lines `requirement` is met on, oldest first, each
-/// paired with the newest non-yanked version on it.
+/// paired with the newest [selectable](is_selectable) version on it.
 ///
 /// `cargo` lets semver-incompatible versions of a crate coexist, so a
 /// requirement spanning several lines may be met on any one of them.
-pub(crate) fn matching_lines(
+pub(crate) fn matching_lines_with_preferences(
     versions: &[RegistryVersion],
     requirement: &VersionReq,
+    name: &str,
+    preferred_versions: &PreferredVersions,
 ) -> Vec<(String, Version)> {
     // Ascending, so the last version recorded for a line is its newest.
-    let newest = matching_versions(versions, requirement)
+    let newest = matching_versions(versions, requirement, name, preferred_versions)
         .map(|version| (compatibility_line(&version.version), version.version.clone()))
         .collect::<BTreeMap<_, _>>();
     let mut lines = newest.into_iter().collect::<Vec<_>>();
@@ -289,13 +309,26 @@ pub(crate) fn matching_lines(
     lines
 }
 
+/// The [selectable](is_selectable) versions that meet `requirement`.
 pub(crate) fn matching_versions<'a>(
     versions: &'a [RegistryVersion],
     requirement: &'a VersionReq,
+    name: &'a str,
+    preferred_versions: &'a PreferredVersions,
 ) -> impl DoubleEndedIterator<Item = &'a RegistryVersion> {
     versions
         .iter()
-        .filter(|version| !version.yanked && requirement.matches(&version.version))
+        .filter(move |version| {
+            is_selectable(preferred_versions, name, version)
+                && requirement.matches(&version.version)
+        })
+}
+
+/// Whether the registry `source` names serves crates of `registry`: its own,
+/// or crates.io's, which a configured index mirrors.
+#[must_use]
+pub fn serves_registry(source: &str, registry: &str) -> bool {
+    is_crates_io_source(registry) || same_registry(registry, source)
 }
 
 pub(crate) fn is_crates_io_source(registry: &str) -> bool {

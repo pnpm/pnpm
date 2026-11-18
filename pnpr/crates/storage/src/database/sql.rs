@@ -14,6 +14,7 @@ pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 
 pub use cache::RenderStats;
 pub use cdn::CdnInvalidation;
+pub use grants::{GrantContent, GrantWrite, StoredGrant, StoredGrants};
 pub use mappings::{Mapping, Unmapping};
 pub use registry_graph::{
     HostedNamespace, NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision,
@@ -24,6 +25,7 @@ pub use scim::{NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredSc
 pub(crate) use staged::{StagedEntry, StagedId};
 pub(crate) use store_binding::{StoreBinding, StoreClaim};
 pub use tags::TagHistoryEntry;
+pub use teams::{StoredTeam, StoredTeams, TeamCreation, TeamRemoval};
 pub(crate) use view::PackageMetadata;
 
 mod batch;
@@ -33,6 +35,7 @@ mod cargo_rows;
 mod cdn;
 mod commit;
 mod fence;
+mod grants;
 mod log;
 mod mappings;
 mod notes;
@@ -52,6 +55,7 @@ mod scim;
 mod staged;
 mod store_binding;
 mod tags;
+mod teams;
 mod transactions;
 mod versions;
 mod view;
@@ -101,6 +105,15 @@ pub(super) struct PackageKey {
 impl PackageKey {
     fn params(&self) -> (&str, &str, &str) {
         (&self.namespace, self.ecosystem.as_str(), &self.name)
+    }
+
+    /// `(namespace, name)` for a table named after `ecosystem`, which holds
+    /// only that ecosystem's rows and has no `ecosystem` column. A key of
+    /// another ecosystem would match a same-named package's rows there, so
+    /// callers reach it only for a key of `ecosystem`.
+    fn params_in(&self, ecosystem: Ecosystem) -> (&str, &str) {
+        debug_assert_eq!(self.ecosystem, ecosystem, "{} is of another ecosystem", self.name);
+        (&self.namespace, &self.name)
     }
 
     fn generation(&self, value: u64) -> Generation {

@@ -11,11 +11,12 @@ use crate::{
     dependencies_graph_to_lockfile::manifest_publish_config, fast_update_lockfile::GraphEdits,
     fast_update_settings::is_directory_dependency,
 };
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencySpec,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_semver_include_prerelease::parse_strict_semver_range;
 use std::collections::{BTreeMap, HashMap};
 
 /// The lockfile halves an importer edge is replayed against.
@@ -77,8 +78,12 @@ pub(super) fn apply_one_importer_update(
         manifest,
         manifest_dependencies,
     } = *entry;
-    let records_nothing = importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
-    if records_nothing && !manifest_dependencies.is_empty() {
+    let needs_a_new_importer = importers
+        .get(importer_id.as_str())
+        .is_none_or(|importer| {
+            records_no_dependencies(importer) && !manifest_dependencies.is_empty()
+        });
+    if needs_a_new_importer {
         let Some(new_importer) =
             importer_from_locked_versions(locked.snapshots, manifest, manifest_dependencies, plan)
         else {
@@ -144,7 +149,7 @@ pub(super) fn retarget_importer_dependency(
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
 ) -> bool {
-    let Ok(range) = Range::parse(specifier) else {
+    let Some(range) = parse_strict_semver_range(specifier) else {
         return false;
     };
     let Some(ver_peer) = dependency.version.ver_peer() else {
@@ -226,7 +231,7 @@ pub(super) fn importer_from_locked_versions(
         if is_directory_dependency(&alias.to_string(), specifier, &plan.workspace_package_names) {
             return None;
         }
-        let range = Range::parse(specifier).ok()?;
+        let range = parse_strict_semver_range(specifier)?;
         let pick = locked_version_resolution_would_pick(
             snapshots,
             alias,
@@ -286,7 +291,7 @@ pub(super) fn add_importer_edge(
     {
         return false;
     }
-    let Ok(range) = Range::parse(specifier) else {
+    let Some(range) = parse_strict_semver_range(specifier) else {
         return false;
     };
     let Some(wanted) = locked_version_resolution_would_pick(

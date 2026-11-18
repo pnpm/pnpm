@@ -85,7 +85,6 @@ fn prepare_packument_rewrite(
         return Err(err.into_response());
     }
     preserve_existing_maintainers(&hosted, packument);
-    super::publishing::variants::restore_server_fields(&hosted, packument);
     if let Some(packument_obj) = packument.as_object_mut() {
         packument_obj.insert(
             "formatVersion".to_string(),
@@ -155,7 +154,7 @@ async fn read_packument_for_rewrite(
 ) -> Result<(Value, HostedDocumentVersion), Response> {
     let registry_source = RegistrySource::Hosted(target.source.clone());
     let Some((hosted, version)) =
-        read_authorized_packument(state, identity, (target, name), Action::Publish)
+        read_authorized_packument(state, identity, (target, name), Action::Annotate)
             .await
             .map_err(IntoResponse::into_response)?
     else {
@@ -164,7 +163,7 @@ async fn read_packument_for_rewrite(
             identity,
             &registry_source,
             name.as_str(),
-            Action::Unpublish,
+            Action::Delete,
             Some(&target.namespace),
         )
         .await
@@ -176,7 +175,7 @@ async fn read_packument_for_rewrite(
         identity,
         &registry_source,
         (name.as_str(), &hosted),
-        Action::Unpublish,
+        Action::Delete,
     )
     .map_err(IntoResponse::into_response)?;
     Ok((hosted, version))

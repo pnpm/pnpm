@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.pkg-finder",
-  "version": "1100.0.45",
+  "version": "1100.0.46",
   "description": "Read a package's file map from the content-addressable store",
   "keywords": [
     "pnpm",
@@ -25,8 +25,8 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "compile": "tsgo --build && pn lint --fix",
-    "prepublishOnly": "tsgo --build",
+    "compile": "tsc --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
     "test": "pn compile && pn .test",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },

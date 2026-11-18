@@ -25,6 +25,12 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
       "path": "../../pkg-manifest/utils"
     },
     {

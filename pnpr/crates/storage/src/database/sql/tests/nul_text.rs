@@ -1,7 +1,10 @@
 //! Text holding a NUL character, which `PostgreSQL` cannot store.
 
 use super::Db;
-use crate::database::sql::adapter::{Param, Query, ReadSource, WriteTransaction};
+use crate::database::sql::{
+    adapter::{Param, Query, ReadSource, WriteTransaction},
+    schema,
+};
 use pnpr_error::RegistryError;
 
 async fn text_with_a_nul_is_refused_on_every_database(db: Db) {
@@ -9,6 +12,7 @@ async fn text_with_a_nul_is_refused_on_every_database(db: Db) {
     let sql = db.sql("SELECT ?1", "SELECT CAST(?1 AS TEXT)", "SELECT ?1");
     let nul = [Param::Text("a\0b")];
     tokio::task::spawn_blocking(move || {
+        assert!(schema::prepare_adapter_with_steps(&*adapter, schema::STEPS)?.is_none());
         adapter.write(&mut |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             assert_bad_request(&transaction.execute(sql, &nul));

@@ -112,7 +112,7 @@ pnpm --filter <package_name> run compile
 pnpm --filter pnpm run compile
 ```
 
-This runs `tsgo --build`, linting, and `pnpm run bundle` (which bundles all TypeScript packages into `pnpm11/pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
+This runs `tsc --build`, linting, and `pnpm run bundle` (which bundles all TypeScript packages into `pnpm11/pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
 
 ## Testing
 
@@ -193,19 +193,19 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 
 ### Install the git hooks before committing
 
-The git hooks in `.husky/` (including the `commit-msg` check described below) only run once husky has wired them into git. A fresh clone does **not** have them active until installed. **Before making any commit, ensure the hooks are installed** by running one of:
+The git hooks in `.config/husky/` (including the `commit-msg` check described below) only run once husky has wired them into git. A fresh clone does **not** have them active until installed. **Before making any commit, ensure the hooks are installed** by running one of:
 
 ```bash
-pnpm install      # runs the "prepare": "husky" script as part of install
+pnpm install      # runs the "prepare": "husky .config/husky" script as part of install
 # or, if dependencies are already installed, register the hooks on their own:
-pnpm exec husky
+pnpm exec husky .config/husky
 ```
 
-You can confirm the hooks are active with `git config core.hooksPath` (it should point at husky's directory) and by checking that `.husky/_/` exists. Do not commit with hooks uninstalled — that silently skips every check, including the bare `#NNN` rejection below.
+You can confirm the hooks are active with `git config core.hooksPath` (it should point at husky's directory) and by checking that `.config/husky/_/` exists. Do not commit with hooks uninstalled — that silently skips every check, including the bare `#NNN` rejection below.
 
 ### Never use bare `#NNN` issue/PR references
 
-**Do not write a bare `#NNN` (a `#` followed by digits) anywhere in a commit message.** A `commit-msg` hook (`.husky/reject-bare-issue-refs.mjs`) rejects them.
+**Do not write a bare `#NNN` (a `#` followed by digits) anywhere in a commit message.** A `commit-msg` hook (`.config/husky/reject-bare-issue-refs.mjs`) rejects them.
 
 GitHub turns any `#NNN` into a link to issue/PR `NNN` of *this* repo, which is almost never what a bare reference means. This is a frequent AI mistake, in these forms:
 
@@ -218,7 +218,7 @@ For references to issues/PRs in **this** repo, also use the qualified form `pnpm
 
 ### Never use a bare `@mention`
 
-**Do not write a bare `@name` (an `@` followed by a username-like token) anywhere in a commit message.** A `commit-msg` hook (`.husky/reject-bare-mentions.mjs`) rejects them.
+**Do not write a bare `@name` (an `@` followed by a username-like token) anywhere in a commit message.** A `commit-msg` hook (`.config/husky/reject-bare-mentions.mjs`) rejects them.
 
 GitHub turns any `@name` into a mention of that user/org/team, which is wrong either way it is meant:
 
@@ -379,7 +379,7 @@ User-facing text names only what the user can reach: their project, their config
 
 ### Prose linting
 
-[Vale](https://vale.sh) enforces the rules above with the style in [`.vale/styles/pnpm`](./.vale/styles/pnpm). [`.vale.ini`](./.vale.ini) sets which rules apply to which files. `pnpm lint:prose` runs it on the Markdown, the comments in Rust and TypeScript, and the changesets added since `origin/main`. Only errors fail the run. Pass `--minAlertLevel=warning` to also see the warnings.
+[Vale](https://vale.sh) enforces the rules above with the style in [`.config/vale/styles/pnpm`](./.config/vale/styles/pnpm). [`.vale.ini`](./.vale.ini) sets which rules apply to which files. `pnpm lint:prose` runs it on the Markdown, the comments in Rust and TypeScript, and the changesets added since `origin/main`. Only errors fail the run. Pass `--minAlertLevel=warning` to also see the warnings.
 
 Vale flags patterns, not meaning. After a prose rewrite, check whether the opening answers the reader's question, conditions are easy to find, and punctuation makes the sentence easier to read. If behavior is uncertain, name the condition or source of uncertainty instead of removing it.
 

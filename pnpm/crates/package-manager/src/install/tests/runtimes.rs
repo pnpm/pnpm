@@ -1,9 +1,11 @@
 use super::{
-    super::{Install, ProjectMutation},
     InstallDirs, is_modules_yaml_consistent, run_purge_regression_install,
     run_purge_regression_install_with_lockfile,
 };
-use crate::PolicyExcludes;
+use crate::{
+    PolicyExcludes,
+    install::{Install, ProjectMutation, effective_node_version},
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -14,9 +16,113 @@ use pnpm_modules_yaml::{
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
 use pnpm_testing_utils::registry::TestRegistry;
-use std::fs;
+use std::{fs, path::Path};
 use tempfile::tempdir;
 use text_block_macros::text_block;
+
+#[test]
+fn effective_node_version_uses_the_first_included_runtime_group() {
+    let config = Config::new();
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" } },
+            "devEngines": { "runtime": { "name": "node", "version": "26.0.0", "onFail": "download" } },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod]),
+        Some("24.0.0".to_string()),
+    );
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Dev]),
+        Some("26.0.0".to_string()),
+    );
+}
+
+#[test]
+fn effective_node_version_skips_included_groups_without_a_runtime_pin() {
+    let config = Config::new();
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "26.0.0", "onFail": "download" } },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod, DependencyGroup::Dev]),
+        Some("26.0.0".to_string()),
+    );
+}
+
+#[test]
+fn effective_node_version_ignores_a_matching_runtime_dependency_when_policy_disables_it() {
+    let mut config = Config::new();
+    config.runtime_on_fail = Some(pnpm_config::RuntimeOnFail::Ignore);
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": "^99.0.0", "onFail": "download" } },
+            "dependencies": { "node": "runtime:^99.0.0" },
+        }),
+    );
+
+    assert_eq!(effective_node_version(&config, &manifest, &[DependencyGroup::Prod]), None);
+}
+
+#[test]
+fn effective_node_version_uses_an_exact_runtime_pin_that_is_not_downloaded() {
+    let config = Config::new();
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "22.0.0", "onFail": "error" } },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod, DependencyGroup::Dev]),
+        Some("22.0.0".to_string()),
+    );
+}
+
+#[test]
+fn effective_node_version_prefers_a_downloaded_runtime_over_an_exact_pin() {
+    let config = Config::new();
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": "20.0.0", "onFail": "warn" } },
+            "devEngines": { "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" } },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod, DependencyGroup::Dev]),
+        Some("24.0.0".to_string()),
+    );
+}
+
+#[test]
+fn effective_node_version_keeps_a_different_runtime_dependency_when_policy_disables_engine_runtime()
+{
+    let mut config = Config::new();
+    config.runtime_on_fail = Some(pnpm_config::RuntimeOnFail::Ignore);
+    let manifest = PackageManifest::from_value(
+        Path::new("package.json").to_path_buf(),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": "99.0.0", "onFail": "download" } },
+            "dependencies": { "node": "runtime:20.0.0" },
+        }),
+    );
+
+    assert_eq!(
+        effective_node_version(&config, &manifest, &[DependencyGroup::Prod]),
+        Some("20.0.0".to_string()),
+    );
+}
 
 /// The prune deletes directories under `virtual_store_dir`, which can be
 /// set by repo-controlled workspace config. When that path escapes the

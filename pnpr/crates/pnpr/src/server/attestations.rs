@@ -65,7 +65,7 @@ async fn serve_attestations(
         }
         RegistrySource::Upstream(source) => {
             if let Err(err) =
-                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Read)
             {
                 return err.into_response();
             }

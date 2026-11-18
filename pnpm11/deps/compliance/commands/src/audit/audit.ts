@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { RegistriesByScope } from '@pnpm/types'
-import { pick, pickBy } from 'ramda'
+import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { type AuditContext, type AuditNetworkOptions, createAuditNetworkOptions, loadAuditContext } from './auditContext.js'
@@ -367,13 +367,14 @@ function removeIgnoredAdvisories (auditReport: AuditReport, ignoreGhsas: string[
   // Compare GHSA ids after normalizing so stored entries with varying
   // casing still match the canonical form on the advisory.
   const ignoreSet = new Set(ignoreGhsas.map(normalizeGhsaId))
-  auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
+  // Object.fromEntries keeps every id as an own key, even "__proto__".
+  auditReport.advisories = Object.fromEntries(Object.entries(auditReport.advisories).filter(([, { github_advisory_id: githubAdvisoryId, severity }]) => {
     if (!ignoreSet.has(normalizeGhsaId(githubAdvisoryId))) {
       return true
     }
     ignoredVulnerabilities[severity as AuditLevelString] += 1
     return false
-  }, auditReport.advisories)
+  }))
   return ignoredVulnerabilities
 }
 

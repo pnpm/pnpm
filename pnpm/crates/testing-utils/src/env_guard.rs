@@ -15,7 +15,7 @@
 //!   into unrelated tests or stomp a developer's shell.
 //!
 //! This is the sanctioned way for a test to write the environment, and
-//! `clippy.toml` leaves no other. Prefer not to: a subject that takes
+//! `.config/clippy.toml` leaves no other. Prefer not to: a subject that takes
 //! the value as a parameter, or through an injected capability, needs
 //! neither this guard nor its lock.
 

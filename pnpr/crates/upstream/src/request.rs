@@ -87,6 +87,7 @@ impl Upstream {
     }
 
     pub(crate) fn ensure_allowed_url(&self, url: &str) -> Result<()> {
+        self.ensure_may_fetch()?;
         if let Some(guard) = &self.http.fetch_guard
             && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
         {

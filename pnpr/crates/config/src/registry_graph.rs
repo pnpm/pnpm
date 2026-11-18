@@ -8,13 +8,12 @@ mod rules;
 
 use std::collections::BTreeSet;
 
-use rules::{build_rules, registry_access_list};
+use rules::claimed;
 
 use super::{
-    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, PackageAccess,
-    PackagePattern, Registries, Registry, RegistryConfigError, RegistryError, RegistryFile,
-    TarballFormat, TeamDirectory, UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams,
-    resolve_upstream_config,
+    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, PackagePattern,
+    Registries, Registry, RegistryConfigError, RegistryError, RegistryFile, TarballFormat,
+    UpstreamConfig, UpstreamConfigFile, UpstreamFile, resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -210,12 +209,10 @@ pub(super) fn build_hosted_entry(
     {
         return Err(namespace_collision_error(name, &namespace, other));
     }
-    let teams = TeamDirectory::new(build_teams(name, &registry.teams)?);
-    let access = registry_access_list(name, registry.access.as_ref(), &teams)?;
-    let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
-    let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
-    let patterns = rules.patterns();
-    Ok((HostedConfig { namespace, rules, teams }, ecosystem, patterns))
+    let patterns: Vec<_> =
+        ecosystem_package_keys(name, ecosystem, &registry.packages)?.into_values().collect();
+    let rules = claimed(patterns.clone());
+    Ok((HostedConfig { namespace, rules }, ecosystem, patterns))
 }
 
 /// An environment in which every variable is set to a stand-in, for checking
@@ -229,54 +226,35 @@ impl EnvVar for UnreadCredentials {
 }
 
 /// The resolved serving config, ecosystem and claimed patterns of one
-/// `upstream:` registry. The rules are built before the `resolve_upstreams`
-/// fork so the graph carries the claimed patterns on every tier, and so a
-/// `publish`/`unpublish` value — a write rule on a registry no write can land
-/// on — fails startup on every tier too. A resolver-only tier gets no serving
-/// config back, but its settings are checked all the same, with each
-/// credential left unread.
+/// `upstream:` registry. A resolver-only tier gets no serving config back,
+/// but its settings are checked all the same, with each credential left
+/// unread.
 pub(super) fn build_upstream_entry<Sys: EnvVar>(
     name: &str,
     upstream: UpstreamFile,
     resolve_upstreams: bool,
 ) -> Result<(Option<UpstreamConfig>, Ecosystem, Vec<PackagePattern>), RegistryError> {
     let ecosystem = upstream.ecosystem.unwrap_or_default();
-    // The registry-level default the rules fall back to: the upstream's
-    // `access:` gate, or `$all` for a public origin.
-    let teams = TeamDirectory::new(build_teams(name, &upstream.teams)?);
-    let access = registry_access_list(name, upstream.access.as_ref(), &teams)?;
-    let packages = ecosystem_package_keys(name, ecosystem, upstream.packages.clone())?;
-    let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
-    if rules.refines_writes() {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "upstream registry {name:?} declares `publish`/`unpublish` rules in \
-                 its `packages:` map; writes can never land on an upstream",
-            ),
-        });
-    }
-    let patterns = rules.patterns();
+    let patterns: Vec<_> =
+        ecosystem_package_keys(name, ecosystem, &upstream.packages)?.into_values().collect();
+    let rules = claimed(patterns.clone());
     if !resolve_upstreams {
-        resolve_upstream_registry::<UnreadCredentials>(name, upstream, &teams)?;
+        resolve_upstream_registry::<UnreadCredentials>(name, upstream)?;
         return Ok((None, ecosystem, patterns));
     }
-    let mut resolved = resolve_upstream_registry::<Sys>(name, upstream, &teams)?;
+    let mut resolved = resolve_upstream_registry::<Sys>(name, upstream)?;
     resolved.rules = rules;
     Ok((Some(resolved), ecosystem, patterns))
 }
 
-/// Resolve an `upstream:` registry into the shared [`UpstreamConfig`] runtime shape.
-/// A `public` upstream is anonymous and world-readable (no credential, no
-/// access gate); a non-`public` one must declare `access:` naming who may
-/// reach it at `/~<name>/`. Declaring both `public` and `auth` is rejected —
-/// a public origin sends no credential.
+/// Resolve an `upstream:` registry into the shared [`UpstreamConfig`] runtime
+/// shape. A `public` upstream is anonymous: declaring `auth` or `headers` on
+/// one is rejected, because a public origin sends no credential.
 pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
     name: &str,
     file: UpstreamFile,
-    teams: &TeamDirectory,
 ) -> Result<UpstreamConfig, RegistryError> {
     validate_upstream_access(name, &file)?;
-    let access = if file.public { None } else { file.access };
     let upstream_config_file = UpstreamConfigFile {
         url: file.url,
         auth: file.auth,
@@ -288,9 +266,9 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
         fail_timeout: file.fail_timeout,
         cache: file.cache,
         search: file.search,
-        access,
+        public: file.public,
     };
-    resolve_upstream_config::<Sys>(name, upstream_config_file, teams)
+    resolve_upstream_config::<Sys>(name, upstream_config_file)
 }
 
 /// Public origins must reject credentials and access gates rather than silently
@@ -307,14 +285,6 @@ pub(super) fn validate_upstream_access(
             ),
         });
     }
-    if file.public && file.access.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "upstream registry {name:?} is `public` but also declares `access`; a public origin \
-                 is reachable anonymously",
-            ),
-        });
-    }
     if file.public && !file.headers.is_empty() {
         // A public origin is fetched anonymously, so it sends no request headers
         // at all. Rejecting *any* custom header (not just `Authorization`) closes
@@ -324,14 +294,6 @@ pub(super) fn validate_upstream_access(
             reason: format!(
                 "upstream registry {name:?} is `public` but declares custom `headers`; a public \
                  origin is fetched anonymously and sends none",
-            ),
-        });
-    }
-    if !file.public && file.access.is_none() {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "upstream registry {name:?} must set `public: true` or declare `access:` (who may \
-                 reach it at /~{name}/)",
             ),
         });
     }

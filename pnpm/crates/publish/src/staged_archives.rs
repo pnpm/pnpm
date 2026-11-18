@@ -82,64 +82,21 @@ async fn stage_archive(
     authorization: Option<&str>,
     archive: &StagedArchive<'_>,
 ) -> Result<bool, StagingError> {
-    if staged_headers(client, registry, authorization, &archive.integrity)
-        .await?
-        .is_some()
-    {
+    if is_staged(client, registry, authorization, &archive.integrity).await? {
         return Ok(false);
     }
     upload_archive(client, registry, authorization, archive).await?;
     Ok(true)
 }
 
-/// Upload every archive of `archives` to `registry`'s staging endpoint,
-/// without asking whether it is staged already: uploading staged bytes
-/// again renews them.
-pub(crate) async fn upload_archives(
-    client: &ThrottledClient,
-    registry: &NormalizedRegistryUrl,
-    authorization: Option<&str>,
-    archives: &[StagedArchive<'_>],
-) -> Result<(), StagingError> {
-    stream::iter(archives)
-        .map(Ok::<_, StagingError>)
-        .try_for_each_concurrent(CONCURRENT_UPLOADS, |archive| {
-            upload_archive(client, registry, authorization, archive)
-        })
-        .await
-}
-
-/// The size of the archive `registry` holds staged by `integrity` for the
-/// caller, or `None` when it holds none, such as one another account staged
-/// or one that expired or expires within the hour.
-pub(crate) async fn staged_length(
+/// Whether `registry` holds the archive staged by `integrity` for the
+/// caller.
+async fn is_staged(
     client: &ThrottledClient,
     registry: &NormalizedRegistryUrl,
     authorization: Option<&str>,
     integrity: &str,
-) -> Result<Option<u64>, StagingError> {
-    let Some(headers) = staged_headers(client, registry, authorization, integrity).await? else {
-        return Ok(None);
-    };
-    // A `HEAD` response has no body, so its size is the header's, not the
-    // body's that `content_length` reports.
-    headers
-        .get("content-length")
-        .and_then(|length| length.to_str().ok()?.parse().ok())
-        .map(Some)
-        .ok_or_else(|| {
-            staging_failure(registry, integrity, "HEAD answered without a Content-Length")
-        })
-}
-
-/// The headers of `registry`'s answer to `HEAD` for the archive staged by
-/// `integrity`, or `None` when it holds none for the caller.
-async fn staged_headers(
-    client: &ThrottledClient,
-    registry: &NormalizedRegistryUrl,
-    authorization: Option<&str>,
-    integrity: &str,
-) -> Result<Option<reqwest::header::HeaderMap>, StagingError> {
+) -> Result<bool, StagingError> {
     let url = staging_url(registry, integrity)?;
     let guard = client.acquire_for_url(&url).await;
     let mut head = guard.head(&url);
@@ -151,8 +108,8 @@ async fn staged_headers(
         .await
         .map_err(|error| staging_failure(registry, integrity, &error.to_string()))?;
     match response.status().as_u16() {
-        200 => Ok(Some(response.headers().clone())),
-        404 => Ok(None),
+        200 => Ok(true),
+        404 => Ok(false),
         status => Err(staging_failure(registry, integrity, &format!("HEAD answered {status}"))),
     }
 }
@@ -225,7 +182,7 @@ pub enum StagingError {
     #[diagnostic(
         code(ERR_PNPM_BATCH_PUBLISH_STAGING_FAILED),
         help(
-            "A registry declared `serverType: pnpr` receives each archive on its own request before the publish that references it. Nothing was published to this registry. Running the publish again uploads only the archives it still lacks."
+            "A registry declared `serverType: pnpr` receives each archive on its own request before the batch commit. Nothing was published to this registry. Running the publish again uploads only the archives it still lacks."
         )
     )]
     Failed {

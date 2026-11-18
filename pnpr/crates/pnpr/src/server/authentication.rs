@@ -3,8 +3,10 @@ pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
     AuthorizationDecision, Ownership, allows_with_ownership, authorize,
     authorize_against_packument, authorize_continuation, authorize_package,
-    authorize_with_ownership, authorize_without_owners, needs_package_owners,
+    authorize_package_write, authorize_with_ownership, authorize_without_owners,
+    needs_package_owners,
 };
+pub(super) use pnpr_policy::Action;
 
 mod accounts;
 mod credentials;
@@ -52,22 +54,13 @@ pub(super) fn carries_bearer_secret(headers: &HeaderMap, expected: &str) -> bool
         })
 }
 
-/// What the caller is trying to do with a package. Drives which
-/// rule from the access policy applies.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum Action {
-    Access,
-    Publish,
-    Unpublish,
-}
-
-impl Action {
-    fn label(self) -> &'static str {
-        match self {
-            Action::Access => "access",
-            Action::Publish => "publish",
-            Action::Unpublish => "unpublish",
-        }
+/// The verb a denial of `action` names.
+fn action_label(action: Action) -> &'static str {
+    match action {
+        Action::Read | Action::Cache => "access",
+        Action::Publish | Action::Annotate => "publish",
+        Action::Delete => "unpublish",
+        Action::Manage => "manage",
     }
 }
 
@@ -112,7 +105,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
 /// both and surfaces them on `npm token list`, so it must enforce them too
 /// — otherwise a token the operator restricted could still publish, or be
 /// used from any network. Basic-auth and anonymous requests carry no
-/// restriction and are still subject to the per-package access policy in
+/// restriction and are still subject to the grants in
 /// the handlers; an unknown or revoked bearer token resolves to anonymous.
 pub(super) async fn authenticate(
     State(state): State<AppState>,
@@ -346,7 +339,7 @@ async fn resolve_caller(
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
             let name = active_account_name(state, &user.user_id).await?;
-            return Ok((super::oidc_groups::session_identity(&state.routing(), user, name), None));
+            return Ok((super::team_directory::session_identity(state, user, name), None));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc
@@ -372,7 +365,7 @@ async fn resolve_caller(
             check_token_restrictions(&record, method, path, client_ip)?;
             state.inner.identity.last_used.record_raw(&raw_token, record.last_used_at);
             let identity = match record.owner_name().map(str::to_string) {
-                Some(name) => Identity::account(record.user_id, name),
+                Some(name) => super::team_directory::account_identity(state, record.user_id, name),
                 None => account_identity(state, &record.user_id).await?,
             };
             return Ok((identity, None));

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/core-loggers",
-  "version": "1101.0.4",
+  "version": "1101.0.5",
   "description": "Core loggers of pnpm",
   "keywords": [
     "pnpm",
@@ -27,11 +27,11 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/types": "workspace:*"

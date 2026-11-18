@@ -2,9 +2,8 @@ use super::{
     super::{host_platform_selector, runtime_platform_selector},
     build_runtime_tarball_fixture, leaked_offline_config,
 };
-use crate::{
-    install_package_by_snapshot::runtime::synthesize_runtime_manifest_bytes,
-    platform_selection::runtime_platform_of,
+use crate::install_package_by_snapshot::runtime::{
+    runtime_platform_of, synthesize_runtime_manifest_bytes,
 };
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
@@ -93,12 +92,7 @@ fn runtime_platform_selector_prefers_the_host_among_the_platforms_a_list_names()
 /// an archive for a platform nobody named.
 #[test]
 fn runtime_platform_selector_stays_among_the_platforms_named() {
-    let host = PlatformSelector {
-        os: "linux".to_string(),
-        cpu: "x64".to_string(),
-        libc: None,
-        floors: None,
-    };
+    let host = PlatformSelector { os: "linux".to_string(), cpu: "x64".to_string(), libc: None };
     let platforms = vec!["linux-x64-musl".parse().unwrap()];
 
     assert_eq!(
@@ -107,7 +101,6 @@ fn runtime_platform_selector_stays_among_the_platforms_named() {
             os: "linux".to_string(),
             cpu: "x64".to_string(),
             libc: Some("musl".to_string()),
-            floors: Some(pnpm_lockfile::HostFloors::default()),
         },
     );
 }
@@ -298,7 +291,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
+        runtime_platform_selector: &host_platform_selector(),
 
         defer_link: false,
         link_concurrency_probe: None,
@@ -386,7 +379,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
+        runtime_platform_selector: &host_platform_selector(),
 
         defer_link: false,
         link_concurrency_probe: None,

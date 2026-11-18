@@ -2,8 +2,8 @@ use crate::model::CatalogEntries;
 
 use super::{
     Component, DEFAULT_CATALOG_NAME, Document, IndexMap, Inline, Manifest, Op, Patch, Route,
-    comment_start, flow, insert_top_level_block, locate, locate_mapping, render, splice,
-    structural_colon_index,
+    comment_start, flow, insert_top_level_block, locate, locate_mapping, nested::write_chain_at,
+    render, splice, structural_colon_index,
 };
 
 /// Where a catalog's entries live (or should be created) in the manifest.
@@ -274,45 +274,12 @@ pub(super) fn write_rendered_entry_at(
 
 /// Write a new named mapping (`<name>:` + its first entry) into an existing
 /// top-level `block`, at the position the reorder pass would choose.
-pub(super) fn write_named_subblock(
-    text: &str,
-    block: &str,
-    name: &str,
-    dep: &str,
-    value: &str,
-) -> String {
+fn write_named_subblock(text: &str, block: &str, name: &str, dep: &str, value: &str) -> String {
     if let Inline::Flow(collection) = locate_mapping(text, &[block]) {
         let entry = format!("{{ {}: {value} }}", render::render_value(dep));
         return flow::upsert(text, &collection, name, &entry);
     }
-    let catalogs = locate(text, &[block]).expect("top-level block exists");
-    let existing: Vec<String> = catalogs.entries
-        .iter()
-        .map(|entry| entry.key.clone())
-        .collect();
-    let order = render::target_order(&existing, &[name.to_string()]);
-    let position = order
-        .iter()
-        .position(|key| key == name)
-        .expect("name is in the merged order");
-
-    let indent = " ".repeat(catalogs.entry_indent);
-    let block = format!(
-        "{indent}{}:\n{indent}  {}: {value}\n",
-        render::render_value(name),
-        render::render_value(dep),
-    );
-    let offset = if position == 0 {
-        catalogs.body_start
-    } else {
-        let predecessor = &order[position - 1];
-        catalogs.entries
-            .iter()
-            .find(|entry| &entry.key == predecessor)
-            .expect("predecessor entry exists")
-            .block_end
-    };
-    splice(text, offset, &block)
+    write_chain_at(text, &[block], &[name], dep, value)
 }
 
 /// Rewrite an entry's value in place under `path`, replacing the whole

@@ -61,7 +61,7 @@ pub(crate) fn selected_materialization_closure(
         &retained_source,
         workspace_root,
         &retained_ids,
-        &crate::GroupSelection::all().linking_as(groups),
+        &crate::GroupSelection::all(),
         &skipped.without_optional_excluded(),
     );
     merge_retained_closure(&mut selected_closure, retained_closure, groups);

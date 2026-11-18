@@ -184,6 +184,7 @@ fn frozen_install_accepts_missing_dependency_free_workspace_importer() {
     lockfile
         .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
         .expect("save lockfile without pkg-b importer");
+    let saved = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
     fs::remove_dir_all(workspace.join("pkg-a/node_modules")).expect("remove pkg-a node_modules");
 
@@ -195,12 +196,17 @@ fn frozen_install_accepts_missing_dependency_free_workspace_importer() {
         workspace.join("pkg-a/node_modules/is-positive/package.json").exists(),
         "the frozen install must still link pkg-a's dependencies",
     );
+    assert_eq!(
+        fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"),
+        saved,
+        "a frozen install must not write the lockfile",
+    );
 
     drop((root, mock_instance));
 }
 
 #[test]
-fn normal_install_accepts_missing_dependency_free_workspace_importer() {
+fn normal_install_records_missing_dependency_free_workspace_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
         &serde_json::json!({ "name": "pkg-a", "version": "1.0.0" }),
         &serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }),
@@ -224,13 +230,13 @@ fn normal_install_accepts_missing_dependency_free_workspace_importer() {
         .with_arg("install")
         .assert()
         .success();
-    let retained: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
-        &fs::read_to_string(&lockfile_path).expect("read retained pnpm-lock.yaml"),
+    let rewritten: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        &fs::read_to_string(&lockfile_path).expect("read rewritten pnpm-lock.yaml"),
     )
-    .expect("parse retained pnpm-lock.yaml");
+    .expect("parse rewritten pnpm-lock.yaml");
     assert!(
-        !retained.importers.contains_key("pkg-b"),
-        "dependency-free pkg-b should not force lockfile regeneration",
+        rewritten.importers.contains_key("pkg-b"),
+        "the install must write back dependency-free pkg-b's importer",
     );
 
     drop((root, mock_instance));

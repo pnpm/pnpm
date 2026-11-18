@@ -28,7 +28,7 @@ async function main (): Promise<void> {
   assert.notEqual(tsconfigFiles.length, 0)
 
   writeTypeCheckTsConfig(tsconfigFiles)
-  runTsgo()
+  runTsc()
 }
 
 function writeTypeCheckTsConfig (tsconfigFiles: string[]): void {
@@ -61,19 +61,19 @@ function writeTypeCheckTsConfig (tsconfigFiles: string[]): void {
   )
 }
 
-function runTsgo (): void {
+function runTsc (): void {
   const singleThreaded = resolveThreadingMode(repoRoot)
   const args = ['--build']
   if (singleThreaded) {
     args.push('--singleThreaded')
   }
   args.push(typeCheckDir)
-  console.log(`Running tsgo --build${singleThreaded ? ' --singleThreaded' : ''}...`)
-  execa('tsgo', args, {
+  console.log(`Running tsc --build${singleThreaded ? ' --singleThreaded' : ''}...`)
+  execa('tsc', args, {
     cwd: process.env.INIT_CWD,
     stdio: 'inherit',
   })
-  console.log('Running tsgo build done')
+  console.log('Running tsc build done')
 }
 
 const AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB = 8

@@ -310,7 +310,6 @@ pub fn manifest_file_count(manifest: Option<&Value>) -> Option<usize> {
 /// is derived from the tarball's own bytes and stripped on ingest.
 #[must_use]
 pub fn manifest_requires_build(manifest: Option<&Value>) -> Option<bool> {
-    let manifest = manifest.filter(|manifest| !has_platform_variants(manifest));
     manifest?
         .get("dist")?
         .get("pnpr")?
@@ -323,8 +322,7 @@ pub fn manifest_requires_build(manifest: Option<&Value>) -> Option<bool> {
 pub fn manifest_bins(
     manifest: Option<&Value>,
 ) -> Option<std::sync::Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>> {
-    let raw = manifest
-        .filter(|manifest| !has_platform_variants(manifest))?
+    let raw = manifest?
         .get("dist")?
         .get("pnpr")?
         .get("bins")?;
@@ -337,18 +335,7 @@ pub fn manifest_bins(
     .then(|| std::sync::Arc::new(bins))
 }
 
-/// Whether the version publishes platform variants. Its `dist` facts then
-/// describe only the variant that targets `any`, which a host may not
-/// install.
-fn has_platform_variants(manifest: &Value) -> bool {
-    manifest
-        .pointer("/dist/pnpr/variants")
-        .and_then(Value::as_array)
-        .is_some_and(|variants| !variants.is_empty())
-}
-
 fn manifest_dist_field(manifest: Option<&Value>, field: &str) -> Option<usize> {
-    let manifest = manifest.filter(|manifest| !has_platform_variants(manifest));
     // `usize::try_from` so a `u64` value larger than the host's
     // `usize` (32-bit targets) degrades to "no hint" rather than
     // truncating silently and producing an undersized pre-allocation.

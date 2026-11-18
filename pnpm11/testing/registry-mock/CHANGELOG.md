@@ -1,5 +1,13 @@
 # @pnpm/testing.registry-mock
 
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/network.fetch@1100.1.26
+  - @pnpm/registry-access.client@1100.1.28
+
 ## 1100.0.18
 
 ### Patch Changes

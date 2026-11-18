@@ -8,8 +8,8 @@ use crate::{
     State,
     cli_args::{
         approve_builds::{
-            ApproveBuildsArgs, config_with_install_approvals, confirm, disambiguated_labels,
-            partition_params, prompt_for_choices,
+            ApprovalStore, ApproveBuildsArgs, confirm, disambiguated_labels, partition_params,
+            prompt_for_choices,
         },
         ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
         rebuild::{RebuildSelection, run_rebuild},
@@ -130,7 +130,8 @@ impl ApproveArgs {
         }
         clear_decided(pending.scan, &approval.decisions)?;
 
-        let approved_config = config_with_install_approvals(config, &settings_dir)?;
+        let approved_config =
+            ApprovalStore::Workspace(&settings_dir).config_with_approvals(config)?;
         if approval.decisions.values().any(|decided| decided.skills.is_some()) {
             resync_installed_agent_skills(approved_config, manifest_dir)?;
         }

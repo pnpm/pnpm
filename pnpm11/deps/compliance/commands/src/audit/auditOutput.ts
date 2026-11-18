@@ -1,5 +1,5 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
-import type { AuditAdvisory, AuditLevelNumber, AuditLevelString, AuditReport, AuditVulnerabilityCounts, IgnoredAuditVulnerabilityCounts } from '@pnpm/deps.compliance.audit'
+import type { AdvisoryId, AuditAdvisory, AuditLevelNumber, AuditLevelString, AuditReport, AuditVulnerabilityCounts, IgnoredAuditVulnerabilityCounts } from '@pnpm/deps.compliance.audit'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 
@@ -99,7 +99,7 @@ function listSeverityCounts (severities: Array<{ auditLevel: AuditLevelString, c
 }
 
 interface IdAndAdvisory {
-  id: number
+  id: AdvisoryId
   advisory?: AuditAdvisory
 }
 
@@ -131,7 +131,7 @@ export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditRep
 /**
  * Sort the given array of advisory IDs by severity descending
  */
-function sortBySeverity (ids: number[], auditReport: AuditReport): IdAndAdvisory[] {
+function sortBySeverity (ids: AdvisoryId[], auditReport: AuditReport): IdAndAdvisory[] {
   return ids.map(id => ({ id, advisory: auditReport.advisories[id] })).sort((left, right) => {
     const leftValue = left.advisory ? AUDIT_LEVEL_NUMBER[left.advisory.severity] : -1
     const rightValue = right.advisory ? AUDIT_LEVEL_NUMBER[right.advisory.severity] : -1

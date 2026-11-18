@@ -15,8 +15,8 @@
 //! time it is served, so it changes only when the package does.
 
 pub(super) use release_records::{
-    accepted_record_response, record_address, release_record, selected_revision,
-    version_document_response, without_pnpr_facts_in,
+    accepted_record_response, record_address, release_record, version_document_response,
+    without_pnpr_facts_in,
 };
 
 use axum::http::{HeaderMap, header};
@@ -36,7 +36,7 @@ const DIST_FIELDS: [&str; 3] = ["integrity", "fileCount", "unpackedSize"];
 
 /// The fields of `dist.pnpr` that pnpr's format keeps beside them. npm's
 /// documents carry none of them.
-const PNPR_FIELDS: [&str; 3] = ["requiresBuild", "bins", "variants"];
+const PNPR_FIELDS: [&str; 2] = ["requiresBuild", "bins"];
 
 /// Whether the client's `Accept` header offers pnpr's format.
 pub(super) fn wants_install_v2(headers: &HeaderMap) -> bool {

@@ -106,6 +106,35 @@ pub enum Command {
         #[command(subcommand)]
         action: RegistriesSubcommand,
     },
+    /// Read or replace the grants the database stores: who may do what to the
+    /// packages of which registries.
+    Grants {
+        #[command(subcommand)]
+        action: GrantsSubcommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum GrantsSubcommand {
+    /// Print the stored grants as YAML, under a `grants` key.
+    Export {
+        /// Write the YAML to this file instead of standard output.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Replace the stored grants with the ones a YAML file declares. A grant
+    /// the file leaves out is removed.
+    Import {
+        /// YAML file with a `grants` key.
+        file: PathBuf,
+        /// Check the file and report what would change without storing it.
+        #[arg(long, conflicts_with = "check")]
+        dry_run: bool,
+        /// Compare the file with the stored grants without storing it, and
+        /// exit with code 1 when they differ.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -155,6 +184,7 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
             run_add_user_command(config, username, password).await
         }
         Command::Registries { action } => crate::registries_command::run(config, action).await,
+        Command::Grants { action } => crate::grants_command::run(config, action).await,
     }
 }
 
@@ -163,9 +193,10 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
 async fn with_registries(config: &Config, command: &Command) -> miette::Result<Config> {
     let credentials = match command {
         Command::CacheGc { .. } => Credentials::Resolve,
-        Command::Gc { .. } | Command::Verify { .. } | Command::MigrateStorage { .. } => {
-            Credentials::Skip
-        }
+        Command::Gc { .. }
+        | Command::Verify { .. }
+        | Command::MigrateStorage { .. }
+        | Command::Grants { .. } => Credentials::Skip,
         _ => return Ok(config.clone()),
     };
     with_stored_routing(config, credentials, FileReferences::Warn).await

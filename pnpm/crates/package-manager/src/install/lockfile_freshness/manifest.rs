@@ -215,7 +215,11 @@ pub(super) fn normalized_freshness_manifest<'a>(
     check: &'a ImporterSatisfactionCheck<'a>,
     importer: &pnpm_lockfile::ProjectSnapshot,
 ) -> std::borrow::Cow<'a, PackageManifest> {
-    if check.overrider.is_none() && !check.config.exclude_links_from_lockfile {
+    let recorded_meta = recorded_dependencies_meta(check, importer);
+    if check.overrider.is_none()
+        && !check.config.exclude_links_from_lockfile
+        && recorded_meta.is_none()
+    {
         return std::borrow::Cow::Borrowed(check.manifest);
     }
     let project_dir = check.manifest
@@ -223,6 +227,12 @@ pub(super) fn normalized_freshness_manifest<'a>(
         .parent()
         .unwrap_or_else(|| Path::new("."));
     let mut cloned = check.manifest.clone();
+    if let (Some(meta), Some(manifest)) = (recorded_meta, cloned.value_mut().as_object_mut()) {
+        match meta {
+            Some(meta) => manifest.insert("dependenciesMeta".to_string(), meta),
+            None => manifest.remove("dependenciesMeta"),
+        };
+    }
     if let Some(overrider) = check.overrider {
         overrider.apply(&mut cloned, Some(project_dir));
     }
@@ -234,4 +244,19 @@ pub(super) fn normalized_freshness_manifest<'a>(
         exclude_linked_dependencies(&mut cloned, workspace_links, Some(importer));
     }
     std::borrow::Cow::Owned(cloned)
+}
+
+/// The manifest's `dependenciesMeta` as a next-format lockfile records it
+/// (see [`pnpm_lockfile::ProjectSnapshot::injected_dependencies_meta`]), when
+/// that differs from the manifest's.
+fn recorded_dependencies_meta(
+    check: &ImporterSatisfactionCheck<'_>,
+    importer: &pnpm_lockfile::ProjectSnapshot,
+) -> Option<Option<serde_json::Value>> {
+    if !check.lockfile.is_next_format() {
+        return None;
+    }
+    let declared = check.manifest.value().get("dependenciesMeta");
+    let recorded = importer.injected_dependencies_meta(declared);
+    (recorded.as_ref() != declared).then_some(recorded)
 }

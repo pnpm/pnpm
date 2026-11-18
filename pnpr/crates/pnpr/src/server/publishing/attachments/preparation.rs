@@ -3,7 +3,7 @@
 
 use super::{
     AttachmentKind, CanonicalPackageName, HashSet, PendingAttachment, PreparedAttachment,
-    RegistryError, Value, variants,
+    RegistryError, Value,
 };
 
 pub(super) fn prepare_attachments(
@@ -22,9 +22,7 @@ pub(super) fn prepare_attachments(
                 reason: format!("duplicate attachment for {}", item.canonical),
             });
         }
-        // A version published without an `any` archive has only variants
-        // until pnpr generates its archive, and a statement names them.
-        if matches!(item.kind, AttachmentKind::Tarball | AttachmentKind::Variant) {
+        if item.kind == AttachmentKind::Tarball {
             tarball_versions.insert(item.version.clone());
         }
         prepared.push(item);
@@ -39,18 +37,12 @@ pub(super) fn prepare_attachments(
     Ok(prepared)
 }
 
-/// Prepare an attachment to be verified against its version's `dist`, or a
-/// variant's against the integrity it declares.
+/// Prepare an attachment to be verified against its version's `dist`.
 fn prepare_attachment(
     name: &CanonicalPackageName,
     incoming: &Value,
     attachment: PendingAttachment,
 ) -> Result<PreparedAttachment, RegistryError> {
-    if let Some(parsed) = variants::parse_variant_attachment(name, &attachment.filename) {
-        let parsed = parsed?;
-        variants::check_version(incoming, &attachment.filename, &parsed.1)?;
-        return variants::prepare_variant_attachment(attachment, parsed);
-    }
     let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
     if kind == AttachmentKind::Sigstore && attachment.declared_integrity.is_some() {
         return Err(RegistryError::InvalidAttachment {
@@ -66,7 +58,7 @@ fn prepare_attachment(
         .cloned()
         .unwrap_or(Value::Null);
     check_declared_integrity(&attachment, &dist)?;
-    Ok(PreparedAttachment { attachment, canonical, version, dist, kind, variant_tag: None })
+    Ok(PreparedAttachment { attachment, canonical, version, dist, kind })
 }
 
 /// Refuse a version's archive that declares another integrity than its

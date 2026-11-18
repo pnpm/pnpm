@@ -9,7 +9,7 @@
 
 use super::{
     npm_handlers::{NamePath, ScopedVersionPath},
-    variant_handlers::get_scoped_version_manifest_or_variant,
+    serve_version_manifest,
 };
 use crate::server::{
     AppState, AuthedCaller, Path, Response, State, TargetRegistry, not_found,
@@ -17,7 +17,7 @@ use crate::server::{
 };
 use axum::{
     body::Bytes,
-    http::{HeaderMap, Method, StatusCode},
+    http::{Method, StatusCode},
 };
 use serde::Deserialize;
 
@@ -33,15 +33,29 @@ pub(super) struct ScopedNamePath {
     name: String,
 }
 
-/// `{base}/{a}/{b}/{c}`: a scoped version document, an unscoped package's
-/// platform variant (`{name}@{version}/variants/{tag}`), or an unscoped (or
+/// `GET {base}/@{scope}/{pkg}/{version-or-tag}` — a scoped package's version
+/// manifest. A first segment that is not a scope names no package.
+async fn get_scoped_version_manifest(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopedVersionPath>,
+) -> Response {
+    let ScopedVersionPath { scope, name, version } = path;
+    if !scope.starts_with('@') {
+        return not_found();
+    }
+    let full = format!("{scope}/{name}");
+    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version).await
+}
+
+/// `{base}/{a}/{b}/{c}`: a scoped version document, or an unscoped (or
 /// `%2F`-encoded scoped) version's note.
 pub(super) async fn three_segments(
     state: State<AppState>,
     caller: AuthedCaller,
     registry: TargetRegistry,
     method: Method,
-    headers: HeaderMap,
     Path(path): Path<ScopedVersionPath>,
     body: Bytes,
 ) -> Response {
@@ -61,14 +75,7 @@ pub(super) async fn three_segments(
         if method != Method::GET && method != Method::HEAD {
             return not_found();
         }
-        return get_scoped_version_manifest_or_variant(
-            state,
-            caller,
-            registry,
-            headers,
-            Path(path),
-        )
-        .await;
+        return get_scoped_version_manifest(state, caller, registry, Path(path)).await;
     }
     version_note(&state, &caller, &registry, (&path.scope, &path.name), (&method, body)).await
 }

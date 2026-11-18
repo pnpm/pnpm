@@ -147,17 +147,16 @@ impl RoutingConfig {
         Ok(())
     }
 
-    /// Mirror the YAML rule ([`resolve_upstream_registry`](crate::registry_graph::resolve_upstream_registry)): an upstream with no
-    /// `access:` gate is publicly reachable at `/~<name>/`, and a public origin
-    /// sends no request headers — any header can carry a credential, and an
-    /// ungated endpoint would let every caller spend it (a confused deputy).
+    /// Mirror the YAML rule ([`resolve_upstream_registry`](crate::registry_graph::resolve_upstream_registry)): a `public`
+    /// upstream sends no request headers, because any header can carry a
+    /// credential.
     pub(super) fn ensure_public_upstreams_send_no_headers(&self) -> Result<(), RegistryError> {
         for (name, upstream) in &self.upstreams {
-            if upstream.access.is_none() && !upstream.headers.is_empty() {
+            if upstream.public && !upstream.headers.is_empty() {
                 return Err(RegistryError::InvalidConfig {
                     reason: format!(
-                        "upstream registry {name:?} sends custom headers but declares no \
-                         `access:` gate; a publicly reachable upstream must send none",
+                        "upstream registry {name:?} is `public` but sends custom headers; a \
+                         public origin is fetched anonymously and sends none",
                     ),
                 });
             }

@@ -33,79 +33,73 @@ CREATE TABLE IF NOT EXISTS package_owners (
 -- flips in place.
 CREATE TABLE IF NOT EXISTS cargo_versions (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     position BIGINT NOT NULL,
     yanked BIGINT NOT NULL,
     entry LONGTEXT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 CREATE INDEX cargo_versions_by_position
-    ON cargo_versions (namespace, ecosystem, name, position);
+    ON cargo_versions (namespace, name, position);
 
 -- Published distribution files of a Python project, ordered by `position`.
 -- `entry` holds the immutable PEP 691 file metadata; `yanked` and `yank_reason`
 -- change in place.
 CREATE TABLE IF NOT EXISTS pypi_files (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     filename VARBINARY(512) NOT NULL,
     position BIGINT NOT NULL,
     yanked BIGINT NOT NULL,
     yank_reason LONGTEXT,
     entry LONGTEXT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, filename)
+    PRIMARY KEY (namespace, name, filename)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 CREATE INDEX pypi_files_by_position
-    ON pypi_files (namespace, ecosystem, name, position);
+    ON pypi_files (namespace, name, position);
 
 -- Distribution filenames permanently reserved after deletion from a Python
 -- project, so a deleted filename can never be uploaded again.
-CREATE TABLE IF NOT EXISTS removed_pypi_files (
+CREATE TABLE IF NOT EXISTS pypi_removed_files (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     filename VARBINARY(512) NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, filename)
+    PRIMARY KEY (namespace, name, filename)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Manifests retained in an OCI image repository, keyed by content digest.
 -- `entry` holds child digests and indexed referrer metadata.
 CREATE TABLE IF NOT EXISTS oci_manifests (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     digest VARBINARY(512) NOT NULL,
     entry LONGTEXT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, digest)
+    PRIMARY KEY (namespace, name, digest)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Mutable tags of an OCI image repository and the manifest digest each names.
 CREATE TABLE IF NOT EXISTS oci_tags (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     tag VARBINARY(512) NOT NULL,
     digest VARBINARY(512) NOT NULL,
     updated BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag)
+    PRIMARY KEY (namespace, name, tag)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: a version's artifact integrity. `accepted_generation` is the
 -- namespace generation that accepted it, which is the id of the version's
 -- initial publication.
-CREATE TABLE IF NOT EXISTS versions (
+CREATE TABLE IF NOT EXISTS npm_versions (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     integrity VARBINARY(512) NOT NULL,
     published_at BIGINT,
     accepted_generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the manifest accepted for a version under an interpretation
@@ -114,32 +108,30 @@ CREATE TABLE IF NOT EXISTS versions (
 -- for the `submitted` profile, whose input is the manifest itself.
 -- `accepted_digest` covers the manifest, README, profile, and inputs, which a
 -- restatement of the version must match.
-CREATE TABLE IF NOT EXISTS accepted_manifests (
+CREATE TABLE IF NOT EXISTS npm_accepted_manifests (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     profile VARBINARY(512) NOT NULL,
     manifest LONGTEXT NOT NULL,
     inputs LONGTEXT NOT NULL,
     accepted_digest LONGTEXT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version, profile)
+    PRIMARY KEY (namespace, name, version, profile)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
 -- under `profile` and served unchanged at its record route. `digest` is their
 -- SHA-512, `sha512-<base64>`, which the record's log entry commits to, and
 -- `log_index` the index of that entry in its namespace's log.
-CREATE TABLE IF NOT EXISTS release_records (
+CREATE TABLE IF NOT EXISTS npm_release_records (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     profile VARBINARY(512) NOT NULL,
     record LONGBLOB NOT NULL,
     digest VARBINARY(512) NOT NULL,
     log_index BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version, profile)
+    PRIMARY KEY (namespace, name, version, profile)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the transparency log of each namespace's records of one
@@ -167,32 +159,29 @@ CREATE TABLE IF NOT EXISTS log_heads (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Kept out of the manifest so a README never inflates resolution metadata.
-CREATE TABLE IF NOT EXISTS readmes (
+CREATE TABLE IF NOT EXISTS npm_readmes (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     readme LONGTEXT,
     readme_filename LONGTEXT,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
-CREATE TABLE IF NOT EXISTS tags (
+CREATE TABLE IF NOT EXISTS npm_tags (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     tag VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag)
+    PRIMARY KEY (namespace, name, tag)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: every move of a tag, so a release-age or downgrade policy can
 -- see when a tag moved, not only where it points. Kept when the package is
 -- removed.
-CREATE TABLE IF NOT EXISTS tag_history (
+CREATE TABLE IF NOT EXISTS npm_tag_history (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     tag VARBINARY(512) NOT NULL,
     generation BIGINT NOT NULL,
@@ -200,7 +189,7 @@ CREATE TABLE IF NOT EXISTS tag_history (
     target LONGTEXT,
     principal VARBINARY(512),
     changed_at BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, tag, generation)
+    PRIMARY KEY (namespace, name, tag, generation)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the identity of every version removed from a package, by
@@ -220,7 +209,7 @@ CREATE TABLE IF NOT EXISTS removed_versions (
 -- removing the repository, so a publication that introduced it is not replayed
 -- after its removal. Kept when the repository is removed, with the generation
 -- of its latest removal when pushed and removed again.
-CREATE TABLE IF NOT EXISTS removed_oci_manifests (
+CREATE TABLE IF NOT EXISTS oci_removed_manifests (
     namespace VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     artifact VARBINARY(512) NOT NULL,
@@ -230,14 +219,13 @@ CREATE TABLE IF NOT EXISTS removed_oci_manifests (
 
 -- Mutable annotations of a version. `deprecated` is its JSON value.
 -- `generation` is the generation that last changed the row.
-CREATE TABLE IF NOT EXISTS annotations (
+CREATE TABLE IF NOT EXISTS npm_annotations (
     namespace VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     deprecated LONGTEXT NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (namespace, ecosystem, name, version)
+    PRIMARY KEY (namespace, name, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- A commit that introduced artifacts. `id` is the namespace generation it
@@ -282,21 +270,29 @@ CREATE TABLE IF NOT EXISTS publication_outcomes (
 CREATE INDEX publication_outcomes_by_committed_at
     ON publication_outcomes (committed_at);
 
--- Release notes of a package version (`kind` = 'version', `subject` = the
--- version) or of a publication (`kind` = 'publication', `ecosystem` and
--- `name` empty, `subject` = its id). `text` is NULL once deleted.
--- `initial_digest` is the digest of the text published with the subject.
-CREATE TABLE IF NOT EXISTS notes (
+-- Release notes of a package version. `text` is NULL once deleted.
+-- `initial_digest` is the digest of the text published with the version.
+CREATE TABLE IF NOT EXISTS version_notes (
     namespace VARBINARY(512) NOT NULL,
-    kind VARBINARY(512) NOT NULL,
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
-    subject VARBINARY(512) NOT NULL,
+    version VARBINARY(512) NOT NULL,
     text LONGTEXT,
     modified_at BIGINT NOT NULL,
     principal VARBINARY(512),
     initial_digest LONGTEXT,
-    PRIMARY KEY (namespace, kind, ecosystem, name, subject)
+    PRIMARY KEY (namespace, ecosystem, name, version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Release notes of a publication, as `version_notes` holds them for a version.
+CREATE TABLE IF NOT EXISTS publication_notes (
+    namespace VARBINARY(512) NOT NULL,
+    publication BIGINT NOT NULL,
+    text LONGTEXT,
+    modified_at BIGINT NOT NULL,
+    principal VARBINARY(512),
+    initial_digest LONGTEXT,
+    PRIMARY KEY (namespace, publication)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
@@ -365,55 +361,99 @@ CREATE TABLE IF NOT EXISTS scim_users (
 CREATE INDEX scim_users_by_generation
     ON scim_users (generation);
 
--- Registries whose team roster has been initialized in the database.
-CREATE TABLE IF NOT EXISTS team_rosters (
-    registry VARBINARY(512) NOT NULL PRIMARY KEY,
-    generation BIGINT NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
-
+-- The teams of the instance. Access lists name one as `team:<team_id>`.
 CREATE TABLE IF NOT EXISTS teams (
-    registry VARBINARY(512) NOT NULL,
-    team_id VARBINARY(512) NOT NULL,
-    name VARBINARY(512) NOT NULL,
-    position BIGINT NOT NULL,
-    PRIMARY KEY (registry, team_id)
+    team_id VARBINARY(512) NOT NULL PRIMARY KEY,
+    name VARBINARY(512) NOT NULL UNIQUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
-CREATE UNIQUE INDEX teams_by_name
-    ON teams (registry, name);
-CREATE INDEX teams_by_position
-    ON teams (registry, position);
 
+-- The accounts in each team.
 CREATE TABLE IF NOT EXISTS team_members (
-    registry VARBINARY(512) NOT NULL,
     team_id VARBINARY(512) NOT NULL,
     user_id VARBINARY(512) NOT NULL,
-    PRIMARY KEY (registry, team_id, user_id)
+    PRIMARY KEY (team_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX team_members_by_user
+    ON team_members (user_id);
 
--- Registries with stored API rule overrides, and the generation of their
--- current override set.
-CREATE TABLE IF NOT EXISTS rule_override_sets (
-    registry VARBINARY(512) NOT NULL PRIMARY KEY,
+-- The generation of the last change to `teams` or `team_members`, so a
+-- replica rereads them only after one.
+CREATE TABLE IF NOT EXISTS team_directory (
+    singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
     generation BIGINT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+INSERT INTO team_directory (singleton, generation) VALUES (1, 0)
+    ON DUPLICATE KEY UPDATE singleton = team_directory.singleton;
 
--- Overridden rule lists of a registry (`pattern` = '' for the registry-level
--- default `access`, else a declared package pattern). Presence with zero rows
--- in `rule_override_grants` represents an empty access list (`[]`).
-CREATE TABLE IF NOT EXISTS rule_overrides (
-    registry VARBINARY(512) NOT NULL,
-    pattern VARBINARY(512) NOT NULL,
-    action VARBINARY(512) NOT NULL,
-    PRIMARY KEY (registry, pattern, action)
+-- The grants of the instance: on the registries of `grant_registries`, for
+-- the packages `grant_patterns` select, each subject of `grant_subjects` may
+-- do its actions.
+CREATE TABLE IF NOT EXISTS grants (
+    grant_id VARBINARY(512) NOT NULL PRIMARY KEY,
+    name VARBINARY(512) NOT NULL UNIQUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
-CREATE TABLE IF NOT EXISTS rule_override_grants (
+-- The registries a grant covers, by key; `*` is every registry.
+CREATE TABLE IF NOT EXISTS grant_registries (
+    grant_id VARBINARY(512) NOT NULL,
     registry VARBINARY(512) NOT NULL,
+    PRIMARY KEY (grant_id, registry)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX grant_registries_by_registry
+    ON grant_registries (registry);
+
+-- The package patterns of a grant. A grant without an including pattern
+-- (`exclude` = 0) covers every package; an excluding one (`exclude` = 1)
+-- takes packages out.
+CREATE TABLE IF NOT EXISTS grant_patterns (
+    grant_id VARBINARY(512) NOT NULL,
+    exclude BIGINT NOT NULL,
     pattern VARBINARY(512) NOT NULL,
+    PRIMARY KEY (grant_id, exclude, pattern)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- An action a grant gives a subject: a built-in group, an account ID, or
+-- `team:<team_id>`.
+CREATE TABLE IF NOT EXISTS grant_subjects (
+    grant_id VARBINARY(512) NOT NULL,
+    subject VARBINARY(512) NOT NULL,
     action VARBINARY(512) NOT NULL,
-    position BIGINT NOT NULL,
-    principal LONGTEXT NOT NULL,
-    PRIMARY KEY (registry, pattern, action, position)
+    PRIMARY KEY (grant_id, subject, action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX grant_subjects_by_subject
+    ON grant_subjects (subject);
+
+-- The generation of the last change to the grant tables, so a replica
+-- rereads them only after one.
+CREATE TABLE IF NOT EXISTS grant_directory (
+    singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
+    generation BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+INSERT INTO grant_directory (singleton, generation) VALUES (1, 0)
+    ON DUPLICATE KEY UPDATE singleton = grant_directory.singleton;
+
+-- The hosted store this database is bound to.
+CREATE TABLE IF NOT EXISTS hosted_store (
+    singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
+    store_id VARBINARY(512) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Every stored revision of the registry graph, the newest one current.
+CREATE TABLE IF NOT EXISTS registry_graph_revisions (
+    generation BIGINT NOT NULL PRIMARY KEY,
+    document LONGTEXT NOT NULL,
+    actor_id VARBINARY(512) NOT NULL,
+    created_at BIGINT NOT NULL,
+    restored_from BIGINT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Each hosted `(namespace, ecosystem)` a stored registry graph revision
+-- stopped serving and no later revision serves again. Publishing into one is
+-- refused.
+CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (
+    namespace VARBINARY(512) NOT NULL,
+    ecosystem VARBINARY(512) NOT NULL,
+    PRIMARY KEY (namespace, ecosystem)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- The active Cloudflare CDN cache-tag target shared by replicas of this database.

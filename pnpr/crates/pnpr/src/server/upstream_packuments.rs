@@ -1,3 +1,8 @@
+pub(super) use missing_versions::{
+    PackumentRefetches, reload_source_packument_lacking_version,
+    reload_upstream_packument_lacking_version,
+};
+
 use super::{
     Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
     HeaderMap, HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response,
@@ -7,7 +12,9 @@ use super::{
     packument_response, resolve_registry_source, timed, upstream_cache_namespace,
 };
 use axum::{body::Bytes, response::IntoResponse};
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
+
+mod missing_versions;
 
 /// The stored packument of whichever source a registry routes this package to.
 ///
@@ -22,7 +29,7 @@ pub(super) async fn read_source_packument(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     match resolved_source {
         RegistrySource::Upstream(source) => {
-            authorize(state, identity, resolved_source, name.as_str(), Action::Access)?;
+            authorize(state, identity, resolved_source, name.as_str(), Action::Read)?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
@@ -84,6 +91,12 @@ pub(super) struct AdmittedPackument {
     _admission: SourceAdmission,
 }
 
+impl AdmittedPackument {
+    fn new(bytes: Vec<u8>, admission: SourceAdmission) -> Arc<Self> {
+        Arc::new(Self { bytes: bytes.into(), _admission: admission })
+    }
+}
+
 async fn fetch_coalesced_upstream_packument(
     state: &AppState,
     namespace: &str,
@@ -91,21 +104,32 @@ async fn fetch_coalesced_upstream_packument(
     name: &CanonicalPackageName,
     ttl: Duration,
 ) -> Result<Option<Arc<AdmittedPackument>>, RegistryError> {
-    let key = (namespace.to_string(), name.clone());
-    Box::pin(state.inner.proxy.packument_singleflight.work(key, || {
-        Box::pin(async {
-            let admission =
-                state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace))
-                    .await;
-            let fetched =
-                fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await?;
-            Ok(fetched.map(|bytes| {
-                Arc::new(AdmittedPackument { bytes: bytes.into(), _admission: admission })
-            }))
-        })
-    }))
+    coalesce_upstream_packument(state, namespace, name, || async {
+        let admission =
+            state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace)).await;
+        let fetched =
+            fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await?;
+        Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))
+    })
     .await
-    .map_err(RegistryError::Shared)
+}
+
+/// Run `read` as the one in-flight read of an upstream package's packument,
+/// or wait for the read already in flight for it.
+async fn coalesce_upstream_packument<Read, Pending>(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    read: Read,
+) -> Result<Option<Arc<AdmittedPackument>>, RegistryError>
+where
+    Read: FnOnce() -> Pending + Send,
+    Pending: Future<Output = Result<Option<Arc<AdmittedPackument>>, Arc<RegistryError>>> + Send,
+{
+    let key = (namespace.to_string(), name.clone());
+    Box::pin(state.inner.proxy.packument_singleflight.work(key, || Box::pin(read())))
+        .await
+        .map_err(RegistryError::Shared)
 }
 
 async fn fetch_and_cache_upstream_packument(
@@ -131,6 +155,7 @@ async fn fetch_and_cache_upstream_packument(
     {
         Ok(fetched) => fetched,
         Err(err) => {
+            state.inner.proxy.packument_refetches.record_failure(namespace, name);
             return recover_stale_upstream_packument(state, namespace, upstream, name, err)
                 .await
                 .map_err(Arc::new);
@@ -299,7 +324,7 @@ pub(super) async fn load_packument_for_read(
     let resolved_source = resolve_registry_source(state, &target, name.as_str());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
-            authorize(state, identity, &resolved_source, name.as_str(), Action::Access)?;
+            authorize(state, identity, &resolved_source, name.as_str(), Action::Read)?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
@@ -411,7 +436,10 @@ impl UpstreamDocument<'_> {
             view,
             self.state,
             self.response.headers,
-            self.ttl.as_secs(),
+            self.upstream
+                .response_ttl()
+                .unwrap_or(self.state.inner.config.http.packument_ttl)
+                .as_secs(),
         )
         .await
     }

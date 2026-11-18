@@ -82,6 +82,10 @@ pub struct Upstream {
     breaker: Arc<CircuitBreaker>,
     oci_tokens: Arc<Mutex<std::collections::HashMap<String, oci::CachedToken>>>,
     http: UpstreamHttp,
+    /// The caller this clone serves, when that caller may read what the
+    /// cache holds but may not have the origin fetched. See
+    /// [`Self::cached_only`].
+    cached_only: Option<String>,
 }
 
 impl fmt::Debug for Upstream {
@@ -166,6 +170,7 @@ impl Upstream {
                 config.requests.fail_timeout,
             )),
             oci_tokens: Arc::default(),
+            cached_only: None,
         }
     }
 
@@ -208,7 +213,26 @@ impl Upstream {
     /// defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     #[must_use]
     pub fn packument_ttl(&self) -> Option<Duration> {
+        if self.cached_only.is_some() {
+            return Some(Duration::MAX);
+        }
         self.packument_ttl
+    }
+
+    /// The configured freshness window to advertise to HTTP caches, which
+    /// [`Self::cached_only`] does not lengthen.
+    #[must_use]
+    pub fn response_ttl(&self) -> Option<Duration> {
+        self.packument_ttl
+    }
+
+    /// This upstream for `user`, who may read what the cache holds and no
+    /// more: a cached packument never goes stale for it, and every request to
+    /// the origin is refused.
+    #[must_use]
+    pub fn cached_only(mut self, user: &str) -> Self {
+        self.cached_only = Some(user.to_string());
+        self
     }
 
     /// Whether tarballs from this upstream should be written to the local
@@ -455,10 +479,24 @@ impl Upstream {
         HeaderMap::new()
     }
 
+    /// Refuse a request to the origin for a [`Self::cached_only`] caller.
+    pub(crate) fn ensure_may_fetch(&self) -> Result<()> {
+        let Some(user) = &self.cached_only else {
+            return Ok(());
+        };
+        Err(RegistryError::Forbidden {
+            user: user.clone(),
+            action: "fetch into the cache of",
+            resource: format!("upstream {:?}", self.name),
+        })
+    }
+
     /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
     /// breaker is open, so callers never pay a request to a known-down
     /// upstream.
     pub(crate) fn ensure_available(&self) -> Result<()> {
+        // Before the breaker: a refused caller must not take its probe.
+        self.ensure_may_fetch()?;
         if self.breaker.try_acquire() {
             return Ok(());
         }

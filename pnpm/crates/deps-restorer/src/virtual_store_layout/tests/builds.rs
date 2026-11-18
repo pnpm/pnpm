@@ -105,7 +105,7 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
         &snapshots,
         Some(&packages),
         None,
-        &crate::platform_selection::VariantPlatforms::host(),
+        &crate::host_platform_selector(),
     );
     let node = graph
         .get(&patched_key.to_string())
@@ -127,7 +127,7 @@ fn full_pkg_id_of_a_custom_resolution_follows_its_integrity() {
         crate::virtual_store_layout::graph_hash::full_pkg_id_of(
             &key,
             Some(&packages),
-            &crate::platform_selection::VariantPlatforms::host(),
+            &crate::host_platform_selector(),
         )
     };
 
@@ -173,7 +173,7 @@ fn link_hash_matches_the_shared_typescript_fixture() {
             &snapshots,
             Some(&packages),
             Some(Path::new(&case.lockfile_dir)),
-            &crate::platform_selection::VariantPlatforms::host(),
+            &crate::host_platform_selector(),
         );
         let link_node = graph
             .get(&fixture.package.key)

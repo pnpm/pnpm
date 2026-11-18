@@ -7,7 +7,10 @@ use super::{
     substitute_optional_string,
 };
 use crate::{GlobalShimsSetting, SettingsRead};
-use std::{collections::HashSet, sync::OnceLock};
+use std::{
+    collections::HashSet,
+    sync::{Arc, OnceLock},
+};
 
 /// The settings a repository must not control, because they choose what
 /// runs on the machine or where the machine keeps its own state.
@@ -60,6 +63,25 @@ pub struct MachineSettings {
     /// points. Letting it also allow the write would let it overwrite any
     /// file the user can write.
     pub symlinked_lockfile_target_dirs: Option<Vec<String>>,
+    /// The settings of the global packages, which only `-g` commands apply.
+    /// See [`Config::global_packages_config`](crate::settings::Config::global_packages_config).
+    #[serde(serialize_with = "serialize_set_settings")]
+    pub global_packages_config: Option<Box<WorkspaceSettings>>,
+}
+
+/// The settings `settings` sets, leaving out the ones it leaves unset, so
+/// `pnpm config get` prints the section as it is written.
+#[expect(clippy::ref_option, reason = "serde's `serialize_with` passes the field by reference")]
+fn serialize_set_settings<Ser: serde::Serializer>(
+    settings: &Option<Box<WorkspaceSettings>>,
+    serializer: Ser,
+) -> Result<Ser::Ok, Ser::Error> {
+    let Some(settings) = settings else { return serializer.serialize_none() };
+    let mut value = serde_json::to_value(settings).map_err(serde::ser::Error::custom)?;
+    if let serde_json::Value::Object(map) = &mut value {
+        map.retain(|_, setting| !setting.is_null());
+    }
+    serde::Serialize::serialize(&value, serializer)
 }
 
 impl MachineSettings {
@@ -103,6 +125,9 @@ impl MachineSettings {
         substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.global_dir);
         substitute_optional_string::<Sys>(&mut self.global_bin_dir);
+        if let Some(global_packages_config) = self.global_packages_config.as_mut() {
+            global_packages_config.substitute_env_trusted::<Sys>();
+        }
     }
 
     /// See [`WorkspaceSettings::expand_home_prefixes`].
@@ -117,6 +142,9 @@ impl MachineSettings {
             if let Some(expanded) = expand_home_prefix::<Sys>(dir) {
                 *dir = expanded;
             }
+        }
+        if let Some(global_packages_config) = self.global_packages_config.as_mut() {
+            global_packages_config.expand_home_prefixes::<Sys>();
         }
     }
 
@@ -133,6 +161,7 @@ impl MachineSettings {
             global_shims,
             tools,
             symlinked_lockfile_target_dirs,
+            global_packages_config,
         } = self;
         overlay(&mut config.ci, ci);
         overlay_some(&mut config.scope, scope);
@@ -154,6 +183,9 @@ impl MachineSettings {
         overlay_tools(&mut config.tools, tools);
         if let Some(dirs) = symlinked_lockfile_target_dirs {
             config.symlinked_lockfile_target_dirs = absolute_dirs(dirs);
+        }
+        if let Some(global_packages_config) = global_packages_config {
+            config.global_packages_config = Some(Arc::new(*global_packages_config));
         }
     }
 }

@@ -2,14 +2,17 @@
 //! revision, building its routing, and the checks a new revision must pass
 //! before it is written.
 
-use super::super::{oidc::validate_workloads, oidc_groups::validate_group_grants};
+use super::super::oidc::validate_workloads;
 use pnpm_env_replace::EnvVar;
-use pnpr_config::{Config, GraphSource, RegistryGraphDocument, RoutingConfig, RoutingOptions};
+use pnpr_config::{
+    Config, GraphSource, RegistryGraphDocument, RegistryKind, RoutingConfig, RoutingOptions,
+};
 use pnpr_error::RegistryError;
+use pnpr_policy::Action;
 use pnpr_route::RouteContext;
 use pnpr_storage::{
     Storage,
-    database::{HostedNamespace, StoredRegistryGraph},
+    database::{GrantContent, HostedNamespace, StoredGrant, StoredRegistryGraph},
 };
 use std::net::IpAddr;
 use url::{Host, Url};
@@ -80,14 +83,13 @@ pub(crate) fn stored_routing(
     }
 }
 
-/// The config file's references into the graph: the OIDC workloads and group
-/// grants must name hosted registries and teams that exist.
+/// The config file's references into the graph: the OIDC workloads must name
+/// hosted registries that exist.
 pub(crate) fn check_file_references(
     config: &Config,
     routing: &RoutingConfig,
 ) -> Result<(), RegistryError> {
-    validate_workloads(config, routing)?;
-    validate_group_grants(config, routing)
+    validate_workloads(config, routing)
 }
 
 /// A revision that passed [`check_revision`].
@@ -96,13 +98,17 @@ pub(crate) struct CheckedRevision {
     pub(crate) hosted: HostedChange,
 }
 
-/// The hosted namespaces of a revision, as
-/// [`pnpr_storage::database::NewRegistryGraph`] takes them.
+/// What the write of a revision checks in its transaction, as
+/// [`pnpr_storage::database::NewRegistryGraph`] takes it.
 pub(crate) struct HostedChange {
     /// The namespaces the revision stops serving. The write checks again, in
     /// its transaction, that they hold no package.
     pub(crate) vacated: Vec<HostedNamespace>,
     pub(crate) bound: Vec<HostedNamespace>,
+    /// The default grants of the registries the revision adds.
+    pub(crate) seeded: Vec<StoredGrant>,
+    /// The keys of the registries the revision removes.
+    pub(crate) removed: Vec<String>,
 }
 
 /// Validate `next` as the revision that replaces `previous`. An invalid
@@ -121,7 +127,53 @@ pub(crate) async fn check_revision(
     check_upstream_hosts(config, &routing, previous, next)?;
     check_public_route_hosts(config, &routing, previous, next)?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
-    Ok(CheckedRevision { routing, hosted: HostedChange { vacated, bound: bound_namespaces(next) } })
+    let hosted = HostedChange {
+        vacated,
+        bound: bound_namespaces(next),
+        seeded: default_grants(next, previous),
+        removed: previous
+            .registry_names()
+            .filter(|name| next.registry_kind(name).is_none())
+            .map(str::to_string)
+            .collect(),
+    };
+    Ok(CheckedRevision { routing, hosted })
+}
+
+/// The grant each registry of `next` that `previous` lacks starts with, named
+/// after it, so a registry serves callers as soon as it is added. A router
+/// holds no package and gets none.
+pub(crate) fn default_grants(
+    next: &RegistryGraphDocument,
+    previous: &RegistryGraphDocument,
+) -> Vec<StoredGrant> {
+    next.registry_names()
+        .filter(|name| previous.registry_kind(name).is_none())
+        .filter_map(|name| {
+            let subjects: &[(&str, Action)] = match next.registry_kind(name)? {
+                RegistryKind::Hosted => &[
+                    ("$all", Action::Read),
+                    ("$owners", Action::Publish),
+                    ("$owners", Action::Annotate),
+                ],
+                RegistryKind::PublicUpstream => &[("$all", Action::Read), ("$all", Action::Cache)],
+                RegistryKind::PrivateUpstream => {
+                    &[("$authenticated", Action::Read), ("$authenticated", Action::Cache)]
+                }
+                RegistryKind::Router => return None,
+            };
+            let content = GrantContent {
+                name: name.to_string(),
+                registries: vec![name.to_string()],
+                subjects: subjects
+                    .iter()
+                    .map(|(subject, action)| ((*subject).to_string(), action.as_str().to_string()))
+                    .collect(),
+                ..GrantContent::default()
+            };
+            Some(StoredGrant { id: pnpr_auth::new_principal_id(), content })
+        })
+        .collect()
 }
 
 /// Every hosted namespace `document` serves.

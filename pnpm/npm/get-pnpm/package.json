@@ -1,6 +1,6 @@
 {
   "name": "get-pnpm",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "private": true,
   "description": "Installs pnpm as a standalone executable",
   "keywords": [
@@ -43,7 +43,7 @@
     "@types/node": "catalog:",
     "@types/picomatch": "catalog:",
     "@types/semver": "catalog:",
-    "typescript": "catalog:"
+    "@typescript/native": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

@@ -46,6 +46,9 @@
       "path": "../../deps/path"
     },
     {
+      "path": "../../deps/peer-range"
+    },
+    {
       "path": "../../installing/context"
     },
     {

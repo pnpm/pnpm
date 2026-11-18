@@ -181,6 +181,10 @@ mod real_package_name_of {
             real_package_name_of(Some("foo"), Some("npm:>=1.0.0 <2.0.0")).as_deref(),
             Some("foo"),
         );
+        assert_eq!(
+            real_package_name_of(Some("foo"), Some("npm:bar@>=7.0.0 <8.0.0")).as_deref(),
+            Some("bar"),
+        );
     }
 
     #[test]

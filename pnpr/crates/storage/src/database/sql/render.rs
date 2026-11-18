@@ -161,34 +161,32 @@ struct VersionEntry {
 }
 
 fn version_entries_query<'query>(key: &'query PackageKey, unless: &'query i64) -> Query<'query> {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Npm);
     query!(
         "SELECT v.version, v.published_at, a.generation, m.profile
-         FROM versions v
-         JOIN accepted_manifests m USING (namespace, ecosystem, name, version)
-         LEFT JOIN annotations a USING (namespace, ecosystem, name, version)
-         WHERE v.namespace = ?1 AND v.ecosystem = ?2 AND v.name = ?3
+         FROM npm_versions v
+         JOIN npm_accepted_manifests m USING (namespace, name, version)
+         LEFT JOIN npm_annotations a USING (namespace, name, version)
+         WHERE v.namespace = ?1 AND v.name = ?2
            AND NOT EXISTS (
              SELECT 1 FROM packages p
-             WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+             WHERE p.namespace = ?1 AND p.ecosystem = 'npm' AND p.name = ?2 AND p.generation = ?3)
          ORDER BY v.version",
         namespace,
-        ecosystem,
         name,
         unless,
     )
 }
 
 fn tags_query<'query>(key: &'query PackageKey, unless: &'query i64) -> Query<'query> {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Npm);
     query!(
-        "SELECT t.tag, t.version FROM tags t
-         WHERE t.namespace = ?1 AND t.ecosystem = ?2 AND t.name = ?3
+        "SELECT t.tag, t.version FROM npm_tags t
+         WHERE t.namespace = ?1 AND t.name = ?2
            AND NOT EXISTS (
              SELECT 1 FROM packages p
-             WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)",
+             WHERE p.namespace = ?1 AND p.ecosystem = 'npm' AND p.name = ?2 AND p.generation = ?3)",
         namespace,
-        ecosystem,
         name,
         unless,
     )
@@ -225,11 +223,11 @@ pub(super) fn read_version(
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<Arc<str>>> {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Npm);
     let row = snapshot.query_optional(
-        "SELECT profile FROM accepted_manifests
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![namespace, ecosystem, name, version],
+        "SELECT profile FROM npm_accepted_manifests
+         WHERE namespace = ?1 AND name = ?2 AND version = ?3",
+        params![namespace, name, version],
     )?;
     let Some(mut row) = row else { return Ok(None) };
     let fragment_key = FragmentKey {
@@ -276,14 +274,12 @@ fn render_fragment(key: &FragmentKey, rows: Vec<Row>) -> Result<Arc<str>> {
 }
 
 fn fragment_query(key: &FragmentKey) -> Query<'_> {
-    let (namespace, ecosystem, name) = key.package.params();
+    let (namespace, name) = key.package.params_in(Ecosystem::Npm);
     if key.representation == Representation::Accepted {
         return query!(
-            "SELECT manifest, inputs, NULL AS readme, NULL AS readme_filename, NULL AS deprecated FROM accepted_manifests
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-               AND profile = ?5",
+            "SELECT manifest, inputs, NULL AS readme, NULL AS readme_filename, NULL AS deprecated FROM npm_accepted_manifests
+             WHERE namespace = ?1 AND name = ?2 AND version = ?3 AND profile = ?4",
             namespace,
-            ecosystem,
             name,
             &key.version,
             &key.profile,
@@ -291,13 +287,11 @@ fn fragment_query(key: &FragmentKey) -> Query<'_> {
     }
     query!(
         "SELECT m.manifest, m.inputs, r.readme, r.readme_filename, a.deprecated
-         FROM accepted_manifests m
-         LEFT JOIN readmes r USING (namespace, ecosystem, name, version)
-         LEFT JOIN annotations a USING (namespace, ecosystem, name, version)
-         WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
-           AND m.profile = ?5",
+         FROM npm_accepted_manifests m
+         LEFT JOIN npm_readmes r USING (namespace, name, version)
+         LEFT JOIN npm_annotations a USING (namespace, name, version)
+         WHERE m.namespace = ?1 AND m.name = ?2 AND m.version = ?3 AND m.profile = ?4",
         namespace,
-        ecosystem,
         name,
         &key.version,
         &key.profile,

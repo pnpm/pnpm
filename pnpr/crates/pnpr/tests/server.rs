@@ -47,11 +47,11 @@ mod package_documents;
 #[path = "server/release_record_logs.rs"]
 mod release_record_logs;
 
-#[path = "server/platform_variants.rs"]
-mod platform_variants;
-
 #[path = "server/version_tarballs.rs"]
 mod version_tarballs;
+
+#[path = "server/unlisted_versions.rs"]
+mod unlisted_versions;
 
 #[path = "server/packument_caching.rs"]
 mod packument_caching;
@@ -444,8 +444,10 @@ async fn mock_packument_for_tarball(
 fn upstream_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) -> Config {
     let mut config = config_for(upstream_url, storage);
     config.http.public_url = "http://example.test".to_string();
-    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").access =
-        Some(AccessList::from_tokens([access]));
+    config.routing.upstreams
+        .get_mut("npmjs")
+        .expect("default `npmjs` upstream")
+        .set_access(AccessList::from_tokens([access]));
     config
 }
 

@@ -19,7 +19,6 @@ pnpm-fs = { workspace = true }
 pnpm-local-spec = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-patching-config = { workspace = true }
-pnpm-platform-variants = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-semver-include-prerelease = { workspace = true }
 pnpm-tool-protocol = { workspace = true }

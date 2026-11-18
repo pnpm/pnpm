@@ -151,3 +151,57 @@ fn a_locked_build_matches_only_the_same_build() {
     assert!(!same_build(&version("1.0.0+bar"), &version("1.0.0+foo")));
     assert!(!same_build(&version("1.0.0"), &version("1.0.0+foo")));
 }
+
+/// `pnpm add file:<publish directory>` saves the name the install resolves:
+/// the publishing project's, found within the workspace root, or the lockfile
+/// root outside a workspace.
+#[tokio::test]
+async fn add_names_a_publish_directory_after_its_project() {
+    let tmp = tempfile::tempdir().expect("create a temporary directory");
+    let workspace = tmp.path();
+    let project = workspace.join("lib");
+    std::fs::create_dir_all(project.join("dist")).expect("create the publish directory");
+    std::fs::write(
+        project.join("package.json"),
+        r#"{"name":"lib","version":"1.0.0","publishConfig":{"directory":"dist"}}"#,
+    )
+    .expect("write the project manifest");
+    std::fs::write(project.join("dist/package.json"), r#"{"name":"built","version":"1.0.0"}"#)
+        .expect("write the built manifest");
+    let consumer = workspace.join("app");
+    std::fs::create_dir_all(&consumer).expect("create the consumer");
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        consumer.join("package.json"),
+        serde_json::json!({ "name": "app" }),
+    );
+    let name = async |workspace_dir| {
+        crate::add::aliasless::resolve_aliasless_local("file:../lib/dist", &manifest, workspace_dir)
+            .await
+            .expect("resolve the selector")
+            .expect("a local selector")
+            .package_name
+    };
+    assert_eq!(name(Some(workspace)).await, "lib");
+    assert_eq!(name(None).await, "built", "without a root the consumer bounds the search");
+}
+
+/// Outside a workspace, an explicit lockfile root bounds the search as it
+/// bounds the install's.
+#[test]
+fn add_bounds_the_publish_search_by_the_lockfile_root_outside_a_workspace() {
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        std::path::PathBuf::from("/repo/app/package.json"),
+        serde_json::json!({ "name": "app" }),
+    );
+    let mut config = pnpm_config::Config::new();
+    config.lockfile_dir = Some(std::path::PathBuf::from("/repo"));
+    assert_eq!(
+        crate::add::aliasless::publish_search_root(&config, &manifest),
+        std::path::Path::new("/repo"),
+    );
+    config.workspace_dir = Some(std::path::PathBuf::from("/ws"));
+    assert_eq!(
+        crate::add::aliasless::publish_search_root(&config, &manifest),
+        std::path::Path::new("/ws"),
+    );
+}

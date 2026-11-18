@@ -209,6 +209,22 @@ describe('readProjectPin', () => {
     })
   }
 
+  // Unpatched picomatch takes seconds to match this path.
+  test('rejects a long path in linear time under a packages pattern that repeats a wildcard', () => {
+    const excluded = `packages/${'a'.repeat(28)}`
+    const dir = project({
+      'pnpm-workspace.yaml': 'packages:\n  - packages/+(*)z\n',
+      'package.json': manifest({ packageManager: 'pnpm@11.20.0' }),
+      'packages/included-z/package.json': manifest({ packageManager: 'pnpm@12.2.0' }),
+      [`${excluded}/package.json`]: manifest({ packageManager: 'pnpm@12.1.0' }),
+    })
+
+    assert.equal(pinOf(path.join(dir, 'packages', 'included-z'))?.spec, '11.20.0')
+    const start = performance.now()
+    assert.equal(pinOf(path.join(dir, excluded))?.spec, '12.1.0')
+    assert.ok(performance.now() - start < 1000, 'matching the pattern took longer than a second')
+  })
+
   test('includes no project but the root in a workspace without packages', () => {
     const dir = project({
       'pnpm-workspace.yaml': 'nodeLinker: isolated\n',

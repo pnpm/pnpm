@@ -13,7 +13,7 @@ use crate::{ParentChain, peer_dependents_dedupe::OptionalPeerScope};
 use futures_util::future;
 use node_semver::Version;
 use pipe_trait::Pipe;
-use pnpm_resolving_resolver_base::{SharedDependencyManifest, get_peer_version_range};
+use pnpm_resolving_resolver_base::SharedDependencyManifest;
 use std::cell::RefCell;
 
 /// Resolve current-graph providers before allowing lockfile-only candidates
@@ -150,7 +150,7 @@ impl ImporterHoistState {
                 .entry(&peer.name)
                 .or_default()
                 .push(MissingPeer {
-                    wanted_range: get_peer_version_range(&peer.range),
+                    wanted_range: peer.comparable.text.clone(),
                     raw_range: peer.range.clone(),
                     optional: peer.optional,
                     parents: ParentChain::default(),

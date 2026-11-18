@@ -678,14 +678,12 @@ impl DiscoveryGate {
     }
 }
 
-/// Groups config granting, for each `(group, team)`, `team` on registry
-/// `private`.
+/// Groups config granting `team` for each `(group, team)`.
 fn groups(grants: &[(&str, &str)]) -> OidcGroups {
     let teams = grants
         .iter()
         .map(|(group, team)| OidcTeamGrant {
             group: (*group).to_string(),
-            registry: "private".to_string(),
             team_id: (*team).to_string(),
         })
         .collect();

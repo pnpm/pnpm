@@ -1,7 +1,9 @@
 use super::{
-    HashMap, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident, path_shadowed,
-    same_locator,
+    HashMap, HashSet, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident,
+    node_locator, path_shadowed, same_locator,
 };
+
+use std::collections::hash_map::Entry;
 
 /// Outcome of the per-child hoist decision at the root.
 #[derive(Clone, Copy)]
@@ -226,12 +228,12 @@ pub(super) fn apply_decision(
 /// over ancestor lookup, including edges already hoisted out of a node.
 /// A name the root lacks resolves through `ctx.used`, above the root.
 fn would_shadow_peer(
-    candidate: &HoisterResult,
+    candidate: &Rc<HoisterResult>,
     ancestor_path: &[Rc<HoisterResult>],
     ctx: &HoistCtx<'_>,
     root_index: &HashMap<String, RcByPtr<HoisterResult>>,
 ) -> bool {
-    let &HoistCtx { root, used, .. } = ctx;
+    let &HoistCtx { root, .. } = ctx;
     // Root-shadow guard. Pacquet's wrapper builds the `.` root with
     // empty `peer_names` (it's a `Workspace`-kind node), so in
     // practice this check never fires today — kept for parity with
@@ -241,27 +243,80 @@ fn would_shadow_peer(
         return true;
     }
 
-    let root_candidate = root_index.get(&candidate.name);
     candidate.peer_names
         .iter()
         .any(|peer_name| {
-            let parent_provider = nearest_peer_provider(peer_name, path_below_root(ancestor_path));
-            let Some(provider) = resolved_peer_provider(candidate, peer_name)
-                .or_else(|| nearest_peer_provider(peer_name, ancestor_path))
-            else {
-                return false;
-            };
-            let target_provider = match root_candidate {
-                Some(target) => resolved_peer_provider(&target.0, peer_name),
-                // A hoist carries the nested provider along. With an ancestor
-                // supplying the peer, the candidate stays near it, as upstream does.
-                None if parent_provider.is_none() => nested_peer_provider(candidate, peer_name),
-                None => None,
-            }
-            .or_else(|| root_index.get(peer_name).map(|target| Rc::clone(&target.0)))
-            .or_else(|| used.get(peer_name).map(Rc::clone));
-            !target_provider.is_some_and(|target| same_locator(&target, &provider))
+            let providers = resolved_peer_providers(candidate, peer_name, || {
+                nearest_peer_provider(peer_name, ancestor_path)
+                    .or_else(|| ctx.used.get(peer_name).map(Rc::clone))
+            });
+            let targets =
+                target_peer_providers(candidate, peer_name, ancestor_path, ctx, root_index);
+            !same_peer_providers(&providers, &targets)
         })
+}
+
+#[derive(Default)]
+struct PeerProviders {
+    recorded: HashSet<String>,
+    inherited: InheritedPeerProvider,
+}
+
+#[derive(Default)]
+enum InheritedPeerProvider {
+    #[default]
+    NotRequired,
+    Missing,
+    Resolved(Rc<HoisterResult>),
+}
+
+fn same_peer_providers(left: &PeerProviders, right: &PeerProviders) -> bool {
+    same_inherited_peer_provider(&left.inherited, &right.inherited)
+        && left.recorded == right.recorded
+}
+
+fn same_inherited_peer_provider(
+    left: &InheritedPeerProvider,
+    right: &InheritedPeerProvider,
+) -> bool {
+    use InheritedPeerProvider::{Missing, NotRequired, Resolved};
+    match (left, right) {
+        (NotRequired, NotRequired) | (Missing, Missing) => true,
+        (Resolved(left), Resolved(right)) => same_locator(left, right),
+        (NotRequired, Missing | Resolved(_))
+        | (Missing, NotRequired | Resolved(_))
+        | (Resolved(_), NotRequired | Missing) => false,
+    }
+}
+
+fn target_peer_providers(
+    candidate: &Rc<HoisterResult>,
+    peer_name: &str,
+    ancestor_path: &[Rc<HoisterResult>],
+    ctx: &HoistCtx<'_>,
+    root_index: &HashMap<String, RcByPtr<HoisterResult>>,
+) -> PeerProviders {
+    let inherited_provider = || {
+        root_index
+            .get(peer_name)
+            .map(|target| Rc::clone(&target.0))
+            .or_else(|| ctx.used.get(peer_name).map(Rc::clone))
+    };
+    if let Some(target) = root_index.get(&candidate.name) {
+        return resolved_peer_providers(&target.0, peer_name, inherited_provider);
+    }
+    let mut target = resolved_peer_providers(candidate, peer_name, inherited_provider);
+    // A hoist carries the nested providers along. With an ancestor
+    // supplying the peer, the candidate stays near it, as upstream does.
+    if nearest_peer_provider(peer_name, path_below_root(ancestor_path)).is_some()
+        && !target.recorded.is_empty()
+    {
+        target.recorded = inherited_provider()
+            .map(|provider| node_locator(&provider))
+            .into_iter()
+            .collect();
+    }
+    target
 }
 
 /// `ancestor_path` without its first entry, the hoisting root.
@@ -271,7 +326,7 @@ fn path_below_root(ancestor_path: &[Rc<HoisterResult>]) -> &[Rc<HoisterResult>] 
         .unwrap_or_default()
 }
 
-fn resolved_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<HoisterResult>> {
+fn direct_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<HoisterResult>> {
     nested_peer_provider(node, peer_name)
         .or_else(|| {
             node.hoisted_dependencies
@@ -279,6 +334,83 @@ fn resolved_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<Ho
                 .get(peer_name)
                 .map(Rc::clone)
         })
+}
+
+fn resolved_peer_providers(
+    node: &Rc<HoisterResult>,
+    peer_name: &str,
+    inherited_provider: impl FnOnce() -> Option<Rc<HoisterResult>>,
+) -> PeerProviders {
+    if let Some(provider) = direct_peer_provider(node, peer_name) {
+        return PeerProviders {
+            recorded: HashSet::from([node_locator(&provider)]),
+            ..PeerProviders::default()
+        };
+    }
+    let mut bindings = TransitivePeerProviders::default();
+    collect_transitive_peer_providers(node, peer_name, &mut bindings);
+    let inherited = if bindings.has_unbound_branches() {
+        inherited_provider().map_or(InheritedPeerProvider::Missing, InheritedPeerProvider::Resolved)
+    } else {
+        InheritedPeerProvider::NotRequired
+    };
+    PeerProviders { recorded: bindings.providers, inherited }
+}
+
+#[derive(Default)]
+struct TransitivePeerProviders {
+    providers: HashSet<String>,
+    parents: HashMap<*const HoisterResult, Vec<*const HoisterResult>>,
+    bound: Vec<*const HoisterResult>,
+}
+
+impl TransitivePeerProviders {
+    /// A branch inherits when no recorded provider is reachable, including in cycles.
+    fn has_unbound_branches(&mut self) -> bool {
+        while let Some(node) = self.bound.pop() {
+            if let Some(parents) = self.parents.remove(&node) {
+                self.bound.extend(parents);
+            }
+        }
+        !self.parents.is_empty()
+    }
+}
+
+/// Transitive peers belong to descendant snapshots, whose recorded edges
+/// remain authoritative even after their dependencies have hoisted away.
+fn collect_transitive_peer_providers(
+    node: &Rc<HoisterResult>,
+    peer_name: &str,
+    bindings: &mut TransitivePeerProviders,
+) {
+    let mut pending = vec![(Rc::clone(node), None)];
+    while let Some((node, parent)) = pending.pop() {
+        let node_ptr = Rc::as_ptr(&node);
+        match bindings.parents.entry(node_ptr) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().extend(parent);
+                continue;
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(parent.into_iter().collect());
+            }
+        }
+        if let Some(provider) = direct_peer_provider(&node, peer_name) {
+            bindings.providers.insert(node_locator(&provider));
+            bindings.bound.push(node_ptr);
+            continue;
+        }
+        let dependencies = node.dependencies.borrow();
+        let hoisted = node.hoisted_dependencies.borrow();
+        let children = dependencies
+            .iter()
+            .map(|child| &child.0)
+            .chain(hoisted.values())
+            .filter(|child| child.peer_names.contains(peer_name));
+        for child in children {
+            pending.push((Rc::clone(child), Some(node_ptr)));
+        }
+    }
 }
 
 fn nested_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<HoisterResult>> {
@@ -311,3 +443,6 @@ fn nearest_peer_provider(
                 .map(|dep| Rc::clone(&dep.0))
         })
 }
+
+#[cfg(test)]
+mod tests;

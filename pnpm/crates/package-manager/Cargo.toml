@@ -51,7 +51,6 @@ pnpm-process = { path = "../process" }
 pnpm-fs = { workspace = true }
 pnpm-git-fetcher = { workspace = true }
 pnpm-lockfile = { workspace = true }
-pnpm-platform-variants = { workspace = true }
 pnpm-lockfile-preferred-versions = { workspace = true }
 pnpm-lockfile-verification = { workspace = true }
 pnpm-modules-yaml = { workspace = true }
