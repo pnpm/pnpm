@@ -1,0 +1,54 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  injectWorkspacePackages: true
+
+catalogs:
+  default:
+    is-odd:
+      specifier: 3.0.1
+      version: 3.0.1
+
+importers:
+
+  .: {}
+
+  packages/app:
+    dependencies:
+      is-odd:
+        specifier: 'catalog:'
+        version: 3.0.1
+      lib:
+        specifier: workspace:*
+        version: file:packages/lib(is-odd@3.0.1)
+
+  packages/lib: {}
+
+packages:
+
+  is-number@6.0.0:
+    resolution: {integrity: sha512-Wu1VHeILBK8KAWJUAiSZQX94GmOE45Rg6/538fKwiloUu21KncEkYGPqob2oSZ5mUT73vLGrHQjKw3KMPwfDzg==}
+    engines: {node: '>=0.10.0'}
+
+  is-odd@3.0.1:
+    resolution: {integrity: sha512-CQpnWPrDwmP1+SMHXZhtLtJv90yiyVfluGsX5iNCVkrhQtU3TQHsUWPG9wkdk9Lgd5yNpAg9jQEo90CBaXgWMA==}
+    engines: {node: '>=4'}
+
+  lib@file:packages/lib:
+    resolution: {directory: packages/lib, type: directory}
+    peerDependencies:
+      is-odd: 'catalog:'
+
+snapshots:
+
+  is-number@6.0.0: {}
+
+  is-odd@3.0.1:
+    dependencies:
+      is-number: 6.0.0
+
+  lib@file:packages/lib(is-odd@3.0.1):
+    dependencies:
+      is-odd: 3.0.1

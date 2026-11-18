@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+injectWorkspacePackages: true
+autoInstallPeers: false
+catalog:
+  is-odd: 3.0.1
