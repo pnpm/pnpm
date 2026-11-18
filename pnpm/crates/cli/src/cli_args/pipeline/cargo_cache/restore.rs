@@ -62,6 +62,9 @@ fn invalidate_directory(path: &Path, local_packages: Option<&[String]>) -> io::R
             Some(packages) => invalidate_local_fingerprints(path, packages),
         };
     }
+    if is_build_script_output(path) {
+        return Ok(());
+    }
     let Some(package) = unit_fingerprint_package(path) else {
         return invalidate_fingerprints(path, local_packages);
     };
@@ -106,25 +109,40 @@ fn invalidate_local_fingerprints(fingerprint_dir: &Path, packages: &[String]) ->
     Ok(())
 }
 
+/// A build script's `OUT_DIR`: `build/<package>-<hash>/out` or
+/// `build/<package>/<hash>/out`. It holds no Cargo units, only what the
+/// script wrote, which can include a nested Cargo build.
+fn is_build_script_output(path: &Path) -> bool {
+    let Some(unit_dir) = path.parent() else { return false };
+    let build_dir = match dir_name(unit_dir) {
+        Some(name) if is_unit_hash(name) => unit_dir.parent().and_then(Path::parent),
+        Some(name) if name.rsplit_once('-').is_some_and(|(_, hash)| is_unit_hash(hash)) => {
+            unit_dir.parent()
+        }
+        _ => None,
+    };
+    dir_name(path) == Some("out") && build_dir.and_then(dir_name) == Some("build")
+}
+
 /// The package of a `build/<package>/<hash>/fingerprint` directory.
-///
-/// The hash must be hexadecimal: in the `.fingerprint` layout, a build
-/// script's `build/<package>-<hash>/out/fingerprint` has the same shape.
 fn unit_fingerprint_package(path: &Path) -> Option<&str> {
-    if path.file_name()? != "fingerprint" {
+    if dir_name(path)? != "fingerprint" || !is_unit_hash(dir_name(path.parent()?)?) {
         return None;
     }
-    let hash_dir = path.parent()?;
-    let is_hash = hash_dir
-        .file_name()?
-        .to_str()?
-        .bytes()
-        .all(|byte| byte.is_ascii_hexdigit());
-    let package_dir = hash_dir.parent()?;
-    if !is_hash || package_dir.parent()?.file_name()? != "build" {
+    let package_dir = path.parent()?.parent()?;
+    if dir_name(package_dir.parent()?)? != "build" {
         return None;
     }
-    package_dir.file_name()?.to_str()
+    dir_name(package_dir)
+}
+
+fn dir_name(path: &Path) -> Option<&str> {
+    path.file_name()?.to_str()
+}
+
+/// Cargo names a unit's directory after a hexadecimal hash of its inputs.
+fn is_unit_hash(name: &str) -> bool {
+    !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn runs_build_script(fingerprint: &Path) -> io::Result<bool> {
