@@ -190,7 +190,7 @@ impl<'a> Transitive<'a> {
         let mut bound = Vec::with_capacity(self.named.len() + self.unnamed.len());
         for KeyNamedPeer { alias, name, provider } in self.named {
             let linked = self.binds_an_alias
-                .then(|| finder.linked_below(key, name, &constraint(&alias)))
+                .then(|| finder.provider_below(key, name, &constraint(&alias)))
                 .flatten()
                 .filter(|linked| is_another_package(&alias, linked, &provider))
                 .cloned();

@@ -25,7 +25,7 @@ pub(super) struct KeyNamedPeer<'a> {
     pub(super) name: &'a str,
     /// A guess: the group can belong to another peer, one whose provider is
     /// installed under an alias and has this peer's name as its package name.
-    /// [`ProviderFinder::linked_below`] says what the graph binds.
+    /// [`ProviderFinder::provider_below`] says what the graph binds.
     pub(super) provider: SnapshotDepRef,
 }
 
@@ -118,7 +118,10 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         name: &'a str,
         constraint: &ProviderConstraint,
     ) -> Option<&'a SnapshotDepRef> {
-        if let Some(reference) = self.linked_below(key, name, constraint) {
+        if let Some(reference) = self
+            .first_provider_below(key, name)
+            .filter(|reference| constraint.matches(reference))
+        {
             return Some(reference);
         }
         if !self.candidates.contains_key(name) {
@@ -128,18 +131,6 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
             .get_mut(name)
             .unwrap()
             .matching(key, constraint)
-    }
-
-    /// The provider the children of `key` that need `name` from outside link
-    /// it to, when `constraint` accepts it.
-    pub(super) fn linked_below(
-        &mut self,
-        key: &'a PackageKey,
-        name: &'a str,
-        constraint: &ProviderConstraint,
-    ) -> Option<&'a SnapshotDepRef> {
-        self.first_provider_below(key, name)
-            .filter(|reference| constraint.matches(reference))
     }
 
     fn first_provider_below(
