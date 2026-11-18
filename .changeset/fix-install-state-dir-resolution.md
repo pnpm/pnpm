@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-Fixed an issue where `pnpm clean` failed to properly resolve and clean the `installStateDir` when using an external `virtualStoreDir`.
+`pnpm ci` no longer reports an existing current lockfile to the `preResolution` hook when `virtualStoreDir` points outside the project and the lockfile is about to be removed with `node_modules`.
