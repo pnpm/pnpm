@@ -199,7 +199,7 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     ...((opts['wasm-cli'] || opts['wasm-package']) ? [{ name: 'measure WebContainer filesystem metadata calls', command: 'node', args: ['../pnpm/metadata-bench.mjs'], expectOutput: 'webcontainer-metadata-bench-ok' }] : []),
     { name: 'Rust WASM CLI help', command: 'node', args: [entry, '--help'], expectOutput: 'Usage:' },
     { name: 'prepare command routing directory', command: 'node', args: ['-e', "require('node:fs').mkdirSync('command-routing', { recursive: true })"] },
-    { name: 'route every classified command and alias', command: 'node', args: ['../../pnpm/cli-fixture.mjs', '--command-routing', entry.replace('../', '../../'), '../../pnpm/webcontainer-commands.tsv'], cwd: 'app/command-routing', expectOutput: 'WebContainer command routing passed' },
+    { name: 'route every classified command and alias', command: 'node', args: ['../../pnpm/cli-fixture.mjs', '--command-routing', opts['wasm-package'] ? '../../installed/node_modules/.bin/pnpm' : '../../pnpm/runtime/pnpm.mjs', '../../pnpm/webcontainer-commands.tsv'], cwd: 'app/command-routing', expectOutput: 'WebContainer command routing passed' },
     { name: 'isolated WASM store namespace', command: 'node', args: [entry, 'store', 'path'], expectOutput: 'v11-wasm' },
     { name: 'resolve metadata cache path', command: 'node', args: [entry, 'cache', 'path'], expectOutput: '/home/.cache/pnpm' },
     { name: 'setup fails without side effects', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, 'setup', '--expect', 'This WebContainer runtime cannot install itself globally'], expectOutput: 'failed without changing project files' },
