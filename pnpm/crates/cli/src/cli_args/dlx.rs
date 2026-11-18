@@ -69,8 +69,8 @@ pub struct DlxArgs {
 
     /// Package names allowed to run lifecycle (build) scripts during
     /// the dlx install. Prefix a name with `!` to deny its scripts
-    /// instead. May be repeated.
-    #[clap(long = "allow-build")]
+    /// instead. Repeat or comma-separate for multiple.
+    #[clap(long = "allow-build", value_delimiter = ',')]
     pub allow_build: Vec<String>,
 
     /// Run the command inside of a shell. Uses `/bin/sh` on UNIX and

@@ -29,6 +29,11 @@ export {
 
 const CUSTOM_OPTION_PREFIX = 'config.'
 
+// Options whose values may be given as a comma-separated list, in addition to
+// repeating the flag. Only options whose values can never contain a comma
+// belong here: package names cannot contain one.
+const COMMA_SEPARATED_OPTIONS = ['allow-build']
+
 export interface ParsedCliArgs {
   argv: {
     remain: string[]
@@ -100,12 +105,7 @@ export async function parseCliArgs (
 
   const { cmd, params } = adjustPostParseCommands(rawOptions, argv, resolution, opts)
   validateWorkspaceOptions(rawOptions, workspaceDir)
-  const allowConvertOptions = ['allow-build']
-  for (const [optionName, optionValue] of Object.entries(rawOptions)) {
-    if (allowConvertOptions.includes(optionName) && Array.isArray(optionValue) && optionValue.every((v) => typeof v === 'string')) {
-      rawOptions[optionName] = optionValue.map((v) => v.split(',')).flat()
-    }
-  }
+  splitCommaSeparatedOptions(rawOptions)
   return {
     argv,
     cmd,
@@ -269,6 +269,16 @@ function getEscapeArgs (
     (resolution.recursiveCommandUsed ? 1 : 0) +
     (resolution.fallbackCommandUsed && opts.fallbackCommand === 'run' ? -1 : 0)
   return [exploratory.argv.remain[indexOfRunScriptName]]
+}
+
+function splitCommaSeparatedOptions (options: Record<string, unknown>): void {
+  for (const optionName of COMMA_SEPARATED_OPTIONS) {
+    const optionValue = options[optionName]
+    const values: unknown[] = Array.isArray(optionValue) ? optionValue : [optionValue]
+    if (values.every((value): value is string => typeof value === 'string') && values.some((value) => value.includes(','))) {
+      options[optionName] = values.flatMap((value) => value.split(','))
+    }
+  }
 }
 
 function applyRenamedOptions (options: Record<string, unknown>, renamedOptions?: Record<string, string>): void {

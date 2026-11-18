@@ -183,7 +183,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   OPTIONS.globalDir,
   ...UNIVERSAL_OPTIONS,
   {
-    description: 'A list of package names that are allowed to run postinstall scripts during installation. Prefix a name with ! to deny its scripts instead',
+    description: 'A list of package names that are allowed to run postinstall scripts during installation. Prefix a name with ! to deny its scripts instead. Repeat the flag or separate names with commas',
     name: '--allow-build',
   },
 ]
