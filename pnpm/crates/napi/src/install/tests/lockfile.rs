@@ -91,7 +91,7 @@ fn lockfile_format_selects_the_written_lockfile_version() {
             .find_map(|line| {
                 line.trim()
                     .strip_prefix("lockfileVersion: ")
-                    .or_else(|| line.trim().strip_prefix("\"lockfileVersion\": "))
+                    .or_else(|| line.trim().strip_prefix(r#""lockfileVersion": "#))
             })
             .map(|value| {
                 value
