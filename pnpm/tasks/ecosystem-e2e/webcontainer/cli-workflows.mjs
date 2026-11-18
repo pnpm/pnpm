@@ -125,7 +125,7 @@ export function inspectionWorkflowSteps (entry) {
     { name: 'find store entries by content hash', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--find-hash', entry], expectOutput: 'find-hash located the package with the matching content hash' },
     { name: 'report a valid hash absent from the store', command: 'node', args: [entry, 'find-hash', '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'], expectExitCode: 1, expectOutput: 'ERR_PNPM_INVALID_FILE_HASH' },
     { name: 'add a cached package directly to the store', command: 'node', args: [entry, 'store', 'add', 'semver@7.6.3', '--offline'] },
-    { name: 'reject an uncached package without modifying the project', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, 'store', 'add', 'uncached-webcontainer-audit@1.0.0', '--offline', '--expect', 'ERR_PNPM_NO_OFFLINE_META'], expectOutput: 'failed without changing project files' },
+    { name: 'reject an uncached package without modifying the project', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, 'store', 'add', 'uncached-webcontainer-audit@1.0.0', '--offline', '--expect', 'ERR_PNPM_STORE_ADD_FAILURE'], expectOutput: 'failed without changing project files' },
     { name: 'list registries in the metadata cache', command: 'node', args: [entry, 'cache', 'list-registries'], expectOutput: 'registry.npmjs.org' },
     { name: 'list cached package metadata', command: 'node', args: [entry, 'cache', 'list', 'semver'], expectOutput: 'semver.jsonl' },
     { name: 'view cached package metadata', command: 'node', args: [entry, 'cache', 'view', 'semver'], expectOutput: '7.6.3' },
