@@ -4,8 +4,8 @@
 use super::{
     importers::{importer_dependencies, next_importer, non_empty},
     peers::{
-        ProviderConstraint, ProviderFinder, all_groups_named, own_peer_names, provider_segments,
-        transitive_named_in_key,
+        KeyNamedPeer, ProviderConstraint, ProviderFinder, all_groups_named, own_peer_names,
+        provider_segments, transitive_named_in_key,
     },
     {
         super::{
@@ -142,8 +142,11 @@ pub(in crate::next_format) struct Snapshots<'a> {
 /// A snapshot's transitive peers: those its key names, and those left for
 /// [`ProviderFinder`].
 struct Transitive<'a> {
-    named: Vec<(PkgName, SnapshotDepRef)>,
+    named: Vec<KeyNamedPeer<'a>>,
     unnamed: Vec<(PkgName, &'a str)>,
+    /// Whether a peer group of the key can belong to a peer of another name,
+    /// which makes every [`KeyNamedPeer::provider`] a guess to check.
+    binds_an_alias: bool,
 }
 
 impl<'a> Transitive<'a> {
@@ -160,29 +163,55 @@ impl<'a> Transitive<'a> {
             // The key names every provider, so the rest have none.
             unnamed.clear();
         }
-        Ok(Transitive { named, unnamed })
+        let binds_an_alias = !named.is_empty()
+            && (!unnamed.is_empty()
+                || children(entry)
+                    .any(|(alias, reference)| {
+                        own_peers.contains(alias) && matches!(reference, SnapshotDepRef::Alias(_))
+                    }));
+        Ok(Transitive { named, unnamed, binds_an_alias })
     }
 
-    /// Finds the providers of the unnamed peers below `key`. A peer whose
-    /// provider the key does not name is missing as far as the key goes.
-    fn find_unnamed(
-        &mut self,
+    /// The provider of every transitive peer. The key names it, unless the
+    /// graph below `key` binds the peer to another package, or the key names
+    /// none and the graph binds one.
+    fn bound(
+        self,
         finder: &mut ProviderFinder<'a, '_>,
         key: &'a PackageKey,
         providers: Option<&BoundProviders>,
-    ) {
-        if self.unnamed.is_empty() {
-            return;
+    ) -> Vec<(PkgName, SnapshotDepRef)> {
+        if self.named.is_empty() && self.unnamed.is_empty() {
+            return Vec::new();
         }
         let segments = provider_segments(&key.suffix);
-        for (alias, name) in std::mem::take(&mut self.unnamed) {
-            let constraint = ProviderConstraint::new(&alias, segments.as_deref(), providers);
-            let found = finder.provider_below(key, name, &constraint).cloned();
+        let constraint =
+            |alias: &PkgName| ProviderConstraint::new(alias, segments.as_deref(), providers);
+        let mut bound = Vec::with_capacity(self.named.len() + self.unnamed.len());
+        for KeyNamedPeer { alias, name, provider } in self.named {
+            let linked = self.binds_an_alias
+                .then(|| finder.linked_below(key, name, &constraint(&alias)))
+                .flatten()
+                .filter(|linked| is_another_package(&alias, linked, &provider))
+                .cloned();
+            bound.push((alias, linked.unwrap_or(provider)));
+        }
+        for (alias, name) in self.unnamed {
+            let found = finder
+                .provider_below(key, name, &constraint(&alias))
+                .cloned();
             if let Some(reference) = found {
-                self.named.push((alias, reference));
+                bound.push((alias, reference));
             }
         }
+        bound
     }
+}
+
+fn is_another_package(alias: &PkgName, linked: &SnapshotDepRef, named: &SnapshotDepRef) -> bool {
+    let package =
+        |reference: &SnapshotDepRef| reference.resolve(alias).map(|key| key.without_peer());
+    package(linked).is_some_and(|linked| Some(linked) != package(named))
 }
 
 impl<'a> Snapshots<'a> {
@@ -206,17 +235,12 @@ impl<'a> Snapshots<'a> {
             .collect::<Result<Vec<_>, NextFormatError>>()?;
         let mut finder = ProviderFinder::new(snapshots, &own_peers);
         let mut grouped: HashMap<PackageKey, Vec<Snapshot<'a>>> = HashMap::new();
-        for (key, entry, mut transitive) in prepared {
-            transitive.find_unnamed(&mut finder, key, providers.get(key));
+        for (key, entry, transitive) in prepared {
+            let transitive = transitive.bound(&mut finder, key, providers.get(key));
             grouped
                 .entry(key.without_peer())
                 .or_default()
-                .push(Snapshot {
-                    key,
-                    entry,
-                    own_peers: own_peers[key].clone(),
-                    transitive: transitive.named,
-                });
+                .push(Snapshot { key, entry, own_peers: own_peers[key].clone(), transitive });
         }
         Snapshots::from_groups(grouped)
     }

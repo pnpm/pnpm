@@ -18,16 +18,26 @@ mod candidates;
 mod constraint;
 use candidates::ProviderCandidates;
 
-/// The transitive peers of `key` whose providers its peer groups name, and the
+/// A transitive peer with the provider the peer groups of the key name under
+/// the peer's own name.
+pub(super) struct KeyNamedPeer<'a> {
+    pub(super) alias: PkgName,
+    pub(super) name: &'a str,
+    /// A guess: the group can belong to another peer, one whose provider is
+    /// installed under an alias and has this peer's name as its package name.
+    /// [`ProviderFinder::linked_below`] says what the graph binds.
+    pub(super) provider: SnapshotDepRef,
+}
+
+/// The transitive peers of `key` whose names its peer groups carry, and the
 /// names left for [`ProviderFinder`].
 ///
-/// Recorded bindings recover the provider names behind a hashed key. Aliased
-/// peers whose install names differ from their provider names use [`ProviderFinder`].
+/// Recorded bindings recover the provider names behind a hashed key.
 #[expect(clippy::type_complexity, reason = "a private pair of lists")]
 pub(super) fn transitive_named_in_key<'a>(
     key: &PackageKey,
     entry: &'a SnapshotEntry,
-) -> Result<(Vec<(PkgName, SnapshotDepRef)>, Vec<(PkgName, &'a str)>), NextFormatError> {
+) -> Result<(Vec<KeyNamedPeer<'a>>, Vec<(PkgName, &'a str)>), NextFormatError> {
     let providers = entry.recorded_peer_bindings
         .as_ref()
         .and_then(|bindings| bindings.peer_keys_for(key))
@@ -50,7 +60,11 @@ pub(super) fn transitive_named_in_key<'a>(
             .flatten()
             .find(|provider| provider.name == alias);
         match provider {
-            Some(provider) => named.push((alias, SnapshotDepRef::Plain(provider.suffix.clone()))),
+            Some(provider) => named.push(KeyNamedPeer {
+                alias,
+                name,
+                provider: SnapshotDepRef::Plain(provider.suffix.clone()),
+            }),
             None => unnamed.push((alias, name.as_str())),
         }
     }
@@ -104,10 +118,7 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         name: &'a str,
         constraint: &ProviderConstraint,
     ) -> Option<&'a SnapshotDepRef> {
-        if let Some(reference) = self
-            .first_provider_below(key, name)
-            .filter(|reference| constraint.matches(reference))
-        {
+        if let Some(reference) = self.linked_below(key, name, constraint) {
             return Some(reference);
         }
         if !self.candidates.contains_key(name) {
@@ -117,6 +128,18 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
             .get_mut(name)
             .unwrap()
             .matching(key, constraint)
+    }
+
+    /// The provider the children of `key` that need `name` from outside link
+    /// it to, when `constraint` accepts it.
+    pub(super) fn linked_below(
+        &mut self,
+        key: &'a PackageKey,
+        name: &'a str,
+        constraint: &ProviderConstraint,
+    ) -> Option<&'a SnapshotDepRef> {
+        self.first_provider_below(key, name)
+            .filter(|reference| constraint.matches(reference))
     }
 
     fn first_provider_below(

@@ -1666,3 +1666,59 @@ fn importer_dependencies_meta_becomes_injected_flags() {
         Some(serde_json::json!({ "injected": { "injected": true } })),
     );
 }
+
+/// The peer `compiler` is bound to `compiler-next`, installed under the alias
+/// `compiler`, while the peer `native` is bound to the package `compiler`.
+/// `native` is the own peer of `consumer` or a peer bound below it.
+#[test]
+fn transitive_peer_named_like_the_provider_of_another_peer_round_trips() {
+    for (native_range, consumer_entry) in [
+        ("", "    transitivePeerDependencies:\n      - compiler\n      - native"),
+        (
+            "\n      native: '*'",
+            "      native: compiler@7.0.0\n    transitivePeerDependencies:\n      - compiler",
+        ),
+    ] {
+        let lockfile = parse(&format!(
+            r"lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      compiler:
+        specifier: npm:compiler-next@6.0.0
+        version: compiler-next@6.0.0
+      consumer:
+        specifier: 1.0.0
+        version: 1.0.0(compiler-next@6.0.0)(compiler@7.0.0)
+      native:
+        specifier: npm:compiler@7.0.0
+        version: compiler@7.0.0
+packages:
+  compiler-next@6.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  compiler@7.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+  consumer@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+    peerDependencies:{native_range}
+  parser@1.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+    peerDependencies:
+      compiler: '*'
+      native: '*'
+snapshots:
+  compiler-next@6.0.0: {{}}
+  compiler@7.0.0: {{}}
+  consumer@1.0.0(compiler-next@6.0.0)(compiler@7.0.0):
+    dependencies:
+      parser: 1.0.0(compiler-next@6.0.0)(compiler@7.0.0)
+{consumer_entry}
+  parser@1.0.0(compiler-next@6.0.0)(compiler@7.0.0):
+    dependencies:
+      compiler: compiler-next@6.0.0
+      native: compiler@7.0.0
+",
+        ));
+        written_and_read(&lockfile);
+    }
+}
