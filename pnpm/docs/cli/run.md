@@ -74,6 +74,14 @@ For workspaces, `<workspace root>/node_modules/.bin` is also added
 to the `PATH`, so if a tool is installed in the workspace root, it may be called
 in any workspace package's `scripts`.
 
+### Interrupting a script
+
+On Unix, if a foreground command handles `SIGINT` and exits successfully,
+the shell can continue with the rest of the script. The shell can also continue
+when the interrupt arrives while it is running builtins. If you supervise a
+script without a terminal and need to stop the shell itself, send `SIGTERM`
+to pnpm.
+
 ## Environment
 
 There are some environment variables that pnpm automatically creates for the executed scripts.
