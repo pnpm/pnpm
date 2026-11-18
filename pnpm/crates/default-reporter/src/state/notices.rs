@@ -20,6 +20,47 @@ fn short_package_label(package: &str) -> String {
     separator.map_or_else(|| package.to_owned(), |index| package[..index].to_owned())
 }
 
+fn pending_approval_packages(
+    pending_builds: &[String],
+    pending_skills: &[String],
+) -> BTreeMap<String, BTreeSet<&'static str>> {
+    let mut packages = BTreeMap::<String, BTreeSet<&'static str>>::new();
+    for package in pending_builds {
+        packages
+            .entry(short_package_label(package))
+            .or_default()
+            .insert("build");
+    }
+    for package in pending_skills {
+        let build_label = packages
+            .keys()
+            .find(|label| package.starts_with(&format!("{label}@")))
+            .cloned();
+        packages
+            .entry(build_label.unwrap_or_else(|| package.clone()))
+            .or_default()
+            .insert("skills");
+    }
+    packages
+}
+
+fn format_pending_approval_packages(packages: &BTreeMap<String, BTreeSet<&str>>) -> String {
+    packages
+        .iter()
+        .map(|(name, capabilities)| {
+            format!(
+                "  {name}  {}",
+                capabilities
+                    .iter()
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// `name@version` as a deprecation warning prints it.
 ///
 /// Both halves come from the resolved manifest, which a git or tarball
@@ -69,40 +110,12 @@ impl ReporterState {
     }
 
     fn render_pending_approvals(&mut self) {
-        let mut packages = BTreeMap::<String, BTreeSet<&str>>::new();
-        for package in &self.notices.pending_builds {
-            packages
-                .entry(short_package_label(package))
-                .or_default()
-                .insert("build");
-        }
-        for package in &self.notices.pending_skills {
-            let build_label = packages
-                .keys()
-                .find(|label| package.starts_with(&format!("{label}@")))
-                .cloned();
-            packages
-                .entry(build_label.unwrap_or_else(|| package.clone()))
-                .or_default()
-                .insert("skills");
-        }
+        let packages =
+            pending_approval_packages(&self.notices.pending_builds, &self.notices.pending_skills);
         if packages.is_empty() {
             return;
         }
-        let list = packages
-            .iter()
-            .map(|(name, capabilities)| {
-                format!(
-                    "  {name}  {}",
-                    capabilities
-                        .iter()
-                        .copied()
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
+        let list = format_pending_approval_packages(&packages);
         let instruction = if packages
             .values()
             .all(|capabilities| capabilities.len() == 1 && capabilities.contains("build"))
