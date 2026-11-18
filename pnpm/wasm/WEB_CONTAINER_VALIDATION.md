@@ -10,9 +10,9 @@ per file across batches.
 
 | Host operation | Median | p95 |
 | --- | ---: | ---: |
-| `lstatSync` | 3.83 µs | 8.48 µs |
-| `openSync` + `fstatSync` + `closeSync` | 2.91 µs | 5.55 µs |
-| `chmodSync` | 1.09 µs | 2.11 µs |
+| `lstatSync` | 1.71 µs | 3.03 µs |
+| `openSync` + `fstatSync` + `closeSync` | 2.36 µs | 4.32 µs |
+| `chmodSync` | 0.87 µs | 1.95 µs |
 
 These timings isolate Node filesystem metadata calls; they are not a full
 package extraction benchmark or a count of calls made by pnpm during an

@@ -151,10 +151,10 @@ async fn check_host_process() {
     loop {
         let (output, bytes) =
             host_binary(json!({ "operation": "stream.read", "handle": child["stdout"] })).await;
-        output_bytes.extend(bytes.unwrap_or_default());
         if output["done"] == true {
             break;
         }
+        output_bytes.extend(bytes.expect("live subprocess output chunk"));
     }
     assert_eq!(output_bytes, [0, 255, 13]);
     let exit = host(json!({ "operation": "process.wait", "handle": handle })).await;

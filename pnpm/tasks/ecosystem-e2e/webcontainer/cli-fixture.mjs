@@ -222,7 +222,9 @@ async function runRegistryWorkflow (entry) {
       const requestCount = requests.length
       const result = await runPackageManager(entry, args, project, env)
       assert.equal(result.exitCode, 0, `${args.join(' ')}: ${result.output}`)
-      assert.ok(requests.slice(requestCount).some(request => request.method === method && request.url.startsWith(url)), `${args.join(' ')} did not call ${method} ${url}`)
+      assert.ok(requests.slice(requestCount).some(request => request.method === method && new URL(request.url, registry).pathname === url), `${args.join(' ')} did not call ${method} ${url}`)
+      if (args[0] === 'deprecate') assert.equal(publishDocument?.versions?.['1.0.0']?.deprecated, 'fixture retirement')
+      if (args[0] === 'undeprecate') assert.equal(publishDocument?.versions?.['1.0.0']?.deprecated, undefined)
     }
 
     const unpublish = await runPackageManager(entry, ['unpublish', 'webcontainer-publish-probe', '--force', '--registry', registry], project, env)
@@ -376,6 +378,7 @@ function assertUnsupportedCommandHasNoEffects (entry) {
 }
 
 function snapshot (directory) {
+  const mode = lstatSync(directory).mode & 0o777
   const entries = []
   for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
     if (directory === process.cwd() && entry.name === '.unsupported-command-home') continue
@@ -385,7 +388,7 @@ function snapshot (directory) {
     else if (entry.isSymbolicLink()) entries.push([entry.name, 'symlink', mode, readlinkSync(filename)])
     else entries.push([entry.name, 'file', mode, readFileSync(filename).toString('base64')])
   }
-  return entries
+  return [mode, entries]
 }
 
 async function installWithMatchingPin (entry) {
