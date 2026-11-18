@@ -322,6 +322,7 @@ pnpm-pack = 12
 pnpm-package-is-installable = 3
 pnpm-package-manager = 61
 pnpm-package-manifest = 4
+pnpm-package-name = 1
 pnpm-patching = 5
 pnpm-pnpr-client = 10
 pnpm-process = 1
