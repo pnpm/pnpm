@@ -10,7 +10,7 @@
 pub use manifests::variant_manifests;
 pub(crate) use pnpm_process as process;
 pub use selection::{AmbiguousSelection, Host, HostFloors, Purpose, select};
-pub use tag::{MAX_VARIANT_TAG_BYTES, canonical_spelling, is_valid_variant_tag, variant_tag};
+pub use tag::{MAX_VARIANT_TAG_BYTES, is_valid_variant_tag, variant_tag};
 
 mod host_floors;
 mod manifests;

@@ -22,9 +22,9 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, PackedArchive,
-    WorkspacePackageManifest, archive_result_json, canonicalize_pack_dir, format_pack_output,
-    pack_archives, pack_output_parts,
+    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, WorkspacePackageManifest, api,
+    canonicalize_pack_dir, format_pack_output, pack_output_parts, pack_output_path,
+    to_pack_result_json,
 };
 use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
 use pnpm_workspace_task_scheduler::{
@@ -96,12 +96,6 @@ pub struct PackArgs {
     #[clap(long, value_hint = ValueHint::FilePath)]
     pub out: Option<String>,
 
-    /// Pack only the archive of the `publishConfig.variants` entry this
-    /// target names, such as `linux-x64-musl`, or `any` for the archive of
-    /// every other host. Can be repeated.
-    #[clap(long = "variant", value_name = "TARGET")]
-    pub variant: Vec<String>,
-
     /// gzip compression level (`0`–`9`) for the tarball.
     #[clap(long = "pack-gzip-level", value_parser = clap::value_parser!(u32).range(0..=9))]
     pub pack_gzip_level: Option<u32>,
@@ -138,13 +132,6 @@ impl PackArgs {
         recursive: bool,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
-        if recursive && !self.variant.is_empty() {
-            return Err(miette::miette!(
-                code = "ERR_PNPM_PACK_VARIANT_ALONE",
-                help = "Run it in the directory of each package whose archive you want.",
-                "--variant packs archives of one package's publishConfig.variants, so it does not take --recursive",
-            ));
-        }
         if recursive {
             self.run_recursive::<Reporter>(dir, config, before_packing_hooks).await
         } else {
@@ -158,15 +145,10 @@ impl PackArgs {
             };
             let mut options = self.pack_options(dir.to_path_buf(), config, shared);
             set_injected_changelog(&mut options, config, dir).await?;
-            let archives = pack_archives::<Reporter, Host>(&options, &self.variant)
-                .await
+            let result = api::<Reporter, Host>(&options).await
                 .map_err(miette::Report::new)
                 .wrap_err(PACK_ERROR_CONTEXT)?;
-            let results: Vec<PackResultJson> = archives
-                .iter()
-                .map(archive_result_json)
-                .collect();
-            Ok(format_pack_output(&results, self.json, false))
+            Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
         }
     }
 
@@ -175,9 +157,9 @@ impl PackArgs {
         config: &Config,
         project: &pnpm_workspace::Project,
         mut options: PackOptions,
-    ) -> miette::Result<Vec<PackedArchive>> {
+    ) -> miette::Result<pnpm_pack::PackResult> {
         set_injected_changelog(&mut options, config, &project.root_dir).await?;
-        pack_archives::<Reporter, Host>(&options, &self.variant).await
+        api::<Reporter, Host>(&options).await
             .map_err(miette::Report::new)
             .wrap_err_with(|| {
                 if self.json {
@@ -302,16 +284,11 @@ impl RecursivePack<'_, '_> {
         };
         options.output.locks = Some(Arc::clone(&self.output.locks));
         match args.pack_one::<Reporter>(self.config, project, options).await {
-            Ok(archives) => {
-                let index = self.results.order_index[&root];
+            Ok(result) => {
                 self.results.packed
                     .lock()
                     .expect("packed results lock is not poisoned")
-                    .extend(
-                        archives
-                            .iter()
-                            .map(|archive| (index, archive_result_json(archive))),
-                    );
+                    .push((self.results.order_index[&root], to_pack_result_json(&result)));
                 TaskCompletion::Passed
             }
             Err(error) => {
@@ -333,8 +310,7 @@ impl RecursivePack<'_, '_> {
         }
         let mut packed =
             self.results.packed.into_inner().expect("packed results lock is not poisoned");
-        // Stable, so a package's archives keep their declaration order.
-        packed.sort_by_key(|(index, _)| *index);
+        packed.sort_unstable_by_key(|(index, _)| *index);
         Ok(packed
             .into_iter()
             .map(|(_, result)| result)
