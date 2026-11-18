@@ -72,7 +72,8 @@ impl ResolutionVerifier for DelayedOk {
         let delay = self.delays
             .iter()
             .find(|(delayed, _)| *delayed == name.as_str())
-            .map_or(0, |(_, ms)| *ms);
+            .map(|(_, ms)| *ms)
+            .unwrap_or(0);
         Box::pin(async move {
             if delay > 0 {
                 tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
@@ -381,9 +382,6 @@ impl ResolutionVerifier for FetchFailsFor {
     }
 }
 
-/// The transport-failure terminal event must carry the count observed
-/// before the abort — not reset it to zero — and completions after the
-/// abort must not be counted.
 #[tokio::test]
 async fn fetch_failure_reports_the_observed_checked_count() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -465,8 +463,6 @@ impl ResolutionVerifier for PanicsFor {
     }
 }
 
-/// A panic during the fan-out must still emit a terminal `Failed`
-/// event carrying the checked count observed before the panic.
 #[tokio::test]
 async fn panic_drop_guard_reports_observed_checked_count() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

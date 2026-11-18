@@ -35,11 +35,11 @@ pub(super) struct VerificationProgress<Reporter: self::Reporter> {
 
 impl<Reporter: self::Reporter> VerificationProgress<Reporter> {
     pub(super) fn start(entries: u64, lockfile_path: Option<String>) -> Self {
+        let started_at = Instant::now();
         emit::<Reporter>(
             LogLevel::Debug,
             LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path.clone() },
         );
-        let started_at = Instant::now();
         Self {
             entries,
             checked: 0,
