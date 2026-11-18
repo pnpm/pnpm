@@ -49,8 +49,6 @@ pub(super) struct PartitionSideEffectsContext<'a> {
     pub allow_build_policy: &'a AllowBuildPolicy,
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
-    /// The platforms the install links, with the CLI's overrides.
-    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
 impl PartitionSideEffects {
@@ -106,12 +104,12 @@ impl Partition<'_> {
                 store_index_keys_by_snapshot: &self.side_effects.store_index_keys,
             },
             config: ctx.config,
-            wanted: (ctx.wanted.snapshots, ctx.wanted.packages),
+            snapshots: ctx.wanted.snapshots,
+            packages: ctx.wanted.packages,
             requires_build_by_snapshot: &self.requires_build_by_snapshot,
             allow_build_policy: ctx.allow_build_policy,
             side_effects_maps_by_snapshot: &mut self.side_effects.maps,
             store_index_writer: ctx.store_index_writer,
-            supported_architectures: ctx.supported_architectures,
         };
         crate::shared_side_effects::prepare_shared_side_effects(&mut options, ctx.importers).await
     }
@@ -131,12 +129,12 @@ impl Partition<'_> {
                     store_index_keys_by_snapshot: &self.side_effects.store_index_keys,
                 },
                 config: ctx.config,
-                wanted: (ctx.wanted.snapshots, ctx.wanted.packages),
+                snapshots: ctx.wanted.snapshots,
+                packages: ctx.wanted.packages,
                 requires_build_by_snapshot: &self.requires_build_by_snapshot,
                 allow_build_policy: ctx.allow_build_policy,
                 side_effects_maps_by_snapshot: &mut self.side_effects.maps,
                 store_index_writer: ctx.store_index_writer,
-                supported_architectures: ctx.supported_architectures,
             },
             ctx.importers,
         )

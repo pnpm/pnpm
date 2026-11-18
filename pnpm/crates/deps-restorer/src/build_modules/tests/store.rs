@@ -165,7 +165,6 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
-            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -257,7 +256,6 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
-            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -435,7 +433,6 @@ async fn write_path_populates_side_effects_row() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
-            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

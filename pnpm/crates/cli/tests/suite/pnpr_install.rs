@@ -735,7 +735,6 @@ mod batch_variants;
 mod hosted;
 mod optional_peers;
 mod publish_retry;
-mod supported_architectures_link;
 mod supported_architectures_variants;
 mod workspace;
 

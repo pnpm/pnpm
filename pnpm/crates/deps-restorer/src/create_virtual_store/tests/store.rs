@@ -546,13 +546,8 @@ fn snapshot_cache_key_for_git_resolution_uses_git_hosted_key() {
     let pkg = key("ts-pipe-compose", "0.2.1");
     let packages = HashMap::from([(pkg.clone(), git_metadata())]);
 
-    let received = snapshot_cache_key(
-        &pkg,
-        &packages,
-        false,
-        &crate::platform_selection::VariantPlatforms::host(),
-    )
-    .expect("snapshot_cache_key must not error");
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
     assert_eq!(
         received.value,
         Some(format!("{pkg}\tbuilt")),
@@ -565,13 +560,8 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), git_hosted_tarball_metadata())]);
 
-    let received = snapshot_cache_key(
-        &pkg,
-        &packages,
-        false,
-        &crate::platform_selection::VariantPlatforms::host(),
-    )
-    .expect("snapshot_cache_key must not error");
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
     assert_eq!(
         received.value,
         Some(format!("{pkg}\tbuilt")),
@@ -589,13 +579,8 @@ fn snapshot_cache_key_for_a_refused_tarball_is_absent() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
 
-    let received = snapshot_cache_key(
-        &pkg,
-        &packages,
-        false,
-        &crate::platform_selection::VariantPlatforms::host(),
-    )
-    .expect("snapshot_cache_key must not error");
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
     assert_eq!(received.value, None, "a tarball the fetch path refuses must not warm-hit");
     assert!(!received.is_git_hosted);
 }
@@ -755,11 +740,7 @@ fn snapshot_cache_key_for_package_variants_follows_the_host() {
         floors: None,
     };
 
-    let platforms = crate::platform_selection::VariantPlatforms {
-        runtime: configured,
-        linked: host_platform_selector(),
-    };
-    let received = snapshot_cache_key(&pkg, &packages, false, &platforms)
+    let received = snapshot_cache_key(&pkg, &packages, false, &configured)
         .expect("snapshot_cache_key must not error");
     let value = received.value.expect("the host variant has a warm key");
     assert!(value.starts_with(&format!("sha512-{}", "B".repeat(20))), "{value}");
@@ -797,13 +778,8 @@ fn snapshot_cache_key_for_a_git_hosted_variations_any_archive_is_git_hosted() {
     });
     let packages = HashMap::from([(pkg.clone(), metadata)]);
 
-    let received = snapshot_cache_key(
-        &pkg,
-        &packages,
-        false,
-        &crate::platform_selection::VariantPlatforms::host(),
-    )
-    .expect("snapshot_cache_key must not error");
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
     assert_eq!(received.value, Some(format!("{pkg}\tbuilt")));
     assert!(received.is_git_hosted);
 }
@@ -911,12 +887,7 @@ fn snapshot_cache_key_for_a_tarball_with_an_empty_integrity_is_absent() {
     tarball.integrity = Some(ssri::Integrity { hashes: Vec::new() });
     let packages = HashMap::from([(pkg.clone(), metadata)]);
 
-    let received = snapshot_cache_key(
-        &pkg,
-        &packages,
-        false,
-        &crate::platform_selection::VariantPlatforms::host(),
-    )
-    .expect("snapshot_cache_key must not error");
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
     assert_eq!(received.value, None);
 }

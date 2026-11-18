@@ -180,15 +180,7 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     if !current_entry_unchanged && !gvs_slot_is_authoritative {
         return Ok(false);
     }
-    if !slot_contents_complete::<Reporter>(probe, snapshot_key, snapshot, current_entry_unchanged)?
-    {
-        return Ok(false);
-    }
-    Ok(!super::linked_archives::slot_holds_other_variant(
-        probe.layout,
-        (snapshot_key, probe.packages),
-        probe.policy.supported_architectures,
-    ))
+    slot_contents_complete::<Reporter>(probe, snapshot_key, snapshot, current_entry_unchanged)
 }
 
 /// Whether a slot probe can judge this snapshot at all. The hoisted
@@ -314,7 +306,4 @@ pub(crate) struct SnapshotReusePolicy<'b> {
     pub force: bool,
     pub is_hoisted: bool,
     pub include_optional: bool,
-    /// What a package with platform variants links, so a slot holding
-    /// another of its archives is not current.
-    pub supported_architectures: Option<&'b pnpm_package_is_installable::SupportedArchitectures>,
 }

@@ -8,11 +8,11 @@
 //! derivation plus children-link wiring from `SnapshotEntry.dependencies`
 //! + `optional_dependencies`.
 
-use crate::platform_selection::VariantPlatforms;
 use indexmap::IndexMap;
 use pnpm_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry,
+    LockfileResolution, PackageKey, PackageMetadata, PkgName, PlatformSelector, SnapshotDepRef,
+    SnapshotEntry,
 };
 use std::collections::HashMap;
 
@@ -33,20 +33,20 @@ pub fn build_deps_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
 ) -> HashMap<PackageKey, DepsGraphNode<PackageKey>> {
-    build_deps_graph_for_platform(snapshots, packages, &VariantPlatforms::host())
+    build_deps_graph_for_platform(snapshots, packages, &crate::host_platform_selector())
 }
 
 /// Build a dependency graph whose variations resolutions use the source
-/// integrity selected for `platforms`.
+/// integrity selected for `platform_selector`.
 #[must_use]
 pub fn build_deps_graph_for_platform(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
-    platforms: &VariantPlatforms,
+    platform_selector: &PlatformSelector,
 ) -> HashMap<PackageKey, DepsGraphNode<PackageKey>> {
     let mut graph = HashMap::with_capacity(snapshots.len());
     for (snapshot_key, snapshot) in snapshots {
-        if let Some(node) = build_node(snapshot_key, snapshot, packages, platforms) {
+        if let Some(node) = build_node(snapshot_key, snapshot, packages, platform_selector) {
             graph.insert(snapshot_key.clone(), node);
         }
     }
@@ -67,11 +67,12 @@ pub fn build_deps_graph_for_platform(
 pub fn build_deps_subgraph<Iter>(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
-    (roots, platforms): (Iter, &VariantPlatforms),
+    roots: Iter,
 ) -> HashMap<PackageKey, DepsGraphNode<PackageKey>>
 where
     Iter: IntoIterator<Item = PackageKey>,
 {
+    let platform_selector = crate::host_platform_selector();
     let mut graph: HashMap<PackageKey, DepsGraphNode<PackageKey>> = HashMap::new();
     let mut queue: std::collections::VecDeque<PackageKey> = roots.into_iter().collect();
     while let Some(key) = queue.pop_front() {
@@ -79,7 +80,7 @@ where
             continue;
         }
         let Some(snapshot) = snapshots.get(&key) else { continue };
-        let Some(node) = build_node(&key, snapshot, packages, platforms) else {
+        let Some(node) = build_node(&key, snapshot, packages, &platform_selector) else {
             continue;
         };
         // Enqueue every child the new node points at. Repeat-enqueues
@@ -99,11 +100,11 @@ fn build_node(
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
     packages: &HashMap<PackageKey, PackageMetadata>,
-    platforms: &VariantPlatforms,
+    platform_selector: &PlatformSelector,
 ) -> Option<DepsGraphNode<PackageKey>> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages.get(&metadata_key)?;
-    let full_pkg_id = full_pkg_id_for(&metadata_key, &metadata.resolution, platforms);
+    let full_pkg_id = full_pkg_id_for(&metadata_key, &metadata.resolution, platform_selector);
     let children = build_children(snapshot);
     Some(DepsGraphNode { full_pkg_id, children })
 }
@@ -113,7 +114,7 @@ fn build_node(
 fn full_pkg_id_for(
     pkg_key: &PackageKey,
     resolution: &LockfileResolution,
-    platforms: &VariantPlatforms,
+    platform_selector: &PlatformSelector,
 ) -> String {
     // `PackageKey`'s `Display` impl produces `<name>@<ver>` — the
     // shape the `pkgIdWithPatchHash` carries in v9 lockfiles. (Pre-v6
@@ -125,7 +126,7 @@ fn full_pkg_id_for(
     // `any`.
     if let LockfileResolution::Variations(variations) = resolution
         && let Some(integrity) = variations
-            .select(platforms.for_variations(variations))
+            .select(platform_selector)
             .ok()
             .flatten()
             .and_then(|selected| selected.resolution.integrity())

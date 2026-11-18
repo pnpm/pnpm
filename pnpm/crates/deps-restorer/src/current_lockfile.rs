@@ -16,7 +16,7 @@
 
 pub use missing_projects::missing_project_importers;
 pub use platform_archives::{KeptArchive, PlatformArchivesInput, StoredArchive, platform_archives};
-pub use reachability::{GroupSelection, ReachableLockfileGraph, VariantWalk, collect_reachable};
+pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
 pub use runtime_dependencies::runtime_dependency_alias;
 pub use variant_snapshots::{has_variant_snapshots, with_selected_variant_snapshots};
 
@@ -66,11 +66,12 @@ pub fn materialization_closure(
     skipped: &SkippedSnapshots,
 ) -> MaterializationClosure {
     // A platform variant with dependencies of its own is wired as its own
-    // snapshot. The walk follows the variant the install links.
-    let selected = match groups.variant_walk {
-        VariantWalk::Linked => with_selected_variant_snapshots(lockfile, &groups.walked_platform()),
-        VariantWalk::Every => None,
-    };
+    // snapshot. The walk follows the host's variant, also when
+    // `supportedArchitectures` names one other platform.
+    let selected = with_selected_variant_snapshots(
+        lockfile,
+        &crate::install_package_by_snapshot::host_platform_selector(),
+    );
     let lockfile = selected.as_ref().unwrap_or(lockfile);
     let reachable =
         collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {
@@ -180,13 +181,7 @@ pub fn merge_filtered_wanted_lockfile(
         .collect::<Result<_, MergeFilteredWantedLockfileError>>()?;
     freshly_resolved.importers.extend(missing_project_importers);
     overlay_previous_packages(&mut freshly_resolved, previous_wanted);
-    // The wanted lockfile is the same on every platform, so it keeps what
-    // any variant installs, not only the variant this host links.
-    Ok(full_closure(
-        &freshly_resolved,
-        workspace_root,
-        &GroupSelection::all().walking_every_variant(),
-    ))
+    Ok(full_closure(&freshly_resolved, workspace_root))
 }
 
 /// Fill in the `packages` and `snapshots` entries `previous_wanted` recorded
@@ -236,7 +231,7 @@ pub fn merge_filtered_current_lockfile(
     let retained = retained_closure(previous_current, &selected.importer_ids, workspace_root);
     let selected_packages = selected.lockfile.packages.clone();
     let merged = overlay_lockfiles(wanted, previous_current, retained, selected.lockfile);
-    let mut final_lockfile = full_closure(&merged, workspace_root, &GroupSelection::all());
+    let mut final_lockfile = full_closure(&merged, workspace_root);
     if let Some(selected_packages) = selected_packages {
         final_lockfile.packages.get_or_insert_default().extend(selected_packages);
     }
@@ -292,7 +287,7 @@ fn overlay_lockfiles(
 }
 
 /// The closure over every importer and dependency group of `lockfile`.
-fn full_closure(lockfile: &Lockfile, workspace_root: &Path, groups: &GroupSelection) -> Lockfile {
+fn full_closure(lockfile: &Lockfile, workspace_root: &Path) -> Lockfile {
     let importer_ids = lockfile.importers
         .keys()
         .cloned()
@@ -301,7 +296,7 @@ fn full_closure(lockfile: &Lockfile, workspace_root: &Path, groups: &GroupSelect
         lockfile,
         workspace_root,
         &importer_ids,
-        groups,
+        &GroupSelection::all(),
         &SkippedSnapshots::new(),
     )
     .lockfile

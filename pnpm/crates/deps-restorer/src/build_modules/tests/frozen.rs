@@ -166,7 +166,6 @@ async fn frozen_store_skips_side_effects_upload() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
-            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

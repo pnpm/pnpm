@@ -224,7 +224,7 @@ async fn cold_batch_reports_a_failed_prefetch_without_downloading_again() {
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
+        runtime_platform_selector: &host_platform_selector(),
 
         defer_link: false,
         link_concurrency_probe: None,

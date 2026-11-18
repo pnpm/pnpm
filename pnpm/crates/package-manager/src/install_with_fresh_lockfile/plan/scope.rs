@@ -41,8 +41,7 @@ impl MaterializationScope {
             built,
             install.included(),
             install.drivers.config.peer_edge_options(),
-        )
-        .linking_for(install.projects.supported_architectures);
+        );
         let closure = Self::build_closure(
             install,
             is_hoisted,

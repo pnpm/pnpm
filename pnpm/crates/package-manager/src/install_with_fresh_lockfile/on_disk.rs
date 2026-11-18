@@ -306,7 +306,6 @@ impl<'a> OnDiskInputs<'a> {
 
                 skipped,
                 pending_bins: Some(&linked.pending_bins),
-                supported_architectures: self.install.projects.supported_architectures,
                 // The fresh-resolve path never serves an explicit
                 // `pacquet rebuild`; rebuilds always take the frozen path.
             },

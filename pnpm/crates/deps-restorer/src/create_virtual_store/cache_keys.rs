@@ -1,11 +1,12 @@
 use super::CreateVirtualStoreError;
 use crate::{
-    install_package_by_snapshot::unverified_fetch_is_allowed, platform_selection::VariantPlatforms,
+    install_package_by_snapshot::{runtime_platform_selector, unverified_fetch_is_allowed},
     store_index_key_for_resolution,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
+    LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PlatformSelector,
+    SnapshotEntry,
 };
 use pnpm_store_dir::store_index_key;
 use std::collections::HashMap;
@@ -19,7 +20,7 @@ pub(super) fn derive_cache_keys(
     let (Some(snapshots), Some(packages)) = (entries.snapshots, entries.packages) else {
         return HashMap::new();
     };
-    let selector = VariantPlatforms::of(supported_architectures);
+    let selector = runtime_platform_selector(supported_architectures);
     snapshots
         .keys()
         .map(|snapshot_key| {
@@ -75,7 +76,7 @@ pub(super) fn snapshot_cache_key(
     snapshot_key: &PackageKey,
     packages: &HashMap<PackageKey, PackageMetadata>,
     ignore_scripts: bool,
-    variant_platforms: &VariantPlatforms,
+    runtime_platform_selector: &PlatformSelector,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages
@@ -146,7 +147,7 @@ pub(super) fn snapshot_cache_key(
         // is best-effort and the cold path is where errors are
         // raised).
         LockfileResolution::Variations(variations) => {
-            variant_cache_key(variations, variant_platforms, &pkg_id, !ignore_scripts)
+            variant_cache_key(variations, runtime_platform_selector, &pkg_id, !ignore_scripts)
         }
         // Custom resolutions have no built-in warm-cache key — the
         // cold path consults the pnpmfile custom fetchers, and the
@@ -259,9 +260,6 @@ pub(super) struct SlotReuse<'a> {
     pub(super) current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     /// Replace the slot even when its recorded metadata is unchanged.
     pub(super) force: bool,
-    pub(super) layout: &'a crate::VirtualStoreLayout,
-    pub(super) supported_architectures:
-        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
 impl SlotReuse<'_> {
@@ -269,25 +267,22 @@ impl SlotReuse<'_> {
     /// this install wants, so its completion marker must not be taken
     /// as proof that the slot is already correct.
     pub(super) fn must_replace(&self, snapshot_key: &PackageKey) -> bool {
-        self.force
-            || package_content_changed(self.current_packages, self.packages, snapshot_key)
-            || super::linked_archives::slot_holds_other_variant(
-                self.layout,
-                (snapshot_key, self.packages),
-                self.supported_architectures,
-            )
+        self.force || package_content_changed(self.current_packages, self.packages, snapshot_key)
     }
 }
 pub(super) fn variant_cache_key(
     variations: &pnpm_lockfile::VariationsResolution,
-    variant_platforms: &VariantPlatforms,
+    runtime_platform_selector: &PlatformSelector,
     pkg_id: &str,
     built: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
-    let platform = variant_platforms.for_variations(variations);
+    let platform = crate::install_package_by_snapshot::variations_platform(
+        variations,
+        runtime_platform_selector,
+    );
     let no_key = SnapshotCacheKey { value: None, is_git_hosted: false };
     let Some(selected) = variations
-        .select(platform)
+        .select(&platform)
         .ok()
         .flatten()
     else {
