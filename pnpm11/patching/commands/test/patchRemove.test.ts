@@ -208,7 +208,7 @@ test('patch-remove rejects a malformed state.json before deleting any patch', as
 
   await expect(patchRemove.handler(createOptions(projectDir, {
     good: 'patches/good.patch',
-  }), ['good'])).rejects.toThrow()
+  }), ['good'])).rejects.toMatchObject({ name: 'SyntaxError' })
 
   expect(fs.existsSync(goodPatch)).toBe(true)
   expect(updatePatchedDependenciesMock).not.toHaveBeenCalled()
