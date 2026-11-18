@@ -77,7 +77,7 @@ export function inspectionWorkflowSteps (entry) {
     { name: 'create a project for local linking', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--link-fixture'] },
     { name: 'reject package-name linking before changing the manifest', command: 'node', args: [entry, '--dir', '.link-audit', 'link', '@fixture/local'], expectExitCode: 1, expectOutput: 'ERR_PNPM_LINK_BAD_PARAMS' },
     { name: 'verify rejected link left the project unchanged', command: 'node', args: ['-e', "require('node:assert/strict').deepEqual(require('./.link-audit/package.json'), { name: 'link-audit', version: '1.0.0' })"] },
-    { name: 'link a workspace package by path', command: 'node', args: [entry, '--dir', '.link-audit', 'link', './packages/local'] },
+    { name: 'link a workspace package by path', command: 'node', args: [entry, '--dir', '.link-audit', 'link', '../packages/local'] },
     { name: 'load the linked workspace package', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('./.link-audit/node_modules/@fixture/local'), '1.2.3')"] },
     { name: 'unlink a package by name', command: 'node', args: [entry, '--dir', '.link-audit', 'unlink', '@fixture/local'] },
     { name: 'verify unlink removed the manifest dependency', command: 'node', args: ['-e', "require('node:assert/strict').equal('dependencies' in require('./.link-audit/package.json'), false)"] },
