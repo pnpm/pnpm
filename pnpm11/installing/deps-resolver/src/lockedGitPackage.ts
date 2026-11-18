@@ -5,10 +5,6 @@ import type { PackageResponse } from '@pnpm/store.controller-types'
 
 import type { DependencyRequest } from './requestDependencyPackage.js'
 
-export function isGitResolution (resolution: LockfileResolution | undefined): boolean {
-  return resolution != null && (('type' in resolution && resolution.type === 'git') || ('gitHosted' in resolution && resolution.gitHosted === true))
-}
-
 export function readLockedGitPackage (request: DependencyRequest): PackageResponse | undefined {
   const { currentPkg, ctx } = request
   const { dependencyLockfile: snapshot, name, pkgId, resolution, version } = currentPkg
@@ -43,8 +39,15 @@ export function readLockedGitPackage (request: DependencyRequest): PackageRespon
   }
 }
 
+export function isGitResolution (resolution: LockfileResolution | undefined): boolean {
+  return resolution != null && (('type' in resolution && resolution.type === 'git') || ('gitHosted' in resolution && resolution.gitHosted === true))
+}
+
 function canReadLockedGitPackage ({ ctx, currentPkg, detached, options, wantedDependency }: DependencyRequest): boolean {
-  const requiresFreshMetadata = options.update || options.updateChecksums || ctx.staleOverrideTargets?.size
+  // Locked dependency references hold exact versions. Updating descendants
+  // needs the ranges from the repository's manifest.
+  const updatesDescendants = options.currentDepth < options.updateDepth
+  const requiresFreshMetadata = options.update || updatesDescendants || options.updateChecksums || ctx.staleOverrideTargets?.size
   if (detached || !ctx.dryRun || !ctx.trustLockfile || !ctx.lockedPeersAreCurrent || requiresFreshMetadata) return false
   const { alias, bareSpecifier } = wantedDependency
   if (options.currentDepth > 0) return bareSpecifier === currentPkg.pkgId

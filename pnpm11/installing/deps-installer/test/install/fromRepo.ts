@@ -466,6 +466,33 @@ test('lockfile-only updates reuse locked Git dependencies with peers and aliased
     .rejects.toMatchObject({ code: 'ERR_PNPM_GIT_RESOLVE_FAILED' })
 })
 
+test('a targeted lockfile-only update uses the range declared by its Git parent', async () => {
+  const project = prepareEmpty()
+  const repoDir = path.resolve('git-parent')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+    name: 'example-parent',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '^1.0.0' },
+  }))
+  const parentSpec = await commitLocalGitRepo(repoDir)
+  const manifest = { dependencies: { 'example-parent': parentSpec } }
+  const options = { lockfileOnly: true, trustLockfile: true }
+  await install(manifest, testDefaults({
+    ...options,
+    preferredVersions: { 'is-negative': { '1.0.0': 'version' } } as const,
+  }))
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.0' })
+
+  await install(manifest, testDefaults({
+    ...options,
+    depth: 1,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === 'is-negative',
+  }))
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.1' })
+})
+
 test('from a subdirectory of a hosted git repo', async () => {
   const project = prepareEmpty()
   const commit = 'c0ffee0000000000000000000000000000000001'
