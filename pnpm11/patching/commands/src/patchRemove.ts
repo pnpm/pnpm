@@ -11,7 +11,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { isSubdirectory } from './isSubdirectory.js'
-import { deleteEditDirStates } from './stateFile.js'
+import { deleteEditDirStates, readStateFile } from './stateFile.js'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -124,6 +124,7 @@ async function getEditDirsContext (opts: PatchRemoveCommandOptions): Promise<Edi
   const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
   const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
   await Promise.all([pnpmPatches, path.join(pnpmPatches, 'state.json')].map(rejectSymlink))
+  readStateFile(modulesDir)
   return { modulesDir, pnpmPatches }
 }
 
@@ -154,11 +155,10 @@ async function removeEditDirs (patches: string[], ctx: EditDirsContext): Promise
     await fs.rm(editDir, { recursive: true, force: true })
   }))
   try {
-    const files = await fs.readdir(ctx.pnpmPatches)
-    if (!files.length) {
-      await fs.rmdir(ctx.pnpmPatches)
-    }
-  } catch {}
+    await fs.rmdir(ctx.pnpmPatches)
+  } catch (err: unknown) {
+    if (!isErrorWithCode(err, 'ENOENT') && !isErrorWithCode(err, 'ENOTEMPTY')) throw err
+  }
 }
 
 function isStrictSubdirectory (parentDir: string, childPath: string): boolean {

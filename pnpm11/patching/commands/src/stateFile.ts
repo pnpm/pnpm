@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -68,25 +69,33 @@ export function deleteEditDirStates (opts: DeleteEditDirStatesOptions): EditDir[
 
 function modifyStateFile (modulesDir: string, modifyState: (state: State) => void): void {
   const filePath = getStateFilePath(modulesDir)
-  let state = readStateFile(modulesDir)
-  if (!state) {
-    state = {}
-  }
+  const state = readStateFile(modulesDir) ?? {}
   modifyState(state)
-  const len = Object.keys(state).length
-  if (len) {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    const tmpPath = `${filePath}.${process.pid}.tmp`
-    fs.writeFileSync(tmpPath, JSON.stringify(state, undefined, 2))
-    fs.renameSync(tmpPath, filePath)
+  if (Object.keys(state).length) {
+    writeStateFile(filePath, state)
   } else if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath)
-    try {
-      const dir = path.dirname(filePath)
-      if (fs.readdirSync(dir).length === 0) {
-        fs.rmdirSync(dir)
-      }
-    } catch {}
+    removeStateFile(filePath)
+  }
+}
+
+function writeStateFile (filePath: string, state: State): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  const tmpPath = `${filePath}.${crypto.randomUUID()}.tmp`
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify(state, undefined, 2), { flag: 'wx' })
+    fs.renameSync(tmpPath, filePath)
+  } catch (err) {
+    fs.rmSync(tmpPath, { force: true })
+    throw err
+  }
+}
+
+function removeStateFile (filePath: string): void {
+  fs.unlinkSync(filePath)
+  try {
+    fs.rmdirSync(path.dirname(filePath))
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || (err.code !== 'ENOENT' && err.code !== 'ENOTEMPTY')) throw err
   }
 }
 

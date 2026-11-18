@@ -4,7 +4,7 @@ use super::{
     patches_from_selected_indices, patches_to_remove, remove_empty_patch_dirs,
     remove_empty_patch_dirs_with_fs, select_patches_from_indices, unlink_patch_if_exists,
 };
-use crate::State;
+use crate::{State, cli_args::patch_state::StateFileError};
 use indexmap::IndexMap;
 use std::{io::IsTerminal, path::Path};
 
@@ -403,4 +403,45 @@ impl PatchRemoveFs for NonEmptyDirFs {
     fn remove_dir(&self, _path: &Path) -> std::io::Result<()> {
         panic!("non-empty dirs should not be removed")
     }
+}
+
+#[tokio::test]
+async fn run_rejects_malformed_patch_state_before_removing_patches() {
+    let tmp = tempfile::tempdir().expect("temp dir");
+    std::fs::write(tmp.path().join("package.json"), "{}").expect("write package.json");
+    let patch_file = tmp.path().join("patches/pkg.patch");
+    std::fs::create_dir_all(patch_file.parent().expect("patch parent"))
+        .expect("create patches dir");
+    std::fs::write(&patch_file, "patch").expect("write patch");
+    let modules_dir = tmp.path().join("node_modules");
+    std::fs::create_dir_all(modules_dir.join(".pnpm_patches")).expect("create state dir");
+    std::fs::write(modules_dir.join(".pnpm_patches/state.json"), "{").expect("write state");
+
+    let mut config = pnpm_config::Config::new();
+    config.workspace_dir = Some(tmp.path().to_path_buf());
+    config.modules_dir = modules_dir;
+    config.patched_dependencies =
+        Some(IndexMap::from([("pkg@1.0.0".to_string(), "patches/pkg.patch".to_string())]));
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
+    let state = State {
+        tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
+        http_client: std::sync::Arc::new(pnpm_network::ThrottledClient::default()),
+        config,
+        manifest: pnpm_package_manifest::PackageManifest::from_path(
+            tmp.path().join("package.json"),
+        )
+        .expect("package manifest"),
+        lockfile: pnpm_lockfile::LazyLockfile::disabled(),
+        resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
+        dedicated: None,
+        discovered_workspace: None,
+    };
+
+    let err = PatchRemoveArgs { patches: vec!["pkg@1.0.0".to_string()] }
+        .run(tmp.path(), state)
+        .await
+        .expect_err("malformed state should error");
+
+    assert!(matches!(err, PatchRemoveError::StateFile(StateFileError::Parse { .. })), "{err:?}");
+    assert!(patch_file.exists());
 }

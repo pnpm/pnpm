@@ -197,6 +197,23 @@ testOnNonWindows('patch-remove rejects a symlinked state.json', async () => {
   expect(fs.readFileSync(outsideState, 'utf8')).toBe(outsideStateContent)
 })
 
+test('patch-remove rejects a malformed state.json before deleting any patch', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const goodPatch = path.join(projectDir, 'patches/good.patch')
+  fs.mkdirSync(path.dirname(goodPatch), { recursive: true })
+  fs.writeFileSync(goodPatch, 'good patch', 'utf8')
+  fs.mkdirSync(pnpmPatches, { recursive: true })
+  fs.writeFileSync(path.join(pnpmPatches, 'state.json'), '{', 'utf8')
+
+  await expect(patchRemove.handler(createOptions(projectDir, {
+    good: 'patches/good.patch',
+  }), ['good'])).rejects.toThrow()
+
+  expect(fs.existsSync(goodPatch)).toBe(true)
+  expect(updatePatchedDependenciesMock).not.toHaveBeenCalled()
+})
+
 test('patch-remove keeps other edit directories when a patch key names .pnpm_patches itself', async () => {
   const projectDir = path.join(tempRoot, 'project')
   const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
