@@ -6,6 +6,7 @@ use super::{
 use sha2::{Digest, Sha256};
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub(super) struct OsvSeverity {
     #[serde(rename = "type")]
     pub(super) kind: String,
@@ -27,8 +28,6 @@ pub(super) struct OsvRecord {
     pub(super) references: Vec<OsvReference>,
     #[serde(default)]
     pub(super) aliases: Option<Vec<String>>,
-    #[serde(default)]
-    pub(super) severity: Option<Vec<OsvSeverity>>,
 }
 
 #[derive(Deserialize)]
@@ -56,10 +55,6 @@ pub(super) struct OsvAffected {
     pub(super) versions: Vec<String>,
     #[serde(default)]
     pub(super) database_specific: Option<OsvAffectedDatabaseSpecific>,
-    #[serde(default)]
-    pub(super) severity: Option<Vec<OsvSeverity>>,
-    #[serde(default)]
-    pub(super) ecosystem_specific: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -249,7 +244,7 @@ fn advisory_url(record: &OsvRecord) -> String {
     if let Some(aliases) = &record.aliases {
         for alias in aliases {
             if alias.starts_with("GHSA-") {
-                return format!("https://github.com/advisories/{}", alias);
+                return format!("https://github.com/advisories/{alias}");
             }
         }
     }
