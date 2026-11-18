@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Build the pnpm RPM for RED OS 8 (and any other RHEL 8 derivative) from a
+# Build the pnpm RPM for RED OS 8, RHEL 8 derivatives, and anything newer from a
 # released standalone Linux x64 tarball, plus a dnf repository that installs on
 # a host with no network access at all.
 #
@@ -30,8 +30,8 @@ spec_dir=$(cd "$(dirname "$0")" && pwd)
 # precedes, so 11.1.0~rc.1 upgrades to 11.1.0.
 rpm_version=${version//-/'~'}
 
-# RED OS 8 provides glibc 2.28, the RHEL 8 baseline. A binary referencing a
-# newer symbol version installs fine and then dies at exec.
+# The package targets the RHEL 8 baseline, glibc 2.28. RED OS 8 ships 2.36. A
+# binary that needs a newer glibc installs fine and then dies at exec.
 readonly max_glibc=2.28
 
 work=$(mktemp -d)
@@ -49,14 +49,23 @@ cp "$spec_dir/pnpm.sh" "$work/SOURCES/"
 
 tar -xzf "$work/SOURCES/pnpm-linux-x64.tar.gz" -C "$work/payload"
 
-required_glibc=$(
-  {
-    objdump -T "$work/payload/pnpm"
-    find "$work/payload/dist" -name '*.node' -exec objdump -T {} +
-  } | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/^GLIBC_//' | sort -uV | tail -1
-)
+# The ELF version references, not the symbol table: a binary can also require
+# a non-numeric tag such as GLIBC_ABI_DT_RELR, which glibc 2.28 lacks.
+addons=$(find "$work/payload/dist" -name '*.node')
+glibc_refs=
+for binary in "$work/payload/pnpm" $addons; do
+  version_info=$(objdump -p "$binary")
+  glibc_refs+=$(grep -oE 'GLIBC_[A-Za-z0-9_.]+' <<<"$version_info" || true)$'\n'
+done
+glibc_refs=$(grep . <<<"$glibc_refs" | sort -u)
+unsupported_tags=$(grep -v '^GLIBC_[0-9][0-9.]*$' <<<"$glibc_refs" || true)
+if [ -n "$unsupported_tags" ]; then
+  echo "pnpm $version requires glibc tags missing from glibc $max_glibc:" $unsupported_tags >&2
+  exit 1
+fi
+required_glibc=$(sed 's/^GLIBC_//' <<<"$glibc_refs" | sort -V | tail -1)
 if [ "$(printf '%s\n%s\n' "$required_glibc" "$max_glibc" | sort -V | tail -1)" != "$max_glibc" ]; then
-  echo "pnpm $version needs glibc $required_glibc, RED OS 8 provides $max_glibc" >&2
+  echo "pnpm $version needs glibc $required_glibc, above the RHEL 8 baseline of $max_glibc" >&2
   exit 1
 fi
 
@@ -68,13 +77,10 @@ rpmbuild -bb "$spec_dir/pnpm.spec" \
 rpm_file=$(find "$work/RPMS/x86_64" -name '*.rpm' -print -quit)
 test -n "$rpm_file"
 
-# Only this script's own outputs are removed: OUT_DIR may hold other files, and
-# a stale RPM left beside the current one would be picked up by anything copying
-# the directory.
-mkdir -p "$out_dir"
-rm -rf "${out_dir:?}/repo"
-rm -f "$out_dir"/pnpm-*.rpm "$out_dir"/pnpm-*-redos8-x86_64-repo.tar.gz
-mkdir -p "$out_dir/repo"
+# Outputs are assembled here and replace the previous ones in OUT_DIR only once
+# all of them are built.
+stage=$work/out
+mkdir -p "$stage/repo"
 
 # The offline target resolves the package's Requires against its own installed
 # packages and nothing else, so whatever this system is missing has to travel in
@@ -82,23 +88,31 @@ mkdir -p "$out_dir/repo"
 # them; `--resolve` on the dependency names would drag in every architecture's
 # build of each.
 dnf install -y --downloadonly --destdir="$work/deps" "$rpm_file"
-find "$work/deps" -name '*.rpm' ! -name 'pnpm-*' -exec cp {} "$out_dir/repo/" \;
-if [ -z "$(find "$out_dir/repo" -name 'libatomic*.rpm' -print -quit)" ]; then
-  dnf download --destdir="$out_dir/repo" --arch x86_64 libatomic
+find "$work/deps" -name '*.rpm' ! -name 'pnpm-*' -exec cp {} "$stage/repo/" \;
+if [ -z "$(find "$stage/repo" -name 'libatomic*.rpm' -print -quit)" ]; then
+  dnf download --destdir="$stage/repo" --arch x86_64 libatomic
 fi
-test -n "$(find "$out_dir/repo" -name 'libatomic*.rpm' -print -quit)"
+test -n "$(find "$stage/repo" -name 'libatomic*.rpm' -print -quit)"
 
-cp "$rpm_file" "$out_dir/"
-cp "$rpm_file" "$out_dir/repo/"
-cat > "$out_dir/repo/pnpm.repo" <<'EOF'
+cp "$rpm_file" "$stage/"
+cp "$rpm_file" "$stage/repo/"
+cat > "$stage/repo/pnpm.repo" <<'EOF'
 [pnpm]
 name=pnpm
 baseurl=file:///opt/pnpm-repo
 enabled=1
 gpgcheck=0
 EOF
-createrepo_c --quiet "$out_dir/repo"
+createrepo_c --quiet "$stage/repo"
 
-tar czf "$out_dir/pnpm-${version}-redos8-x86_64-repo.tar.gz" -C "$out_dir" repo
+tar czf "$stage/pnpm-${version}-redos8-x86_64-repo.tar.gz" -C "$stage" repo
+
+# Only this script's own outputs are removed: OUT_DIR may hold other files, and
+# a stale RPM left beside the current one would be picked up by anything copying
+# the directory.
+mkdir -p "$out_dir"
+rm -rf "${out_dir:?}/repo"
+rm -f "$out_dir"/pnpm-*.rpm "$out_dir"/pnpm-*-redos8-x86_64-repo.tar.gz
+mv "$stage"/* "$out_dir/"
 
 echo "Built $(basename "$rpm_file") for glibc $required_glibc in $out_dir"

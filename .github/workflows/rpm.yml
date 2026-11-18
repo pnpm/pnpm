@@ -1,8 +1,8 @@
 name: RPM
 
-# Packages the released standalone Linux x64 build as an RPM for RED OS 8 and
-# other RHEL 8 derivatives, together with a dnf repository that installs it on
-# hosts with no network access at all.
+# Packages the released standalone Linux x64 build as an RPM for RED OS 8, RHEL 8
+# derivatives, and newer RPM-based systems, together with a dnf repository that
+# installs it on hosts with no network access at all.
 #
 # The artifacts are not attached to the GitHub release: releases here are
 # immutable once published, so nothing can be added to them afterwards. Grab
@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "pnpm version to package (without leading v)"
+        description: "pnpm version to package (without leading v). The release must ship pnpm-linux-x64.tar.gz (pnpm 11.0.0 and newer)."
         required: true
 
 permissions: {}
@@ -86,9 +86,9 @@ jobs:
             packaging/rpm/build.sh "$VERSION" pnpm-linux-x64.tar.gz
           '
 
-      - name: Install it the way an offline RED OS 8 host will
-        # AlmaLinux 8 is the closest public stand-in for RED OS 8: same RHEL 8
-        # base, same glibc 2.28, same rpm 4.14. `--network none` and the
+      - name: Install it the way an offline host will
+        # AlmaLinux 8 is the oldest system the package targets: glibc 2.28 and
+        # rpm 4.14. RED OS 8 is newer on both. `--network none` and the
         # disabled distribution repositories are the point of the test — they
         # are what proves the repository needs nothing but itself.
         env:

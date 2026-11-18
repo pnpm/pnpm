@@ -2,7 +2,9 @@
 
 An RPM of the standalone pnpm build — the same binary
 `https://get.pnpm.io/install.sh` installs, bundled with its own Node.js runtime
-— for RED OS 8 and other RHEL 8 derivatives (`x86_64`, glibc 2.28, rpm 4.14).
+— for RED OS 8, RHEL 8 derivatives, and newer RPM-based systems on `x86_64`.
+The package targets the RHEL 8 baseline (glibc 2.28, rpm 4.14). RED OS 8 ships
+glibc 2.36, above that baseline.
 
 The package installs:
 
@@ -70,4 +72,7 @@ docker run --rm -v "$PWD:/src" -w /src almalinux:8 bash -euc '
 
 Pass a local `pnpm-linux-x64.tar.gz` as a second argument to package a build
 that is not on GitHub releases. The build fails if the binary needs a glibc
-newer than the 2.28 that RED OS 8 provides.
+newer than 2.28.
+
+`workflow_dispatch` and `build.sh` package only releases that ship
+`pnpm-linux-x64.tar.gz`, which is pnpm 11.0.0 and newer.

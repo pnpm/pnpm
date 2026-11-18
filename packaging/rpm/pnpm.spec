@@ -2,8 +2,8 @@
 # The binary is a Node.js single-executable application: the default post-install
 # processing strips it, which cuts the injected payload out of the executable.
 %global __os_install_post %{nil}
-# RED OS 8 carries rpm 4.14, which cannot read the zstd payload that newer
-# rpmbuild writes by default — so a package built outside RHEL 8 still installs.
+# RHEL 8 carries rpm 4.14, which cannot read the zstd payload that newer
+# rpmbuild writes by default. gzip is readable by every rpm the package targets.
 %define _binary_payload w9.gzdio
 
 %global pnpm_root %{_prefix}/lib/pnpm
