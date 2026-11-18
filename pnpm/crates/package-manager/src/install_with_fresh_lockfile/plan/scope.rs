@@ -1,6 +1,5 @@
 use super::super::FreshInputs;
 use crate::SkippedSnapshots;
-use pnpm_deps_restorer::PlatformLockfile;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use std::collections::{BTreeMap, HashSet};
@@ -84,7 +83,7 @@ impl MaterializationScope {
         };
         let project_anchor_importer_ids =
             project_anchor_importer_ids(install.projects.real_ids, &materialized);
-        FinalScope { closure, groups: self.groups.clone(), project_anchor_importer_ids }
+        FinalScope { closure, project_anchor_importer_ids }
     }
 
     fn build_closure(
@@ -134,7 +133,6 @@ impl FinalScope {
     ) -> super::super::on_disk::OnDiskProjects<'l> {
         super::super::on_disk::OnDiskProjects {
             materialization_lockfile: self.lockfile(built),
-            platform_lockfile: PlatformLockfile { lockfile: built, groups: &self.groups },
             importer_manifests,
             project_anchor_importer_ids: &self.project_anchor_importer_ids,
         }

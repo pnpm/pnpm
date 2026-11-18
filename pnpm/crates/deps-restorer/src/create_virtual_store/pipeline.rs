@@ -13,7 +13,6 @@ use super::{
 };
 
 mod downloads;
-mod platform_archives;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
