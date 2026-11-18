@@ -129,7 +129,8 @@ impl Discovery {
                 .into_diagnostic()
                 .wrap_err_with(|| format!("read {}", path.display()))?;
             let allowed_root = config.workspace_dir.as_deref().unwrap_or(root);
-            let adjacent = Adjacent { allowed_root, environments: &environments };
+            let own_environment = (self.workspace.lock_root(root) == root).then_some(&environments);
+            let adjacent = Adjacent { allowed_root, own_environment };
             let manifest = Arc::new(read_manifest(&path, &contents, adjacent).await?);
             match self.roots
                 .iter_mut()
@@ -216,7 +217,9 @@ impl ProjectManifests<'_> {
         let root = path.parent().expect("manifest has a parent");
         let adjacent = Adjacent {
             allowed_root: self.reading.allowed_root.unwrap_or(root),
-            environments: &self.reading.environments,
+            own_environment: (!self.declared.shares_environment(root)).then_some(
+                &self.reading.environments,
+            ),
         };
         if is_pyproject(path) {
             let Some(manifest) = self.pyprojects.remove(path) else { return Ok(None) };
@@ -338,7 +341,10 @@ async fn read_manifest(path: &Path, contents: &str, adjacent: Adjacent<'_>) -> R
 #[derive(Clone, Copy)]
 struct Adjacent<'a> {
     allowed_root: &'a Path,
-    environments: &'a EnvironmentStore,
+    /// The store that judges the directory's `.venv`, or `None` for a
+    /// member of a shared environment, which installs into no `.venv` of
+    /// its own.
+    own_environment: Option<&'a EnvironmentStore>,
 }
 
 /// Read the `requirements.txt` beside a manifest that declares no
@@ -360,9 +366,9 @@ async fn read_adjacent_requirements(
         return Ok(manifest);
     }
     let allowed_root = adjacent.allowed_root.to_path_buf();
-    let environments = adjacent.environments.clone();
+    let own_environment = adjacent.own_environment.cloned();
     let requirements = tokio::task::spawn_blocking(move || {
-        read_managed_requirements(&environments, &requirements_path, &allowed_root)
+        read_managed_requirements(own_environment.as_ref(), &requirements_path, &allowed_root)
     })
     .await
     .into_diagnostic()
@@ -374,15 +380,17 @@ async fn read_adjacent_requirements(
     Ok(manifest)
 }
 
-/// The requirements `path` lists, or `None` when the `.venv` beside it is
-/// unmanaged.
+/// The requirements `path` lists, or `None` when the directory installs
+/// into a `.venv` of its own that is unmanaged.
 fn read_managed_requirements(
-    environments: &EnvironmentStore,
+    own_environment: Option<&EnvironmentStore>,
     path: &Path,
     allowed_root: &Path,
 ) -> Result<Option<Vec<String>>> {
     let root = path.parent().expect("requirements file has a parent");
-    if matches!(environments.link(root)?, EnvironmentLink::Unmanaged) {
+    if let Some(environments) = own_environment
+        && matches!(environments.link(root)?, EnvironmentLink::Unmanaged)
+    {
         return Ok(None);
     }
     requirements::read(path, allowed_root).map(Some)

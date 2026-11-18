@@ -187,12 +187,26 @@ fn member_projects<'a>(
 #[derive(Default)]
 pub(crate) struct DeclaredWorkspaces {
     declarations: BTreeMap<PathBuf, Patterns>,
+    /// The declaring roots whose members share an environment.
+    sharing: BTreeSet<PathBuf>,
 }
 
 impl DeclaredWorkspaces {
     pub(crate) fn add(&mut self, root: &Path, manifest: &Manifest) {
         let Some(declaration) = manifest.tool.uv.workspace.as_ref() else { return };
         self.declarations.insert(root.to_path_buf(), Patterns::of(declaration));
+        if manifest.shares_environment() {
+            self.sharing.insert(root.to_path_buf());
+        }
+    }
+
+    /// Whether `candidate` installs into the environment of a workspace
+    /// that contains it, not into one of its own.
+    pub(crate) fn shares_environment(&self, candidate: &Path) -> bool {
+        candidate
+            .ancestors()
+            .filter(|root| self.sharing.contains(*root))
+            .any(|root| self.declarations[root].contain(root, candidate))
     }
 
     /// Whether the nearest workspace declaration contains `candidate`.
