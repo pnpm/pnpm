@@ -171,3 +171,20 @@ export function getLinkedPublishDir (project: DeployAllProjects[number]): string
   if (publishConfig?.directory == null || publishConfig.linkDirectory === false) return undefined
   return path.join(project.rootDirRealPath, publishConfig.directory)
 }
+
+/**
+ * The publish directory the importer at `projectRootDirRealPath` is linked
+ * from, when its lockfile record and its project manifest name the same one.
+ * A directory only the lockfile records is ignored.
+ */
+export function getImporterLinkedPublishDir (
+  projectSnapshot: ProjectSnapshot,
+  importer: { allProjects: DeployAllProjects, projectRootDirRealPath: string }
+): string | undefined {
+  if (projectSnapshot.publishDirectory == null || projectSnapshot.linkDirectory === false) return undefined
+  const project = importer.allProjects.find(({ rootDirRealPath }) => rootDirRealPath === importer.projectRootDirRealPath)
+  const linkedPublishDir = project && getLinkedPublishDir(project)
+  return linkedPublishDir === path.join(importer.projectRootDirRealPath, projectSnapshot.publishDirectory)
+    ? linkedPublishDir
+    : undefined
+}

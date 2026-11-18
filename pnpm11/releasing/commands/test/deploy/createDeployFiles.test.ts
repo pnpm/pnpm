@@ -651,3 +651,36 @@ test.each([false, true])('createDeployFiles binds metadata-only optional peers w
   })
   expect(result.lockfile.packages?.[libKey]?.dependencies?.peer).toBe(ownPeerParent ? '2.0.0' : '1.0.0')
 })
+
+test.each([
+  { name: 'is absent from the project manifest', lockfilePublishDir: '../../../lib', manifestPublishDir: undefined, expected: false },
+  { name: 'differs from the project manifest', lockfilePublishDir: 'lib', manifestPublishDir: 'dist', expected: false },
+  { name: 'matches a project manifest directory outside the project', lockfilePublishDir: '../lib-dist', manifestPublishDir: '../lib-dist', expected: true },
+])('createDeployFiles adds a package for a lockfile publishDirectory only when it $name', ({ lockfilePublishDir: publishDirectory, manifestPublishDir, expected }) => {
+  const lockfileDir = path.resolve('workspace')
+  const libDir = path.join(lockfileDir, 'packages/lib')
+  const publishDir = path.join(libDir, publishDirectory)
+  const publishDirKey = `lib@${url.pathToFileURL(publishDir)}` as DepPath
+  const result = createDeployFiles({
+    allProjects: [{
+      rootDir: libDir as ProjectRootDir,
+      rootDirRealPath: libDir as ProjectRootDirRealPath,
+      manifest: { name: 'lib', version: '1.0.0', ...(manifestPublishDir == null ? {} : { publishConfig: { directory: manifestPublishDir } }) },
+    }],
+    deployDir: path.join(lockfileDir, 'out'),
+    include: { dependencies: true, devDependencies: true, optionalDependencies: true },
+    lockfile: {
+      lockfileVersion: '9.0',
+      settings: { autoInstallPeers: false, excludeLinksFromLockfile: false },
+      importers: {
+        ['.' as ProjectId]: { specifiers: { lib: 'workspace:*' }, dependencies: { lib: `link:${path.posix.join('packages/lib', publishDirectory)}` } },
+        ['packages/lib' as ProjectId]: { specifiers: {}, publishDirectory },
+      },
+    },
+    lockfileDir,
+    selectedProjectManifest: { name: 'app', dependencies: { lib: 'workspace:*' } },
+    projectId: '.' as ProjectId,
+    rootProjectManifestDir: lockfileDir,
+  })
+  expect(result.lockfile.packages?.[publishDirKey] != null).toBe(expected)
+})

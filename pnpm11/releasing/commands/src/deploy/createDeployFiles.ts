@@ -27,6 +27,7 @@ import {
   convertResolvedDependencies,
   createFileUrlDepPath,
   type DeployAllProjects,
+  getImporterLinkedPublishDir,
   resolveLinkOrFile,
 } from './convertDeploySnapshots.js'
 import {
@@ -211,9 +212,8 @@ function addLinkedWorkspaceSnapshots (
 ): DepPath[] {
   const { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot } = importer
   const directories = [projectRootDirRealPath]
-  if (projectSnapshot.publishDirectory != null && projectSnapshot.linkDirectory !== false) {
-    directories.push(path.join(projectRootDirRealPath, projectSnapshot.publishDirectory))
-  }
+  const linkedPublishDir = getImporterLinkedPublishDir(projectSnapshot, { allProjects: opts.allProjects, projectRootDirRealPath })
+  if (linkedPublishDir != null) directories.push(linkedPublishDir)
   const added: DepPath[] = []
   for (const directory of directories) {
     const depPath = createFileUrlDepPath({ resolvedPath: directory }, opts.allProjects)
