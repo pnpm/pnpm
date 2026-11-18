@@ -68,7 +68,7 @@ fn the_pending_approval_notice_combines_source_package_labels() {
         ],
     );
 
-    assert!(frame.contains("  my-skills (local)  build, skills"), "frame: {frame}",);
+    assert!(frame.contains("  my-skills (local)  build, skills"), "frame: {frame}");
     assert_eq!(frame.matches("my-skills (local)").count(), 1, "frame: {frame}");
 }
 
