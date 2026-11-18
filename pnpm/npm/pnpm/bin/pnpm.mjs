@@ -65,7 +65,8 @@ async function run (binary) {
 async function runUnix (binary, args, wasInterrupted) {
   // Keep the child in the foreground group and hold it at a pipe until Node
   // has had a chance to dispatch a SIGINT received before the child existed.
-  const child = spawn('/bin/sh', ['-c', 'read -r launch <&3 || exit 130\nexec 3<&-\nexec "$@"', 'pnpm', binary, ...args], {
+  const shell = process.platform === 'android' ? '/system/bin/sh' : '/bin/sh'
+  const child = spawn(shell, ['-c', 'read -r launch <&3 || exit 130\nexec 3<&-\nexec "$@"', 'pnpm', binary, ...args], {
     stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
   })
   const launch = child.stdio[3]
