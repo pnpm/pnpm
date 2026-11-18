@@ -83,7 +83,7 @@ use selectors::{
 };
 use tag_selectors::tag_checked_selectors;
 use update_selectors::{
-    apply_pins, apply_runtime_range_bumps, is_plain_version_spec, missing_file_source_warning,
+    apply_pins, apply_runtime_range_bumps, is_registry_version_spec, missing_file_source_warning,
     moves_past_declared_range, needs_runtime_range_bump, update_selectors,
 };
 

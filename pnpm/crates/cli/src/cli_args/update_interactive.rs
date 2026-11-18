@@ -49,28 +49,21 @@ struct InteractiveUpdateProject<'a> {
 }
 
 pub(crate) struct InteractiveUpdateOptions<'a> {
-    pub latest: bool,
-    /// `--tag <tag>`: the prompt compares each dependency against the
-    /// version behind this dist-tag instead of `latest` or the in-range
-    /// highest.
-    pub tag: Option<&'a str>,
+    /// The version each package dependency is compared against.
+    pub target_version: TargetVersion<'a>,
     pub include_direct: &'a [DependencyGroup],
     pub include_github_actions: bool,
+    /// `--latest` for the GitHub Actions choices, which `--no-save` does not
+    /// narrow: it only keeps `package.json` ranges.
+    pub latest_github_actions: bool,
     pub prompt: UpdatePrompt,
 }
 
 impl InteractiveUpdateOptions<'_> {
-    fn target_version(&self) -> TargetVersion<'_> {
-        if let Some(tag) = self.tag {
-            return TargetVersion::Tag(tag);
-        }
-        if self.latest { TargetVersion::Latest } else { TargetVersion::WithinRange }
-    }
-
     /// Whether the up-to-date message may point at ranges the manifest
     /// declares: only an in-range update has that excuse.
     fn reaches_past_declared_range(&self) -> bool {
-        self.latest || self.tag.is_some()
+        !matches!(self.target_version, TargetVersion::WithinRange)
     }
 }
 
@@ -194,12 +187,18 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
         lockfile,
         config,
         http_client,
-        options.target_version(),
+        options.target_version,
         options.include_direct,
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
+        append_github_actions::<Reporter>(
+            &mut choices,
+            root,
+            options.latest_github_actions,
+            config,
+        )
+        .await?;
     }
     let notes = choice_notes(config, &choices).await;
     prompt_for_packages::<Reporter>(
@@ -234,12 +233,18 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         lockfile,
         config,
         http_client,
-        options.target_version(),
+        options.target_version,
         options.include_direct,
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
+        append_github_actions::<Reporter>(
+            &mut choices,
+            root,
+            options.latest_github_actions,
+            config,
+        )
+        .await?;
     }
     let notes = choice_notes(config, &choices).await;
     prompt_for_packages::<Reporter>(

@@ -4,8 +4,9 @@ use super::{
     PathBuf, RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
     add_packages, apply_allow_build, apply_global_build_policy, apply_pins,
     apply_runtime_range_bumps, global_approval_store, infer_local_package_alias,
-    installed_versions, is_plain_version_spec, moves_past_declared_range, needs_runtime_range_bump,
-    prompt_approve_install_builds, tag_checked_selectors, update_selectors,
+    installed_versions, is_registry_version_spec, moves_past_declared_range,
+    needs_runtime_range_bump, prompt_approve_install_builds, tag_checked_selectors,
+    update_selectors,
 };
 use pnpm_config::Host;
 
@@ -79,7 +80,7 @@ impl GlobalInstallTarget<'_> {
     ) -> miette::Result<Vec<String>> {
         match mode {
             GlobalUpdateMode::Tag(tag)
-                if pkg.dependencies.iter().any(|(_, spec)| is_plain_version_spec(spec)) =>
+                if pkg.dependencies.iter().any(|(_, spec)| is_registry_version_spec(spec)) =>
             {
                 tag_checked_selectors::<Reporter>(self.base_config, &pkg.dependencies, tag).await
             }

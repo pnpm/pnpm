@@ -143,12 +143,18 @@ version. `pnpm up --tag next foo` does the same as `pnpm up foo@next`.
 
 A dependency that tracks a dist-tag, such as `"foo": "latest"`, is switched to
 the given tag. A dependency declared through the `catalog:`, `workspace:`, or
-`npm:` protocol, or as a path or git URL, is not rewritten. A package that does
-not publish the tag fails the update. With `--global`, such a package keeps its
-range and the other packages are updated.
+`npm:` protocol, through a named registry, or as a path or git URL, is not
+rewritten. Config dependencies are not updated. A package that does not publish
+the tag fails the update.
 
-Cannot be combined with `--latest`, `--workspace`, `--patches`, or a selector
-that names a version, such as `foo@2` (`ERR_PNPM_TAG_WITH_SPEC`).
+With `--global`, a package that does not publish the tag keeps its range, and
+the other packages are updated. A global package also keeps its installed
+version when the tag's version is lower.
+
+The value must be a dist-tag name. A version or a range, such as `1.2.3` or
+`*`, is rejected (`ERR_PNPM_UPDATE_INVALID_TAG`). `--tag` cannot be combined
+with `--latest`, `--workspace`, `--patches`, or a selector that names a
+version, such as `foo@2` (`ERR_PNPM_TAG_WITH_SPEC`).
 
 ### --patches
 
@@ -210,7 +216,7 @@ Also update packages in `peerDependencies`. It cannot be combined with `--intera
 
 ### --save-exact, -E
 
-With `--latest` or `--tag`, write the resolved version to `package.json` without a range operator.
+With `--latest` or `--tag`, write the resolved version to `package.json` without a range operator. A dependency that already declares a `^`, `~`, or exact range keeps that operator.
 
 ### --lockfile-only
 

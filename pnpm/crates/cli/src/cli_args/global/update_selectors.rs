@@ -2,6 +2,7 @@ use super::{
     GlobalPackageInfo, GlobalUpdateMode, HashMap, RangeSpecStyle, Version, local_file_path,
     parse_npm_spec_body,
 };
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_semver_include_prerelease::is_valid_semver_range;
 
@@ -15,16 +16,15 @@ pub(super) fn moves_past_declared_range(
     match mode {
         GlobalUpdateMode::DeclaredRange => false,
         GlobalUpdateMode::Latest => latest_selector(alias, spec).is_some(),
-        GlobalUpdateMode::Tag(_) => is_plain_version_spec(spec),
+        GlobalUpdateMode::Tag(_) => is_registry_version_spec(spec),
     }
 }
 
 /// The selectors that reinstall a group. With `--latest`, plain version specs,
 /// `npm:` aliases, and `runtime:` dependencies use `latest` so the seeded
-/// manifest range cannot hold them back. With `--tag`, only plain version
-/// specs use the tag: every other spec form names its source, which the tag
-/// may not exist on. `pins` holds back aliases that would otherwise move
-/// backwards.
+/// manifest range cannot hold them back. With `--tag`, only version, range,
+/// and dist-tag specs use the tag (see [`is_registry_version_spec`]). `pins`
+/// holds back aliases that would otherwise move backwards.
 pub(super) fn update_selectors(
     dependencies: &[(String, String)],
     mode: GlobalUpdateMode<'_>,
@@ -37,7 +37,9 @@ pub(super) fn update_selectors(
             GlobalUpdateMode::Latest => {
                 latest_selector(alias, spec).unwrap_or_else(|| format!("{alias}@{spec}"))
             }
-            GlobalUpdateMode::Tag(tag) if is_plain_version_spec(spec) => format!("{alias}@{tag}"),
+            GlobalUpdateMode::Tag(tag) if is_registry_version_spec(spec) => {
+                format!("{alias}@{tag}")
+            }
             GlobalUpdateMode::Tag(_) => format!("{alias}@{spec}"),
         })
         .collect();
@@ -60,9 +62,11 @@ pub(super) fn apply_pins(
         .collect()
 }
 
-/// A spec with no protocol: a version or range from the default registry.
-pub(super) fn is_plain_version_spec(spec: &str) -> bool {
-    !spec.contains(':')
+/// A version, range, or dist-tag: the only specs `--tag` replaces. Every
+/// other form, including a git shorthand (`user/repo`) or a relative path,
+/// names a source the tag may not exist on.
+pub(super) fn is_registry_version_spec(spec: &str) -> bool {
+    get_version_selector_type(spec).is_some()
 }
 
 pub(super) fn needs_runtime_range_bump(
@@ -117,7 +121,7 @@ pub(super) fn missing_file_source_warning(pkg: &GlobalPackageInfo) -> Option<Str
 }
 
 fn latest_selector(alias: &str, spec: &str) -> Option<String> {
-    if is_plain_version_spec(spec) {
+    if !spec.contains(':') {
         return Some(format!("{alias}@latest"));
     }
     if let Some(rest) = spec.strip_prefix("npm:") {
@@ -156,7 +160,7 @@ fn latest_runtime_selector(alias: &str, runtime_spec: &str) -> Option<String> {
 }
 
 fn pinned_selector(alias: &str, spec: &str, pin: &str) -> String {
-    if is_plain_version_spec(spec) {
+    if !spec.contains(':') {
         return format!("{alias}@{pin}");
     }
     if let Some(rest) = spec.strip_prefix("npm:") {

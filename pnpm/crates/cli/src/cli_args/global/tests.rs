@@ -257,6 +257,8 @@ fn tag_update_uses_the_tag_only_for_plain_version_dependencies() {
         ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
         ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
         ("node".to_string(), "runtime:^20.0.0".to_string()),
+        ("git-shorthand-pkg".to_string(), "user/repo".to_string()),
+        ("relative-path-pkg".to_string(), "../local-pkg".to_string()),
         ("foo".to_string(), "^1.0.0".to_string()),
         ("bar".to_string(), "latest".to_string()),
     ];
@@ -267,13 +269,15 @@ fn tag_update_uses_the_tag_only_for_plain_version_dependencies() {
             "aliased-pkg@npm:other-pkg@^2.0.0",
             "named-registry-pkg@gh:^3.0.0",
             "node@runtime:^20.0.0",
+            "git-shorthand-pkg@user/repo",
+            "relative-path-pkg@../local-pkg",
             "foo@next",
             "bar@next",
         ],
     );
     let pins = HashMap::from([("foo".to_string(), "1.5.0".to_string())]);
     assert_eq!(
-        update_selectors(&dependencies[4..], GlobalUpdateMode::Tag("next"), &pins),
+        update_selectors(&dependencies[6..], GlobalUpdateMode::Tag("next"), &pins),
         vec!["foo@1.5.0", "bar@next"],
     );
 }

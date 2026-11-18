@@ -183,7 +183,7 @@ A package whose revision is pinned explicitly is skipped, and the pin holds: tha
 covers an override with a `+rN` target and a dependency declared as one, so
 `"ejs": "2.7.4+r1"` stays on revision 1 across every refresh.
 
-`--patches` cannot be combined with package selectors, `--latest`,
+`--patches` cannot be combined with package selectors, `--latest`, `--tag`,
 `--interactive`, or `--global` (`ERR_PNPM_PATCHES_WITH_SELECTOR`).
 
 The refresh can be resolved server-side by a pnpr server, either from

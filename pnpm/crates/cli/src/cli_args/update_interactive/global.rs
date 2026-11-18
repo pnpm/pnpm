@@ -66,7 +66,7 @@ async fn outdated_group_rows(
         let lockfile = state.lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let outdated = collect_outdated_for_importer(
+        let mut outdated = collect_outdated_for_importer(
             &state.manifest,
             lockfile,
             pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
@@ -75,6 +75,9 @@ async fn outdated_group_rows(
             query,
         )
         .await?;
+        // A global update never moves a package backwards, so a `--tag`
+        // target below the installed version would be pinned back to it.
+        outdated.retain(|package| package.target >= package.current);
         if outdated.is_empty() {
             continue;
         }

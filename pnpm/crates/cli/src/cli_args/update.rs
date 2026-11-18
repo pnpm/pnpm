@@ -7,6 +7,7 @@ pub use options::{
 use crate::{
     State,
     cli_args::{
+        outdated::TargetVersion,
         pipelines::InstallFamilySelection,
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
@@ -19,11 +20,13 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_github_actions as github_actions;
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_matcher::Matcher;
 use pnpm_package_manager::{Update, build_workspace_packages_map};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 use std::{collections::HashSet, path::Path};
 
 /// Update package and GitHub Actions dependencies to newer compatible versions.
@@ -68,7 +71,7 @@ struct InteractivePeerUnsupportedError;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
-    "Invalid dist-tag: {raw}. A dist-tag may only contain URI-safe characters (letters, digits, and -_.!~*'())"
+    "Invalid dist-tag: {raw}. A dist-tag is a name that is not a version or a range, made of URI-safe characters (letters, digits, and -_.!~*'())"
 )]
 #[diagnostic(code(ERR_PNPM_UPDATE_INVALID_TAG))]
 struct InvalidTagError {
@@ -102,12 +105,18 @@ impl UpdateArgs {
         include_direct: &'a [DependencyGroup],
         update_actions: bool,
     ) -> InteractiveUpdateOptions<'a> {
-        let save = !self.save.no_save;
+        // `--no-save` keeps the manifest ranges, so the update stays inside
+        // them whatever `--latest` or `--tag` asks for.
+        let target_version = if self.save.no_save {
+            TargetVersion::WithinRange
+        } else {
+            TargetVersion::from_update_flags(self.selection.latest, self.selection.tag.as_deref())
+        };
         InteractiveUpdateOptions {
-            latest: self.selection.latest && save,
-            tag: if save { self.selection.tag.as_deref() } else { None },
+            target_version,
             include_direct,
             include_github_actions: update_actions,
+            latest_github_actions: self.selection.latest,
             prompt: self.prompt,
         }
     }
@@ -279,17 +288,19 @@ impl UpdateArgs {
         Ok(())
     }
 
-    /// `--tag` names a dist-tag, so the value must be one a registry could
-    /// publish under. A protocol-like value (`file:../x`, a URL) resolves
-    /// through no resolver in the tag chain, and the rewrite would then
-    /// write the raw string into the manifest as the dependency's new
-    /// specifier — rejecting it here, before anything runs, keeps the
-    /// manifests safe.
+    /// `--tag` names a dist-tag, so the value must be one the resolver reads
+    /// as a tag. A protocol-like value (`file:../x`, a URL) resolves through
+    /// no resolver in the tag chain, and the rewrite would then write the raw
+    /// string into the manifest as the dependency's new specifier. A version
+    /// or range (`1.2.3`, `*`) would resolve as one, so a dependency would
+    /// move without the registry publishing a tag of that name.
     fn check_tag_value(&self) -> miette::Result<()> {
         let Some(tag) = self.selection.tag.as_deref() else {
             return Ok(());
         };
-        if tag.is_empty() || !pnpm_resolving_npm_resolver::is_valid_dist_tag(tag) {
+        if !pnpm_resolving_npm_resolver::is_valid_dist_tag(tag)
+            || get_version_selector_type(tag) != Some(VersionSelectorType::Tag)
+        {
             return Err(InvalidTagError { raw: tag.to_string() }.into());
         }
         Ok(())

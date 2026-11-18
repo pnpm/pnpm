@@ -173,6 +173,18 @@ pub enum TargetVersion<'a> {
     WithinRange,
 }
 
+impl<'a> TargetVersion<'a> {
+    /// The target `update --latest` / `update --tag <tag>` selects. clap
+    /// rejects the two flags together, so at most one is set.
+    pub(crate) const fn from_update_flags(latest: bool, tag: Option<&'a str>) -> Self {
+        match tag {
+            Some(tag) => Self::Tag(tag),
+            None if latest => Self::Latest,
+            None => Self::WithinRange,
+        }
+    }
+}
+
 /// A direct dependency with a newer (or deprecated) registry version.
 ///
 /// `current` is the lockfile-pinned version, or the lowest version the

@@ -1344,8 +1344,8 @@ fn global_update_tag_keeps_a_dependency_without_the_tag() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains(r#"does not publish the "next" dist-tag"#)
-            || stderr.contains(r#"does not publish the "next" dist-tag"#),
+        stdout.contains(r#""next" dist-tag names no version"#)
+            || stderr.contains(r#""next" dist-tag names no version"#),
         "the skipped dependency must be reported, stdout: {stdout}, stderr: {stderr}",
     );
 
@@ -1363,6 +1363,36 @@ fn global_update_tag_keeps_a_dependency_without_the_tag() {
         stdout.contains("@pnpm.e2e/multi-version-b@3.0.0"),
         "the dependency without the tag must keep its recorded spec, got: {stdout}",
     );
+
+    drop((root, npmrc_info));
+}
+
+/// The interactive prompt leaves out a tag below the installed version,
+/// since the global update would pin it back.
+#[cfg(unix)]
+#[test]
+fn global_interactive_update_tag_offers_no_downgrade() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@2.1.0"])
+        .assert()
+        .success();
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "next");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--interactive", "--tag", "next"])
+        .output()
+        .expect("run update -g --interactive --tag next");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "{output:?}");
+    assert!(stdout.contains("already up to date"), "got: {stdout}");
 
     drop((root, npmrc_info));
 }

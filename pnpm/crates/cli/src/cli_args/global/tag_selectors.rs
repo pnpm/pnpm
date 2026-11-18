@@ -1,5 +1,6 @@
-use super::{Config, State, is_plain_version_spec, warn_global};
+use super::{Config, State, is_registry_version_spec, warn_global};
 use derive_more::{Display, Error};
+use futures_util::future::try_join_all;
 use miette::Diagnostic;
 use pnpm_package_manager::{PickPolicy, create_configured_registry_resolver};
 use pnpm_reporter::Reporter;
@@ -20,8 +21,9 @@ struct GlobalTagResolveError {
 }
 
 /// The selectors a `--tag` update reinstalls a group with: `alias@<tag>`
-/// for every plain-version dependency the registry publishes the tag for,
-/// and the recorded spec for every other dependency.
+/// for every version, range, or dist-tag dependency that publishes an
+/// installable version behind the tag, and the recorded spec for every other
+/// dependency. The lookups run concurrently.
 pub(super) async fn tag_checked_selectors<Reporter: self::Reporter>(
     base_config: &'static Config,
     dependencies: &[(String, String)],
@@ -32,18 +34,19 @@ pub(super) async fn tag_checked_selectors<Reporter: self::Reporter>(
     let resolver = create_configured_registry_resolver(base_config, http_client, &policy)
         .map_err(miette::Report::new)?;
     let resolve_options = tag_resolve_options(&policy);
-    let mut selectors = Vec::with_capacity(dependencies.len());
-    for (alias, spec) in dependencies {
-        selectors.push(
-            tag_selector::<Reporter>(&resolver, &resolve_options, alias, spec, tag).await?,
-        );
-    }
-    Ok(selectors)
+    try_join_all(
+        dependencies
+            .iter()
+            .map(|(alias, spec)| {
+                tag_selector::<Reporter>(&resolver, &resolve_options, alias, spec, tag)
+            }),
+    )
+    .await
 }
 
-/// `alias@<tag>` when the registry publishes `tag` for the dependency, the
-/// recorded spec with a warning when it does not. Every other spec form
-/// names its source and passes through unchanged.
+/// `alias@<tag>` when the registry publishes an installable version behind
+/// `tag` for the dependency, the recorded spec with a warning when it does
+/// not. Every other spec form names its source and passes through unchanged.
 async fn tag_selector<Reporter: self::Reporter>(
     resolver: &DefaultResolver,
     resolve_options: &ResolveOptions,
@@ -51,7 +54,7 @@ async fn tag_selector<Reporter: self::Reporter>(
     spec: &str,
     tag: &str,
 ) -> miette::Result<String> {
-    if !is_plain_version_spec(spec) {
+    if !is_registry_version_spec(spec) {
         return Ok(format!("{alias}@{spec}"));
     }
     let query = LatestQuery {
@@ -64,9 +67,11 @@ async fn tag_selector<Reporter: self::Reporter>(
     };
     match resolver.resolve_latest(&query, resolve_options).await {
         Ok(Some(latest)) if latest.latest_manifest.is_some() => Ok(format!("{alias}@{tag}")),
-        Ok(_) => Ok(warn_and_keep_spec::<Reporter>(alias, spec, tag)),
+        // A missing tag and a tagged version a resolution policy such as
+        // `minimumReleaseAge` excludes look the same here.
+        Ok(_) => Ok(keep_spec::<Reporter>(alias, spec, tag)),
         Err(error) if error.is::<NoMatchingVersionError>() => {
-            Ok(warn_and_keep_spec::<Reporter>(alias, spec, tag))
+            Ok(keep_spec::<Reporter>(alias, spec, tag))
         }
         Err(error) => {
             Err(GlobalTagResolveError { alias: alias.to_string(), tag: tag.to_string(), error }
@@ -75,9 +80,9 @@ async fn tag_selector<Reporter: self::Reporter>(
     }
 }
 
-fn warn_and_keep_spec<Reporter: self::Reporter>(alias: &str, spec: &str, tag: &str) -> String {
+fn keep_spec<Reporter: self::Reporter>(alias: &str, spec: &str, tag: &str) -> String {
     warn_global::<Reporter>(&format!(
-        r#"Skipping "{alias}": it does not publish the "{tag}" dist-tag, so its recorded specifier was kept."#,
+        r#"Skipping "{alias}": its "{tag}" dist-tag names no version that can be installed, so its recorded specifier was kept."#,
     ));
     format!("{alias}@{spec}")
 }

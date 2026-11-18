@@ -110,14 +110,13 @@ pub(super) async fn outdated_dependency(
     candidate: OutdatedCandidate<'_>,
 ) -> miette::Result<Option<OutdatedPackage>> {
     if matches!(query.target_version, TargetVersion::Tag(_))
-        && (candidate.is_engine
-            || dereference_catalog_protocol(candidate.bare_specifier).is_some()
-            || candidate.bare_specifier.starts_with("npm:"))
+        && (candidate.is_engine || get_version_selector_type(candidate.bare_specifier).is_none())
     {
-        // The `--tag` rewrite leaves engine declarations, catalog entries,
-        // and `npm:` aliases unchanged, so they are not offered an update
-        // that cannot apply. Querying `<alias>@<tag>` for an alias would
-        // also fetch the wrong packument.
+        // The `--tag` rewrite only rewrites a plain version, range, or tag
+        // declaration. Every other one (an engine, a catalog entry, an
+        // `npm:` alias, a named-registry or `jsr:` spec) is not offered an
+        // update that cannot apply. Querying `<alias>@<tag>` on the default
+        // registry would also read the wrong packument for most of them.
         return Ok(None);
     }
     let bare_specifier =
