@@ -78,7 +78,7 @@ const servedFiles = opts['wasm-package'] ? new Map([['pnpm-wasm.tgz', path.resol
     ['probe.mjs', fileURLToPath(new URL('wasm-probe.mjs', import.meta.url))],
   ])
   : new Map(listPnpmPackageFiles(pnpmDir).map(file => [file, path.join(pnpmDir, file)]))
-if (opts['wasm-registry'] || opts['wasm-network'] || opts['wasm-cli'] || opts['wasm-inspection'] || opts['wasm-hoisted']) servedFiles.set('cli-fixture.mjs', fileURLToPath(new URL('./cli-fixture.mjs', import.meta.url)))
+if (opts['wasm-registry'] || opts['wasm-network'] || opts['wasm-cli'] || opts['wasm-inspection'] || opts['wasm-hoisted'] || opts['wasm-package']) servedFiles.set('cli-fixture.mjs', fileURLToPath(new URL('./cli-fixture.mjs', import.meta.url)))
 if (opts['wasm-network'] || opts['wasm-cli']) {
   const fixtures = fileURLToPath(new URL('../../../../pnpm/crates/network/tests/fixtures/', import.meta.url))
   servedFiles.set('network-ca.pem', path.join(fixtures, 'test-ca.pem'))
