@@ -529,7 +529,7 @@ fn store_add_reports_no_added_package_when_the_index_write_fails() {
     assert!(stderr.contains("ERR_PNPM_STORE_DIR_STORE_INDEX_WRITE"));
     assert!(
         !stdout.contains("+ ") && !stderr.contains("+ "),
-        "no package may be reported as added"
+        "no package may be reported as added",
     );
 }
 
