@@ -7106,6 +7106,7 @@ dependencies = [
  "libc",
  "libsql",
  "miette 7.6.0",
+ "mimalloc",
  "mockito",
  "node-semver",
  "object_store",

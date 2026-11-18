@@ -8,6 +8,40 @@ use pnpr_config::{BackendConfig, DatabaseBackend, default_database_path};
 use std::{io::IsTerminal, path::PathBuf};
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
 
+/// Rendering a packument makes large, short-lived allocations on many threads.
+/// glibc malloc keeps that memory after the requests finish, so the resident
+/// size of an idle server stays near its peak. The other targets keep the
+/// system allocator until mimalloc's C build is verified there.
+#[cfg(all(
+    any(target_os = "linux", target_os = "macos", target_os = "windows"),
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+))]
+mod allocator {
+    use std::ffi::{c_int, c_long};
+
+    #[global_allocator]
+    static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+    /// `mi_option_purge_delay` in `mimalloc.h`. `libmimalloc-sys` binds the
+    /// options on either side of it but not this one.
+    const MI_OPTION_PURGE_DELAY: c_int = 15;
+
+    unsafe extern "C" {
+        fn mi_option_set_default(option: c_int, value: c_long);
+    }
+
+    /// mimalloc purges freed memory only while a thread is allocating, and by
+    /// default only after a delay. Memory freed by the last requests of a
+    /// burst then stays resident for as long as the server is idle. Purging
+    /// without a delay returns it at once. `MIMALLOC_PURGE_DELAY` overrides
+    /// this.
+    pub(super) fn purge_freed_memory_immediately() {
+        // SAFETY: `mimalloc` links the library that defines this function, and
+        // it accepts any option index and value.
+        unsafe { mi_option_set_default(MI_OPTION_PURGE_DELAY, 0) };
+    }
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
@@ -43,8 +77,17 @@ struct StorageArgs {
     cache: Option<PathBuf>,
 }
 
+fn main() -> miette::Result<()> {
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    allocator::purge_freed_memory_immediately();
+    run()
+}
+
 #[tokio::main]
-async fn main() -> miette::Result<()> {
+async fn run() -> miette::Result<()> {
     let matches = Args::command().get_matches();
     let mut args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
     let auto_path = Config::auto_config_path();
