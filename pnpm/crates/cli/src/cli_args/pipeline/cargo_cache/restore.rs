@@ -75,7 +75,8 @@ impl Walk<'_> {
                 Some(packages) => invalidate_local_fingerprints(path, packages),
             };
         }
-        if is_build_script_output(relative) {
+        // New inputs invalidate a nested Cargo build's records too.
+        if self.local_packages.is_some() && is_build_script_output(relative) {
             return Ok(());
         }
         let Some(package) = unit_fingerprint_package(relative) else {

@@ -85,7 +85,7 @@ fn existing_target_is_never_replaced_and_changed_inputs_invalidate_freshness() {
     fs::write(cache.target.join("debug/.fingerprint/stale"), "stale").unwrap();
     fs::write(cache.target.join("debug/incremental/state"), "keep").unwrap();
     fs::create_dir_all(cache.target.join("debug/build/probe/1/fingerprint")).unwrap();
-    fs::create_dir_all(cache.target.join("debug/build/probe/1/out")).unwrap();
+    fs::create_dir_all(cache.target.join("debug/build/probe/1/out/.fingerprint/nested-2")).unwrap();
     assert!(
         !cache
             .restore(&root.path().join("missing"), "inputs")
@@ -95,6 +95,7 @@ fn existing_target_is_never_replaced_and_changed_inputs_invalidate_freshness() {
     assert!(!cache.target.join("debug/.fingerprint").exists());
     assert!(!cache.target.join("debug/build/probe/1/fingerprint").exists());
     assert!(cache.target.join("debug/build/probe/1/out").exists());
+    assert!(!cache.target.join("debug/build/probe/1/out/.fingerprint").exists());
     assert_eq!(fs::read_to_string(cache.target.join("debug/incremental/state")).unwrap(), "keep");
 }
 
