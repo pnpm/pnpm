@@ -24,6 +24,8 @@ ExclusiveArch:  x86_64
 AutoReqProv:    no
 Requires:       glibc >= 2.28
 Requires:       libatomic
+Requires:       libgcc
+Requires:       libstdc++
 Requires:       ca-certificates
 
 %description
