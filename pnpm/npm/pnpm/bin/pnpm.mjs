@@ -50,10 +50,22 @@ async function run (binary) {
   const onInterrupt = () => { interrupted = true }
   process.on('SIGINT', onInterrupt)
   const args = process.argv.slice(2)
-  const result = process.platform === 'win32'
+  let result = process.platform === 'win32'
     ? spawnSync(binary, args, { stdio: 'inherit' })
     : await runUnix(binary, args, () => interrupted)
   process.removeListener('SIGINT', onInterrupt)
+  if (result.shellMissing === true) {
+    // A shell-free image can still run pnpm. Leave Node's default SIGINT
+    // behavior in place until the foreground child exists.
+    if (interrupted) {
+      process.exitCode = 130
+      return
+    }
+    const child = spawn(binary, args, { stdio: 'inherit' })
+    process.on('SIGINT', onInterrupt)
+    result = await childResult(child)
+    process.removeListener('SIGINT', onInterrupt)
+  }
   if (result.error != null) {
     fail(`Could not run the pnpm binary at ${binary}: ${result.error.message}`)
   }
@@ -63,6 +75,11 @@ async function run (binary) {
 }
 
 async function runUnix (binary, args, wasInterrupted) {
+  try {
+    fs.accessSync(binary, fs.constants.X_OK)
+  } catch (error) {
+    return { error }
+  }
   // Keep the child in the foreground group and hold it at a pipe until Node
   // has had a chance to dispatch a SIGINT received before the child existed.
   const shell = process.platform === 'android' ? '/system/bin/sh' : '/bin/sh'
@@ -70,9 +87,8 @@ async function runUnix (binary, args, wasInterrupted) {
     stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
   })
   const launch = child.stdio[3]
-  const result = new Promise((resolve) => {
-    child.once('error', (error) => resolve({ error }))
-    child.once('close', (status, signal) => resolve({ status, signal }))
+  const childResultPromise = childResult(child)
+  const pipeError = new Promise((resolve) => {
     launch?.once('error', (error) => {
       if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') resolve({ error })
     })
@@ -86,7 +102,15 @@ async function runUnix (binary, args, wasInterrupted) {
   } else {
     launch?.end('run\n')
   }
-  return result
+  const result = await Promise.race([childResultPromise, pipeError])
+  return result.error?.code === 'ENOENT' && child.pid == null ? { shellMissing: true } : result
+}
+
+function childResult (child) {
+  return new Promise((resolve) => {
+    child.once('error', (error) => resolve({ error }))
+    child.once('close', (status, signal) => resolve({ status, signal }))
+  })
 }
 
 async function nativeBinary () {
