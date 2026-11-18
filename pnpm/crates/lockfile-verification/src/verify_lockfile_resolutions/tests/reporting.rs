@@ -333,7 +333,7 @@ async fn unmatched_candidates_are_reported_as_completed() {
     let mut checked = 0;
     let violations =
         run_fan_out(candidates, &[verifier as Arc<dyn ResolutionVerifier>], None, &mut || {
-            checked += 1
+            checked += 1;
         })
         .await
         .expect("no transport failures");
