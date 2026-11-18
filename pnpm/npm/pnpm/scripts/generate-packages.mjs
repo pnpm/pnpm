@@ -51,7 +51,6 @@ const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PNPM_ROOT, "..");
 const REPO_ROOT = resolve(PACKAGES_ROOT, "../..");
 const MANIFEST_PATH = resolve(PNPM_ROOT, "package.json");
-const DIST_ROOT = resolve(PNPM_ROOT, "dist");
 
 const rootManifest = JSON.parse(
   fs.readFileSync(MANIFEST_PATH, "utf-8")
@@ -84,9 +83,8 @@ function generateNativePackage(target) {
       type: "git",
       url: "https://github.com/pnpm/pnpm",
     },
-    files: [`${NATIVE_BIN_FILE}${ext}`, "dist/", NOTICES_FILE],
     publishConfig: {
-      executableFiles: [`./${NATIVE_BIN_FILE}${ext}`, ...rootManifest.publishConfig.executableFiles],
+      executableFiles: [`./${NATIVE_BIN_FILE}${ext}`],
     },
   };
   if (target.libc) {
@@ -105,15 +103,8 @@ function generateNativePackage(target) {
   fs.copyFileSync(binarySource, binaryTarget);
   fs.chmodSync(binaryTarget, 0o755);
 
+  // The manifest declares no `files`, so everything staged here is published.
   fs.copyFileSync(resolve(PNPM_ROOT, NOTICES_FILE), resolve(packageRoot, NOTICES_FILE));
-  // The launcher runs this binary directly when install scripts are skipped.
-  copyDist(packageRoot);
-}
-
-function copyDist(packageRoot) {
-  if (fs.existsSync(DIST_ROOT)) {
-    fs.cpSync(DIST_ROOT, resolve(packageRoot, "dist"), { recursive: true });
-  }
 }
 
 // Rewrite the committed `pacquet` manifest into the publishable one: no
@@ -157,7 +148,10 @@ function generateExeWrapper() {
   // their own copy of the node-gyp payload for it to be found at
   // `<exe dir>/dist`. Built by scripts/bundle-node-gyp.mjs; absent when
   // generating packages without having run it.
-  copyDist(exeRoot);
+  const distRoot = resolve(PNPM_ROOT, "dist");
+  if (fs.existsSync(distRoot)) {
+    fs.cpSync(distRoot, resolve(exeRoot, "dist"), { recursive: true });
+  }
 
   const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
   // The wrapper states its own name outright, so it must not inherit the base

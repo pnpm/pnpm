@@ -1037,10 +1037,11 @@ jobs:
           node .github/scripts/assert-windows-crt-static.mjs "${exes[@]}"
 
       - name: Restore node-gyp payload
-        # The dist/ payload the npm packages ship, so install scripts that shell
+        # The dist/ payload both wrappers ship, so install scripts that shell
         # out to node-gyp build out of the box. Taken from the artifact rather
         # than rebuilt, so the npm packages and the GitHub release archives
-        # carry the same bytes. Restore it before generating the packages.
+        # carry the same bytes. Must land before the packages are generated:
+        # the `@pnpm/exe` wrapper copies dist/ too.
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: node-gyp-payload
@@ -1143,7 +1144,7 @@ jobs:
             printf '%s\n' '{"scripts":{"probe":"sh probe.sh"}}' > package.json
             cat > probe.sh <<'SH'
           set -eu
-          dist="$PWD/node_modules/@pnpm/exe.linux-x64/dist"
+          dist="$PWD/node_modules/pnpm/dist"
           test "$(command -v node-gyp)" = "$dist/node-gyp-bin/node-gyp"
           test "$npm_config_node_gyp" = "$dist/node_modules/node-gyp/bin/node-gyp.js"
           node-gyp --version
