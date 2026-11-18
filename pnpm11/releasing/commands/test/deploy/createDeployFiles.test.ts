@@ -656,18 +656,19 @@ test.each([
   { name: 'is absent from the project manifest', lockfilePublishDir: '../../../lib', manifestPublishDir: undefined, expected: false },
   { name: 'differs from the project manifest', lockfilePublishDir: 'lib', manifestPublishDir: 'dist', expected: false },
   { name: 'matches a project manifest directory outside the project', lockfilePublishDir: '../lib-dist', manifestPublishDir: '../lib-dist', expected: true },
-  { name: 'matches the project manifest spelled with a trailing slash', lockfilePublishDir: 'lib', manifestPublishDir: 'lib/', expected: true },
-  { name: 'matches the project manifest of a project reached through a symlink', lockfilePublishDir: 'lib', manifestPublishDir: 'lib', symlinked: true, expected: true },
-])('createDeployFiles adds a package for a lockfile publishDirectory only when it $name', ({ lockfilePublishDir: publishDirectory, manifestPublishDir, symlinked, expected }) => {
+  { name: 'matches the project manifest spelled with a trailing slash', lockfilePublishDir: 'dist', manifestPublishDir: 'dist/', expected: true },
+  { name: 'matches the project manifest of a project whose real path differs', lockfilePublishDir: 'lib', manifestPublishDir: 'lib', symlink: 'realPath', expected: true },
+  { name: 'matches the project manifest of a project found through a symlink', lockfilePublishDir: 'lib', manifestPublishDir: 'lib', symlink: 'rootDir', expected: true },
+])('createDeployFiles adds a package for a lockfile publishDirectory only when it $name', ({ lockfilePublishDir: publishDirectory, manifestPublishDir, symlink, expected }) => {
   const lockfileDir = path.resolve('workspace')
   const libDir = path.join(lockfileDir, 'packages/lib')
-  const libRealDir = symlinked ? path.resolve('real/lib') : libDir
+  const otherSpelling = path.resolve('elsewhere/lib')
   const publishDir = path.join(libDir, publishDirectory)
   const publishDirKey = `lib@${url.pathToFileURL(publishDir)}` as DepPath
   const result = createDeployFiles({
     allProjects: [{
-      rootDir: libDir as ProjectRootDir,
-      rootDirRealPath: libRealDir as ProjectRootDirRealPath,
+      rootDir: (symlink === 'rootDir' ? otherSpelling : libDir) as ProjectRootDir,
+      rootDirRealPath: (symlink === 'realPath' ? otherSpelling : libDir) as ProjectRootDirRealPath,
       manifest: { name: 'lib', version: '1.0.0', ...(manifestPublishDir == null ? {} : { publishConfig: { directory: manifestPublishDir } }) },
     }],
     deployDir: path.join(lockfileDir, 'out'),

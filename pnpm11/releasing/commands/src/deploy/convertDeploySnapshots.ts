@@ -169,7 +169,7 @@ export function createFileUrlDepPath (
 export function getLinkedPublishDir (project: DeployAllProjects[number]): string | undefined {
   const publishConfig = project.manifest.publishConfig
   if (publishConfig?.directory == null || publishConfig.linkDirectory === false) return undefined
-  return path.join(project.rootDirRealPath, publishConfig.directory)
+  return path.resolve(project.rootDirRealPath, publishConfig.directory)
 }
 
 /**
