@@ -1,7 +1,7 @@
 # pnpm Benchmarks
 
 Compares `pnpm install` performance between the current branch (`HEAD`) and
-`main`, across the scenarios listed below.
+`main`, and with the system-installed Bun, across the scenarios listed below.
 
 This wrapper builds both pnpm revisions and runs hyperfine through the
 shared Rust orchestrator at
@@ -12,7 +12,7 @@ stay consistent with the pacquet benchmark.
 ## Prerequisites
 
 - `cargo` (install Rust via [rustup](https://rustup.rs) if you don't have it).
-- `hyperfine`, `pnpm`, `node`, `git` on `$PATH`.
+- `hyperfine`, `pnpm`, Bun 1.2 or newer, `node`, `git` on `$PATH`.
 
 ## Usage
 
@@ -30,7 +30,8 @@ The script:
    would rewrite tracked files and trigger a second install per
    revision, neither of which the bench needs.
 3. Runs hyperfine on each scenario with `--registry=npm` (hits
-   `registry.npmjs.org` directly, no proxy — same as before).
+   `registry.npmjs.org` directly, no proxy) and includes the system-installed
+   Bun in each comparison.
 4. Writes a per-scenario `BENCHMARK_REPORT.md` / `.json` and a
    consolidated `results.md` into the temp work-env. The path is printed
    at the end of the run.
@@ -63,7 +64,7 @@ to date, measuring exactly that short-circuit.
 | 6 | `isolated-linker.fresh-resolve.hot-cache.offline` | ✗ (removed per run) | hot | n/a | `install --offline --lockfile-only`: full re-resolution from the warm on-disk packument mirror — no network, no linking; guards offline/prefer-offline resolution (an online pre-warm pass primes the mirror first) |
 | 7 | `gvs-linker.fresh-restore.hot-cache.hot-store` | ✔ frozen | hot | hot + GVS | Frozen-lockfile restore with `enableGlobalVirtualStore: true`, pre-warmed GVS |
 
-All scenarios use `--ignore-scripts` and isolated store/cache directories per revision.
+All scenarios use `--ignore-scripts` and isolated store/cache directories per revision. The Bun comparison uses its own cache directory; Bun does not have a separate package store.
 
 ## Fixture
 

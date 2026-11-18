@@ -135,6 +135,7 @@ impl<'a> From<&'a TargetSpec> for BenchId<'a> {
 /// Static bench id of the proxy-cache populator — the one id that warms
 /// the registry's on-disk cache rather than being benchmarked.
 const INIT_PROXY_CACHE_ID: &str = ".init-proxy-cache";
+const BUN_ID: &str = "bun";
 
 impl BenchId<'_> {
     /// Whether this bench id drives the client through a pnpr server.
@@ -179,6 +180,7 @@ impl fmt::Display for BenchId<'_> {
 impl WorkEnv {
     const INIT_PROXY_CACHE: BenchId<'static> = BenchId::Static(INIT_PROXY_CACHE_ID);
     const SYSTEM_PNPM: BenchId<'static> = BenchId::Static("pnpm");
+    const SYSTEM_BUN: BenchId<'static> = BenchId::Static(BUN_ID);
 
     fn root(&self) -> &'_ Path {
         &self.options.work_env
@@ -188,11 +190,11 @@ impl WorkEnv {
         self.options.selection.targets.iter().map(BenchId::from)
     }
 
-    /// Every bench dir the run will touch — every target plus, when
-    /// requested, the system-pnpm sibling.
+    /// Every bench dir the run will touch, including requested system package managers.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
         self.target_ids()
             .chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
+            .chain(self.options.selection.with_bun.then_some(WorkEnv::SYSTEM_BUN))
     }
 
     fn repository(&self) -> &'_ Path {
@@ -274,6 +276,7 @@ impl WorkEnv {
                     r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
                 )
             }
+            BenchId::Static(name) if name == BUN_ID => "bun".to_string(),
             BenchId::Static(_) => "pnpm".to_string(),
         }
     }
@@ -295,7 +298,8 @@ impl WorkEnv {
         let id_list = self
             .target_ids()
             .chain(populate_proxy_cache.then_some(WorkEnv::INIT_PROXY_CACHE))
-            .chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM));
+            .chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
+            .chain(self.options.selection.with_bun.then_some(WorkEnv::SYSTEM_BUN));
         for id in id_list {
             eprintln!("ID: {id}");
             let dir = self.bench_dir(id);
@@ -369,6 +373,10 @@ impl WorkEnv {
         // Spawned before the GVS pre-warm below so a pnpr target
         // would have its server up if a scenario ever combines the two.
         let _pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
+
+        if scenario.seeds_lockfile() {
+            self.seed_bun_lockfile();
+        }
 
         if scenario.enables_gvs() || scenario.prewarms_node_modules() {
             self.prewarm_install_state();
@@ -463,6 +471,21 @@ impl WorkEnv {
             Command::new("bash")
                 .arg(self.script_path(id))
                 .pipe_mut(executor("install.bash"));
+        }
+    }
+
+    fn seed_bun_lockfile(&self) {
+        for id in self
+            .benchmarked_ids()
+            .filter(|id| matches!(id, BenchId::Static(name) if *name == BUN_ID))
+        {
+            let dir = self.bench_dir(id);
+            Command::new("bun")
+                .current_dir(&dir)
+                .args(["install", "--lockfile-only", "--ignore-scripts", "--cache-dir=./cache-dir"])
+                .pipe(executor("bun install --lockfile-only"));
+            fs::copy(dir.join("bun.lock"), dir.join(".saved-bun.lock"))
+                .expect("save seeded Bun lockfile");
         }
     }
 

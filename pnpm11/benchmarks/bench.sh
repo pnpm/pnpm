@@ -2,13 +2,13 @@
 set -euo pipefail
 
 # Thin wrapper around `pnpm/tasks/integrated-benchmark`. Builds two
-# pnpm revisions (the current branch and `main`) and runs hyperfine for
-# each scenario in the list below.
+# pnpm revisions (the current branch and `main`), benchmarks the
+# system-installed Bun, and runs hyperfine for each scenario below.
 #
-# Scenarios, registry choice, and runner behaviour are preserved exactly
-# as before; the orchestration logic is shared with the pacquet bench.
+# Scenario definitions and report generation use the shared pacquet
+# benchmark orchestrator.
 #
-# Prerequisites: cargo, hyperfine, pnpm, node, git.
+# Prerequisites: cargo, hyperfine, pnpm, bun, node, git.
 #
 # Env vars: WARMUP (default 1), RUNS (default 10).
 #
@@ -23,7 +23,7 @@ WARMUP="${WARMUP:-1}"
 RUNS="${RUNS:-10}"
 BENCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pnpm-bench.XXXXXX")"
 
-for tool in cargo hyperfine pnpm node git; do
+for tool in cargo hyperfine pnpm bun node git; do
   if ! command -v "$tool" >/dev/null; then
     echo "error: $tool not on PATH" >&2
     exit 1
@@ -99,8 +99,8 @@ results_md="$BENCH_DIR/results.md"
 {
   echo "# Benchmark Results"
   echo
-  echo "| # | Scenario | main | HEAD |"
-  echo "|---|---|---|---|"
+  echo "| # | Scenario | main | HEAD | Bun |"
+  echo "|---|---|---|---|---|"
 } > "$results_md"
 
 i=1
@@ -114,6 +114,7 @@ for entry in "${SCENARIOS[@]}"; do
   "$BIN" \
     --scenario "$scenario" \
     --registry npm \
+    --with-bun \
     --pnpm-repository "$REPO_ROOT" \
     --fixture-dir "$FIXTURE_DIR" \
     --work-env "$BENCH_DIR/work-env" \
@@ -127,7 +128,8 @@ for entry in "${SCENARIOS[@]}"; do
 
   main_cell=$(read_cell "pnpm@main" "$BENCH_DIR/${scenario}.json")
   head_cell=$(read_cell "pnpm@HEAD" "$BENCH_DIR/${scenario}.json")
-  echo "| $i | $label | $main_cell | $head_cell |" >> "$results_md"
+  bun_cell=$(read_cell "bun" "$BENCH_DIR/${scenario}.json")
+  echo "| $i | $label | $main_cell | $head_cell | $bun_cell |" >> "$results_md"
 
   i=$((i + 1))
 done

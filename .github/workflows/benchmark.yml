@@ -20,12 +20,13 @@ on:
         type: string
   push:
     # Build Bencher's continuous baseline for the `pnpm` testbed.
-    # Every merge to main that touches the TypeScript stack re-runs the
+    # Changes to the TypeScript stack or benchmark harness re-run the
     # bench so PR comparisons have an up-to-date reference; cancel-in-progress
     # stays off below so we never throw away a partial run.
     branches: [main]
     paths:
       - 'pnpm11/**'
+      - 'pnpm/tasks/integrated-benchmark/**'
       - 'package.json'
       - 'pnpm-workspace.yaml'
       - '.config/pnpm/**'
@@ -76,6 +77,11 @@ jobs:
       uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         runtime: node@26.13.1
+
+    - name: Install Bun
+      uses: oven-sh/setup-bun@f4d14e03ff726c06358e5557344e1da148b56cf7 # v1.2.2
+      with:
+        bun-version: 1.4.4
 
     - name: Install hyperfine
       uses: $/.github/actions/binstall

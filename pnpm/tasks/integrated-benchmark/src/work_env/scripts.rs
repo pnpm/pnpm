@@ -34,6 +34,10 @@ pub(super) fn wipe_bench_dir(dir: &Path) {
             remove_dir_all_with_retry(&path).expect("pre-benchmark wipe");
         }
     }
+    let bun_lock = dir.join("bun.lock");
+    if bun_lock.exists() {
+        fs::remove_file(bun_lock).expect("pre-benchmark Bun lockfile wipe");
+    }
     let output_log = dir.join(BENCHMARK_OUTPUT_LOG);
     if output_log.exists() {
         fs::remove_file(output_log).expect("pre-benchmark metrics-log wipe");
@@ -180,6 +184,15 @@ where
             let dst_path = dir.join(dst).maybe_quote().to_string();
             parts.push(format!("cp {src_path} {dst_path}"));
         }
+        let saved_bun_lock = dir.join(".saved-bun.lock");
+        if saved_bun_lock.is_file() {
+            let source = saved_bun_lock.maybe_quote().to_string();
+            let destination = dir
+                .join("bun.lock")
+                .maybe_quote()
+                .to_string();
+            parts.push(format!("cp {source} {destination}"));
+        }
     }
 
     parts.join(" && ")
@@ -287,6 +300,9 @@ pub(super) fn write_bench_script(
     }
     for arg in args {
         write!(file, " {arg}").unwrap();
+    }
+    if matches!(id, BenchId::Static("bun")) {
+        write!(file, " --cache-dir=./cache-dir --ignore-scripts").unwrap();
     }
     if capture_pacquet_metrics {
         write!(file, " >> {BENCHMARK_OUTPUT_LOG} 2>&1").unwrap();

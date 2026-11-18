@@ -46,6 +46,9 @@ pub struct BenchmarkSelection {
     /// Also benchmark the system-installed pnpm.
     #[clap(long)]
     pub with_pnpm: bool,
+    /// Also benchmark the system-installed Bun package manager.
+    #[clap(long)]
+    pub with_bun: bool,
     /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
     /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
     #[clap(required = true)]
@@ -449,7 +452,7 @@ impl BenchmarkScenario {
             // offloads to its warm server. Without this the mirror
             // stays warm and direct ≈ pnpr.
             Self::IsolatedFreshInstallColdCacheColdStore => Cleanup::new(
-                &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
+                &["node_modules", "pnpm-lock.yaml", "bun.lock", "store-dir", "cache-dir"],
                 &[SAVED_PACKAGE_JSON],
             ),
             // Keep the running mock's database while emptying its
@@ -478,19 +481,19 @@ impl BenchmarkScenario {
             // again, and resolve them against a cold metadata cache.
             // `node_modules` is never created; the warm store stays.
             Self::StoreOnlyUnlockedDepsColdCacheHotStore => {
-                Cleanup::new(&["cache-dir"], &[SAVED_LOCKFILE])
+                Cleanup::new(&["cache-dir", "bun.lock"], &[SAVED_LOCKFILE])
             }
             Self::IsolatedFreshAddDepHotCacheHotStore => {
-                Cleanup::new(&["node_modules"], &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON])
+                Cleanup::new(&["node_modules", "bun.lock"], &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON])
             }
             Self::IsolatedFreshInstallHotCacheHotStore => {
-                Cleanup::new(&["node_modules", "pnpm-lock.yaml"], &[SAVED_PACKAGE_JSON])
+                Cleanup::new(&["node_modules", "pnpm-lock.yaml", "bun.lock"], &[SAVED_PACKAGE_JSON])
             }
             // Cold cache (wipe `cache-dir` → re-resolve from scratch) but
             // hot store (keep `store-dir` → no tarball download). Resolution
             // is the only variable cost, so it can't hide behind downloads.
             Self::IsolatedFreshInstallColdCacheHotStore => Cleanup::new(
-                &["node_modules", "pnpm-lock.yaml", "cache-dir"],
+                &["node_modules", "pnpm-lock.yaml", "bun.lock", "cache-dir"],
                 &[SAVED_PACKAGE_JSON],
             ),
             // `node_modules` is wiped alongside the lockfile even though
@@ -503,7 +506,7 @@ impl BenchmarkScenario {
             Self::IsolatedFreshResolveHotCacheOffline
             | Self::IsolatedPeerHeavyResolveHotCacheOffline
             | Self::IsolatedLinkedWorkspaceResolveHotCacheOffline => {
-                Cleanup::removing(&["node_modules", "pnpm-lock.yaml"])
+                Cleanup::removing(&["node_modules", "pnpm-lock.yaml", "bun.lock"])
             }
         }
     }

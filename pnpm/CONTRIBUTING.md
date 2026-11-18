@@ -230,6 +230,15 @@ just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.co
 ```
 
 ```sh
+# Include Bun 1.2 or newer in a comparison
+just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --with-bun pacquet@HEAD
+```
+
+The Bun target uses a per-runner Bun cache directory and skips lifecycle scripts.
+Bun has no separate package store, so its cache state does not distinguish the
+hot-store and cold-store scenarios.
+
+```sh
 # See more options
 just integrated-benchmark --help
 ```

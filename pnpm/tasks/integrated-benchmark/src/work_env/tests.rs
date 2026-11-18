@@ -66,6 +66,26 @@ fn online_scenario_writes_no_prewarm_script() {
     assert!(!has_prewarm);
 }
 
+#[test]
+fn bun_script_uses_an_isolated_cache_and_skips_lifecycle_scripts() {
+    let dir = tempfile::TempDir::new().expect("create script test dir");
+
+    create_install_script(
+        dir.path(),
+        BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore,
+        "bun",
+        BenchId::Static("bun"),
+    );
+    let install = fs::read_to_string(dir.path().join("install.bash")).expect("read install.bash");
+
+    assert!(
+        install.ends_with(
+            "exec bun install --frozen-lockfile --cache-dir=./cache-dir --ignore-scripts\n"
+        ),
+        "install = {install}",
+    );
+}
+
 /// The whys live on the `cleanup()` arm and the
 /// `prewarms_node_modules` predicate this test pins.
 #[test]
@@ -653,7 +673,11 @@ fn store_only_scenario_unlocks_the_peered_direct_deps_and_links_nothing() {
     assert!(workspace.contains("trustLockfile: true"), "workspace = {workspace}");
     assert!(install.ends_with("exec pnpm install --no-frozen-lockfile\n"), "install = {install}");
     let cleanup = scenario.cleanup();
-    assert_eq!(cleanup.remove, ["cache-dir"], "the metadata cache is cold, the store is kept");
+    assert_eq!(
+        cleanup.remove,
+        ["cache-dir", "bun.lock"],
+        "the metadata cache is cold, the store is kept, and Bun's lockfile is reset",
+    );
     assert_eq!(cleanup.restore, [("pnpm-lock.yaml", ".saved-pnpm-lock.yaml")]);
 }
 
@@ -813,4 +837,27 @@ fn cold_mock_cleanup_preserves_server_metadata_and_empties_the_configured_cache(
     assert!(!cache.exists());
     assert_eq!(fs::read(metadata).unwrap(), b"server metadata");
     assert_eq!(fs::read(temp.path().join("pnpm-lock.yaml")).unwrap(), b"saved lockfile");
+}
+
+#[test]
+fn cleanup_restores_the_seeded_bun_lockfile() {
+    let temp = tempfile::TempDir::new().expect("create cleanup test dir");
+    fs::write(temp.path().join(".saved-pnpm-lock.yaml"), b"pnpm lock").unwrap();
+    fs::write(temp.path().join(".saved-bun.lock"), b"Bun lock").unwrap();
+    fs::write(temp.path().join("bun.lock"), b"changed Bun lock").unwrap();
+    let cleanup = BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore.cleanup();
+    let command = super::scripts::build_cleanup_command(
+        &cleanup,
+        [BenchId::Static("bun")].into_iter(),
+        |_| temp.path().to_path_buf(),
+    );
+
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .status()
+        .expect("run cleanup command");
+
+    assert!(status.success());
+    assert_eq!(fs::read(temp.path().join("bun.lock")).unwrap(), b"Bun lock");
 }

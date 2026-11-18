@@ -40,6 +40,7 @@ async fn main() {
         &repository,
         pnpm_repository.as_deref(),
         args.selection.with_pnpm,
+        args.selection.with_bun,
         args.network.registry,
         args.count_syscalls,
     );
@@ -211,6 +212,7 @@ fn verify_prerequisites(
     repository: &std::path::Path,
     pnpm_repository: Option<&std::path::Path>,
     with_pnpm: bool,
+    with_bun: bool,
     registry_mode: RegistryMode,
     count_syscalls: bool,
 ) {
@@ -256,6 +258,9 @@ fn verify_prerequisites(
     }
     if has_pnpm_target {
         verify::ensure_program("node");
+    }
+    if with_bun {
+        verify::ensure_program("bun");
     }
 }
 
