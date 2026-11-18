@@ -47,6 +47,70 @@ test('guest imports transfer an asynchronous response through a worker without p
   }
 })
 
+test('stream chunks cross the host boundary as binary data', async () => {
+  const expected = Uint8Array.from({ length: 64 * 1024 }, (_, index) => index & 255)
+  const services = createGuestOperations({
+    async dispatch (request) {
+      assert.deepEqual(request, { operation: 'stream.read', handle: 3 })
+      return { done: false, bytes: expected }
+    },
+    async close () {},
+  })
+  const importsUrl = new URL('./guest-imports.mjs', import.meta.url).href
+  const source = `
+    const { parentPort } = require('node:worker_threads');
+    (async () => {
+      const { createGuestImports } = await import(${JSON.stringify(importsUrl)});
+      const memory = new WebAssembly.Memory({ initial: 2 });
+      const imports = createGuestImports(memory, message => parentPort.postMessage(message));
+      const request = new TextEncoder().encode(JSON.stringify({ operation: 'stream.read', handle: 3 }));
+      new Uint8Array(memory.buffer).set(request);
+      const id = imports.operation_start(0, request.length);
+      imports.wait_completion();
+      const metadataLength = imports.response_len(id);
+      const metadataBytes = new Uint8Array(memory.buffer, 1024, metadataLength);
+      imports.response_read(id, 1024, metadataLength);
+      const metadata = JSON.parse(new TextDecoder().decode(metadataBytes));
+      const binaryLength = metadata.binaryLength;
+      const copied = imports.response_binary_read(id, 4096, binaryLength);
+      const bytes = Array.from(new Uint8Array(memory.buffer, 4096, copied));
+      parentPort.postMessage({ result: { metadata, binaryLength, copied, bytes } });
+    })().catch(error => { throw error });
+  `
+  const worker = new Worker(source, { eval: true })
+  services.attach(worker)
+  try {
+    const result = await new Promise((resolve, reject) => {
+      worker.on('error', reject)
+      worker.on('message', message => { if (message.result) resolve(message.result) })
+    })
+    assert.deepEqual(result.metadata, { ok: true, value: { done: false }, binaryLength: expected.length })
+    assert.equal(result.binaryLength, expected.length)
+    assert.equal(result.copied, expected.length)
+    assert.deepEqual(Uint8Array.from(result.bytes), expected)
+  } finally {
+    await worker.terminate()
+    await services.close()
+  }
+})
+
+test('stream end markers use only the JSON control response', async () => {
+  const services = createGuestOperations({
+    async dispatch () { return { done: true, bytes: new Uint8Array() } },
+    async close () {},
+  })
+  try {
+    const id = await services.dispatch('start', [{ operation: 'stream.read' }])
+    assert.equal(await services.dispatch('wait', []), id)
+    const length = await services.dispatch('length', [id])
+    const metadata = JSON.parse(new TextDecoder().decode(await services.dispatch('read', [id, length])))
+    assert.deepEqual(metadata, { ok: true, value: { done: true } })
+    assert.equal(await services.dispatch('read-binary', [id, 0]), -2)
+  } finally {
+    await services.close()
+  }
+})
+
 test('cancellation aborts a pending operation and shutdown wakes a waiting completion pump', async () => {
   let signal
   const services = createGuestOperations({

@@ -16,10 +16,11 @@ test('repeated guest runs retain the event loop through shutdown and then releas
     await writeFile(path.join(directory, 'package.json'), JSON.stringify({
       private: true, scripts: { smoke: 'node -e "process.stdout.write(\'child-completed\')"' },
     }))
+    const hostPath = `${path.dirname(process.execPath)}:${process.env.PATH}`
     const script = `
       import { runWasm } from ${JSON.stringify(runner)}
       for (let index = 0; index < 40; index++) {
-        const code = await runWasm(${JSON.stringify(artifact)}, { args: ['pnpm', 'run', 'smoke'] })
+        const code = await runWasm(${JSON.stringify(artifact)}, { args: ['pnpm', 'run', 'smoke'], env: { PATH: ${JSON.stringify(hostPath)}, npm_config_manage_package_manager_versions: 'false' } })
         if (code !== 0) throw new Error('Guest failed: ' + code)
       }
       console.log('all-runs-completed')

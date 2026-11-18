@@ -27,6 +27,7 @@ static REQUESTS: Mutex<Option<HashMap<u32, Arc<AtomicWaker>>>> = Mutex::new(None
 static COMPLETION_PUMP: OnceLock<Result<(), String>> = OnceLock::new();
 static HOST_CLOSED: AtomicBool = AtomicBool::new(false);
 const MAX_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_BINARY_RESPONSE_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct HostError {
@@ -76,6 +77,15 @@ pub struct Request {
 /// The WASI guest must run in a worker separate from the Node supervisor.
 /// The build must support threads; one completion thread wakes all requests.
 pub fn request(message: &Value) -> Result<Request, HostError> {
+    start_request(message)
+}
+
+/// Starts a host operation whose response may include an out-of-band byte payload.
+pub fn request_binary(message: &Value) -> Result<BinaryRequest, HostError> {
+    start_request(message).map(BinaryRequest)
+}
+
+fn start_request(message: &Value) -> Result<Request, HostError> {
     ensure_completion_pump()?;
     if HOST_CLOSED.load(Ordering::Acquire) {
         return Err(HostError::closed());
@@ -98,10 +108,34 @@ pub fn request(message: &Value) -> Result<Request, HostError> {
     Ok(Request { identifier: Some(identifier), waker })
 }
 
+/// A host request that returns metadata and an optional binary response payload.
+#[must_use]
+pub struct BinaryRequest(Request);
+
+impl Future for BinaryRequest {
+    type Output = Result<(Value, Option<Vec<u8>>), HostError>;
+
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.get_mut().0).poll_response(context, true)
+    }
+}
+
 impl Future for Request {
     type Output = Result<Value, HostError>;
 
     fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        self.as_mut()
+            .poll_response(context, false)
+            .map(|result| result.map(|(value, _)| value))
+    }
+}
+
+impl Request {
+    fn poll_response(
+        mut self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        read_binary: bool,
+    ) -> Poll<Result<(Value, Option<Vec<u8>>), HostError>> {
         let identifier = self.identifier.expect("host request polled after completion");
         self.waker.register(context.waker());
         if HOST_CLOSED.load(Ordering::Acquire) {
@@ -115,13 +149,11 @@ impl Future for Request {
         if length == -1 {
             return Poll::Pending;
         }
-        let response = read_response(identifier, length);
+        let response = read_response(identifier, length, read_binary);
         self.release();
         Poll::Ready(response)
     }
-}
 
-impl Request {
     fn release(&mut self) {
         let Some(identifier) = self.identifier.take() else { return };
         if let Some(requests) = REQUESTS
@@ -144,7 +176,11 @@ impl Drop for Request {
     }
 }
 
-fn read_response(identifier: u32, length: i32) -> Result<Value, HostError> {
+fn read_response(
+    identifier: u32,
+    length: i32,
+    read_binary: bool,
+) -> Result<(Value, Option<Vec<u8>>), HostError> {
     let length = usize::try_from(length).map_err(|_| HostError::new("Invalid host response"))?;
     if length > MAX_RESPONSE_BYTES {
         return Err(HostError::new("WASM host response exceeds 16 MiB"));
@@ -159,11 +195,35 @@ fn read_response(identifier: u32, length: i32) -> Result<Value, HostError> {
     }
     let response: Response = serde_json::from_slice(&payload)
         .map_err(|error| HostError::new(format!("Invalid WASM host response: {error}")))?;
-    match (response.ok, response.value, response.error) {
-        (true, value, None) => Ok(value),
-        (false, Value::Null, Some(error)) => Err(error),
-        _ => Err(HostError::new("Invalid WASM host response envelope")),
-    }
+    let Response { ok, value, error, binary_length } = response;
+    let value = match (ok, value, error) {
+        (true, value, None) => value,
+        (false, Value::Null, Some(error)) => return Err(error),
+        _ => return Err(HostError::new("Invalid WASM host response envelope")),
+    };
+    let bytes = if read_binary {
+        if let Some(length) = binary_length {
+            if length > MAX_BINARY_RESPONSE_BYTES {
+                return Err(HostError::new("Binary WASM host response exceeds 1 MiB"));
+            }
+            let mut bytes = vec![0; length];
+            // SAFETY: `bytes` is a live `Vec` of exactly `bytes.len()`
+            // initialized bytes, which is the capacity the import is told it
+            // may write, and it is borrowed exclusively for the whole call.
+            let copied = unsafe {
+                sys::response_binary_read(identifier, bytes.as_mut_ptr(), bytes.len())
+            };
+            if usize::try_from(copied) != Ok(length) {
+                return Err(HostError::new("Failed to read binary WASM host response"));
+            }
+            Some(bytes)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    Ok((value, bytes))
 }
 
 #[derive(Deserialize)]
@@ -172,6 +232,8 @@ struct Response {
     #[serde(default)]
     value: Value,
     error: Option<HostError>,
+    #[serde(default, rename = "binaryLength")]
+    binary_length: Option<usize>,
 }
 
 fn ensure_completion_pump() -> Result<(), HostError> {

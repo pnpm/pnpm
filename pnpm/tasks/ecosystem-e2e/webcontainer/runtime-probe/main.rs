@@ -110,6 +110,13 @@ async fn host(message: Value) -> Value {
         .expect("complete host operation")
 }
 
+async fn host_binary(message: Value) -> (Value, Option<Vec<u8>>) {
+    pnpm_wasm_host::request_binary(&message)
+        .expect("start binary host operation")
+        .await
+        .expect("complete binary host operation")
+}
+
 async fn check_host_network() {
     let url = std::env::var("PROBE_REGISTRY_URL")
         .unwrap_or_else(|_| "https://registry.npmjs.org/is-odd/latest".into());
@@ -118,13 +125,12 @@ async fn check_host_network() {
     let handle = &response["handle"];
     let mut bytes = Vec::<u8>::new();
     loop {
-        let chunk = host(json!({ "operation": "stream.read", "handle": handle })).await;
+        let (chunk, binary) =
+            host_binary(json!({ "operation": "stream.read", "handle": handle })).await;
         if chunk["done"] == true {
             break;
         }
-        bytes.extend(
-            serde_json::from_value::<Vec<u8>>(chunk["bytes"].clone()).expect("binary chunk"),
-        );
+        bytes.extend(binary.expect("binary response chunk"));
     }
     let metadata: Value = serde_json::from_slice(&bytes).expect("registry returned JSON");
     assert_eq!(metadata["name"], "is-odd");
@@ -141,8 +147,10 @@ async fn check_host_process() {
     let handle = &child["handle"];
     host(json!({ "operation": "process.write", "handle": handle, "bytes": [0, 255, 13] })).await;
     host(json!({ "operation": "process.end", "handle": handle })).await;
-    let output = host(json!({ "operation": "stream.read", "handle": child["stdout"] })).await;
-    assert_eq!(output["bytes"], json!([0, 255, 13]));
+    let (output, bytes) =
+        host_binary(json!({ "operation": "stream.read", "handle": child["stdout"] })).await;
+    assert_eq!(output["done"], false);
+    assert_eq!(bytes.as_deref(), Some([0, 255, 13].as_slice()));
     let exit = host(json!({ "operation": "process.wait", "handle": handle })).await;
     assert_eq!(exit["code"], 17);
     assert!(exit["signal"].is_null());

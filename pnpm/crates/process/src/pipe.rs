@@ -2,7 +2,10 @@ use crate::{
     child::ProcessHandle,
     host,
 };
-use pnpm_wasm_host::Request;
+use pnpm_wasm_host::{
+    BinaryRequest,
+    Request,
+};
 use serde::Deserialize;
 use serde_json::json;
 use std::{
@@ -27,7 +30,7 @@ use tokio::io::{
 
 pub struct ReadPipe {
     handle: u32,
-    pending: Option<Request>,
+    pending: Option<BinaryRequest>,
     buffered: Vec<u8>,
     offset: usize,
     done: bool,
@@ -41,7 +44,7 @@ impl ReadPipe {
     fn start_read(&mut self, length: usize) -> io::Result<()> {
         if self.pending.is_none() {
             self.pending = Some(
-                pnpm_wasm_host::request(&json!({
+                pnpm_wasm_host::request_binary(&json!({
                     "operation": "stream.read", "handle": self.handle,
                     "maxBytes": length.min(64 * 1024),
                 }))
@@ -51,14 +54,15 @@ impl ReadPipe {
         Ok(())
     }
 
-    fn receive(&mut self, value: serde_json::Value) -> io::Result<()> {
+    fn receive(&mut self, value: serde_json::Value, bytes: Option<Vec<u8>>) -> io::Result<()> {
         #[derive(Deserialize)]
         struct Chunk {
-            bytes: Vec<u8>,
             done: bool,
+            #[serde(default)]
+            bytes: Vec<u8>,
         }
         let chunk: Chunk = serde_json::from_value(value).map_err(io::Error::other)?;
-        self.buffered = chunk.bytes;
+        self.buffered = if chunk.done { Vec::new() } else { bytes.unwrap_or(chunk.bytes) };
         self.offset = 0;
         self.done = chunk.done;
         Ok(())
@@ -81,7 +85,8 @@ impl Read for ReadPipe {
         if self.offset == self.buffered.len() && !self.done {
             self.start_read(output.len())?;
             let pending = self.pending.take().expect("read request started");
-            self.receive(host::block_on(pending).map_err(host::error)?)?;
+            let (value, bytes) = host::block_on(pending).map_err(host::error)?;
+            self.receive(value, bytes)?;
         }
         Ok(self.copy_buffered(output))
     }
@@ -102,7 +107,8 @@ impl AsyncRead for ReadPipe {
             let pending = pipe.pending.as_mut().expect("read request started");
             let response = std::task::ready!(Pin::new(pending).poll(context));
             pipe.pending = None;
-            pipe.receive(response.map_err(host::error)?)?;
+            let (value, bytes) = response.map_err(host::error)?;
+            pipe.receive(value, bytes)?;
         }
         let copied = pipe.copy_buffered(output.initialize_unfilled());
         output.advance(copied);

@@ -1,11 +1,380 @@
-import { spawn } from 'node:child_process'
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { createServer } from 'node:http'
 
 if (process.argv[2] === '--matching-pin') await installWithMatchingPin(process.argv[3])
 else if (process.argv[2] === '--approval') createApprovalFixture()
 else if (process.argv[2] === '--frontend') createFrontendFixture()
+else if (process.argv[2] === '--assert-no-effects') assertUnsupportedCommandHasNoEffects(process.argv[3])
+else if (process.argv[2] === '--registry-workflow') await runRegistryWorkflow(process.argv[3])
+else if (process.argv[2] === '--store-status-mutation') assertStoreStatusDetectsMutation(process.argv[3])
+else if (process.argv[2] === '--cat-file') assertCatFileContents(process.argv[3])
+else if (process.argv[2] === '--network-cert-fixtures') writeNetworkCertificateFixtures()
+else if (process.argv[2] === '--client-identity-config') writeClientIdentityConfig()
+else if (process.argv[2] === '--install-test-fixture') createInstallTestFixture()
+else if (process.argv[2] === '--doctor') inspectDoctor(process.argv[3])
+else if (process.argv[2] === '--list-clean-remnants') listCleanRemnants()
+else if (process.argv[2] === '--clean-tree-fixture') createCleanTreeFixture()
 else createWorkspaceFixture()
+
+async function runRegistryWorkflow (entry) {
+  const requests = []
+  let publishDocument
+  const server = createServer(async (request, response) => {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    const body = Buffer.concat(chunks).toString()
+    const pathname = request.url.split('?')[0]
+    requests.push({ method: request.method, url: request.url, authorization: request.headers.authorization, body })
+    if (request.method === 'POST' && request.url === '/-/v1/login') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ loginUrl: `http://127.0.0.1:${server.address().port}/login`, doneUrl: `http://127.0.0.1:${server.address().port}/done` }))
+    } else if (request.url.startsWith('/done')) {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ token: 'fixture-token' }))
+    } else if (request.method === 'GET' && request.url === '/-/whoami') {
+      if (request.headers.authorization === 'Bearer fixture-token') {
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify({ username: 'webcontainer-fixture' }))
+      } else {
+        response.writeHead(401).end('Unauthorized')
+      }
+    } else if (request.method === 'GET' && request.url === '/-/npm/v1/user') {
+      if (request.headers.authorization !== 'Bearer fixture-token') {
+        response.writeHead(401).end('Unauthorized')
+      } else {
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify({ name: 'webcontainer-fixture', email: 'fixture@example.test' }))
+      }
+    } else if (request.method === 'GET' && request.url === '/-/npm/v1/tokens') {
+      if (request.headers.authorization !== 'Bearer fixture-token') {
+        response.writeHead(401).end('Unauthorized')
+      } else {
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify([{ key: 'fixture-key', token: 'npm_fixturetoken', readonly: true }]))
+      }
+    } else if (request.method === 'GET' && pathname === '/-/ping') {
+      response.writeHead(request.url.startsWith('/missing/') ? 404 : 200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ ping: 'pong' }))
+    } else if (request.method === 'GET' && pathname === '/-/v1/search') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ objects: [{ package: { name: 'webcontainer-publish-probe', version: '1.0.0', description: 'WebContainer registry fixture' } }] }))
+    } else if (request.method === 'PUT' && pathname === '/-/user/v1/star') {
+      if (request.headers.authorization !== 'Bearer fixture-token') response.writeHead(401).end('Unauthorized')
+      else response.writeHead(201).end('{}')
+    } else if (request.method === 'DELETE' && pathname === '/-/user/v1/star') {
+      if (request.headers.authorization !== 'Bearer fixture-token') response.writeHead(401).end('Unauthorized')
+      else response.writeHead(200).end('{}')
+    } else if (request.method === 'GET' && pathname === '/-/user/v1/star') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify(['webcontainer-publish-probe']))
+    } else if (request.method === 'PUT' && pathname === '/webcontainer-publish-probe' && !request.url.includes('?write=true')) {
+      if (request.headers.authorization !== 'Bearer fixture-token') {
+        response.writeHead(401).end('Unauthorized')
+      } else {
+        publishDocument = JSON.parse(body)
+        response.writeHead(201, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true }))
+      }
+    } else if (request.method === 'GET' && pathname === '/webcontainer-publish-probe') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ ...(publishDocument ?? { name: 'webcontainer-publish-probe', versions: { '1.0.0': { name: 'webcontainer-publish-probe', version: '1.0.0', dist: { tarball: `${registry}webcontainer-publish-probe/-/webcontainer-publish-probe-1.0.0.tgz` } } }, 'dist-tags': { latest: '1.0.0' } }), _rev: '3-abc' }))
+    } else if (pathname === '/-/package/webcontainer-publish-probe/dist-tags') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ latest: '1.0.0', beta: '1.0.0' }))
+    } else if (request.method === 'PUT' && pathname.startsWith('/-/package/webcontainer-publish-probe/dist-tags/')) {
+      response.writeHead(201).end()
+    } else if (request.method === 'DELETE' && pathname.startsWith('/-/package/webcontainer-publish-probe/dist-tags/')) {
+      response.writeHead(200).end()
+    } else if (request.method === 'PUT' && pathname === '/-/package/webcontainer-publish-probe/owners') {
+      response.writeHead(200).end()
+    } else if (request.method === 'POST' && pathname === '/-/package/@fixture%2fwebcontainer-publish-probe/access') {
+      response.writeHead(200).end()
+    } else if (request.method === 'PUT' && pathname === '/-/org/myscope/team') {
+      response.writeHead(201).end()
+    } else if (request.method === 'PUT' && pathname === '/webcontainer-publish-probe') {
+      publishDocument = JSON.parse(body)
+      response.writeHead(200, { 'content-type': 'application/json' }).end('{}')
+    } else if (request.method === 'DELETE' && pathname.startsWith('/webcontainer-publish-probe/-rev/')) {
+      response.writeHead(200).end()
+    } else if (request.method === 'DELETE' && request.url === '/-/user/token/fixture-token') {
+      if (request.headers.authorization !== 'Bearer fixture-token') response.writeHead(401).end('Unauthorized')
+      else response.writeHead(204).end()
+    } else {
+      response.writeHead(404).end('Not found')
+    }
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const registry = `http://127.0.0.1:${server.address().port}/`
+  const project = path.resolve('.registry-probe')
+  const home = path.resolve('.registry-probe-home')
+  mkdirSync(project, { recursive: true })
+  mkdirSync(home, { recursive: true })
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({
+    name: 'webcontainer-publish-probe',
+    version: '1.0.0',
+    homepage: 'https://example.test/webcontainer-publish-probe',
+    repository: 'https://example.test/webcontainer-publish-probe.git',
+  }))
+  const env = {
+    ...process.env,
+    HOME: home,
+    PNPM_HOME: path.join(home, 'pnpm'),
+    XDG_CACHE_HOME: path.join(home, 'cache'),
+    XDG_CONFIG_HOME: path.join(home, 'config'),
+    XDG_DATA_HOME: path.join(home, 'data'),
+    npm_config_userconfig: '/dev/null',
+  }
+  try {
+    const login = await runInteractivePackageManager(entry, ['login', '--registry', registry], project, env)
+    assert.equal(login.exitCode, 0, `login exited with ${login.exitCode}`)
+
+    const view = await runPackageManager(entry, ['view', 'webcontainer-publish-probe', 'version', '--json', '--registry', registry], project, env)
+    assert.equal(view.exitCode, 0, view.output)
+    assert.equal(JSON.parse(view.output), '1.0.0')
+    for (const command of ['info', 'show', 'v']) {
+      const alias = await runPackageManager(entry, [command, 'webcontainer-publish-probe', 'version', '--json', '--registry', registry], project, env)
+      assert.equal(alias.exitCode, 0, `${command}: ${alias.output}`)
+      assert.equal(JSON.parse(alias.output), '1.0.0')
+    }
+
+    const missingView = await runPackageManager(entry, ['view', 'missing-webcontainer-probe', '--registry', registry], project, env)
+    assert.equal(missingView.exitCode, 1)
+    assert.match(missingView.output, /ERR_PNPM_FETCH_404/)
+
+    const search = await runPackageManager(entry, ['search', 'webcontainer', '--json', '--registry', registry], project, env)
+    assert.equal(search.exitCode, 0, search.output)
+    assert.equal(JSON.parse(search.output)[0].name, 'webcontainer-publish-probe')
+    for (const command of ['find', 's', 'se']) {
+      const alias = await runPackageManager(entry, [command, 'webcontainer', '--json', '--registry', registry], project, env)
+      assert.equal(alias.exitCode, 0, `${command}: ${alias.output}`)
+      assert.equal(JSON.parse(alias.output)[0].name, 'webcontainer-publish-probe')
+    }
+
+    const missingSearch = await runPackageManager(entry, ['search', '--registry', registry], project, env)
+    assert.equal(missingSearch.exitCode, 1)
+    assert.match(missingSearch.output, /ERR_PNPM_MISSING_SEARCH_QUERY/)
+
+    const ping = await runPackageManager(entry, ['ping', '--registry', registry], project, env)
+    assert.equal(ping.exitCode, 0, ping.output)
+    assert.match(ping.output, /PONG.*ping.*pong/s)
+
+    const failedPing = await runPackageManager(entry, ['ping', '--registry', `${registry}missing/`], project, env)
+    assert.equal(failedPing.exitCode, 1)
+    assert.match(failedPing.output, /ERR_PNPM_PING_ERROR/)
+
+    const star = await runPackageManager(entry, ['star', 'webcontainer-publish-probe', '--registry', registry], project, env)
+    assert.equal(star.exitCode, 0, star.output)
+    const unstar = await runPackageManager(entry, ['unstar', 'webcontainer-publish-probe', '--registry', registry], project, env)
+    assert.equal(unstar.exitCode, 0, unstar.output)
+    const stars = await runPackageManager(entry, ['stars', '--registry', registry], project, env)
+    assert.equal(stars.exitCode, 0, stars.output)
+    assert.match(stars.output, /webcontainer-publish-probe/)
+
+    const whoami = await runPackageManager(entry, ['whoami', '--registry', registry], project, env)
+    assert.equal(whoami.exitCode, 0, whoami.output)
+    assert.match(whoami.output, /webcontainer-fixture/)
+
+    const profile = await runPackageManager(entry, ['profile', 'get', 'email', '--json', '--registry', registry], project, env)
+    assert.equal(profile.exitCode, 0, profile.output)
+    assert.deepEqual(JSON.parse(profile.output), { email: 'fixture@example.test' })
+
+    const tokens = await runPackageManager(entry, ['token', 'list', '--json', '--registry', registry], project, env)
+    assert.equal(tokens.exitCode, 0, tokens.output)
+    assert.deepEqual(JSON.parse(tokens.output).map(({ key, readonly }) => ({ key, readonly })), [{ key: 'fixture-key', readonly: true }])
+
+    const publish = await runPackageManager(entry, ['publish', '--registry', registry, '--no-git-checks', '--ignore-scripts', '--publish-wait-timeout', '0'], project, env)
+    assert.equal(publish.exitCode, 0, publish.output)
+    assert.equal(publishDocument?.name, 'webcontainer-publish-probe')
+    assert.ok(publishDocument?.versions?.['1.0.0'])
+    assert.ok(publishDocument?._attachments?.['webcontainer-publish-probe-1.0.0.tgz']?.data)
+
+    for (const command of ['docs', 'home']) {
+      const result = await runPackageManager(entry, [command, 'webcontainer-publish-probe', '--registry', registry], project, env)
+      assert.equal(result.exitCode, 0, result.output)
+      assert.match(result.output, /Could not open browser: WebContainers cannot open a browser window/)
+      assert.match(result.output, /https:\/\/example\.test\/webcontainer-publish-probe/)
+    }
+
+    for (const [args, method, url] of [
+      [['dist-tag', 'add', 'webcontainer-publish-probe@1.0.0', 'beta', '--registry', registry], 'PUT', '/-/package/webcontainer-publish-probe/dist-tags/beta'],
+      [['dist-tags', 'add', 'webcontainer-publish-probe@1.0.0', 'next', '--registry', registry], 'PUT', '/-/package/webcontainer-publish-probe/dist-tags/next'],
+      [['dist-tag', 'rm', 'webcontainer-publish-probe', 'beta', '--registry', registry], 'DELETE', '/-/package/webcontainer-publish-probe/dist-tags/beta'],
+      [['deprecate', 'webcontainer-publish-probe@1.0.0', 'fixture retirement', '--registry', registry], 'PUT', '/webcontainer-publish-probe'],
+      [['undeprecate', 'webcontainer-publish-probe@1.0.0', '--registry', registry], 'PUT', '/webcontainer-publish-probe'],
+      [['owner', 'add', 'webcontainer-publish-probe', 'fixture-owner', '--registry', registry], 'PUT', '/-/package/webcontainer-publish-probe/owners'],
+      [['owners', 'add', 'webcontainer-publish-probe', 'fixture-owner', '--registry', registry], 'PUT', '/-/package/webcontainer-publish-probe/owners'],
+      [['access', 'set', 'status=public', '@fixture/webcontainer-publish-probe', '--registry', registry], 'POST', '/-/package/@fixture%2fwebcontainer-publish-probe/access'],
+      [['team', 'create', '@myscope:developers', '--registry', registry], 'PUT', '/-/org/myscope/team'],
+    ]) {
+      const result = await runPackageManager(entry, args, project, env)
+      assert.equal(result.exitCode, 0, `${args.join(' ')}: ${result.output}`)
+      assert.ok(requests.some(request => request.method === method && request.url.startsWith(url)), `${args.join(' ')} did not call ${method} ${url}`)
+    }
+
+    const unpublish = await runPackageManager(entry, ['unpublish', 'webcontainer-publish-probe', '--force', '--registry', registry], project, env)
+    assert.equal(unpublish.exitCode, 0, unpublish.output)
+    assert.ok(requests.some(request => request.method === 'DELETE' && request.url.startsWith('/webcontainer-publish-probe/-rev/')))
+
+    const logout = await runPackageManager(entry, ['logout', '--registry', registry], project, env)
+    assert.equal(logout.exitCode, 0, logout.output)
+    assert.ok(requests.some(request => request.method === 'DELETE' && request.url === '/-/user/token/fixture-token' && request.authorization === 'Bearer fixture-token'))
+
+    const unauthorized = await runPackageManager(entry, ['whoami', '--registry', registry], project, env)
+    assert.equal(unauthorized.exitCode, 1)
+    assert.match(unauthorized.output, /You must be logged in to use whoami/)
+    const unauthorizedProfile = await runPackageManager(entry, ['profile', 'get', '--registry', registry], project, env)
+    assert.equal(unauthorizedProfile.exitCode, 1)
+    assert.match(unauthorizedProfile.output, /You must be logged in/)
+    const unauthorizedTokens = await runPackageManager(entry, ['token', 'list', '--registry', registry], project, env)
+    assert.equal(unauthorizedTokens.exitCode, 1)
+    assert.match(unauthorizedTokens.output, /You must be logged in to view or change your tokens/)
+    const unauthorizedStar = await runPackageManager(entry, ['star', 'webcontainer-publish-probe', '--registry', registry], project, env)
+    assert.equal(unauthorizedStar.exitCode, 1)
+    assert.match(unauthorizedStar.output, /ERR_PNPM_STAR_UNAUTHORIZED/)
+    const unauthorizedStars = await runPackageManager(entry, ['stars', '--registry', registry], project, env)
+    assert.equal(unauthorizedStars.exitCode, 1)
+    assert.match(unauthorizedStars.output, /ERR_PNPM_STARS_UNAUTHORIZED/)
+    const adduser = await runInteractivePackageManager(entry, ['adduser', '--registry', registry], project, env)
+    assert.equal(adduser.exitCode, 0, `adduser exited with ${adduser.exitCode}`)
+    const aliasWhoami = await runPackageManager(entry, ['whoami', '--registry', registry], project, env)
+    assert.equal(aliasWhoami.exitCode, 0, aliasWhoami.output)
+    assert.match(aliasWhoami.output, /webcontainer-fixture/)
+    const aliasLogout = await runPackageManager(entry, ['logout', '--registry', registry], project, env)
+    assert.equal(aliasLogout.exitCode, 0, aliasLogout.output)
+    assert.ok(requests.some(request => request.method === 'PUT' && request.url === '/webcontainer-publish-probe'))
+    console.log('Mock registry view, search, ping, stars, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed')
+  } finally {
+    await new Promise(resolve => server.close(resolve))
+    rmSync(project, { recursive: true, force: true })
+    rmSync(home, { recursive: true, force: true })
+  }
+}
+
+function runPackageManager (entry, args, cwd, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [path.resolve(entry), ...args], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })
+    let output = ''
+    child.stdout.setEncoding('utf8').on('data', chunk => { output += chunk })
+    child.stderr.setEncoding('utf8').on('data', chunk => { output += chunk })
+    child.once('error', reject)
+    child.once('exit', (exitCode, signal) => resolve({ exitCode: exitCode ?? 1, signal, output }))
+  })
+}
+
+function runInteractivePackageManager (entry, args, cwd, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [path.resolve(entry), ...args], { cwd, env, stdio: 'inherit' })
+    child.once('error', reject)
+    child.once('exit', (exitCode, signal) => resolve({ exitCode: exitCode ?? 1, signal }))
+  })
+}
+
+function assertStoreStatusDetectsMutation (entry) {
+  const packageManifest = path.resolve('node_modules/.pnpm/chalk@4.1.2/node_modules/chalk/package.json')
+  const original = readFileSync(packageManifest)
+  try {
+    writeFileSync(packageManifest, Buffer.concat([original, Buffer.from('\n')]))
+    const result = spawnSync(process.execPath, [entry, 'store', 'status'], { encoding: 'utf8' })
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+    if (result.status !== 1 || !output.includes('ERR_PNPM_MODIFIED_DEPENDENCY')) {
+      throw new Error(`store status did not report a modified package: ${output}`)
+    }
+    console.log('store status detected a modified installed package')
+  } finally {
+    writeFileSync(packageManifest, original)
+  }
+}
+
+function assertCatFileContents (entry) {
+  const packageJson = readFileSync('packages/local/node_modules/semver/package.json')
+  const hash = createHash('sha512').update(packageJson).digest('base64')
+  const result = spawnSync(process.execPath, [path.resolve(entry), 'cat-file', `sha512-${hash}`], { encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, packageJson.toString())
+  console.log('cat-file returned the matching content-addressed package file')
+}
+
+function writeNetworkCertificateFixtures () {
+  writeFileSync('test-ca.pem', readFileSync('../pnpm/network-ca.pem'))
+  writeFileSync('test-client-key.pem', readFileSync('../pnpm/network-client-key.pem'))
+}
+
+function writeClientIdentityConfig () {
+  writeFileSync('.npmrc', `//registry.npmjs.org/:certfile=${path.resolve('test-ca.pem')}\n//registry.npmjs.org/:keyfile=${path.resolve('test-client-key.pem')}\n`)
+}
+
+function assertUnsupportedCommandHasNoEffects (entry) {
+  const arguments_ = process.argv.slice(4)
+  const expectedIndex = arguments_.indexOf('--expect')
+  if (expectedIndex === -1 || expectedIndex === arguments_.length - 1) throw new Error('Expected --expect and a diagnostic')
+  const commandArguments = arguments_.slice(0, expectedIndex)
+  const useHttpProxy = commandArguments[0] === '--http-proxy'
+  if (useHttpProxy) commandArguments.shift()
+  const expected = arguments_.slice(expectedIndex + 1).join(' ')
+  const cargoProject = commandArguments[0] === '--cargo-add'
+  const home = path.resolve('.unsupported-command-home')
+  mkdirSync(home, { recursive: true })
+  try {
+    if (cargoProject) {
+      writeFileSync('Cargo.toml', '[package]\nname = "webcontainer-fixture"\nversion = "0.1.0"\nedition = "2024"\n')
+      writeFileSync('pnpm-workspace.yaml', 'cargo:\n  enabled: true\n')
+      commandArguments.splice(0, 1, 'add', 'crate:fixture@1', '--offline')
+    }
+    const env = {
+      ...process.env,
+      HOME: home,
+      PNPM_HOME: path.join(home, 'pnpm'),
+      XDG_CACHE_HOME: path.join(home, 'cache'),
+      XDG_CONFIG_HOME: path.join(home, 'config'),
+      XDG_DATA_HOME: path.join(home, 'data'),
+      npm_config_userconfig: '/dev/null',
+      ...(useHttpProxy ? { HTTPS_PROXY: 'http://127.0.0.1:9999' } : {}),
+    }
+    const config = spawnSync(process.execPath, [entry, 'config', 'get', 'registry'], {
+      cwd: process.cwd(), encoding: 'utf8', env,
+    })
+    if (config.status !== 0) throw new Error(`failed to initialize isolated config: ${config.stderr}`)
+    mkdirSync(env.PNPM_HOME, { recursive: true })
+    const before = snapshot(process.cwd())
+    const pnpmHomeBefore = snapshot(env.PNPM_HOME)
+    const child = spawnSync(process.execPath, [entry, ...commandArguments], {
+      cwd: process.cwd(), encoding: 'utf8', env,
+    })
+    const output = `${child.stdout ?? ''}${child.stderr ?? ''}`
+    if (child.status !== 1 || !output.includes(expected)) {
+      throw new Error(`${commandArguments.join(' ')} exited with ${child.status}: ${output}`)
+    }
+    if (JSON.stringify(snapshot(process.cwd())) !== JSON.stringify(before)) {
+      throw new Error(`${commandArguments.join(' ')} changed project files before failing`)
+    }
+    const pnpmHomeAfter = snapshot(env.PNPM_HOME)
+    if (JSON.stringify(pnpmHomeAfter) !== JSON.stringify(pnpmHomeBefore)) {
+      throw new Error(`${commandArguments.join(' ')} changed PNPM_HOME before failing`)
+    }
+    console.log(`${commandArguments.join(' ')} failed without changing project files or PNPM_HOME`)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+    if (cargoProject) {
+      rmSync('Cargo.toml', { force: true })
+      rmSync('pnpm-workspace.yaml', { force: true })
+    }
+  }
+}
+
+function snapshot (directory) {
+  const entries = []
+  for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+    if (directory === process.cwd() && entry.name === '.unsupported-command-home') continue
+    const filename = path.join(directory, entry.name)
+    if (entry.isDirectory()) entries.push([entry.name, snapshot(filename)])
+    else if (entry.isSymbolicLink()) entries.push([entry.name, 'symlink', readlinkSync(filename)])
+    else entries.push([entry.name, 'file', readFileSync(filename).toString('base64')])
+  }
+  return entries
+}
 
 async function installWithMatchingPin (entry) {
   const { packageManager } = JSON.parse(readFileSync('package.json', 'utf8'))
@@ -68,6 +437,7 @@ function createWorkspaceFixture () {
   manifest.scripts = {
     postinstall: 'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ok\', \'yes\')"',
     verify: 'node -e "require(\'@fixture/local\'); console.log(\'wasm-script-ok\')"',
+    'wasm-external': 'node -e "console.log(\'wasm-external-script-ok\')"',
   }
   writeFileSync('package.json', JSON.stringify(manifest))
   writeFileSync('pnpm-workspace.yaml', "packages:\n  - packages/*\n")
@@ -75,7 +445,10 @@ function createWorkspaceFixture () {
   writeFileSync('packages/local/package.json', JSON.stringify({
     name: '@fixture/local', version: '1.0.0', main: 'index.cjs',
     bin: { 'fixture-bin': 'bin.cjs' },
-    scripts: { build: 'node -e "console.log(\'wasm-filter-ok\')"' },
+    scripts: {
+      build: 'node -e "console.log(\'wasm-filter-ok\')"',
+      rebuild: 'node -e "console.log(\'wasm-rebuild-script-override\')"',
+    },
     dependencies: { semver: '7.6.3' },
     peerDependencies: { chalk: '^4.0.0' },
   }))
@@ -84,6 +457,49 @@ function createWorkspaceFixture () {
 require('node:assert/strict').deepEqual(process.argv.slice(2), ['a b', '$(false)', "'quoted'"])
 console.log('wasm-bin-ok')
 `)
+}
+
+function createInstallTestFixture () {
+  mkdirSync('install-test-audit', { recursive: true })
+  writeFileSync('install-test-audit/package.json', JSON.stringify({
+    name: 'install-test-audit',
+    scripts: { test: `node -e "require('node:fs').writeFileSync('install-test-ok', 'yes')"` },
+  }))
+}
+
+function inspectDoctor (entry) {
+  const result = spawnSync(process.execPath, [entry, 'doctor', '--offline', '--json'], { encoding: 'utf8' })
+  const report = JSON.parse(result.stdout)
+  assert.ok(Array.isArray(report.checks), 'doctor did not return a check list')
+  assert.ok(report.checks.length > 0, 'doctor returned no checks')
+  const failures = report.checks.filter(check => check.status === 'fail').map(check => `${check.title}: ${check.detail}`)
+  console.log(`doctor completed ${report.checks.length} offline checks with exit code ${result.status}; failed checks: ${failures.join('; ') || 'none'}`)
+  assert.equal(result.status, 0, `${result.stderr}\n${failures.join('\n')}`)
+}
+
+function listCleanRemnants () {
+  const root = 'node_modules/.pnpm'
+  const remaining = []
+  const visit = (directory, depth) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const relative = path.relative(root, path.join(directory, entry.name))
+      remaining.push(`${entry.isSymbolicLink() ? 'link' : entry.isDirectory() ? 'dir' : 'file'} ${relative}`)
+      if (entry.isDirectory() && depth < 3) visit(path.join(directory, entry.name), depth + 1)
+    }
+  }
+  visit(root, 0)
+  console.log(`clean left ${remaining.length} entries under node_modules/.pnpm:\n${remaining.slice(0, 80).join('\n')}`)
+}
+
+function createCleanTreeFixture () {
+  const root = '/tmp/pnpm-clean-audit'
+  const packageDirectory = path.join(root, 'node_modules/.pnpm/package/node_modules')
+  const target = path.join(root, 'node_modules/.pnpm/target')
+  mkdirSync(packageDirectory, { recursive: true })
+  mkdirSync(target, { recursive: true })
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'clean-audit', version: '1.0.0' }))
+  writeFileSync(path.join(target, 'file.txt'), 'clean me')
+  symlinkSync(path.relative(packageDirectory, target), path.join(packageDirectory, 'target'), 'dir')
 }
 
 function createApprovalFixture () {
@@ -97,4 +513,3 @@ function createApprovalFixture () {
   writeFileSync('package.json', JSON.stringify(manifest))
   appendFileSync('pnpm-workspace.yaml', 'strictDepBuilds: false\n')
 }
-import assert from 'node:assert/strict'
