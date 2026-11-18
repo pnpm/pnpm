@@ -56,11 +56,11 @@ export function providerFor<Provider extends { version: string }> (
  * for optional peers, only the peers `inScope` shadow.
  */
 export function getPeerShadowedDependencies (
-  pkg: Pick<PackageManifest, 'dependencies' | 'peerDependencies' | 'peerDependenciesMeta'>,
+  pkg: Pick<PackageManifest, 'peerDependencies' | 'peerDependenciesMeta'>,
   opts: { autoInstallPeers: boolean, inScope: (alias: string) => boolean }
 ): string[] {
-  const { dependencies, peerDependencies, peerDependenciesMeta } = pkg
-  if (!peerDependencies || !dependencies) return []
+  const { peerDependencies, peerDependenciesMeta } = pkg
+  if (!peerDependencies) return []
   return Object.keys(peerDependencies).filter((peerDep) =>
     (opts.autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true) || opts.inScope(peerDep)
   )

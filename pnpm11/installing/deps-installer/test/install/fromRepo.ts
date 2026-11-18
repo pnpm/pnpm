@@ -427,6 +427,93 @@ test('from subdirectories of a git repo', async () => {
   })
 })
 
+test('lockfile-only updates reuse locked Git dependencies with peers and aliased Git children', async () => {
+  const project = prepareEmpty()
+  const repoRoot = path.resolve('repos')
+  const childDir = path.join(repoRoot, 'child')
+  const parentDir = path.join(repoRoot, 'parent')
+  fs.mkdirSync(childDir, { recursive: true })
+  fs.mkdirSync(parentDir)
+  fs.writeFileSync(path.join(childDir, 'package.json'), JSON.stringify({ name: 'example-child', version: '1.0.0' }))
+  const childSpec = (await commitLocalGitRepo(childDir)).replace(/#.+$/, '#main')
+  fs.writeFileSync(path.join(parentDir, 'package.json'), JSON.stringify({
+    name: 'example-parent',
+    version: '1.0.0',
+    dependencies: { 'child-alias': childSpec, 'is-positive': '1.0.0' },
+    peerDependencies: { 'is-positive': '^1.0.0' },
+  }))
+  const parentSpec = (await commitLocalGitRepo(parentDir)).replace(/#.+$/, '#main')
+  const manifest = { dependencies: { 'example-parent': parentSpec, 'is-positive': '1.0.0', 'is-negative': '1.0.0' } }
+  const options = { lockfileOnly: true, trustLockfile: true, blockExoticSubdeps: false }
+  await install(manifest, testDefaults(options))
+  const initialLockfile = project.readLockfile()
+
+  fs.renameSync(repoRoot, path.resolve('unavailable-repos'))
+  await install({ dependencies: { ...manifest.dependencies, 'is-negative': '1.0.1' } }, testDefaults(options))
+
+  const updatedLockfile = project.readLockfile()
+  expect(updatedLockfile.importers['.'].dependencies?.['is-negative']?.version).toBe('1.0.1')
+  for (const depPath of Object.keys(initialLockfile.packages).filter((key) => key.includes('@git+file:'))) {
+    expect(updatedLockfile.packages[depPath]).toEqual(initialLockfile.packages[depPath])
+  }
+  for (const depPath of Object.keys(initialLockfile.snapshots).filter((key) => key.includes('@git+file:'))) {
+    expect(updatedLockfile.snapshots[depPath]).toEqual(initialLockfile.snapshots[depPath])
+  }
+
+  await expect(install(manifest, testDefaults({ ...options, blockExoticSubdeps: true })))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_EXOTIC_SUBDEP' })
+  await expect(install(manifest, testDefaults({ ...options, update: true, depth: 0 })))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_GIT_RESOLVE_FAILED' })
+})
+
+test('a targeted lockfile-only update uses the range declared by its Git parent', async () => {
+  const project = prepareEmpty()
+  const repoDir = path.resolve('git-parent')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+    name: 'example-parent',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '^1.0.0' },
+  }))
+  const parentSpec = await commitLocalGitRepo(repoDir)
+  const manifest = { dependencies: { 'example-parent': parentSpec } }
+  const options = { lockfileOnly: true, trustLockfile: true }
+  await install(manifest, testDefaults({
+    ...options,
+    preferredVersions: { 'is-negative': { '1.0.0': 'version' } } as const,
+  }))
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.0' })
+
+  await install(manifest, testDefaults({
+    ...options,
+    depth: 1,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === 'is-negative',
+  }))
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.1' })
+})
+
+test('a locked Git package keeps its own dependency when its inherited peer is removed', async () => {
+  const project = prepareEmpty()
+  const repoDir = path.resolve('git-parent')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+    name: 'example-parent',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+    peerDependencies: { 'is-negative': '^1.0.0' },
+  }))
+  const parentSpec = await commitLocalGitRepo(repoDir)
+  const options = { lockfileOnly: true, trustLockfile: true, autoInstallPeers: false }
+  await install({ dependencies: { 'example-parent': parentSpec, 'is-negative': '1.0.1' } }, testDefaults(options))
+  const initialGitSnapshot = `example-parent@${parentSpec}(is-negative@1.0.1)`
+  expect(project.readLockfile().snapshots[initialGitSnapshot].dependencies).toEqual({ 'is-negative': '1.0.1' })
+
+  await install({ dependencies: { 'example-parent': parentSpec } }, testDefaults(options))
+
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.0' })
+})
+
 test('from a subdirectory of a hosted git repo', async () => {
   const project = prepareEmpty()
   const commit = 'c0ffee0000000000000000000000000000000001'

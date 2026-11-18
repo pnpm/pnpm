@@ -109,6 +109,8 @@ Don't read or generate a `pnpm-lock.yaml` file.
 
 When used, only updates `pnpm-lock.yaml` and `package.json`. Nothing gets written to the `node_modules` directory.
 
+With `trustLockfile` enabled, pnpm can reuse locked Git commits for unchanged dependencies when resolving an unrelated change.
+
 ### --dry-run
 
 Added in: v11.8.0

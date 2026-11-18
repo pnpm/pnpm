@@ -24,6 +24,7 @@ import type { RegistryContext } from '@pnpm/types'
 import semver from 'semver'
 
 import type { WantedDependency } from './getWantedDependencies.js'
+import { isGitResolution } from './lockedGitPackage.js'
 import { getRangeOfLockedPackage, lockedKeyIsCurrent } from './lockedRegistryKey.js'
 import type {
   ExtendedWantedDependency,
@@ -225,7 +226,8 @@ function referenceSatisfiesWantedSpec (
     })
     return false
   }
-  const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  const { name, version, registryName, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  if (nonSemverVersion === wantedDep.bareSpecifier && isGitResolution(pkgSnapshot.resolution)) return true
   const bareSpecifier = getRangeOfLockedPackage(wantedDep, { name, registryName }, opts.registries)
   if (bareSpecifier == null) return false
   const runtimeRange = preferredRef.startsWith('runtime:') ? rangeOfRuntimeSelector(bareSpecifier) : undefined
