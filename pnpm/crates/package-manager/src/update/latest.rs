@@ -22,12 +22,18 @@ use std::sync::Arc;
 
 /// `--latest` and `--tag` reach past the declared range by design, which a
 /// manifest that keeps its specifiers can't record, so the update stays
-/// inside the range and says so once per project. `flag` is the flag as the
-/// user passed it (`--latest`, `--tag next`).
+/// inside the range and says so once per project, naming the flag as the
+/// user passed it (`--latest`, `--tag next`). Emits nothing when neither
+/// flag is set.
 pub(super) fn emit_range_flag_ignored<Reporter: self::Reporter>(
-    flag: &str,
+    version: super::UpdateVersionOptions<'_>,
     manifest: &PackageManifest,
 ) {
+    let flag = match version.tag {
+        _ if version.latest => "--latest".to_string(),
+        Some(tag) => format!("--tag {tag}"),
+        None => return,
+    };
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
         message: format!(

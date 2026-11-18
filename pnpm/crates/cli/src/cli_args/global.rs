@@ -81,6 +81,7 @@ use selectors::{
     replacement_aliases, should_replace_existing_package, split_into_groups, take_rust_toolchains,
     tool_install_selectors,
 };
+use tag_selectors::tag_checked_selectors;
 use update_selectors::{
     apply_pins, apply_runtime_range_bumps, is_plain_version_spec, missing_file_source_warning,
     moves_past_declared_range, needs_runtime_range_bump, update_selectors,
@@ -379,6 +380,8 @@ mod shims;
 mod selectors;
 
 mod update_selectors;
+
+mod tag_selectors;
 
 mod builds;
 

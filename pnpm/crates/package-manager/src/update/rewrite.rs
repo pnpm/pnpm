@@ -103,16 +103,8 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
         .filter(|_| !is_tool_specifier(previous))
         .filter(|specifier| get_version_selector_type(specifier) == Some(VersionSelectorType::Tag));
     if let Some(tag) = tag {
-        let rewritten = tag_rewrite(
-            rewrite_ctx,
-            latest_chain,
-            &mut plan.preferred_versions_override,
-            scope.range_spec_style(),
-            (name, previous, tag),
-            requested.clone(),
-        )
-        .await?;
-        return Ok(MatchedRewrite::Target(rewritten));
+        let inputs = (rewrite_ctx, latest_chain);
+        return tag_target(scope, plan, inputs, (name, previous, tag), requested.clone()).await;
     }
     Ok(requested_direct_rewrite(scope, plan, declared, requested))
 }
@@ -425,13 +417,25 @@ async fn tag_direct_rewrite(
     if !scope.version.save {
         return Ok(MatchedRewrite::Target(None));
     }
+    let inputs = (rewrite_ctx, latest_chain);
+    tag_target(scope, plan, inputs, (name, previous, tag), Some(tag.to_string())).await
+}
+
+/// The [`tag_rewrite`] of one matched direct dependency as its target.
+async fn tag_target(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    (rewrite_ctx, latest_chain): (&LatestRewriteCtx<'_, '_>, &mut Option<LatestResolverChain>),
+    declared: (&str, &str, &str),
+    requested: Option<String>,
+) -> Result<MatchedRewrite, UpdateError> {
     let rewritten = tag_rewrite(
         rewrite_ctx,
         latest_chain,
         &mut plan.preferred_versions_override,
         scope.range_spec_style(),
-        (name, previous, tag),
-        Some(tag.to_string()),
+        declared,
+        requested,
     )
     .await?;
     Ok(MatchedRewrite::Target(rewritten))

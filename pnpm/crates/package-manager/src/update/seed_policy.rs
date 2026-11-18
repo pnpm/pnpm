@@ -163,14 +163,6 @@ pub(super) fn apply_workspace_targets(
         plan.rewrites.push((target.name, target.group, specifier));
     }
 }
-/// The range-rewriting flag the update runs under, as the user passed it,
-/// for the warning a `--no-save` update emits when it has to ignore one.
-fn range_flag_name(version: super::UpdateVersionOptions<'_>) -> Option<String> {
-    if version.latest {
-        return Some("--latest".to_string());
-    }
-    version.tag.map(|tag| format!("--tag {tag}"))
-}
 /// No selector: every included direct dependency updates.
 pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(
     scope: &UpdateScope<'_>,
@@ -189,10 +181,8 @@ pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(
             .as_ref()
             .is_some_and(|matcher| matcher.matches(name))
     };
-    if !scope.version.save
-        && let Some(flag) = range_flag_name(scope.version)
-    {
-        emit_range_flag_ignored::<Reporter>(&flag, rewrite_ctx.manifest);
+    if !scope.version.save {
+        emit_range_flag_ignored::<Reporter>(scope.version, rewrite_ctx.manifest);
     }
     for (name, group, previous) in scope.direct {
         if is_ignored(name) {
@@ -366,10 +356,8 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
         );
         return Ok(Some(plan.drop_only(scope.max_depth())));
     }
-    if !scope.version.save
-        && let Some(flag) = range_flag_name(scope.version)
-    {
-        emit_range_flag_ignored::<Reporter>(&flag, rewrite_ctx.manifest);
+    if !scope.version.save {
+        emit_range_flag_ignored::<Reporter>(scope.version, rewrite_ctx.manifest);
     }
     for (name, group, previous) in &matched_direct {
         record_matched_direct_update::<Reporter>(
