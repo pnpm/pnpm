@@ -1,4 +1,4 @@
-use super::{CargoCache, prepend_path};
+use super::{CargoCache, prepend_path, restore::invalidate_fingerprints};
 use Fingerprint::{Invalidated, Kept};
 use std::{collections::BTreeMap, env, fs, path::PathBuf, process::Command};
 
@@ -143,17 +143,23 @@ fn restore_invalidates_local_units_and_build_script_runs_in_both_layouts() {
     let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
     assert!(consumer.restore(&entry, "inputs").unwrap());
     for unit in &units {
-        let fingerprint_dir = consumer.target.join(unit.file);
-        let kept = fingerprint_dir
-            .parent()
-            .unwrap()
-            .exists();
-        let expected_kept = match unit.after_restore {
-            Invalidated => false,
-            Kept => true,
-        };
-        assert_eq!(kept, expected_kept, "{}", unit.file);
+        let file = consumer.target.join(unit.file);
+        match unit.after_restore {
+            Invalidated => assert!(!file.parent().unwrap().exists(), "{}", unit.file),
+            Kept => assert!(file.is_file(), "{}", unit.file),
+        }
     }
+}
+
+#[test]
+fn the_names_above_the_build_directory_do_not_classify_it() {
+    let parent = tempfile::tempdir().unwrap();
+    let root = parent.path().join("build/cache-abc");
+    let fingerprint = root.join("out/.fingerprint/dep-1");
+    fs::create_dir_all(&fingerprint).unwrap();
+    fs::write(fingerprint.join("lib-dep"), "").unwrap();
+    invalidate_fingerprints(&root, None).unwrap();
+    assert!(!root.join("out/.fingerprint").exists());
 }
 
 struct Unit {

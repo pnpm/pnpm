@@ -46,32 +46,46 @@ pub(super) fn invalidate_fingerprints(
     root: &Path,
     local_packages: Option<&[String]>,
 ) -> io::Result<()> {
-    for entry in fs::read_dir(root)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            invalidate_directory(&entry.path(), local_packages)?;
-        }
-    }
-    Ok(())
+    Walk { root, local_packages }.invalidate_below(root)
 }
 
-fn invalidate_directory(path: &Path, local_packages: Option<&[String]>) -> io::Result<()> {
-    if path.file_name() == Some(OsStr::new(".fingerprint")) {
-        return match local_packages {
-            None => fs::remove_dir_all(path),
-            Some(packages) => invalidate_local_fingerprints(path, packages),
+/// Classifies each directory by its path below `root`, so the names of the
+/// directories that contain the root never decide what is invalidated.
+struct Walk<'a> {
+    root: &'a Path,
+    local_packages: Option<&'a [String]>,
+}
+
+impl Walk<'_> {
+    fn invalidate_below(&self, dir: &Path) -> io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                self.invalidate_directory(&entry.path())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn invalidate_directory(&self, path: &Path) -> io::Result<()> {
+        let relative = path.strip_prefix(self.root).map_err(io::Error::other)?;
+        if relative.file_name() == Some(OsStr::new(".fingerprint")) {
+            return match self.local_packages {
+                None => fs::remove_dir_all(path),
+                Some(packages) => invalidate_local_fingerprints(path, packages),
+            };
+        }
+        if is_build_script_output(relative) {
+            return Ok(());
+        }
+        let Some(package) = unit_fingerprint_package(relative) else {
+            return self.invalidate_below(path);
         };
+        if is_stale_unit(path, package, self.local_packages)? {
+            fs::remove_dir_all(path)?;
+        }
+        Ok(())
     }
-    if is_build_script_output(path) {
-        return Ok(());
-    }
-    let Some(package) = unit_fingerprint_package(path) else {
-        return invalidate_fingerprints(path, local_packages);
-    };
-    if is_stale_unit(path, package, local_packages)? {
-        fs::remove_dir_all(path)?;
-    }
-    Ok(())
 }
 
 fn is_stale_unit(
