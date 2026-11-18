@@ -91,6 +91,7 @@ impl<'a> ManifestSlots<'a> {
         catalogs: &Catalogs,
         lockfile_dir: &Path,
         deploy_manifest_hook: bool,
+        overrides_root_dir: Option<&Path>,
     ) -> Result<manifest_transforms::ManifestTransforms, InstallWithFreshLockfileError> {
         let mut transforms = manifest_transforms::build_manifest_transforms(
             config,
@@ -98,6 +99,7 @@ impl<'a> ManifestSlots<'a> {
             lockfile_dir,
             &self.declared,
             deploy_manifest_hook,
+            overrides_root_dir,
         )?;
         self.effective = std::mem::take(&mut transforms.effective_importer_manifests);
         Ok(transforms)

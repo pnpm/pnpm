@@ -16,7 +16,11 @@ use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
@@ -283,6 +287,7 @@ where
     /// nothing is written to either (pnpm's `saveLockfile: false`).
     pub async fn run_legacy_deploy<Reporter: self::Reporter + 'static>(
         mut self,
+        overrides_root_dir: &'a Path,
     ) -> Result<(), InstallError> {
         self.execution.mutation = ProjectMutation::Deploy;
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
@@ -292,7 +297,11 @@ where
                 workspace_state: false,
                 lockfile_check: None,
             },
-            manifests: InstallManifestOptions { deploy_hook: true, ..Default::default() },
+            manifests: InstallManifestOptions {
+                deploy_hook: true,
+                overrides_root_dir: Some(overrides_root_dir),
+                ..Default::default()
+            },
             ..Default::default()
         }))
         .await
@@ -347,6 +356,7 @@ impl Default for InstallRunOptions<'_, '_> {
             prompt_eligibility_override: None,
             manifests: InstallManifestOptions {
                 deploy_hook: false,
+                overrides_root_dir: None,
                 prune_direct_dependencies: false,
                 specifier_manifests: None,
                 hooked_paths: HashSet::new(),

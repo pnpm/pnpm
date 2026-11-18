@@ -95,6 +95,12 @@ pub(super) fn create_deploy_install_config(
     deploy_config
 }
 
+struct DeployInstallContext<'a> {
+    source_root: &'a Path,
+    pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    preferred_versions_override: Option<PreferredVersions>,
+}
+
 impl DeployArgs {
     pub(super) async fn run_install_in_deploy_dir<ReporterT: Reporter + 'static>(
         &self,
@@ -133,8 +139,11 @@ impl DeployArgs {
             deploy_dir,
             legacy,
             frozen_lockfile,
-            pnpmfile_hook,
-            preferred_versions,
+            DeployInstallContext {
+                source_root: base_config.root_project_manifest_dir(deploy_dir),
+                pnpmfile_hook,
+                preferred_versions_override: preferred_versions,
+            },
         )
         .await
     }
@@ -153,9 +162,13 @@ impl DeployArgs {
         deploy_dir: &Path,
         legacy: bool,
         frozen_lockfile: bool,
-        pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-        preferred_versions_override: Option<PreferredVersions>,
+        context: DeployInstallContext<'_>,
     ) -> miette::Result<()> {
+        let DeployInstallContext {
+            source_root,
+            pnpmfile_hook,
+            preferred_versions_override,
+        } = context;
         let config = state.config;
         let workspace_projects_override = deployed_workspace_projects(state, deploy_dir, legacy);
 
@@ -188,7 +201,7 @@ impl DeployArgs {
             base_install
         };
         if legacy {
-            install.run_legacy_deploy::<ReporterT>().await
+            install.run_legacy_deploy::<ReporterT>(source_root).await
         } else {
             install.run::<ReporterT>().await
         }

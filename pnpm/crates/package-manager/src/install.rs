@@ -613,6 +613,7 @@ impl InstallSaveOptions {
 #[derive(Default)]
 pub(crate) struct InstallManifestOptions<'install> {
     pub(crate) deploy_hook: bool,
+    pub(crate) overrides_root_dir: Option<&'install Path>,
     /// pnpm's `pruneDirectDependencies`: scan each importer's `node_modules`
     /// and remove extraneous direct entries not recorded in the wanted
     /// lockfile or public hoist set. Only `pacquet prune` sets it.

@@ -52,14 +52,20 @@ pub(super) fn build_manifest_transforms(
     lockfile_dir: &Path,
     importer_manifests: &BTreeMap<String, &PackageManifest>,
     deploy_manifest_hook: bool,
+    overrides_root_dir: Option<&Path>,
 ) -> Result<ManifestTransforms, InstallWithFreshLockfileError> {
     let parsed_overrides = parse_config_overrides(config, catalogs)?;
     let versions_overrider = parsed_overrides
         .as_ref()
         .map(|parsed| {
             Arc::new(
-                VersionsOverrider::new(parsed, config.root_project_manifest_dir(lockfile_dir))
-                    .with_catalogs(catalogs),
+                VersionsOverrider::new(
+                    parsed,
+                    overrides_root_dir.unwrap_or_else(|| {
+                        config.root_project_manifest_dir(lockfile_dir)
+                    }),
+                )
+                .with_catalogs(catalogs),
             )
         });
     let transforms =
