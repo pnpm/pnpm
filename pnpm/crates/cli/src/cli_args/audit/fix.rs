@@ -185,7 +185,7 @@ pub(crate) async fn fetch_publish_times(
 ) -> Option<PackumentPublishInfo> {
     #[derive(Deserialize)]
     struct PackumentTimes {
-        time: Option<HashMap<String, String>>,
+        time: Option<HashMap<String, Option<String>>>,
         versions: Option<HashMap<String, PackumentVersion>>,
     }
 
@@ -224,7 +224,12 @@ pub(crate) async fn fetch_publish_times(
     }
 
     let body = response.json::<PackumentTimes>().await.ok()?;
-    let time = body.time?;
+    let time = body.time?
+        .into_iter()
+        .filter_map(|(version, published_at)| {
+            published_at.map(|published_at| (version, published_at))
+        })
+        .collect();
     Some(PackumentPublishInfo {
         time,
         deprecated: deprecated_versions(body.versions.unwrap_or_default()),

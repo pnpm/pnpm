@@ -607,7 +607,7 @@ fn audit_reports_no_patched_version_when_none_was_published() {
         .mock("GET", "/vulnerable")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(r#"{"time":{"1.0.0":"2020-01-01T00:00:00.000Z"}}"#)
+        .with_body(r#"{"time":{"1.0.0":"2020-01-01T00:00:00.000Z","unpublished":null}}"#)
         .create();
     write_audit_workspace(&workspace, &registry.url(), "");
 
