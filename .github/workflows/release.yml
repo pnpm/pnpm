@@ -1344,6 +1344,103 @@ jobs:
             pnpm-*.tar.gz
             pnpm-*.zip
 
+  # Packages the drafted pnpm-linux-x64.tar.gz as an RPM for RHEL 8 and newer,
+  # plus a dnf repository that installs it on hosts with no network access. It adds both to the draft, so it runs
+  # before a maintainer publishes the release: a published release is
+  # immutable. Its failure leaves the draft without the RPM and blocks nothing.
+  github-release-rpm:
+    name: Add the RPM to the pnpm draft release
+    needs:
+      - plan
+      - release
+      - github-release-rust
+    # One run drafts at most one of the two CLIs; this follows whichever did.
+    if: >-
+      !cancelled() &&
+      (needs.release.result == 'success' || needs.github-release-rust.result == 'success')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    permissions:
+      contents: write # read the draft release and upload to it
+      id-token: write # needed for actions/attest-build-provenance
+      attestations: write
+    env:
+      # Refresh periodically: resolve with
+      #   docker buildx imagetools inspect almalinux:8 --format '{{.Manifest.Digest}}'
+      RHEL8_IMAGE: almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb
+      VERSION: ${{ needs.release.result == 'success' && needs.plan.outputs.ts_version || needs.plan.outputs.rust_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the drafted tarball and verify its provenance
+        # The draft is writable until it is published, so the tarball is
+        # checked against the attestation this run made before it is packaged.
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release download "v${VERSION}" --repo "$GITHUB_REPOSITORY" \
+            --pattern pnpm-linux-x64.tar.gz --output pnpm-linux-x64.tar.gz
+          gh attestation verify pnpm-linux-x64.tar.gz --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+            --source-digest "$GITHUB_SHA"
+
+      - name: Build the RPM and the dnf repository
+        # Built inside RHEL 8 rather than on the runner: the repository has to
+        # carry the runtime dependencies the target is missing, and only a RHEL 8
+        # system can tell dnf which those are.
+        run: |
+          docker run --rm -e VERSION -v "$PWD:/src" -w /src "$RHEL8_IMAGE" bash -euc '
+            dnf install -y -q rpm-build createrepo_c dnf-plugins-core binutils tar
+            packaging/rpm/build.sh "$VERSION" pnpm-linux-x64.tar.gz
+          '
+
+      - name: Install it the way an offline host will
+        # AlmaLinux 8 is the oldest system the package targets: glibc 2.28 and
+        # rpm 4.14. `--network none` and the disabled distribution repositories
+        # are the point of the test: they prove the repository needs nothing but
+        # itself.
+        run: |
+          docker run --rm --network none -e VERSION \
+            -v "$PWD/dist/rpm/repo:/opt/pnpm-repo:ro" "$RHEL8_IMAGE" bash -euc '
+            cp /opt/pnpm-repo/pnpm.repo /etc/yum.repos.d/
+            dnf install -y --disablerepo="*" --enablerepo=pnpm pnpm
+            installed=$(pnpm --version)
+            test "$installed" = "$VERSION" || {
+              echo "pnpm version mismatch: expected $VERSION, got $installed" >&2
+              exit 1
+            }
+            test "$(pn --version)" = "$VERSION"
+            for alias in pnpx pnx; do
+              "$alias" --help | grep -q "pnpm dlx" || {
+                echo "$alias does not run pnpm dlx" >&2
+                exit 1
+              }
+            done
+            # A login shell sources /etc/profile.d/pnpm.sh; pnpm refuses
+            # `pnpm add -g` unless its global bin directory is on PATH.
+            bash -lc '"'"'case ":$PATH:" in *":$(pnpm bin -g):"*) ;; *) echo "pnpm bin -g is not on PATH" >&2; exit 1 ;; esac'"'"'
+          '
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/rpm/pnpm-*.rpm
+            dist/rpm/pnpm-*-el8-x86_64-repo.tar.gz
+
+      - name: Upload to the draft release
+        # --clobber keeps a rerun of this job idempotent.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "v${VERSION}" --repo "$GITHUB_REPOSITORY" --clobber \
+            dist/rpm/pnpm-*.rpm dist/rpm/pnpm-*-el8-x86_64-repo.tar.gz
+
   build-pnpr:
     needs: plan
     if: needs.plan.outputs.pnpr == 'true' && !inputs.verify_ts_release
