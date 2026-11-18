@@ -150,7 +150,7 @@ pub async fn detect_installability_host(
         // An explicit `nodeVersion` needs no `node --version` probe, so
         // build the host directly off the reactor thread.
         node_version @ Some(_) => InstallabilityHost::detect_with(engine_strict, node_version),
-        None => on_detached_thread(move || InstallabilityHost::detect_with(engine_strict, None))
+        None => spawn_node_probe(move || InstallabilityHost::detect_with(engine_strict, None))
             .await
             .unwrap_or_else(|_| synthetic_installability_host(engine_strict)),
     };
@@ -310,7 +310,7 @@ impl DeferredEngineName {
         }
 
         let shared = Arc::new(OnceLock::new());
-        let handle = on_detached_thread({
+        let handle = spawn_node_probe({
             let guard = FillOnDrop(Arc::clone(&shared));
             let shared = Arc::clone(&shared);
             move || {
@@ -356,7 +356,8 @@ impl DeferredEngineName {
     }
 }
 
-fn on_detached_thread<Output: Send + 'static>(
+#[cfg(not(target_family = "wasm"))]
+fn spawn_node_probe<Output: Send + 'static>(
     work: impl FnOnce() -> Output + Send + 'static,
 ) -> tokio::sync::oneshot::Receiver<Output> {
     let (sender, receiver) = tokio::sync::oneshot::channel();
@@ -365,6 +366,17 @@ fn on_detached_thread<Output: Send + 'static>(
         .spawn(move || {
             let _ = sender.send(work());
         });
+    receiver
+}
+
+#[cfg(target_family = "wasm")]
+fn spawn_node_probe<Output: Send + 'static>(
+    work: impl FnOnce() -> Output + Send + 'static,
+) -> tokio::sync::oneshot::Receiver<Output> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    tokio::task::spawn_blocking(move || {
+        let _ = sender.send(work());
+    });
     receiver
 }
 
