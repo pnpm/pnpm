@@ -70,6 +70,7 @@ const { values: opts } = parseArgs({
   },
 })
 const pnpmDir = path.resolve(opts['pnpm-dir'])
+if (Object.values(opts).some(value => value === '')) throw new Error('Probe artifact paths cannot be empty')
 if ([opts['wasm-probe'], opts['wasm-runtime'], opts['wasm-cli'], opts['wasm-inspection'], opts['wasm-hoisted'], opts['wasm-registry'], opts['wasm-network'], opts['wasm-global'], opts['wasm-package'], opts['host-probe']].filter(Boolean).length > 1) throw new Error('Select one probe mode')
 const wasmCliArtifact = opts['wasm-cli'] ?? opts['wasm-inspection'] ?? opts['wasm-hoisted'] ?? opts['wasm-registry'] ?? opts['wasm-network'] ?? opts['wasm-global']
 const servedFiles = opts['wasm-package'] ? new Map([['pnpm-wasm.tgz', path.resolve(opts['wasm-package'])]]) : wasmCliArtifact ? runtimeFiles().set('runtime/pnpm.wasm', path.resolve(wasmCliArtifact)) : opts['host-probe'] ? runtimeFiles().set('probe.mjs', path.resolve(opts['host-probe'])) : opts['wasm-runtime'] ? runtimeFiles(opts['wasm-runtime']) : opts['wasm-probe']
@@ -84,6 +85,7 @@ if (opts['wasm-network'] || opts['wasm-cli'] || opts['wasm-package']) {
   servedFiles.set('network-ca.pem', path.join(fixtures, 'test-ca.pem'))
   servedFiles.set('network-client-key.pem', path.join(fixtures, 'test-client-pkcs1.key'))
 }
+if (opts['wasm-cli']) servedFiles.set('metadata-bench.mjs', fileURLToPath(new URL('./metadata-bench.mjs', import.meta.url)))
 for (const file of servedFiles.values()) fs.accessSync(file, fs.constants.R_OK)
 const steps = opts['wasm-package'] ? [
   ...packageInstallSteps(),
@@ -97,7 +99,7 @@ const steps = opts['wasm-package'] ? [
     { name: 'select the hoisted linker', command: 'node', args: ['-e', "require('node:fs').appendFileSync('pnpm-workspace.yaml', String.fromCharCode(10) + 'nodeLinker: hoisted' + String.fromCharCode(10))"] },
     { name: 'install with the hoisted linker', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'install'] },
     { name: 'load workspace dependencies from hoisted node_modules', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('semver').valid('1.2.3'), '1.2.3'); require('@fixture/local')"] },
-    { name: 'list hoisted workspace packages', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'list'], expectOutput: 'semver@7.6.3' },
+    { name: 'list hoisted workspace packages', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', '--dir', 'packages/local', 'list'], expectOutput: 'semver@7.6.3' },
     { name: 'inspect hoisted dependency graph', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'why', 'semver'], expectOutput: '@fixture/local' },
     { name: 'check hoisted peer dependencies', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'peers', '--json'], expectOutput: 'missing' },
     { name: 'repeat hoisted install offline and frozen', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'install', '--offline', '--frozen-lockfile'] },
@@ -181,6 +183,7 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
   return [
     ...(opts['wasm-cli'] ? [{ name: 'prepare mounted executable launcher', command: 'node', args: ['-e', `require('node:fs').chmodSync(${JSON.stringify(entry)}, 0o755)`] }] : []),
     { name: 'Rust WASM CLI version', command: 'node', args: [entry, '--version'], expectOutput: '12.' },
+    ...(opts['wasm-cli'] ? [{ name: 'measure WebContainer filesystem metadata calls', command: 'node', args: ['../pnpm/metadata-bench.mjs'], expectOutput: 'webcontainer-metadata-bench-ok' }] : []),
     { name: 'Rust WASM CLI help', command: 'node', args: [entry, '--help'], expectOutput: 'Usage:' },
     { name: 'isolated WASM store namespace', command: 'node', args: [entry, 'store', 'path'], expectOutput: 'v11-wasm' },
     { name: 'resolve metadata cache path', command: 'node', args: [entry, 'cache', 'path'], expectOutput: '/home/.cache/pnpm' },

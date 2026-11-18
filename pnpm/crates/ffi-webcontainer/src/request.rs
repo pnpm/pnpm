@@ -29,6 +29,12 @@ static HOST_CLOSED: AtomicBool = AtomicBool::new(false);
 const MAX_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_BINARY_RESPONSE_BYTES: usize = 1024 * 1024;
 
+#[derive(Clone, Copy)]
+enum ResponseReadMode {
+    Json,
+    Binary,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct HostError {
     pub message: String,
@@ -116,7 +122,7 @@ impl Future for BinaryRequest {
     type Output = Result<(Value, Option<Vec<u8>>), HostError>;
 
     fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.get_mut().0).poll_response(context, true)
+        Pin::new(&mut self.get_mut().0).poll_response(context, ResponseReadMode::Binary)
     }
 }
 
@@ -125,7 +131,7 @@ impl Future for Request {
 
     fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
         self.as_mut()
-            .poll_response(context, false)
+            .poll_response(context, ResponseReadMode::Json)
             .map(|result| result.map(|(value, _)| value))
     }
 }
@@ -134,7 +140,7 @@ impl Request {
     fn poll_response(
         mut self: Pin<&mut Self>,
         context: &mut Context<'_>,
-        read_binary: bool,
+        read_mode: ResponseReadMode,
     ) -> Poll<Result<(Value, Option<Vec<u8>>), HostError>> {
         let identifier = self.identifier.expect("host request polled after completion");
         self.waker.register(context.waker());
@@ -149,7 +155,7 @@ impl Request {
         if length == -1 {
             return Poll::Pending;
         }
-        let response = read_response(identifier, length, read_binary);
+        let response = read_response(identifier, length, read_mode);
         self.release();
         Poll::Ready(response)
     }
@@ -179,7 +185,7 @@ impl Drop for Request {
 fn read_response(
     identifier: u32,
     length: i32,
-    read_binary: bool,
+    read_mode: ResponseReadMode,
 ) -> Result<(Value, Option<Vec<u8>>), HostError> {
     let length = usize::try_from(length).map_err(|_| HostError::new("Invalid host response"))?;
     if length > MAX_RESPONSE_BYTES {
@@ -201,7 +207,7 @@ fn read_response(
         (false, Value::Null, Some(error)) => return Err(error),
         _ => return Err(HostError::new("Invalid WASM host response envelope")),
     };
-    let bytes = if read_binary {
+    let bytes = if matches!(read_mode, ResponseReadMode::Binary) {
         if let Some(length) = binary_length {
             if length > MAX_BINARY_RESPONSE_BYTES {
                 return Err(HostError::new("Binary WASM host response exceeds 1 MiB"));

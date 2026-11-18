@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { createServer } from 'node:http'
 
@@ -22,6 +22,7 @@ else createWorkspaceFixture()
 
 async function runRegistryWorkflow (entry) {
   const requests = []
+  const stars = new Set()
   let publishDocument
   const server = createServer(async (request, response) => {
     const chunks = []
@@ -64,13 +65,19 @@ async function runRegistryWorkflow (entry) {
       response.end(JSON.stringify({ objects: [{ package: { name: 'webcontainer-publish-probe', version: '1.0.0', description: 'WebContainer registry fixture' } }] }))
     } else if (request.method === 'PUT' && pathname === '/-/user/v1/star') {
       if (request.headers.authorization !== 'Bearer fixture-token') response.writeHead(401).end('Unauthorized')
-      else response.writeHead(201).end('{}')
+      else {
+        stars.add(JSON.parse(body).package)
+        response.writeHead(201).end('{}')
+      }
     } else if (request.method === 'DELETE' && pathname === '/-/user/v1/star') {
       if (request.headers.authorization !== 'Bearer fixture-token') response.writeHead(401).end('Unauthorized')
-      else response.writeHead(200).end('{}')
+      else {
+        stars.delete(JSON.parse(body).package)
+        response.writeHead(200).end('{}')
+      }
     } else if (request.method === 'GET' && pathname === '/-/user/v1/star') {
       response.setHeader('content-type', 'application/json')
-      response.end(JSON.stringify(['webcontainer-publish-probe']))
+      response.end(JSON.stringify([...stars]))
     } else if (request.method === 'PUT' && pathname === '/webcontainer-publish-probe' && !request.url.includes('?write=true')) {
       if (request.headers.authorization !== 'Bearer fixture-token') {
         response.writeHead(401).end('Unauthorized')
@@ -167,11 +174,14 @@ async function runRegistryWorkflow (entry) {
 
     const star = await runPackageManager(entry, ['star', 'webcontainer-publish-probe', '--registry', registry], project, env)
     assert.equal(star.exitCode, 0, star.output)
+    const starred = await runPackageManager(entry, ['stars', '--registry', registry], project, env)
+    assert.equal(starred.exitCode, 0, starred.output)
+    assert.match(starred.output, /webcontainer-publish-probe/)
     const unstar = await runPackageManager(entry, ['unstar', 'webcontainer-publish-probe', '--registry', registry], project, env)
     assert.equal(unstar.exitCode, 0, unstar.output)
     const stars = await runPackageManager(entry, ['stars', '--registry', registry], project, env)
     assert.equal(stars.exitCode, 0, stars.output)
-    assert.match(stars.output, /webcontainer-publish-probe/)
+    assert.doesNotMatch(stars.output, /webcontainer-publish-probe/)
 
     const whoami = await runPackageManager(entry, ['whoami', '--registry', registry], project, env)
     assert.equal(whoami.exitCode, 0, whoami.output)
@@ -209,9 +219,10 @@ async function runRegistryWorkflow (entry) {
       [['access', 'set', 'status=public', '@fixture/webcontainer-publish-probe', '--registry', registry], 'POST', '/-/package/@fixture%2fwebcontainer-publish-probe/access'],
       [['team', 'create', '@myscope:developers', '--registry', registry], 'PUT', '/-/org/myscope/team'],
     ]) {
+      const requestCount = requests.length
       const result = await runPackageManager(entry, args, project, env)
       assert.equal(result.exitCode, 0, `${args.join(' ')}: ${result.output}`)
-      assert.ok(requests.some(request => request.method === method && request.url.startsWith(url)), `${args.join(' ')} did not call ${method} ${url}`)
+      assert.ok(requests.slice(requestCount).some(request => request.method === method && request.url.startsWith(url)), `${args.join(' ')} did not call ${method} ${url}`)
     }
 
     const unpublish = await runPackageManager(entry, ['unpublish', 'webcontainer-publish-probe', '--force', '--registry', registry], project, env)
@@ -260,7 +271,7 @@ function runPackageManager (entry, args, cwd, env) {
     child.stdout.setEncoding('utf8').on('data', chunk => { output += chunk })
     child.stderr.setEncoding('utf8').on('data', chunk => { output += chunk })
     child.once('error', reject)
-    child.once('exit', (exitCode, signal) => resolve({ exitCode: exitCode ?? 1, signal, output }))
+    child.once('close', (exitCode, signal) => resolve({ exitCode: exitCode ?? 1, signal, output }))
   })
 }
 
@@ -268,7 +279,7 @@ function runInteractivePackageManager (entry, args, cwd, env) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [path.resolve(entry), ...args], { cwd, env, stdio: 'inherit' })
     child.once('error', reject)
-    child.once('exit', (exitCode, signal) => resolve({ exitCode: exitCode ?? 1, signal }))
+    child.once('close', (exitCode, signal) => resolve({ exitCode: exitCode ?? 1, signal }))
   })
 }
 
@@ -369,9 +380,10 @@ function snapshot (directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
     if (directory === process.cwd() && entry.name === '.unsupported-command-home') continue
     const filename = path.join(directory, entry.name)
-    if (entry.isDirectory()) entries.push([entry.name, snapshot(filename)])
-    else if (entry.isSymbolicLink()) entries.push([entry.name, 'symlink', readlinkSync(filename)])
-    else entries.push([entry.name, 'file', readFileSync(filename).toString('base64')])
+    const mode = lstatSync(filename).mode & 0o777
+    if (entry.isDirectory()) entries.push([entry.name, 'directory', mode, snapshot(filename)])
+    else if (entry.isSymbolicLink()) entries.push([entry.name, 'symlink', mode, readlinkSync(filename)])
+    else entries.push([entry.name, 'file', mode, readFileSync(filename).toString('base64')])
   }
   return entries
 }
@@ -463,7 +475,8 @@ function createInstallTestFixture () {
   mkdirSync('install-test-audit', { recursive: true })
   writeFileSync('install-test-audit/package.json', JSON.stringify({
     name: 'install-test-audit',
-    scripts: { test: `node -e "require('node:fs').writeFileSync('install-test-ok', 'yes')"` },
+    dependencies: { semver: '7.6.3' },
+    scripts: { test: `node -e "require('semver').valid('1.2.3'); require('node:fs').writeFileSync('install-test-ok', 'yes')"` },
   }))
 }
 

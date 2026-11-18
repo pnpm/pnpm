@@ -23,3 +23,7 @@ failure cases are complete. `none` means no such coverage is recorded.
 
 Update the ledger when the Clap tree or audited capability changes. Add
 packaged-runtime coverage before changing a command from `none` to `partial`.
+
+The installed-workspace `clean` and `purge` probes report `Directory not empty`;
+the validation record distinguishes these failures from the successful isolated
+`clean` probe in [`WEB_CONTAINER_VALIDATION.md`](./WEB_CONTAINER_VALIDATION.md).

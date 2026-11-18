@@ -121,7 +121,8 @@ manifest discovery.
 The WebContainer browser network does not support explicit HTTP proxies, custom
 TLS trust roots or client identities, disabled TLS verification, or pinned
 local addresses. Commands that request these settings fail while creating the
-HTTP client, before sending a registry request.
+HTTP client, before sending a registry request. A `ca` or `cafile` setting that
+yields no certificates adds no trust roots and does not fail.
 
 To update pnpm in a WebContainer, install a newer version of `@pnpm/wasm` with
 npm.

@@ -147,10 +147,16 @@ async fn check_host_process() {
     let handle = &child["handle"];
     host(json!({ "operation": "process.write", "handle": handle, "bytes": [0, 255, 13] })).await;
     host(json!({ "operation": "process.end", "handle": handle })).await;
-    let (output, bytes) =
-        host_binary(json!({ "operation": "stream.read", "handle": child["stdout"] })).await;
-    assert_eq!(output["done"], false);
-    assert_eq!(bytes.as_deref(), Some([0, 255, 13].as_slice()));
+    let mut output_bytes = Vec::new();
+    loop {
+        let (output, bytes) =
+            host_binary(json!({ "operation": "stream.read", "handle": child["stdout"] })).await;
+        output_bytes.extend(bytes.unwrap_or_default());
+        if output["done"] == true {
+            break;
+        }
+    }
+    assert_eq!(output_bytes, [0, 255, 13]);
     let exit = host(json!({ "operation": "process.wait", "handle": handle })).await;
     assert_eq!(exit["code"], 17);
     assert!(exit["signal"].is_null());

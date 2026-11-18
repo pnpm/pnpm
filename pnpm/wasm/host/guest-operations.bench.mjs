@@ -29,7 +29,8 @@ const workerSource = `
         imports.response_read(id, 1024, responseLength)
         const response = JSON.parse(new TextDecoder().decode(new Uint8Array(memory.buffer, 1024, responseLength)))
         if (response.binaryLength !== 65536) throw new Error('Unexpected binary length')
-        imports.response_binary_read(id, 4096, response.binaryLength)
+        const copied = imports.response_binary_read(id, 4096, response.binaryLength)
+        if (copied !== response.binaryLength) throw new Error('Incomplete binary response copy')
       } else {
         const copied = imports.response_read(id, 1024, responseLength)
         const response = JSON.parse(new TextDecoder().decode(new Uint8Array(memory.buffer, 1024, copied)))

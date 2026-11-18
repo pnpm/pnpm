@@ -8,10 +8,10 @@ assert.ok(process.versions.webcontainer, 'run this benchmark in a WebContainer')
 console.log(`runtime: node=${process.version} webcontainer=${process.versions.webcontainer}`)
 
 const directory = mkdtempSync(path.join(os.tmpdir(), 'pnpm-metadata-bench-'))
-const files = Array.from({ length: 256 }, (_, index) => path.join(directory, `file-${index}`))
-for (const file of files) writeFileSync(file, 'metadata probe')
-
 try {
+  const files = Array.from({ length: 256 }, (_, index) => path.join(directory, `file-${index}`))
+  for (const file of files) writeFileSync(file, 'metadata probe')
+
   const measurements = [
     ['lstat', file => lstatSync(file)],
     ['open-fstat-close', file => {
@@ -28,7 +28,7 @@ try {
       samples.push((performance.now() - started) * 1000 / files.length)
     }
     samples.sort((left, right) => left - right)
-    console.log(`${name}: median=${samples[15].toFixed(2)}us/file p95=${samples[28].toFixed(2)}us/file`)
+    console.log(`${name}: median=${((samples[14] + samples[15]) / 2).toFixed(2)}us/file p95=${samples[28].toFixed(2)}us/file`)
   }
   console.log('webcontainer-metadata-bench-ok')
 } finally {
