@@ -9,9 +9,6 @@ use std::{
 
 pub(in crate::install_with_fresh_lockfile) struct OnDiskProjects<'a> {
     pub(in crate::install_with_fresh_lockfile) materialization_lockfile: &'a Lockfile,
-    /// The whole wanted lockfile, with every variant's own snapshot.
-    pub(in crate::install_with_fresh_lockfile) platform_lockfile:
-        pnpm_deps_restorer::PlatformLockfile<'a>,
     pub(in crate::install_with_fresh_lockfile) importer_manifests:
         &'a BTreeMap<String, &'a PackageManifest>,
     pub(in crate::install_with_fresh_lockfile) project_anchor_importer_ids: &'a HashSet<String>,

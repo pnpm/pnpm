@@ -249,9 +249,6 @@ fn check_settings_and_workspace_freshness(
     ) {
         return Err(Stale::SettingChanged(setting));
     }
-    if crate::install_state::linked_platform_missing(state, check.lockfile.loaded()) {
-        return Err(Stale::SettingChanged("linkedPlatform"));
-    }
     if config_dependencies_drifted(config, state) {
         return Err(Stale::ConfigDependencies);
     }
@@ -499,7 +496,7 @@ fn refreshed_state(
     filesystem_now: Option<i64>,
     policy: &GatePolicy<'_>,
 ) -> WorkspaceState {
-    let mut refreshed = crate::install::recorded_workspace_state(&crate::install::StateWrite {
+    crate::install::recorded_workspace_state(&crate::install::StateWrite {
         workspace_root: check.workspace_root,
         config: check.config,
         layout: check.layout,
@@ -523,8 +520,5 @@ fn refreshed_state(
             ),
         },
         vouched: &Vouched::Projects { dirs: vouched, previous: Some(state) },
-    });
-    // The check passed, so the recorded platform is the one this run links.
-    refreshed.settings.linked_platform.clone_from(&state.settings.linked_platform);
-    refreshed
+    })
 }

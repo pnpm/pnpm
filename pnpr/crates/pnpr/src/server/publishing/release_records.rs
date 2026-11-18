@@ -14,10 +14,7 @@
 //! as published. Its tar's digest is in the tar-integrity table, and a
 //! registry that serves tars describes the version with it.
 
-use super::{
-    attachments::PublishedTar,
-    variants::{self, PublishedVariant, STORED_FIELD},
-};
+use super::attachments::PublishedTar;
 use pnpm_release_record::{Purl, RECORD_SCHEMA};
 use pnpm_tarball::PublicationArchive;
 use pnpr_error::RegistryError;
@@ -48,23 +45,20 @@ pub(super) fn archive_inputs(tgz_integrity: Option<&str>, archive: &PublicationA
     })
 }
 
-/// The release record of every version whose `any` archive `tars`
-/// publishes, from its verified manifest in `merged` and the facts derived
-/// from its archives.
+/// The release record of every version `tars` publishes, from its verified
+/// manifest in `merged` and the facts derived from its archive.
 pub(super) fn accepted_records(
     name: &CanonicalPackageName,
     merged: &Value,
     tars: &[PublishedTar],
-    variants: &[PublishedVariant],
 ) -> Result<ReleaseRecords, RegistryError> {
     tars.iter()
-        .filter(|tar| tar.variant.is_none())
         .map(|tar| {
             let manifest = merged
                 .get("versions")
                 .and_then(|versions| versions.get(&tar.version))
                 .ok_or_else(|| missing(name, &tar.version, "version metadata"))?;
-            let record = accepted_record(name, manifest, tar, variants)?;
+            let record = accepted_record(name, manifest, tar)?;
             Ok((tar.version.clone(), serde_json::to_vec(&record)?))
         })
         .collect()
@@ -74,7 +68,6 @@ fn accepted_record(
     name: &CanonicalPackageName,
     manifest: &Value,
     tar: &PublishedTar,
-    variants: &[PublishedVariant],
 ) -> Result<Value, RegistryError> {
     let version = tar.version.as_str();
     let profile = manifest
@@ -84,8 +77,6 @@ fn accepted_record(
     let purl = version_purl(name, version)?;
     let mut source = manifest.clone();
     describe_archive(&mut source, tar);
-    add_variant_sources(&mut source, (name, version), variants)?;
-    variants::describe_version_variants(&mut source);
     let mut record = Map::new();
     record.insert("schema".into(), Value::from(RECORD_SCHEMA));
     record.insert("purl".into(), Value::from(purl.as_str()));
@@ -93,16 +84,12 @@ fn accepted_record(
     record.insert("version".into(), Value::from(version));
     record.insert("revision".into(), Value::from(0));
     record.insert("interpretation".into(), Value::from(profile));
-    // The archive pnpr generates for a version published without one is not
-    // an input of the version.
-    if !tar.generated {
-        record.insert("inputs".into(), archive_inputs(tar.tgz_integrity.as_deref(), &tar.archive));
-    }
+    record.insert("inputs".into(), archive_inputs(tar.tgz_integrity.as_deref(), &tar.archive));
     record.extend(super::super::split_packuments::release_record(&source));
     Ok(Value::Object(record))
 }
 
-/// Describe the version's `any` archive with the facts derived from it,
+/// Describe the version's archive with the facts derived from it,
 /// as the record route describes it from the tar-integrity table.
 fn describe_archive(manifest: &mut Value, tar: &PublishedTar) {
     let Some(tgz_integrity) = &tar.tgz_integrity else { return };
@@ -118,43 +105,8 @@ fn describe_archive(manifest: &mut Value, tar: &PublishedTar) {
     super::super::describe_tar(manifest, &table, false);
 }
 
-/// Put each variant's `purl` and inputs on its stored entry, which the
-/// record lists.
-fn add_variant_sources(
-    manifest: &mut Value,
-    (name, version): (&CanonicalPackageName, &str),
-    published: &[PublishedVariant],
-) -> Result<(), RegistryError> {
-    let Some(Value::Array(stored)) = manifest.get_mut(STORED_FIELD) else { return Ok(()) };
-    for entry in stored.iter_mut().filter_map(Value::as_object_mut) {
-        let tag = entry.get("tag").and_then(Value::as_str);
-        let Some(variant) = published
-            .iter()
-            .find(|variant| variant.version == version && Some(variant.tar.tag.as_str()) == tag)
-        else {
-            continue;
-        };
-        let purl = variant_purl(name, version, &variant.tar.tag)?;
-        let mut sourced = Map::new();
-        sourced.insert("purl".into(), Value::from(purl.as_str()));
-        sourced.insert("inputs".into(), variant.tar.inputs.clone());
-        sourced.append(entry);
-        *entry = sourced;
-    }
-    Ok(())
-}
-
-/// The PURL a variant's archive is named by, in its release record and in
-/// the version's provenance statement.
-pub(super) fn variant_purl(
-    name: &CanonicalPackageName,
-    version: &str,
-    tag: &str,
-) -> Result<Purl, RegistryError> {
-    Purl::npm_variant(name.as_str(), version, tag).map_err(|err| no_purl(name, version, &err))
-}
-
-/// The PURL a version's `any` archive is named by.
+/// The PURL a version's archive is named by, in its release record and in
+/// its provenance statement.
 pub(super) fn version_purl(
     name: &CanonicalPackageName,
     version: &str,

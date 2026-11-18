@@ -20,7 +20,7 @@ pnpm-patching-config = { path = "pnpm/crates/patching-config" }
 pnpm-version-policy = { path = "pnpm/crates/version-policy" }
 pnpm-pnpr-client = { path = "pnpm/crates/pnpr-client" }
 pnpm-shared-artifact-protocol = { path = "pnpm/crates/shared-artifact-protocol" }
-pnpm-platform-variants = { path = "pnpm/crates/platform-variants" }
+pnpm-platform-tags = { path = "pnpm/crates/platform-tags" }
 pnpm-auth-commands = { path = "pnpm/crates/auth-commands" }
 pnpm-cargo-resolver = { path = "pnpm/crates/cargo-resolver" }
 pnpm-catalogs-config = { path = "pnpm/crates/catalogs-config" }

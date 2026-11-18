@@ -1,6 +1,5 @@
 use super::super::FreshInputs;
 use crate::SkippedSnapshots;
-use pnpm_deps_restorer::PlatformLockfile;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use std::collections::{BTreeMap, HashSet};
@@ -26,7 +25,6 @@ pub(in crate::install_with_fresh_lockfile) struct MaterializationScope {
 /// The second closure, with the importers that anchor project links.
 pub(in crate::install_with_fresh_lockfile) struct FinalScope {
     closure: Option<crate::MaterializationClosure>,
-    groups: crate::GroupSelection,
     pub(in crate::install_with_fresh_lockfile) project_anchor_importer_ids: HashSet<String>,
 }
 
@@ -41,8 +39,7 @@ impl MaterializationScope {
             built,
             install.included(),
             install.drivers.config.peer_edge_options(),
-        )
-        .linking_for(install.projects.supported_architectures);
+        );
         let closure = Self::build_closure(
             install,
             is_hoisted,
@@ -85,7 +82,7 @@ impl MaterializationScope {
         };
         let project_anchor_importer_ids =
             project_anchor_importer_ids(install.projects.real_ids, &materialized);
-        FinalScope { closure, groups: self.groups.clone(), project_anchor_importer_ids }
+        FinalScope { closure, project_anchor_importer_ids }
     }
 
     fn build_closure(
@@ -135,7 +132,6 @@ impl FinalScope {
     ) -> super::super::on_disk::OnDiskProjects<'l> {
         super::super::on_disk::OnDiskProjects {
             materialization_lockfile: self.lockfile(built),
-            platform_lockfile: PlatformLockfile { lockfile: built, groups: &self.groups },
             importer_manifests,
             project_anchor_importer_ids: &self.project_anchor_importer_ids,
         }
@@ -163,11 +159,7 @@ fn closure_importer_ids(
         built,
     )
     .or_else(|| {
-        // A platform variant's own snapshot is wired in by the closure.
-        (install.resolve_widened_groups()
-            || install.included().excludes_a_group()
-            || pnpm_deps_restorer::has_variant_snapshots(built))
-        .then(|| {
+        (install.resolve_widened_groups() || install.included().excludes_a_group()).then(|| {
             built.importers
                 .keys()
                 .cloned()

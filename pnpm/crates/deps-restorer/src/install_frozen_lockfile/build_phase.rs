@@ -7,7 +7,7 @@ use super::{
     SkippedSnapshots, SnapshotEntry, direct_dep_names_for_importer, get_patch_info,
     importer_root_dir,
 };
-use crate::platform_selection::VariantPlatforms;
+use pnpm_lockfile::PlatformSelector;
 
 mod loaded;
 mod post_build_bins;
@@ -259,8 +259,8 @@ fn build_or_defer<Reporter: self::Reporter>(
     {
         crate::BuildModulesOutput::default()
     } else {
-        let variant_platforms = VariantPlatforms::of(inputs.supported_architectures);
-        build_modules(inputs, patches, (shared_side_effects_publisher, &variant_platforms))
+        let variations_platform = crate::runtime_platform_selector(inputs.supported_architectures);
+        build_modules(inputs, patches, (shared_side_effects_publisher, &variations_platform))
             .run_with_bin_state::<Reporter>(bin_state)
             .map_err(BuildPhaseError::BuildModules)?
     };
@@ -285,7 +285,7 @@ fn seed_hoisted_bins(
 fn build_graph_inputs<'a>(
     inputs: &'a BuildPhaseInputs<'a>,
     patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
-    variant_platforms: &'a VariantPlatforms,
+    variations_platform: &'a PlatformSelector,
 ) -> crate::BuildGraphInputs<'a> {
     crate::BuildGraphInputs {
         snapshots: inputs.graph.snapshots,
@@ -297,16 +297,16 @@ fn build_graph_inputs<'a>(
             inputs.graph.dependency_groups,
         ),
         build_scope: inputs.graph.build_scope,
-        variant_platforms: Some(variant_platforms),
+        variations_platform: Some(variations_platform),
     }
 }
 
 fn build_modules<'a>(
     inputs: &'a BuildPhaseInputs<'a>,
     patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
-    (shared_side_effects_publisher, variant_platforms): (
+    (shared_side_effects_publisher, variations_platform): (
         Option<&'a crate::shared_side_effects::SharedSideEffectsPublisher>,
-        &'a VariantPlatforms,
+        &'a PlatformSelector,
     ),
 ) -> BuildModules<'a> {
     let config = inputs.policy.config;
@@ -322,7 +322,7 @@ fn build_modules<'a>(
             import_method: config.package_import_method,
             logged_methods: inputs.directories.logged_methods,
         },
-        graph: build_graph_inputs(inputs, patches, variant_platforms),
+        graph: build_graph_inputs(inputs, patches, variations_platform),
         scripts: crate::BuildScriptOptions::from_config(config, inputs.extra_env),
 
         allow_build_policy: inputs.policy.allow_build_policy,

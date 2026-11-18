@@ -1,5 +1,4 @@
 use super::{CreateVirtualStoreOutput, immutable_download, retain_dependency_closure};
-use crate::platform_selection::VariantPlatforms;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use std::collections::HashMap;
 
@@ -34,8 +33,8 @@ impl CachedBuildInputs<'_> {
         {
             return HashMap::new();
         }
-        let variant_platforms = VariantPlatforms::of(self.supported_architectures);
-        let graph = crate::build_deps_subgraph(snapshots, packages, (roots, &variant_platforms));
+        let platform = crate::runtime_platform_selector(self.supported_architectures);
+        let graph = crate::build_deps_subgraph(snapshots, packages, (roots, &platform));
         let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
         self.fetched.requires_build_by_snapshot
             .iter()

@@ -5769,7 +5769,6 @@ dependencies = [
  "pnpm-local-spec",
  "pnpm-package-manifest",
  "pnpm-patching-config",
- "pnpm-platform-variants",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-semver-include-prerelease",
  "pnpm-tool-protocol",
@@ -6036,7 +6035,6 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-package-manifest",
  "pnpm-package-name",
- "pnpm-platform-variants",
  "pnpm-reporter",
  "pnpm-text-sanitize",
  "serde",
@@ -6055,7 +6053,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pnpm-detect-libc",
- "pnpm-platform-variants",
+ "pnpm-platform-tags",
  "pnpm-semver-include-prerelease",
  "pnpm-testing-utils",
  "pretty_assertions",
@@ -6118,7 +6116,6 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-patching",
- "pnpm-platform-variants",
  "pnpm-process",
  "pnpm-real-hoist",
  "pnpm-registry",
@@ -6229,12 +6226,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnpm-platform-variants"
+name = "pnpm-platform-tags"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "pnpm-detect-libc",
- "pnpm-process",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -6533,7 +6528,6 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-patching",
- "pnpm-platform-variants",
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
@@ -6628,7 +6622,6 @@ dependencies = [
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-name",
- "pnpm-platform-variants",
  "pnpm-registry",
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-jsr-specifier-parser",
@@ -7124,7 +7117,6 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-manager",
  "pnpm-package-manifest",
- "pnpm-platform-variants",
  "pnpm-python-resolver",
  "pnpm-release-record",
  "pnpm-reporter",

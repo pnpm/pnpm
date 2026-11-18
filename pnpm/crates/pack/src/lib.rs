@@ -11,8 +11,6 @@
 //! sorting the workspace projects — lives in the CLI command alongside
 //! pacquet's other recursive commands, and calls [`api`] per project.
 
-pub mod variants;
-
 pub use capabilities::{
     FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, Host,
 };
@@ -22,9 +20,6 @@ pub use options::{
 };
 pub use output::{format_pack_output, pack_output_parts, pack_output_path, to_pack_result_json};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
-pub use variants::{
-    PackedArchive, PackedArchives, archive_result_json, declared_manifests, pack_archives,
-};
 
 mod capabilities;
 mod collation;
@@ -59,7 +54,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use variants::VariantDeclaration;
 
 /// The published manifest basename used in identity validation errors.
 const MANIFEST_FILE_NAME: &str = "package.json";
@@ -106,13 +100,6 @@ pub struct PackResultJson {
     pub name: String,
     pub version: String,
     pub filename: String,
-    /// The derived tag of a platform variant's archive.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tag: Option<String>,
-    /// The targets of the `publishConfig.variants` entry the archive was
-    /// packed for.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub targets: Option<Vec<String>>,
     /// The written archive's SRI SHA-512; absent for a dry run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub integrity: Option<String>,
@@ -211,43 +198,6 @@ pub enum PackError {
         source: io::Error,
     },
 
-    #[diagnostic(transparent)]
-    Variants(#[error(source)] variants::VariantDeclarationError),
-
-    #[diagnostic(transparent)]
-    VariantArchive(#[error(source)] variants::VariantArchiveError),
-
-    #[display("The pattern {pattern:?} of the variant for {targets} matches no file")]
-    #[diagnostic(
-        code(ERR_PNPM_VARIANT_PATTERN_MATCHES_NOTHING),
-        help(
-            "Build the files the archive needs before packing it, so it is never packed without them."
-        )
-    )]
-    VariantPatternMatchesNothing { targets: String, pattern: String },
-
-    #[display("The archive of the variant for {targets} lacks {path:?}, which its manifest names")]
-    #[diagnostic(
-        code(ERR_PNPM_VARIANT_ENTRY_POINT_MISSING),
-        help(
-            "Every archive holds the files its own manifest's main, browser, and bin name, each by its exact path. Build the file before packing, or name it exactly in the entry's manifest."
-        )
-    )]
-    VariantEntryPointMissing { targets: String, path: String },
-
-    #[display(
-        "The package declares publishConfig.variants, so it packs into one archive per entry"
-    )]
-    #[diagnostic(
-        code(ERR_PNPM_VARIANTS_UNSUPPORTED),
-        help("Pack it with pnpm pack, which writes every archive.")
-    )]
-    OneArchiveOfVariants,
-
-    #[display("The package declares no publishConfig.variants to pack {target:?} from")]
-    #[diagnostic(code(ERR_PNPM_NO_VARIANTS))]
-    NoVariants { target: String },
-
     #[display("The bin file \"{path}\" has a shebang line ending with CRLF (\\r\\n).")]
     #[diagnostic(
         code(ERR_PNPM_BIN_CRLF),
@@ -264,13 +214,10 @@ where
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
     let source = prepare_source::<Reporter>(opts).await?;
-    if VariantDeclaration::read(&source.publish_manifest).map_err(PackError::Variants)?.is_some() {
-        return Err(PackError::OneArchiveOfVariants);
-    }
     pack_source::<Reporter, Sys>(opts, source).await
 }
 
-/// Pack `source`, prepared by [`prepare_source`], into one archive, then run
+/// Pack `source`, prepared by [`prepare_source`], into an archive, then run
 /// `postpack`.
 async fn pack_source<Reporter, Sys>(
     opts: &PackOptions,
@@ -282,7 +229,7 @@ where
 {
     let (tarball_name, pack_destination) =
         resolve_output(&opts.output, &source.normalized_name, &source.published_version)?;
-    let files_map = packed_files_map(opts, &source, &source.publish_manifest)?;
+    let files_map = packed_files_map(opts, &source)?;
     warn_about_unlisted_dotenv_files::<Reporter>(&source.dir, &source.publish_manifest, &files_map);
     check_packed_bins_for_crlf(&files_map, &source.bins)?;
     let manifest_json = serde_json::to_string_pretty(&source.publish_manifest)
@@ -325,16 +272,13 @@ where
     Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size, archive })
 }
 
-/// The files `source` packs as `manifest` selects them, by their path in
-/// the archive.
 fn packed_files_map(
     opts: &PackOptions,
     source: &PackSource,
-    manifest: &Value,
 ) -> Result<indexmap::IndexMap<String, PathBuf>, PackError> {
     let files = packlist_with_sources(
         &source.dir,
-        manifest,
+        &source.publish_manifest,
         PacklistOptions {
             workspace_dir: opts.workspace_dir.as_deref(),
             bundled_dependencies_dir: Some(&opts.dir),
@@ -453,18 +397,19 @@ impl PackManifestOptions {
         manifest: &Value,
     ) -> Result<Value, PackError> {
         let modules_dir = project_dir.join("node_modules");
-        let options = CreateExportableManifestOptions {
-            catalogs: &self.catalogs,
-            workspace_dir: self.catalogs_dir.as_deref(),
-            modules_dir: Some(&modules_dir),
-            skip_manifest_obfuscation: self.skip_obfuscation,
-            embed_readme: self.embed_readme,
-            workspace_packages: self.workspace_packages.as_deref(),
-        };
-        let mut publish_manifest =
-            create_exportable_manifest(dir, manifest, &options).map_err(PackError::CreateManifest)?;
-        variants::export_entry_dependencies(dir, &mut publish_manifest, &options)
-            .map_err(PackError::CreateManifest)?;
+        let mut publish_manifest = create_exportable_manifest(
+            dir,
+            manifest,
+            &CreateExportableManifestOptions {
+                catalogs: &self.catalogs,
+                workspace_dir: self.catalogs_dir.as_deref(),
+                modules_dir: Some(&modules_dir),
+                skip_manifest_obfuscation: self.skip_obfuscation,
+                embed_readme: self.embed_readme,
+                workspace_packages: self.workspace_packages.as_deref(),
+            },
+        )
+        .map_err(PackError::CreateManifest)?;
 
         // Run `beforePacking` hooks against the built manifest, before the
         // file list is computed, so a hook that rewrites `files` / `bin` /

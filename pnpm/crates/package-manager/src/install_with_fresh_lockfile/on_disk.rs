@@ -131,7 +131,6 @@ impl<'a> OnDiskInputs<'a> {
                 skipped,
                 include_optional: self.include_transitive_optional_dependencies,
                 supported_architectures: self.install.projects.supported_architectures,
-                platform_lockfile: Some(self.projects.platform_lockfile),
                 known_requires_build: self.runtime.known_requires_build,
                 known_bins: self.runtime.known_bins,
             },

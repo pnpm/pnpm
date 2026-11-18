@@ -6,12 +6,6 @@
 pub(crate) use document::{DistHashes, build_publish_document, clean_version};
 pub use request::PublishHttpError;
 pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
-pub use uploads::{UploadedArchive, upload_variant_archives};
-pub use variants::{PackedVariant, StagedReference, VariantArchive};
-pub(crate) use variants::{
-    StagedLengths, check_registry as check_variants_registry, reference_staged_archives,
-    staged_archives as variant_staged_archives, staged_lengths,
-};
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -32,7 +26,7 @@ use crate::{
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
     oidc::OidcHttpOptions,
-    provenance_gen::{ProvenanceGenError, SignProvenance},
+    provenance_gen::{ProvenanceGenError, SignProvenance, generate_provenance},
     publish_options::{
         Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
     },
@@ -40,49 +34,24 @@ use crate::{
     publish_wait::{PublishWaitError, wait_for_published_packages},
     registry_config_keys::NormalizedRegistryUrl,
     release_notes::ReleaseNotesTarget,
-    staged_archives::{StagingError, stage_archives},
 };
 
 /// The packed package handed to [`publish_packed_pkg`]: the manifest that was
 /// packed, the tarball's bytes, and the file listing / unpacked size used for
 /// the summary.
 pub struct PackedPkg<'a> {
-    /// The manifest of the version: its `any` archive's `package.json`, or
-    /// the base manifest of a version without one.
     pub published_manifest: &'a Value,
-    /// The `any` archive's bytes; empty when another machine staged it
-    /// (`any_staged`) or the version, published with variants only, has
-    /// none.
     pub tarball_data: &'a [u8],
     pub tarball_path: &'a str,
     pub contents: &'a [String],
     pub unpacked_size: u64,
     /// The version note, sent only to a registry that stores notes.
     pub notes: Option<&'a str>,
-    /// The platform variants published with the version, to a registry
-    /// declared with `serverType: pnpr`; empty for a package without them.
-    pub variants: &'a [PackedVariant],
-    /// The `any` archive, staged before this publish by another machine;
-    /// `tarball_data` is then empty.
-    pub any_staged: Option<&'a StagedReference>,
 }
 
 impl PackedPkg<'_> {
-    /// Whether the version is published as several archives, which pnpm
-    /// stages and references: it has platform variants, or an `any` archive
-    /// another job staged.
-    pub(crate) fn publishes_staged_archives(&self) -> bool {
-        !self.variants.is_empty() || self.any_staged.is_some()
-    }
-
-    /// Whether the version has an `any` archive: its bytes, or one another
-    /// machine staged.
-    pub(crate) fn has_any_archive(&self) -> bool {
-        !self.tarball_data.is_empty() || self.any_staged.is_some()
-    }
-
     pub(crate) fn summary(&self) -> PublishSummary {
-        let mut summary = create_publish_summary(
+        create_publish_summary(
             &PackedPkgInfo {
                 published_manifest: self.published_manifest,
                 tarball_path: self.tarball_path,
@@ -90,13 +59,7 @@ impl PackedPkg<'_> {
                 unpacked_size: self.unpacked_size,
             },
             self.tarball_data,
-        );
-        // This publish has no bytes of an archive another machine staged.
-        if let Some(staged) = self.any_staged {
-            summary.integrity.clone_from(&staged.integrity);
-            summary.shasum = String::new();
-        }
-        summary
+        )
     }
 }
 
@@ -168,7 +131,6 @@ where
     global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry_for_display(&registry)));
 
     let mut summary = pkg.summary();
-    variants::check_registry(pkg, &opts.pnpr_registries, &registry)?;
 
     if opts.dry_run {
         global_warn::<Reporter>(&format!(
@@ -212,21 +174,10 @@ where
     let version = &summary.version;
     let registry = &resolved.registry;
     let is_stage = opts.stage;
-    let authorization = publish_authorization(resolved, network, registry, name);
-    let mut lengths = variants::StagedLengths::new();
-    if pkg.publishes_staged_archives() {
-        lengths = variants::staged_lengths(pkg, network.client, registry, authorization.as_deref())
-            .await?;
-        let archives = variants::staged_archives(pkg, &summary.integrity);
-        stage_archives(network.client, registry, authorization.as_deref(), &archives)
-            .await
-            .map_err(PublishPackedPkgError::Staging)?;
-    }
-    let body =
-        publish_body::<Sys, Reporter>(pkg, opts, resolved, (summary, &lengths), name, version)
-            .await?;
+    let body = publish_body::<Sys, Reporter>(pkg, opts, resolved, summary, name, version).await?;
 
     let put_url = publish_endpoint(registry, name, is_stage)?;
+    let authorization = publish_authorization(resolved, network, registry, name);
 
     publish_with_otp_handling::<WebAuthHost, Reporter>(
         network.client,
@@ -248,7 +199,7 @@ async fn publish_body<Sys, Reporter>(
     pkg: &PackedPkg<'_>,
     opts: &PublishPackedPkgOptions,
     resolved: &crate::publish_options::ResolvedPublishOptions,
-    (summary, lengths): (&PublishSummary, &variants::StagedLengths),
+    summary: &PublishSummary,
     name: &str,
     version: &str,
 ) -> Result<bytes::Bytes, PublishPackedPkgError>
@@ -265,19 +216,10 @@ where
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
-    let has_variants = pkg.publishes_staged_archives();
-    if has_variants {
-        variants::reference_staged_archives(&mut document, pkg, (version, lengths));
-    }
 
     if resolved.provenance == Some(true) {
-        attach_provenance::<Sys, Reporter>(
-            &mut document,
-            (name, version),
-            pkg,
-            &opts.registry.http,
-        )
-        .await?;
+        attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)
+            .await?;
     }
     let body =
         bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
@@ -365,6 +307,31 @@ fn publish_endpoint(
 ///
 /// Provenance is requested either explicitly (`--provenance`) or by OIDC
 /// auto-detection for a public repo; the caller has already merged the two.
+async fn attach_provenance<Sys, Reporter>(
+    document: &mut serde_json::Value,
+    name: &str,
+    version: &str,
+    pkg: &PackedPkg<'_>,
+    http: &OidcHttpOptions,
+) -> Result<(), PublishPackedPkgError>
+where
+    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
+    Reporter: self::Reporter,
+{
+    // The statement names the version as the document keys it, without
+    // build metadata, which is how the registry names its archive.
+    let version = &clean_version(version)?;
+    let attachment = generate_provenance::<Sys, Reporter>(name, version, pkg.tarball_data, http)
+        .await
+        .map_err(PublishPackedPkgError::Provenance)?;
+    document["_attachments"][attachment.bundle_name.as_str()] = serde_json::json!({
+        "content_type": attachment.content_type,
+        "data": attachment.data,
+        "length": attachment.data.len(),
+    });
+    Ok(())
+}
+
 /// Resolve `path` against the registry the way `new URL(path, registry)` does.
 pub(crate) fn join_registry(
     registry: &NormalizedRegistryUrl,
@@ -431,50 +398,6 @@ pub enum PublishPackedPkgError {
 
     #[diagnostic(transparent)]
     FailedToPublish(FailedToPublishError),
-
-    #[display(
-        "Platform variants can only be published to a registry declared with serverType: pnpr, and {registry} is not"
-    )]
-    #[diagnostic(
-        code(ERR_PNPM_VARIANTS_NEED_PNPR),
-        help(
-            "Declare the registry with serverType: pnpr in pnpm-workspace.yaml. To publish only the archive that targets any, pass --no-variants."
-        )
-    )]
-    VariantsNeedPnpr { registry: String },
-
-    #[display("{name} has no package URL to name it in a provenance statement: {error}")]
-    #[diagnostic(code(ERR_PNPM_PROVENANCE_PURL))]
-    Purl {
-        name: String,
-        #[error(source)]
-        error: pnpm_release_record::PurlError,
-    },
-
-    #[display("The archive {integrity} has no SHA-512 for a provenance statement to name it by")]
-    #[diagnostic(code(ERR_PNPM_PROVENANCE_NO_SHA512))]
-    NoSha512 { integrity: String },
-
-    #[diagnostic(transparent)]
-    Staging(StagingError),
-
-    #[display("--upload-variant cannot sign provenance")]
-    #[diagnostic(
-        code(ERR_PNPM_UPLOAD_VARIANT_PROVENANCE),
-        help(
-            "Sign provenance in the job that publishes the version with --variant-integrity: its statement names every archive."
-        )
-    )]
-    UploadWithProvenance,
-
-    #[display("The archive for {label}, {integrity}, is not staged on {registry} for this account")]
-    #[diagnostic(
-        code(ERR_PNPM_VARIANT_NOT_STAGED),
-        help(
-            "Run the job that uploads it with pnpm publish --upload-variant again. Staged archives belong to the account that uploaded them and expire a day after their last upload, so the upload jobs must use this job's credentials."
-        )
-    )]
-    NotStaged { label: String, integrity: String, registry: String },
 }
 
 impl From<CreatePublishOptionsError> for PublishPackedPkgError {
@@ -494,11 +417,6 @@ mod tests;
 
 mod document;
 use document::manifest_string;
-mod provenance;
 mod release_retry;
-mod uploads;
-mod variants;
-
-use provenance::attach_provenance;
 
 mod request;

@@ -1,8 +1,5 @@
-pub use crate::platform_selection::{
-    VariantPlatforms, host_platform_selector, listed_link_platform, runtime_platform_selector,
-};
-pub use runtime::binary_store_index_key;
 pub(crate) use runtime::{archive_filter_for, fetch_binary_resolution_to_cas};
+pub use runtime::{binary_store_index_key, host_platform_selector, runtime_platform_selector};
 pub use tarball_resolution::{
     local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
 };
@@ -19,13 +16,12 @@ mod runtime;
 
 mod tarball_resolution;
 
-mod variant_fetch;
-
 use crate::CreateVirtualDirError;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_directory_fetcher::DirectoryFetcherError;
 use pnpm_git_fetcher::GitFetcherError;
+use pnpm_lockfile::PlatformSelector;
 use pnpm_package_manifest::PackageBin;
 use pnpm_tarball::TarballError;
 use std::{
@@ -62,8 +58,9 @@ pub struct InstallPackageBySnapshot<'a> {
     /// Snapshots the installability pass ruled out on this host.
     pub skipped: &'a crate::SkippedSnapshots,
     pub include_optional_dependencies: bool,
-    /// The platforms a `variations` resolution selects an archive for.
-    pub variant_platforms: &'a VariantPlatforms,
+    /// Platform triple used to select a runtime archive. This is the host
+    /// triple unless `supportedArchitectures` targets another platform.
+    pub runtime_platform_selector: &'a PlatformSelector,
     /// When `true`, return the fetched CAS paths without populating the
     /// virtual-store slot ([`CreateVirtualDirBySnapshot`](crate::CreateVirtualDirBySnapshot)) — the caller
     /// links them itself in a separate parallel pass. The cold batch in
@@ -172,14 +169,9 @@ pub enum InstallPackageBySnapshotError {
     /// or whether the lockfile was generated without the host's
     /// architecture in mind.
     #[display(
-        "No archive of `{package_key}` runs on the selected platform ({selected_target}). It is published for: {available_targets}"
+        "Package `{package_key}` is a runtime dependency, but none of its declared variants matches the selected triple ({selected_target}). Available variants: {available_targets}"
     )]
-    #[diagnostic(
-        code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT),
-        help(
-            "Install it on one of those platforms, or depend on it as an optional dependency so a host it does not support skips it."
-        )
-    )]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT))]
     NoMatchingPlatformVariant {
         package_key: String,
         selected_target: String,
@@ -192,26 +184,17 @@ pub enum InstallPackageBySnapshotError {
         available_targets: String,
     },
 
-    /// Two platform variants of a package fit the host equally well.
-    /// Publication rejects such a version, so the lockfile is not one a
-    /// registry produced; pnpm fails rather than pick one.
+    /// A variant inside a [`LockfileResolution::Variations`](pnpm_lockfile::LockfileResolution::Variations) carries
+    /// a resolution other than [`LockfileResolution::Binary`](pnpm_lockfile::LockfileResolution::Binary).
+    /// The lockfile contract guarantees variants are atomic
+    /// `BinaryResolution`s; this variant catches lockfile corruption
+    /// or a future shape pacquet doesn't recognise rather than
+    /// silently routing through and confusing the install pipeline.
     #[display(
-        "Package `{package_key}` has more than one platform variant that fits the selected platform ({selected_target}) equally well."
+        "Package `{package_key}` carries a runtime variant whose inner resolution is `{inner_kind}` rather than `binary`; pnpm only knows how to install binary-shaped variants."
     )]
-    #[diagnostic(code(ERR_PNPM_AMBIGUOUS_PLATFORM_VARIANT))]
-    AmbiguousPlatformVariant { package_key: String, selected_target: String },
-
-    /// The archive a [`LockfileResolution::Variations`](pnpm_lockfile::LockfileResolution::Variations)
-    /// selected has a resolution pnpm cannot install from a `variations`
-    /// entry: only a `binary` archive or a registry tarball can be one.
-    /// This catches lockfile corruption or a future shape pacquet doesn't
-    /// recognise rather than silently routing it through the install
-    /// pipeline.
-    #[display(
-        "Package `{package_key}` selects a platform variant whose resolution is `{inner_kind}`; pnpm only installs `binary` archives and registry tarballs as variants."
-    )]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_VARIANT_RESOLUTION))]
-    UnsupportedVariantResolution { package_key: String, inner_kind: &'static str },
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_VARIANT_HAS_NON_BINARY_RESOLUTION))]
+    VariantHasNonBinaryResolution { package_key: String, inner_kind: &'static str },
 
     /// Serializing the synthesized runtime `package.json` failed.
     /// The manifest is a small fixed-shape JSON object (`name`,

@@ -731,12 +731,9 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
     download_mock.assert();
 }
 
-mod batch_variants;
 mod hosted;
 mod optional_peers;
 mod publish_retry;
-mod supported_architectures_link;
-mod supported_architectures_variants;
 mod workspace;
 
 mod revisions;
@@ -746,8 +743,6 @@ mod package_documents;
 mod resolution;
 
 mod pnpmfile;
-
-mod variants_only;
 
 fn pnpr_done_frame(request: &mockito::Request, mut frame: serde_json::Value) -> Vec<u8> {
     use serde_json::{Value, json};

@@ -1,29 +1,24 @@
-pub(super) use slot_writes::{write_attachment_slot, write_attachment_slots};
+pub(super) use slot_writes::write_attachment_slots;
 
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
     Integrity, Ownership, PendingAttachment, RegistryError, RegistrySource, Storage, Value,
     WriteTarget, authorize_against_packument, authorize_package, authorize_package_write,
-    authorize_with_ownership, cleanup_tmp_slots, extract_attachments, generated_archive,
-    hosted_storage,
+    authorize_with_ownership, cleanup_tmp_slots, extract_attachments, hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
     },
     provenance, release_records, resolve_write_target,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
-    variants::{self, Declarations, PublishedVariant, VariantTar},
-    verification::{describe_generated_archive, verify_published_manifests},
+    verification::verify_published_manifests,
 };
 use pnpr_storage::{
     BlobId,
     database::{ArtifactBlob, BlobLookup, BlobRow},
     publish::{now_iso, sigstore_bundle_bytes},
 };
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::Semaphore;
 
 mod preparation;
@@ -49,8 +44,6 @@ pub(in super::super) enum TarballStorage {
 pub(in super::super) enum AttachmentKind {
     Tarball,
     Sigstore,
-    /// A platform variant's `.tgz` (see [`variants`]).
-    Variant,
 }
 
 /// A publish document that passed every check that can run before
@@ -69,8 +62,6 @@ pub(in super::super) struct ValidatedPublish {
     /// The hosted registry whose `publish` rule admitted [`Self::publisher`].
     pub(in super::super) registry: String,
     pub(in super::super) tarballs: TarballStorage,
-    /// Attached platform variant archives, by version.
-    pub(in super::super) variants: Declarations,
 }
 
 /// One publish attachment resolved to its canonical on-disk filename and its
@@ -86,8 +77,6 @@ pub(in super::super) struct PreparedAttachment {
     /// The matching `dist` block, or `Value::Null` when absent.
     pub(in super::super) dist: Value,
     pub(in super::super) kind: AttachmentKind,
-    /// The tag that names an [`AttachmentKind::Variant`].
-    pub(in super::super) variant_tag: Option<String>,
 }
 
 impl ValidatedPublish {
@@ -117,7 +106,6 @@ pub(in super::super) async fn validate_publish_doc(
     check_publish_tombstone(state, identity, &storage, &name).await?;
 
     let attachments = extract_attachments(&mut incoming)?;
-    variants::remove_server_fields(&mut incoming);
     record_publisher(&mut incoming, identity);
 
     // Validate attachment filenames against the package and parse their
@@ -128,7 +116,6 @@ pub(in super::super) async fn validate_publish_doc(
         authorize_package(state, identity, &source, name.as_str(), Action::Publish, namespace)
             .await?;
     }
-    let variants = variants::attached_variants(&prepared);
     let publisher = identity.clone();
     let tarballs = if super::super::tar_registry::is_tar_registry(state, &target.source) {
         TarballStorage::Tar
@@ -136,8 +123,7 @@ pub(in super::super) async fn validate_publish_doc(
         TarballStorage::Tgz
     };
     let registry = target.source.clone();
-    let validated =
-        ValidatedPublish { name, incoming, prepared, publisher, registry, tarballs, variants };
+    let validated = ValidatedPublish { name, incoming, prepared, publisher, registry, tarballs };
     Ok((validated, target))
 }
 
@@ -242,23 +228,17 @@ pub(in super::super) async fn stage_publish(
             tombstone.map(|tombstone| HostedDocumentVersion::Tombstone(tombstone.maintainers));
     }
     let principal = doc.publisher.user_id().map(str::to_string);
-    let (merged, without_any) =
-        prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
+    let merged = prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
     drop(doc.incoming);
     let ValidatedPublish {
-        name,
-        prepared,
-        tarballs,
-        variants,
-        publisher,
-        ..
+        name, prepared, tarballs, publisher, ..
     } = doc;
 
     let verified = write_verified(
         (&storage, principal.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
         (prepared, tarballs),
-        (merged, &variants, &without_any),
+        merged,
     )
     .await?;
     Ok(StagedPublish {
@@ -349,15 +329,10 @@ async fn prepare_publish_document(
     doc: &mut ValidatedPublish,
     base: &mut StagedBase,
     now_iso: &str,
-) -> Result<(Value, BTreeSet<String>), RegistryError> {
+) -> Result<Value, RegistryError> {
     let hosted = base.packument.as_ref();
     restore_submitted_tgz_integrities(storage, &doc.name, hosted, &mut doc.incoming).await?;
-    let without_any = check_publishable_versions(
-        &doc.name,
-        &doc.incoming,
-        hosted,
-        (&doc.prepared, &doc.variants),
-    )?;
+    check_publishable_versions(&doc.name, &doc.incoming, hosted, &doc.prepared)?;
     if doc.prepared.is_empty()
         && let Some(hosted) = hosted
     {
@@ -373,8 +348,7 @@ async fn prepare_publish_document(
     if let Some(object) = doc.incoming.as_object_mut() {
         object.remove("_rev");
     }
-    let merged = prepare_staged_document(&doc.name, hosted, &doc.incoming, &doc.prepared, now_iso);
-    Ok((merged, without_any))
+    Ok(prepare_staged_document(&doc.name, hosted, &doc.incoming, &doc.prepared, now_iso))
 }
 
 /// The packument `doc` is computed from, read with the rows of the blobs it
@@ -409,16 +383,15 @@ fn staged_base(
 /// before they are written, so their rows are read with the document: a
 /// `.tgz` stored as published has the `sha512` its `dist.integrity`
 /// declares, and a sigstore bundle is its own bytes. A tar a tar registry
-/// stores in place of the `.tgz`, and the archive pnpr generates for a
-/// version without one, are known only once written, and their rows take
-/// one more round trip.
+/// stores in place of the `.tgz` is known only once written, and its row
+/// takes one more round trip.
 fn expected_blobs(doc: &ValidatedPublish) -> Vec<BlobId> {
     let ecosystem = pnpr_registry::Ecosystem::Npm;
     let mut ids: Vec<BlobId> = doc.prepared
         .iter()
         .filter_map(|prepared| match prepared.kind {
             AttachmentKind::Tarball if doc.tarballs == TarballStorage::Tar => None,
-            AttachmentKind::Tarball | AttachmentKind::Variant => {
+            AttachmentKind::Tarball => {
                 let integrity = prepared.dist.get("integrity")?.as_str()?;
                 BlobId::from_integrity(&integrity.parse().ok()?, ecosystem)
             }
@@ -438,7 +411,6 @@ fn expected_blobs(doc: &ValidatedPublish) -> Vec<BlobId> {
 pub(super) struct WrittenAttachments {
     pub(super) slots: Vec<pnpr_storage::BlobSlot>,
     pub(super) tars: Vec<PublishedTar>,
-    pub(super) variants: Vec<PublishedVariant>,
 }
 
 /// A published `.tgz` whose whole gzip stream decoded to a tar.
@@ -452,12 +424,6 @@ pub(super) struct PublishedTar {
     pub(super) inspection: pnpm_tarball::TarInspection,
     /// What the tar holds that the version's manifest is derived from.
     pub(super) archive: pnpm_tarball::PublicationArchive,
-    /// Set for a platform variant's `.tgz`.
-    pub(super) variant: Option<VariantTar>,
-    /// Whether pnpr generated the archive for a version published without a
-    /// `any` archive (see [`generated_archive`]). It is not one of the version's
-    /// archives.
-    pub(super) generated: bool,
 }
 
 /// What a published `.tgz` decodes to: the key its tar integrity is recorded
