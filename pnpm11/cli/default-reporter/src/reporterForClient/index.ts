@@ -191,6 +191,7 @@ function reportInstallInfo ({ log$, opts, cwd, width }: ReportContext): Outputs 
     }),
     reportInstallingConfigDeps(log$.installingConfigDeps),
     reportLockfileVerification(log$.lockfileVerification, {
+      appendOnly: opts.appendOnly,
       cwd,
       workspaceDir: opts.pnpmConfig?.workspaceDir,
     }),

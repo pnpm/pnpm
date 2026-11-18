@@ -15,6 +15,7 @@ use tempfile::TempDir;
 
 use super::{
     ReplacedCandidate, ReplacedEntries, VerifyLockfileResolutionsOptions,
+    candidates::{collect_candidates, run_fan_out},
     collect_resolution_policy_violations, verify_lockfile_resolutions,
 };
 use crate::VerifyError;

@@ -13,13 +13,11 @@ pub use offline_checks::{
     verify_lockfile_importer_snapshot_links,
 };
 
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName};
-use pnpm_reporter::{
-    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
-};
+use pnpm_reporter::{LockfileVerificationMessage, LogLevel, Reporter};
 use pnpm_resolving_resolver_base::{
     ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx,
 };
@@ -145,10 +143,6 @@ pub fn lockfile_verification_is_cached_by_content(
 
 /// Run every active [`ResolutionVerifier`] against every entry in
 /// `lockfile.packages`.
-///
-/// The failure variant of the terminal emit is fired from the drop
-/// guard so the reporter never leaves a hanging "Verifying..." frame
-/// even if the fan-out panics.
 pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -231,34 +225,22 @@ fn collect_candidates_to_verify(
     Ok((candidates, skipped_replaced))
 }
 
-/// Run the verifiers over every candidate, reporting the run's start and,
-/// when nothing is violated, its completion.
+/// Run the verifiers over every candidate, reporting the run to the
+/// reporter as a [`VerificationProgress`].
 async fn verify_candidates<Reporter: self::Reporter>(
     candidates: Vec<Candidate>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
     lockfile_path_str: Option<String>,
 ) -> Result<Vec<ResolutionPolicyViolation>, VerifyError> {
-    let entries = candidates.len() as u64;
-    let started_at = Instant::now();
-    emit::<Reporter>(
-        LogLevel::Debug,
-        LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path_str.clone() },
-    );
-
-    let mut emit_guard =
-        TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
-
-    let violations = match run_fan_out(candidates, verifiers, concurrency).await {
-        Ok(violations) => violations,
-        Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
-    };
+    let mut progress =
+        VerificationProgress::<Reporter>::start(candidates.len() as u64, lockfile_path_str);
+    let violations =
+        run_fan_out(candidates, verifiers, concurrency, &mut || progress.entry_checked())
+            .await
+            .map_err(|message| VerifyError::RegistryMetaFetchFailed { message })?;
     if violations.is_empty() {
-        emit_guard.cancel(LockfileVerificationMessage::Done {
-            entries,
-            elapsed_ms: started_at.elapsed().as_millis() as u64,
-            lockfile_path: lockfile_path_str,
-        });
+        progress.pass();
     }
     Ok(violations)
 }
@@ -347,67 +329,7 @@ pub async fn collect_resolution_policy_violations(
     let (candidates, _shape_violations) = collect_candidates(lockfile);
     // `Err(message)` is a transport failure the caller must surface rather than
     // treat as "no violations" — see [`run_fan_out`].
-    run_fan_out(candidates, verifiers, concurrency).await
-}
-
-fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerificationMessage) {
-    Reporter::emit(&LogEvent::LockfileVerification(LockfileVerificationLog { level, message }));
-}
-
-/// Drop guard that fires the terminal `Failed` payload when the
-/// runner panics or returns early through `?`. On the success path
-/// the runner calls [`Self::cancel`] with the `Done` payload, which
-/// replaces the queued message and emits it on drop instead.
-struct TerminalEmitGuard<Reporter: self::Reporter> {
-    pending: Option<LockfileVerificationMessage>,
-    /// `Started` instant captured at runner entry. The Drop impl uses
-    /// it to refresh `elapsed_ms` on the Failed branch (the field is
-    /// stale on the `pending` payload — it was built at guard
-    /// construction, before the fan-out ran). `Done` payloads land
-    /// via [`Self::cancel`] with their own up-to-date `elapsed_ms`.
-    started_at: Instant,
-    _reporter: std::marker::PhantomData<Reporter>,
-}
-
-impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
-    fn failed(entries: u64, started_at: Instant, lockfile_path: Option<String>) -> Self {
-        Self {
-            pending: Some(LockfileVerificationMessage::Failed {
-                entries,
-                // Placeholder; the Drop impl overwrites this with
-                // the real elapsed when the guard actually fires.
-                elapsed_ms: 0,
-                lockfile_path,
-            }),
-            started_at,
-            _reporter: std::marker::PhantomData,
-        }
-    }
-
-    fn cancel(&mut self, success: LockfileVerificationMessage) {
-        self.pending = Some(success);
-    }
-}
-
-impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
-    fn drop(&mut self) {
-        if let Some(message) = self.pending.take() {
-            // Refresh `elapsed_ms` on the Failed branch only — the
-            // success branch already filled the up-to-date value via
-            // `cancel(Done { elapsed_ms: <now> })`.
-            let message = match message {
-                LockfileVerificationMessage::Failed { entries, lockfile_path, .. } => {
-                    LockfileVerificationMessage::Failed {
-                        entries,
-                        elapsed_ms: self.started_at.elapsed().as_millis() as u64,
-                        lockfile_path,
-                    }
-                }
-                other => other,
-            };
-            emit::<Reporter>(LogLevel::Debug, message);
-        }
-    }
+    run_fan_out(candidates, verifiers, concurrency, &mut || {}).await
 }
 
 #[cfg(test)]
@@ -415,9 +337,11 @@ mod tests;
 
 mod candidates;
 mod offline_checks;
+mod progress;
 
 use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
 use offline_checks::{
     is_registry_shaped_resolution, verify_offline_structural_checks,
     verify_structure_before_install,
 };
+use progress::{VerificationProgress, emit};
