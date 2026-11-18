@@ -40,8 +40,7 @@ pub use publish_options::{
 };
 pub use publish_packed_pkg::{
     PackedPkg, PackedVariant, PublishHttpError, PublishNetwork, PublishPackedPkgError,
-    PublishPackedPkgOptions, PublishRegistryOptions, StagedReference, UploadedArchive,
-    VariantArchive, publish_packed_pkg, upload_variant_archives,
+    PublishPackedPkgOptions, PublishRegistryOptions, publish_packed_pkg,
 };
 pub use publish_summary::{
     PackedPkgInfo, PublishSummary, PublishSummaryFile, create_publish_summary,

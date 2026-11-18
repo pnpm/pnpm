@@ -6,8 +6,7 @@
 pub(crate) use document::{DistHashes, build_publish_document, clean_version};
 pub use request::PublishHttpError;
 pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
-pub use uploads::{UploadedArchive, upload_variant_archives};
-pub use variants::{PackedVariant, StagedReference, VariantArchive};
+pub use variants::PackedVariant;
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -46,9 +45,7 @@ pub struct PackedPkg<'a> {
     /// The manifest of the version: its `any` archive's `package.json`, or
     /// the base manifest of a version without one.
     pub published_manifest: &'a Value,
-    /// The `any` archive's bytes; empty when another machine staged it
-    /// (`any_staged`) or the version, published with variants only, has
-    /// none.
+    /// The `any` archive's bytes; empty when the version has none.
     pub tarball_data: &'a [u8],
     pub tarball_path: &'a str,
     pub contents: &'a [String],
@@ -58,20 +55,14 @@ pub struct PackedPkg<'a> {
     /// The platform variants published with the version, to a registry
     /// declared with `serverType: pnpr`; empty for a package without them.
     pub variants: &'a [PackedVariant],
-    /// The `any` archive, staged before this publish by another machine;
-    /// `tarball_data` is then empty.
-    pub any_staged: Option<&'a StagedReference>,
+    /// Whether `tarball_data` is the version's `any` archive. A version
+    /// published with variants only has none.
+    pub any_archive: bool,
 }
 
 impl PackedPkg<'_> {
-    /// Whether the version has an `any` archive: its bytes, or one another
-    /// machine staged.
-    pub(crate) fn has_any_archive(&self) -> bool {
-        !self.tarball_data.is_empty() || self.any_staged.is_some()
-    }
-
     pub(crate) fn summary(&self) -> PublishSummary {
-        let mut summary = create_publish_summary(
+        create_publish_summary(
             &PackedPkgInfo {
                 published_manifest: self.published_manifest,
                 tarball_path: self.tarball_path,
@@ -79,13 +70,7 @@ impl PackedPkg<'_> {
                 unpacked_size: self.unpacked_size,
             },
             self.tarball_data,
-        );
-        // This publish has no bytes of an archive another machine staged.
-        if let Some(staged) = self.any_staged {
-            summary.integrity.clone_from(&staged.integrity);
-            summary.shasum = String::new();
-        }
-        summary
+        )
     }
 }
 
@@ -203,18 +188,13 @@ where
     let registry = &resolved.registry;
     let is_stage = opts.stage;
     let authorization = publish_authorization(resolved, network, registry, name);
-    let mut lengths = variants::StagedLengths::new();
-    if !pkg.variants.is_empty() || pkg.any_staged.is_some() {
-        lengths = variants::staged_lengths(pkg, network.client, registry, authorization.as_deref())
-            .await?;
+    if !pkg.variants.is_empty() {
         let archives = variants::staged_archives(pkg, &summary.integrity);
         stage_archives(network.client, registry, authorization.as_deref(), &archives)
             .await
             .map_err(PublishPackedPkgError::Staging)?;
     }
-    let body =
-        publish_body::<Sys, Reporter>(pkg, opts, resolved, (summary, &lengths), name, version)
-            .await?;
+    let body = publish_body::<Sys, Reporter>(pkg, opts, resolved, summary, name, version).await?;
 
     let put_url = publish_endpoint(registry, name, is_stage)?;
 
@@ -238,7 +218,7 @@ async fn publish_body<Sys, Reporter>(
     pkg: &PackedPkg<'_>,
     opts: &PublishPackedPkgOptions,
     resolved: &crate::publish_options::ResolvedPublishOptions,
-    (summary, lengths): (&PublishSummary, &variants::StagedLengths),
+    summary: &PublishSummary,
     name: &str,
     version: &str,
 ) -> Result<bytes::Bytes, PublishPackedPkgError>
@@ -255,8 +235,8 @@ where
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
-    if !pkg.variants.is_empty() || pkg.any_staged.is_some() {
-        variants::reference_staged_archives(&mut document, pkg, (version, lengths));
+    if !pkg.variants.is_empty() {
+        variants::reference_staged_archives(&mut document, pkg, version);
     }
 
     if resolved.provenance == Some(true) {
@@ -458,24 +438,6 @@ pub enum PublishPackedPkgError {
 
     #[diagnostic(transparent)]
     Staging(StagingError),
-
-    #[display("--upload-variant cannot sign provenance")]
-    #[diagnostic(
-        code(ERR_PNPM_UPLOAD_VARIANT_PROVENANCE),
-        help(
-            "Sign provenance in the job that publishes the version with --variant-integrity: its statement names every archive."
-        )
-    )]
-    UploadWithProvenance,
-
-    #[display("The archive for {label}, {integrity}, is not staged on {registry} for this account")]
-    #[diagnostic(
-        code(ERR_PNPM_VARIANT_NOT_STAGED),
-        help(
-            "Run the job that uploads it with pnpm publish --upload-variant again. Staged archives belong to the account that uploaded them and expire a day after their last upload, so the upload jobs must use this job's credentials."
-        )
-    )]
-    NotStaged { label: String, integrity: String, registry: String },
 }
 
 impl From<CreatePublishOptionsError> for PublishPackedPkgError {
@@ -496,7 +458,6 @@ mod tests;
 mod document;
 use document::manifest_string;
 mod release_retry;
-mod uploads;
 mod variants;
 
 mod request;

@@ -184,16 +184,6 @@ async fn wait_for_group<Reporter: self::Reporter>(
 
 /// Summarize one packed package and fold it into the group of everything
 /// bound for the same registry.
-/// Refuse a package a batch cannot send yet: one with platform variants,
-/// without an `any` archive, or with an `any` archive another job staged,
-/// whose bytes the batch does not have.
-fn check_single_archive(package: &PackedPkg<'_>) -> Result<(), BatchPublishError> {
-    if !package.variants.is_empty() || package.any_staged.is_some() || !package.has_any_archive() {
-        return Err(BatchPublishError::Variants);
-    }
-    Ok(())
-}
-
 fn group_packed_pkg<'a>(
     package: &PackedPkg<'a>,
     opts: &PublishPackedPkgOptions,
@@ -211,7 +201,9 @@ fn group_packed_pkg<'a>(
         &opts.registry.scoped,
         crate::publish_options::publish_config_registry(manifest, name),
     )?;
-    check_single_archive(package)?;
+    if !package.variants.is_empty() || !package.any_archive {
+        return Err(BatchPublishError::Variants);
+    }
     let summary = package.summary();
     let mut document = build_publish_document(
         manifest,
