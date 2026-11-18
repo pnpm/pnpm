@@ -858,9 +858,10 @@ jobs:
       attestations: write
     strategy:
       matrix:
-        # Every target build-rust above packages a CLI binary for also needs
-        # an addon — `pnpm/npm/napi/scripts/generate-packages.mjs` fails on a
-        # missing one — so keep the two matrices in sync.
+        # Every target in the TARGETS list of
+        # `pnpm/npm/napi/scripts/generate-packages.mjs` needs an entry here:
+        # the generator fails on a missing addon. build-rust also packages
+        # CLI-only targets (netbsd-x64, linux-loong64) that have no addon.
         include:
           - os: blacksmith-8vcpu-windows-2025
             target: x86_64-pc-windows-msvc
