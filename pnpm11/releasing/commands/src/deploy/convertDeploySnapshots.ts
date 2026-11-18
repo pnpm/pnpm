@@ -11,7 +11,7 @@ import type {
   ResolvedDependencies,
   TarballResolution,
 } from '@pnpm/lockfile.types'
-import type { DepPath, Project } from '@pnpm/types'
+import type { DepPath, Project, ProjectManifest } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
 export type DeployAllProjects = Array<Pick<Project, 'manifest' | 'rootDir' | 'rootDirRealPath'>>
@@ -169,5 +169,24 @@ export function createFileUrlDepPath (
 export function getLinkedPublishDir (project: DeployAllProjects[number]): string | undefined {
   const publishConfig = project.manifest.publishConfig
   if (publishConfig?.directory == null || publishConfig.linkDirectory === false) return undefined
-  return path.join(project.rootDirRealPath, publishConfig.directory)
+  return path.resolve(project.rootDirRealPath, publishConfig.directory)
+}
+
+/**
+ * The publish directory the importer at `projectRootDir` is linked from, when
+ * its lockfile record and its project manifest name the same one. A
+ * directory only the lockfile records is ignored.
+ */
+export function getImporterLinkedPublishDir (
+  projectSnapshot: ProjectSnapshot,
+  importer: { manifest: ProjectManifest | undefined, projectRootDir: string }
+): string | undefined {
+  const { publishDirectory } = projectSnapshot
+  const publishConfig = importer.manifest?.publishConfig
+  if (
+    publishDirectory == null || projectSnapshot.linkDirectory === false ||
+    publishConfig?.directory == null || publishConfig.linkDirectory === false
+  ) return undefined
+  const linkedPublishDir = path.resolve(importer.projectRootDir, publishDirectory)
+  return linkedPublishDir === path.resolve(importer.projectRootDir, publishConfig.directory) ? linkedPublishDir : undefined
 }
