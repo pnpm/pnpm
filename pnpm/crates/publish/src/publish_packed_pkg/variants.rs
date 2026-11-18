@@ -18,7 +18,6 @@ use crate::{
     registry_config_keys::NormalizedRegistryUrl,
     staged_archives::{StagedArchive, staged_length},
 };
-use futures_util::future::try_join_all;
 use pnpm_network::ThrottledClient;
 use pnpm_release_record::{Purl, PurlError};
 use std::collections::{HashMap, HashSet};
@@ -59,12 +58,12 @@ impl VariantArchive {
 
 /// The sizes of the staged archives a publish references, by integrity, as
 /// the registry reports them.
-pub(crate) type StagedLengths = HashMap<String, u64>;
+pub(super) type StagedLengths = HashMap<String, u64>;
 
 /// Refuse to publish variants to a registry that is not declared with
 /// `serverType: pnpr`: a version published without its variants cannot get
 /// them later.
-pub(crate) fn check_registry(
+pub(super) fn check_registry(
     pkg: &PackedPkg<'_>,
     pnpr_registries: &HashSet<String>,
     registry: &NormalizedRegistryUrl,
@@ -79,7 +78,7 @@ pub(crate) fn check_registry(
 /// The archives this publish packed, to stage before the document that
 /// references them: the `any` archive, whose integrity is `any_integrity`,
 /// and every packed variant.
-pub(crate) fn staged_archives<'a>(
+pub(super) fn staged_archives<'a>(
     pkg: &PackedPkg<'a>,
     any_integrity: &str,
 ) -> Vec<StagedArchive<'a>> {
@@ -99,9 +98,9 @@ pub(crate) fn staged_archives<'a>(
 }
 
 /// The size of every archive `pkg` references as staged before the publish,
-/// asked with `HEAD`, all at once. One the registry does not hold for the
-/// caller fails the publish before its document is sent, naming the archive.
-pub(crate) async fn staged_lengths(
+/// asked with `HEAD`. One the registry does not hold for the caller fails the
+/// publish before its document is sent, naming the archive.
+pub(super) async fn staged_lengths(
     pkg: &PackedPkg<'_>,
     client: &ThrottledClient,
     registry: &NormalizedRegistryUrl,
@@ -117,7 +116,8 @@ pub(crate) async fn staged_lengths(
                     VariantArchive::Packed(_) => None,
                 }),
         );
-    let lengths = try_join_all(staged.map(|reference| async move {
+    let mut lengths = StagedLengths::new();
+    for reference in staged {
         let length = staged_length(client, registry, authorization, &reference.integrity)
             .await
             .map_err(PublishPackedPkgError::Staging)?
@@ -126,10 +126,9 @@ pub(crate) async fn staged_lengths(
                 integrity: reference.integrity.clone(),
                 registry: registry_for_display(registry),
             })?;
-        Ok::<_, PublishPackedPkgError>((reference.integrity.clone(), length))
-    }))
-    .await?;
-    Ok(lengths.into_iter().collect())
+        lengths.insert(reference.integrity.clone(), length);
+    }
+    Ok(lengths)
 }
 
 /// Make `document` reference the staged archives instead of carrying them:
@@ -138,7 +137,7 @@ pub(crate) async fn staged_lengths(
 /// its `dist` and plain attachment. An `any` archive staged before the
 /// publish is described by its `dist.integrity` alone. `version` is the
 /// manifest's, which may carry build metadata.
-pub(crate) fn reference_staged_archives(
+pub(super) fn reference_staged_archives(
     document: &mut Value,
     pkg: &PackedPkg<'_>,
     (version, lengths): (&str, &StagedLengths),
