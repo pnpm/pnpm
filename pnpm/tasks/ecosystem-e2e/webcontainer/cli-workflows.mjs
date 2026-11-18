@@ -136,6 +136,7 @@ export function networkCapabilitySteps (entry) {
       args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, 'ping', '--expect', 'Client TLS identities are unavailable in WebContainers'],
       expectOutput: 'failed without changing project files',
     },
+    { name: 'remove client TLS identity config fixture', command: 'node', args: ['-e', "require('node:fs').unlinkSync('.npmrc')"] },
   ]
 }
 
