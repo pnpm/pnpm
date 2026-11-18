@@ -97,7 +97,6 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
     }
 }
 
-/// The range a package's declared peer has to satisfy.
 fn wanted_peer_range(
     meta: &PackageMetadata,
     peer_name: &str,
