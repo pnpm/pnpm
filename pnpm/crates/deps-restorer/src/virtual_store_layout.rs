@@ -36,8 +36,8 @@ use pnpm_graph_hasher::{
     join_global_virtual_store_path,
 };
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, PlatformSelector,
-    SnapshotEntry, VersionPart,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, SnapshotEntry,
+    VersionPart,
 };
 use std::{
     collections::HashMap,
@@ -212,7 +212,6 @@ impl VirtualStoreLayout {
             packages,
             BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
             lockfile_dir,
-            &selected_platform(config),
         )
     }
 
@@ -243,14 +242,12 @@ impl VirtualStoreLayout {
                 lockfile_dir,
             );
         };
-        let platform = selected_platform(config);
         let mut hasher = GvsHasher::new(
             snapshots,
             packages,
             engine,
             BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
             lockfile_dir,
-            &platform,
         );
         let fingerprint = hasher.fingerprint(snapshots);
         let cache_file = lockfile_dir.map(|lockfile_dir| gvs_layout_cache::CacheFile {
@@ -294,13 +291,6 @@ impl VirtualStoreLayout {
     /// exactly the paths a GVS-enabled install would use, letting the
     /// two modes share one set of materialized packages under
     /// `<store_dir>/links`.
-    ///
-    /// `platform` selects the archive of each `variations` resolution,
-    /// whose integrity identifies its slot.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "each input changes the slot paths the layout computes"
-    )]
     pub fn global(
         package_store_dir: PathBuf,
         virtual_store_dir_max_length: usize,
@@ -309,7 +299,6 @@ impl VirtualStoreLayout {
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
         gating: BuildGating<'_>,
         lockfile_dir: Option<&Path>,
-        platform: &PlatformSelector,
     ) -> Self {
         let Some(snapshots) = snapshots else {
             return VirtualStoreLayout {
@@ -321,8 +310,7 @@ impl VirtualStoreLayout {
                 staging_token: new_staging_token(),
             };
         };
-        let mut hasher =
-            GvsHasher::new(snapshots, packages, engine, gating, lockfile_dir, platform);
+        let mut hasher = GvsHasher::new(snapshots, packages, engine, gating, lockfile_dir);
         VirtualStoreLayout {
             engine_name: engine.map(str::to_owned),
             package_store_dir,
@@ -686,28 +674,3 @@ mod tests;
 /// what keeps them in step; a key taken from a re-read of the lockfile
 /// could describe a revision the suffixes did not come from.
 mod gvs_layout_cache;
-
-/// The platform a runtime's `variations` resolution selects an archive for:
-/// the one `supportedArchitectures` names, or the host's. A registry
-/// package's variants follow the host; see
-/// [`variations_platform`](crate::install_package_by_snapshot::variations_platform).
-pub(crate) fn selected_platform(config: &Config) -> PlatformSelector {
-    crate::install_package_by_snapshot::runtime_platform_selector(
-        config.supported_architectures.as_ref(),
-    )
-}
-
-/// [`gvs_layout_cache::load`], logging a hit.
-fn load_cached_suffixes(
-    cache_file: Option<gvs_layout_cache::CacheFile<'_>>,
-    expected: gvs_layout_cache::Expected<'_>,
-) -> Option<HashMap<PackageKey, String>> {
-    let gvs_suffixes = gvs_layout_cache::load(cache_file?, expected)?;
-    tracing::info!(
-        target: "pacquet::install::phase",
-        phase = "gvs.layout_cache_hit",
-        entries = gvs_suffixes.len(),
-        "phase complete",
-    );
-    Some(gvs_suffixes)
-}

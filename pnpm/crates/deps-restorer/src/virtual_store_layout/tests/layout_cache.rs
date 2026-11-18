@@ -34,7 +34,6 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
             engine,
             super::super::BuildGating { policy, runs_builds: true },
             dir,
-            &crate::host_platform_selector(),
         )
         .fingerprint(snapshots)
     };

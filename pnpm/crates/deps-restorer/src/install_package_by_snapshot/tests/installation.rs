@@ -123,17 +123,11 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
                 directory: "fixture".into(),
             }),
             targets: vec![
-                PlatformAssetTarget {
-                    os: "darwin".into(),
-                    cpu: "arm64".into(),
-                    libc: None,
-                    ..PlatformAssetTarget::default()
-                },
+                PlatformAssetTarget { os: "darwin".into(), cpu: "arm64".into(), libc: None },
                 PlatformAssetTarget {
                     os: "linux".into(),
                     cpu: "x64".into(),
                     libc: Some("musl".into()),
-                    ..PlatformAssetTarget::default()
                 },
             ],
         },
@@ -145,7 +139,6 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
                 os: "win32".into(),
                 cpu: "x64".into(),
                 libc: None,
-                ..PlatformAssetTarget::default()
             }],
         },
     ];

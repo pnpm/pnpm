@@ -101,7 +101,7 @@ impl DenoResolver {
         Ok(Some(deno_resolve_result(
             wanted_dependency,
             format!("deno@runtime:{version}").into(),
-            VariationsResolution::without_fallback(variants).into(),
+            LockfileResolution::Variations(VariationsResolution { variants }),
             &version,
             Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
             policy_violation,

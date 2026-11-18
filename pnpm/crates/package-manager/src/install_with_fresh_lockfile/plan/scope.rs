@@ -160,11 +160,7 @@ fn closure_importer_ids(
         built,
     )
     .or_else(|| {
-        // A platform variant's own snapshot is wired in by the closure.
-        (install.resolve_widened_groups()
-            || install.included().excludes_a_group()
-            || pnpm_deps_restorer::has_variant_snapshots(built))
-        .then(|| {
+        (install.resolve_widened_groups() || install.included().excludes_a_group()).then(|| {
             built.importers
                 .keys()
                 .cloned()

@@ -7,8 +7,7 @@ use pnpm_graph_hasher::{
     format_global_virtual_store_path,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PlatformSelector,
-    SelectedVariant, SnapshotEntry,
+    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, SnapshotEntry,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -38,7 +37,6 @@ pub(super) fn lockfile_to_dep_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     lockfile_dir: Option<&Path>,
-    platform: &PlatformSelector,
 ) -> HashMap<String, DepsGraphNode<String>> {
     let mut graph = HashMap::with_capacity(snapshots.len());
     let mut link_target_nodes = HashSet::new();
@@ -54,10 +52,7 @@ pub(super) fn lockfile_to_dep_graph(
         );
         graph.insert(
             snapshot_key.to_string(),
-            DepsGraphNode {
-                full_pkg_id: full_pkg_id_of(snapshot_key, packages, platform),
-                children,
-            },
+            DepsGraphNode { full_pkg_id: full_pkg_id_of(snapshot_key, packages), children },
         );
     }
     for link_target_node in link_target_nodes {
@@ -88,14 +83,13 @@ pub(super) fn child_graph_key(
 pub(super) fn full_pkg_id_of(
     snapshot_key: &PackageKey,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    platform: &PlatformSelector,
 ) -> String {
     let pkg_id_with_patch_hash =
         PkgIdWithPatchHash::from(get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string());
     let resolution = packages
         .and_then(|packages| packages.get(&snapshot_key.without_peer()))
         .map(|meta| &meta.resolution);
-    create_full_pkg_id(&pkg_id_with_patch_hash, resolution, platform)
+    create_full_pkg_id(&pkg_id_with_patch_hash, resolution)
 }
 /// Length-prefixed so two adjacent fields cannot be confused with one
 /// longer field carrying the same bytes.
@@ -148,9 +142,8 @@ impl<'h> GvsHasher<'h> {
         engine: Option<&'h str>,
         gating: BuildGating<'_>,
         lockfile_dir: Option<&'h Path>,
-        platform: &PlatformSelector,
     ) -> Self {
-        let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir, platform);
+        let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir);
         let allow_build_policy = gating.policy;
         let build_required_dep_paths =
             allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
@@ -344,23 +337,14 @@ pub(super) fn engine_gating_dep_paths(
         .collect();
     pnpm_graph_hasher::build_required_dep_paths(graph, &built_dep_paths)
 }
-/// A `variations` resolution is identified by the archive `platform`
-/// selects, so projects that select different archives of one version
-/// get different slots.
+/// `variations` (cross-platform variant) resolutions don't exist in
+/// pacquet's lockfile model yet — when they're added, this helper
+/// will need a `selectPlatformVariant` branch to pick the right
+/// integrity.
 pub(super) fn create_full_pkg_id(
     pkg_id_with_patch_hash: &PkgIdWithPatchHash,
     resolution: Option<&LockfileResolution>,
-    platform: &PlatformSelector,
 ) -> String {
-    let resolution = match resolution {
-        Some(LockfileResolution::Variations(variations)) => variations
-            .select(&crate::install_package_by_snapshot::variations_platform(variations, platform))
-            .ok()
-            .flatten()
-            .map(SelectedVariant::resolution)
-            .or(resolution),
-        resolution => resolution,
-    };
     if let Some(integrity) = resolution.and_then(LockfileResolution::integrity) {
         return format!("{pkg_id_with_patch_hash}:{integrity}");
     }

@@ -49,7 +49,7 @@ use crate::{
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_fs::{LinkFailure, LinkFallback, LinkFallbackPolicy};
-use pnpm_lockfile::{PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry};
+use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashMap,
@@ -153,7 +153,6 @@ impl<'install> DirCloneCache<'install> {
                     runs_builds: !config.ignore_scripts,
                 },
                 lockfile_dir,
-                platform: crate::virtual_store_layout::selected_platform(config),
             },
             layout: OnceLock::new(),
 
@@ -368,7 +367,6 @@ struct CanonicalLayoutInputs<'install> {
     packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
     gating: crate::BuildGating<'install>,
     lockfile_dir: Option<&'install Path>,
-    platform: PlatformSelector,
 }
 
 impl CanonicalLayoutInputs<'_> {
@@ -385,7 +383,6 @@ impl CanonicalLayoutInputs<'_> {
             self.packages,
             self.gating,
             self.lockfile_dir,
-            &self.platform,
         )
     }
 }

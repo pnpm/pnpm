@@ -2,7 +2,7 @@ mod sources;
 
 use super::{
     InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
-    variant_fetch::{ArchiveSource, VariantFetch, variant_for_host},
+    runtime::binary_variant_for_host,
 };
 use crate::{CreateVirtualDirBySnapshot, create_virtual_store::requires_build_from_cas_paths};
 use pnpm_config::NodeLinker;
@@ -10,7 +10,6 @@ use pnpm_directory_fetcher::{CopyFiles, DirectoryFetchOutput, DirectoryFetcherEr
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
-    VariationsResolution,
 };
 use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
@@ -55,10 +54,6 @@ pub(super) struct TarballFetch<'a, AllowBuild> {
     package_key: &'a PackageKey,
     package_id: &'a str,
     allow_build: &'a AllowBuild,
-    /// Which archive of the version this is: a platform variant is served
-    /// like a revision, verified against its tar's digest, without
-    /// redirects.
-    source: ArchiveSource,
 }
 
 #[derive(Debug, Default)]
@@ -281,42 +276,6 @@ impl InstallPackageBySnapshot<'_> {
         }
     }
 
-    /// Fetch the archive a `variations` resolution selects for this
-    /// install's platform: a runtime's binary archive, or a registry
-    /// package's variant or primary tarball.
-    async fn fetch_variations<Reporter: self::Reporter>(
-        &self,
-        fetch: &SnapshotFetch<'_>,
-        variations: &VariationsResolution,
-        allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
-    ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
-    {
-        let platform = super::variations_platform(variations, self.runtime_platform_selector);
-        let selected = variant_for_host(variations, fetch.package_key, &platform, self.ctx.config)?;
-        let (resolution, source) = match selected {
-            VariantFetch::Binary(binary) => {
-                return self
-                    .fetch_binary::<Reporter>(binary, fetch.package_key)
-                    .await
-                    .map(|cas_paths| (Arc::new(cas_paths), ExtractedPackageMetadata::default()));
-            }
-            VariantFetch::Tarball { resolution, source } => (resolution, source),
-        };
-        let linked = self.tarball_cas_paths::<Reporter>(TarballFetch {
-            download: fetch.download,
-            resolution: &resolution,
-            package_key: fetch.package_key,
-            package_id: fetch.package_id,
-            allow_build,
-            source,
-        });
-        let stored =
-            self.fetch_stored_variants::<Reporter>(fetch, variations, selected, allow_build);
-        // The archives kept for other platforms download beside the linked
-        // one; the client's per-host limit bounds them.
-        futures_util::future::try_join(linked, stored).await.map(|(linked, ())| linked)
-    }
-
     /// Returns the fetched CAS paths alongside extracted package metadata and
     /// whether the source they came from existed. Always `true` except for a
     /// directory resolution; see [`crate::SlotImportSource::source_exists`].
@@ -364,9 +323,16 @@ impl InstallPackageBySnapshot<'_> {
                     .map(|cas_paths| without_metadata(cas_paths, true))
             }
             LockfileResolution::Variations(variations) => self
-                .fetch_variations::<Reporter>(&fetch, variations, &allow_build)
+                .fetch_binary::<Reporter>(
+                    binary_variant_for_host(
+                        variations,
+                        fetch.package_key,
+                        self.runtime_platform_selector,
+                    )?,
+                    fetch.package_key,
+                )
                 .await
-                .map(|(cas_paths, extracted)| (cas_paths, extracted, true)),
+                .map(|cas_paths| without_metadata(cas_paths, true)),
             LockfileResolution::Git(git_resolution) => self
                 .fetch_git::<Reporter>(&fetch, git_resolution, &allow_build)
                 .await
@@ -393,7 +359,6 @@ impl InstallPackageBySnapshot<'_> {
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
-            source: ArchiveSource::Primary,
         })
         .await
     }

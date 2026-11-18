@@ -6,7 +6,7 @@ use crate::{
 use pnpm_config::Config;
 use pnpm_lockfile::{
     LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PlatformSelector,
-    SnapshotEntry,
+    SnapshotEntry, select_platform_variant,
 };
 use pnpm_store_dir::store_index_key;
 use std::collections::HashMap;
@@ -147,7 +147,7 @@ pub(super) fn snapshot_cache_key(
         // is best-effort and the cold path is where errors are
         // raised).
         LockfileResolution::Variations(variations) => {
-            variant_cache_key(variations, runtime_platform_selector, &pkg_id, !ignore_scripts)
+            variant_cache_key(variations, runtime_platform_selector, &pkg_id)
         }
         // Custom resolutions have no built-in warm-cache key — the
         // cold path consults the pnpmfile custom fetchers, and the
@@ -274,41 +274,22 @@ pub(super) fn variant_cache_key(
     variations: &pnpm_lockfile::VariationsResolution,
     runtime_platform_selector: &PlatformSelector,
     pkg_id: &str,
-    built: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
-    let platform = crate::install_package_by_snapshot::variations_platform(
-        variations,
-        runtime_platform_selector,
-    );
-    let no_key = SnapshotCacheKey { value: None, is_git_hosted: false };
-    let Some(selected) = variations
-        .select(&platform)
-        .ok()
-        .flatten()
+    let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
     else {
-        return Ok(no_key);
+        return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
     };
-    match selected.resolution() {
+    match &variant.resolution {
         LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
             value: Some(store_index_key(&binary.integrity.to_string(), pkg_id)),
             is_git_hosted: false,
         }),
-        // A tarball is keyed as a lone tarball resolution is: a git-hosted
-        // one under its built or not-built key, which `derive_cache_keys`
-        // narrows on an explicit build denial, and one the downloader
-        // refuses under no key.
-        resolution @ LockfileResolution::Tarball(tarball) => {
-            tarball_cache_key(tarball, resolution, pkg_id, !built)
-        }
-        // A registry package's variant or primary archive, keyed by its own
-        // digest like any registry archive.
-        resolution @ LockfileResolution::Registry(_) => Ok(SnapshotCacheKey {
-            value: store_index_key_for_resolution(resolution, pkg_id, built),
-            is_git_hosted: false,
-        }),
-        // The cold path raises the typed `UnsupportedVariantResolution`
-        // error; we just skip the warm key.
-        _ => Ok(no_key),
+        // Non-`Binary` variant (corrupt lockfile, or a
+        // future shape pacquet doesn't recognise). The
+        // cold path raises the typed
+        // `VariantHasNonBinaryResolution` error; we just
+        // skip the warm key.
+        _ => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
     }
 }
 /// Rejects warm reuse when the downloader would refuse missing integrity.
@@ -319,8 +300,7 @@ pub(super) fn tarball_cache_key(
     pkg_id: &str,
     ignore_scripts: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
-    if resolution.checkable_integrity().is_none() && !unverified_fetch_is_allowed(&tarball.tarball)
-    {
+    if tarball.integrity.is_none() && !unverified_fetch_is_allowed(&tarball.tarball) {
         return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
     }
     Ok(SnapshotCacheKey {

@@ -168,7 +168,6 @@ mod macos {
             None,
             crate::BuildGating { policy: None, runs_builds: true },
             None,
-            &crate::host_platform_selector(),
         )
         .hashed_slot_dir(&key)
         .expect("hashed slot for the one snapshot");
