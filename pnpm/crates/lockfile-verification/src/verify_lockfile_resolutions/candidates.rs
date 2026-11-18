@@ -130,8 +130,17 @@ pub(super) async fn run_fan_out(
             evaluate_candidate(candidate, &verifiers).await
         });
     }
-    // Drain the rest of the fan-out so no in-flight task is dropped mid-await,
-    // but keep only the first abort.
+    drain_fan_out(futures, on_entry_checked).await
+}
+
+/// Drain the whole fan-out so no in-flight task is dropped mid-await,
+/// keeping only the first abort.
+async fn drain_fan_out(
+    mut futures: FuturesUnordered<
+        impl Future<Output = Result<Option<ResolutionPolicyViolation>, String>>,
+    >,
+    on_entry_checked: &mut (dyn FnMut() + Send),
+) -> Result<Vec<ResolutionPolicyViolation>, String> {
     let mut violations = Vec::new();
     let mut fetch_error: Option<String> = None;
     while let Some(result) = futures.next().await {
