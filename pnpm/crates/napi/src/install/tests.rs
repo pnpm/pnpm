@@ -99,6 +99,7 @@ fn install_options() -> InstallOptions {
         lockfile_only: None,
         frozen_lockfile: None,
         prefer_frozen_lockfile: None,
+        lockfile_format: None,
         prefer_offline: None,
         offline: None,
         virtual_store_dir_max_length: None,

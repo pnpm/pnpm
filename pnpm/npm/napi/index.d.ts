@@ -142,6 +142,12 @@ export interface InstallOptions extends SharedEngineOptions {
   lockfileOnly?: boolean
   frozenLockfile?: boolean
   preferFrozenLockfile?: boolean
+  /**
+   * The format the wanted lockfile is written in (the `lockfile.format`
+   * setting). `'v13'` writes the experimental `lockfileVersion: '13.0'`
+   * format. Defaults to `'v9'`.
+   */
+  lockfileFormat?: 'v9' | 'v13'
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
   preferOffline?: boolean
   offline?: boolean

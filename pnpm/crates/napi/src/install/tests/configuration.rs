@@ -118,3 +118,29 @@ fn resolved_config_applies_add_missing_peer_types() {
         );
     }
 }
+
+#[test]
+fn resolved_config_applies_lockfile_format() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    for (lockfile_format, expected) in [
+        (Some("v13"), pnpm_lockfile::LockfileFormat::V13),
+        (Some("v9"), pnpm_lockfile::LockfileFormat::V9),
+        (None, pnpm_lockfile::LockfileFormat::V9),
+    ] {
+        let mut options = install_options();
+        options.lockfile_format = lockfile_format.map(str::to_string);
+        let overlay = build_overlay(&options, false).expect("overlay");
+        assert_eq!(resolve_config(dir.path(), &overlay).expect("config").lockfile_format, expected);
+    }
+}
+
+#[test]
+fn an_unknown_lockfile_format_is_rejected() {
+    let mut options = install_options();
+    options.lockfile_format = Some("v10".to_string());
+    let Err(error) = build_overlay(&options, false) else {
+        panic!("lockfileFormat \"v10\" must be rejected");
+    };
+    assert!(error.reason.contains("invalid lockfileFormat"), "{}", error.reason);
+}
