@@ -8,6 +8,16 @@ use pnpr_config::{BackendConfig, DatabaseBackend, default_database_path};
 use std::{io::IsTerminal, path::PathBuf};
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
 
+// Rendering a packument makes large, short-lived allocations on many threads.
+// glibc malloc keeps that memory after the requests finish, so the resident
+// size of an idle server stays near its peak. The other targets keep the
+// system allocator until mimalloc's C build is verified there.
+#[cfg(all(
+    any(target_os = "linux", target_os = "macos", target_os = "windows"),
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+))]
+mod allocator;
+
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
@@ -25,6 +35,14 @@ struct Args {
 
     #[command(flatten)]
     server: ServerArgs,
+
+    /// Print the allocator's purge delay and exit. A test reads it.
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    #[arg(long, hide = true)]
+    allocator_purge_delay: bool,
 }
 
 #[derive(Debug, Default, Clone, clap::Args)]
@@ -43,10 +61,27 @@ struct StorageArgs {
     cache: Option<PathBuf>,
 }
 
+fn main() -> miette::Result<()> {
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    allocator::purge_freed_memory_immediately();
+    run()
+}
+
 #[tokio::main]
-async fn main() -> miette::Result<()> {
+async fn run() -> miette::Result<()> {
     let matches = Args::command().get_matches();
     let mut args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    if args.allocator_purge_delay {
+        println!("{}", allocator::purge_delay());
+        return Ok(());
+    }
     let auto_path = Config::auto_config_path();
 
     let server_args = match args.command.take() {

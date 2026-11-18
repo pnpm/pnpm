@@ -10,13 +10,9 @@ use super::{
 use axum::body::Bytes;
 use chrono::{DateTime, Utc};
 use pnpr_storage::BoundedCache;
-use std::{
-    collections::hash_map::RandomState,
-    hash::BuildHasher,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
-/// Source and rendered response bytes retained by one server instance.
+/// Rendered response bytes retained by one server instance.
 const CACHE_BUDGET: usize = 128 * 1024 * 1024;
 
 mod contexts;
@@ -25,21 +21,15 @@ use admission::Admissions;
 use contexts::TarContexts;
 use workers::Workers;
 
-type RenderFlight = super::super::Singleflight<CacheKey, SharedRender>;
-
-/// Retains the source on failure so fingerprint collisions cannot share errors.
-#[derive(Clone)]
-struct SharedRender {
-    source: Bytes,
-    result: Result<Arc<RenderedPackument>, Arc<RegistryError>>,
-}
+type RenderFlight =
+    super::super::Singleflight<CacheKey, Result<Arc<RenderedPackument>, Arc<RegistryError>>>;
 
 pub(crate) struct PackumentProcessing {
     pub(crate) workers: Workers,
     lookups: Workers,
     pub(crate) admissions: Admissions,
     cache: Mutex<BoundedCache<CacheKey, Arc<RenderedPackument>>>,
-    fingerprints: RandomState,
+    cache_budget: usize,
     contexts: TarContexts,
     in_flight: RenderFlight,
 }
@@ -53,7 +43,7 @@ impl Default for PackumentProcessing {
             // Source slots cover I/O as well as CPU work.
             admissions: Admissions::new(workers * 8),
             cache: Mutex::new(BoundedCache::default()),
-            fingerprints: RandomState::new(),
+            cache_budget: CACHE_BUDGET,
             contexts: TarContexts::default(),
             in_flight: RenderFlight::new(),
         }
@@ -88,14 +78,15 @@ impl OwnedView {
     }
 }
 
+// The cache holds no source document, so the digests are all that tie a
+// response to the bytes it was rendered from.
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct CacheKey {
-    fingerprint: u64,
+    source: String,
     context: String,
 }
 
 pub(super) struct RenderedPackument {
-    source: Bytes,
     pub(super) body: Bytes,
     pub(super) content_type: &'static str,
     pub(super) etag: String,
@@ -128,7 +119,7 @@ pub(super) async fn render(
     let lookup_state = state.clone();
     let (key, cached) = state.inner.packuments.lookups.run(move || {
         let key = input_key(&lookup_input, &lookup_state.inner.packuments)?;
-        let cached = cached_document(&key, &lookup_input.bytes, &lookup_state.inner.packuments);
+        let cached = cached_document(&key, &lookup_state.inner.packuments);
         Ok::<_, RegistryError>((key, cached))
     })
     .await??;
@@ -143,21 +134,10 @@ async fn render_shared(
     key: CacheKey,
     state: &AppState,
 ) -> Result<Arc<RenderedPackument>, RegistryError> {
-    let leader_input = input.clone();
-    let leader_key = key.clone();
-    let shared = state.inner.packuments.in_flight.work(key.clone(), || async {
-        let source = leader_input.bytes.clone();
-        let result = render_job(leader_input, leader_key, state).await.map_err(Arc::new);
-        SharedRender { source, result }
-    })
-    .await;
-    let source = input.bytes.clone();
-    let candidate = shared.source.clone();
-    let matches = state.inner.packuments.lookups.run(move || candidate == source).await?;
-    if matches {
-        return shared.result.map_err(RegistryError::Shared);
-    }
-    render_job(input, key, state).await
+    state.inner.packuments.in_flight
+        .work(key.clone(), || async { render_job(input, key, state).await.map_err(Arc::new) })
+        .await
+        .map_err(RegistryError::Shared)
 }
 
 async fn render_job(
@@ -185,7 +165,6 @@ fn input_key(
 
 fn cached_document(
     key: &CacheKey,
-    bytes: &Bytes,
     processing: &PackumentProcessing,
 ) -> Option<Arc<RenderedPackument>> {
     let cached = processing.cache
@@ -195,9 +174,7 @@ fn cached_document(
         .cloned();
     let now = Utc::now();
     cached.filter(|rendered| {
-        rendered.source == *bytes
-            && now >= rendered.rendered_at
-            && rendered.expires.is_none_or(|expires| now <= expires)
+        now >= rendered.rendered_at && rendered.expires.is_none_or(|expires| now <= expires)
     })
 }
 
@@ -206,23 +183,23 @@ fn render_miss(
     key: CacheKey,
     state: &AppState,
 ) -> Result<Arc<RenderedPackument>, RegistryError> {
-    if let Some(cached) = cached_document(&key, &input.bytes, &state.inner.packuments) {
+    if let Some(cached) = cached_document(&key, &state.inner.packuments) {
         return Ok(cached);
     }
     let rendered = Arc::new(render_document(
         &input.name,
-        input.bytes.clone(),
+        &input.bytes,
         &input.tarball_base,
         input.view.view(),
         state,
         input.representation,
         Utc::now(),
     )?);
-    let weight = rendered.source.len() + rendered.body.len() + key.context.len() + 256;
+    let weight = rendered.body.len() + key.source.len() + key.context.len() + 256;
     state.inner.packuments.cache
         .lock()
         .expect("packument cache poisoned")
-        .insert(key, Arc::clone(&rendered), weight, CACHE_BUDGET);
+        .insert(key, Arc::clone(&rendered), weight, state.inner.packuments.cache_budget);
     Ok(rendered)
 }
 
@@ -246,23 +223,22 @@ fn cache_key(
         view.hosted,
         representation as u8,
     ))?;
-    // Fingerprints only select candidates. Reuse requires matching source bytes.
     Ok(CacheKey {
-        fingerprint: processing.fingerprints.hash_one(bytes),
+        source: super::super::ecosystem::sha256_hex(bytes),
         context: super::super::ecosystem::sha256_hex(&context),
     })
 }
 
 fn render_document(
     name: &CanonicalPackageName,
-    bytes: Bytes,
+    bytes: &[u8],
     tarball_base: &str,
     view: DistView<'_>,
     state: &AppState,
     representation: Representation,
     now: DateTime<Utc>,
 ) -> Result<RenderedPackument, RegistryError> {
-    let mut doc: Value = serde_json::from_slice(&bytes)?;
+    let mut doc: Value = serde_json::from_slice(bytes)?;
     if view.hosted && representation == Representation::Full {
         doc["_rev"] = Value::String(super::super::package_mutation::revisions::revision(&doc));
     }
@@ -285,7 +261,6 @@ fn render_document(
         representation.render(doc, &state.inner.config.http.package_documents, now)?;
     let etag = format!(r#""{}""#, super::super::ecosystem::sha256_hex(&body));
     Ok(RenderedPackument {
-        source: bytes,
         body: body.into(),
         content_type,
         etag,
