@@ -93,7 +93,7 @@ const steps = opts['wasm-package'] ? [
   ...installedCliSteps('../installed/node_modules/.bin/pnpm'),
 ] : opts['wasm-cli'] ? wasmCliSteps() : opts['wasm-registry'] ? [
   { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
-  { name: 'mock registry command workflows', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', '../pnpm/runtime/pnpm.mjs'], expectOutput: 'Mock registry view, search, ping, stars, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
+  { name: 'mock registry command workflows', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', '../pnpm/runtime/pnpm.mjs'], expectOutput: 'Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
   ] : opts['wasm-hoisted'] ? [
     { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
     { name: 'create hoisted workspace fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs'] },
@@ -161,6 +161,11 @@ try {
       failed = true
       break
     }
+    if (step.expectOutputSequence != null && !containsInOrder(text, step.expectOutputSequence)) {
+      console.error(`FAIL: "${step.name}" output did not contain the expected sequence: ${step.expectOutputSequence.join(' -> ')}`)
+      failed = true
+      break
+    }
     if (step.expectNoOutput != null && text.includes(step.expectNoOutput)) {
       console.error(`FAIL: "${step.name}" output unexpectedly contains "${step.expectNoOutput}"`)
       failed = true
@@ -194,7 +199,7 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     { name: 'pack-app fails without side effects', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, 'pack-app', '--expect', 'WebContainers cannot run that builder'], expectOutput: 'failed without changing project files' },
     { name: 'Cargo add fails without side effects', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, '--cargo-add', '--expect', 'spawn cargo ENOENT'], expectOutput: 'failed without changing project files' },
     ...networkCapabilitySteps(entry),
-    { name: 'registry commands use the WebContainer host', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', entry], expectOutput: 'Mock registry view, search, ping, stars, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
+    { name: 'registry commands use the WebContainer host', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', entry], expectOutput: 'Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
     ...steps,
     { name: 'install alias i', command: 'node', args: [entry, 'i', '--offline'] },
     { name: 'list alias ls', command: 'node', args: [entry, 'ls'], expectOutput: 'semver@7.6.3' },
@@ -381,4 +386,14 @@ function withTimeout (promise, name) {
   return Promise.race([promise, timeout]).finally(() => {
     clearTimeout(timer)
   })
+}
+
+function containsInOrder (text, parts) {
+  let position = 0
+  for (const part of parts) {
+    const nextPosition = text.indexOf(part, position)
+    if (nextPosition === -1) return false
+    position = nextPosition + part.length
+  }
+  return true
 }

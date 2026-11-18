@@ -12,9 +12,11 @@ else if (process.argv[2] === '--assert-no-effects') assertUnsupportedCommandHasN
 else if (process.argv[2] === '--registry-workflow') await runRegistryWorkflow(process.argv[3])
 else if (process.argv[2] === '--store-status-mutation') assertStoreStatusDetectsMutation(process.argv[3])
 else if (process.argv[2] === '--cat-file') assertCatFileContents(process.argv[3])
+else if (process.argv[2] === '--find-hash') assertFindHash(process.argv[3])
 else if (process.argv[2] === '--network-cert-fixtures') writeNetworkCertificateFixtures()
 else if (process.argv[2] === '--client-identity-config') writeClientIdentityConfig()
 else if (process.argv[2] === '--install-test-fixture') createInstallTestFixture()
+else if (process.argv[2] === '--link-fixture') createLinkFixture()
 else if (process.argv[2] === '--doctor') inspectDoctor(process.argv[3])
 else if (process.argv[2] === '--command-routing') assertCommandRouting(process.argv[3], process.argv[4])
 else if (process.argv[2] === '--list-clean-remnants') listCleanRemnants()
@@ -24,6 +26,17 @@ else createWorkspaceFixture()
 async function runRegistryWorkflow (entry) {
   const requests = []
   const stars = new Set()
+  const rejectedStages = new Set()
+  const stagedId = '1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f'
+  const stagedItem = {
+    id: stagedId,
+    packageName: 'webcontainer-publish-probe',
+    version: '1.0.0',
+    tag: 'latest',
+    createdAt: '2026-03-16T09:00:00.000Z',
+    actor: 'webcontainer-fixture',
+    actorType: 'user',
+  }
   let publishDocument
   const server = createServer(async (request, response) => {
     const chunks = []
@@ -31,7 +44,34 @@ async function runRegistryWorkflow (entry) {
     const body = Buffer.concat(chunks).toString()
     const pathname = request.url.split('?')[0]
     requests.push({ method: request.method, url: request.url, authorization: request.headers.authorization, body })
-    if (request.method === 'POST' && request.url === '/-/v1/login') {
+    if (request.method === 'GET' && pathname === '/-/stage') {
+      const items = rejectedStages.has(stagedId) ? [] : [stagedItem]
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ items, total: items.length }))
+    } else if (request.method === 'GET' && pathname === `/-/stage/${stagedId}`) {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify(stagedItem))
+    } else if (request.method === 'DELETE' && pathname === `/-/stage/${stagedId}`) {
+      rejectedStages.add(stagedId)
+      response.writeHead(204).end()
+    } else if (request.method === 'GET' && pathname === '/semver') {
+      const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({
+        name: 'semver',
+        'dist-tags': { latest: '7.7.2' },
+        versions: Object.fromEntries(['7.6.3', '7.7.2'].map(version => [version, {
+          name: 'semver',
+          version,
+          description: 'WebContainer command audit fixture',
+          license: 'ISC',
+          dist: { integrity, tarball: `${registry}semver/-/semver-${version}.tgz` },
+        }])),
+      }))
+    } else if (request.method === 'POST' && pathname === '/-/npm/v1/security/advisories/bulk') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ semver: [] }))
+    } else if (request.method === 'POST' && request.url === '/-/v1/login') {
       response.setHeader('content-type', 'application/json')
       response.end(JSON.stringify({ loginUrl: `http://127.0.0.1:${server.address().port}/login`, doneUrl: `http://127.0.0.1:${server.address().port}/done` }))
     } else if (request.url.startsWith('/done')) {
@@ -123,6 +163,7 @@ async function runRegistryWorkflow (entry) {
   writeFileSync(path.join(project, 'package.json'), JSON.stringify({
     name: 'webcontainer-publish-probe',
     version: '1.0.0',
+    bugs: { url: 'https://example.test/webcontainer-publish-probe/issues' },
     homepage: 'https://example.test/webcontainer-publish-probe',
     repository: 'https://example.test/webcontainer-publish-probe.git',
   }))
@@ -196,6 +237,77 @@ async function runRegistryWorkflow (entry) {
     assert.equal(tokens.exitCode, 0, tokens.output)
     assert.deepEqual(JSON.parse(tokens.output).map(({ key, readonly }) => ({ key, readonly })), [{ key: 'fixture-key', readonly: true }])
 
+    const bugs = await runPackageManager(entry, ['bugs'], project, env)
+    assert.equal(bugs.exitCode, 0, bugs.output)
+    assert.match(bugs.output, /https:\/\/example\.test\/webcontainer-publish-probe\/issues/)
+    assert.match(bugs.output, /Could not open browser: WebContainers cannot open a browser window/)
+    const issues = await runPackageManager(entry, ['issues'], project, env)
+    assert.equal(issues.exitCode, 0, issues.output)
+    assert.match(issues.output, /https:\/\/example\.test\/webcontainer-publish-probe\/issues/)
+
+    const repo = await runPackageManager(entry, ['repo'], project, env)
+    assert.equal(repo.exitCode, 0, repo.output)
+    assert.match(repo.output, /https:\/\/example\.test\/webcontainer-publish-probe\.git/)
+    assert.match(repo.output, /Could not open browser: WebContainers cannot open a browser window/)
+
+    const emptyProject = path.resolve('.empty-project-probe')
+    mkdirSync(emptyProject, { recursive: true })
+    writeFileSync(path.join(emptyProject, 'package.json'), JSON.stringify({ name: 'empty-project-probe', version: '1.0.0', dependencies: { semver: '7.6.3' } }))
+    const missingBugs = await runPackageManager(entry, ['bugs'], emptyProject, env)
+    assert.equal(missingBugs.exitCode, 1)
+    assert.match(missingBugs.output, /ERR_PNPM_NO_BUGS_URL/)
+    const missingRepo = await runPackageManager(entry, ['repo'], emptyProject, env)
+    assert.equal(missingRepo.exitCode, 1)
+    assert.match(missingRepo.output, /ERR_PNPM_NO_REPO_URL/)
+
+    const outdatedProject = path.resolve('.outdated-probe')
+    createLockedDependencyFixture(outdatedProject)
+    const outdated = await runPackageManager(entry, ['outdated', '--format', 'json', '--registry', registry], outdatedProject, env)
+    assert.equal(outdated.exitCode, 1, outdated.output)
+    const outdatedReport = JSON.parse(outdated.output)
+    assert.equal(outdatedReport.semver.current, '7.6.3')
+    assert.equal(outdatedReport.semver.latest, '7.7.2')
+
+    const emptyProjectBeforeOutdated = snapshot(emptyProject)
+    const requestsBeforeOutdatedFailure = requests.length
+    const outdatedWithoutLockfile = await runPackageManager(entry, ['outdated', '--registry', registry], emptyProject, env)
+    assert.equal(outdatedWithoutLockfile.exitCode, 1)
+    assert.match(outdatedWithoutLockfile.output, /ERR_PNPM_OUTDATED_NO_LOCKFILE/)
+    assert.deepEqual(snapshot(emptyProject), emptyProjectBeforeOutdated, 'outdated without a lockfile changed project files')
+    assert.equal(requests.length, requestsBeforeOutdatedFailure, 'outdated without a lockfile made registry requests')
+
+    const stageList = await runPackageManager(entry, ['stage', 'list', '--json', '--registry', registry], project, env)
+    assert.equal(stageList.exitCode, 0, stageList.output)
+    assert.equal(JSON.parse(stageList.output)[0].packageName, stagedItem.packageName)
+    const stageView = await runPackageManager(entry, ['stage', 'view', stagedId, '--json', '--registry', registry], project, env)
+    assert.equal(stageView.exitCode, 0, stageView.output)
+    assert.equal(JSON.parse(stageView.output).id, stagedId)
+    const stageInvalidId = await runPackageManager(entry, ['stage', 'view', 'not-a-uuid', '--registry', registry], project, env)
+    assert.equal(stageInvalidId.exitCode, 1)
+    assert.match(stageInvalidId.output, /ERR_PNPM_INVALID_STAGE_ID/)
+    const stageRequestsBeforeReject = requests.length
+    const stageReject = await runPackageManager(entry, ['stage', 'reject', stagedId, '--registry', registry], project, env)
+    assert.equal(stageReject.exitCode, 0, stageReject.output)
+    assert.ok(requests.slice(stageRequestsBeforeReject).some(request => request.method === 'DELETE' && request.url === `/-/stage/${stagedId}`))
+    const stageListAfterReject = await runPackageManager(entry, ['stage', 'list', '--json', '--registry', registry], project, env)
+    assert.equal(stageListAfterReject.exitCode, 0, stageListAfterReject.output)
+    assert.deepEqual(JSON.parse(stageListAfterReject.output), [])
+
+    const stagePublishDryRun = await runPackageManager(entry, ['stage', 'publish', '--dry-run', '--no-git-checks', '--registry', registry], project, env)
+    assert.equal(stagePublishDryRun.exitCode, 0, stagePublishDryRun.output)
+    assert.match(stagePublishDryRun.output, /would stage/)
+
+    const audit = await runPackageManager(entry, ['audit', '--json', '--registry', registry], outdatedProject, env)
+    assert.equal(audit.exitCode, 0, audit.output)
+    assert.deepEqual(JSON.parse(audit.output).metadata.vulnerabilities, { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 })
+    assert.ok(requests.some(request => request.method === 'POST' && request.url === '/-/npm/v1/security/advisories/bulk' && JSON.parse(request.body).semver?.includes('7.6.3')))
+
+    const requestsBeforeUnknownAudit = requests.length
+    const auditUnknownSubcommand = await runPackageManager(entry, ['audit', 'unknown', '--registry', registry], outdatedProject, env)
+    assert.equal(auditUnknownSubcommand.exitCode, 1)
+    assert.match(auditUnknownSubcommand.output, /ERR_PNPM_AUDIT_UNKNOWN_SUBCOMMAND/)
+    assert.equal(requests.length, requestsBeforeUnknownAudit, 'unknown audit subcommand reached the registry')
+
     const publish = await runPackageManager(entry, ['publish', '--registry', registry, '--no-git-checks', '--ignore-scripts', '--publish-wait-timeout', '0'], project, env)
     assert.equal(publish.exitCode, 0, publish.output)
     assert.equal(publishDocument?.name, 'webcontainer-publish-probe')
@@ -259,7 +371,7 @@ async function runRegistryWorkflow (entry) {
     const aliasLogout = await runPackageManager(entry, ['logout', '--registry', registry], project, env)
     assert.equal(aliasLogout.exitCode, 0, aliasLogout.output)
     assert.ok(requests.some(request => request.method === 'PUT' && request.url === '/webcontainer-publish-probe'))
-    console.log('Mock registry view, search, ping, stars, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed')
+    console.log('Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed')
   } finally {
     await new Promise(resolve => server.close(resolve))
     rmSync(project, { recursive: true, force: true })
@@ -309,6 +421,15 @@ function assertCatFileContents (entry) {
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, packageJson.toString())
   console.log('cat-file returned the matching content-addressed package file')
+}
+
+function assertFindHash (entry) {
+  const packageJson = readFileSync('packages/local/node_modules/semver/package.json')
+  const hash = createHash('sha512').update(packageJson).digest('base64')
+  const result = spawnSync(process.execPath, [path.resolve(entry), 'find-hash', `sha512-${hash}`], { encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stdout, /semver@7\.6\.3/)
+  console.log('find-hash located the package with the matching content hash')
 }
 
 function writeNetworkCertificateFixtures () {
@@ -454,9 +575,12 @@ function createWorkspaceFixture () {
     postinstall: 'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ok\', \'yes\')"',
     verify: 'node -e "require(\'@fixture/local\'); console.log(\'wasm-script-ok\')"',
     'wasm-external': 'node -e "console.log(\'wasm-external-script-ok\')"',
+    start: 'node -e "console.log(\'wasm-start-script-ok\')"',
+    stop: 'node -e "console.log(\'wasm-stop-script-ok\')"',
+    restart: 'node -e "console.log(\'wasm-restart-script-ok\')"',
   }
   writeFileSync('package.json', JSON.stringify(manifest))
-  writeFileSync('pnpm-workspace.yaml', "packages:\n  - packages/*\n")
+  writeFileSync('pnpm-workspace.yaml', "packages:\n  - packages/*\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: []\n")
   mkdirSync('packages/local', { recursive: true })
   writeFileSync('packages/local/package.json', JSON.stringify({
     name: '@fixture/local', version: '1.0.0', main: 'index.cjs',
@@ -484,6 +608,35 @@ function createInstallTestFixture () {
   }))
 }
 
+function createLinkFixture () {
+  mkdirSync('.link-audit', { recursive: true })
+  writeFileSync('.link-audit/package.json', JSON.stringify({ name: 'link-audit', version: '1.0.0' }))
+}
+
+function createLockedDependencyFixture (directory) {
+  mkdirSync(directory, { recursive: true })
+  writeFileSync(path.join(directory, 'package.json'), JSON.stringify({
+    name: 'webcontainer-command-audit',
+    version: '1.0.0',
+    dependencies: { semver: '7.6.3' },
+  }))
+  writeFileSync(path.join(directory, 'pnpm-lock.yaml'), `lockfileVersion: '9.0'
+settings: {}
+importers:
+  .:
+    dependencies:
+      semver:
+        specifier: 7.6.3
+        version: 7.6.3
+packages:
+  semver@7.6.3:
+    resolution:
+      integrity: sha512-${Buffer.alloc(64).toString('base64')}
+snapshots:
+  semver@7.6.3: {}
+`)
+}
+
 function inspectDoctor (entry) {
   const result = spawnSync(process.execPath, [entry, 'doctor', '--offline', '--json'], { encoding: 'utf8' })
   const report = JSON.parse(result.stdout)
@@ -504,6 +657,12 @@ function assertCommandRouting (entry, inventoryPath) {
     const commandPath = path.startsWith('alias:') ? aliasCommandPath(path) : path
     const args = commandPath.split(' ')
     const help = spawnSync(process.execPath, [entry, ...args, '--help'], { encoding: 'utf8' })
+    if (path === 'test' || path === 'alias:test=t' || path === 'alias:test=tst') {
+      assert.equal(help.status, 1, `${path} should dispatch to the project script: ${help.stderr || help.stdout}`)
+      assert.match(`${help.stderr}${help.stdout}`, /ERR_PNPM_NO_SCRIPT/)
+      tested++
+      continue
+    }
     assert.equal(help.status, 0, `${path} help failed: ${help.stderr || help.stdout}`)
     assert.match(help.stdout, /Usage:/, `${path} did not print command usage`)
 
