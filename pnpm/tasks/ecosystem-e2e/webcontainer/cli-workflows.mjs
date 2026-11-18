@@ -67,7 +67,7 @@ export function inspectionWorkflowSteps (entry) {
     { name: 'run the start script', command: 'node', args: [entry, 'start'], expectOutput: 'wasm-start-script-ok' },
     { name: 'run the stop script', command: 'node', args: [entry, 'stop'], expectOutput: 'wasm-stop-script-ok' },
     { name: 'restart runs stop, restart and start scripts in order', command: 'node', args: [entry, 'restart'], expectOutputSequence: ['wasm-stop-script-ok', 'wasm-restart-script-ok', 'wasm-start-script-ok'] },
-    { name: 'run the rebuild alias rb', command: 'node', args: [entry, '--dir', 'packages/local', 'rb'], expectOutput: 'wasm-rebuild-script-override' },
+    { name: 'run the rebuild package script', command: 'node', args: [entry, '--dir', 'packages/local', 'run', 'rebuild'], expectOutput: 'wasm-rebuild-script-override' },
     { name: 'run workspace tasks through pipeline', command: 'node', args: [entry, 'pipeline', '--full', '--no-cache'], expectOutput: 'wasm-filter-ok' },
     { name: 'reject an unknown pipeline name', command: 'node', args: [entry, 'pipeline', 'missing', '--full', '--dry-run'], expectExitCode: 1, expectOutput: 'ERR_PNPM_UNKNOWN_PIPELINE' },
     { name: 'run the set-script alias ss', command: 'node', args: [entry, 'ss', 'alias-script', `node -e "console.log('wasm-set-script-alias-ok')"`] },
