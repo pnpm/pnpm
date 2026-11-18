@@ -59,12 +59,13 @@ pub(crate) fn current_pkg_from_lockfile(
 
 /// The prior snapshot key recorded for child edge `alias` under
 /// `snapshot`'s dependency maps, when the recorded version still
-/// satisfies `bare_specifier`. A bare range names the package `alias`
-/// itself, so a ref recorded as an `npm:` alias of another package never
-/// satisfies it. Whether the key is one the configuration still writes is
-/// [`locked_key_is_current`]'s question, asked before a subtree is reused;
-/// the version pin holds either way.
+/// satisfies `bare_specifier` or the specifier names the exact locked Git
+/// revision. A bare range names the package `alias` itself, so a ref recorded
+/// as an `npm:` alias of another package never satisfies it.
+/// [`locked_key_is_current`] checks whether the configuration still writes
+/// this key before reusing a subtree.
 pub(crate) fn prior_child_key(
+    lockfile: Option<&Lockfile>,
     snapshot: &SnapshotEntry,
     alias: &str,
     bare_specifier: &str,
@@ -80,6 +81,19 @@ pub(crate) fn prior_child_key(
                 .and_then(|deps| deps.get(&name))
         })?;
     let key = dep_ref.resolve(&name)?;
+    if matches!(key.suffix.version(), VersionPart::NonSemver(locator) if locator == bare_specifier)
+        && lockfile
+            .and_then(|lockfile| {
+                lockfile.packages
+                    .as_ref()?
+                    .get(&key.without_peer())
+            })
+            .is_some_and(|metadata| {
+                matches!(reusable_resolution(&metadata.resolution), Some(ReusableResolution::Git))
+            })
+    {
+        return Some(key);
+    }
     runtime_child_admits(&key, bare_specifier)
         .or_else(|| locked_child_admits(&name, &key, bare_specifier, registries))?
         .then_some(key)
@@ -106,12 +120,7 @@ pub(crate) fn reusable_importer_dep(
     let metadata = lockfile.packages
         .as_ref()?
         .get(&key.without_peer())?;
-    let is_git = matches!(metadata.resolution, LockfileResolution::Git(_))
-        || matches!(
-            metadata.resolution,
-            LockfileResolution::Tarball(ref tarball) if tarball.git_hosted == Some(true),
-        );
-    if is_git
+    if matches!(reusable_resolution(&metadata.resolution), Some(ReusableResolution::Git))
         && (spec.specifier == bare_specifier
             || git_specifiers_are_equivalent(&spec.specifier, bare_specifier))
     {
