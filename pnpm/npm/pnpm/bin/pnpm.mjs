@@ -19,12 +19,13 @@
 // which already knows how to verify one; it travels in that same `dist/`
 // payload, and reads the registry, credentials, and signing keys from pnpm's
 // and Corepack's config.
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import console from 'node:console'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { setImmediate } from 'node:timers/promises'
 import { URL } from 'node:url'
 import { readWrapperManifest, resolveInstalledBinary, wrapperDir } from '../native-binary.mjs'
 
@@ -39,21 +40,52 @@ const GET_PNPM = new URL('../dist/node_modules/get-pnpm/lib/index.js', import.me
 if ('webcontainer' in process.versions) {
   fail('The pnpm package runs a native binary, which WebContainers cannot execute. Install @pnpm/wasm instead.')
 }
-run(await nativeBinary())
+await run(await nativeBinary())
 
-function run (binary) {
+async function run (binary) {
   // Ctrl-C reaches the whole foreground process group, so the binary gets its
   // own SIGINT; exiting here first would hand the terminal back while it is
   // still shutting down.
-  process.on('SIGINT', () => {})
-
-  const result = spawnSync(binary, process.argv.slice(2), { stdio: 'inherit' })
+  let interrupted = false
+  const onInterrupt = () => { interrupted = true }
+  process.on('SIGINT', onInterrupt)
+  const args = process.argv.slice(2)
+  const result = process.platform === 'win32'
+    ? spawnSync(binary, args, { stdio: 'inherit' })
+    : await runUnix(binary, args, () => interrupted)
+  process.removeListener('SIGINT', onInterrupt)
   if (result.error != null) {
     fail(`Could not run the pnpm binary at ${binary}: ${result.error.message}`)
   }
   process.exitCode = result.signal == null
     ? result.status ?? 1
     : 128 + (os.constants.signals[result.signal] ?? 0)
+}
+
+async function runUnix (binary, args, wasInterrupted) {
+  // Keep the child in the foreground group and hold it at a pipe until Node
+  // has had a chance to dispatch a SIGINT received before the child existed.
+  const child = spawn('/bin/sh', ['-c', 'read -r launch <&3 || exit 130\nexec 3<&-\nexec "$@"', 'pnpm', binary, ...args], {
+    stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
+  })
+  const launch = child.stdio[3]
+  const result = new Promise((resolve) => {
+    child.once('error', (error) => resolve({ error }))
+    child.once('close', (status, signal) => resolve({ status, signal }))
+    launch?.once('error', (error) => {
+      if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') resolve({ error })
+    })
+  })
+  // A single immediate can run in the current check phase. Two leave a poll
+  // phase in between for Node's queued signal callback.
+  await setImmediate()
+  await setImmediate()
+  if (wasInterrupted()) {
+    launch?.end()
+  } else {
+    launch?.end('run\n')
+  }
+  return result
 }
 
 async function nativeBinary () {
