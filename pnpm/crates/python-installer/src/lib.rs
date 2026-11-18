@@ -94,10 +94,24 @@ pub fn plan<Reporter: self::Reporter + 'static>(
         .iter()
         .map(|membership| membership.root.join("pylock.toml"))
         .collect();
+    report_unmanaged_requirements::<Reporter>(&discovery.unmanaged);
     pnpm_install_coordinator::InstallTask::new(
         metadata,
         prepare::<Reporter>(context, discovery, false, selection, selected),
     )
+}
+
+fn report_unmanaged_requirements<Reporter: self::Reporter + 'static>(unmanaged: &[PathBuf]) {
+    for root in unmanaged {
+        let environment = root.join(".venv");
+        let message = format!(
+            "Skipping the Python requirements in {}: pnpm did not create {}. Remove that \
+             directory to let pnpm install them.",
+            root.display(),
+            environment.display(),
+        );
+        Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
+    }
 }
 
 /// Say which of the platforms this install prepares for pnpm cannot

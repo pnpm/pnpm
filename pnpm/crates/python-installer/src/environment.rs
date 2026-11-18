@@ -1,4 +1,4 @@
-pub(super) use store::{EnvironmentStore, Generation, publish_link};
+pub(super) use store::{EnvironmentLink, EnvironmentStore, Generation, publish_link};
 
 use super::{
     Arc, Environments, Index, Inputs, InstallOptions, Interpreter, IntoDiagnostic, Lockfile,

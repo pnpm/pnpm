@@ -236,3 +236,55 @@ async fn reports_invalid_utf8_in_a_declared_member() {
 
     assert!(error.to_string().contains("decode "), "{error:?}");
 }
+
+#[tokio::test]
+async fn an_unmanaged_environment_skips_only_a_project_that_installs_into_it() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    fs::create_dir(&workspace).unwrap();
+    fs::write(
+        workspace.join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['shared/*']\n\n[tool.pnpm.python]\nshared-environment = true\n",
+    )
+    .unwrap();
+    let member = workspace.join("shared/tools");
+    let standalone = root.path().join("standalone");
+    for project in [&member, &standalone] {
+        fs::create_dir_all(project.join(".venv")).unwrap();
+        fs::write(project.join("requirements.txt"), "ruff==0.14.13\n").unwrap();
+    }
+    let manifests = vec![
+        workspace.join("pyproject.toml"),
+        member.join("requirements.txt"),
+        standalone.join("requirements.txt"),
+    ];
+
+    let discovery = discover(&Config::default(), root.path(), &manifests).await.unwrap();
+
+    assert_eq!(discovery.project_roots().collect::<Vec<_>>(), [member]);
+    assert_eq!(discovery.unmanaged, [standalone]);
+}
+
+#[tokio::test]
+async fn a_nested_workspace_that_shares_nothing_keeps_its_members_out_of_the_outer_environment() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['nested/*']\n\n[tool.pnpm.python]\nshared-environment = true\n",
+    )
+    .unwrap();
+    let nested = root.path().join("nested");
+    let tools = nested.join("tools");
+    fs::create_dir_all(tools.join(".venv")).unwrap();
+    fs::write(nested.join("pyproject.toml"), "[tool.uv.workspace]\nmembers = ['tools']\n").unwrap();
+    fs::write(tools.join("requirements.txt"), "--index-url https://example.com/simple\n").unwrap();
+    let manifests = vec![
+        root.path().join("pyproject.toml"),
+        nested.join("pyproject.toml"),
+        tools.join("requirements.txt"),
+    ];
+
+    let discovery = discover(&Config::default(), root.path(), &manifests).await.unwrap();
+
+    assert_eq!(discovery.unmanaged, [tools]);
+}
