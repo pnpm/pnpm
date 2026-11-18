@@ -2737,6 +2737,8 @@ snapshots:
 		"pnpm11/deps/inspection/peers-checker": {
 			"name": "@pnpm/deps.inspection.peers-checker",
 			"dependencies": {
+				"@pnpm/catalogs.resolver": "workspace:*",
+				"@pnpm/catalogs.types": "workspace:*",
 				"@pnpm/config.matcher": "workspace:*",
 				"@pnpm/config.parse-overrides": "workspace:*",
 				"@pnpm/deps.path": "workspace:*",

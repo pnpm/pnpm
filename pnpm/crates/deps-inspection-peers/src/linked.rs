@@ -320,7 +320,7 @@ fn project_dependency<'a>(
         })
 }
 
-fn resolve_peer_range(
+pub(super) fn resolve_peer_range(
     peer_name: &str,
     peer_range: &str,
     catalogs: Option<&Catalogs>,

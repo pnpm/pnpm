@@ -1,4 +1,6 @@
 /// <reference path="../../../../__typings__/index.d.ts"/>
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -69,6 +71,50 @@ test('reports no issues for satisfied loose peer dependency ranges', async () =>
   expect(projectIssues).toBeDefined()
   expect(Object.keys(projectIssues.bad)).toHaveLength(0)
   expect(Object.keys(projectIssues.missing)).toHaveLength(0)
+})
+
+test('resolves the catalog peer range of an injected workspace package through the catalogs', async () => {
+  const fixture = testFixtures.find('with-injected-catalog-peer')
+  const issues = await checkPeerDependencies([path.join(fixture, 'packages/app')], {
+    lockfileDir: fixture,
+    catalogs: { default: { 'is-odd': '3.0.1' } },
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['packages/app']
+  expect(projectIssues).toBeDefined()
+  expect(Object.keys(projectIssues.bad)).toHaveLength(0)
+  expect(Object.keys(projectIssues.missing)).toHaveLength(0)
+})
+
+test('reports a catalog peer range of an injected workspace package that the installed version does not satisfy', async () => {
+  const fixture = testFixtures.find('with-injected-catalog-peer')
+  const issues = await checkPeerDependencies([path.join(fixture, 'packages/app')], {
+    lockfileDir: fixture,
+    catalogs: { default: { 'is-odd': '^4.0.0' } },
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['packages/app']
+  expect(projectIssues.bad['is-odd']).toStrictEqual([expect.objectContaining({
+    wantedRange: '^4.0.0',
+    foundVersion: '3.0.1',
+  })])
+})
+
+test('reports the catalog peer range of an injected workspace package that has no catalog entry as written', async () => {
+  const fixture = testFixtures.find('with-injected-catalog-peer')
+  const issues = await checkPeerDependencies([path.join(fixture, 'packages/app')], {
+    lockfileDir: fixture,
+    catalogs: {},
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['packages/app']
+  expect(projectIssues.bad['is-odd']).toStrictEqual([expect.objectContaining({
+    wantedRange: 'catalog:',
+    foundVersion: '3.0.1',
+  })])
 })
 
 test('respects peerDependencyRules.allowAny', async () => {
