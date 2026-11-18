@@ -284,24 +284,24 @@ impl<'a> AddOne<'a> {
             manifest: resolved.package.manifest.as_deref(),
         };
         let lockfile_dir = &self.resolve_options.project.lockfile_dir;
-        match downloaded_tarball::tarball_on_disk(&resolved.resolved_via, package_url, lockfile_dir)
+        if let Some(path) =
+            downloaded_tarball::tarball_on_disk(&resolved.resolved_via, package_url, lockfile_dir)
         {
-            Some(path) => self.add_downloaded_tarball::<Reporter>(&path, &archive).await?,
-            None => {
-                let ingestion = self.ingestion(&archive, integrity.as_ref());
-                if integrity.is_some() {
-                    ingestion
-                        .run_without_mem_cache::<Reporter>()
-                        .await
-                        .map(|_| ())
-                } else {
-                    ingestion
-                        .fetch_and_extract::<Reporter>()
-                        .await
-                        .map(|_| ())
-                }
-                .map_err(miette::Report::new)?;
+            self.add_downloaded_tarball::<Reporter>(&path, &archive).await?;
+        } else {
+            let ingestion = self.ingestion(&archive, integrity.as_ref());
+            if integrity.is_some() {
+                ingestion
+                    .run_without_mem_cache::<Reporter>()
+                    .await
+                    .map(|_| ())
+            } else {
+                ingestion
+                    .fetch_and_extract::<Reporter>()
+                    .await
+                    .map(|_| ())
             }
+            .map_err(miette::Report::new)?;
         }
 
         Ok(package_id)
