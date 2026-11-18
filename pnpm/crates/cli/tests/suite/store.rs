@@ -470,7 +470,10 @@ fn store_add_indexes_a_direct_tarball_url_without_integrity() {
     let CommandTempCwd {
         pacquet, root: _root, npmrc_info, ..
     } = CommandTempCwd::init().add_mocked_registry();
-    let tarball_url = format!("{}@pnpm.e2e/foo/-/foo-100.0.0.tgz", npmrc_info.mock_instance.url());
+    // `localhost` keeps the URL outside the registry prefix, so it resolves
+    // as a direct tarball without an integrity value.
+    let tarball_url = format!("{}@pnpm.e2e/foo/-/foo-100.0.0.tgz", npmrc_info.mock_instance.url())
+        .replace("127.0.0.1", "localhost");
 
     pacquet
         .with_args(["store", "add", &tarball_url])
