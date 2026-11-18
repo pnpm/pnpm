@@ -1,5 +1,4 @@
 pub(super) mod retry;
-pub(super) mod variants;
 
 pub(super) use atomic::{
     PublishReceipt, add_npm_notices, commit_publication, publication_name, publication_request,
@@ -14,7 +13,6 @@ pub(super) use tombstones::check_publish_tombstone;
 
 mod atomic;
 mod attachments;
-mod generated_archive;
 mod manifest;
 mod notes;
 mod promotion;
@@ -45,17 +43,18 @@ use pnpr_storage::{
 
 use super::{
     Action, AppState, HostedGate, Ownership, RegistrySource, WriteTarget,
-    authorize_against_packument, authorize_package, authorize_with_ownership, authorized_upstream,
-    default_registry_target, hosted_gate, hosted_storage, parse_json_body,
-    resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
-    staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
+    authorize_against_packument, authorize_package, authorize_package_write,
+    authorize_with_ownership, authorized_upstream, default_registry_target, hosted_gate,
+    hosted_storage, parse_json_body, resolve_ecosystem_source, resolve_write_target,
+    restore_tgz_integrities, staged_archives::StagedReferences, tar_integrity_of,
+    tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
 pub(super) enum PublishTarget {
     /// Write into the hosted registry `source`'s storage `namespace`.
-    /// The source name is carried so the write's `publish`/`unpublish`
-    /// authorization can consult that registry's `packages:` rules.
+    /// The source name is carried so the write's authorization can consult
+    /// the grants that cover that registry.
     Hosted { source: String, namespace: String },
     /// The resolved target is not a hosted registry; reject with this reason.
     Reject(String),
@@ -101,8 +100,8 @@ pub(super) fn resolve_publish_target_for(
                 HostedGate::Denied(err) => PublishTarget::Denied(err),
             }
         }
-        // A write can never land on an upstream — but the upstream's `access:`
-        // gates the write endpoints exactly as it gates reads, so a caller the
+        // A write can never land on an upstream — but the upstream's grants
+        // gate the write endpoints exactly as they gate reads, so a caller the
         // upstream denies gets the read path's 403 (`authorized_upstream`), not
         // a rejection that narrates where the name routes.
         RegistrySource::Upstream(source) => match authorized_upstream(state, identity, &source) {
@@ -167,7 +166,7 @@ fn addressed_publish_target(
 }
 
 /// Whether `identity` may learn that the registry `name` exists. A hosted
-/// registry is masked behind its access list — a denied caller sees the same
+/// registry is masked from a caller who may read nothing in it, who sees the same
 /// not-found as for an undefined name on every read, so nothing on the write
 /// path may answer differently. An upstream registry is not masked (a denied
 /// caller gets an explicit 403 on reads), and a router is visible whenever
@@ -179,12 +178,12 @@ pub(super) fn registry_visible_to_caller(
 ) -> bool {
     let routing = state.routing();
     let concrete_visible = |name: &str| match routing.registries.get(name) {
-        // The name being probed is unclaimed, so there is no per-package
-        // entry to consult: the registry-level default `access:` decides
-        // whether the caller may learn the registry exists at all.
+        // The name being probed is unclaimed, so no grant covers it: whether
+        // the caller may read anything in the registry decides whether it may
+        // learn the registry exists at all.
         Some(Registry::Hosted { .. }) => routing.hosted
             .get(name)
-            .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
+            .is_some_and(|hosted| hosted.rules.any_access_admits(identity)),
         Some(Registry::Upstream { .. }) => true,
         Some(Registry::Router { .. }) | None => false,
     };

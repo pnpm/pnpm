@@ -5,8 +5,9 @@ use super::{
     AppState, CanonicalPackageName, Ecosystem, Identity, RegistryError, RegistrySource, Response,
     Value, addressed_registry, caller_scoped, dist_view, extract_upstream_version_manifest,
     extract_version_manifest, hosted_read_namespace, is_osv_vulnerable_packument_version,
-    is_tar_registry, not_found, read_source_packument, registry_endpoint, resolve_registry_source,
-    resolve_version_or_tag, tar_integrities_of,
+    is_tar_registry, not_found, read_source_packument, registry_endpoint,
+    reload_source_packument_lacking_version, resolve_registry_source, resolve_version_or_tag,
+    tar_integrities_of,
 };
 use axum::response::IntoResponse;
 
@@ -163,7 +164,7 @@ async fn read_version_packument(
         (RegistrySource::Hosted(source), None) => {
             read_hosted_version_packument(state, identity, source, &name, version_or_tag).await
         }
-        _ => read_whole_packument(state, identity, &resolved_source, &name).await,
+        _ => read_whole_packument(state, identity, &resolved_source, &name, version_or_tag).await,
     };
     let packument = match packument {
         Ok(Some(packument)) => packument,
@@ -181,11 +182,27 @@ async fn read_whole_packument(
     identity: &Identity,
     source: &RegistrySource,
     name: &CanonicalPackageName,
+    version_or_tag: &str,
 ) -> Result<Option<Value>, RegistryError> {
     let Some(bytes) = read_source_packument(state, identity, source, name).await? else {
         return Ok(None);
     };
-    Ok(Some(serde_json::from_slice(&bytes)?))
+    let packument: Value = serde_json::from_slice(&bytes)?;
+    if lists_version(&packument, version_or_tag) {
+        return Ok(Some(packument));
+    }
+    match reload_source_packument_lacking_version(state, identity, source, name).await? {
+        Some(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
+        None => Ok(Some(packument)),
+    }
+}
+
+fn lists_version(packument: &Value, version_or_tag: &str) -> bool {
+    let version = resolve_version_or_tag(packument, version_or_tag);
+    packument
+        .get("versions")
+        .and_then(|versions| versions.get(version))
+        .is_some()
 }
 
 async fn read_hosted_version_packument(
@@ -201,12 +218,7 @@ async fn read_hosted_version_packument(
         .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
         .lookup_in_hosted_document(name, move |bytes| {
             let packument: Value = serde_json::from_slice(bytes)?;
-            let resolved = resolve_version_or_tag(&packument, &requested);
-            let present = packument
-                .get("versions")
-                .and_then(|versions| versions.get(resolved))
-                .is_some();
-            Ok(present.then_some(packument))
+            Ok(lists_version(&packument, &requested).then_some(packument))
         })
         .await?;
     Ok(lookup.found())

@@ -285,6 +285,7 @@ fn merge_dependent_nodes(target: &mut Vec<DependentNode>, source: Vec<DependentN
                     .unwrap_or("")
                     .cmp(b.importer_id.as_deref().unwrap_or(""))
             })
+            .then_with(|| a.requires.cmp(&b.requires))
     });
 }
 
@@ -296,6 +297,7 @@ fn same_node_key(left: &DependentNode, right: &DependentNode) -> bool {
         && left.dep_field == right.dep_field
         && left.circular == right.circular
         && left.importer_id == right.importer_id
+        && left.requires == right.requires
 }
 
 fn merge_into_node(target: &mut DependentNode, source: DependentNode) {

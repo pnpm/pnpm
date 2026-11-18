@@ -28,7 +28,6 @@ use reachability::{LockfileEdgeReach, walk_lockfile_edges};
 mod patched;
 mod platform;
 mod project;
-mod variants;
 use patched::without_published_engines;
 use platform::manifest_from_metadata;
 
@@ -345,7 +344,38 @@ fn add_runtime_skips_from(
 pub fn find_root_runtime_node_version(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<String> {
-    root_runtime_node_ver_peer(importers)?.version_semver().map(ToString::to_string)
+    let importer = importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
+    find_project_runtime_node_version(
+        importer,
+        &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+    )
+}
+
+#[must_use]
+pub fn find_project_runtime_node_version(
+    importer: &ProjectSnapshot,
+    dependency_groups: &[DependencyGroup],
+) -> Option<String> {
+    project_runtime_node_ver_peer(importer, dependency_groups)?
+        .version_semver()
+        .map(ToString::to_string)
+}
+
+#[must_use]
+pub fn find_project_runtime_node_version_for_specifier(
+    importer: &ProjectSnapshot,
+    dependency_groups: &[DependencyGroup],
+    expected_specifier: &str,
+) -> Option<String> {
+    importer
+        .dependencies_by_groups(dependency_groups.iter().copied())
+        .filter(|(alias, spec)| {
+            alias.scope.is_none() && alias.bare == "node" && spec.specifier == expected_specifier
+        })
+        .filter_map(|(_, spec)| spec.version.ver_peer())
+        .find(|ver_peer| ver_peer.prefix() == Prefix::Runtime)?
+        .version_semver()
+        .map(ToString::to_string)
 }
 
 /// The snapshot of the root project's `node` runtime dependency, the one
@@ -366,13 +396,18 @@ pub fn find_root_runtime_node_key<'a>(
 pub(crate) fn root_runtime_node_ver_peer(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<&PkgVerPeer> {
-    importers
-        .get(Lockfile::ROOT_IMPORTER_KEY)?
-        .dependencies_by_groups([
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ])
+    project_runtime_node_ver_peer(
+        importers.get(Lockfile::ROOT_IMPORTER_KEY)?,
+        &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+    )
+}
+
+fn project_runtime_node_ver_peer<'a>(
+    importer: &'a ProjectSnapshot,
+    dependency_groups: &[DependencyGroup],
+) -> Option<&'a PkgVerPeer> {
+    importer
+        .dependencies_by_groups(dependency_groups.iter().copied())
         .filter(|(alias, _)| alias.scope.is_none() && alias.bare == "node")
         .filter_map(|(_, spec)| spec.version.ver_peer())
         .find(|ver_peer| ver_peer.prefix() == Prefix::Runtime)
@@ -406,8 +441,7 @@ fn cached_check(
     let manifest = manifest_from_metadata(metadata_key, metadata);
     let pkg_id = metadata_key.to_string();
     let options = InstallabilityOptions { optional, ..*base_options };
-    let verdict = check_installability(&pkg_id, &manifest, &options)?
-        .or_else(|| variants::variants_installability(&pkg_id, metadata, &options));
+    let verdict = check_installability(&pkg_id, &manifest, &options)?;
     check_cache.insert(cache_key, verdict.clone());
     Ok(verdict)
 }
@@ -433,9 +467,7 @@ pub fn package_metadata_is_installable(
         current_libc: host.libc,
         supported_architectures: host.supported_architectures.as_ref(),
     };
-    let package_id = metadata_key.to_string();
-    Ok(check_installability(&package_id, &manifest, &options)?.is_none()
-        && variants::variants_installability(&package_id, metadata, &options).is_none())
+    Ok(check_installability(&metadata_key.to_string(), &manifest, &options)?.is_none())
 }
 
 fn emit_skipped<Reporter: self::Reporter>(

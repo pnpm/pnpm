@@ -131,10 +131,11 @@ pub(super) async fn handle_resolve(
     }
     let index = IndexFetcher::new(runtime, identity, registry);
     let metadata = request.metadata;
+    let preferred_versions = request.preferred_versions;
     let source = pnpm_cargo_resolver::registry_source(&index.registry);
     match tokio::time::timeout_at(
         deadline,
-        run_solve_cargo(index, metadata, source, permit, deadline),
+        run_solve_cargo(index, metadata, source, preferred_versions, permit, deadline),
     )
     .await
     {
@@ -209,13 +210,15 @@ impl IndexFetcher {
     async fn fetch_for(
         &self,
         metadata: &str,
+        preferred_versions: &BTreeMap<String, Vec<String>>,
         permit: &Arc<ResolvePermit>,
         cancel: &CancelToken,
     ) -> Result<BTreeMap<String, String>, String> {
         let mut index_files = BTreeMap::new();
         let source = pnpm_cargo_resolver::registry_source(&self.registry);
         let (mut discovery, mut missing) =
-            spawn_init_discovery(metadata.to_string(), source, permit, cancel).await?;
+            spawn_init_discovery(metadata.to_string(), source, preferred_versions, permit, cancel)
+                .await?;
         for _ in 0..MAX_INDEX_WAVES {
             if missing.is_empty() {
                 return Ok(index_files);

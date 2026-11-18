@@ -38,7 +38,7 @@ impl Walker<'_> {
     ) -> CacheMatch {
         let mut ambiguous = false;
         for (name, cached_node_id) in item.resolved_peers.iter() {
-            match self.fast_resolved_peer_matches(query, name, cached_node_id) {
+            match self.fast_resolved_peer_matches(query, item, name, cached_node_id) {
                 CacheMatch::NoMatch => return CacheMatch::NoMatch,
                 CacheMatch::Ambiguous => ambiguous = true,
                 CacheMatch::Match => {}
@@ -47,6 +47,8 @@ impl Walker<'_> {
         for name in item.missing_peers.keys() {
             match self.fast_provider_for_name(query, name) {
                 FastProvider::Missing => {}
+                FastProvider::Inherited(_)
+                    if self.missing_peer_still_missing(item, name, query.parent_refs) => {}
                 FastProvider::Inherited(_) | FastProvider::Child(_) => {
                     return CacheMatch::NoMatch;
                 }
@@ -59,17 +61,23 @@ impl Walker<'_> {
     pub(super) fn fast_resolved_peer_matches(
         &self,
         query: FastProviderQuery<'_>,
+        item: &PeersCacheItem,
         name: &str,
         cached_node_id: &NodeId,
     ) -> CacheMatch {
         match self.fast_provider_for_name(query, name) {
             FastProvider::Missing => CacheMatch::NoMatch,
             FastProvider::Inherited(current_ref) => {
-                if self.parent_ref_matches_cached(current_ref, cached_node_id) {
+                if self.has_restriction_of(item, name, current_ref)
+                    && self.parent_ref_matches_cached(current_ref, cached_node_id)
+                {
                     CacheMatch::Match
                 } else {
                     CacheMatch::NoMatch
                 }
+            }
+            FastProvider::Child(_) if item.restricted_providers.contains_key(name) => {
+                CacheMatch::NoMatch
             }
             FastProvider::Child(child_pkg_id) => {
                 self.fast_child_provider_matches(child_pkg_id, cached_node_id)

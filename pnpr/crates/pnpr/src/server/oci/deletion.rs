@@ -103,7 +103,7 @@ impl Request {
             &self.identity,
             &source,
             (repo.key.as_str(), &ownership),
-            Action::Unpublish,
+            Action::Delete,
         )?;
         check_deletion_target(document, &repo.key)
     }

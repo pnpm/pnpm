@@ -86,8 +86,8 @@ Every request routes through the registry graph:
   alike), and a publish of an unclaimed name is rejected.
 - **Writes** (publish, dist-tags, unpublish) must resolve to a hosted
   registry; a write that routes to an upstream is rejected.
-- The serving registry's matching `packages:` rule is enforced on every read
-  and write.
+- The [grants](configuration.md#grants) that cover the serving registry are
+  enforced on every read and write.
 - Served `dist.tarball` URLs are rewritten onto `--public-url` (`PNPR_PUBLIC_URL`)
   as `<registry>/<name>@<version>` and stay canonical for the base the client
   addressed (`/npm/` or `/npm/~<name>/`), so lockfiles don't bake in a
@@ -270,7 +270,7 @@ and a single npm publish document can carry its version note in a top-level
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/npm/<name>/<version>/notes` | The version's note as `text/markdown`. `<version>` may be a dist-tag. `204` when only the version's publication has a note, with a `Link: <…>; rel="publication-notes"` header. A version published with a note carries `PNPR-Note-Initial-Digest`, the digest of the text it was published with, even after an edit or deletion. |
-| `PUT`, `DELETE` | `/npm/<name>/<version>/notes` | Replace or delete the version's note. Requires the package's `publish` rule. |
+| `PUT`, `DELETE` | `/npm/<name>/<version>/notes` | Replace or delete the version's note. Requires `annotate` on the package. |
 | `GET` | `/npm/<name>/-/notes` | Every note of the package as JSON, newest version first, at most 100 entries and 1 MiB, with `"truncated": true` when more exist. A version whose publication has a note the caller may read names it in `publication`, whose `url` is the note's path on the server, including the path of `public_url`, as in the `Link` header of the version route. |
 | `GET`, `PUT`, `DELETE` | `/-/publications/<namespace>/<id-or-name>/notes` | The publication's note. Reading needs read access to every member, writing needs every member's `publish` rule. |
 
@@ -306,8 +306,6 @@ are checked against the serving registry's matching
 | `GET` | `/@scope/{name}` | Scoped package packument. |
 | `GET` | `/{name}/{version-or-tag}` | Unscoped version manifest by exact version or dist-tag. |
 | `GET` | `/@scope/{name}/{version-or-tag}` | Scoped version manifest by exact version or dist-tag. |
-| `GET` | `/{name}@{version}/variants/{tag}` | Unscoped [platform variant](#platform-variants) tar. |
-| `GET` | `/@scope/{name}@{version}/variants/{tag}` | Scoped platform variant tar. |
 | `GET` | `/{name}/{version}+r{revision}` | Unscoped release record. See [pnpr's package document](#pnprs-package-document). |
 | `GET` | `/@scope/{name}/{version}+r{revision}` | Scoped release record. |
 | `GET` | `/{name}/{version}+r{revision}/evidence` | Unscoped release record's evidence. See [Release record logs](#release-record-logs). |
@@ -461,11 +459,8 @@ has:
 
 `interpretation` is the profile the manifest was derived under, and `inputs`
 are the digests it was derived from: the `.tgz` as published, and its
-`package.json` and `npm-shrinkwrap.json` by their paths in the archive. Each
-platform variant in `variants` has `inputs` of its own, and a `purl`: the
-record's with a `variant` qualifier naming its tag, with `+` written `%2B`, such
-as `pkg:npm/fast-thing@1.5.0?variant=linux-x64%2Blinux-x64-musl`. A registry with
-`tarballs: tar` serves the record with the tar's `integrity`.
+`package.json` and `npm-shrinkwrap.json` by their paths in the archive. A
+registry with `tarballs: tar` serves the record with the tar's `integrity`.
 
 Revision `0` is the original artifact, also of a version without registry
 revisions. A release record never changes once pnpr has verified the archive
@@ -535,15 +530,15 @@ a hosted registry.
 | `PUT` | `/{name}` | Publish an unscoped package. Body is the npm publish document with `_attachments`. Requires `publish`. |
 | `PUT` | `/@scope/{name}` | Publish a scoped package. Body is the npm publish document with `_attachments`. Requires `publish`. |
 | `PUT` | `/-/pnpr/v0/publish` | pnpm batch publish (also mounted on the server root). Body is `{"packages":[<publish document>, ...]}`. The batch is all-or-nothing and each package requires `publish`. See [One publish for a workspace that spans ecosystems](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems). |
-| `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires the current [revision](#packument-revisions) and both `publish` and `unpublish`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
-| `DELETE` | `/{name}` | Remove an entire unscoped package, used by force unpublish. Requires `unpublish`. Legacy `/{package}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/@scope/{name}` | Remove an entire scoped package, used by force unpublish. Requires `unpublish`. Legacy `/@scope/{name}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/{name}@{version}` | Unpublish an unscoped version, and reclaim its archives that no other file shares. Unpublishing the last version removes the package. A version the package no longer lists is left as it is. Requires `unpublish`. Legacy `/{name}@{version}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/@scope/{name}@{version}` | Unpublish a scoped version, as above. Requires `unpublish`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/{name}/-/{filename}` | Unpublish the unscoped version the tarball belongs to, as above. Requires `unpublish`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/@scope/{name}/-/{filename}` | Unpublish the scoped version the tarball belongs to, as above. Requires `unpublish`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
-| `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string naming a published version, for example `"1.0.0"`. Names that parse as semver ranges and targets that are missing or unpublished return `400`. Requires `publish`. |
-| `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Removing `latest` while published versions exist returns `400`. Requires `publish`. |
+| `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires the current [revision](#packument-revisions) and both `annotate` and `delete`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
+| `DELETE` | `/{name}` | Remove an entire unscoped package, used by force unpublish. Requires `delete`. Legacy `/{package}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}` | Remove an entire scoped package, used by force unpublish. Requires `delete`. Legacy `/@scope/{name}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/{name}@{version}` | Unpublish an unscoped version, and reclaim its archives that no other file shares. Unpublishing the last version removes the package. A version the package no longer lists is left as it is. Requires `delete`. Legacy `/{name}@{version}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}@{version}` | Unpublish a scoped version, as above. Requires `delete`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/{name}/-/{filename}` | Unpublish the unscoped version the tarball belongs to, as above. Requires `delete`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}/-/{filename}` | Unpublish the scoped version the tarball belongs to, as above. Requires `delete`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
+| `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string naming a published version, for example `"1.0.0"`. Names that parse as semver ranges and targets that are missing or unpublished return `400`. Requires `annotate`. |
+| `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Removing `latest` while published versions exist returns `400`. Requires `annotate`. |
 
 `dist-tags` in publish requests and package-document updates follows the same
 name and target rules. A package-document update cannot remove `latest` while
@@ -559,6 +554,15 @@ pnpr rejects an invalid version with `400`, including versions in DELETE request
 Publish version keys with build metadata, such as `1.0.0+build.5`, return `400`
 with a message explaining that build metadata cannot be published.
 
+Publishing a version that already exists is a `409`. On the S3 backend, where
+several stateless replicas can write to one bucket, concurrent writers are
+resolved by conditional writes rather than last-write-wins. A publish or
+partial unpublish computed from a packument that another replica has since
+changed is rejected with a `409`; a dist-tag write instead replays its mutation
+against the fresh packument, and reports `409` only if it keeps losing. Either
+way no writer's update is silently discarded. See
+[Packument revisions](#packument-revisions) and [Storage backends](storage.md#concurrent-writers).
+
 ### Packument revisions
 
 A hosted package's full metadata document includes `_rev`. A partial unpublish
@@ -569,75 +573,6 @@ versions. Read the package metadata again before retrying.
 A deprecation PUT to `/{package}` must include the current `_rev`. It changes
 only the versions' `deprecated` fields. Dist-tags and other package metadata
 stay unchanged. A missing or stale `_rev` returns `409`.
-
-### Platform variants
-
-A hosted version can carry platform variants: archives that pnpm links in
-place of the version's own archive on the platforms they declare. Each variant
-is a complete package whose `package.json` has the version's `name` and
-`version` and declares its platforms as platform tags:
-
-```json
-{ "name": "fast-thing", "version": "1.4.0", "variant": { "platforms": ["linux-x64", "linux-x64-musl"] } }
-```
-
-A tag is `<os>-<cpu>`, then optionally `musl` or a glibc floor
-(`manylinux_2_28`), a macOS or Windows floor (`macos_11_0`, `windows_10_0`), an
-N-API floor (`napi8`) or a Node.js or Electron ABI (`node127`, `electron130`);
-or `wasm32`. Only the canonical form is accepted.
-
-A variant's tag is its platforms' tags, sorted and joined with `+`, such as
-`linux-x64+linux-x64-musl`, and at most 128 bytes long. The publish document
-attaches each variant as `<basename>-<version>~<tag>.tgz`, with the `.tgz`'s
-`integrity` beside its `data`, or with `integrity` alone for an archive
-[staged](ecosystems.md#staged-archives) before the publish, so a version's
-archives are not bounded by one request body.
-pnpr rejects the version when a variant:
-
-- has another `name` or `version`, or other `peerDependencies` or
-  `peerDependenciesMeta`, than the version;
-- requires a build;
-- has no `variant` field, one that does not parse, or an `os`, `cpu`, or
-  `libc` field;
-- declares platforms that give another tag than the one that names it;
-- lists a platform another variant lists;
-- is attached for a version the publish document does not describe, or
-  without an `integrity`.
-
-A version published with a provenance statement (its `.sigstore` attachment) is
-rejected unless the statement names every archive of the version: the `.tgz`
-that `dist.tarball` names by the version's PURL, such as `pkg:npm/%40acme/fast@1.0.0`, and each
-variant's `.tgz` by its PURL with the `variant` qualifier, each with its SHA-512.
-
-A variant may differ from the version in its files, dependencies, bundled
-dependencies, `bin`, `main`, `exports`, and `engines`. pnpr serves a
-variant's tar at `/{name}@{version}/variants/{tag}`, and at
-`/{name}@{version}+r{revision}/variants/{tag}` while that revision is selected.
-
-Only [pnpr's package document](#pnprs-package-document) and release records
-list the variants, under `variants`: each with its `tag`, structured
-`platforms`, tar `integrity`, sizes, `bins`, and a `manifest` of the fields
-that differ from the version's (`null` for a removed field). npm's documents
-do not list them, so npm clients install the version's own archive, its
-`any` archive.
-
-A version can also be published with variants only: its publish document has
-no `dist` and no `<basename>-<version>.tgz` attachment. pnpr then generates the
-archive npm's documents point to, a `package.json` that lists the union of the
-variants' `os`, `cpu`, and Linux `libc`, so npm reports an unsupported platform
-instead of installing an empty package. pnpr's package document and the release
-record describe such a version without a top-level `integrity`, by the manifest
-its variants share: their peer dependencies, and each dependency every variant
-declares with the same specifier.
-
-Publishing a version that already exists is a `409`. On the S3 backend, where
-several stateless replicas can write to one bucket, concurrent writers are
-resolved by conditional writes rather than last-write-wins. A publish or
-partial unpublish computed from a packument that another replica has since
-changed is rejected with a `409`; a dist-tag write instead replays its mutation
-against the fresh packument, and reports `409` only if it keeps losing. Either
-way no writer's update is silently discarded. See
-[Packument revisions](#packument-revisions) and [Storage backends](storage.md#concurrent-writers).
 
 ### Publish-time manifest verification {#publish-time-manifest-verification}
 
@@ -698,6 +633,10 @@ archive's exact `package.json` and `npm-shrinkwrap.json` bytes:
 
 A staged publish is verified when it is approved.
 
+A version published with a provenance statement (its `.sigstore` attachment) is
+rejected unless the statement names the `.tgz` that `dist.tarball` names: by the
+version's PURL, such as `pkg:npm/%40acme/fast@1.0.0`, with its SHA-512.
+
 ## Staged publishing endpoints
 
 These implement the server half of [`pnpm stage`](https://pnpm.io/cli/stage), npm's
@@ -746,52 +685,50 @@ endpoint rather than masking as a `404`.
 ## Team endpoints
 
 pnpr serves npm's team endpoints in the shape [`pnpm team`](https://pnpm.io/cli/team)
-consumes. Teams are [registry-scoped](configuration.md#teams).
+consumes. [Teams](configuration.md#teams) belong to the pnpr instance. The
+`{scope}` selects the registry the caller must be able to read; the
+teams are the same under every scope.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Requires membership in one of its teams or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. The scope may be written with or without a leading `@`. |
-| `GET` | `/-/team/{scope}/{team}/user` | Members of one team. Requires membership in one of the registry's teams or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. |
+| `GET` | `/-/org/{scope}/team` | The teams the caller is in, or every team for an administrator. A caller in no team gets `404`. Returns a JSON array of `{"id": ..., "name": ...}`. The scope may be written with or without a leading `@`. |
+| `GET` | `/-/team/{scope}/{team}/user` | Members of one team. Requires membership in that team or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. |
 | `PUT` | `/-/org/{scope}/team` | Create a team. The body is `{"name": "<team>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. A username with no account returns `404`. |
 
-Changes are accepted only on npm hosted registries, and
-[change the stored registries](configuration.md#managing-teams-through-the-api):
+[Changes](configuration.md#managing-teams-through-the-api) are accepted only
+under a scope that an npm hosted registry serves:
 
 - The caller must be one of the `auth.admins` or `auth.registryAdmins`.
   Others get `401` when anonymous and `403` when signed in.
-- Creating a team that exists, or destroying one a `packages:` rule names,
+- Creating a team that exists, or destroying one a grant names,
   returns `409`. Changing a team that does not exist returns `404`.
 
 Reads resolve `@{scope}` to a hosted registry the same way a package read in
-that scope would, then check that registry's default `access:` list. Unlike
+that scope would, then check that the caller may read something in that
+registry. Unlike
 the stage endpoints, a denial here is **masked as `404`**. Team and member
-names must not become an existence probe for a private registry. A registry
-that declares no teams returns an empty array.
+names must not become an existence probe for a private registry. An
+administrator of an instance without teams gets an empty array.
 
 ### Team package access
 
 `npm access grant`, `npm access revoke`, and `npm access list packages
-<scope:team>` read and
-[edit](configuration.md#changing-rules-through-the-api) the `packages:` rules
-of a hosted registry.
+<scope:team>` read and write [grants](configuration.md#grants). Each grant of
+a package to a team is one grant of the instance, on the registry that serves
+`@{scope}`.
 
-The `{team}` path segment is a team name. The stored `team:<id>` token uses
-the immutable team ID returned by the team endpoints.
+The `{team}` path segment is a team name. The grant's subject is `team:<id>`,
+with the immutable team ID the team endpoints return.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/team/{scope}/{team}/package` | Requires registry team membership or administrator access. The `packages:` keys whose `access` list names `team:<id>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
-| `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. Both add `team:<id>` to the package's `access` list. `read-write` adds it to `publish` too, and `read-only` removes it from `publish`. Returns `201`. |
-| `DELETE` | `/-/team/{scope}/{team}/package` | Revoke access. The body is `{"package": "<name>"}`. Removes `team:<id>` from the package's `access`, `publish`, and `unpublish` lists. Returns `204`. |
+| `GET` | `/-/team/{scope}/{team}/package` | Requires membership in the team or administrator access. The package patterns that grants give the team in the registry that serves `@{scope}`, as `{"<pattern>": "read-only" \| "read-write"}`. A grant that covers every package is listed as `**`. `read-write` means a grant gives the team `publish` too. |
+| `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. `read-only` gives `read` and `cache`. `read-write` also gives `publish` and `annotate`. Granting again replaces what the earlier grant gave. Returns `201`. |
+| `DELETE` | `/-/team/{scope}/{team}/package` | Revoke what `PUT` granted for the package. The body is `{"package": "<name>"}`. Other grants that name the team stay. Returns `204`, also when nothing was granted. |
 
-- The package must be a `packages:` key of its own, such as `'@acme/app'`.
-  A package that only a pattern such as `'@acme/*'` covers returns `400`,
-  because editing the pattern would grant every package it covers.
-- A grant edits the lists that apply to the package now, the same way a
-  `PUT` to the [rules admin API](#admin-endpoints) does.
 - The caller must be one of the `auth.admins` or `auth.registryAdmins`, and
   the team must exist.
 
@@ -822,8 +759,7 @@ resolver-only server that exposes no registry surface.
 ## Admin endpoints
 
 These endpoints are always mounted, on the server root only. The account
-endpoints require one of the [`auth.admins`](configuration.md#auth). The rules
-endpoints require one of the `auth.admins` or `auth.registryAdmins`. Others
+endpoints require one of the [`auth.admins`](configuration.md#auth). Others
 get `401` when anonymous and `403` when signed in.
 
 | Method | Path | Description |
@@ -835,37 +771,48 @@ get `401` when anonymous and `403` when signed in.
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}` | Delete the account and revoke its credentials. The login name becomes available; a replacement account receives a fresh ID. Returns `204`. |
 | `GET` | `/-/pnpr/v0/admin/users/{id}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
-| `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `version` (also the `ETag`) names the [revision](#registry-admin-endpoints) of the stored registries. |
-| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the lists the body names, and return the rules that result. See [Changing rules through the API](configuration.md#changing-rules-through-the-api). |
 
-To keep two admins from overwriting each other's changes, send the `version`
-you read as `If-Match` with a `PUT`. If the stored registries have moved on
-since, the request answers `412` and changes nothing. Without `If-Match`, or
-with `If-Match: *`, the last change wins. A weak tag such as `W/"..."` never
-matches, and an `If-Match` that is not a list of quoted versions answers
-`400`. The same rules apply to the
-[registry admin endpoints](#registry-admin-endpoints).
+### Grant endpoints {#grant-endpoints}
 
-A rules body lists only what changes. Each list replaces the current list of
-the same place:
+These endpoints read and write [grants](configuration.md#grants). A `{name}`
+is a grant's name.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/-/pnpr/v0/admin/grants` | Every grant, as `{"version": ..., "grants": [...]}`. The `ETag` names the version of the grants. |
+| `GET` | `/-/pnpr/v0/admin/grants/{name}` | One grant. |
+| `PUT` | `/-/pnpr/v0/admin/grants/{name}` | Create the grant, or replace what it holds. Returns the stored grant. |
+| `DELETE` | `/-/pnpr/v0/admin/grants/{name}` | Remove the grant. Returns `204`. |
+
+A grant body names the registries, the patterns, and each subject with its
+actions:
 
 ```json
 {
-  "access": ["$authenticated"],
-  "packages": {
-    "@corp/*": { "access": ["team:<team-id>"], "publish": ["<account-id>"] }
+  "registries": ["private"],
+  "include": ["@corp/*"],
+  "exclude": ["@corp/experimental"],
+  "subjects": {
+    "team:<team-id>": ["read", "publish", "annotate"],
+    "<account-id>": ["read"]
   }
 }
 ```
 
-A key the registry's `packages:` map does not declare, a malformed token, or a
-`team:` reference to a team the registry does not have returns `400`. The
-`{ecosystem}` and `{name}` are the pair the
-[registry directory](discovery.md#the-registry-directory) lists, for example
-`npm/private`.
-
-To undo a rules change, [restore](#registry-admin-endpoints) the revision
-before it.
+- The endpoints require one of the `auth.admins` or `auth.registryAdmins`.
+- A caller a grant gives `manage` may `GET` that grant and `PUT` it with other
+  subjects. A `PUT` that changes its registries or patterns, or who has
+  `manage`, answers `403`. To any other caller the grant answers `404`.
+- A registry that does not exist or is a router, a pattern its ecosystem does
+  not have, a subject that is not valid, an action that does not exist, or a
+  `team:` subject whose team does not exist returns `400`.
+- To keep two admins from overwriting each other's changes, send the
+  `version` you read as `If-Match` with a `PUT` or `DELETE`. If the grants
+  have moved on since, the request answers `412` and changes nothing. Without
+  `If-Match`, or with `If-Match: *`, the last change wins. A weak tag such as
+  `W/"..."` never matches, and an `If-Match` that is not a list of quoted
+  versions answers `400`. The same rules apply to the
+  [registry admin endpoints](#registry-admin-endpoints).
 
 ### Registry admin endpoints {#registry-admin-endpoints}
 
@@ -894,7 +841,7 @@ and `routes.public` keys, as JSON. A `{name}` is a key of
   change that leaves the document as it was stores no new version.
 - With `?dryRun=true`, a change is checked and its `changes` returned, but
   nothing is stored.
-- Every change accepts `If-Match` as the [rules endpoints](#admin-endpoints)
+- Every change accepts `If-Match` as the [grant endpoints](#grant-endpoints)
   do. The version is `0` while nothing is stored.
 - A change that pnpr [refuses](configuration.md#changes-pnpr-refuses) stores
   nothing, and the error names the reason.

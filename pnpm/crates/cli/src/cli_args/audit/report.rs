@@ -45,7 +45,7 @@ pub(crate) enum AuditError {
         "Cannot ignore advisory {id} ({module_name}): the registry did not provide a GHSA id or a resolvable url."
     )]
     #[diagnostic(code(ERR_PNPM_AUDIT_MISSING_GHSA))]
-    MissingGhsa { id: u64, module_name: String },
+    MissingGhsa { id: AdvisoryId, module_name: String },
 
     #[display("Failed to request the audit endpoint (at {url}): {source}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_BAD_RESPONSE))]
@@ -144,7 +144,7 @@ impl AuditVulnerabilityCounts {
 )]
 pub(crate) struct AuditAdvisory {
     pub(crate) findings: Vec<AuditFinding>,
-    pub(crate) id: u64,
+    pub(crate) id: AdvisoryId,
     pub(crate) title: String,
     pub(crate) module_name: String,
     pub(crate) vulnerable_versions: String,
@@ -158,6 +158,27 @@ pub(crate) struct AuditAdvisory {
     pub(crate) cwe: String,
     pub(crate) github_advisory_id: String,
     pub(crate) url: String,
+}
+
+/// An advisory's `id` as the registry sent it. npm sends a number, while
+/// other registries may use their own string ids.
+#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub(crate) enum AdvisoryId {
+    Number(u64),
+    String(String),
+}
+
+impl AdvisoryId {
+    fn from_raw(value: &serde_json::Value) -> Option<Self> {
+        match value {
+            serde_json::Value::Number(number) => number.as_u64().map(Self::Number),
+            serde_json::Value::String(text) if !text.trim().is_empty() => {
+                Some(Self::String(text.clone()))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -214,7 +235,7 @@ pub(crate) fn bulk_response_to_audit_report(
     for (module_name, package_advisories) in bulk {
         let by_version = audit_path_index.get(&module_name);
         for raw in package_advisories {
-            let Some(id) = raw.id.as_ref().and_then(serde_json::Value::as_u64) else {
+            let Some(id) = raw.id.as_ref().and_then(AdvisoryId::from_raw) else {
                 continue;
             };
             let Some(severity) = raw.severity.as_deref().and_then(parse_audit_level) else {
@@ -226,7 +247,7 @@ pub(crate) fn bulk_response_to_audit_report(
             }
             let advisory = normalize_advisory(raw, id, module_name.clone(), severity, findings);
             vulnerabilities.increment(severity);
-            advisories.insert(id.to_string(), advisory);
+            advisories.insert(advisory.id.to_string(), advisory);
         }
     }
 
@@ -278,7 +299,7 @@ pub(crate) fn build_findings(
 
 pub(crate) fn normalize_advisory(
     raw: RawBulkAdvisory,
-    id: u64,
+    id: AdvisoryId,
     module_name: String,
     severity: ConfigAuditLevel,
     findings: Vec<AuditFinding>,

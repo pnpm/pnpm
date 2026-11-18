@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.package-requester",
-  "version": "1102.2.10",
+  "version": "1102.2.11",
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",
@@ -26,11 +26,11 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

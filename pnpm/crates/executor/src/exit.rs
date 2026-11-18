@@ -1,7 +1,7 @@
 //! The one way out of pnpm. What a command leaves running outlives pnpm
 //! exactly when it would outlive the command run without pnpm, so every
 //! exit pnpm makes on its own goes through here first (see
-//! `PROCESS_LIFETIME.md`). `clippy.toml` bans `std::process::exit` everywhere
+//! `PROCESS_LIFETIME.md`). `.config/clippy.toml` bans `std::process::exit` everywhere
 //! else.
 
 /// Settle what pnpm owes the processes it started before it exits on its

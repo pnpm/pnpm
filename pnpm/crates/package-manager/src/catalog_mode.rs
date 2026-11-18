@@ -13,7 +13,7 @@
 use crate::is_workspace_local_path_specifier;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
     CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
@@ -24,6 +24,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_local_resolver::is_local_filesystem_specifier;
 use pnpm_resolving_npm_resolver::calc_version_range;
+use pnpm_semver_include_prerelease::parse_strict_semver_range;
 use pnpm_tool_protocol::is_tool_specifier;
 
 /// Wanted dependency outside the version range defined in catalog.
@@ -260,7 +261,7 @@ fn is_project_relative_path(specifier: &str) -> bool {
 /// onto the version it names.
 pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
     entry == wanted
-        || matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
+        || matches!((parse_strict_semver_range(entry), Version::parse(wanted)), (Some(entry), Ok(wanted)) if entry.satisfies(&wanted))
 }
 
 /// The catalog entry that pins `wanted` under the operator `entry` declares,

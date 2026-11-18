@@ -58,7 +58,7 @@ async fn notes_target(
             identity,
             &source,
             name.as_str(),
-            Action::Publish,
+            Action::Annotate,
             Some(&target.namespace),
         )
         .await

@@ -5,6 +5,7 @@ use super::{
     seed_config, warn_shared_workspace_lockfile_outside_workspace,
 };
 use crate::{cli_args::reporter::CliReporter, config_overrides::ConfigOverrides};
+use pnpm_config::CommandTarget;
 use pnpm_hooks::PnpmfileHooks;
 use std::sync::Arc;
 
@@ -110,6 +111,7 @@ impl RunSetup {
 pub(super) struct ConfigTarget<'a> {
     pub(super) anchor: &'a Path,
     pub(super) is_global: bool,
+    pub(super) command_target: CommandTarget,
     pub(super) store_use: StoreUse,
     pub(super) warnings: crate::cli_args::config_warnings::ConfigWarnings,
 }
@@ -403,6 +405,7 @@ impl CliArgs {
     pub(super) fn load_config_at(
         &self,
         anchor: &Path,
+        command_target: CommandTarget,
         place_store: bool,
         config_overrides: &ConfigOverrides,
         warnings: ConfigWarnings,
@@ -414,6 +417,7 @@ impl CliArgs {
             self.network.registry.as_deref(),
         );
         seed.skip_store_dir_resolution = !place_store;
+        seed.cli.command_target = command_target;
         seed.current_keeping_warnings::<Host>(anchor)
             .map_err(|failure| {
                 warnings.report_failed_load(&failure.warnings);

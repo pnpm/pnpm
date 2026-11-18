@@ -1,6 +1,7 @@
 import os from 'node:os'
 
-import { applyRuntimeOnFailOverride, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
+import { applyRuntimeOnFailOverride, getDownloadedNodeVersionFromEnginesField, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
+import type { ProjectManifest } from '@pnpm/types'
 
 import { transformPathKeys } from '../transformPath.js'
 import type { ConfigBuildState, PnpmConfigInProgress } from './configBuildState.js'
@@ -20,11 +21,35 @@ export function finalizeConfig ({ cliOptions, env, pnpmConfig }: ConfigBuildStat
   applyRuntimeOnFail(pnpmConfig)
 
   if (pnpmConfig.nodeVersion == null && pnpmConfig.enginePinManifest != null) {
-    pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
+    pnpmConfig.nodeVersion = getIncludedNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest, pnpmConfig)
     pnpmConfig.nodeVersionFromEnginesRuntime = pnpmConfig.nodeVersion != null
   }
 
   applyRemoteSideEffectsCacheEnv(pnpmConfig, env)
+}
+
+/**
+ * The runtime pnpm downloads for the first included dependency group that has
+ * one, else the exact runtime pin of the first included group. `engines.runtime`
+ * belongs to `dependencies` and `devEngines.runtime` to `devDependencies`.
+ */
+function getIncludedNodeVersionFromEnginesRuntime (
+  manifest: ProjectManifest,
+  { production, dev, runtimeOnFail }: Pick<PnpmConfigInProgress, 'production' | 'dev' | 'runtimeOnFail'>
+): string | undefined {
+  const dependencyGroups = [
+    ...(production ? ['dependencies' as const] : []),
+    ...(dev ? ['devDependencies' as const] : []),
+  ]
+  for (const dependencyGroup of dependencyGroups) {
+    const version = getDownloadedNodeVersionFromEnginesField(manifest, runtimeOnFail, dependencyGroup)
+    if (version != null) return version
+  }
+  for (const dependencyGroup of dependencyGroups) {
+    const version = getNodeVersionFromEnginesRuntime(manifest, dependencyGroup)
+    if (version != null) return version
+  }
+  return undefined
 }
 
 /**

@@ -512,6 +512,9 @@ const SETTINGS_NOT_READ_FROM_ENV: &[&str] = &[
     // Read under the nested key's suffix, such as `NODE_PACKAGE_MAP_MODE`.
     "nodePackageMap",
     "macosBackup",
+    // A section of the global `config.yaml`, which `PNPM_CONFIG_*` overrides
+    // setting by setting.
+    "globalPackagesConfig",
     // Read with the auth files, not through the overlay.
     "_auth",
     "npmrcAuthFile",

@@ -15,9 +15,12 @@ use serde_json::Value;
 
 use super::{DeclaredEngineDep, EngineDepKind, PmDeclarationLocation};
 use crate::{
-    cli_args::package_manager::{
-        PinRoots, should_persist_package_manager_lockfile, version_satisfies,
-        wanted_package_manager,
+    cli_args::{
+        package_manager::{
+            PinRoots, should_persist_package_manager_lockfile, version_satisfies,
+            wanted_package_manager,
+        },
+        self_update::project_pin::write_engines_pnpm,
     },
     config_deps,
     engine_pm::channel::PackageManager,
@@ -184,6 +187,9 @@ fn apply_engine_dep_update_to_value(
             ) {
                 let exact_pm = format!("{}@{resolved_version}", pm.name());
                 changed |= set_string_field(manifest, "packageManager", &exact_pm);
+            }
+            if pm == PackageManager::Pnpm {
+                changed |= write_engines_pnpm(manifest, &resolved_version.to_string());
             }
         }
         EngineDepKind::Runtime { engines_field } => {

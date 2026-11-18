@@ -17,7 +17,10 @@ pub use importer::{
     Implied, NextImporter, NextImporterDep, NextImporterDeps, NextNamedDep, NextResolvedDep,
 };
 pub(crate) use linked::LinkedImporters;
-pub use package::{NextPackage, NextPackageOut, PeerDetails, PeerEntry};
+pub use package::{
+    NextPackage, NextPackageDep, NextPackageDepMap, NextPackageOut, PackageDeps, PeerDetails,
+    PeerEntry,
+};
 pub use read::restore_sections;
 pub use reference::{NamedBindings, NextRef, names_binding, without_groups};
 pub use settings::NextSettings;
@@ -226,6 +229,10 @@ pub enum NextFormatError {
     )]
     #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_UNDERIVABLE_VERSION))]
     UnderivableCatalogVersion { catalog: String, name: String, specifier: String },
+
+    #[display("The dependency {name} of {key} in the lockfile is invalid: {detail}")]
+    #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_INVALID_DEPENDENCY))]
+    InvalidPackageDependency { key: String, name: String, detail: String },
 
     #[display("The lockfile records no resolution for {key}")]
     #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_MISSING_RESOLUTION))]

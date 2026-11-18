@@ -73,6 +73,12 @@ pub struct NewRegistryGraph<'a> {
     pub vacated: &'a [HostedNamespace],
     /// Every hosted namespace the revision serves.
     pub bound: &'a [HostedNamespace],
+    /// The grants of the registries the revision adds. Each is created
+    /// unless a grant already has its name.
+    pub seeded: &'a [super::StoredGrant],
+    /// The keys of the registries the revision removes. They leave every
+    /// grant, and a grant left without a registry is removed.
+    pub removed: &'a [String],
 }
 
 /// Lock a namespace's row the way a publish into it does, so a publish and a
@@ -180,6 +186,7 @@ impl Storage {
         let restored_from = revision.restored_from.map(to_column);
         let vacated = revision.vacated.to_vec();
         let bound = revision.bound.to_vec();
+        let grants = (revision.removed.to_vec(), revision.seeded.to_vec());
         self.database.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             let current = current_generation(&*transaction)?;
@@ -202,6 +209,7 @@ impl Storage {
                 params![to_column(oldest_kept)],
             )?;
             retire_namespaces(&*transaction, &vacated, &bound)?;
+            super::grants::follow_graph(&*transaction, &grants.0, &grants.1)?;
             cdn::enqueue(&*transaction, "*")?;
             transaction.commit()?;
             Ok(RegistryGraphWrite::Written(generation))
@@ -276,6 +284,17 @@ fn current_generation(connection: &dyn Connection) -> Result<Option<u64>> {
             params![],
         )?
         .map(|mut row| decode_generation(row.get(0)?))
+        .transpose()
+}
+
+/// The document of the current revision, `None` when no graph is stored.
+pub(super) fn current_document(connection: &dyn Connection) -> Result<Option<String>> {
+    connection
+        .query_optional(
+            "SELECT document FROM registry_graph_revisions ORDER BY generation DESC LIMIT 1",
+            params![],
+        )?
+        .map(|mut row| row.get(0))
         .transpose()
 }
 

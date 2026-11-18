@@ -277,7 +277,7 @@ fn query_published_names(
     ecosystem: Ecosystem,
 ) -> Result<Vec<String>> {
     let table = match ecosystem {
-        Ecosystem::Npm => "versions",
+        Ecosystem::Npm => "npm_versions",
         Ecosystem::Cargo => "cargo_versions",
         Ecosystem::Pypi => "pypi_files",
         Ecosystem::Oci => "oci_manifests",
@@ -289,9 +289,7 @@ fn query_published_names(
                  WHERE p.namespace = ?1 AND p.ecosystem = ?2
                    AND EXISTS (
                        SELECT 1 FROM {table} item
-                       WHERE item.namespace = p.namespace
-                         AND item.ecosystem = p.ecosystem
-                         AND item.name = p.name
+                       WHERE item.namespace = p.namespace AND item.name = p.name
                    )
                  ORDER BY p.name",
             ),

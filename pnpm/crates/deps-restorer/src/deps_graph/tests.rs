@@ -63,13 +63,11 @@ fn variations_metadata() -> PackageMetadata {
             os: os.to_string(),
             cpu: "x64".to_string(),
             libc: libc.map(str::to_string),
-            ..PlatformAssetTarget::default()
         }],
     };
     PackageMetadata {
         specifiers: None,
         resolution: LockfileResolution::Variations(VariationsResolution {
-            revision: None,
             variants: vec![
                 variant("sha512-AAAA".parse().unwrap(), "linux", None),
                 variant("sha512-BBBB".parse().unwrap(), "linux", Some("musl")),
@@ -129,27 +127,16 @@ fn variation_input_keys_use_the_selected_platform_integrity() {
         os: "linux".to_string(),
         cpu: "x64".to_string(),
         libc: Some("glibc".to_string()),
-        floors: None,
     };
     let linux_musl = PlatformSelector {
         os: "linux".to_string(),
         cpu: "x64".to_string(),
         libc: Some("musl".to_string()),
-        floors: None,
     };
-    let darwin = PlatformSelector {
-        os: "darwin".to_string(),
-        cpu: "x64".to_string(),
-        libc: None,
-        floors: None,
-    };
+    let darwin = PlatformSelector { os: "darwin".to_string(), cpu: "x64".to_string(), libc: None };
 
     let input_key = |selector: &PlatformSelector| {
-        let platforms = crate::platform_selection::VariantPlatforms {
-            runtime: selector.clone(),
-            linked: selector.clone(),
-        };
-        let graph = build_deps_graph_for_platform(&snapshots, &packages, &platforms);
+        let graph = build_deps_graph_for_platform(&snapshots, &packages, selector);
         calc_dep_state_input_key(&graph, &pkg, None)
     };
     let keys = [input_key(&linux_glibc), input_key(&linux_musl), input_key(&darwin)];
@@ -236,7 +223,7 @@ fn subgraph_with_empty_roots_is_empty() {
     let graph = build_deps_subgraph(
         &snapshots,
         &packages,
-        (std::iter::empty(), &crate::platform_selection::VariantPlatforms::host()),
+        (std::iter::empty(), &crate::host_platform_selector()),
     );
     assert!(graph.is_empty(), "empty roots must produce an empty graph");
 }
@@ -265,7 +252,7 @@ fn subgraph_walks_forward_closure() {
     let graph = build_deps_subgraph(
         &snapshots,
         &packages,
-        (std::iter::once(key_a.clone()), &crate::platform_selection::VariantPlatforms::host()),
+        (std::iter::once(key_a.clone()), &crate::host_platform_selector()),
     );
     assert!(graph.contains_key(&key_a));
     assert!(graph.contains_key(&key_b), "b is in a's closure");
@@ -289,7 +276,7 @@ fn subgraph_terminates_on_cycle() {
     let graph = build_deps_subgraph(
         &snapshots,
         &packages,
-        (std::iter::once(key_a.clone()), &crate::platform_selection::VariantPlatforms::host()),
+        (std::iter::once(key_a.clone()), &crate::host_platform_selector()),
     );
     assert_eq!(graph.len(), 2);
     assert!(graph.contains_key(&key_a));

@@ -1,5 +1,12 @@
 # @pnpm/testing.command-defaults
 
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/testing.registry-mock@1100.0.19
+
 ## 1100.0.18
 
 ### Patch Changes

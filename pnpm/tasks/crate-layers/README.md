@@ -1,7 +1,7 @@
 # crate-layers
 
 Checks the Rust workspace's crate dependency graph against the layers in
-[`crate-layers.toml`](../../../crate-layers.toml).
+[`.config/crate-layers.toml`](../../../.config/crate-layers.toml).
 
 - `just crate-layers check` fails when a crate's normal or build dependency is
   in a higher layer, when a crate is in no layer, or when an exception no

@@ -107,7 +107,7 @@ fn build_with_an_empty_row(rebuild: Option<&RebuildOptions>) -> Result<(), Strin
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
-            variant_platforms: None,
+            variations_platform: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

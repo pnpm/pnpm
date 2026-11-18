@@ -18,6 +18,8 @@ export interface CommandParseRequest {
 export interface CommandParseOutput {
   argv: ParsedCliArgs['argv']
   rawOptions: Record<string, unknown>
+  /** The option types the arguments were parsed with. */
+  types: Parameters<typeof nopt>[0]
 }
 
 interface SeparatedConfigArgs {
@@ -62,7 +64,7 @@ export function parseResolvedCommandArgs (
     })
   }
   mergeExtractedConfigArgs(rawOptions, separated.configDotArgs, request.types)
-  return { argv, rawOptions }
+  return { argv, rawOptions, types: spec.types }
 }
 
 function separateConfigDotArgs (

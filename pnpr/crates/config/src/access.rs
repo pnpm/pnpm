@@ -1,25 +1,4 @@
-use super::{
-    AccessList, AccessToken, BTreeSet, Deserialize, IndexMap, RegistryError, Serialize,
-    TeamDirectory, Teams,
-};
-
-/// One `packages:` map value: `access` / `publish` / `unpublish` are
-/// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`
-/// pseudo-groups, bare account IDs, and `team:<id>` references to the owning
-/// registry's declared teams), compiled into the owning registry's
-/// [`pnpr_policy::PackageRules`]. An omitted field falls back to the registry-level
-/// default. The map key set doubles as the registry's claimed package patterns, so
-/// one declaration routes, filters, and authorizes.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PackageAccess {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub access: Option<AccessSpec>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publish: Option<AccessSpec>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unpublish: Option<AccessSpec>,
-}
+use super::{AccessList, AccessToken, BTreeSet, Deserialize, RegistryError, Serialize};
 
 /// A YAML permission value: a sequence of tokens, or a scalar naming exactly
 /// one token. Every entry is taken verbatim — there is no whitespace
@@ -45,114 +24,21 @@ impl AccessSpec {
     }
 
     /// Compile into an [`AccessList`], rejecting any entry that is not a
-    /// single well-formed token ([`validate_access_token`]) and binding
-    /// `team:` references to the owning registry's `teams` — a team the
-    /// roster does not hold at load is an error, so a typo cannot silently
-    /// become a grant to nobody. The returned error is the reason only; the
+    /// single well-formed token ([`validate_access_token`]). A `team:<id>`
+    /// entry is not checked against the teams that exist: a team that does
+    /// not exist has no members. The returned error is the reason only; the
     /// caller prefixes the registry/field context it alone knows.
-    pub(super) fn to_access_list(&self, teams: &TeamDirectory) -> Result<AccessList, String> {
-        self.to_access_list_resolving(|team| Ok((team.to_string(), teams.clone())))
-    }
-
-    pub(super) fn to_access_list_resolving(
-        &self,
-        resolve: impl Fn(&str) -> Result<(String, TeamDirectory), String>,
-    ) -> Result<AccessList, String> {
+    pub(super) fn to_access_list(&self) -> Result<AccessList, String> {
         let mut tokens = Vec::with_capacity(self.entries().len());
         for entry in self.entries() {
-            let token = if let Some(reference) = entry.strip_prefix("team:") {
-                let (id, directory) = resolve(reference)?;
-                validate_access_token(&format!("team:{id}"))?;
-                let declared = directory.snapshot();
-                if !declared.contains_key(&id) {
-                    return Err(format!(
-                        "access token {entry:?} references a team this registry does not declare{}",
-                        declared_teams(&declared),
-                    ));
-                }
-                AccessToken::Team { id, directory }
-            } else {
-                validate_access_token(entry)?;
-                AccessToken::from(entry.as_str())
-            };
-            tokens.push(token);
+            validate_access_token(entry)?;
+            tokens.push(match entry.strip_prefix("team:") {
+                Some(id) => AccessToken::Team(id.to_string()),
+                None => AccessToken::from(entry.as_str()),
+            });
         }
         Ok(AccessList::new(tokens))
     }
-
-    /// Account IDs in declared order, rejecting access tokens among the members.
-    pub(super) fn member_names(&self) -> Result<&[String], String> {
-        for member in self.entries() {
-            validate_member_name(member)?;
-        }
-        Ok(self.entries())
-    }
-}
-
-/// The declared team IDs for an undeclared-reference error, so a typo'd
-/// `team:` token points at what exists.
-pub(super) fn declared_teams(teams: &Teams) -> String {
-    if teams.is_empty() {
-        return " (it declares no `teams:`)".to_string();
-    }
-    let names = teams
-        .keys()
-        .map(|name| format!("{name:?}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("; its declared teams are {names}")
-}
-
-pub(super) fn build_teams(
-    registry: &str,
-    file: &IndexMap<String, TeamFile>,
-) -> Result<Teams, RegistryError> {
-    let mut teams = Teams::default();
-    for (team, record) in file {
-        validate_team_name(team)
-            .map_err(|reason| RegistryError::InvalidConfig {
-                reason: format!("registry {registry:?} has an invalid team name: {reason}"),
-            })?;
-        validate_team_name(&record.name)
-            .map_err(|reason| RegistryError::InvalidConfig {
-                reason: format!(
-                    "registry {registry:?} team {team:?} has an invalid name: {reason}",
-                ),
-            })?;
-        if teams
-            .values()
-            .any(|existing: &pnpr_policy::Team| existing.name == record.name)
-        {
-            return Err(RegistryError::InvalidConfig {
-                reason: format!(
-                    "registry {registry:?} team {team:?} has duplicate team name {:?}",
-                    record.name,
-                ),
-            });
-        }
-        let members = record.members
-            .member_names()
-            .map_err(|reason| RegistryError::InvalidConfig {
-                reason: format!(
-                    "registry {registry:?} team {team:?} has an invalid member list: {reason}",
-                ),
-            })?;
-        teams.insert(
-            team.clone(),
-            pnpr_policy::Team::new(&record.name, members.iter().cloned().collect()),
-        );
-    }
-    Ok(teams)
-}
-
-/// Compile a permission list given as its tokens, with the rules YAML
-/// applies: each entry is one well-formed token, and a `team:` reference must
-/// name a team `teams` holds.
-pub fn compile_access_list(
-    entries: Vec<String>,
-    teams: &TeamDirectory,
-) -> Result<AccessList, String> {
-    AccessSpec::Many(entries).to_access_list(teams)
 }
 
 /// Compile `auth.admins`, rejecting any entry that is not one account ID.
@@ -197,15 +83,15 @@ pub fn validate_member_name(member: &str) -> Result<(), String> {
     }
     if member.contains(':') {
         return Err(format!(
-            "team member {member:?} is not a username; a team cannot include another team — \
-             list its users, or share one roster with a YAML anchor",
+            "team member {member:?} is not a username; a team cannot include another team, so \
+             list its users",
         ));
     }
     Ok(())
 }
 
 /// Reject unknown built-ins and typed prefixes, reserved aliases, and malformed IDs.
-pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
+pub fn validate_access_token(token: &str) -> Result<(), String> {
     validate_single_token(token)?;
     if let Some(builtin) = token.strip_prefix('$') {
         if !matches!(builtin, "all" | "authenticated" | "anonymous" | "owners") {
@@ -224,8 +110,7 @@ pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
             "team" if !name.is_empty() => Ok(()),
             "team" => Err(format!("access token {token:?} names no team; write `team:<id>`")),
             "group" | "groups" => Err(format!(
-                "unknown access token type {kind:?} in {token:?}; teams are declared per \
-                 registry — did you mean \"team:{name}\"?",
+                r#"unknown access token type {kind:?} in {token:?}; did you mean "team:{name}"?"#,
             )),
             _ => Err(format!(
                 "unknown access token type {kind:?} in {token:?}; the only typed token is \
@@ -258,11 +143,4 @@ pub(super) fn validate_single_token(token: &str) -> Result<(), String> {
         ));
     }
     Ok(())
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct TeamFile {
-    pub(super) name: String,
-    pub(super) members: AccessSpec,
 }

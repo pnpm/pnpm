@@ -67,7 +67,7 @@ SCENARIOS=(
 # Pre-build both revisions once. Subsequent scenario invocations still
 # re-enter the orchestrator's build step (sync_bench_repo + pnpm install
 # + pnpm run compile), but `pnpm install` is a no-op on the populated
-# node_modules and `tsgo --build` is incremental. `pnpm run bundle`
+# node_modules and `tsc --build` is incremental. `pnpm run bundle`
 # (which produces pnpm/dist/pnpm.mjs) does run each time and is not
 # incremental — accepted overhead in exchange for keeping the build
 # path in one consistent place across pacquet and pnpm benches.

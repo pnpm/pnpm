@@ -302,7 +302,7 @@ async fn apply_yank(
             identity,
             &hosted,
             yank.key.as_str(),
-            Action::Publish,
+            Action::Annotate,
             Some(&target.namespace),
         )
         .await?;
@@ -317,7 +317,7 @@ fn authorize_crate_yank(
     (key, document): (&CanonicalPackageName, &CrateDocument),
 ) -> Result<(), RegistryError> {
     let ownership = Ownership::Owners(&document.owners);
-    authorize_with_ownership(state, identity, hosted, (key.as_str(), &ownership), Action::Publish)
+    authorize_with_ownership(state, identity, hosted, (key.as_str(), &ownership), Action::Annotate)
 }
 
 fn update_crate_yank_status(

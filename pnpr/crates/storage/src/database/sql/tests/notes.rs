@@ -41,6 +41,11 @@ async fn notes_published_with_a_release_keep_their_initial_digest(db: Db) {
         .unwrap()
         .unwrap();
     assert_eq!(release.initial_digest, Some(note_digest("release\n")));
+    let noted = database
+        .noted_publications(&npm("core"), "")
+        .await
+        .unwrap();
+    assert_eq!(noted, [("1.0.0".to_string(), id)]);
 
     assert!(
         database

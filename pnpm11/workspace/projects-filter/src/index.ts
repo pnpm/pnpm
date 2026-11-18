@@ -59,6 +59,8 @@ export interface FilterProjectsOptions {
   changedFilesIgnorePattern?: string[]
   useGlobDirFiltering?: boolean
   sharedWorkspaceLockfile?: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
 }
 
 export interface FilterProjectsFromDirResult extends FilterProjectsResult<Project> {
@@ -69,9 +71,13 @@ export async function filterProjectsFromDir (
   workspaceDir: string,
   filter: WorkspaceFilter[],
   opts: FilterProjectsOptions & {
+    dev?: boolean
     engineStrict?: boolean
+    lockfile?: boolean
+    lockfileDir?: string
     nodeVersion?: string
     nodeVersionFromEnginesRuntime?: boolean
+    production?: boolean
     runtimeOnFail?: 'download' | 'error' | 'warn' | 'ignore'
     skipRuntimes?: boolean
     patterns?: string[]
@@ -82,12 +88,18 @@ export async function filterProjectsFromDir (
 ): Promise<FilterProjectsFromDirResult> {
   const allProjects = await findWorkspaceProjects(workspaceDir, {
     engineStrict: opts?.engineStrict,
+    lockfile: opts.lockfile,
+    dev: opts.dev,
+    lockfileDir: opts.lockfileDir,
     patterns: opts.patterns,
     modulesDir: opts.modulesDir,
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     nodeVersion: opts.nodeVersion,
     nodeVersionFromEnginesRuntime: opts.nodeVersionFromEnginesRuntime,
+    production: opts.production,
     runtimeOnFail: opts.runtimeOnFail,
     skipRuntimes: opts.skipRuntimes,
     supportedArchitectures: opts.supportedArchitectures,

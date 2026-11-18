@@ -28,6 +28,25 @@ pub struct CliLayer {
     /// settings, such as the lockfile-dir anchoring and the global virtual
     /// store.
     pub setting_values: BTreeMap<String, String>,
+
+    /// What the command acts on. `-g` selects
+    /// [`CommandTarget::GlobalPackages`],
+    /// which applies [`Config::global_packages_config`].
+    pub command_target: CommandTarget,
+
+    /// The dependency groups `pnpm install` includes, which pick the Node.js
+    /// runtime for project engine checks. `None` includes every group.
+    pub included_dependency_groups: Option<Vec<pnpm_package_manifest::DependencyGroup>>,
+}
+
+/// What a command acts on.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum CommandTarget {
+    /// The project in the directory the command runs in.
+    #[default]
+    Project,
+    /// The global packages, which `-g` commands install, update, and list.
+    GlobalPackages,
 }
 
 impl Config {

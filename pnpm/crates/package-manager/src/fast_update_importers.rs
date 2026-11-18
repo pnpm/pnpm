@@ -11,11 +11,12 @@ use crate::{
     fast_update_compose::Drift, fast_update_lockfile::GraphEdits,
     fast_update_overrides::get_peer_names, fast_update_settings::workspace_package_names,
 };
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_lockfile::{
     Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_semver_include_prerelease::parse_strict_semver_range;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use std::{
@@ -217,11 +218,7 @@ fn importer_divergence(
     manifest_dependencies: &ManifestDependencies<'_>,
 ) -> ImporterDivergence {
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        return if manifest_dependencies.is_empty() {
-            ImporterDivergence::Clean
-        } else {
-            ImporterDivergence::Absorbable
-        };
+        return ImporterDivergence::Absorbable;
     };
     let recorded_but_undeclared = [
         importer.dependencies.as_ref(),
@@ -264,7 +261,7 @@ fn alias_divergence(
         // changed specifier to before it consults the locked
         // versions; a specifier they reject (a `workspace:` range
         // above all) can only resolve.
-        if Range::parse(specifier).is_err()
+        if parse_strict_semver_range(specifier).is_none()
             || dependency.version
                 .ver_peer()
                 .and_then(|ver_peer| ver_peer.version_semver())

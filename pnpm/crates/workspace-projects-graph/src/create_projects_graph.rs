@@ -3,13 +3,14 @@ use crate::{
     graph::{ProjectGraph, ProjectGraphNode},
 };
 use indexmap::IndexMap;
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
     CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_fs::lexical_normalize;
+use pnpm_semver_include_prerelease::is_valid_semver_range;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 use rayon::prelude::*;
@@ -270,9 +271,15 @@ fn resolve_edge(
 /// so a caller must not read a path-shaped selector as a directory.
 fn npm_alias_target<'a>(dep_name: &'a str, raw_spec: &'a str) -> Option<(&'a str, &'a str)> {
     let aliased = raw_spec.strip_prefix("npm:")?;
+    if !aliased.is_empty() && is_valid_semver_range(aliased) {
+        return Some((dep_name, aliased));
+    }
     Some(match aliased.rfind('@') {
-        Some(index) if index >= 1 => (&aliased[..index], &aliased[index + 1..]),
-        _ => (dep_name, aliased),
+        Some(index) if index >= 1 && index + 1 < aliased.len() => {
+            (&aliased[..index], &aliased[index + 1..])
+        }
+        Some(index) if index >= 1 => (&aliased[..index], "latest"),
+        _ => (aliased, "latest"),
     })
 }
 
@@ -376,7 +383,7 @@ fn classify(spec: &str) -> SpecKind<'_> {
     if is_path_like(spec) {
         return SpecKind::Directory(spec);
     }
-    if Version::parse(spec).is_ok() || Range::parse(spec).is_ok() {
+    if Version::parse(spec).is_ok() || is_valid_semver_range(spec) {
         return SpecKind::VersionOrRange;
     }
     SpecKind::Skip

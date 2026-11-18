@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.controller",
-  "version": "1102.2.10",
+  "version": "1102.2.11",
   "description": "A storage for packages",
   "keywords": [
     "pnpm",
@@ -34,13 +34,13 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest": "rimraf .tmp",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "pn pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

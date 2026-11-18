@@ -170,7 +170,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
         .keys()
         .cloned()
         .collect();
-    let all_groups = crate::GroupSelection::all().linking_as(scope.groups);
+    let all_groups = crate::GroupSelection::all();
     let closure_groups =
         if install.projects.selected_ids.is_some() { &all_groups } else { scope.groups };
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(

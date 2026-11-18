@@ -61,7 +61,7 @@ jobs:
         run: pnpm runtime set node 22 --global
 
       - name: Install just and cargo-nextest
-        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: just,cargo-nextest
 
@@ -75,7 +75,7 @@ jobs:
       - name: Bundle pnpm v11
         shell: bash
         run: |
-          pnpm --filter pnpm exec tsgo --build
+          pnpm --filter pnpm exec tsc --build
           pnpm --filter pnpm run bundle
 
       - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11, 12, HEAD)

@@ -151,6 +151,173 @@ test('findWorkspaceProjects() uses the shared Node.js version when a project run
   })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_ENGINE' })
 })
 
+test('findWorkspaceProjects() uses a locked runtime version for engine checks', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=24.1.0' },
+    devEngines: { runtime: { name: 'node', version: '^24.0.0', onFail: 'download' } },
+  }))
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), [
+    "lockfileVersion: '9.0'",
+    'importers:',
+    '  .: {}',
+    '  packages/app:',
+    '    devDependencies:',
+    '      node:',
+    '        specifier: runtime:^24.0.0',
+    '        version: runtime:24.1.0',
+  ].join('\n'))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+    nodeVersionFromEnginesRuntime: true,
+  })).resolves.toHaveLength(2)
+})
+
+test('findWorkspaceProjects() ignores a locked runtime for an outdated declaration', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=24.1.0' },
+    devEngines: { runtime: { name: 'node', version: '^24.0.0', onFail: 'download' } },
+  }))
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), [
+    "lockfileVersion: '9.0'",
+    'importers:',
+    '  .: {}',
+    '  packages/app:',
+    '    devDependencies:',
+    '      node:',
+    '        specifier: runtime:^23.0.0',
+    '        version: runtime:24.1.0',
+  ].join('\n'))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+    nodeVersionFromEnginesRuntime: true,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_ENGINE' })
+})
+
+test('findWorkspaceProjects() reads project lockfiles when the workspace lockfile is disabled', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=24.1.0' },
+    devEngines: { runtime: { name: 'node', version: '^24.0.0', onFail: 'download' } },
+  }))
+  fs.writeFileSync(path.join(projectDir, 'pnpm-lock.yaml'), [
+    "lockfileVersion: '9.0'",
+    'importers:',
+    '  .:',
+    '    devDependencies:',
+    '      node:',
+    '        specifier: runtime:^24.0.0',
+    '        version: runtime:24.1.0',
+  ].join('\n'))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+    nodeVersionFromEnginesRuntime: true,
+    sharedWorkspaceLockfile: false,
+  })).resolves.toHaveLength(2)
+})
+
+test('findWorkspaceProjects() checks engines against a directly declared runtime dependency', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=24.1.0' },
+    dependencies: { node: 'tool:24.1.0' },
+  }))
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), [
+    "lockfileVersion: '9.0'",
+    'importers:',
+    '  .: {}',
+    '  packages/app:',
+    '    dependencies:',
+    '      node:',
+    '        specifier: tool:24.1.0',
+    '        version: runtime:24.1.0',
+  ].join('\n'))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+    nodeVersionFromEnginesRuntime: true,
+  })).resolves.toHaveLength(2)
+})
+
+test('findWorkspaceProjects() checks dev runtimes when production and development dependencies are included', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=99.0.0' },
+    devEngines: { runtime: { name: 'node', version: '99.0.0', onFail: 'download' } },
+  }))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+    nodeVersionFromEnginesRuntime: true,
+    production: true,
+    dev: true,
+  })).resolves.toHaveLength(2)
+})
+
+test('findWorkspaceProjects() ignores a dev runtime excluded by a production install', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=99.0.0' },
+    devEngines: { runtime: { name: 'node', version: '99.0.0', onFail: 'download' } },
+  }))
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), [
+    "lockfileVersion: '9.0'",
+    'importers:',
+    '  .: {}',
+    '  packages/app:',
+    '    devDependencies:',
+    '      node:',
+    '        specifier: 99.0.0',
+    '        version: runtime:99.0.0',
+  ].join('\n'))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: process.version,
+    nodeVersionFromEnginesRuntime: true,
+    production: true,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_ENGINE' })
+})
+
 test('findWorkspaceProjects() ignores runtime pins when runtimes are skipped', async () => {
   const workspaceDir = temporaryDirectory()
   const projectDir = path.join(workspaceDir, 'packages/app')

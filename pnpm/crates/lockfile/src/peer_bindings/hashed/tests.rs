@@ -27,7 +27,10 @@ fn complete_provider_set_is_checked_before_omissions_exhaust_the_budget() {
         .map(|name| vec![name.parse().unwrap()])
         .collect();
     let hash = pnpm_crypto_hash::create_short_hash(&names.join(")("));
-    let recovered = super::match_candidates(&candidates, &hash).unwrap();
+    let snapshots = std::collections::HashMap::new();
+    let consumer = "consumer@1.0.0".parse().unwrap();
+    let mut cycle_probe = super::CycleProbe::new(&snapshots, &consumer);
+    let recovered = super::match_candidates(&candidates, &hash, &mut cycle_probe).unwrap();
     assert_eq!(recovered.len(), names.len());
     for name in names {
         assert!(recovered.contains(&name.parse().unwrap()));

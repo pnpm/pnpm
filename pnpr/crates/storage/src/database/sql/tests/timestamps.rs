@@ -55,10 +55,10 @@ async fn metadata_timestamps_are_integer_milliseconds(db: Db) {
 fn assert_timestamps(connection: &dyn Connection, before: i64) -> pnpr_error::Result<()> {
     for columns in [
         ("schema_migrations", "applied_at"),
-        ("versions", "published_at"),
+        ("npm_versions", "published_at"),
         ("publications", "committed_at"),
-        ("tag_history", "changed_at"),
-        ("notes", "modified_at"),
+        ("npm_tag_history", "changed_at"),
+        ("version_notes", "modified_at"),
     ] {
         assert_timestamp_column(connection, columns, before)?;
     }
@@ -74,7 +74,7 @@ fn assert_timestamp_column(
     assert!(!rows.is_empty(), "{table}");
     for mut row in rows {
         let millis: i64 = row.get(0)?;
-        if table == "versions" {
+        if table == "npm_versions" {
             assert_eq!(iso_from_unix_millis(millis), "2026-01-01T00:00:00.000Z");
         } else {
             assert!((before..=now_millis()).contains(&millis), "{table}: {millis}");
@@ -98,11 +98,12 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
         adapter.read(ReadSource::Primary, &mut |connection| {
             for (table, column) in [
                 ("schema_migrations", "applied_at"),
-                ("versions", "published_at"),
+                ("npm_versions", "published_at"),
                 ("publications", "committed_at"),
                 ("publication_outcomes", "committed_at"),
-                ("tag_history", "changed_at"),
-                ("notes", "modified_at"),
+                ("npm_tag_history", "changed_at"),
+                ("version_notes", "modified_at"),
+                ("publication_notes", "modified_at"),
                 ("blobs", "changed_at"),
                 ("artifact_blobs", "mapped_at"),
                 ("staged_archives", "staged_at"),

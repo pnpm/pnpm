@@ -2,7 +2,7 @@ use super::{AddArgs, AddDependencyOptions, AddError, apply_allow_build, workspac
 use crate::{
     boolean_negations::with_boolean_negations,
     cargo_manifest::CargoDependencyKind,
-    cli_args::{CliArgs, cli_command::CliCommand},
+    cli_args::{CliArgs, approve_builds::ApprovalStore, cli_command::CliCommand},
 };
 use clap::{CommandFactory, Parser};
 use pnpm_config::Config;
@@ -14,7 +14,7 @@ use std::path::Path;
 fn allow_build_merges_into_config_and_persists_to_workspace_yaml() {
     let dir = tempfile::tempdir().expect("temp dir");
     let mut config = Config::default();
-    apply_allow_build(&mut config, &["esbuild".to_string()], dir.path())
+    apply_allow_build(&mut config, &["esbuild".to_string()], ApprovalStore::Workspace(dir.path()))
         .expect("allow-build applies");
 
     assert_eq!(config.allow_builds.get("esbuild"), Some(&true), "enabled for this install");
@@ -28,7 +28,7 @@ fn allow_build_merges_into_config_and_persists_to_workspace_yaml() {
 fn allow_build_negation_sets_false_in_config_and_workspace_yaml() {
     let dir = tempfile::tempdir().expect("temp dir");
     let mut config = Config::default();
-    apply_allow_build(&mut config, &["!core-js".to_string()], dir.path())
+    apply_allow_build(&mut config, &["!core-js".to_string()], ApprovalStore::Workspace(dir.path()))
         .expect("allow-build negation applies");
 
     assert_eq!(config.allow_builds.get("core-js"), Some(&false), "disabled for this install");
@@ -43,7 +43,7 @@ fn allow_build_rejects_an_argument_that_names_no_package() {
     for allow_build in [&["!".to_string()][..], &[String::new()][..]] {
         let dir = tempfile::tempdir().expect("temp dir");
         let mut config = Config::default();
-        let err = apply_allow_build(&mut config, allow_build, dir.path())
+        let err = apply_allow_build(&mut config, allow_build, ApprovalStore::Workspace(dir.path()))
             .expect_err("an empty package name is rejected");
         assert_eq!(
             err.code()
@@ -67,8 +67,12 @@ fn allow_build_rejects_a_package_the_root_disallows() {
     let mut config = Config::default();
     config.allow_builds.insert("esbuild".to_string(), false);
 
-    let err = apply_allow_build(&mut config, &["esbuild".to_string()], dir.path())
-        .expect_err("disallowed package is rejected");
+    let err = apply_allow_build(
+        &mut config,
+        &["esbuild".to_string()],
+        ApprovalStore::Workspace(dir.path()),
+    )
+    .expect_err("disallowed package is rejected");
     assert_eq!(
         err.code()
             .map(|code| code.to_string())
@@ -87,7 +91,8 @@ fn allow_build_rejects_a_package_the_root_disallows() {
 fn allow_build_is_a_noop_when_empty() {
     let dir = tempfile::tempdir().expect("temp dir");
     let mut config = Config::default();
-    apply_allow_build(&mut config, &[], dir.path()).expect("empty allow-build is a no-op");
+    apply_allow_build(&mut config, &[], ApprovalStore::Workspace(dir.path()))
+        .expect("empty allow-build is a no-op");
     assert!(config.allow_builds.is_empty());
     assert!(
         !dir.path()

@@ -3,8 +3,9 @@ pub(super) mod npm_errors;
 pub(super) use super::{
     Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_LOGIN_BODY_BYTES,
     MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, authenticate,
-    authorize_package, batch, caller_scoped, cargo, check_publish_tombstone, delete_package,
-    delete_tarball, get_dist_tags, get_org_teams, get_team_members,
+    authorize_package, authorize_package_write, batch, caller_scoped, cargo,
+    check_publish_tombstone, delete_package, delete_tarball, get_dist_tags, get_org_teams,
+    get_team_members,
     health::{serve_live, serve_ping, serve_ready},
     hosted_storage, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
     pypi, remove_dist_tag, resolve_write_target, serve_metrics, serve_org_packages,
@@ -34,9 +35,6 @@ use npm_handlers::{
     put_scoped_packument_revision, unpublish_package, unpublish_scoped_package,
     unpublish_scoped_tarball, unpublish_tarball,
 };
-
-mod variant_handlers;
-use variant_handlers::get_scoped_variant_tarball;
 
 mod observability;
 use observability::with_observability_layers;
@@ -219,8 +217,8 @@ fn surface_routes(
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())
         .merge(super::user_admin::user_admin_routes())
-        .merge(super::rule_admin::rule_admin_routes())
-        .merge(super::registry_graph::registry_admin_routes());
+        .merge(super::registry_graph::registry_admin_routes())
+        .merge(super::grant_admin::grant_admin_routes());
     if state.inner.config.identity.auth.scim.is_some() {
         router = router.merge(super::scim::scim_routes());
     }
@@ -353,7 +351,6 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
         )
         .route(&path("/{name}/-/notes"), get(note_handlers::package_notes))
         .route(&path("/{scope}/{name}/-/notes"), get(note_handlers::scoped_package_notes))
-        .route(&path("/{scope}/{name}/variants/{tag}"), get(get_scoped_variant_tarball))
         .route(
             &path("/{scope}/{name}/-/{filename}"),
             get(get_scoped_tarball).delete(unpublish_scoped_tarball),

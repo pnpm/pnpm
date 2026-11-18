@@ -14,7 +14,7 @@ import {
 import { isError, PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { type ConfigDepsInstallMode, readConfigDependencyLockfile, resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { type ConfigDependencies, isPlainObject } from '@pnpm/types'
@@ -181,6 +181,7 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
   const routingBeforeHooks = {
     registry: config.registry,
     registriesByScope: { ...config.registriesByScope },
+    registries: cloneCliSetting(hookRegistries(config)),
   }
   const filtersBeforeHooks = {
     filter: cloneCliSetting(config.filter),
@@ -192,7 +193,13 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
     const updateConfigResult = updateConfig(config)
     config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop -- each hook receives the config the previous one returned
   }
+  const scopeRoutes = config.registriesByScope === undefined
+    ? routingBeforeHooks.registriesByScope
+    : config.registriesByScope
+  const scopeRoutesChanged = !equals(routingBeforeHooks.registriesByScope, scopeRoutes)
   applyRegistryRoutingChanges(config, routingBeforeHooks)
+  const warning = legacyRegistriesWarning(routingBeforeHooks, config, scopeRoutesChanged)
+  if (warning) globalWarn(warning)
   rebaseHookFilters(config, context, filtersBeforeHooks)
   restoreCliSettings(config, cliSettings)
   if (config.lockfileDir !== lockfileDirBeforeHooks) {
@@ -204,6 +211,40 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
     applyDerivedConfig(config)
   }
   return config
+}
+
+function legacyRegistriesWarning (
+  before: RegistryRouting & { registries: unknown },
+  config: Config,
+  scopeRoutesChanged: boolean
+): string | undefined {
+  const registries = hookRegistries(config)
+  if (equals(before.registries, registries) || scopeRoutesChanged) return undefined
+  const legacyRoutes = registries
+  if (!isPlainObject(legacyRoutes) || !isLegacyRegistryRoutes(legacyRoutes)) return undefined
+  const unchangedScopes = Object.entries(before.registriesByScope)
+    .filter(([scope]) => {
+      const expectedRoute = legacyRoutes[scope] ?? (scope === '@jsr' ? undefined : legacyRoutes.default)
+      return typeof expectedRoute === 'string' &&
+        config.registriesByScope[scope] !== normalizeLegacyRegistryRoute(expectedRoute)
+    })
+    .map(([scope]) => scope)
+  if (unchangedScopes.length === 0) return undefined
+  return `The updateConfig hook changed the \`registries\` setting, but these routes still use their configured registry: ${unchangedScopes.join(', ')}. Return \`registriesByScope\` to replace scope routing.`
+}
+
+function normalizeLegacyRegistryRoute (route: string): string {
+  return normalizeRegistriesByScope({ default: route }).default
+}
+
+function isLegacyRegistryRoutes (routes: Record<string, unknown>): boolean {
+  return Object.entries(routes).every(([key, route]) =>
+    (key === 'default' || key.startsWith('@')) && typeof route === 'string'
+  )
+}
+
+function hookRegistries (config: Config): unknown {
+  return (config as Config & { registries?: unknown }).registries
 }
 
 function rebaseHookFilters (

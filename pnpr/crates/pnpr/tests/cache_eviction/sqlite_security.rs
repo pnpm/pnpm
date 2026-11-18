@@ -536,7 +536,7 @@ async fn symlinked_verdict_sidecar_still_counts_db_bytes_and_retries_deferred_va
     assert!(bloated_db_len > 64 * 1024);
 
     // 1. A symlinked `-journal` sidecar blocks SQLite open, yet `verdict_db` bytes still count
-    //    toward `max_size`, forcing `candidate` out!
+    //    toward `max_size`, forcing `candidate` out.
     let outside = TempDir::new().unwrap();
     let outside_journal = outside.path().join("outside-journal");
     std::fs::write(&outside_journal, b"keep").unwrap();
@@ -561,7 +561,7 @@ async fn symlinked_verdict_sidecar_still_counts_db_bytes_and_retries_deferred_va
     assert!(!candidate.exists());
 
     // 2. Remove the symlinked sidecar and run an expiry pass that deletes 0 rows (`max_age` cutoff
-    //    predates remaining rows): it must still retry VACUUM on the >=16 freelist pages!
+    //    predates remaining rows): it must still retry VACUUM on the >=16 freelist pages.
     std::fs::remove_file(&journal_link).unwrap();
     let vacuum_report = collect_cache(
         &config,

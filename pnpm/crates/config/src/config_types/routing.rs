@@ -88,6 +88,7 @@ pub(super) const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
 /// (`structuredConfigFileKeys` in `configFileKey.ts`, plus v12-only sections).
 pub(super) const STRUCTURED_CONFIG_FILE_KEYS: &[&str] = &[
     "concurrency-groups",
+    "global-packages-config",
     "macos-backup",
     "named-registries",
     "node-download-mirrors",

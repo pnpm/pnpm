@@ -497,7 +497,7 @@ perf(store-dir): share one read-only StoreIndex across cache lookups
   without an explicit human request. If there is a clear benefit and
   justification for pulling in a new third-party crate, ask the human to
   approve it and to add it to `[workspace.dependencies]` rather than adding
-  it yourself. Consult `deny.toml` when evaluating candidates.
+  it yourself. Consult `.config/deny.toml` when evaluating candidates.
 - Do not introduce `unsafe` outside the crates
   [`UNSAFE_POLICY.md`](../UNSAFE_POLICY.md) names. A foreign call goes into the
   `pnpm-ffi-*` crate that owns its surface; every other crate takes the

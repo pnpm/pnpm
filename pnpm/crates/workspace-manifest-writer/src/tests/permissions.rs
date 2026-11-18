@@ -248,3 +248,14 @@ fn a_chosen_skill_name_with_flow_indicators_reads_back_as_one_name() {
         "{out}",
     );
 }
+
+#[test]
+fn ends_an_unterminated_last_line_before_appending() {
+    let out = run(Some("permissions:\n  esbuild:\n    build: true"), &[("sharp", build(false))]);
+    assert_eq!(
+        out.as_deref(),
+        Some("permissions:\n  esbuild:\n    build: true\n  sharp:\n    build: false\n"),
+    );
+    let out = run(Some("allowBuilds:\n  esbuild: true"), &[("sharp", build(false))]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n  sharp: false\n"));
+}

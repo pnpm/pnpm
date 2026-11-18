@@ -23,8 +23,7 @@ pub struct ProfileError {
 }
 
 impl Profile {
-    /// The npm profile: one record per version, covering its primary archive
-    /// and every platform variant.
+    /// The npm profile: one record per version.
     pub const NPM_INSTALL_MANIFEST: &str = "npm-install-manifest/1";
     /// The Cargo profile: one record per crate version, whose manifest is the
     /// index entry Cargo resolves from.

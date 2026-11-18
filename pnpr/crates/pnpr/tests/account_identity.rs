@@ -24,7 +24,7 @@ impl Fixture {
         let operator = auth.tokens.issue(&operator_id).await.unwrap();
         let member = auth.tokens.issue(&member_id).await.unwrap();
         let yaml = format!(
-            "auth:\n  admins: [{operator_id}, {member_id}]\nregistries:\n  local:\n    type: hosted\n    teams:\n      release-id:\n        name: release\n        members: [{member_id}]\n    packages:\n      '@secret/*':\n        access: [{member_id}]\n      '@team/*':\n        access: team:release-id\n      '**':\n        access: $all\n        publish: $owners\n        unpublish: $owners\n",
+            "auth:\n  admins: [{operator_id}, {member_id}]\nteams:\n  release-id:\n    name: release\n    members: [{member_id}]\nregistries:\n  local:\n    type: hosted\n    packages:\n      '@secret/*':\n        access: [{member_id}]\n      '@team/*':\n        access: team:release-id\n      '**':\n        access: $all\n        publish: $owners\n        unpublish: $owners\n",
         );
         let path = directory.path().join("config.yaml");
         std::fs::write(&path, format!("{yaml}defaultRegistry: local\n")).unwrap();

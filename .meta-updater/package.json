@@ -1,11 +1,11 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "1100.0.39",
+  "version": "1100.0.40",
   "private": true,
   "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsgo --build",
+    "compile": "tsc --build",
     "test": "pn compile && pn .test",
     ".test": "node --test test/*.test.mjs"
   },

@@ -148,6 +148,120 @@ test('detect unknown options', async () => {
   expect(Array.from(unknownOptions.entries())).toStrictEqual([['save-dev', []], ['qar', ['bar']]])
 })
 
+test('an unknown option that came from a shorthand is attributed to the shorthand as typed', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'update') {
+        return {
+          latest: Boolean,
+          recursive: Boolean,
+        }
+      }
+      return {}
+    },
+    universalShorthands: {
+      l: '--long',
+      L: '--latest',
+      r: '--recursive',
+      s: '--reporter=silent',
+    },
+  }
+  for (const typed of ['-l', '--l']) {
+    // eslint-disable-next-line no-await-in-loop -- the cases share one set of options and run in order
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', typed, 'foo'])
+    expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', ['-L']]])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', typed]])
+  }
+  {
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', '-rl'])
+    expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', ['-L']]])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '-l']])
+  }
+  {
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['add', '-l'])
+    expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', []]])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '-l']])
+  }
+  {
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', '--long'])
+    expect(Array.from(unknownOptions.keys())).toStrictEqual(['long'])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([])
+  }
+  {
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, ['update', '--l=false'])
+    expect(Array.from(unknownOptions.entries())).toStrictEqual([['long', ['-L']]])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '--l']])
+  }
+})
+
+test('an unknown option is attributed to an abbreviated shorthand', async () => {
+  const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalShorthands: { development: '--dev' },
+  }, ['update', '--develop'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['dev'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['dev', '--develop']])
+})
+
+test('an unknown option is not attributed to a shorthand after an escape arg', async () => {
+  const opts = {
+    ...DEFAULT_OPTS,
+    escapeArgs: ['exec'],
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalShorthands: { l: '--long' },
+  }
+  for (const argv of [['--long', 'exec', 'ls', '-l'], ['--long', 'update', '--', '-l']]) {
+    // eslint-disable-next-line no-await-in-loop -- the cases share one set of options and run in order
+    const { unknownOptions, unknownOptionShorthands } = await parseCliArgs(opts, argv)
+    expect(Array.from(unknownOptions.keys())).toStrictEqual(['long'])
+    expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([])
+  }
+})
+
+test('an unknown option that the parser always reads is attributed to its shorthand', async () => {
+  const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalShorthands: { r: '--recursive' },
+  }, ['update', '-r'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['recursive'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['recursive', '-r']])
+})
+
+test('an unknown option is not attributed to a shorthand consumed as an option value', async () => {
+  const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalOptionsTypes: { filter: [String, Array] },
+    universalShorthands: { l: '--long' },
+  }, ['update', '--filter', '-l', '--long'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['long'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([])
+})
+
+test('an unknown option in a shorthand expansion is not attributed to it when read as an option value', async () => {
+  const { unknownOptions, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalOptionsTypes: { filter: [String, Array] },
+    universalShorthands: { x: ['--bogus', '--filter', '--long'] },
+  }, ['update', '--long', '-x'])
+  expect(Array.from(unknownOptions.keys())).toStrictEqual(['long', 'bogus'])
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['bogus', '-x']])
+})
+
+test('an unknown option is attributed to a shorthand typed after an option value that matches the script name', async () => {
+  const { cmd, unknownOptionShorthands } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ recursive: Boolean }),
+    universalOptionsTypes: { 'test-pattern': String },
+    universalShorthands: { l: '--long' },
+  }, ['--test-pattern', 'build', '-l', 'run', 'build'])
+  expect(cmd).toBe('run')
+  expect(Array.from(unknownOptionShorthands!.entries())).toStrictEqual([['long', '-l']])
+})
+
 test('allow any option that starts with "config."', async () => {
   const { options, unknownOptions } = await parseCliArgs({
     ...DEFAULT_OPTS,

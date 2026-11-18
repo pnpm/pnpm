@@ -48,6 +48,14 @@ Added in: v10.26.0
 
 Does everything a normal run does, except actually packing the tarball. Useful for verifying the contents of the tarball.
 
+### --ignore-pnpmfile
+
+Don't load the project's `.pnpmfile.cjs`, so its hooks, including `beforePacking`, don't run.
+
+### --ignore-scripts
+
+Don't run the `prepack`, `prepare`, and `postpack` scripts.
+
 ### --skip-manifest-obfuscation
 
 Added in: v11.3.0

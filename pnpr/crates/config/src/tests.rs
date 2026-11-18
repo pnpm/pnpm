@@ -17,9 +17,9 @@ mod graph_document;
 use super::{
     ArtifactQuota, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
     DEFAULT_REGISTRIES_YAML, FeatureOverrides, HostedStoreConfig, Interval, LogFormat, LogLevel,
-    RegistryGraphDocument, RoutingConfig, RoutingOptions, S3Settings, TeamDirectory,
-    UpstreamAuthFile, UpstreamConfig, UpstreamConfigFile, config_file_in, normalize_key_prefix,
-    parse_interval, resolve_relative, resolve_upstream_config,
+    RegistryGraphDocument, RoutingConfig, RoutingOptions, S3Settings, UpstreamAuthFile,
+    UpstreamConfig, UpstreamConfigFile, config_file_in, normalize_key_prefix, parse_interval,
+    resolve_relative, resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
 };
 use indexmap::IndexMap;
@@ -207,7 +207,7 @@ fn upstream_config_file(
         fail_timeout: None,
         cache: None,
         search: false,
-        access: None,
+        public: true,
     }
 }
 
@@ -217,10 +217,8 @@ fn auth_header(upstream: &super::UpstreamConfig) -> Option<&str> {
         .map(|value| value.to_str().unwrap())
 }
 
-/// [`resolve_upstream_config`] with no declared teams, as every serving-knob
-/// case here has.
 fn resolve_upstream(name: &str, file: UpstreamConfigFile) -> Result<UpstreamConfig, RegistryError> {
-    resolve_upstream_config::<FakeEnv>(name, file, &TeamDirectory::default())
+    resolve_upstream_config::<FakeEnv>(name, file)
 }
 
 fn user(name: &str) -> Identity {
@@ -251,26 +249,6 @@ fn write_yaml(dir: &Path, name: &str, contents: &str) -> PathBuf {
 }
 
 const MINIMAL_YAML: &str = "storage: ./s\n";
-
-// ----- per-registry `packages:` rules from YAML -------------------------
-
-/// A one-hosted-registry config whose `packages:` map is the given YAML
-/// fragment (indented under `packages:`).
-fn hosted_rules_config(packages: &str) -> Config {
-    let yaml = format!(
-        "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
-    );
-    load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap()
-}
-
-/// The same one-hosted-registry config as [`hosted_rules_config`], for
-/// the `packages:` fragments that must fail to load.
-fn hosted_rules_err(packages: &str) -> RegistryError {
-    let yaml = format!(
-        "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
-    );
-    load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap_err()
-}
 
 fn s3_settings_for(endpoint: Option<&str>, allow_http: Option<bool>) -> S3Settings {
     S3Settings {

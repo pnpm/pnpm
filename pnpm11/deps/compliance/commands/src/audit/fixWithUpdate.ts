@@ -1,6 +1,6 @@
 import { writeSettings } from '@pnpm/config.writer'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import type { AuditReport } from '@pnpm/deps.compliance.audit'
+import type { AdvisoryId, AuditReport } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { update } from '@pnpm/installing.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
@@ -19,15 +19,15 @@ import { createPublishTimesFetcher } from './publishTimes.js'
 
 interface ExtendedPackageVulnerability {
   vulnerability: PackageVulnerability
-  id: number
+  id: AdvisoryId
   semverRange?: semver.Range
 }
 
 export interface FixWithUpdateResult {
   // IDs of packages that were fixed
-  fixed: number[]
+  fixed: AdvisoryId[]
   // IDs of packages that could not be fixed
-  remaining: number[]
+  remaining: AdvisoryId[]
   // Entries added to minimumReleaseAgeExclude
   addedAgeExcludes: string[]
 }
@@ -38,7 +38,7 @@ export type FixWithUpdateOptions = AuditOptions & {
 
 interface VulnerabilitiesByPackage {
   fixable: Map<string, ExtendedPackageVulnerability[]>
-  unfixable: Map<string, Set<number>>
+  unfixable: Map<string, Set<AdvisoryId>>
 }
 
 export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpdateOptions): Promise<FixWithUpdateResult> {
@@ -72,7 +72,7 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
 
 function groupVulnerabilitiesByPackage (auditReport: AuditReport): VulnerabilitiesByPackage {
   const fixable = new Map<string, ExtendedPackageVulnerability[]>()
-  const unfixable = new Map<string, Set<number>>()
+  const unfixable = new Map<string, Set<AdvisoryId>>()
   for (const advisory of Object.values(auditReport.advisories)) {
     const packageVulnerabilities = getOrCreate(fixable, advisory.module_name, () => [])
     const severity: VulnerabilitySeverity = advisory.severity
@@ -149,8 +149,8 @@ function classifyVulnerabilities (
   vulnerabilities: VulnerabilitiesByPackage,
   updatedPackages: Map<string, Set<string>>
 ): Pick<FixWithUpdateResult, 'fixed' | 'remaining'> {
-  const fixed: number[] = []
-  const remaining: number[] = []
+  const fixed: AdvisoryId[] = []
+  const remaining: AdvisoryId[] = []
 
   for (const [pkgName, packageVulnerabilities] of vulnerabilities.fixable) {
     const updatedVersions = updatedPackages.get(pkgName)

@@ -42,6 +42,6 @@ Approve builds for [globally installed packages](../global-packages.md).
 
 pnpm gathers the packages awaiting approval across **every** [isolated install
 group](../global-packages.md#isolated-installations), asks about them once, and
-writes a single policy into the `pnpm-workspace.yaml` of the global packages
-directory. Only the groups that actually contain an approved package are then
-rebuilt.
+writes the decisions to [`globalPackagesConfig.permissions`](../configuring.md#settings-for-global-packages)
+in the global `config.yaml`. Only the groups that actually contain an approved
+package are then rebuilt.

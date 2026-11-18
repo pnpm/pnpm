@@ -8,6 +8,7 @@ import type { DeferredPromise } from 'p-defer'
 
 import type { PeerNodeRecord } from './finalizePeerContexts.js'
 import type { NodeId } from './nextNodeId.js'
+import type { OptionalPeerRanges } from './optionalPeerRanges.js'
 import type {
   DependenciesTree,
   DependenciesTreeNode,
@@ -89,6 +90,10 @@ export type MissingPeers = Map<string, MissingPeerInfo>
 export interface PeersCacheItem {
   depPath: DeferredPromise<DepPath>
   resolvedPeers: Map<string, NodeId>
+  // The peers in resolvedPeers and missingPeers that this entry saw through
+  // a restricted provider, with the provider's version.
+  // See restrictedProviderVersion.
+  restrictedProviders: Map<string, string>
   missingPeers: MissingPeers
   // The node whose resolution created this entry and will resolve depPath.
   // See breakDepPathAwaitCycles.
@@ -137,6 +142,7 @@ export interface ResolveNodePeersContext<Pkg extends PartialResolvedPackage> ext
   rootDir: ProjectRootDir
   lockfileDir: string
   peersSuffixMaxLength: number
+  optionalPeerRanges: OptionalPeerRanges
 }
 
 export interface CurrentProviderSource {
@@ -153,6 +159,8 @@ export interface ParentPkgInfo {
   version?: string
   depth?: number
   occurrence?: number
+  /** See restrictedProviderVersion. */
+  restrictedProviderVersion?: string
 }
 
 export type ParentPkgsOfNode = Map<NodeId, Record<string, ParentPkgInfo>>
@@ -174,6 +182,11 @@ export interface ParentRef {
   alias?: string
   occurrence: number
   parentNodeIds: NodeId[]
+  /**
+   * Set when the project has this provider only because it was hoisted for
+   * another subtree's peer. See ProjectToResolve.hoistedPeerProviderNodeIds.
+   */
+  hoistedPeerProvider?: true
 }
 
 export interface ParentPkgNode<Pkg> {
@@ -181,4 +194,5 @@ export interface ParentPkgNode<Pkg> {
   nodeId: NodeId
   node: DependenciesTreeNode<Pkg>
   parentNodeIds: NodeId[]
+  hoistedPeerProvider?: true
 }

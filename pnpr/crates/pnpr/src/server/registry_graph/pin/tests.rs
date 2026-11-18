@@ -59,7 +59,7 @@ fn probes_accounts_and_the_registry_admin_api_serve_without_a_graph() {
     }
     for path in [
         "/npm/example",
-        "/-/pnpr/v0/admin/rules/npm/local",
+        "/-/pnpr/v0/admin/grants/readers",
         "/-/pnpr/v0/admin/registriesx",
         "/npm/-/org/acme/team",
         "/npmx/-/whoami",

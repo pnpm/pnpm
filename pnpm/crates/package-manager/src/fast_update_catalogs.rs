@@ -1,6 +1,7 @@
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_semver_include_prerelease::parse_strict_semver_range;
 use std::collections::BTreeMap;
 
 pub(crate) enum FastCatalogUpdate {
@@ -104,7 +105,9 @@ fn retarget_catalog_entry(
     if specifier == &entry.specifier {
         return Some(CatalogEntryUpdate::Kept(entry.clone()));
     }
-    let (Ok(version), Ok(range)) = (Version::parse(&entry.version), Range::parse(specifier)) else {
+    let (Ok(version), Some(range)) =
+        (Version::parse(&entry.version), parse_strict_semver_range(specifier))
+    else {
         return None;
     };
     if !version.satisfies(&range) {

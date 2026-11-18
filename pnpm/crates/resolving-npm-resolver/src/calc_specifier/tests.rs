@@ -68,6 +68,16 @@ fn rewraps_an_npm_alias_around_the_new_range() {
         ),
         "npm:@types/table@7.0.0",
     );
+    assert_eq!(
+        calc_specifier(
+            "npm:bar@>=7.0.0 <8.0.0",
+            Some("npm:bar@>=7.0.0 <8.0.0"),
+            Some("foo"),
+            &picked("7.0.0"),
+            RangeSpecStyle::Major,
+        ),
+        "npm:bar@>=7.0.0 <8.0.0",
+    );
 }
 
 #[test]

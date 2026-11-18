@@ -7,6 +7,7 @@ use super::{
     removed, to_column,
 };
 use pnpr_error::{RegistryError, Result};
+use pnpr_package_name::Ecosystem;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -51,9 +52,8 @@ pub(super) fn queries(key: &PackageKey) -> [Query<'_>; 2] {
     [
         query!(
             "SELECT version, position, yanked, entry FROM cargo_versions
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY position",
+             WHERE namespace = ?1 AND name = ?2 ORDER BY position",
             namespace,
-            ecosystem,
             name,
         ),
         query!(
@@ -126,8 +126,8 @@ fn clear_crate(
         params![namespace, ecosystem, name, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
-        "DELETE FROM cargo_versions WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![namespace, ecosystem, name],
+        "DELETE FROM cargo_versions WHERE namespace = ?1 AND name = ?2",
+        params![namespace, name],
     )?;
     commit.delete_state()?;
     Ok(true)
@@ -166,11 +166,10 @@ fn update_yanked(
     if was_yanked == is_yanked {
         return Ok(false);
     }
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Cargo);
     commit.transaction.execute(
-        "UPDATE cargo_versions SET yanked = ?5
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![namespace, ecosystem, name, version, i64::from(is_yanked)],
+        "UPDATE cargo_versions SET yanked = ?4 WHERE namespace = ?1 AND name = ?2 AND version = ?3",
+        params![namespace, name, version, i64::from(is_yanked)],
     )?;
     Ok(true)
 }
@@ -180,12 +179,12 @@ fn insert_cargo_version(
     item: &IncomingCargoVersion,
     position: i64,
 ) -> Result<()> {
-    let (namespace, ecosystem, name) = commit.key.params();
+    let (namespace, name) = commit.key.params_in(Ecosystem::Cargo);
     let entry = serde_json::to_string(&item.entry)?;
     commit.transaction.execute(
-        "INSERT INTO cargo_versions (namespace, ecosystem, name, version, position, yanked, entry)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![namespace, ecosystem, name, &item.version, position, i64::from(item.yanked), entry,],
+        "INSERT INTO cargo_versions (namespace, name, version, position, yanked, entry)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![namespace, name, &item.version, position, i64::from(item.yanked), entry],
     )
 }
 
@@ -213,7 +212,7 @@ fn remove_dropped_versions(
     )?;
     commit.transaction.execute(
         removed::DELETE_CARGO_VERSION_LIST.get(commit.transaction.dialect()),
-        params![namespace, ecosystem, name, &versions],
+        params![namespace, name, &versions],
     )?;
     Ok(true)
 }
@@ -307,16 +306,15 @@ fn canonicalize_cargo_dep(dep: &mut Map<String, Value>) {
 }
 
 pub(super) fn view_query<'query>(key: &'query PackageKey, unless: &'query i64) -> Query<'query> {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Cargo);
     query!(
         "SELECT v.yanked, v.entry FROM cargo_versions v
-         WHERE v.namespace = ?1 AND v.ecosystem = ?2 AND v.name = ?3
+         WHERE v.namespace = ?1 AND v.name = ?2
            AND NOT EXISTS (
              SELECT 1 FROM packages p
-             WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+             WHERE p.namespace = ?1 AND p.ecosystem = 'cargo' AND p.name = ?2 AND p.generation = ?3)
          ORDER BY v.position",
         namespace,
-        ecosystem,
         name,
         unless,
     )

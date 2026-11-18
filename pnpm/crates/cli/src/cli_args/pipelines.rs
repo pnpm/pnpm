@@ -2,6 +2,7 @@ pub(crate) use configuration::{
     apply_install_cli_config, derive_config_root, record_no_runtime_flag, warn_about_config_root,
 };
 pub(in crate::cli_args) use dedicated_runs::run_dedicated_lockfile_workspace_install;
+pub(crate) use fetch::run_fetch;
 pub(crate) use install::{InstallPipeline, ensure_project_manifest};
 pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
 pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
@@ -385,6 +386,7 @@ fn precomputed_workspace_cycles(
 
 mod ci_validation;
 mod dedicated_runs;
+mod fetch;
 mod install;
 mod nested_workspace_manifests;
 mod pipelined_runs;

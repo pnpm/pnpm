@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.peers-checker",
-  "version": "1100.0.44",
+  "version": "1100.0.45",
   "description": "Check for unmet and missing peer dependency issues from the lockfile",
   "keywords": [
     "pnpm",
@@ -26,9 +26,9 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "test": "pn compile && pn .test",
-    "compile": "tsgo --build && pn lint --fix",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

@@ -26,9 +26,9 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
-    "start": "tsgo --watch",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
+    "start": "tsc --watch",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

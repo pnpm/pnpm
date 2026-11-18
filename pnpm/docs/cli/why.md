@@ -30,7 +30,7 @@ subdirectories or on every workspace package when executed inside a workspace.
 
 ### --json
 
-Show information in JSON format.
+Show information in JSON format. Dependent nodes include a `requires` field containing the declared dependency specifier, when available.
 
 ### --long
 
@@ -39,6 +39,22 @@ Show verbose output.
 ### --parseable
 
 Show parseable output instead of tree view.
+
+### --ranges
+
+Show the version range that each direct dependent declares for the package, in place of the tree. Dependents that declare the same range are listed under it, and each installed version gets its own section:
+
+```text
+esbuild
+  Installed: 0.28.1
+  Wanted:
+    ^0.28.0:
+      vite@6.1.0
+    ~0.28.0:
+      tsx@4.23.1
+```
+
+A dependent whose `package.json` cannot be read is listed under `<unknown>`.
 
 ### --prod, -P, --production
 

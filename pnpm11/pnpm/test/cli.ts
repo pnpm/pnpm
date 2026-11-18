@@ -118,6 +118,16 @@ test('command fails when an unsupported flag is used', async () => {
   expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
 })
 
+test('an unsupported shorthand is reported as typed, with a suggestion of the shorthand of the other case', async () => {
+  prepare()
+
+  const { status, stderr } = execPnpmSync(['update', '-l'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toMatch(/Unknown option: '-l'/)
+  expect(stderr.toString()).toMatch(/Did you mean '-L'\?/)
+})
+
 test('implicit run command fails when an unsupported top-level flag is used', () => {
   prepare({
     scripts: {

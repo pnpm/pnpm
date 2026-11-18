@@ -33,10 +33,8 @@ pub(super) fn check_from_files(
     ))
 }
 
-/// [`crate::install::load_checked_workspace_projects`] inside the
-/// `discover_workspace_projects`
-/// span, skipping the pnpm-managed directories, or the read of the projects
-/// `listed` names.
+/// [`crate::install::read_checked_workspace_projects`] inside the
+/// `discover_workspace_projects` span.
 fn discover_fast_path_projects(
     config: &Config,
     context: &FastPathContext<'_>,
@@ -44,13 +42,10 @@ fn discover_fast_path_projects(
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, &'static str> {
     let _span =
         tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects").entered();
-    let discovered = match listed {
-        Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
-        None => crate::install::load_checked_workspace_projects(
-            config,
-            context.workspace_root,
-            context.workspace_manifest,
-        ),
-    };
-    discovered.map_err(|_| "the workspace projects cannot be listed")
+    crate::install::read_checked_workspace_projects(
+        config,
+        (context.workspace_root, context.workspace_manifest),
+        listed,
+    )
+    .map_err(|_| "the workspace projects cannot be listed")
 }

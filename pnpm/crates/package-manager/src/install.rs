@@ -6,7 +6,7 @@ pub use deploy_manifest::apply_deploy_manifest_hook;
 pub(crate) use deploy_manifest::apply_deploy_manifest_hook_to_arc;
 pub use errors::{InstallError, defer_ignored_builds};
 pub(crate) use lifecycle::{
-    checked_projects_opts, load_checked_workspace_projects, load_workspace_projects,
+    checked_projects_opts, load_workspace_projects, read_checked_workspace_projects,
 };
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions, DependencyManifestSources, DirectoryManifests,
@@ -78,7 +78,7 @@ use pnpm_modules_yaml::{
     write_modules_manifest,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, node_version_from_engines_runtime};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{
     ContextLog, GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage, StageLog,
     SummaryLog,
@@ -210,16 +210,53 @@ fn pnpmfile_checksum_check<'a>(
 }
 
 /// The Node version installability checks assume without probing: an
-/// explicit `nodeVersion` config value first, then a
-/// `devEngines.runtime` / `engines.runtime` pin from the root
-/// manifest. The early host detection and the install paths must
-/// derive it identically or the pre-spawned host would disagree with
-/// the one the install would have detected.
+/// explicit `nodeVersion` config value first, then the runtime pnpm
+/// downloads for the first included dependency group that has one, then the
+/// exact runtime pin of the first included group (`engines.runtime` for
+/// `dependencies`, `devEngines.runtime` for `devDependencies`). The early
+/// host detection and the install paths must derive it identically or the
+/// pre-spawned host would disagree with the one the install would have
+/// detected.
 pub(crate) fn effective_node_version(
     config: &Config,
     manifest: &PackageManifest,
+    dependency_groups: &[DependencyGroup],
 ) -> Option<String> {
-    config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()))
+    if let Some(node_version) = &config.node_version {
+        return Some(node_version.clone());
+    }
+    let runtime_on_fail = config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str);
+    let downloaded =
+        pnpm_deps_restorer::project_host_requirements(manifest.value(), runtime_on_fail)
+            .and_then(|requirements| {
+                dependency_groups
+                    .iter()
+                    .find_map(|group| match group {
+                        DependencyGroup::Prod => {
+                            requirements.dependencies_node_version.clone()
+                        }
+                        DependencyGroup::Dev => {
+                            requirements.dev_dependencies_node_version.clone()
+                        }
+                        DependencyGroup::Optional | DependencyGroup::Peer => None,
+                    })
+            });
+    downloaded.or_else(|| {
+        dependency_groups
+            .iter()
+            .find_map(|group| {
+                let engines_field = match group {
+                    DependencyGroup::Prod => "engines",
+                    DependencyGroup::Dev => "devEngines",
+                    DependencyGroup::Optional | DependencyGroup::Peer => return None,
+                };
+                pnpm_package_manifest::node_version_from_engine_field(
+                    manifest.value(),
+                    engines_field,
+                    runtime_on_fail,
+                )
+            })
+    })
 }
 
 /// Shared out-map for [`ResolutionInputs::peer_issues_sink`]: importer id →
@@ -576,6 +613,7 @@ impl InstallSaveOptions {
 #[derive(Default)]
 pub(crate) struct InstallManifestOptions<'install> {
     pub(crate) deploy_hook: bool,
+    pub(crate) overrides_root_dir: Option<&'install Path>,
     /// pnpm's `pruneDirectDependencies`: scan each importer's `node_modules`
     /// and remove extraneous direct entries not recorded in the wanted
     /// lockfile or public hoist set. Only `pacquet prune` sets it.

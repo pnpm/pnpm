@@ -1,3 +1,7 @@
+pub(super) use kept_range::{KeptRangeVerdict, judge_against_kept_range, kept_range_rewrite};
+
+mod kept_range;
+
 use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, UpdateError, latest_specifier,
     seed_policy::{UpdatePlan, UpdateScope},
@@ -18,7 +22,9 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_deps_resolver::real_package_name_of;
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, range_of_specifier};
-use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorType};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions, VersionSelectorType, parse_strict_semver_range,
+};
 use pnpm_tool_protocol::{RUNTIME_PROTOCOL, is_tool_specifier, strip_tool_protocol};
 
 /// What one matched direct dependency is rewritten against.
@@ -238,9 +244,9 @@ pub(super) fn requested_version_rewrite(
         Some(style) => format!("{}{version}", style.range_prefix()),
         None => {
             if let Some(prev_range) = range_of_specifier(declared_range)
-                && prev_range
-                    .parse::<node_semver::Range>()
-                    .is_ok_and(|range| range.satisfies(&version))
+                .filter(|prev_range| !prev_range.trim().is_empty())
+                && parse_strict_semver_range(prev_range)
+                    .is_some_and(|range| range.satisfies(&version))
             {
                 prev_range.to_string()
             } else {
@@ -303,38 +309,6 @@ fn rewrite_runtime_without_node_resolver(requested: &str, previous: &str) -> Str
         format!("{RUNTIME_PROTOCOL}{requested}")
     }
 }
-/// The declaration an update that does not save may write: only a version the
-/// kept range already admits.
-pub(super) fn kept_range_rewrite<Reporter: self::Reporter>(
-    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
-    name: &str,
-    requested: &str,
-    previous: &str,
-) -> MatchedRewrite {
-    match judge_against_kept_range(requested, previous) {
-        KeptRangeVerdict::Admitted => MatchedRewrite::Target(Some(requested.to_string())),
-        KeptRangeVerdict::Excluded => {
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!(
-                    r#"Skipping "{name}@{requested}": it doesn't satisfy "{previous}", which the manifest keeps when updating without saving."#,
-                ),
-                prefix: package_manifest_prefix(rewrite_ctx.manifest),
-            }));
-            MatchedRewrite::Skipped
-        }
-        KeptRangeVerdict::Undecided => {
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!(
-                    r#"Ignoring "{name}@{requested}": the manifest keeps "{previous}" when updating without saving, so "{name}" was updated within that range instead."#,
-                ),
-                prefix: package_manifest_prefix(rewrite_ctx.manifest),
-            }));
-            MatchedRewrite::Target(None)
-        }
-    }
-}
 /// A dist tag names no version until it is resolved, so an entry pinning a
 /// version or a range records what the tag resolved to, keeping the operator
 /// it already pins. An entry that already tracks a tag keeps tracking one.
@@ -371,34 +345,6 @@ pub(super) async fn tag_rewrite(
     // rewrite; recording it would mark the manifest dirty and persist it for
     // nothing.
     Ok(rewritten.filter(|specifier| specifier != previous))
-}
-/// What an update that doesn't save may do with a requested specifier, given
-/// the specifier the manifest keeps.
-pub(super) enum KeptRangeVerdict {
-    /// A version the kept range admits: resolution can be pointed at it.
-    Admitted,
-    /// A version the kept range excludes: the dependency is left alone.
-    Excluded,
-    /// Nothing that can be judged before resolution — a range or a dist tag,
-    /// which names a version only once resolution has run, or a kept
-    /// specifier that isn't a semver range. The kept specifier decides.
-    Undecided,
-}
-/// Judge a requested specifier against the range the manifest keeps.
-///
-/// Only a concrete version gets a verdict. Matching a version against a range
-/// is exact; deciding whether one *range* is contained by another is not —
-/// implementations disagree around prerelease boundaries — so a range is left
-/// [`Undecided`] rather than guessed at.
-///
-/// [`Undecided`]: KeptRangeVerdict::Undecided
-pub(super) fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
-    let (Ok(requested), Ok(kept)) =
-        (node_semver::Version::parse(requested), node_semver::Range::parse(kept))
-    else {
-        return KeptRangeVerdict::Undecided;
-    };
-    if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
 #[cfg_attr(
     not(feature = "runtime-provisioning"),

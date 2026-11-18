@@ -4,8 +4,8 @@
 use super::{
     FreshnessCheckError, LockfileFreshnessInputs,
     directory_deps::{
-        GraphEdges, NestedByImporter, NestedDirectoryPackage, is_declared_by_path,
-        is_deploy_file_url_key, nested_directory_packages as nested_directory_packages_along,
+        GraphEdges, NestedByImporter, NestedDirectoryPackage, is_deploy_file_url_key,
+        nested_directory_packages as nested_directory_packages_along,
     },
     project_manifests_by_dir,
 };
@@ -17,9 +17,8 @@ use std::collections::{HashMap, HashSet};
 mod read;
 
 /// A directory dependency as the check reaches it: the directory the
-/// lockfile records, as written, and whether a path spec declared it
-/// ([`is_declared_by_path`]).
-type DirectoryDep = (String, bool);
+/// lockfile records, as written.
+type DirectoryDep = String;
 
 /// The manifests [`hooked_directory_manifests`] returns, by [`DirectoryDep`].
 #[derive(Default)]
@@ -33,8 +32,8 @@ impl DirectoryManifests {
         NONE.get_or_init(Self::default)
     }
 
-    pub(crate) fn get(&self, directory: &str, declared_by_path: bool) -> Option<&PackageManifest> {
-        self.0.get(&(directory.to_string(), declared_by_path))
+    pub(crate) fn get(&self, directory: &str) -> Option<&PackageManifest> {
+        self.0.get(directory)
     }
 }
 
@@ -135,24 +134,14 @@ pub(super) fn injected_project_manifests<'a>(
         return Vec::new();
     }
     let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-    let mut injected: Vec<(bool, PathBuf, &PackageManifest)> = inputs.manifests
+    inputs.manifests
         .iter()
         .flat_map(|(importer_id, _)| lockfile.injected_dependencies(importer_id, groups))
         .filter_map(|dependency| {
             let directory = &dependency.directory.directory;
-            let declared_by_path = is_declared_by_path(&dependency.spec.specifier);
-            let manifest = directory_manifests.get(directory, declared_by_path)?;
-            let dir = directory_package_dir(inputs.lockfile_dir, directory);
-            Some((declared_by_path, dir, manifest))
+            let manifest = directory_manifests.get(directory)?;
+            Some((directory_package_dir(inputs.lockfile_dir, directory), manifest))
         })
-        .collect();
-    // The map these extend is keyed by directory and serves workspace specs,
-    // so a directory reached both ways keeps the workspace declaration's
-    // manifest: it comes last.
-    injected.sort_by_key(|(declared_by_path, ..)| !declared_by_path);
-    injected
-        .into_iter()
-        .map(|(_, dir, manifest)| (dir, manifest))
         .collect()
 }
 
@@ -178,7 +167,7 @@ fn direct_directory_deps(
             let key = dependency.spec.version.resolved_key(dependency.alias)?;
             let directory = &dependency.directory.directory;
             (!is_deploy_file_url_key(dependency.spec, &key, directory)).then(|| Visit {
-                dep: (directory.clone(), is_declared_by_path(&dependency.spec.specifier)),
+                dep: directory.clone(),
                 alias: dependency.alias.to_string(),
                 key,
             })
@@ -186,17 +175,15 @@ fn direct_directory_deps(
         .collect()
 }
 
-/// Each nested package under both declarations, which the check tries (see
+/// Each nested package the check reaches (see
 /// [`super::directory_deps::check_nested_directory_package`]).
 fn nested_directory_deps<'n>(nested: &'n NestedByImporter<'_>) -> impl Iterator<Item = Visit> + 'n {
     nested
         .packages()
-        .flat_map(|package| {
-            [false, true].map(|declared_by_path| Visit {
-                dep: (package.directory.clone(), declared_by_path),
-                alias: package.alias.clone(),
-                key: package.key.clone(),
-            })
+        .map(|package| Visit {
+            dep: package.directory.clone(),
+            alias: package.alias.clone(),
+            key: package.key.clone(),
         })
 }
 
@@ -252,9 +239,8 @@ impl DirectoryWalk<'_, '_> {
         {
             return self.recorded_directory_children(snapshot);
         }
-        let (directory, declared_by_path) = &visit.dep;
-        let dir = directory_package_dir(self.inputs.lockfile_dir, directory);
-        let catalogs = (!declared_by_path).then_some(ChildCatalogs {
+        let dir = directory_package_dir(self.inputs.lockfile_dir, &visit.dep);
+        let catalogs = Some(ChildCatalogs {
             catalogs: self.inputs.catalogs,
             workspace_dir: self.inputs.config.workspace_dir.as_deref(),
             package_dir: &dir,
@@ -293,15 +279,7 @@ impl DirectoryWalk<'_, '_> {
             else {
                 return None;
             };
-            let source = metadata.specifiers.as_ref().and_then(|recorded| recorded.manifest_source);
-            Some(Visit {
-                dep: (
-                    resolution.directory.clone(),
-                    matches!(source, Some(pnpm_lockfile::DirectoryManifestSource::Path)),
-                ),
-                alias: name.to_string(),
-                key,
-            })
+            Some(Visit { dep: resolution.directory.clone(), alias: name.to_string(), key })
         })
         .collect()
     }
@@ -324,11 +302,7 @@ impl DirectoryWalk<'_, '_> {
         let pnpm_lockfile::LockfileResolution::Directory(resolution) = &metadata.resolution else {
             return None;
         };
-        Some(Visit {
-            dep: (resolution.directory.clone(), is_declared_by_path(&child.bare_specifier)),
-            alias: child.alias,
-            key,
-        })
+        Some(Visit { dep: resolution.directory.clone(), alias: child.alias, key })
     }
 }
 

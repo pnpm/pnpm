@@ -1,4 +1,5 @@
 use super::{Arc, HashMap, HashSet, NodeId, PeersCacheItem};
+use crate::resolve_peers::optional_peer_ranges::OptionalPeerRanges;
 use std::collections::{BTreeMap, btree_map};
 
 #[derive(Debug, Default)]
@@ -11,6 +12,8 @@ struct PkgCacheEntries {
 pub(in super::super) struct PeersCache {
     by_pkg: HashMap<Arc<str>, PkgCacheEntries>,
     items_by_provider: HashMap<NodeId, HashSet<(Arc<str>, usize)>>,
+    /// Decides whether a hit may bind a hoisted provider.
+    pub(in super::super) optional_peer_ranges: OptionalPeerRanges,
 }
 
 impl PeersCache {

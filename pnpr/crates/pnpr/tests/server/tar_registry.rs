@@ -70,7 +70,7 @@ async fn pnpr_entry(app: &axum::Router, uri: &str, version: &str) -> serde_json:
 /// pnpr's facts about an archive in an entry or release record, which npm's
 /// documents do not carry.
 fn pnpr_facts(entry: &serde_json::Value) -> serde_json::Value {
-    let facts = ["requiresBuild", "bins", "variants"]
+    let facts = ["requiresBuild", "bins"]
         .into_iter()
         .filter_map(|field| Some((field.to_string(), entry.get(field)?.clone())))
         .collect::<serde_json::Map<_, _>>();

@@ -21,6 +21,7 @@ use crate::install_with_fresh_lockfile::{FreshInputs, OwnedInputs};
 
 pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) install: InstallView<'a>,
+    pub(super) overrides_root_dir: Option<&'install Path>,
     pub(super) resolution: MaterializationResolution<'a>,
     pub(super) lockfiles: MaterializationLockfiles<'a, 'install>,
     pub(super) workspace: MaterializationWorkspace<'a>,
@@ -181,7 +182,7 @@ impl FrozenScope<'_> {
     }
 }
 
-impl<'a> MaterializationInputs<'a, '_> {
+impl<'a, 'install> MaterializationInputs<'a, 'install> {
     /// The current lockfile when the layout is hoisted. See
     /// [`crate::selected_materialization_ids`].
     fn hoisted_prior(&self) -> Option<&'a Lockfile> {
@@ -232,6 +233,7 @@ impl<'a> MaterializationInputs<'a, '_> {
     ) -> FreshInputs<'b>
     where
         'a: 'b,
+        'install: 'b,
     {
         FreshInputs {
             update_checksums: self.update_checksums(),
@@ -256,6 +258,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             execution: self.fresh_execution(),
             manifests: crate::install_with_fresh_lockfile::FreshManifestOptions {
                 deploy_hook: self.resolution.deploy_manifest_hook,
+                overrides_root_dir: self.overrides_root_dir,
                 spec_bumps: self.resolution.manifest_spec_bumps,
             },
             prior: self.fresh_prior(prior_unbuilt_builds, previously_skipped),

@@ -32,17 +32,22 @@ struct UnplannedDir {
 /// way an alien package directory already is. Both are best-effort with
 /// the same `EPERM`/`EBUSY` tolerance: a directory we cannot clear right
 /// now is no worse than leaving a stale entry, and the next install will
-/// retry. Returns the count attempted, not necessarily cleared — the
-/// same number pnpm reports.
+/// retry. Paths known to be missing are excluded from the attempted removal count.
 pub(super) fn remove_orphans(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<u64, LinkHoistedModulesError> {
-    let recorded_dirs: BTreeSet<&PathBuf> = opts.previous_dirs
+    let recorded_dirs = opts.previous_dirs
         .iter()
         .filter(|dir| !opts.graph.contains_key(*dir))
         .filter(|dir| !holds_importer(opts, dir))
         .filter(|dir| confined(dir, opts.modules_dirs.removal_bound(dir)))
-        .collect();
+        .collect::<BTreeSet<_>>();
+    // Probe every candidate before deleting a parent that may contain another candidate.
+    let recorded_dirs = recorded_dirs
+        .par_iter()
+        .filter(|dir| orphan_path_may_exist(dir))
+        .copied()
+        .collect::<BTreeSet<_>>();
     let unplanned_dirs = unplanned_dirs(opts, &recorded_dirs)?;
     recorded_dirs
         .par_iter()
@@ -56,6 +61,22 @@ pub(super) fn remove_orphans(
         });
     unplanned_dirs.par_iter().for_each(quarantine_dir);
     Ok((recorded_dirs.len() + unplanned_dirs.len()) as u64)
+}
+
+fn orphan_path_may_exist(dir: &Path) -> bool {
+    match fs::symlink_metadata(dir) {
+        Ok(_) => true,
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+        {
+            false
+        }
+        // Metadata failures must not make best-effort orphan cleanup fatal.
+        Err(error) => {
+            tracing::debug!(?dir, %error, "failed to inspect an orphan package");
+            true
+        }
+    }
 }
 
 /// The package directories in the importers' modules directories that

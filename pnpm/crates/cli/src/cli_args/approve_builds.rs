@@ -1,10 +1,14 @@
 pub(crate) use prompt::disambiguated_labels;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) use prompt::{confirm, prompt_for_choices};
+pub(crate) use store::{
+    ApprovalStore, GlobalPackagesStore, load_global_packages_config, load_legacy_global_settings,
+};
 #[cfg(target_family = "wasm")]
 pub(crate) use wasm::{confirm, prompt_for_choices};
 
 mod prompt;
+mod store;
 #[cfg(target_family = "wasm")]
 mod wasm;
 
@@ -16,11 +20,10 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, WorkspaceSettings};
+use pnpm_config::Config;
 use pnpm_modules_yaml::{Host, write_modules_manifest};
 use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
 use pnpm_reporter::{Reporter, emit_global_warning};
-use pnpm_workspace_manifest_writer::{PermissionValue, set_permissions};
 use prompt::{confirm_builds_prompt, prompt_for_builds};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -99,12 +102,21 @@ impl ApproveBuildsArgs {
     ) -> miette::Result<Option<(State, Vec<String>)>> {
         self.validate()?;
         let scan = get_automatically_ignored_builds(config)?;
-        self.prepare_with_scan::<Reporter>(dir, config, rebuild_config, manifest_path, scan)
+        let settings_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+        self.prepare_with_scan::<Reporter>(
+            ApprovalStore::Workspace(settings_dir),
+            config,
+            rebuild_config,
+            manifest_path,
+            scan,
+        )
     }
 
+    /// [`Self::prepare`] for an already-taken `scan`, recording the
+    /// decisions in `store`.
     pub(crate) fn prepare_with_scan<Reporter: self::Reporter>(
         self,
-        dir: &Path,
+        store: ApprovalStore<'_>,
         config: &Config,
         rebuild_config: &Config,
         manifest_path: &Path,
@@ -120,8 +132,7 @@ impl ApproveBuildsArgs {
             return Ok(None);
         };
 
-        let settings_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        write_approval_settings(&settings_dir, &decision)?;
+        store.write_decision(&decision)?;
         clear_decided_ignored_builds(scan.modules_manifest, &scan.modules_dir, &decision)?;
 
         // Only a package that was awaiting approval has something to
@@ -137,7 +148,7 @@ impl ApproveBuildsArgs {
         }
         let rebuild_state = State::init(
             manifest_path.to_path_buf(),
-            config_with_install_approvals(rebuild_config, &settings_dir)?,
+            store.config_with_approvals(rebuild_config)?,
             true,
         )
         .wrap_err("initialize the rebuild state")?;
@@ -253,19 +264,6 @@ fn confirm_selected_builds(build_packages: &[String], pending: &[String]) -> mie
     confirm(&confirm_builds_prompt(build_packages, pending))
 }
 
-pub(crate) fn write_approval_settings(
-    settings_dir: &Path,
-    decision: &ApprovalDecision,
-) -> miette::Result<()> {
-    set_permissions(
-        settings_dir,
-        decision.decisions
-            .iter()
-            .map(|(pkg, &value)| (pkg.as_str(), PermissionValue::Build(value))),
-    )
-    .into_diagnostic()
-}
-
 /// The names an `approve-builds` argument list decides, split by verdict.
 ///
 /// A name that is not awaiting approval lands in `unknown` as well as in
@@ -378,7 +376,7 @@ pub(crate) fn exclude_disallowed_builds(scan: &mut IgnoredBuildsScan, config: &C
 pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     install_dir: &Path,
-    settings_dir: &Path,
+    store: ApprovalStore<'_>,
 ) -> miette::Result<()> {
     let mut scan = get_automatically_ignored_builds(config)?;
     exclude_disallowed_builds(&mut scan, config);
@@ -391,17 +389,10 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
     }
 
     let manifest_path = install_dir.join("package.json");
-    let mut settings_config = config.clone();
-    settings_config.workspace_dir = Some(settings_dir.to_path_buf());
-
     let args = ApproveBuildsArgs { packages: Vec::new(), all: auto_approve, global: false };
-    if let Some((rebuild_state, build_packages)) = args.prepare_with_scan::<Reporter>(
-        settings_dir,
-        &settings_config,
-        config,
-        &manifest_path,
-        scan,
-    )? {
+    if let Some((rebuild_state, build_packages)) =
+        args.prepare_with_scan::<Reporter>(store, config, config, &manifest_path, scan)?
+    {
         let selection = crate::cli_args::rebuild::RebuildSelection {
             names: Some(build_packages),
             projects: Vec::new(),
@@ -409,25 +400,4 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         crate::cli_args::rebuild::run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
     }
     Ok(())
-}
-
-/// `config` with the approvals `settings_dir`'s `pnpm-workspace.yaml`
-/// records laid over it.
-pub(crate) fn config_with_install_approvals(
-    config: &Config,
-    settings_dir: &Path,
-) -> miette::Result<&'static Config> {
-    let mut cfg = config.clone();
-    if let Some((_, settings)) = WorkspaceSettings::find_and_load(settings_dir)
-        .map_err(miette::Report::new)
-        .wrap_err("load approved install builds")?
-    {
-        cfg.allow_builds.extend(settings.decided_build_approvals().unwrap_or_default());
-        cfg.allow_skills.extend(settings.decided_skill_approvals().unwrap_or_default());
-        // The approval run may have just written `skills.dirs`.
-        if let Some(dirs) = settings.skills.and_then(|skills| skills.dirs) {
-            cfg.skills_dirs = Some(dirs);
-        }
-    }
-    Ok(Config::leak(cfg))
 }

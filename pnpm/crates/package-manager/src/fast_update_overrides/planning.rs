@@ -1,12 +1,12 @@
 use super::{RewriteContext, RewritePlan};
 use indexmap::IndexMap;
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
 use pnpm_lockfile::{
     BundledDependencies, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
     PkgNameVerPeer, PkgVerPeer, Prefix, StringOrList,
 };
-use pnpm_resolving_resolver_base::{ResolveResult, WantedDependency};
+use pnpm_resolving_resolver_base::{ResolveResult, WantedDependency, parse_strict_semver_range};
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
@@ -133,7 +133,7 @@ pub(super) fn overridden_version(
     if let Ok(version) = Version::parse(value) {
         return Some(version);
     }
-    let range = Range::parse(value).ok()?;
+    let range = parse_strict_semver_range(value)?;
     // `resolutionMode` only moves direct dependencies to the low end of
     // their range, and an override names a package at any depth.
     let pick = crate::fast_update_importers::locked_version_resolution_would_pick(

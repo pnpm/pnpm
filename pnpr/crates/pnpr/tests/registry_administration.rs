@@ -222,7 +222,7 @@ async fn a_hosted_registry_added_at_runtime_survives_a_restart() {
     let replica = Replica::new(config.clone()).await;
     let graph = json!({
         "registries": {
-            "local": { "type": "hosted", "namespace": "", "packages": { "**": { "publish": "$authenticated" } } },
+            "local": { "type": "hosted", "namespace": "", "packages": { "**": {} } },
         },
         "defaultRegistry": "local",
     });
@@ -331,10 +331,10 @@ async fn admins_read_and_only_registry_admins_change_the_structure() {
         let (status, _, _) = replica.send(method, path, Some(&replica.alice), extra()).await;
         assert_eq!(status, StatusCode::FORBIDDEN, "{method} {path}");
     }
-    let rules = json!({ "access": ["$authenticated"] });
-    let rules_path = "/-/pnpr/v0/admin/rules/npm/local";
+    let grant = json!({ "registries": ["local"], "subjects": { "$authenticated": ["read"] } });
+    let grant_path = "/-/pnpr/v0/admin/grants/readers";
     assert_eq!(
-        replica.send("PUT", rules_path, Some(&replica.alice), Some(rules)).await.0,
+        replica.send("PUT", grant_path, Some(&replica.alice), Some(grant)).await.0,
         StatusCode::OK,
     );
 
@@ -422,7 +422,7 @@ async fn stored_upstream_credentials_must_be_listed_references() {
     let replica = Replica::new(load_config(dir.path()).await).await;
     let private = |auth: Value, headers: Value| {
         json!({
-            "type": "upstream", "url": "https://npm.example.com/", "access": "$authenticated",
+            "type": "upstream", "url": "https://npm.example.com/",
             "auth": auth, "headers": headers,
         })
     };
@@ -531,6 +531,32 @@ async fn counting_server() -> (SocketAddr, Arc<AtomicUsize>, tokio::task::JoinHa
     (address, hits, server)
 }
 
+/// A grant for each of `upstreams` that lets everyone read through it and
+/// have it fetched, so a request for it reaches the network guard.
+fn readers(upstreams: &[&str]) -> Vec<pnpr_storage::database::StoredGrant> {
+    upstreams
+        .iter()
+        .map(|name| pnpr_storage::database::StoredGrant {
+            id: format!("g-{name}"),
+            content: pnpr_storage::database::GrantContent {
+                name: (*name).to_string(),
+                registries: vec![(*name).to_string()],
+                subjects: vec![
+                    ("$all".to_string(), "read".to_string()),
+                    ("$all".to_string(), "cache".to_string()),
+                ],
+                ..Default::default()
+            },
+        })
+        .collect()
+}
+
+/// Whether `status` is what a read answers when the network guard refuses the
+/// upstream's address: at once for a literal address, on connecting for a name.
+fn refused_address(status: StatusCode) -> bool {
+    matches!(status, StatusCode::BAD_GATEWAY | StatusCode::SERVICE_UNAVAILABLE)
+}
+
 #[tokio::test]
 async fn a_stored_upstream_never_reaches_a_refused_address() {
     let dir = TempDir::new().unwrap();
@@ -551,6 +577,8 @@ async fn a_stored_upstream_never_reaches_a_refused_address() {
         restored_from: None,
         vacated: &[],
         bound: &[],
+        seeded: &readers(&["literal", "named"]),
+        removed: &[],
     };
     let written = storage
         .write_registry_graph(Some(1), revision)
@@ -562,7 +590,7 @@ async fn a_stored_upstream_never_reaches_a_refused_address() {
     for registry in ["literal", "named"] {
         let path = format!("/npm/~{registry}/example");
         let (status, _, _) = replica.send("GET", &path, Some(&replica.bob), None).await;
-        assert_ne!(status, StatusCode::OK, "{path}");
+        assert!(refused_address(status), "{path}: {status}");
     }
     assert_eq!(hits.load(Ordering::SeqCst), 0);
     server.abort();
@@ -592,6 +620,8 @@ async fn the_own_public_host_is_no_exception_for_a_stored_upstream() {
             restored_from: None,
             vacated: &[],
             bound: &[],
+            seeded: &readers(&["up"]),
+            removed: &[],
         };
         storage
             .write_registry_graph(Some(1), revision)
@@ -601,7 +631,7 @@ async fn the_own_public_host_is_no_exception_for_a_stored_upstream() {
 
         let (status, _, _) =
             replica.send("GET", "/npm/~up/example", Some(&replica.bob), None).await;
-        assert_ne!(status, StatusCode::OK, "{host}");
+        assert!(refused_address(status), "{host}: {status}");
         let rewrite = Some(upstream(&format!("{own_url}/other/")));
         let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), rewrite).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{host}: {error}");
@@ -638,6 +668,8 @@ async fn a_stored_upstream_at_the_own_public_origin_is_refused_on_an_allowed_net
             restored_from: None,
             vacated: &[],
             bound: &[],
+            seeded: &readers(&["up"]),
+            removed: &[],
         };
         storage
             .write_registry_graph(Some(1), revision)
@@ -647,7 +679,7 @@ async fn a_stored_upstream_at_the_own_public_origin_is_refused_on_an_allowed_net
 
         let (status, _, _) =
             replica.send("GET", "/npm/~up/example", Some(&replica.bob), None).await;
-        assert_ne!(status, StatusCode::OK, "{host}");
+        assert!(refused_address(status), "{host}: {status}");
         let rewrite = Some(upstream(&format!("{own_url}/other/")));
         let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), rewrite).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{host}: {error}");
@@ -788,7 +820,7 @@ async fn a_replica_that_still_serves_a_removed_hosted_registry_cannot_publish_in
     let doomed = json!({
         "type": "hosted",
         "namespace": "doomed",
-        "packages": { "**": { "publish": "$authenticated" } },
+        "packages": { "**": {} },
     });
     assert_eq!(writer.as_root("PUT", &path, Some(doomed.clone())).await.0, StatusCode::OK);
     let stale = Replica::with_auth(reload_config(dir.path()), auth).await;
@@ -838,7 +870,7 @@ async fn a_write_that_changes_nothing_serves_the_version_it_answers() {
 }
 
 #[tokio::test]
-async fn rules_change_on_a_registry_another_replica_just_added() {
+async fn a_grant_changes_on_a_registry_another_replica_just_added() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path()).await;
     let auth = crate::tokens::seeded_auth(&config, ACCOUNTS);
@@ -850,14 +882,17 @@ async fn rules_change_on_a_registry_another_replica_just_added() {
         StatusCode::OK,
     );
 
-    let rules = "/-/pnpr/v0/admin/rules/npm/fresh";
-    let (status, before) = behind.as_root("GET", rules, None).await;
+    let seeded = "/-/pnpr/v0/admin/grants/fresh";
+    let (status, before) = behind.as_root("GET", seeded, None).await;
     assert_eq!(status, StatusCode::OK, "{before}");
-    let change = json!({ "packages": { "@fresh/*": { "access": ["$authenticated"] } } });
-    let (status, after) = behind.as_root("PUT", rules, Some(change)).await;
+    let change = json!({
+        "registries": ["fresh"],
+        "include": ["@fresh/*"],
+        "subjects": { "$authenticated": ["read"] },
+    });
+    let (status, after) = behind.as_root("PUT", seeded, Some(change)).await;
     assert_eq!(status, StatusCode::OK, "{after}");
-    assert_eq!(after["packages"]["@fresh/*"]["access"], json!(["$authenticated"]));
-    assert_eq!(after["version"], json!("3"));
+    assert_eq!(after["subjects"], json!({ "$authenticated": ["read"] }));
 }
 
 /// Keeps the runtime busy so database I/O cannot auto-advance the paused
@@ -935,6 +970,8 @@ async fn a_registry_admin_repairs_a_graph_the_replica_cannot_serve() {
         restored_from: None,
         vacated: &[],
         bound: &[],
+        seeded: &[],
+        removed: &[],
     };
     storage
         .write_registry_graph(Some(1), unreadable)
@@ -1041,7 +1078,7 @@ async fn an_unchanged_import_is_checked_against_the_current_config() {
     let file = dir.path().join("registries.yaml");
     std::fs::write(
         &file,
-        "registries:\n  up:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: $authenticated\n    auth: { type: bearer, token: '${PATH}' }\n",
+        "registries:\n  up:\n    type: upstream\n    url: https://registry.npmjs.org/\n    auth: { type: bearer, token: '${PATH}' }\n",
     )
     .unwrap();
     let import = || pnpr::Command::Registries {
@@ -1179,6 +1216,8 @@ async fn a_server_whose_stored_graph_does_not_load_starts_and_is_repaired() {
         restored_from: None,
         vacated: &[],
         bound: &[],
+        seeded: &[],
+        removed: &[],
     };
     storage
         .write_registry_graph(Some(1), unreadable)
@@ -1303,7 +1342,6 @@ async fn config_check_accepts_a_stored_upstream_whose_credential_is_unset_here()
     let corp = json!({
         "type": "upstream",
         "url": "https://npm.corp.example/",
-        "access": "$authenticated",
         "auth": { "type": "bearer", "tokenEnv": "PNPR_TEST_UNSET_TOKEN" },
     });
     crate::managed_registries::store_graph(&config, &json!({ "registries": { "corp": corp } }))
@@ -1319,12 +1357,12 @@ async fn config_check_accepts_a_stored_upstream_whose_credential_is_unset_here()
 }
 
 #[tokio::test]
-async fn config_check_fails_on_an_oidc_group_grant_the_stored_registries_lack() {
+async fn config_check_fails_on_an_oidc_workload_the_stored_registries_lack() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         "storage: {}\nauth:\n  oidc:\n    - name: company\n      issuer: https://issuer.example\n      \
-         audience: pnpr\n      login:\n        groups:\n          teams:\n            \
-         - group: eng\n              registry: local\n              teamId: platform\n\
+         audience: pnpr\n      workloads:\n        - identity: {{ subject: ci, userId: ci }}\n          \
+         registry: absent\n          packages: ['@org/pkg']\n\
          registries:\n  local:\n    type: hosted\n    namespace: ''\n    packages:\n      '**': {{}}\n",
         storage_dir(dir.path()).display(),
     );
@@ -1341,7 +1379,7 @@ async fn config_check_fails_on_an_oidc_group_grant_the_stored_registries_lack() 
     )
     .await
     .unwrap_err();
-    assert!(error.to_string().contains("platform"), "{error}");
+    assert!(error.to_string().contains("OIDC workloads require a hosted npm registry"), "{error}");
 }
 
 #[tokio::test]
@@ -1470,4 +1508,133 @@ async fn credentials_in_a_stored_url_are_refused_by_the_api_and_import() {
         let result = pnpr::run_command(&config, pnpr::Command::Registries { action: import }).await;
         assert!(result.is_err(), "import with dry_run {dry_run} accepted it");
     }
+}
+
+#[tokio::test]
+async fn a_caller_without_cache_reads_only_what_the_upstream_cache_holds() {
+    let dir = TempDir::new().unwrap();
+    let (address, hits, server) = counting_server().await;
+    let yaml = format!(
+        "storage: {storage}\nauth:\n  admins: [alice]\n  registryAdmins: [root]\n  users:\n    maxUsers: 100\n\
+         routes:\n  allowedPrivateNetworks: ['127.0.0.0/8']\n\
+         registries:\n  up:\n    type: upstream\n    public: true\n    url: http://127.0.0.1:{port}/\n",
+        storage = storage_dir(dir.path()).display(),
+        port = address.port(),
+    );
+    let config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        public_url(),
+    )
+    .await;
+    let replica = Replica::new(config).await;
+    let grant = json!({
+        "registries": ["up"],
+        "subjects": { "alice": ["read", "cache"], "bob": ["read"] },
+    });
+    let (status, stored) = replica.as_root("PUT", "/-/pnpr/v0/admin/grants/up", Some(grant)).await;
+    assert_eq!(status, StatusCode::OK, "{stored}");
+
+    let path = "/npm/~up/example";
+    let (status, body, _) = replica.send("GET", path, Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(hits.load(Ordering::SeqCst), 0);
+
+    let (status, body, _) = replica.send("GET", path, Some(&replica.alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let fetched = hits.load(Ordering::SeqCst);
+    assert!(fetched > 0);
+
+    let (status, body, _) = replica.send("GET", path, Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(hits.load(Ordering::SeqCst), fetched);
+    server.abort();
+}
+
+#[tokio::test]
+async fn publishing_and_annotating_are_given_separately() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    let extra = json!({ "type": "hosted", "namespace": "extra" });
+    assert_eq!(
+        replica.as_root("PUT", &format!("{DOCUMENT}/extra"), Some(extra)).await.0,
+        StatusCode::OK,
+    );
+    let grant = |bob: Value| json!({ "registries": ["extra"], "subjects": { "$all": ["read"], "bob": bob } });
+    let grant_path = "/-/pnpr/v0/admin/grants/extra";
+    let (status, stored) =
+        replica.as_root("PUT", grant_path, Some(grant(json!(["publish"])))).await;
+    assert_eq!(status, StatusCode::OK, "{stored}");
+
+    let publish = crate::npm::publish_doc("tagged-pkg", "1.0.0", b"tarball-contents");
+    let (status, body, _) =
+        replica.send("PUT", "/npm/~extra/tagged-pkg", Some(&replica.bob), Some(publish)).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let tag = "/npm/~extra/-/package/tagged-pkg/dist-tags/beta";
+    let (status, body, _) =
+        replica.send("PUT", tag, Some(&replica.bob), Some(json!("1.0.0"))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+
+    // `npm deprecate` writes the package document back with no new version.
+    let package = "/npm/~extra/tagged-pkg";
+    let (status, mut document, _) = replica.send("GET", package, Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::OK, "{document}");
+    document["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
+    let deprecate = Some(document);
+    let (status, body, _) =
+        replica.send("PUT", package, Some(&replica.bob), deprecate.clone()).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+
+    // Nor does attaching a version carry a deprecation of another along.
+    for deprecated in ["use 1.1.0", ""] {
+        let mut smuggled = crate::npm::publish_doc("tagged-pkg", "1.1.0", b"tarball-contents-11");
+        smuggled["versions"]["1.0.0"] =
+            json!({ "name": "tagged-pkg", "version": "1.0.0", "deprecated": deprecated });
+        let (status, body, _) =
+            replica.send("PUT", package, Some(&replica.bob), Some(smuggled)).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{deprecated:?}: {body}");
+    }
+
+    let annotate = grant(json!(["annotate"]));
+    assert_eq!(replica.as_root("PUT", grant_path, Some(annotate)).await.0, StatusCode::OK);
+    let (status, body, _) =
+        replica.send("PUT", tag, Some(&replica.bob), Some(json!("1.0.0"))).await;
+    assert!(status.is_success(), "{status}: {body}");
+    let (_, mut document, _) = replica.send("GET", package, Some(&replica.bob), None).await;
+    document["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
+    let (status, body, _) = replica.send("PUT", package, Some(&replica.bob), Some(document)).await;
+    assert!(status.is_success(), "{status}: {body}");
+    let next = crate::npm::publish_doc("tagged-pkg", "2.0.0", b"tarball-contents-2");
+    let (status, body, _) = replica.send("PUT", package, Some(&replica.bob), Some(next)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+}
+
+#[tokio::test]
+async fn cargo_sends_its_token_when_anonymous_callers_may_not_have_an_upstream_fetched() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    let crates = json!({
+        "type": "upstream",
+        "ecosystem": "cargo",
+        "url": "https://index.crates.example/",
+        "public": true,
+    });
+    let (status, body) = replica.as_root("PUT", &format!("{DOCUMENT}/crates"), Some(crates)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let config = "/cargo/~crates/index/config.json";
+    let (status, served, _) = replica.send("GET", config, None, None).await;
+    assert_eq!(status, StatusCode::OK, "{served}");
+    assert_ne!(served["auth-required"], json!(true), "{served}");
+
+    let grant = json!({
+        "registries": ["crates"],
+        "subjects": { "$all": ["read"], "$authenticated": ["cache"] },
+    });
+    let (status, body) =
+        replica.as_root("PUT", "/-/pnpr/v0/admin/grants/crates", Some(grant)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, served, _) = replica.send("GET", config, None, None).await;
+    assert_eq!(status, StatusCode::OK, "{served}");
+    assert_eq!(served["auth-required"], json!(true), "{served}");
 }

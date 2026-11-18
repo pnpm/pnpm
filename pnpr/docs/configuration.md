@@ -27,9 +27,8 @@ registries:
   local:
     type: hosted
     packages:
-      # The names this registry serves, plus their access rules.
-      '@mycompany/*':
-        access: $authenticated
+      # The names this registry serves.
+      '@mycompany/*': {}
 
   npmjs:
     type: upstream
@@ -179,10 +178,10 @@ unique names. See
 ### The `packages` map
 
 Every concrete registry (hosted or upstream) takes an optional `packages:`
-map. Its **keys are the package names the registry claims**,
-and its **values are the per-package access rules**. One declaration routes,
-filters, and authorizes. When the map is omitted, the registry serves every
-name.
+map. Its **keys are the package names the registry claims**. A value is
+empty (`{}`). The map routes and filters; who may do what to the packages is
+decided by [grants](#grants). When the map is omitted, the registry serves
+every name.
 
 Keys use a deliberately small pattern language, so coverage can be checked
 statically:
@@ -197,43 +196,7 @@ statically:
 Any other wildcard is refused rather than kept as a silently-never-matching
 literal.
 
-The **most specific matching key wins**: an exact name beats `@scope/*`, which
-beats `@*/*`, which beats `**`. Key order carries no meaning. At most one key
-per specificity tier can match a name, so the winning rule is unique and
-reordering the map (by a formatter, or a YAML round-trip) can never change
-which rule applies. A duplicate key is refused.
-
-Each value can set `access`, `publish`, and `unpublish`. When a field is
-omitted, `access` falls back to the registry-level `access:` default,
-`publish` defaults to `$owners`, and `unpublish` defaults to nobody.
-Cargo and PyPI registries reject `unpublish` rules because those ecosystems do
-not support package unpublishing.
-
-Every one of those fields takes either a single access token or a YAML list of
-them, and the grammar is deliberately small:
-
-| Token | Admits |
-| --- | --- |
-| `$all` | Anyone, authenticated or not. |
-| `$authenticated` | Any logged-in user. |
-| `$anonymous` | Callers with no credentials. |
-| `$owners` | The package's owners and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its owner. An npm package's owners are its maintainers. Valid only in `publish` and `unpublish` lists. |
-| `team:<id>` | The members of a [team](#teams) declared on this registry. |
-| `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
-
-Tokens are validated when the registries are stored:
-
-- `$` is reserved for the built-ins above. Any other `$token` is an error.
-- `all`, `authenticated`, `anonymous`, and `@`-prefixed spellings like `@all`
-  are errors suggesting the `$` form.
-- `team:` is the only typed prefix; any other `<kind>:` prefix is an error.
-  (IDs cannot contain `:`.)
-- `team:<id>` must resolve to a team the **same registry** declares. An
-  undeclared team ID is refused, so a typo can't silently grant to nobody.
-- One entry is one token: an entry containing whitespace is an error, so write
-  `[<account-id-1>, <account-id-2>]` rather than `<account-id-1> <account-id-2>`.
-- The empty string is an error. To admit nobody, write `[]`; to take the
-  default, omit the field.
+A duplicate key is refused. Key order carries no meaning.
 
 ### Hosted registries
 
@@ -242,22 +205,14 @@ registries:
   private:
     type: hosted
     namespace: mycompany
-    access: $authenticated
     packages:
-      '@mycompany/*':
-        unpublish: $owners
-      # An explicit entry fully decides its names — this opens one
-      # package on an otherwise-private registry.
-      '@mycompany/open-sdk':
-        access: $all
+      '@mycompany/*': {}
 ```
 
 | Key | Description |
 | --- | --- |
 | `namespace` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
-| `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
-| `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
-| `packages` | Claimed package patterns and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
+| `packages` | Claimed package patterns. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 
 Two hosted registries of the same ecosystem cannot share a `namespace`.
@@ -265,19 +220,11 @@ pnpr refuses to store them. Hosted registries of different ecosystems can
 share a `namespace` because each ecosystem uses its own `<ecosystem>/` directory
 inside the namespace.
 
-The shape of a denial depends on who denied it. A caller that the
-registry-level `access:` default also denies is masked with a `404`. A
-blanket-private registry never confirms which package names exist. A caller
-denied by an explicit `packages:` entry while the default would admit them is
-rejected loudly (`401` for anonymous callers, `403` for authenticated ones),
-so clients can prompt for credentials.
-
 ### Upstream registries
 
 An upstream registry is one external origin: one URL, one credential, one
 cache namespace. It is either `public` (fetched anonymously, no credential)
-or private (carries a server-owned credential and an `access:` policy naming
-who may use it):
+or private (carries a server-owned credential):
 
 ```yaml title="registries.yaml"
 registries:
@@ -292,7 +239,6 @@ registries:
     auth:
       type: bearer
       tokenEnv: CORP_NPM_TOKEN
-    access: $authenticated
     packages:
       '@corp/*': {}
 ```
@@ -300,11 +246,9 @@ registries:
 | Key | Description |
 | --- | --- |
 | `url` | Upstream registry URL. |
-| `public` | Marks an anonymous, world-readable origin (e.g. the public npm registry). A public upstream sends no credential and no custom headers; declaring `auth`, `access`, or `headers` alongside `public: true` is refused. |
+| `public` | Marks an anonymous, world-readable origin (e.g. the public npm registry). A public upstream sends no credential and no custom headers; declaring `auth` or `headers` alongside `public: true` is refused. |
 | `auth` | Server-owned credential for a private origin. `type` is `bearer` or `basic`; provide `token` as a `${NAME}` reference, or `tokenEnv: true` to read `NPM_TOKEN`, or `tokenEnv: NAME` to read a named environment variable. See [Upstream credentials](#upstream-credentials). |
 | `headers` | Extra request headers to send upstream, each value a `${NAME}` reference. If `headers.Authorization` is set, it overrides the `auth`-derived header. |
-| `access` | Which pnpr users may reach this registry at `/~<name>/` (and resolve through it). Required for a non-`public` upstream. |
-| `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
 | `packumentTtl` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
@@ -326,15 +270,12 @@ packages remain available.
 Interval values accept strings such as `30s`, `5m`, `1h30m`, or a bare number
 of seconds.
 
-Two upstream-specific rules apply to the `packages:` map. Per-package `access`
-values are allowed even on a `public: true` upstream. `public` describes the
-*fetch* (anonymous, credential-free), while a rule's `access` gates who may
-read the name *through pnpr*. And `publish`/`unpublish` values are rejected on
-any upstream: no write can land there.
+`public` describes the *fetch* (anonymous, credential-free). Who may read a
+name *through pnpr* is decided by [grants](#grants), on a public upstream too.
 
 A private upstream registry is more than a proxy: it is a **pnpr-managed
 credential** for that origin. One upstream token, held by the server, is
-fanned out to a whole team through the registry's `access:` policy. Clients
+fanned out to a whole team through a [grant](#grants). Clients
 authenticate to pnpr with their own tokens and never see the upstream
 credential. Declaring a `packages:` map on a private upstream also
 bounds what that credential can be used for: a caller can't pull arbitrary
@@ -429,89 +370,139 @@ You can also set `tarballs: tar` on the main router, so the base every pnpm proj
 
 ## Teams {#teams}
 
-A team has a stable ID, a mutable name, and a list of account IDs. It is declared on the registry that uses it and
-referenced from that registry's access lists as `team:<id>`, in the
-registry-level `access:` default and the per-package `packages:` rules alike:
+A team has a stable ID, a mutable name, and a list of account IDs. Teams belong
+to the pnpr instance, not to one registry. A [grant](#grants) on any
+registry can name a team as `team:<id>`:
 
-```yaml title="registries.yaml"
-registries:
-  corp:
-    type: upstream
-    url: https://npm.corp.example.com/
-    auth:
-      type: bearer
-      tokenEnv: CORP_NPM_TOKEN
-    teams:
-      <platform-team-id>: { name: platform, members: [<account-id-1>, <account-id-2>] }
-      <frontend-team-id>: { name: frontend, members: [<account-id-3>, <account-id-4>] }
-    access: team:<platform-team-id>
-    packages:
-      '@corp/ui':
-        access: [team:<platform-team-id>, team:<frontend-team-id>]
+```yaml title="grants.yaml"
+grants:
+  platform:
+    registries: [private, corp]
+    subjects:
+      team:<platform-team-id>: [read, cache, publish, annotate]
 ```
 
-Teams are **registry-scoped**: a registry can only reference teams it declares
-itself, never another registry's. To share one roster between registries, use a
-YAML anchor:
-
-```yaml title="registries.yaml"
-registries:
-  private:
-    type: hosted
-    teams: &corpTeams
-      <platform-team-id>: { name: platform, members: [<account-id-1>, <account-id-2>] }
-    access: team:<platform-team-id>
-
-  corp:
-    type: upstream
-    url: https://npm.corp.example.com/
-    teams: *corpTeams
-    access: team:<platform-team-id>
-```
-
-A team's members are account IDs. A team cannot contain another team. An
-entry with a `:` in it is refused.
-
-The keys under `teams:` are stable team IDs. Keep a key when changing its `name`.
-Use a new key for a replacement team. Access lists and OIDC group grants refer
-to that key. A bare access token refers to an account ID.
+- pnpr keeps the teams in the [database](storage.md#database), apart from the
+  [stored registries](#registries-in-the-database). Restoring an earlier
+  revision of the registries does not change a team or its members.
+- pnpr assigns the ID when the team is created. Grants and OIDC group
+  mappings refer to the ID.
+- A team's members are accounts. A team cannot contain another team.
+- Removing an account removes it from every team.
 
 ### Managing teams through the API {#managing-teams-through-the-api}
 
-The [`auth.admins`](#auth) and `auth.registryAdmins` can edit the teams of a
-hosted npm registry with `pnpm team`.
+The [`auth.admins`](#auth) and `auth.registryAdmins` create and destroy teams
+and edit their members with `pnpm team`.
 
+- `pnpm team` names a team as `@<scope>:<team>`. The scope selects the registry
+  the request is sent to; the team itself is the same in every registry.
 - A change applies at once on the replica that took it. Other replicas follow
   the [replica reload timing](#replica-reloads).
-- A team that a `packages:` rule names cannot be destroyed.
-- The team endpoints edit only npm hosted registries, because team management
-  is specific to the npm org and team API. To change the teams of another
-  registry, replace its entry through the
-  [registry admin endpoints](endpoints.md#registry-admin-endpoints).
+- A team that a [grant](#grants) names cannot be destroyed.
 
 See [Team endpoints](endpoints.md#team-endpoints).
 
-### Changing rules through the API {#changing-rules-through-the-api}
+## Grants {#grants}
 
-The [`auth.admins`](#auth) and `auth.registryAdmins` can change the rules of a
-hosted registry through the API:
+A grant says who may do what to which packages. pnpr keeps the grants in the
+[database](storage.md#database), apart from the
+[stored registries](#registries-in-the-database), so restoring an earlier
+revision of the registries never gives back access that was taken away.
 
-- An admin can replace the registry-level `access:` and the `access`,
-  `publish`, and `unpublish` lists of every key the `packages:` map declares.
-  Adding or removing a key changes which registry serves a name, so only the
-  `auth.registryAdmins` can do it, by replacing the registry's entry.
+```yaml title="grants.yaml"
+grants:
+  platform-publishers:
+    registries: [private]
+    include: ['@mycompany/*']
+    exclude: ['@mycompany/experimental']
+    subjects:
+      team:<platform-team-id>: [read, publish, annotate]
+      <account-id>: [read]
+```
+
+| Key | Description |
+| --- | --- |
+| `registries` | The keys of the hosted and upstream registries the grant covers, or `*` for every registry. |
+| `include` | [Package patterns](#the-packages-map) the grant covers. Omitted means every package. |
+| `exclude` | Package patterns taken out of it. |
+| `subjects` | Each subject with the actions it is given. |
+
+A grant on `*` cannot select packages by pattern, because registries of
+different ecosystems spell patterns differently.
+
+Actions:
+
+| Action | Lets a subject |
+| --- | --- |
+| `read` | Read metadata and download files. Through an upstream: what the cache holds. |
+| `cache` | Have an upstream fetched for what the cache lacks. |
+| `publish` | Publish a version, push an image, upload a file. |
+| `annotate` | Change dist-tags, deprecations, notes and maintainers, and yank or unyank. |
+| `delete` | Unpublish, and delete an image. |
+| `manage` | Change the subjects of the grant that gives it. See [Managing grants](#managing-grants). |
+
+Subjects:
+
+| Subject | Admits |
+| --- | --- |
+| `$all` | Anyone, authenticated or not. |
+| `$authenticated` | Any logged-in user. |
+| `$anonymous` | Callers with no credentials. |
+| `$owners` | The package's owners and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its owner. An npm package's owners are its maintainers. Valid for `publish`, `annotate` and `delete`. |
+| `team:<id>` | The members of the [team](#teams) with that ID. The team must exist. |
+| `<account-id>` | Exactly that account ID. A bare subject is an account ID. |
+
+How grants are evaluated:
+
+- A caller may do an action on a package when any grant that covers the
+  registry and the package gives it to a subject the caller matches. Grants
+  only add. To keep a package out of a grant, `exclude` it.
+- Without such a grant the caller may not. A registry no grant covers serves
+  nobody.
+- A denied read answers `404` when the caller may read nothing in that
+  registry, so a private registry never confirms which names exist. A caller
+  who may read other packages there gets `401` when anonymous and `403` when
+  signed in, so clients can prompt for credentials.
+- A caller who may `read` through an upstream but not `cache` gets what the
+  cache holds, however old. A request that would need the upstream answers
+  `403`. `cache` on any package of an upstream covers every package the caller
+  may read there.
+
+### Default grants {#default-grants}
+
+Adding a registry creates a grant named after it, so it serves callers at
+once:
+
+| Registry | The grant gives |
+| --- | --- |
+| hosted | `$all`: `read`. `$owners`: `publish`, `annotate`. |
+| upstream with `public: true` | `$all`: `read`, `cache`. |
+| other upstream | `$authenticated`: `read`, `cache`. |
+
+The `local` registry pnpr stores on first start gives `read` to
+`$authenticated`, not `$all`. Nobody is given `delete` by default. Change a
+default grant like any other. Removing a registry takes it out of every grant
+and removes a grant left with no registry.
+
+### Managing grants {#managing-grants}
+
+- The [`auth.admins`](#auth) and `auth.registryAdmins` read and write every
+  grant through the [grant endpoints](endpoints.md#grant-endpoints).
+- A subject with `manage` on a grant may replace that grant's subjects. It
+  cannot change the registries or patterns the grant covers, and it cannot
+  change who has `manage`.
+- [`pnpr grants export`](cli.md#grants) writes the grants to a YAML file in
+  the shape above, and `pnpr grants import` replaces the stored grants with
+  the ones a file declares.
+- `npm access grant` and `npm access revoke` write one grant per team and
+  package. See [Team package access](endpoints.md#team-package-access).
 - A change applies at once on the replica that took it. Other replicas follow
   the [replica reload timing](#replica-reloads).
 - A shared cache in front of pnpr, such as a CDN, can keep serving a package
   that a change makes private. A packument stays until its `max-age`, the
   [`packumentTtl`](#packumentttl), runs out. A tarball carries no `max-age`, so
   it stays for as long as the cache keeps it.
-- To undo a change, restore an earlier revision.
-- `npm access grant` and `npm access revoke` edit the lists of a package the
-  `packages:` map declares by name.
-
-See [Admin endpoints](endpoints.md#admin-endpoints) and
-[Team package access](endpoints.md#team-package-access).
 
 ## Registries in the database {#registries-in-the-database}
 
@@ -537,15 +528,13 @@ registries:
 
 | In the database | In the config file |
 | --- | --- |
-| `registries`, with their teams and `packages:` rules | `storage`, `cache`, `secret` |
+| `registries`, with their `packages:` rules | `storage`, `cache`, `secret` |
 | `defaultRegistry` | `auth`, including `auth.admins` and `auth.registryAdmins` |
 | `routes.public` | `routes.allowedPrivateNetworks` |
 | | `registryEnv`, and every other setting on this page |
 
 A config file that declares `registries`, `defaultRegistry`, or
-`routes.public` is refused at startup, and so is an
-[`artifacts.owners`](#registry-resolver-and-artifact-surfaces) list that names
-a `team:`. To move registries out of a config file, copy those blocks into a
+`routes.public` is refused at startup. To move registries out of a config file, copy those blocks into a
 file of their own, remove them from the config, and import the file with
 [`pnpr registries import`](cli.md#registries). `pnpr registries export`
 writes the stored registries back out in the same shape.
@@ -578,18 +567,17 @@ pnpr -c ./pnpr.yaml registries import ./registries.yaml
 `pnpr registries import --check` compares the file with the stored registries
 without changing them. It lists what differs and exits with a nonzero code when
 they differ, so a scheduled CI job can detect a change made outside the
-reviewed file. The `auth.admins` can still edit teams and package access
-lists, and `--check` reports those edits too.
+reviewed file. [Grants](#grants) are not part of the file; `pnpr grants
+import --check` does the same for them.
 
 ### Who may change the registries
 
 - `auth.registryAdmins` may change everything: add, replace, and remove
   registries, change `defaultRegistry` and `routes.public`, and restore an
   earlier revision.
-- `auth.admins` may read the stored registries and their revisions, edit
-  teams, and change the access lists of declared `packages:` keys. An admin
-  who is not a registry admin cannot change which registry serves a name or
-  where an upstream sends its credential.
+- `auth.admins` may read the stored registries and their revisions, and write
+  [grants](#grants). An admin who is not a registry admin cannot change which
+  registry serves a name or where an upstream sends its credential.
 
 Each change is stored as a new revision and logged under
 [`pnpr::audit`](#admin-audit-logs). pnpr keeps the newest 500 revisions.
@@ -610,7 +598,6 @@ registries:
       tokenEnv: CORP_NPM_TOKEN
     headers:
       X-Api-Key: ${CORP_API_KEY}
-    access: $authenticated
 ```
 
 - `auth.tokenEnv` and `${NAME}` references in `auth.token` and in `headers`
@@ -644,9 +631,8 @@ pnpr also refuses with `409` to:
 
 - remove or rename a hosted registry that holds packages, or move it to
   another `namespace` or `ecosystem`;
-- remove a registry or team that an [OIDC](oidc.md) workload or group grant
-  names;
-- destroy a team that a `packages:` rule names.
+- remove a registry that an [OIDC](oidc.md) workload names;
+- destroy a team that a grant names.
 
 A registry is identified by its name. Renaming one removes it and adds a new
 one.
@@ -790,6 +776,12 @@ Can be specified as an integer number of seconds (e.g. `10`) or with a duration 
 ```yaml title="pnpr.yaml"
 packumentTtl: 30s
 ```
+
+A request for a version, its tarball, or its manifest that the fresh packument
+does not list refetches the packument, at most once a minute per package. A
+version published upstream after the fetch is then served without waiting for
+the TTL. Within a minute of the last fetch or refetch attempt, pnpr answers
+`404` for an unlisted version without asking the upstream.
 
 ## `maxTarballSize`
 
@@ -943,12 +935,12 @@ may:
 - create and remove accounts, change passwords, and revoke tokens through the
   [admin endpoints](endpoints.md#admin-endpoints), even while self-registration
   is disabled;
-- edit [teams](#managing-teams-through-the-api) and change
-  [package access lists](#changing-rules-through-the-api).
+- edit [teams](#managing-teams-through-the-api) and write
+  [grants](#managing-grants).
 
 Create the first admin with [`pnpr add-user`](cli.md#add-user), then copy the
-printed account ID into `auth.admins`. Account IDs also belong in access lists
-and team membership lists. Names are used for login and display. See
+printed account ID into `auth.admins`. Account IDs are also the subjects of
+grants and the members of teams. Names are used for login and display. See
 [Account and team identity](identity.md).
 
 ```yaml title="pnpr.yaml"
@@ -959,7 +951,7 @@ auth:
 `auth.registryAdmins` lists the account IDs that may change the
 [stored registries](#registries-in-the-database): add, replace, and remove
 registries, and restore earlier revisions. A registry
-admin may also edit teams and change package access lists, but does not
+admin may also edit teams and write grants, but does not
 manage accounts unless `auth.admins` lists them too.
 
 An `auth.oidc` list configures OpenID Connect browser sign-in and keyless CI
@@ -1046,8 +1038,7 @@ artifacts:
   - its [pipeline run records](pipeline-runs.md).
 
   `access` and `publish` list pnpr account IDs, or `$authenticated` for every
-  signed-in account. `owners` cannot name a team, because teams belong to the
-  [stored registries](#registries-in-the-database).
+  signed-in account, or `team:<id>` for the members of a [team](#teams).
   Publishing also requires `access`. An empty list denies everyone. An owner nobody may read is invisible: requests for it answer
   as if it did not exist. An undeclared owner is unavailable.
   See [Access evaluation](access.md) for how these rules combine with authentication.
@@ -1197,7 +1188,9 @@ Events about another account name it with `user` and `user_id`. The operation-sp
   - `registries.restore`: restoring an earlier revision (`actor`, `restored`, `version`, `previous_version`).
   - `registries.import`: storing registries with `pnpr registries import` (`actor`, `version`, `previous_version`). The actor is `-`.
   - `registries.seed`: storing the default registries on the first start against an empty database (`actor`, `version`). The actor is `-`.
-  - `rules.replace`: replacing a registry's package access lists (`actor`, `registry`, `ecosystem`, `version`).
+  - `grant.put`: creating or replacing a grant (`actor`, `grant`, `version`).
+  - `grant.delete`: removing a grant (`actor`, `grant`, `version`).
+  - `grants.import`: replacing the grants with `pnpr grants import` (`actor`, `version`). The actor is `-`.
 - **Team administration and package access**:
   - `team.create`: creating a team (`actor`, `scope`, `team`).
   - `team.destroy`: deleting a team (`actor`, `scope`, `team`).

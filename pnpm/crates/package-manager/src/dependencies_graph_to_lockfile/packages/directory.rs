@@ -19,18 +19,10 @@ pub(super) fn specifiers(
                 dep_path: node.dep_path.to_string(),
             }
         })?;
-    let mut specifiers =
-        pnpm_resolving_deps_resolver::declared_specifiers(manifest, &key.name.to_string())
-            .map_err(|source| {
-                super::super::DependenciesGraphToLockfileError::DirectorySpecifiers {
-                    dep_path: node.dep_path.to_string(),
-                    source: Box::new(source),
-                }
-            })?;
-    specifiers.manifest_source = Some(if node.resolve_result.resolved_via == "local-filesystem" {
-        pnpm_lockfile::DirectoryManifestSource::Path
-    } else {
-        pnpm_lockfile::DirectoryManifestSource::Workspace
-    });
-    Ok(Some(specifiers))
+    pnpm_resolving_deps_resolver::declared_specifiers(manifest, &key.name.to_string())
+        .map(Some)
+        .map_err(|source| super::super::DependenciesGraphToLockfileError::DirectorySpecifiers {
+            dep_path: node.dep_path.to_string(),
+            source: Box::new(source),
+        })
 }

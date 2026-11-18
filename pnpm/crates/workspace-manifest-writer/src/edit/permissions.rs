@@ -1,7 +1,6 @@
 use super::{
-    IndexMap, Inline, Manifest, flow, insert_top_level_block, locate, locate_mapping, mapping_keys,
-    remove_top_level_block, render, render_bool, replace_value_text_at, write_named_subblock,
-    write_rendered_entry_at,
+    Inline, Manifest, flow, locate, locate_mapping, nested::set_nested_entry,
+    remove_top_level_block, render, render_bool,
 };
 use crate::build_settings::PermissionValue;
 use pnpm_config::SkillsPermission;
@@ -17,38 +16,27 @@ pub(crate) fn set_permission(
     capability: &str,
     value: &PermissionValue,
 ) -> bool {
-    let value_text = render_permission_value(value);
-    let text = manifest.document.text();
-    let new_text = if locate(text, &[BLOCK]).is_none()
-        && !matches!(locate_mapping(text, &[BLOCK]), Inline::Flow(_))
-    {
-        let block = format!(
-            "{BLOCK}:\n  {}:\n    {capability}: {value_text}\n",
-            render::render_value(pkg),
-        );
-        let new_text = insert_top_level_block(manifest, BLOCK, &block);
-        manifest.document.keys =
-            render::target_order(&manifest.document.keys, &[BLOCK.to_string()]);
-        new_text
-    } else if !mapping_keys(text, &[BLOCK])
-        .iter()
-        .any(|key| key == pkg)
-    {
-        write_named_subblock(text, BLOCK, pkg, capability, &value_text)
-    } else if !mapping_keys(text, &[BLOCK, pkg])
-        .iter()
-        .any(|key| key == capability)
-    {
-        write_rendered_entry_at(text, &[BLOCK, pkg], capability, &value_text)
-    } else if recorded_permission(text, pkg, capability) == Some(permission_json(value)) {
-        return false;
-    } else if let Inline::Flow(collection) = locate_mapping(text, &[BLOCK, pkg]) {
-        flow::upsert(text, &collection, capability, &value_text)
-    } else {
-        replace_value_text_at(text, &[BLOCK, pkg], capability, &value_text)
-    };
-    manifest.document.set_text(new_text);
-    true
+    set_nested_entry(
+        manifest,
+        &[BLOCK, pkg],
+        capability,
+        (&render_permission_value(value), &permission_json(value)),
+    )
+}
+
+/// Upsert `globalPackagesConfig.permissions.<pkg>.build: <allowed>` in the
+/// global `config.yaml`. Returns whether anything changed.
+pub(crate) fn set_global_packages_build_permission(
+    manifest: &mut Manifest,
+    pkg: &str,
+    allowed: bool,
+) -> bool {
+    set_nested_entry(
+        manifest,
+        &["globalPackagesConfig", BLOCK, pkg],
+        "build",
+        (render_bool(allowed), &serde_json::Value::Bool(allowed)),
+    )
 }
 
 /// The entry's value text: booleans plain, a chosen skills list inline in
@@ -88,20 +76,6 @@ fn render_flow_item(item: &str) -> String {
 /// no-op decision.
 fn permission_json(value: &PermissionValue) -> serde_json::Value {
     serde_json::to_value(value).expect("a permission value serializes to JSON")
-}
-
-fn recorded_permission(text: &str, pkg: &str, capability: &str) -> Option<serde_json::Value> {
-    #[derive(serde::Deserialize)]
-    struct OnlyPermissions {
-        #[serde(default)]
-        permissions: IndexMap<String, IndexMap<String, serde_json::Value>>,
-    }
-    serde_saphyr::from_str::<OnlyPermissions>(text)
-        .ok()?
-        .permissions
-        .get(pkg)?
-        .get(capability)
-        .cloned()
 }
 
 /// Remove `pkg`'s entry from the top-level `allowBuilds:` block, and the

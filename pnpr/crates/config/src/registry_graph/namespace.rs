@@ -1,4 +1,5 @@
-use super::{Ecosystem, IndexMap, PackageAccess, PackagePattern, RegistryError};
+use super::{Ecosystem, IndexMap, PackagePattern, RegistryError};
+use crate::config_file::ClaimFile;
 
 pub(in super::super) fn validate_registry_key(key: &str) -> Result<(), RegistryError> {
     if let Some((prefix, name)) = key.split_once('/')
@@ -14,13 +15,13 @@ pub(in super::super) fn validate_registry_key(key: &str) -> Result<(), RegistryE
 pub(in super::super) fn ecosystem_package_keys(
     registry: &str,
     ecosystem: Ecosystem,
-    packages: IndexMap<String, Option<PackageAccess>>,
-) -> Result<IndexMap<String, (PackagePattern, Option<PackageAccess>)>, RegistryError> {
+    packages: &IndexMap<String, Option<ClaimFile>>,
+) -> Result<IndexMap<String, PackagePattern>, RegistryError> {
     let mut normalized = IndexMap::new();
-    for (key, access) in packages {
+    for key in packages.keys() {
         // Through the pattern language, so a wildcard shape is normalized as
         // itself rather than failing the ecosystem's name rules.
-        let pattern = PackagePattern::parse(&key, ecosystem)
+        let pattern = PackagePattern::parse(key, ecosystem)
             .map_err(|error| RegistryError::InvalidConfig {
                 reason: format!("{ecosystem} registry {registry:?} `packages:` key: {error}"),
             })?;
@@ -32,7 +33,7 @@ pub(in super::super) fn ecosystem_package_keys(
                 ),
             });
         }
-        normalized.insert(normalized_key, (pattern, access));
+        normalized.insert(normalized_key, pattern);
     }
     Ok(normalized)
 }

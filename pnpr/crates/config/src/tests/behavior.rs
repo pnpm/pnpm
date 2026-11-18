@@ -1,8 +1,7 @@
 use super::{
     AmazonS3ConfigKey, BackendConfig, ClientConfigKey, Config, ConfigSource, Duration, Ecosystem,
-    EnvGuard, FeatureOverrides, Identity, MINIMAL_YAML, Path, PathBuf, RegistryError,
-    bundled_registries, hosted_rules_config, hosted_rules_err, listen, load_with_graph,
-    normalize_key_prefix, resolve_relative, s3_settings_for, user, write_yaml,
+    EnvGuard, FeatureOverrides, MINIMAL_YAML, Path, PathBuf, RegistryError, bundled_registries,
+    listen, load_with_graph, normalize_key_prefix, resolve_relative, s3_settings_for, write_yaml,
 };
 
 #[test]
@@ -49,7 +48,7 @@ fn null_auth_and_cors_do_not_disable_mapping_validation() {
 fn null_defaulted_aggregate_config_fields_use_defaults() {
     let configs = [
         "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  users: null\n",
-        "registries:\n  local: {type: hosted, teams: null, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, teams: null, packages: null}\n",
+        "registries:\n  local: {type: hosted, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, packages: null}\n",
         "artifacts:\n  owners: null\n  quota: null\n",
         "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      workloads: null\n      login:\n        users:\n          - {subject: sub, userId: alice, claims: null}\n",
     ];
@@ -298,177 +297,6 @@ fn resolve_bundled_branch_honors_public_url_override() {
 }
 
 #[test]
-fn most_specific_key_wins_regardless_of_declaration_order() {
-    // Selection is by specificity, not key order: a formatter or `yq`
-    // round-trip that reorders the YAML mapping must not change which
-    // access rule applies. The same two keys, both orders, same answers.
-    let scope_then_catch_all =
-        "      '@secret/*':\n        access: $authenticated\n      '**':\n        access: $all\n";
-    let catch_all_then_scope =
-        "      '**':\n        access: $all\n      '@secret/*':\n        access: $authenticated\n";
-    for packages in [scope_then_catch_all, catch_all_then_scope] {
-        let config = hosted_rules_config(packages);
-        let rules = &config.routing.hosted["local"].rules;
-        assert!(
-            !rules
-                .snapshot()
-                .for_package("@secret/x")
-                .access
-                .allows(&Identity::Anonymous),
-            "{packages}",
-        );
-        assert!(
-            rules
-                .snapshot()
-                .for_package("anything")
-                .access
-                .allows(&Identity::Anonymous),
-            "{packages}",
-        );
-    }
-}
-
-#[test]
-fn empty_and_null_map_values_mean_default_rules() {
-    for value in ["{}", "", "~"] {
-        let config = hosted_rules_config(&format!("      'lodash': {value}\n"));
-        let rules = &config.routing.hosted["local"].rules;
-        let table = rules.snapshot();
-        let effective = table.for_package("lodash");
-        assert!(effective.access.allows(&Identity::Anonymous), "value {value:?}");
-        assert!(!effective.publish.allows(&Identity::Anonymous), "value {value:?}");
-        assert!(!effective.publish.allows(&user("alice")), "value {value:?}");
-        assert!(effective.publish.allows_with_context(&user("alice"), true), "value {value:?}");
-        assert!(!effective.unpublish.allows(&user("alice")), "value {value:?}");
-    }
-}
-
-#[test]
-fn rule_missing_unpublish_denies_destructive_writes() {
-    let config = hosted_rules_config("      '@team/*':\n        publish: alice\n");
-    let table = config.routing.hosted["local"].rules.snapshot();
-    let team = table.for_package("@team/x");
-    assert!(team.publish.allows(&user("alice")));
-    assert!(!team.publish.allows(&user("bob")));
-    assert!(!team.unpublish.allows(&user("alice")));
-    assert!(!team.unpublish.allows(&user("bob")));
-}
-
-#[test]
-fn rule_empty_unpublish_denies_destructive_writes() {
-    let as_null = "      '@team/*':\n        publish: $authenticated\n        unpublish:\n";
-    let as_empty_sequence =
-        "      '@team/*':\n        publish: $authenticated\n        unpublish: []\n";
-    for packages in [as_null, as_empty_sequence] {
-        let config = hosted_rules_config(packages);
-        let table = config.routing.hosted["local"].rules.snapshot();
-        let team = table.for_package("@team/x");
-        assert!(team.publish.allows(&user("alice")), "{packages}");
-        assert!(!team.unpublish.allows(&Identity::Anonymous), "{packages}");
-        assert!(!team.unpublish.allows(&user("alice")), "{packages}");
-    }
-}
-
-#[test]
-fn rule_empty_string_value_is_a_config_error() {
-    // `''` is neither a token nor an unambiguous empty list; the error
-    // names both spellings the author could have meant.
-    let err = hosted_rules_err("      '@team/*':\n        unpublish: ''\n");
-    assert!(
-        matches!(
-            &err,
-            RegistryError::InvalidConfig { reason }
-                if reason.contains("`unpublish`") && reason.contains("use `[]`"),
-        ),
-        "unexpected error: {err}",
-    );
-}
-
-#[test]
-fn rule_anonymous_token_is_wired() {
-    let config = hosted_rules_config("      '@anon/*':\n        access: $anonymous\n");
-    let table = config.routing.hosted["local"].rules.snapshot();
-    let anon = table.for_package("@anon/x");
-    assert!(anon.access.allows(&Identity::Anonymous));
-    assert!(!anon.access.allows(&user("alice")));
-}
-
-#[test]
-fn rule_alias_spellings_of_builtins_are_config_errors() {
-    // Verdaccio also accepted `@`-prefixed and bare spellings of the
-    // built-in groups. Treating them as user/group names would silently
-    // flip `access: all` from world-readable to deny-everyone, so they
-    // are rejected with the `$` spelling instead.
-    for (token, suggestion) in [
-        ("all", "$all"),
-        ("'@all'", "$all"),
-        ("authenticated", "$authenticated"),
-        ("'@authenticated'", "$authenticated"),
-        ("anonymous", "$anonymous"),
-        ("'@anonymous'", "$anonymous"),
-        ("owners", "$owners"),
-        ("'@owners'", "$owners"),
-    ] {
-        let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
-        assert!(
-            matches!(
-                &err,
-                RegistryError::InvalidConfig { reason }
-                    if reason.contains("did you mean") && reason.contains(suggestion),
-            ),
-            "unexpected error for {token:?}: {err}",
-        );
-    }
-}
-
-#[test]
-fn rule_accepts_owners_builtin_token() {
-    let config = hosted_rules_config(
-        "      '@team/*':\n        publish: $owners\n        unpublish: $owners\n",
-    );
-    let table = config.routing.hosted["local"].rules.snapshot();
-    let effective = table.for_package("@team/pkg");
-    assert!(effective.publish.references_owners());
-    assert!(effective.unpublish.references_owners());
-}
-
-#[test]
-fn rule_unknown_builtin_token_is_a_config_error() {
-    // The `$` namespace is reserved for the built-in groups, so a typo'd
-    // built-in cannot silently become a name that admits nobody.
-    let err = hosted_rules_err("      '@team/*':\n        access: $team\n");
-    assert!(
-        matches!(
-            &err,
-            RegistryError::InvalidConfig { reason }
-                if reason.contains(r#"unknown built-in access token "$team""#),
-        ),
-        "unexpected error: {err}",
-    );
-}
-
-#[test]
-fn typed_token_grammar_is_validated() {
-    // Only `team:` exists as a token type; `group:` gets a pointer at it,
-    // and an empty team reference is named as such.
-    for (token, needle) in [
-        ("group:platform", r#"did you mean "team:platform""#),
-        ("org:corp", "the only typed token is `team:<id>`"),
-        ("'team:'", "names no team"),
-        ("team:a:b", "a team name cannot contain `:`"),
-    ] {
-        let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
-        assert!(
-            matches!(
-                &err,
-                RegistryError::InvalidConfig { reason } if reason.contains(needle),
-            ),
-            "unexpected error for {token:?}: {err}",
-        );
-    }
-}
-
-#[test]
 fn bundled_default_config_enforces_its_protections() {
     use pnpr_registry::{ConcreteKind, Resolved};
     // The bundled YAML provides production-safe defaults: registration disabled,
@@ -561,7 +389,7 @@ fn a_key_prefix_is_normalized_to_empty_or_slash_terminated() {
 fn rejects_package_keys_that_normalize_to_the_same_name() {
     for (ecosystem, first, second) in [("cargo", "Demo", "demo"), ("pypi", "Foo.Bar", "foo-bar")] {
         let yaml = format!(
-            "registries:\n  hosted:\n    type: hosted\n    ecosystem: {ecosystem}\n    packages:\n      {first}: {{ access: '$authenticated' }}\n      {second}: {{ access: '$all' }}\n",
+            "registries:\n  hosted:\n    type: hosted\n    ecosystem: {ecosystem}\n    packages:\n      {first}: {{}}\n      {second}: {{}}\n",
         );
         let err = load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap_err();
         assert!(err.to_string().contains("duplicates normalized key"), "{err}");

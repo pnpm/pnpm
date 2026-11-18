@@ -1,6 +1,7 @@
 use super::super::{
     adapter::{Param, Query},
     dialect::Dialect,
+    schema::MARKER,
 };
 use pnpr_error::{RegistryError, Result};
 use std::{fmt::Write as _, time::Duration};
@@ -11,6 +12,10 @@ macro_rules! schema_key {
     () => {
         "hashtext(COALESCE(current_schema(), ''))"
     };
+}
+
+fn postgres_lock_writes() -> String {
+    format!("LOCK TABLE {MARKER} IN SHARE ROW EXCLUSIVE MODE")
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -54,66 +59,79 @@ impl NetworkDialect {
         false
     }
 
-    pub(super) fn lock_schema(self, timeout: Duration) -> String {
+    /// Whether the dialect's locks belong to the session and outlive a
+    /// transaction. `PostgreSQL`'s belong to the transaction, so they hold
+    /// behind a pooler that gives each transaction another server connection.
+    pub(super) const fn session_locks(self) -> bool {
+        matches!(self, Self::Mysql)
+    }
+
+    /// The statement that takes the schema lock of a [`Self::session_locks`]
+    /// dialect and returns `1` once held.
+    pub(super) fn lock_schema(timeout: Duration) -> String {
+        format!(
+            "SELECT GET_LOCK(CONCAT('pnpr_schema:', MD5(DATABASE())), {})",
+            timeout.as_secs_f64(),
+        )
+    }
+
+    pub(super) const UNLOCK_SCHEMA: &str =
+        "SELECT RELEASE_LOCK(CONCAT('pnpr_schema:', MD5(DATABASE())))";
+
+    /// The statement that takes the write lock of a [`Self::session_locks`]
+    /// dialect and returns `1` once held. Writers queue on it instead of
+    /// failing each other's serializable transactions. It is taken before
+    /// `BEGIN`, so the transaction's snapshot holds every commit made under it.
+    pub(super) fn lock_writes(timeout: Duration) -> String {
+        format!(
+            "SELECT GET_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())), {})",
+            timeout.as_secs_f64(),
+        )
+    }
+
+    pub(super) const UNLOCK_WRITES: &str =
+        "DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))";
+
+    /// `COMMIT`, then [`Self::UNLOCK_WRITES`] in the same round trip.
+    pub(super) const COMMIT_AND_UNLOCK_WRITES: &str =
+        "COMMIT; DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))";
+
+    /// `ROLLBACK`, then [`Self::UNLOCK_WRITES`] in the same round trip.
+    pub(super) const ROLLBACK_AND_UNLOCK_WRITES: &str =
+        "ROLLBACK; DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))";
+
+    /// Begin a write transaction. `PostgreSQL` takes the write lock in it, as
+    /// a lock on [`MARKER`] that queues writers and admits readers. `LOCK
+    /// TABLE` takes no snapshot, so the transaction's snapshot holds every
+    /// commit made under the lock, which an advisory lock taken by a `SELECT`
+    /// would not give it.
+    pub(super) fn begin_write(self) -> String {
         match self {
             Self::Postgres => {
-                concat!("SELECT 1 FROM pg_advisory_lock(70607832, ", schema_key!(), ")").to_string()
+                format!("BEGIN ISOLATION LEVEL SERIALIZABLE; {}", postgres_lock_writes())
             }
-            Self::Mysql => format!(
-                "SELECT GET_LOCK(CONCAT('pnpr_schema:', MD5(DATABASE())), {})",
-                timeout.as_secs_f64(),
-            ),
-        }
-    }
-
-    pub(super) fn unlock_schema(self) -> &'static str {
-        match self {
-            Self::Postgres => concat!("SELECT pg_advisory_unlock(70607832, ", schema_key!(), ")"),
-            Self::Mysql => "SELECT RELEASE_LOCK(CONCAT('pnpr_schema:', MD5(DATABASE())))",
-        }
-    }
-
-    /// The statement that takes the database's write lock, a session lock
-    /// that returns `1` once held. Writers queue on it instead of failing
-    /// each other's serializable transactions. It is taken before `BEGIN`, so
-    /// the transaction's snapshot holds every commit made under it.
-    pub(super) fn lock_writes(self, timeout: Duration) -> String {
-        match self {
-            Self::Postgres => {
-                concat!("SELECT 1 FROM pg_advisory_lock(70607833, ", schema_key!(), ")").to_string()
+            Self::Mysql => {
+                "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; START TRANSACTION".to_string()
             }
-            Self::Mysql => format!(
-                "SELECT GET_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())), {})",
-                timeout.as_secs_f64(),
-            ),
         }
     }
 
-    pub(super) fn unlock_writes(self) -> &'static str {
-        match self {
-            Self::Postgres => concat!("SELECT pg_advisory_unlock(70607833, ", schema_key!(), ")"),
-            Self::Mysql => "DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
-        }
-    }
+    /// Begin a `PostgreSQL` transaction that holds the schema lock until it
+    /// ends. It reads committed data, so what it reads after waiting for the
+    /// lock includes the migration that held it.
+    pub(super) const BEGIN_MIGRATION: &str = concat!(
+        "BEGIN ISOLATION LEVEL READ COMMITTED; SELECT pg_advisory_xact_lock(70607832, ",
+        schema_key!(),
+        ")",
+    );
 
-    /// `COMMIT`, then [`Self::unlock_writes`] in the same round trip.
-    pub(super) fn commit_write(self) -> &'static str {
-        match self {
-            Self::Postgres => {
-                concat!("COMMIT; SELECT pg_advisory_unlock(70607833, ", schema_key!(), ")")
-            }
-            Self::Mysql => "COMMIT; DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
-        }
-    }
-
-    /// `ROLLBACK`, then [`Self::unlock_writes`] in the same round trip.
-    pub(super) fn rollback_write(self) -> &'static str {
-        match self {
-            Self::Postgres => {
-                concat!("ROLLBACK; SELECT pg_advisory_unlock(70607833, ", schema_key!(), ")")
-            }
-            Self::Mysql => "ROLLBACK; DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
-        }
+    /// Take the `PostgreSQL` write lock in a migration, which runs before
+    /// [`MARKER`] exists in a new database.
+    pub(super) fn lock_writes_of_a_migration() -> String {
+        format!(
+            "DO $$ BEGIN IF to_regclass('{MARKER}') IS NOT NULL THEN {}; END IF; END $$",
+            postgres_lock_writes(),
+        )
     }
 
     pub(super) fn table_names(self) -> &'static str {
@@ -124,13 +142,6 @@ impl NetworkDialect {
             Self::Mysql => {
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()"
             }
-        }
-    }
-
-    pub(super) fn begin_write(self) -> &'static str {
-        match self {
-            Self::Postgres => "BEGIN ISOLATION LEVEL SERIALIZABLE",
-            Self::Mysql => "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; START TRANSACTION",
         }
     }
 

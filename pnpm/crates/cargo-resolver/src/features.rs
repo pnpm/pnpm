@@ -1,6 +1,7 @@
 use crate::{
     model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    packages::{newest_line_package, selected_package},
+    packages::{newest_line_package, selected_package_with_preferences},
+    preferences::PreferredVersions,
     registry::Registry,
 };
 use miette::Result;
@@ -203,22 +204,25 @@ fn implicit_optional_aliases<'a>(
 pub(crate) fn root_feature_selections(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
+    preferred_versions: &PreferredVersions,
 ) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
-    collect_feature_selections(registry, root_dependencies, None)
+    collect_feature_selections(registry, root_dependencies, None, preferred_versions)
 }
 
 pub(crate) fn feature_selections_for_solution(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
     solution: &SelectedDependencies<PackageKey, Version>,
+    preferred_versions: &PreferredVersions,
 ) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
-    collect_feature_selections(registry, root_dependencies, Some(solution))
+    collect_feature_selections(registry, root_dependencies, Some(solution), preferred_versions)
 }
 
 fn collect_feature_selections(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
     solution: Option<&SelectedDependencies<PackageKey, Version>>,
+    preferred_versions: &PreferredVersions,
 ) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
     let mut selections = BTreeMap::<PackageKey, FeatureSelection>::new();
     let mut pending = VecDeque::from(root_dependencies.to_vec());
@@ -230,8 +234,13 @@ fn collect_feature_selections(
         // solver reaches for the newest first. Once there is one, the line
         // it settled on is the only one this dependency asked anything of.
         let package = match solution {
-            Some(solution) => selected_package(registry, &dependency, solution)?,
-            None => newest_line_package(registry, &dependency)?,
+            Some(solution) => selected_package_with_preferences(
+                registry,
+                &dependency,
+                solution,
+                preferred_versions,
+            )?,
+            None => newest_line_package(registry, &dependency, preferred_versions)?,
         };
         let Some(package) = package else { continue };
         if !widen_line_selection(&mut selections, &dependency, &package) {

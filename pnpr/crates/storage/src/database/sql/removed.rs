@@ -17,23 +17,45 @@ pub(crate) enum RemovedPackage {
     Conflict,
 }
 
-/// The tables holding a package's rows other than its history, each before
-/// the tables its rows reference.
-const PACKAGE_TABLES: [&str; 13] = [
-    "artifact_blobs",
-    "release_records",
-    "accepted_manifests",
-    "readmes",
-    "annotations",
-    "versions",
-    "tags",
-    "cargo_versions",
-    "pypi_files",
-    "oci_tags",
-    "oci_manifests",
-    "package_owners",
-    "packages",
-];
+/// The tables of an ecosystem holding a package's rows other than its
+/// history, each before the tables its rows reference.
+fn ecosystem_package_tables(ecosystem: Ecosystem) -> &'static [&'static str] {
+    match ecosystem {
+        Ecosystem::Npm => &[
+            "npm_release_records",
+            "npm_accepted_manifests",
+            "npm_readmes",
+            "npm_annotations",
+            "npm_versions",
+            "npm_tags",
+        ],
+        Ecosystem::Cargo => &["cargo_versions"],
+        Ecosystem::Pypi => &["pypi_files"],
+        Ecosystem::Oci => &["oci_tags", "oci_manifests"],
+    }
+}
+
+/// Delete every row of the package other than its history: its file
+/// mappings, the rows its ecosystem's tables hold, its owners, and its row,
+/// each before the rows it references.
+fn delete_package_rows(connection: &dyn Connection, key: &PackageKey) -> Result<()> {
+    let (namespace, ecosystem, name) = key.params();
+    let delete_shared = |table: &str| {
+        connection.execute(
+            &format!("DELETE FROM {table} WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3"),
+            params![namespace, ecosystem, name],
+        )
+    };
+    delete_shared("artifact_blobs")?;
+    for table in ecosystem_package_tables(key.ecosystem) {
+        connection.execute(
+            &format!("DELETE FROM {table} WHERE namespace = ?1 AND name = ?2"),
+            params![namespace, name],
+        )?;
+    }
+    delete_shared("package_owners")?;
+    delete_shared("packages")
+}
 
 /// Remove every row of the package except its tag history and the identities
 /// of its versions, which stay removed, under a new generation. Returns the
@@ -65,16 +87,7 @@ pub(super) fn remove_package(
     }
     let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
     record_removed_package(batch.transaction(), key, batch.generation(), &row.state, principal)?;
-    for table in PACKAGE_TABLES {
-        batch
-            .transaction()
-            .execute(
-                &format!(
-                    "DELETE FROM {table} WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
-                ),
-                params![namespace, ecosystem, name],
-            )?;
-    }
+    delete_package_rows(batch.transaction(), key)?;
     batch.touch(key);
     batch.finish()?;
     Ok(RemovedPackage::Removed(ids))
@@ -120,14 +133,14 @@ pub(super) fn record_removed_package(
 }
 
 pub(super) const RECORD_REMOVED_PYPI_FILES: DialectSql = DialectSql::with_mysql(
-    "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-     SELECT namespace, ecosystem, name, filename, ?4 FROM pypi_files
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+    "INSERT INTO pypi_removed_files (namespace, name, filename, generation)
+     SELECT namespace, name, filename, ?3 FROM pypi_files
+     WHERE namespace = ?1 AND name = ?2
      ON CONFLICT DO NOTHING",
-    "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-     SELECT namespace, ecosystem, name, filename, ?4 FROM pypi_files
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-     ON DUPLICATE KEY UPDATE namespace = removed_pypi_files.namespace",
+    "INSERT INTO pypi_removed_files (namespace, name, filename, generation)
+     SELECT namespace, name, filename, ?3 FROM pypi_files
+     WHERE namespace = ?1 AND name = ?2
+     ON DUPLICATE KEY UPDATE namespace = pypi_removed_files.namespace",
 );
 
 pub(super) const RECORD_REMOVED_CARGO_VERSION_LIST: DialectSql = DialectSql {
@@ -150,65 +163,65 @@ pub(super) const RECORD_REMOVED_CARGO_VERSION_LIST: DialectSql = DialectSql {
 
 pub(super) const DELETE_CARGO_VERSION_LIST: DialectSql = DialectSql {
     sqlite: "DELETE FROM cargo_versions
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-               AND version IN (SELECT value FROM json_each(?4))",
+             WHERE namespace = ?1 AND name = ?2
+               AND version IN (SELECT value FROM json_each(?3))",
     postgres: "DELETE FROM cargo_versions
-               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-                 AND version IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+               WHERE namespace = ?1 AND name = ?2
+                 AND version IN (SELECT value FROM json_array_elements_text(CAST(?3 AS JSON)) AS elements(value))",
     mysql: "DELETE FROM cargo_versions
-            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-              AND version IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+            WHERE namespace = ?1 AND name = ?2
+              AND version IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?3, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
 };
 
 pub(super) const DELETE_PYPI_FILE_LIST: DialectSql = DialectSql {
     sqlite: "DELETE FROM pypi_files
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-               AND filename IN (SELECT value FROM json_each(?4))",
+             WHERE namespace = ?1 AND name = ?2
+               AND filename IN (SELECT value FROM json_each(?3))",
     postgres: "DELETE FROM pypi_files
-               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-                 AND filename IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+               WHERE namespace = ?1 AND name = ?2
+                 AND filename IN (SELECT value FROM json_array_elements_text(CAST(?3 AS JSON)) AS elements(value))",
     mysql: "DELETE FROM pypi_files
-            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-              AND filename IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+            WHERE namespace = ?1 AND name = ?2
+              AND filename IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?3, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
 };
 
 pub(super) const RECORD_REMOVED_PYPI_FILE_LIST: DialectSql = DialectSql {
-    sqlite: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-             SELECT ?1, ?2, ?3, value, ?5
-             FROM (SELECT value FROM json_each(?4)) AS removed
+    sqlite: "INSERT INTO pypi_removed_files (namespace, name, filename, generation)
+             SELECT ?1, ?2, value, ?4
+             FROM (SELECT value FROM json_each(?3)) AS removed
              WHERE value != ''
              ON CONFLICT DO NOTHING",
-    postgres: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-               SELECT ?1, ?2, ?3, value, ?5
-               FROM (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value)) AS removed
+    postgres: "INSERT INTO pypi_removed_files (namespace, name, filename, generation)
+               SELECT ?1, ?2, value, ?4
+               FROM (SELECT value FROM json_array_elements_text(CAST(?3 AS JSON)) AS elements(value)) AS removed
                WHERE value != ''
                ON CONFLICT DO NOTHING",
-    mysql: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-            SELECT ?1, ?2, ?3, value, ?5
-            FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
+    mysql: "INSERT INTO pypi_removed_files (namespace, name, filename, generation)
+            SELECT ?1, ?2, value, ?4
+            FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?3, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
             WHERE value != ''
-            ON DUPLICATE KEY UPDATE namespace = removed_pypi_files.namespace",
+            ON DUPLICATE KEY UPDATE namespace = pypi_removed_files.namespace",
 };
 
 pub(super) const RECORD_REMOVED_CARGO_VERSIONS: DialectSql = DialectSql::with_mysql(
     "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-     SELECT namespace, ecosystem, name, version, ?4 FROM cargo_versions
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+     SELECT namespace, ?2, name, version, ?4 FROM cargo_versions
+     WHERE namespace = ?1 AND name = ?3
      ON CONFLICT DO NOTHING",
     "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-     SELECT namespace, ecosystem, name, version, ?4 FROM cargo_versions
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+     SELECT namespace, ?2, name, version, ?4 FROM cargo_versions
+     WHERE namespace = ?1 AND name = ?3
      ON DUPLICATE KEY UPDATE namespace = removed_versions.namespace",
 );
 
 const RECORD_REMOVED_NPM_VERSIONS: DialectSql = DialectSql::with_mysql(
     "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-     SELECT namespace, ecosystem, name, version, ?4 FROM versions
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+     SELECT namespace, ?2, name, version, ?4 FROM npm_versions
+     WHERE namespace = ?1 AND name = ?3
      ON CONFLICT DO NOTHING",
     "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-     SELECT namespace, ecosystem, name, version, ?4 FROM versions
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+     SELECT namespace, ?2, name, version, ?4 FROM npm_versions
+     WHERE namespace = ?1 AND name = ?3
      ON DUPLICATE KEY UPDATE namespace = removed_versions.namespace",
 );
 
@@ -230,7 +243,7 @@ fn record_removed_entries(
         ),
         Ecosystem::Pypi => connection.execute(
             RECORD_REMOVED_PYPI_FILES.get(connection.dialect()),
-            params![namespace, ecosystem, name, column_gen],
+            params![namespace, name, column_gen],
         ),
         Ecosystem::Oci => record_removed_all_oci_digests(connection, key, generation),
     }
@@ -241,12 +254,11 @@ fn record_removed_all_oci_digests(
     key: &PackageKey,
     generation: u64,
 ) -> Result<()> {
-    let (namespace, ecosystem, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Oci);
     let digests: Vec<String> = connection
         .query(
-            "SELECT digest FROM oci_manifests
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
-            params![namespace, ecosystem, name],
+            "SELECT digest FROM oci_manifests WHERE namespace = ?1 AND name = ?2",
+            params![namespace, name],
         )?
         .into_iter()
         .map(|mut row| row.get(0))
@@ -255,19 +267,19 @@ fn record_removed_all_oci_digests(
 }
 
 const RECORD_REMOVED_MANIFESTS: DialectSql = DialectSql {
-    sqlite: "INSERT INTO removed_oci_manifests (namespace, name, artifact, generation)
+    sqlite: "INSERT INTO oci_removed_manifests (namespace, name, artifact, generation)
              SELECT ?1, ?2, value, ?4
              FROM (SELECT value FROM json_each(?3)) AS removed
              WHERE value != ''
              ON CONFLICT (namespace, name, artifact) DO UPDATE SET
                generation = excluded.generation",
-    postgres: "INSERT INTO removed_oci_manifests (namespace, name, artifact, generation)
+    postgres: "INSERT INTO oci_removed_manifests (namespace, name, artifact, generation)
                SELECT ?1, ?2, value, ?4
                FROM (SELECT value FROM json_array_elements_text(CAST(?3 AS JSON)) AS elements(value)) AS removed
                WHERE value != ''
                ON CONFLICT (namespace, name, artifact) DO UPDATE SET
                  generation = excluded.generation",
-    mysql: "INSERT INTO removed_oci_manifests (namespace, name, artifact, generation)
+    mysql: "INSERT INTO oci_removed_manifests (namespace, name, artifact, generation)
             SELECT ?1, ?2, value, ?4
             FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?3, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
             WHERE value != ''
@@ -287,7 +299,7 @@ pub(super) fn record_removed_oci_digests<'digests>(
     if removed.is_empty() {
         return Ok(());
     }
-    let (namespace, _, name) = key.params();
+    let (namespace, name) = key.params_in(Ecosystem::Oci);
     let removed = super::blobs::json_array(&removed);
     connection.execute(
         RECORD_REMOVED_MANIFESTS.get(connection.dialect()),

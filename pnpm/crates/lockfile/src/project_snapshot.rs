@@ -64,6 +64,29 @@ impl ProjectSnapshot {
             .filter_map(|group| self.get_map_by_group(group))
             .flatten()
     }
+
+    /// `meta`, a `dependenciesMeta` value, as the next lockfile format records
+    /// it: `{"<alias>": {"injected": true}}` for each dependency of this
+    /// importer that `meta` marks `injected`. `None` when there is none.
+    #[must_use]
+    pub fn injected_dependencies_meta(
+        &self,
+        meta: Option<&serde_json::Value>,
+    ) -> Option<serde_json::Value> {
+        let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        let injected: serde_json::Map<String, serde_json::Value> = self
+            .dependencies_by_groups(groups)
+            .map(|(alias, _)| alias.to_string())
+            .filter(|alias| {
+                meta.and_then(|meta| meta.get(alias))
+                    .and_then(|entry| entry.get("injected"))
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(true)
+            })
+            .map(|alias| (alias, serde_json::json!({ "injected": true })))
+            .collect();
+        (!injected.is_empty()).then_some(serde_json::Value::Object(injected))
+    }
 }
 
 #[cfg(test)]

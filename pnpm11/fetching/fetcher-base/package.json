@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.fetcher-base",
-  "version": "1100.2.15",
+  "version": "1100.2.16",
   "description": "Types for pnpm-compatible fetchers",
   "keywords": [
     "pnpm",
@@ -25,11 +25,11 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/resolving.resolver-base": "workspace:*",

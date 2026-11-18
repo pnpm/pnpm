@@ -1,8 +1,11 @@
 import path from 'node:path'
 
 import { packageIsInstallable } from '@pnpm/cli.utils'
+import { isError } from '@pnpm/error'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { findLockedNodeRuntime, getLockfileImporterId } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { getDownloadedNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
+import { getDownloadedNodeRuntimeSpecifierFromEnginesRuntime, getDownloadedNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 import { convertPathToPattern } from 'tinyglobby'
@@ -34,11 +37,17 @@ export interface FindWorkspaceProjectsOpts {
   modulesDirsByProjectName?: Record<string, string>
 
   engineStrict?: boolean
+  lockfile?: boolean
+  dev?: boolean
+  lockfileDir?: string
   nodeVersion?: string
   nodeVersionFromEnginesRuntime?: boolean
+  production?: boolean
   runtimeOnFail?: 'download' | 'error' | 'warn' | 'ignore'
   skipRuntimes?: boolean
   sharedWorkspaceLockfile?: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
   supportedArchitectures?: SupportedArchitectures
 }
 
@@ -47,10 +56,11 @@ export async function findWorkspaceProjects (
   opts?: FindWorkspaceProjectsOpts
 ): Promise<Project[]> {
   const projects = await findWorkspaceProjectsNoCheck(workspaceRoot, opts)
+  const lockedNodeVersions = await readLockedNodeVersions({ workspaceRoot, projects, opts })
   for (const project of projects) {
     packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
-      nodeVersion: getProjectNodeVersion(project.manifest, opts),
+      nodeVersion: getProjectNodeVersion({ workspaceRoot, projectRoot: project.rootDir, manifest: project.manifest, opts, lockedNodeVersions }),
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
@@ -74,7 +84,7 @@ export function findWorkspaceProjectsSync (
   for (const project of projects) {
     packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
-      nodeVersion: getProjectNodeVersion(project.manifest, opts),
+      nodeVersion: getProjectNodeVersion({ workspaceRoot, projectRoot: project.rootDir, manifest: project.manifest, opts }),
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
@@ -89,15 +99,128 @@ export function findWorkspaceProjectsSync (
   return projects
 }
 
-function getProjectNodeVersion (
-  manifest: ProjectManifest,
-  opts?: Pick<FindWorkspaceProjectsOpts, 'nodeVersion' | 'nodeVersionFromEnginesRuntime' | 'runtimeOnFail' | 'skipRuntimes'>
-): string | undefined {
+function getProjectNodeVersion (options: {
+  workspaceRoot: string
+  projectRoot: string
+  manifest: ProjectManifest
+  opts?: FindWorkspaceProjectsOpts
+  lockedNodeVersions?: Record<string, string>
+}): string | undefined {
+  const { workspaceRoot, projectRoot, manifest, opts, lockedNodeVersions } = options
   if (opts?.skipRuntimes) {
     return opts.nodeVersionFromEnginesRuntime ? undefined : opts.nodeVersion
   }
   if (opts?.nodeVersion != null && !opts.nodeVersionFromEnginesRuntime) return opts.nodeVersion
-  return getDownloadedNodeVersionFromEnginesRuntime(manifest, opts?.runtimeOnFail) ?? opts?.nodeVersion
+  const dependencyGroup = getRuntimeDependencyGroup(opts)
+  const declaredNodeVersion = getDownloadedNodeVersionFromEnginesRuntime(manifest, opts?.runtimeOnFail, dependencyGroup)
+  return lockedNodeVersions?.[projectRoot] ?? declaredNodeVersion ?? lockedNodeVersions?.[workspaceRoot] ?? opts?.nodeVersion
+}
+
+async function readLockedNodeVersions (options: {
+  workspaceRoot: string
+  projects: Project[]
+  opts?: FindWorkspaceProjectsOpts
+}): Promise<Record<string, string>> {
+  const { workspaceRoot, projects, opts } = options
+  if (!shouldReadLockedNodeVersions(projects, opts)) return {}
+  const projectsByLockfileDir = groupProjectsByLockfileDir({ workspaceRoot, projects, opts })
+  const versionsByLockfile = await Promise.all(
+    Array.from(projectsByLockfileDir, async ([lockfileDir, projects]) => {
+      const lockfile = await readNodeRuntimeLockfile({ lockfileDir, opts })
+      if (lockfile == null) return {}
+      return lockedNodeVersionsFromLockfile({ lockfile, lockfileDir, projects, opts })
+    })
+  )
+  return Object.assign({}, ...versionsByLockfile)
+}
+
+function groupProjectsByLockfileDir (options: {
+  workspaceRoot: string
+  projects: Project[]
+  opts?: FindWorkspaceProjectsOpts
+}): Map<string, Project[]> {
+  const { workspaceRoot, projects, opts } = options
+  const groups = new Map<string, Project[]>()
+  for (const project of projects) {
+    if (!hasDownloadedNodeRuntime(project.manifest, opts)) continue
+    const lockfileDir = opts?.lockfileDir ?? (opts?.sharedWorkspaceLockfile === false ? project.rootDir : workspaceRoot)
+    const lockfileProjects = groups.get(lockfileDir) ?? []
+    lockfileProjects.push(project)
+    groups.set(lockfileDir, lockfileProjects)
+  }
+  return groups
+}
+
+async function readNodeRuntimeLockfile (options: {
+  lockfileDir: string
+  opts?: FindWorkspaceProjectsOpts
+}): Promise<Awaited<ReturnType<typeof readWantedLockfile>>> {
+  const { lockfileDir, opts } = options
+  try {
+    return await readWantedLockfile(lockfileDir, {
+      ignoreIncompatible: true,
+      useGitBranchLockfile: opts?.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts?.mergeGitBranchLockfiles,
+    })
+  } catch (error: unknown) {
+    if (isError(error) && 'code' in error && error.code === 'ERR_PNPM_BROKEN_LOCKFILE') return null
+    throw error
+  }
+}
+
+function shouldReadLockedNodeVersions (projects: Project[], opts?: FindWorkspaceProjectsOpts): boolean {
+  if (opts?.lockfile === false || opts?.skipRuntimes || opts?.nodeVersion != null && !opts.nodeVersionFromEnginesRuntime) return false
+  if (opts?.nodeVersionFromEnginesRuntime === true) return true
+  return projects.some(project => hasDownloadedNodeRuntime(project.manifest, opts))
+}
+
+function lockedNodeVersionsFromLockfile (options: {
+  lockfile: NonNullable<Awaited<ReturnType<typeof readWantedLockfile>>>
+  lockfileDir: string
+  projects: Project[]
+  opts?: FindWorkspaceProjectsOpts
+}): Record<string, string> {
+  const { lockfile, lockfileDir, projects, opts } = options
+  const dependencyFields = getRuntimeDependencyFields(opts)
+  const lockedNodeVersions: Record<string, string> = {}
+  for (const project of projects) {
+    if (!hasDownloadedNodeRuntime(project.manifest, opts)) continue
+    const importerId = getLockfileImporterId(lockfileDir, project.rootDir)
+    const runtime = findLockedNodeRuntime(lockfile, importerId, dependencyFields)
+    const declaredSpecifier = getDownloadedNodeRuntimeSpecifierFromEnginesRuntime(
+      project.manifest,
+      opts?.runtimeOnFail,
+      getRuntimeDependencyGroup(opts)
+    )
+    if (runtime != null && runtime.specifier === declaredSpecifier) lockedNodeVersions[project.rootDir] = runtime.version
+  }
+  return lockedNodeVersions
+}
+
+function hasDownloadedNodeRuntime (manifest: ProjectManifest, opts?: FindWorkspaceProjectsOpts): boolean {
+  return getDownloadedNodeVersionFromEnginesRuntime(
+    manifest,
+    opts?.runtimeOnFail,
+    getRuntimeDependencyGroup(opts)
+  ) != null
+}
+
+function getRuntimeDependencyGroup (opts?: FindWorkspaceProjectsOpts): 'dependencies' | 'devDependencies' | undefined {
+  return opts?.production && !opts.dev
+    ? 'dependencies'
+    : opts?.dev && !opts.production
+      ? 'devDependencies'
+      : undefined
+}
+
+function getRuntimeDependencyFields (
+  opts?: FindWorkspaceProjectsOpts
+): readonly ('dependencies' | 'devDependencies' | 'optionalDependencies')[] | undefined {
+  return opts?.production && !opts.dev
+    ? ['dependencies', 'optionalDependencies']
+    : opts?.dev && !opts.production
+      ? ['devDependencies']
+      : undefined
 }
 
 type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir' | 'modulesDirsByProjectName'>

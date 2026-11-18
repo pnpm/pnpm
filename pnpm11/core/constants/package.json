@@ -26,9 +26,9 @@
   ],
   "scripts": {
     "test": "pn compile",
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsgo --build && pn lint --fix"
+    "compile": "tsc --build && pn lint --fix"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*"

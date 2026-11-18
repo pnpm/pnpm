@@ -130,6 +130,7 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
             root_dir: std::path::PathBuf::from(format!("/repo/{id}")),
             modules_dir: None,
             rejected_optional_peers: HashSet::default(),
+            hoisted_peer_provider_node_ids: HashSet::default(),
         };
         let root = importer(".", vec![direct_dep("p@1.0.0", "p")]);
         let importer_a =

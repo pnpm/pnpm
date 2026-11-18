@@ -165,7 +165,7 @@ repository. The scan covers unpublished repositories and nested repository
 names.
 
 `DELETE /v2/<name>/blobs/<digest>` removes an unreferenced blob for a caller with
-`unpublish` permission, which the registry default denies. A blob reachable from
+`delete`, which no [default grant](configuration.md#default-grants) gives. A blob reachable from
 a retained manifest or index of that repository is refused, as is
 `DELETE /v2/<name>/manifests/<digest>` when a retained index still references the
 manifest. The blob deletion unmaps

@@ -6,6 +6,7 @@ use super::{
     resolve_with_transient_shared_walk, resolve_workspace, table_entry, workspace_opts,
 };
 use crate::PeerDependentsDedupe;
+use std::collections::BTreeMap;
 
 #[tokio::test]
 async fn workspace_root_direct_deps_resolve_child_importer_peers() {
@@ -1156,4 +1157,198 @@ async fn project_scoped_optional_peers_stay_unbound_across_cyclic_peer_variants(
     let other_p = &result.peers.graph[other_z].edges.children["p"];
     assert_eq!(other_p.as_str(), "p@1.0.0(t@1.0.0)(w@1.0.0)");
     assert_eq!(result.peers.graph[other_p].edges.children["v"].as_str(), "v@1.0.0(t@1.0.0)");
+}
+
+/// `linter` has an optional peer on `plugin`. `toolkit` resolves
+/// `plugin@1.0.0` for its own `uses-plugin`, which hoists `plugin` to an
+/// importer that does not declare it. Returns how `linter` resolved in
+/// each importer that has it.
+async fn resolve_linters(
+    linter_plugin_range: &str,
+    importer_deps: &[(&str, serde_json::Value)],
+    dedupe: PeerDependentsDedupe,
+) -> BTreeMap<String, String> {
+    let mut table = HashMap::default();
+    let manifests = [
+        serde_json::json!({
+            "name": "linter",
+            "version": "2.0.0",
+            "peerDependencies": { "plugin": linter_plugin_range },
+            "peerDependenciesMeta": { "plugin": { "optional": true } },
+        }),
+        serde_json::json!({
+            "name": "toolkit",
+            "version": "1.0.0",
+            "dependencies": { "uses-plugin": "1.0.0", "plugin": "1.0.0" },
+        }),
+        serde_json::json!({
+            "name": "uses-plugin",
+            "version": "1.0.0",
+            "peerDependencies": { "plugin": "^1.0.0" },
+            "peerDependenciesMeta": { "plugin": { "optional": true } },
+        }),
+        serde_json::json!({ "name": "plugin", "version": "1.0.0" }),
+        serde_json::json!({
+            "name": "a-wrapper",
+            "version": "1.0.0",
+            "dependencies": { "linter": "2.0.0", "plugin": "1.0.0" },
+        }),
+    ];
+    for manifest in manifests {
+        let name = manifest["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let version = manifest["version"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        table.insert((name.clone(), version.clone()), fake_result(&name, &version, None, manifest));
+    }
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let manifests: Vec<_> = importer_deps
+        .iter()
+        .map(|(_, deps)| fake_manifest(deps.clone()))
+        .collect();
+    let importers: Vec<_> = importer_deps
+        .iter()
+        .zip(&manifests)
+        .map(|((id, _), (_, manifest))| WorkspaceImporter { id: (*id).to_string(), manifest })
+        .collect();
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = dedupe;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = manifests[next].0.path().to_path_buf();
+        next += 1;
+        importer_opts(dir, None)
+    })
+    .await
+    .unwrap();
+
+    result.peers.direct_dependencies_by_importer
+        .into_iter()
+        .filter_map(|(id, deps)| Some((id, deps.get("linter")?.to_string())))
+        .collect()
+}
+
+async fn resolve_linter_beside_hoisted_plugin(linter_plugin_range: &str) -> String {
+    let linters = resolve_linters(
+        linter_plugin_range,
+        &[(".", serde_json::json!({ "linter": "2.0.0", "toolkit": "1.0.0" }))],
+        PeerDependentsDedupe::On,
+    )
+    .await;
+    linters["."].clone()
+}
+
+/// <https://github.com/pnpm/pnpm/issues/18162>
+#[tokio::test]
+async fn a_hoisted_peer_provider_outside_the_range_does_not_supply_an_optional_peer() {
+    assert_eq!(resolve_linter_beside_hoisted_plugin("^2.0.0").await, "linter@2.0.0");
+}
+
+#[tokio::test]
+async fn a_hoisted_peer_provider_inside_the_range_supplies_an_optional_peer() {
+    assert_eq!(resolve_linter_beside_hoisted_plugin(">=1.0.0").await, "linter@2.0.0(plugin@1.0.0)");
+}
+
+/// `a` gets `plugin` hoisted from `toolkit`, and `b` declares the same
+/// `plugin@1.0.0`.
+fn linter_importer_deps(id: &str) -> serde_json::Value {
+    if id == "a" {
+        serde_json::json!({ "linter": "2.0.0", "toolkit": "1.0.0" })
+    } else {
+        serde_json::json!({ "linter": "2.0.0", "plugin": "1.0.0" })
+    }
+}
+
+/// In each importer, `linter` binds as its own provider decides, whichever
+/// importer is walked first.
+#[tokio::test]
+async fn another_importers_hoist_does_not_change_a_declared_optional_peer_provider() {
+    for (first, second) in [("a", "b"), ("b", "a")] {
+        let linters = resolve_linters(
+            "^2.0.0",
+            &[
+                (".", serde_json::json!({})),
+                (first, linter_importer_deps(first)),
+                (second, linter_importer_deps(second)),
+            ],
+            PeerDependentsDedupe::Off,
+        )
+        .await;
+        assert_eq!(linters["a"], "linter@2.0.0", "{first} walked first");
+        assert_eq!(linters["b"], "linter@2.0.0(plugin@1.0.0)", "{first} walked first");
+    }
+}
+
+/// `a-wrapper` declares `plugin`, so its `linter` binds it, and the walk
+/// caches that binding before it reaches the importer's own `linter`.
+#[tokio::test]
+async fn a_cached_binding_to_a_declared_provider_does_not_bind_an_optional_peer_to_a_hoisted_one() {
+    let linters = resolve_linters(
+        "^2.0.0",
+        &[(
+            ".",
+            serde_json::json!({ "a-wrapper": "1.0.0", "linter": "2.0.0", "toolkit": "1.0.0" }),
+        )],
+        PeerDependentsDedupe::Off,
+    )
+    .await;
+    assert_eq!(linters["."], "linter@2.0.0");
+}
+
+/// `b` peer-depends on `a`, and `d` deep under `b` peer-depends on `b`. `x`
+/// brings in `a@2.0.0`, whose own `b` the importer's hoisted `b` stands in
+/// for, so `d` keeps a single variant.
+#[tokio::test]
+async fn a_hoisted_peer_provider_keeps_standing_in_for_an_equal_ancestor_provider() {
+    let mut table = HashMap::default();
+    let manifests = [
+        serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "b": "1.0.0" } }),
+        serde_json::json!({ "name": "a", "version": "2.0.0", "dependencies": { "b": "1.0.0" } }),
+        serde_json::json!({
+            "name": "b",
+            "version": "1.0.0",
+            "dependencies": { "c": "1.0.0" },
+            "peerDependencies": { "a": "*" },
+        }),
+        serde_json::json!({ "name": "c", "version": "1.0.0", "dependencies": { "d": "1.0.0" } }),
+        serde_json::json!({ "name": "d", "version": "1.0.0", "peerDependencies": { "b": "*" } }),
+        serde_json::json!({ "name": "x", "version": "1.0.0", "dependencies": { "a": "2.0.0" } }),
+    ];
+    for manifest in manifests {
+        let name = manifest["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let version = manifest["version"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        table.insert((name.clone(), version.clone()), fake_result(&name, &version, None, manifest));
+    }
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp_root, root_manifest) =
+        fake_manifest(serde_json::json!({ "a": "1.0.0", "x": "1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest }];
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(tmp_root.path().to_path_buf(), None)
+    })
+    .await
+    .unwrap();
+
+    let mut d_variants: Vec<String> = result.peers.graph
+        .keys()
+        .map(ToString::to_string)
+        .filter(|dep_path| dep_path.starts_with("d@"))
+        .collect();
+    d_variants.sort();
+    assert_eq!(d_variants, ["d@1.0.0(b@1.0.0(a@1.0.0))"]);
 }

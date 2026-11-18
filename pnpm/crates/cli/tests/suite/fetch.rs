@@ -676,3 +676,96 @@ fn fetch_leaves_the_pinned_pnpm_alone_when_version_switching_is_off() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn recursive_fetch_populates_dedicated_lockfiles_for_offline_install() {
+    fetch_dedicated_lockfiles_for_offline_install(FetchSelection::All);
+}
+
+#[test]
+fn filtered_fetch_populates_only_selected_dedicated_lockfiles() {
+    fetch_dedicated_lockfiles_for_offline_install(FetchSelection::Filtered);
+}
+
+#[test]
+fn recursive_fetch_respects_explicit_lockfile_dir() {
+    fetch_dedicated_lockfiles_for_offline_install(FetchSelection::ExplicitLockfileDir);
+}
+
+#[derive(Clone, Copy)]
+enum FetchSelection {
+    All,
+    Filtered,
+    ExplicitLockfileDir,
+}
+
+fn fetch_dedicated_lockfiles_for_offline_install(selection: FetchSelection) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::create_dir(workspace.join("lockfiles")).unwrap();
+    append_workspace_yaml_key(&workspace, "packages", "[packages/*]");
+    append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", "false");
+    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#).unwrap();
+    for (name, dependency) in [("a", PROD_DEP), ("b", DEV_DEP)] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).unwrap();
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "dependencies": { dependency: "100.0.0" },
+            })
+            .to_string(),
+        )
+        .unwrap();
+    }
+    let (selection_args, lockfile_args, expected_projects): (&[&str], &[&str], &[&str]) =
+        match selection {
+            FetchSelection::All => (&["-r"], &[], &["a", "b"]),
+            FetchSelection::Filtered => (&["--filter", "a"], &[], &["a"]),
+            FetchSelection::ExplicitLockfileDir => {
+                (&["-r"], &["--lockfile-dir", "lockfiles"], &["a", "b"])
+            }
+        };
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .with_args(lockfile_args)
+        .with_arg("--store-dir")
+        .with_arg(root.path().join("seed-store"))
+        .assert()
+        .success();
+    for name in ["a", "b"] {
+        assert_eq!(
+            workspace
+                .join("packages")
+                .join(name)
+                .join("pnpm-lock.yaml")
+                .exists(),
+            lockfile_args.is_empty(),
+        );
+    }
+    let store = root.path().join("fetch-store");
+    pacquet_at(&workspace)
+        .with_args(selection_args)
+        .with_args(lockfile_args)
+        .with_args(["fetch", "--store-dir"])
+        .with_arg(&store)
+        .assert()
+        .success();
+    for (name, dependency) in [("a", PROD_DEP), ("b", DEV_DEP)] {
+        let project = workspace.join("packages").join(name);
+        assert_no_importer_links(&project);
+        let target = if lockfile_args.is_empty() { project } else { workspace.join("lockfiles") };
+        assert_eq!(virtual_dep(&target, dependency).exists(), expected_projects.contains(&name));
+        assert_no_importer_links(&target);
+    }
+    pacquet_at(&workspace)
+        .with_args(selection_args)
+        .with_args(lockfile_args)
+        .with_args(["install", "--offline", "--frozen-lockfile", "--store-dir"])
+        .with_arg(&store)
+        .assert()
+        .success();
+    drop((root, mock_instance));
+}

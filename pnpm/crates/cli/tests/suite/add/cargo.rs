@@ -43,6 +43,50 @@ foo = "1.0.0""#,
 }
 
 #[test]
+fn add_crate_keeps_a_compatible_transitive_lockfile_version() {
+    let (root, cache_dir) = cargo_add_project();
+    std::fs::write(
+        root.path().join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nbar = \"1\"\n",
+    )
+    .expect("write Cargo manifest");
+    std::fs::write(
+        root.path().join("Cargo.lock"),
+        "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"bar\"]\n\n[[package]]\nname = \"bar\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
+    )
+    .expect("write Cargo lockfile");
+    let index_dir = cache_dir.join("v11/cargo-index/crates-io/3/f");
+    std::fs::write(
+        index_dir.join("foo"),
+        r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#,
+    )
+    .expect("write foo index entry");
+    let bar_index_dir = cache_dir.join("v11/cargo-index/crates-io/3/b");
+    std::fs::create_dir_all(&bar_index_dir).expect("create bar index directory");
+    std::fs::write(
+        bar_index_dir.join("bar"),
+        concat!(
+            r#"{"name":"bar","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#,
+            "\n",
+            r#"{"name":"bar","vers":"1.1.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":false}"#,
+        ),
+    )
+    .expect("write bar index entry");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "crate:foo", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = std::fs::read_to_string(root.path().join("Cargo.lock"))
+        .expect("read updated Cargo lockfile");
+    assert!(lockfile.contains("name = \"bar\"\nversion = \"1.0.0\""), "{lockfile}");
+}
+
+#[test]
 fn add_crate_can_target_build_dependencies() {
     let (root, cache_dir) = cargo_add_project();
     Command::cargo_bin("pnpm")

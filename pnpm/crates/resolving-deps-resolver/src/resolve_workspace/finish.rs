@@ -100,7 +100,7 @@ fn importer_peer_inputs(initialized: InitializedImporters) -> PeerInputs {
         .zip(initialized.input_dirs)
     {
         let importer = state.into_direct();
-        hoisted_provider_node_ids.extend(importer.hoisted_peer_provider_node_ids);
+        hoisted_provider_node_ids.extend(importer.hoisted_peer_provider_node_ids.iter().cloned());
         per_importer.push(ImporterPeerInput {
             id,
             declared_direct_dependencies: importer.declared_direct_dependencies,
@@ -110,6 +110,7 @@ fn importer_peer_inputs(initialized: InitializedImporters) -> PeerInputs {
             root_dir: project_dir,
             modules_dir,
             rejected_optional_peers: importer.rejected_optional_peers,
+            hoisted_peer_provider_node_ids: importer.hoisted_peer_provider_node_ids,
         });
     }
     PeerInputs { per_importer, hoisted_provider_node_ids }

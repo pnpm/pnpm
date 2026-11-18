@@ -1,5 +1,7 @@
+use pnpm_semver_include_prerelease::is_valid_semver_range;
+
 use super::{
-    BTreeMap, HashMap, HashSet, InternalDep, Participant, Path, Range, Version, VersioningError,
+    BTreeMap, HashMap, HashSet, InternalDep, Participant, Path, Version, VersioningError,
     VersioningSettings, WorkspaceProject, normalize_project_dir,
 };
 
@@ -213,7 +215,7 @@ fn internal_dep_target_name(alias: &str, spec: &str, refs: &ProjectRefIndex) -> 
     if refs.name_to_dirs(alias).is_empty() {
         return None;
     }
-    (spec.starts_with("catalog:") || Range::parse(spec).is_ok()).then(|| alias.to_string())
+    (spec.starts_with("catalog:") || is_valid_semver_range(spec)).then(|| alias.to_string())
 }
 
 /// The alias of an aliased `workspace:<alias>@<range>` spec body, mirroring

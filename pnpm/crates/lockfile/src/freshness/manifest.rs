@@ -2,7 +2,9 @@ use super::{
     BTreeMap, BTreeSet, DependencyGroup, PackageManifest, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec, SpecDiff, StalenessReason, git_specifiers_are_equivalent,
 };
-use pnpm_semver_include_prerelease::{ANY_VERSION_RANGE, is_any_version_range};
+use pnpm_semver_include_prerelease::{
+    ANY_VERSION_RANGE, is_any_version_range, parse_strict_semver_range,
+};
 use pnpm_tool_protocol::tool_specifiers_equal;
 
 /// Verify the on-disk `package.json` is still satisfied by the
@@ -238,7 +240,11 @@ fn check_resolution_satisfies(
     manifest_spec: &str,
     importer_dep: Option<&ResolvedDependencySpec>,
 ) -> Result<(), StalenessReason> {
-    let (Some(dep), Ok(range)) = (importer_dep, manifest_spec.parse::<node_semver::Range>()) else {
+    // The resolver gives an any-version range the `latest` tag even when it is a prerelease.
+    if manifest_spec == ANY_VERSION_RANGE || is_any_version_range(manifest_spec) {
+        return Ok(());
+    }
+    let (Some(dep), Some(range)) = (importer_dep, parse_strict_semver_range(manifest_spec)) else {
         return Ok(());
     };
     let Some(version) = dep.version
@@ -251,11 +257,7 @@ fn check_resolution_satisfies(
     else {
         return Ok(());
     };
-    // The resolver gives an any-version range the `latest` tag even when it is a prerelease.
-    if manifest_spec == ANY_VERSION_RANGE
-        || is_any_version_range(manifest_spec)
-        || range.satisfies(version)
-    {
+    if range.satisfies(version) {
         return Ok(());
     }
     Err(StalenessReason::ResolutionDoesNotSatisfy {

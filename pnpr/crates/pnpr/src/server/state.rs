@@ -63,6 +63,7 @@ pub(super) struct ProxyState {
     pub(super) background_tar_scans: Arc<super::BackgroundTarScans>,
     pub(super) integrity_backfill: super::upstream_integrity::BackgroundIntegrity,
     pub(super) version_tgzs: super::VersionTgzCache,
+    pub(super) packument_refetches: super::PackumentRefetches,
 }
 
 pub(super) struct MutationLocks {
@@ -161,6 +162,7 @@ impl ProxyState {
             background_tar_scans: super::BackgroundTarScans::new(),
             integrity_backfill: super::upstream_integrity::BackgroundIntegrity::default(),
             version_tgzs: super::VersionTgzCache::default(),
+            packument_refetches: super::PackumentRefetches::default(),
         }
     }
 }
@@ -172,7 +174,6 @@ impl IdentityServices {
         // changes; see `registry_graph::check_file_references`.
         if config.graph_source == GraphSource::Supplied {
             super::oidc::validate_workloads(config, routing)?;
-            super::oidc_groups::validate_group_grants(config, routing)?;
         }
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;

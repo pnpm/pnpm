@@ -160,7 +160,7 @@ impl PlanFixture {
             Some(&packages),
             crate::BuildGating { policy: None, runs_builds: true },
             None,
-            &crate::platform_selection::VariantPlatforms::host(),
+            &crate::host_platform_selector(),
         );
         PlanFixture { snapshots, packages, layout }
     }
@@ -212,7 +212,6 @@ impl PlanFixture {
             .collect();
         plan_snapshots::<SilentReporter>(SnapshotPlanInputs {
             policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
-                supported_architectures: None,
                 skipped: &SkippedSnapshots::default(),
                 link_dependencies: true,
                 force,
@@ -320,7 +319,7 @@ fn gvs_slot_missing_a_regular_child_link_survives() {
         Some(&packages),
         crate::BuildGating { policy: None, runs_builds: true },
         None,
-        &crate::platform_selection::VariantPlatforms::host(),
+        &crate::host_platform_selector(),
     );
     let fixture = PlanFixture { snapshots, packages, layout };
     let parent_dir = fixture.layout

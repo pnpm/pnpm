@@ -16,7 +16,6 @@ use serde_json::json;
 use std::{fmt::Write, fs, path::Path};
 
 mod output;
-mod variants;
 
 #[test]
 fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
@@ -459,9 +458,7 @@ fn recursive_pack_reports_results_in_dependency_order() {
 }
 
 /// `--config.ignore-scripts=true` suppresses the pack lifecycle scripts
-/// just like the bare `--ignore-scripts` flag does for the commands that
-/// declare it. `pack` has no such flag, so the dotted override is the only
-/// way to skip its `prepack` (pnpm/pnpm#13986).
+/// (pnpm/pnpm#13986).
 #[test]
 fn config_ignore_scripts_override_suppresses_prepack() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -509,6 +506,59 @@ fn config_ignore_scripts_override_suppresses_prepack() {
     assert!(tarball.exists(), "the tarball must still be packed");
 
     drop((root, ignoring_root));
+}
+
+/// `--ignore-pnpmfile` and `--ignore-scripts` let `pack` run on a
+/// directory without executing any of its code (pnpm/pnpm#18132).
+#[test]
+fn ignore_flags_pack_without_running_project_code() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": {
+                "prepack": r#"node -e "require('fs').writeFileSync('prepack-ran.txt','ran')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "require('fs').writeFileSync('pnpmfile-ran.txt', 'ran')\nmodule.exports = { hooks: {} }\n",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet
+        .with_arg("pack")
+        .with_arg("--ignore-pnpmfile")
+        .with_arg("--ignore-scripts")
+        .assert()
+        .success();
+
+    assert!(workspace.join("pkg-1.0.0.tgz").exists(), "the tarball must be packed");
+    assert!(
+        !workspace.join("pnpmfile-ran.txt").exists(),
+        "--ignore-pnpmfile must not load the pnpmfile",
+    );
+    assert!(!workspace.join("prepack-ran.txt").exists(), "--ignore-scripts must suppress prepack");
+
+    let CommandTempCwd {
+        pacquet: unflagged,
+        root: unflagged_root,
+        ..
+    } = CommandTempCwd::init();
+    unflagged
+        .with_current_dir(&workspace)
+        .with_arg("pack")
+        .assert()
+        .success();
+    assert!(workspace.join("pnpmfile-ran.txt").exists(), "pack must load the pnpmfile by default");
+    assert!(workspace.join("prepack-ran.txt").exists(), "pack must run prepack by default");
+
+    drop((root, unflagged_root));
 }
 
 /// Extract `package/package.json` from a packed tarball.

@@ -9,8 +9,9 @@ use super::{
     paths::{AuditPathIndex, PathInfo, build_audit_path_index},
     render::{render_json_report, render_text_report},
     report::{
-        AuditAdvisory, AuditFinding, AuditMetadata, AuditReport, AuditVulnerabilityCounts, Cwe,
-        RawBulkAdvisory, bulk_response_to_audit_report, normalize_ghsa_id, sanitize_control_chars,
+        AdvisoryId, AuditAdvisory, AuditFinding, AuditMetadata, AuditReport,
+        AuditVulnerabilityCounts, Cwe, RawBulkAdvisory, bulk_response_to_audit_report,
+        normalize_ghsa_id, sanitize_control_chars,
     },
     request::{Include, lockfile_to_audit_request},
     version_ranges::{is_range_subset, patched_range_for_style, satisfies_safe},
@@ -283,6 +284,47 @@ snapshots:
 
     assert_eq!(report.metadata.vulnerabilities.info, 1);
     assert_eq!(report.advisories["100"].severity, ConfigAuditLevel::Info);
+}
+
+#[test]
+fn bulk_response_to_audit_report_keeps_string_advisory_ids() {
+    let lockfile = parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      lodash:
+        specifier: '4.17.20'
+        version: '4.17.20'
+
+snapshots:
+
+  lodash@4.17.20: {}
+",
+    );
+    let audit_request = lockfile_to_audit_request(&lockfile, None, all_dependencies());
+    let bulk = BTreeMap::from([(
+        "lodash".to_string(),
+        vec![RawBulkAdvisory {
+            id: Some(serde_json::json!("CUSTOM-ADVISORY-1")),
+            url: Some("https://example.com/advisories/CUSTOM-ADVISORY-1".to_string()),
+            title: Some("Test advisory".to_string()),
+            severity: Some("high".to_string()),
+            vulnerable_versions: "<4.17.21".to_string(),
+            cwe: None,
+        }],
+    )]);
+
+    let report =
+        bulk_response_to_audit_report(bulk, &audit_request, &lockfile, None, all_dependencies());
+
+    assert_eq!(report.metadata.vulnerabilities.high, 1);
+    let advisory = &report.advisories["CUSTOM-ADVISORY-1"];
+    assert_eq!(advisory.id, AdvisoryId::String("CUSTOM-ADVISORY-1".to_string()));
+    assert_eq!(serde_json::to_value(advisory).unwrap()["id"], "CUSTOM-ADVISORY-1");
 }
 
 #[test]
@@ -609,7 +651,7 @@ fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> Aud
             optional: false,
             bundled: false,
         }],
-        id,
+        id: AdvisoryId::Number(id),
         title: title.to_string(),
         module_name: "pkg".to_string(),
         vulnerable_versions: "<2.0.0".to_string(),

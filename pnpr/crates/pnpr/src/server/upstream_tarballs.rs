@@ -5,8 +5,9 @@ use self::background_scan::{
 use super::{
     AppState, CanonicalPackageName, Duration, FetchOutcome, Identity, Integrity, RegistryError,
     Response, TarballDist, Upstream, authorized_upstream, ensure_osv_allowed,
-    expected_tarball_dist, load_upstream_packument, not_found, streaming, tarball_response,
-    tarball_stream_error, timed, upstream_cache_namespace,
+    expected_tarball_dist, load_upstream_packument, not_found,
+    reload_upstream_packument_lacking_version, streaming, tarball_response, tarball_stream_error,
+    timed, upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 
@@ -174,7 +175,13 @@ pub(super) async fn bind_tarball_to_packument(
     let Some(packument) = packument else {
         return Ok(None);
     };
-    let result = parse_tarball_dist(state, packument, name, filename).await;
+    let mut result = parse_tarball_dist(state, packument, name, filename).await;
+    if matches!(result, Ok(None))
+        && let Some(packument) =
+            reload_upstream_packument_lacking_version(state, namespace, upstream, name).await?
+    {
+        result = parse_tarball_dist(state, packument, name, filename).await;
+    }
     if result.is_ok() {
         return result;
     }

@@ -224,6 +224,7 @@ impl Walker<'_> {
             &mut walked.outputs.missing_summaries,
         );
         SettledPeers {
+            parent_refs: Arc::clone(child_parent_refs),
             is_pure: peers.all_resolved.is_empty() && peers.all_missing.is_empty(),
             dep_path: peers.dep_path,
             own_resolved: peers.own_resolved,
