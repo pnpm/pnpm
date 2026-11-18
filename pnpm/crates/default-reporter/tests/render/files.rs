@@ -47,7 +47,7 @@ fn the_pending_approval_notice_combines_builds_and_skills_by_package() {
         frame.contains(
             "Packages awaiting approval:\n  agent-tool  skills\n  drizzle-kit  build, skills\n  esbuild  build"
         ),
-        "frame: {frame}"
+        "frame: {frame}",
     );
     assert!(!frame.contains("Ignored build scripts"), "frame: {frame}");
     assert!(!frame.contains("Agent skills awaiting approval"), "frame: {frame}");
