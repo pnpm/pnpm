@@ -6307,7 +6307,6 @@ dependencies = [
  "pnpm-network-web-auth-testing",
  "pnpm-package-manifest",
  "pnpm-package-name",
- "pnpm-release-record",
  "pnpm-reporter",
  "pnpm-tarball",
  "pnpm-wasm-host",
