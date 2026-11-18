@@ -92,9 +92,9 @@ fn record_agent_skills(
         hoisted_locations: next_modules.hoisted_locations.as_ref(),
     })
     .map_err(InstallError::AgentSkills)?;
-    let pending_keys = state.pending_keys();
+    let pending_dep_paths = state.pending.clone();
     state.update_modules(next_modules);
-    Ok(pending_keys)
+    Ok(pending_dep_paths)
 }
 pub(super) fn prepare_committed_build_state(
     inputs: &mut CommitModulesStateInputs<'_>,

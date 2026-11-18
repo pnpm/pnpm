@@ -63,13 +63,31 @@ fn the_pending_approval_notice_combines_source_package_labels() {
             ignored_scripts(&["my-skills@link:packages/my-skills"]),
             LogEvent::PendingSkills(PendingSkillsLog {
                 level: LogLevel::Debug,
-                package_names: vec!["my-skills".to_string()],
+                package_names: vec!["my-skills (local)".to_string()],
             }),
         ],
     );
 
     assert!(frame.contains("  my-skills (local)  build, skills"), "frame: {frame}");
     assert_eq!(frame.matches("my-skills (local)").count(), 1, "frame: {frame}");
+}
+
+#[test]
+fn registry_skill_labels_do_not_merge_into_local_build_labels() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            ignored_scripts(&["foo@link:../foo"]),
+            LogEvent::PendingSkills(PendingSkillsLog {
+                level: LogLevel::Debug,
+                package_names: vec!["foo".to_string()],
+            }),
+        ],
+    );
+
+    assert!(frame.contains("  foo  skills"), "frame: {frame}");
+    assert!(frame.contains("  foo (local)  build"), "frame: {frame}");
 }
 
 #[test]

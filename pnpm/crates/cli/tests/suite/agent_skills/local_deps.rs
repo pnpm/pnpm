@@ -50,7 +50,7 @@ fn workspace_star_links_approves_and_prunes_skills_for_subproject_and_root() {
 
     let output = output_of(pnpm(&workspace).with_arg("install"));
     assert!(
-        output.contains("Packages awaiting approval:\n  @example/my-skills  skills"),
+        output.contains("Packages awaiting approval:\n  @example/my-skills (local)  skills"),
         "{output}",
     );
     assert_eq!(
