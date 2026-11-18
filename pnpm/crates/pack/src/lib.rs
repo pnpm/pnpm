@@ -214,6 +214,19 @@ where
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
     let source = prepare_source::<Reporter>(opts).await?;
+    pack_source::<Reporter, Sys>(opts, source).await
+}
+
+/// Pack `source`, prepared by [`prepare_source`], into an archive, then run
+/// `postpack`.
+async fn pack_source<Reporter, Sys>(
+    opts: &PackOptions,
+    source: PackSource,
+) -> Result<PackResult, PackError>
+where
+    Reporter: self::Reporter,
+    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
+{
     let (tarball_name, pack_destination) =
         resolve_output(&opts.output, &source.normalized_name, &source.published_version)?;
     let files_map = packed_files_map(opts, &source)?;
