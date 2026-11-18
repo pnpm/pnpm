@@ -788,6 +788,19 @@ impl SignProvenance for ProvenanceSys {
 /// `.sigstore` bundle into the document's `_attachments` before the `PUT`.
 #[tokio::test]
 async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
+    publish_with_provenance("1.0.0").await;
+}
+
+/// The statement and its attachment name the version as the document keys
+/// it, without build metadata.
+#[tokio::test]
+async fn provenance_names_the_version_without_build_metadata() {
+    publish_with_provenance("1.0.0+build").await;
+}
+
+/// Publish `pkg` at `version` with provenance to a registry that accepts
+/// only a document carrying `pkg-1.0.0.sigstore`.
+async fn publish_with_provenance(version: &str) {
     let mut server = mockito::Server::new_async().await;
     let exchange = server
         .mock("POST", "/npm/private/-/npm/v1/oidc/token/exchange/package/pkg")
@@ -796,7 +809,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         .with_body(r#"{"token":"registry-token"}"#)
         .create_async()
         .await;
-    let manifest = json!({ "name": "pkg", "version": "1.0.0" });
+    let manifest = json!({ "name": "pkg", "version": version });
     let tarball = b"tarball-bytes";
     let pkg = PackedPkg {
         published_manifest: &manifest,

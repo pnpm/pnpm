@@ -220,7 +220,11 @@ fn subgraph_with_empty_roots_is_empty() {
         (key("b", "1.0.0"), registry_metadata()),
     ]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::empty());
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::empty(), &crate::host_platform_selector()),
+    );
     assert!(graph.is_empty(), "empty roots must produce an empty graph");
 }
 
@@ -245,7 +249,11 @@ fn subgraph_walks_forward_closure() {
         (key_d.clone(), registry_metadata()),
     ]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::once(key_a.clone()), &crate::host_platform_selector()),
+    );
     assert!(graph.contains_key(&key_a));
     assert!(graph.contains_key(&key_b), "b is in a's closure");
     assert!(graph.contains_key(&key_c), "c is in a's closure via b");
@@ -265,7 +273,11 @@ fn subgraph_terminates_on_cycle() {
     let packages =
         HashMap::from([(key_a.clone(), registry_metadata()), (key_b.clone(), registry_metadata())]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::once(key_a.clone()), &crate::host_platform_selector()),
+    );
     assert_eq!(graph.len(), 2);
     assert!(graph.contains_key(&key_a));
     assert!(graph.contains_key(&key_b));

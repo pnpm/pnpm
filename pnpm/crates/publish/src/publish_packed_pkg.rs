@@ -318,6 +318,9 @@ where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
+    // The statement names the version as the document keys it, without
+    // build metadata, which is how the registry names its archive.
+    let version = &clean_version(version)?;
     let attachment = generate_provenance::<Sys, Reporter>(name, version, pkg.tarball_data, http)
         .await
         .map_err(PublishPackedPkgError::Provenance)?;

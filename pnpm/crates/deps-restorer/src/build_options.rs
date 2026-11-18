@@ -273,6 +273,9 @@ pub struct BuildGraphInputs<'a> {
     /// into. A candidate outside it is left as it is on disk and is not
     /// reported as ignored or deferred. `None` considers every candidate.
     pub build_scope: Option<&'a HashSet<PackageKey>>,
+    /// The platform the side-effects cache keys select each `variations`
+    /// resolution's archive for; `None` for the host's.
+    pub variations_platform: Option<&'a pnpm_lockfile::PlatformSelector>,
 }
 
 #[derive(Clone, Copy)]

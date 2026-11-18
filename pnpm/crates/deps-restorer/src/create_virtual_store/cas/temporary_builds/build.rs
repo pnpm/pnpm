@@ -1,5 +1,6 @@
 use super::{CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput, Snapshots};
 use crate::BuildModules;
+use pnpm_lockfile::PlatformSelector;
 use pnpm_reporter::Reporter;
 
 pub(super) fn run<Report: Reporter>(
@@ -14,10 +15,12 @@ pub(super) fn run<Report: Reporter>(
     let extra_env = config.extra_env_with_node_options();
     let publisher =
         crate::shared_side_effects::shared_side_effects_publisher(config, installer.importers);
+    let variations_platform =
+        crate::runtime_platform_selector(installer.selection.supported_architectures);
     BuildModules {
         cache: cache(installer, context, fetched, captured, publisher.as_ref()),
         directories: directories(context),
-        graph: graph(installer, snapshots, fetched),
+        graph: graph(installer, snapshots, fetched, &variations_platform),
         scripts: crate::BuildScriptOptions::from_config(config, &extra_env),
         allow_build_policy: context.allow_build_policy,
         child_concurrency: config.child_concurrency,
@@ -92,6 +95,7 @@ fn graph<'a>(
     installer: &'a CreateVirtualStore<'_>,
     snapshots: &'a Snapshots,
     fetched: &'a CreateVirtualStoreOutput,
+    variations_platform: &'a PlatformSelector,
 ) -> crate::BuildGraphInputs<'a> {
     crate::BuildGraphInputs {
         snapshots: Some(snapshots),
@@ -101,5 +105,6 @@ fn graph<'a>(
         importers: installer.importers,
         dependency_groups: None,
         build_scope: None,
+        variations_platform: Some(variations_platform),
     }
 }

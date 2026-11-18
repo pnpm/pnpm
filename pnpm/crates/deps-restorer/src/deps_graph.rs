@@ -37,16 +37,16 @@ pub fn build_deps_graph(
 }
 
 /// Build a dependency graph whose variations resolutions use the source
-/// integrity selected for `platform_selector`.
+/// integrity selected for `platform`.
 #[must_use]
 pub fn build_deps_graph_for_platform(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
-    platform_selector: &PlatformSelector,
+    platform: &PlatformSelector,
 ) -> HashMap<PackageKey, DepsGraphNode<PackageKey>> {
     let mut graph = HashMap::with_capacity(snapshots.len());
     for (snapshot_key, snapshot) in snapshots {
-        if let Some(node) = build_node(snapshot_key, snapshot, packages, platform_selector) {
+        if let Some(node) = build_node(snapshot_key, snapshot, packages, platform) {
             graph.insert(snapshot_key.clone(), node);
         }
     }
@@ -67,12 +67,11 @@ pub fn build_deps_graph_for_platform(
 pub fn build_deps_subgraph<Iter>(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
-    roots: Iter,
+    (roots, platform): (Iter, &PlatformSelector),
 ) -> HashMap<PackageKey, DepsGraphNode<PackageKey>>
 where
     Iter: IntoIterator<Item = PackageKey>,
 {
-    let platform_selector = crate::host_platform_selector();
     let mut graph: HashMap<PackageKey, DepsGraphNode<PackageKey>> = HashMap::new();
     let mut queue: std::collections::VecDeque<PackageKey> = roots.into_iter().collect();
     while let Some(key) = queue.pop_front() {
@@ -80,7 +79,7 @@ where
             continue;
         }
         let Some(snapshot) = snapshots.get(&key) else { continue };
-        let Some(node) = build_node(&key, snapshot, packages, &platform_selector) else {
+        let Some(node) = build_node(&key, snapshot, packages, platform) else {
             continue;
         };
         // Enqueue every child the new node points at. Repeat-enqueues
@@ -100,11 +99,11 @@ fn build_node(
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
     packages: &HashMap<PackageKey, PackageMetadata>,
-    platform_selector: &PlatformSelector,
+    platform: &PlatformSelector,
 ) -> Option<DepsGraphNode<PackageKey>> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages.get(&metadata_key)?;
-    let full_pkg_id = full_pkg_id_for(&metadata_key, &metadata.resolution, platform_selector);
+    let full_pkg_id = full_pkg_id_for(&metadata_key, &metadata.resolution, platform);
     let children = build_children(snapshot);
     Some(DepsGraphNode { full_pkg_id, children })
 }
@@ -114,15 +113,17 @@ fn build_node(
 fn full_pkg_id_for(
     pkg_key: &PackageKey,
     resolution: &LockfileResolution,
-    platform_selector: &PlatformSelector,
+    platform: &PlatformSelector,
 ) -> String {
     // `PackageKey`'s `Display` impl produces `<name>@<ver>` — the
     // shape the `pkgIdWithPatchHash` carries in v9 lockfiles. (Pre-v6
     // lockfiles used the `/<name>/<ver>` shape, but pacquet doesn't
     // parse those.)
     let pkg_id = pkg_key.to_string();
+    // A `variations` resolution is identified by the archive this
+    // platform selects.
     if let LockfileResolution::Variations(variations) = resolution
-        && let Some(variant) = select_platform_variant(&variations.variants, platform_selector)
+        && let Some(variant) = select_platform_variant(&variations.variants, platform)
         && let Some(integrity) = variant.resolution.integrity()
     {
         return format!("{pkg_id}:{integrity}");
