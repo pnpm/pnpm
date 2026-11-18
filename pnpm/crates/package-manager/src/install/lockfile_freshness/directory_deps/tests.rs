@@ -1402,6 +1402,10 @@ fn plain_range_workspace_children_accept_a_link_missing_from_the_checkout() {
         recorded_ref: "link:../outside/missing",
         ..missing
     }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        recorded_ref: "link:packages/redirect/missing",
+        ..missing
+    }));
 }
 
 #[derive(Clone, Copy)]
@@ -1421,6 +1425,12 @@ fn workspace_target_child_is_fresh(case: &WorkspaceTargetChild<'_>) -> bool {
     let target_dir = workspace_dir.join("packages/child");
     std::fs::create_dir_all(&local_dir).expect("create directory dependency");
     std::fs::create_dir_all(&target_dir).expect("create workspace target");
+    let outside = tempfile::tempdir().expect("create outside directory");
+    let redirect = workspace_dir.join("packages/redirect");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(outside.path(), &redirect).expect("link redirect");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(outside.path(), &redirect).expect("link redirect");
     let local_manifest = PackageManifest::from_value(
         local_dir.join("package.json"),
         serde_json::json!({ "name": "lib" }),

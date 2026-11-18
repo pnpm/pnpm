@@ -291,8 +291,8 @@ pub(super) fn importer_range_link_satisfies(
 }
 
 /// Whether the project a `link:` records, relative to `base_dir`, is named
-/// `expected_name` with a version in `range`. A target inside the workspace
-/// that is missing from the checkout is accepted.
+/// `expected_name` with a version in `range`. A target missing from the
+/// checkout is accepted when it would lie inside the workspace.
 pub(super) fn range_link_target_satisfies(
     dirs: &SpecDirs<'_>,
     base_dir: &Path,
@@ -300,15 +300,31 @@ pub(super) fn range_link_target_satisfies(
     expected_name: &str,
     range: &str,
 ) -> bool {
-    if Path::new(link_target).is_absolute() {
-        return false;
-    }
     let target_dir = base_dir.join(link_target);
-    if !pnpm_fs::is_subdir(dirs.workspace_root, &pnpm_fs::lexical_normalize(&target_dir)) {
+    (missing_target_stays_inside_workspace(dirs, &target_dir)
+        && is_missing_from_checkout(dirs, &target_dir))
+        || target_dir_satisfies(dirs, &target_dir, expected_name, range)
+}
+
+/// Whether `target_dir` lies inside the workspace as written and through the
+/// real path of its nearest existing ancestor.
+fn missing_target_stays_inside_workspace(dirs: &SpecDirs<'_>, target_dir: &Path) -> bool {
+    let normalized = pnpm_fs::lexical_normalize(target_dir);
+    if !pnpm_fs::is_subdir(dirs.workspace_root, &normalized) {
         return false;
     }
-    is_missing_from_checkout(dirs, &target_dir)
-        || target_dir_satisfies(dirs, &target_dir, expected_name, range)
+    let Some(existing) = normalized
+        .ancestors()
+        .find(|ancestor| std::fs::symlink_metadata(ancestor).is_ok())
+    else {
+        return false;
+    };
+    let Ok(canonical_root) = dirs.canonical_paths.canonicalize(dirs.workspace_root) else {
+        return false;
+    };
+    dirs.canonical_paths
+        .canonicalize(existing)
+        .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical))
 }
 
 /// An unbuilt `publishConfig.directory` is absent too, but its project is
