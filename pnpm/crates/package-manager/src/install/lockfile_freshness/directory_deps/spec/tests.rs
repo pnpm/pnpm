@@ -367,15 +367,8 @@ fn local_spec_satisfies_injected(
     injected: bool,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    super::spec_satisfies_snapshot_dep(
-        dirs,
-        local_dep_dir,
-        dep_name,
-        spec,
-        injected,
-        lockfile_dep,
-    )
-    .expect("a local spec is judged")
+    super::spec_satisfies_snapshot_dep(dirs, local_dep_dir, dep_name, spec, injected, lockfile_dep)
+        .expect("a local spec is judged")
 }
 
 #[test]
