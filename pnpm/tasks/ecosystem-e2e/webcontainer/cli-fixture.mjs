@@ -224,7 +224,7 @@ async function runRegistryWorkflow (entry) {
       assert.equal(result.exitCode, 0, `${args.join(' ')}: ${result.output}`)
       assert.ok(requests.slice(requestCount).some(request => request.method === method && new URL(request.url, registry).pathname === url), `${args.join(' ')} did not call ${method} ${url}`)
       if (args[0] === 'deprecate') assert.equal(publishDocument?.versions?.['1.0.0']?.deprecated, 'fixture retirement')
-      if (args[0] === 'undeprecate') assert.equal(publishDocument?.versions?.['1.0.0']?.deprecated, undefined)
+      if (args[0] === 'undeprecate') assert.equal(publishDocument?.versions?.['1.0.0']?.deprecated, '')
     }
 
     const unpublish = await runPackageManager(entry, ['unpublish', 'webcontainer-publish-probe', '--force', '--registry', registry], project, env)
