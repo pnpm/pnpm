@@ -378,12 +378,12 @@ function assertUnsupportedCommandHasNoEffects (entry) {
 }
 
 function snapshot (directory) {
-  const mode = lstatSync(directory).mode & 0o777
+  const mode = lstatSync(directory).mode & 0o7777
   const entries = []
   for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
     if (directory === process.cwd() && entry.name === '.unsupported-command-home') continue
     const filename = path.join(directory, entry.name)
-    const mode = lstatSync(filename).mode & 0o777
+    const mode = lstatSync(filename).mode & 0o7777
     if (entry.isDirectory()) entries.push([entry.name, 'directory', mode, snapshot(filename)])
     else if (entry.isSymbolicLink()) entries.push([entry.name, 'symlink', mode, readlinkSync(filename)])
     else entries.push([entry.name, 'file', mode, readFileSync(filename).toString('base64')])
