@@ -93,7 +93,7 @@ export function inspectionWorkflowSteps (entry) {
     { name: 'reject an invalid lane name', command: 'node', args: [entry, 'lane', 'bad.name', '--filter', '@fixture/local'], expectExitCode: 1, expectOutput: 'ERR_PNPM_VERSIONING_INVALID_LANE_NAME' },
     { name: 'record a release change intent', command: 'node', args: [entry, 'change', '@fixture/local', '--bump', 'patch', '--summary', 'Exercise WebContainer change commands'], expectOutput: 'Recorded change intent' },
     { name: 'show the release change status', command: 'node', args: [entry, 'change', 'status'], expectOutput: '@fixture/local' },
-    { name: 'preview applying the pending change intent', command: 'node', args: [entry, '-r', 'version', '--dry-run'], expectOutput: '1.0.1' },
+    { name: 'preview the first release from the pending change intent', command: 'node', args: [entry, '-r', 'version', '--dry-run'], expectOutput: '@fixture/local: 1.0.0 → 1.0.0 (patch, via intent)' },
     { name: 'create an install-test project', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--install-test-fixture'] },
     { name: 'install dependencies and run tests', command: 'node', args: [entry, '--dir', 'install-test-audit', 'install-test', '--offline'] },
     { name: 'verify install-test ran the test script', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('node:fs').readFileSync('install-test-audit/install-test-ok', 'utf8'), 'yes')"] },
