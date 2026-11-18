@@ -202,7 +202,7 @@ fn save_or_remove_state_file(
     } else {
         let text = serde_json::to_string_pretty(state)
             .map_err(|source| StateFileError::Serialize { path: path.to_path_buf(), source })?;
-        write_state_file_atomically(path, text.as_bytes())
+        pnpm_fs::write_atomic(path, text.as_bytes())
             .map_err(|source| StateFileError::Write { path: path.to_path_buf(), source })?;
     }
     Ok(())

@@ -41,24 +41,29 @@ export function writeEditDirState (opts: WriteEditDirStateOptions): void {
   })
 }
 
-export interface DeleteEditDirStateOptions {
+export interface DeleteEditDirStatesOptions {
   modulesDir: string
-  editDir?: string
-  patchedPkg?: string
+  patchedPkgs: string[]
+  editDirs: string[]
 }
 
-export function deleteEditDirState (opts: DeleteEditDirStateOptions): void {
+/**
+ * Removes the entries recorded for any of the given packages or edit
+ * directories, and returns the edit directories of the removed entries.
+ */
+export function deleteEditDirStates (opts: DeleteEditDirStatesOptions): EditDir[] {
+  const patchedPkgs = new Set(opts.patchedPkgs)
+  const editDirs = new Set(opts.editDirs.map((editDir) => path.resolve(editDir)))
+  const removed: EditDir[] = []
   modifyStateFile(opts.modulesDir, state => {
-    const resolvedKey = opts.editDir ? path.resolve(opts.editDir) : undefined
-    for (const [k, entry] of Object.entries(state)) {
-      if (
-        (opts.patchedPkg && entry.patchedPkg === opts.patchedPkg) ||
-        (opts.editDir && (k === opts.editDir || path.resolve(k) === resolvedKey))
-      ) {
-        delete state[k as EditDir]
+    for (const [key, entry] of Object.entries(state) as Array<[EditDir, EditDirState]>) {
+      if (patchedPkgs.has(entry.patchedPkg) || editDirs.has(path.resolve(key))) {
+        delete state[key]
+        removed.push(key)
       }
     }
   })
+  return removed
 }
 
 function modifyStateFile (modulesDir: string, modifyState: (state: State) => void): void {
@@ -71,7 +76,9 @@ function modifyStateFile (modulesDir: string, modifyState: (state: State) => voi
   const len = Object.keys(state).length
   if (len) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.writeFileSync(filePath, JSON.stringify(state, undefined, 2))
+    const tmpPath = `${filePath}.${process.pid}.tmp`
+    fs.writeFileSync(tmpPath, JSON.stringify(state, undefined, 2))
+    fs.renameSync(tmpPath, filePath)
   } else if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath)
     try {

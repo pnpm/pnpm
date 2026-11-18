@@ -1,11 +1,11 @@
+#[cfg(target_family = "wasm")]
+use crate::dialoguer_wasm::MultiSelect;
 use crate::{
     State,
     cli_args::patch_state::{
         StateFileError, clean_patch_state_and_edit_dirs, validate_patch_state_dir,
     },
 };
-#[cfg(target_family = "wasm")]
-use crate::dialoguer_wasm::MultiSelect;
 use clap::Args;
 use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]

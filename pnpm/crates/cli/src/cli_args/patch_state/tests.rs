@@ -2,7 +2,7 @@
 use super::edit_dir_key;
 use super::{
     EditDirState, StateFileError, clean_patch_state_and_edit_dirs, read_edit_dir_state,
-    write_edit_dir_state, write_state_file_atomically,
+    write_edit_dir_state,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -369,6 +369,20 @@ fn patch_state_clean_does_not_remove_entries_with_suffix_names() {
         }),
     );
     assert_eq!(read_edit_dir_state(&modules_dir, &target_edit_dir).unwrap(), None);
+}
+
+#[test]
+fn patch_state_clean_keeps_edit_dirs_when_patch_names_the_state_dir() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let other_edit_dir = modules_dir.join(".pnpm_patches").join("is-positive@1.0.0");
+    fs::create_dir_all(&other_edit_dir).expect("create other edit dir");
+    write_edit_dir_state(&modules_dir, &other_edit_dir, &sample_state()).unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &[".".to_string()]).unwrap();
+
+    assert!(other_edit_dir.exists());
+    assert_eq!(read_edit_dir_state(&modules_dir, &other_edit_dir).unwrap(), Some(sample_state()));
 }
 
 #[cfg(unix)]

@@ -132,12 +132,10 @@ describe('patch and commit', () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    // store patch files in a directory inside modules dir when not given editDir option
     expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
     expect(path.basename(patchDir)).toBe('is-positive@1.0.0')
     expect(fs.existsSync(patchDir)).toBe(true)
 
-    // sanity check to ensure that the license file contains the expected string
     expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
 
     fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')

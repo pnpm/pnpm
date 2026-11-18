@@ -11,7 +11,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { isSubdirectory } from './isSubdirectory.js'
-import { deleteEditDirState } from './stateFile.js'
+import { deleteEditDirStates } from './stateFile.js'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -117,32 +117,40 @@ async function removeEmptyPatchesDirs (patchesToRemoveTargets: PatchRemovalTarge
 interface EditDirsContext {
   modulesDir: string
   pnpmPatches: string
-  realPnpmPatches?: string
 }
 
 async function getEditDirsContext (opts: PatchRemoveCommandOptions): Promise<EditDirsContext> {
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
   const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
-  const realModulesDir = await realpathIfExists(modulesDir)
-  const realPnpmPatches = await realpathIfExists(pnpmPatches)
-  if (
-    realModulesDir != null &&
-    realPnpmPatches != null &&
-    !isSubdirectory(realModulesDir, realPnpmPatches)
-  ) {
-    throw new PnpmError('PATCHES_DIR_OUTSIDE_PROJECT', `The .pnpm_patches directory is outside the modules directory: ${pnpmPatches}`)
-  }
-  return { modulesDir, pnpmPatches, realPnpmPatches }
+  await Promise.all([pnpmPatches, path.join(pnpmPatches, 'state.json')].map(rejectSymlink))
+  return { modulesDir, pnpmPatches }
 }
 
+async function rejectSymlink (targetPath: string): Promise<void> {
+  if ((await lstatIfExists(targetPath))?.isSymbolicLink()) {
+    throw new PnpmError('PATCH_STATE_UNSAFE_PATH', `Unsafe patch state path ${targetPath}: must not be a symbolic link`)
+  }
+}
+
+/**
+ * Removes the state entries of the given patches and their edit directories.
+ * Only edit directories inside `.pnpm_patches` are deleted. Edit directories
+ * created elsewhere with `--edit-dir` belong to the user.
+ */
 async function removeEditDirs (patches: string[], ctx: EditDirsContext): Promise<void> {
-  await Promise.all(patches.map(async (patch) => {
-    const editDir = path.join(ctx.pnpmPatches, patch)
-    if (editDir === ctx.pnpmPatches || !isSubdirectory(ctx.pnpmPatches, editDir)) return
+  const defaultEditDirs = patches.map((patch) => path.join(ctx.pnpmPatches, patch))
+  const recordedEditDirs = deleteEditDirStates({
+    modulesDir: ctx.modulesDir,
+    patchedPkgs: patches,
+    editDirs: defaultEditDirs,
+  })
+  const realPnpmPatches = await realpathIfExists(ctx.pnpmPatches)
+  if (realPnpmPatches == null) return
+  await Promise.all(Array.from(new Set([...defaultEditDirs, ...recordedEditDirs])).map(async (editDir) => {
+    if (!isStrictSubdirectory(ctx.pnpmPatches, editDir)) return
     const realEditDir = await realpathIfExists(editDir)
-    if (realEditDir != null && ctx.realPnpmPatches != null && !isSubdirectory(ctx.realPnpmPatches, realEditDir)) return
-    deleteEditDirState({ editDir, modulesDir: ctx.modulesDir, patchedPkg: patch })
+    if (realEditDir == null || !isStrictSubdirectory(realPnpmPatches, realEditDir)) return
     await fs.rm(editDir, { recursive: true, force: true })
   }))
   try {
@@ -151,6 +159,10 @@ async function removeEditDirs (patches: string[], ctx: EditDirsContext): Promise
       await fs.rmdir(ctx.pnpmPatches)
     }
   } catch {}
+}
+
+function isStrictSubdirectory (parentDir: string, childPath: string): boolean {
+  return path.resolve(parentDir) !== path.resolve(childPath) && isSubdirectory(parentDir, childPath)
 }
 
 interface PatchRemovalContext {
