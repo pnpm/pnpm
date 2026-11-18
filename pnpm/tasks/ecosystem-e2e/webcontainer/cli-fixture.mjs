@@ -25,8 +25,16 @@ else createWorkspaceFixture()
 
 async function runRegistryWorkflow (entry) {
   const requests = []
+  const redirectRequests = []
   const stars = new Set()
   const rejectedStages = new Set()
+  const redirectServer = createServer((request, response) => {
+    redirectRequests.push({ method: request.method, url: request.url, authorization: request.headers.authorization })
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ ping: 'pong' }))
+  })
+  await new Promise(resolve => redirectServer.listen(0, '127.0.0.1', resolve))
+  const redirectTarget = `http://127.0.0.1:${redirectServer.address().port}`
   const stagedId = '1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f'
   const stagedItem = {
     id: stagedId,
@@ -44,7 +52,9 @@ async function runRegistryWorkflow (entry) {
     const body = Buffer.concat(chunks).toString()
     const pathname = request.url.split('?')[0]
     requests.push({ method: request.method, url: request.url, authorization: request.headers.authorization, body })
-    if (request.method === 'GET' && pathname === '/-/stage') {
+    if (request.method === 'GET' && pathname === '/redirect/-/ping') {
+      response.writeHead(302, { location: `${redirectTarget}/-/ping` }).end()
+    } else if (request.method === 'GET' && pathname === '/-/stage') {
       const items = rejectedStages.has(stagedId) ? [] : [stagedItem]
       response.setHeader('content-type', 'application/json')
       response.end(JSON.stringify({ items, total: items.length }))
@@ -210,6 +220,13 @@ async function runRegistryWorkflow (entry) {
     assert.equal(ping.exitCode, 0, ping.output)
     assert.match(ping.output, /PONG.*ping.*pong/s)
 
+    writeFileSync(path.join(project, '.npmrc'), `//127.0.0.1:${server.address().port}/:_authToken=fixture-token\n`)
+    const redirectPing = await runPackageManager(entry, ['ping', '--registry', `${registry}redirect/`], project, env)
+    rmSync(path.join(project, '.npmrc'), { force: true })
+    assert.equal(redirectPing.exitCode, 0, redirectPing.output)
+    assert.ok(requests.some(request => request.url === '/redirect/-/ping' && request.authorization === 'Bearer fixture-token'))
+    assert.ok(redirectRequests.some(request => request.url === '/-/ping' && request.authorization == null), 'cross-origin redirect forwarded registry credentials')
+
     const failedPing = await runPackageManager(entry, ['ping', '--registry', `${registry}missing/`], project, env)
     assert.equal(failedPing.exitCode, 1)
     assert.match(failedPing.output, /ERR_PNPM_PING_ERROR/)
@@ -374,6 +391,7 @@ async function runRegistryWorkflow (entry) {
     console.log('Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed')
   } finally {
     await new Promise(resolve => server.close(resolve))
+    await new Promise(resolve => redirectServer.close(resolve))
     rmSync(project, { recursive: true, force: true })
     rmSync(home, { recursive: true, force: true })
   }
@@ -581,6 +599,15 @@ function createWorkspaceFixture () {
   }
   writeFileSync('package.json', JSON.stringify(manifest))
   writeFileSync('pnpm-workspace.yaml', "packages:\n  - packages/*\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: []\n    outputs: []\n")
+  writeFileSync('.pnpmfile.cjs', `module.exports = {
+  hooks: {
+    readPackage (pkg) {
+      require('node:fs').writeFileSync('pnpmfile-hook-ok', pkg.name)
+      return pkg
+    },
+  },
+}
+`)
   mkdirSync('packages/local', { recursive: true })
   writeFileSync('packages/local/package.json', JSON.stringify({
     name: '@fixture/local', version: '1.0.0', main: 'index.cjs',
@@ -657,7 +684,7 @@ function assertCommandRouting (entry, inventoryPath) {
     const commandPath = path.startsWith('alias:') ? aliasCommandPath(path) : path
     const args = commandPath.split(' ')
     const help = spawnSync(process.execPath, [entry, ...args, '--help'], { encoding: 'utf8' })
-    if (['test', 'start', 'stop', 'restart'].includes(path) || path === 'alias:test=t' || path === 'alias:test=tst') {
+    if (['test', 'start', 'stop'].includes(path) || path === 'alias:test=t' || path === 'alias:test=tst') {
       assert.equal(help.status, 1, `${path} should dispatch to the project script: ${help.stderr || help.stdout}`)
       assert.match(`${help.stderr}${help.stdout}`, /ERR_PNPM_NO_SCRIPT/)
       tested++

@@ -210,6 +210,7 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     { name: 'create workspace fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs'] },
     { name: 'install workspace and run lifecycle', command: 'node', args: [entry, 'install'] },
     { name: 'verify lifecycle result', command: 'node', args: ['-e', "if (require('node:fs').readFileSync('lifecycle-ok', 'utf8') !== 'yes') throw new Error('lifecycle did not run')"] },
+    { name: 'verify pnpmfile readPackage hook ran', command: 'node', args: ['-e', "require('node:assert/strict').ok(require('node:fs').readFileSync('pnpmfile-hook-ok', 'utf8').length > 0)"] },
     ...inspectionWorkflowSteps(entry),
     { name: 'resolve project root', command: 'node', args: [entry, 'root'], expectOutput: '/home/project/app/node_modules' },
     { name: 'resolve project prefix', command: 'node', args: [entry, 'prefix'], expectOutput: '/home/project/app' },
