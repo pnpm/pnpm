@@ -214,6 +214,24 @@ test('patch-remove rejects a malformed state.json before deleting any patch', as
   expect(updatePatchedDependenciesMock).not.toHaveBeenCalled()
 })
 
+testOnNonWindows('patch-remove does not remove an edit directory reached through a symlinked parent', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const barEditDir = path.join(pnpmPatches, 'bar@1.0.0')
+  const patchFile = path.join(projectDir, 'patches/lib.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(path.join(barEditDir, 'lib'), { recursive: true })
+  fs.writeFileSync(path.join(barEditDir, 'lib/index.js'), 'edited', 'utf8')
+  fs.symlinkSync(barEditDir, path.join(pnpmPatches, '@scope'), 'dir')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    '@scope/lib': 'patches/lib.patch',
+  }), ['@scope/lib'])
+
+  expect(fs.readFileSync(path.join(barEditDir, 'lib/index.js'), 'utf8')).toBe('edited')
+})
+
 test('patch-remove keeps state.json when a patch key names it', async () => {
   const projectDir = path.join(tempRoot, 'project')
   const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')

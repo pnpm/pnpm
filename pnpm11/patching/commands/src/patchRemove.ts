@@ -150,8 +150,9 @@ async function removeEditDirs (patches: string[], ctx: EditDirsContext): Promise
   if (realPnpmPatches == null) return
   await Promise.all(Array.from(new Set([...defaultEditDirs, ...recordedEditDirs])).map(async (editDir) => {
     if (!isStrictSubdirectory(ctx.pnpmPatches, editDir) || !(await lstatIfExists(editDir))?.isDirectory()) return
-    const realEditDir = await realpathIfExists(editDir)
-    if (realEditDir == null || !isStrictSubdirectory(realPnpmPatches, realEditDir)) return
+    // A link anywhere below .pnpm_patches could point the removal at another edit directory.
+    const linkFreeRealPath = path.join(realPnpmPatches, path.relative(ctx.pnpmPatches, editDir))
+    if (await realpathIfExists(editDir) !== linkFreeRealPath) return
     await fs.rm(editDir, { recursive: true, force: true })
     await removeEmptyAncestors(ctx.pnpmPatches, editDir)
   }))

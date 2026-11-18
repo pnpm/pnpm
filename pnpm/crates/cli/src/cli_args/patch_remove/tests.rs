@@ -405,8 +405,11 @@ impl PatchRemoveFs for NonEmptyDirFs {
     }
 }
 
-#[tokio::test]
-async fn run_rejects_malformed_patch_state_before_removing_patches() {
+/// A project with one patch, `pkg@1.0.0`, whose `state.json` the caller
+/// writes through `write_state`.
+async fn run_patch_remove_with_state(
+    write_state: impl FnOnce(&Path),
+) -> (tempfile::TempDir, std::path::PathBuf, PatchRemoveError) {
     let tmp = tempfile::tempdir().expect("temp dir");
     std::fs::write(tmp.path().join("package.json"), "{}").expect("write package.json");
     let patch_file = tmp.path().join("patches/pkg.patch");
@@ -415,7 +418,7 @@ async fn run_rejects_malformed_patch_state_before_removing_patches() {
     std::fs::write(&patch_file, "patch").expect("write patch");
     let modules_dir = tmp.path().join("node_modules");
     std::fs::create_dir_all(modules_dir.join(".pnpm_patches")).expect("create state dir");
-    std::fs::write(modules_dir.join(".pnpm_patches/state.json"), "{").expect("write state");
+    write_state(&modules_dir.join(".pnpm_patches/state.json"));
 
     let mut config = pnpm_config::Config::new();
     config.workspace_dir = Some(tmp.path().to_path_buf());
@@ -440,8 +443,36 @@ async fn run_rejects_malformed_patch_state_before_removing_patches() {
     let err = PatchRemoveArgs { patches: vec!["pkg@1.0.0".to_string()] }
         .run(tmp.path(), state)
         .await
-        .expect_err("malformed state should error");
+        .expect_err("unsafe patch state should error");
+    (tmp, patch_file, err)
+}
+
+#[tokio::test]
+async fn run_rejects_malformed_patch_state_before_removing_patches() {
+    let (_tmp, patch_file, err) = run_patch_remove_with_state(|state_file| {
+        std::fs::write(state_file, "{").expect("write state");
+    })
+    .await;
 
     assert!(matches!(err, PatchRemoveError::StateFile(StateFileError::Parse { .. })), "{err:?}");
     assert!(patch_file.exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn run_rejects_symlinked_patch_state_file_before_removing_patches() {
+    let outside = tempfile::tempdir().expect("outside dir");
+    let outside_state = outside.path().join("state.json");
+    std::fs::write(&outside_state, "{}").expect("write outside state");
+    let (_tmp, patch_file, err) = run_patch_remove_with_state(|state_file| {
+        std::os::unix::fs::symlink(&outside_state, state_file).expect("symlink state");
+    })
+    .await;
+
+    assert!(
+        matches!(err, PatchRemoveError::StateFile(StateFileError::UnsafePath { .. })),
+        "{err:?}",
+    );
+    assert!(patch_file.exists());
+    assert_eq!(std::fs::read_to_string(&outside_state).expect("outside state"), "{}");
 }

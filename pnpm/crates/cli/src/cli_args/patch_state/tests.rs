@@ -447,6 +447,31 @@ fn patch_state_clean_does_not_follow_symlinked_edit_dir() {
 
 #[cfg(unix)]
 #[test]
+fn patch_state_clean_does_not_follow_symlinked_parent_dir() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let state_dir = modules_dir.join(".pnpm_patches");
+    let bar_edit_dir = state_dir.join("bar@1.0.0");
+    fs::create_dir_all(bar_edit_dir.join("lib")).expect("create bar edit dir");
+    fs::write(bar_edit_dir.join("lib/index.js"), "edited").expect("write bar edit");
+    let bar_state = EditDirState {
+        patched_pkg: "bar@1.0.0".to_string(),
+        apply_to_all: false,
+        package_key: None,
+    };
+    write_edit_dir_state(&modules_dir, &bar_edit_dir, &bar_state).unwrap();
+    symlink(&bar_edit_dir, state_dir.join("@scope")).expect("create symlink");
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["@scope/lib".to_string()]).unwrap();
+
+    assert!(bar_edit_dir.join("lib/index.js").exists());
+    assert_eq!(read_edit_dir_state(&modules_dir, &bar_edit_dir).unwrap(), Some(bar_state));
+}
+
+#[cfg(unix)]
+#[test]
 fn patch_state_clean_rejects_symlinked_state_dir() {
     use std::os::unix::fs::symlink;
 

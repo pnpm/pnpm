@@ -175,7 +175,7 @@ fn remove_matching_state_entries(
     let target_keys: HashSet<String> = patches
         .iter()
         .map(|patch| state_dir.join(patch))
-        .filter(|edit_dir| !is_symlink(edit_dir))
+        .filter(|edit_dir| !edit_dir.exists() || is_link_free_under(state_dir, edit_dir))
         .map(|edit_dir| edit_dir_key(&edit_dir))
         .collect::<Result<_, _>>()?;
     state.retain(|key, entry| {
@@ -211,9 +211,8 @@ fn save_or_remove_state_file(
 }
 
 fn remove_edit_dirs(state_dir: &Path, dirs: &HashSet<PathBuf>) -> Result<(), StateFileError> {
-    let canonical_state_dir = dunce::canonicalize(state_dir).ok();
     for dir in dirs {
-        if !is_real_dir(dir) || !is_strictly_under(state_dir, canonical_state_dir.as_deref(), dir) {
+        if !is_real_dir(dir) || !is_link_free_under(state_dir, dir) {
             continue;
         }
         if let Err(source) = fs::remove_dir_all(dir)
@@ -226,22 +225,25 @@ fn remove_edit_dirs(state_dir: &Path, dirs: &HashSet<PathBuf>) -> Result<(), Sta
     Ok(())
 }
 
-fn is_strictly_under(state_dir: &Path, canonical_state_dir: Option<&Path>, dir: &Path) -> bool {
-    match canonical_state_dir {
-        Some(parent) => {
-            dunce::canonicalize(dir).is_ok_and(|child| child != parent && is_subdir(parent, &child))
-        }
-        None => dir != state_dir && is_subdir(state_dir, dir),
-    }
+/// Whether `dir` is strictly inside `state_dir` with no symbolic link on the
+/// way, so removing it cannot reach another edit directory or leave the state
+/// directory. `dir` may be spelled through `state_dir` or its canonical form.
+fn is_link_free_under(state_dir: &Path, dir: &Path) -> bool {
+    let Ok(canonical_state_dir) = dunce::canonicalize(state_dir) else { return false };
+    let Some(relative) = dir
+        .strip_prefix(state_dir)
+        .or_else(|_| dir.strip_prefix(&canonical_state_dir))
+        .ok()
+    else {
+        return false;
+    };
+    !relative.as_os_str().is_empty()
+        && dunce::canonicalize(dir).is_ok_and(|real| real == canonical_state_dir.join(relative))
 }
 
 /// Whether `path` is a directory itself, not a file or a link to a directory.
 fn is_real_dir(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|meta| meta.is_dir())
-}
-
-fn is_symlink(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|meta| meta.is_symlink())
 }
 
 /// Removes the directories between `state_dir` and a removed edit directory,
