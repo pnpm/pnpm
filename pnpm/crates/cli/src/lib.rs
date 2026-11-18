@@ -134,6 +134,12 @@ fn initialize_wasm_paths() -> std::io::Result<()> {
 }
 
 fn report_fatal_error(error: &miette::Report) {
+    if matches!(
+        cli_args::reporter::selected_reporter(),
+        cli_args::reporter::ReporterType::Default | cli_args::reporter::ReporterType::AppendOnly,
+    ) {
+        pnpm_default_reporter::DefaultReporter::flush_pending_approvals();
+    }
     for cause in error.chain() {
         if let Some(pnpm_package_manager::InstallError::PeerDependencyIssues { rendered }) =
             cause.downcast_ref::<pnpm_package_manager::InstallError>()

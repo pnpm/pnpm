@@ -234,6 +234,15 @@ impl Reporter for DefaultReporter {
     }
 }
 
+impl DefaultReporter {
+    /// Render pending approval notices that have not reached append-only output.
+    pub fn flush_pending_approvals() {
+        let mut sink = SINK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let output = sink.state.flush_pending_approvals();
+        sink.write(output, false);
+    }
+}
+
 static SINK: LazyLock<Mutex<Sink>> = LazyLock::new(|| Mutex::new(Sink::new()));
 
 struct Sink {
