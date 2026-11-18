@@ -234,9 +234,9 @@ just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.co
 just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --with-bun pacquet@HEAD
 ```
 
-The Bun target uses a per-runner Bun cache directory and skips lifecycle scripts.
-Bun has no separate package store, so its cache state does not distinguish the
-hot-store and cold-store scenarios.
+The Bun target uses a per-target cache directory and skips lifecycle scripts.
+Bun has no separate package store or GVS linker, so the hot-store, cold-store,
+and GVS scenarios measure Bun's standard install behavior.
 
 ```sh
 # See more options

@@ -64,7 +64,7 @@ to date, measuring exactly that short-circuit.
 | 6 | `isolated-linker.fresh-resolve.hot-cache.offline` | ✗ (removed per run) | hot | n/a | `install --offline --lockfile-only`: full re-resolution from the warm on-disk packument mirror — no network, no linking; guards offline/prefer-offline resolution (an online pre-warm pass primes the mirror first) |
 | 7 | `gvs-linker.fresh-restore.hot-cache.hot-store` | ✔ frozen | hot | hot + GVS | Frozen-lockfile restore with `enableGlobalVirtualStore: true`, pre-warmed GVS |
 
-All scenarios use `--ignore-scripts` and isolated store/cache directories per revision. The Bun comparison uses its own cache directory; Bun does not have a separate package store.
+All scenarios use `--ignore-scripts` and isolated store/cache directories per revision. Bun uses a separate cache directory for each target. Bun has no separate package store or GVS linker, so those scenario labels describe only the pnpm runs.
 
 ## Fixture
 

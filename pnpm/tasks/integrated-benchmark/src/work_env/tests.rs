@@ -839,6 +839,7 @@ fn cold_mock_cleanup_preserves_server_metadata_and_empties_the_configured_cache(
     assert_eq!(fs::read(temp.path().join("pnpm-lock.yaml")).unwrap(), b"saved lockfile");
 }
 
+#[cfg(unix)]
 #[test]
 fn cleanup_restores_the_seeded_bun_lockfile() {
     let temp = tempfile::TempDir::new().expect("create cleanup test dir");
