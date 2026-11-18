@@ -1,4 +1,5 @@
 pub use git_hosted::is_git_hosted_tarball_url;
+pub use git_locator::create_git_hosted_pkg_id;
 pub use pnpm_crypto_hash::has_complete_sha512_digest;
 pub use registry::{
     DeclaredRegistryPrefixes, RegistryContext, RegistryOptions, RegistryServerType,
@@ -629,3 +630,4 @@ mod revision_url;
 use registry::is_canonical_registry_tarball_url;
 
 mod git_hosted;
+mod git_locator;

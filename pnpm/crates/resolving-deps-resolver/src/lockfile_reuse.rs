@@ -89,7 +89,7 @@ pub(crate) fn prior_child_key(
                     .get(&key.without_peer())
             })
             .is_some_and(|metadata| {
-                matches!(reusable_resolution(&metadata.resolution), Some(ReusableResolution::Git))
+                locked_git_locator_matches(&metadata.resolution, bare_specifier)
             })
     {
         return Some(key);
@@ -97,6 +97,16 @@ pub(crate) fn prior_child_key(
     runtime_child_admits(&key, bare_specifier)
         .or_else(|| locked_child_admits(&name, &key, bare_specifier, registries))?
         .then_some(key)
+}
+
+fn locked_git_locator_matches(resolution: &LockfileResolution, locator: &str) -> bool {
+    // A fragment delimiter in the source URL would make the locator ambiguous.
+    let has_unambiguous_source = match resolution {
+        LockfileResolution::Git(git) => !git.repo.contains('#') && !git.commit.contains(['#', '&']),
+        LockfileResolution::Tarball(tarball) => !tarball.tarball.contains('#'),
+        _ => false,
+    };
+    has_unambiguous_source && resolution.git_locator().as_deref() == Some(locator)
 }
 
 /// The snapshot key (`snapshots:` / `packages:` map key) the prior

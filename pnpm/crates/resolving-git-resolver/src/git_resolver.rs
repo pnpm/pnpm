@@ -22,7 +22,6 @@ use pnpm_tarball::{FetchTarballForResolution, RetryOpts};
 use tokio::sync::OnceCell;
 
 use crate::{
-    create_git_hosted_pkg_id::create_git_hosted_pkg_id,
     hosted_git::HostedOpts,
     parse_bare_specifier::{HostedPackageSpec, parse_bare_specifier},
     pinned_remote::pinned_git_config,
@@ -372,18 +371,7 @@ fn git_resolve_result(
     wanted_dependency: &WantedDependency,
     manifest: Option<Arc<serde_json::Value>>,
 ) -> Option<ResolveResult> {
-    let id = match &resolution {
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => {
-            match &tarball.path {
-                Some(path) => format!("{}#path:{path}", tarball.tarball),
-                None => tarball.tarball.clone(),
-            }
-        }
-        LockfileResolution::Git(git) => {
-            create_git_hosted_pkg_id(&git.repo, &git.commit, git.path.as_deref())
-        }
-        _ => return None,
-    };
+    let id = resolution.git_locator()?;
     Some(ResolveResult {
         id: id.into(),
         resolution,

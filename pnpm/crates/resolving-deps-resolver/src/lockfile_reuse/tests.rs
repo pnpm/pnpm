@@ -655,9 +655,26 @@ fn prior_child_key_admits_only_the_recorded_git_locator() {
         }),
         ..registry_metadata()
     };
-    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
-    assert_eq!(prior_key(&lockfile, &locator), Some(key));
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata.clone())]));
+    assert_eq!(prior_key(&lockfile, &locator), Some(key.clone()));
     assert_eq!(prior_key(&lockfile, "git+file:///repo#main"), None);
+
+    let LockfileResolution::Git(git) = metadata.resolution else { unreachable!() };
+    let mismatched = [
+        GitResolution { repo: "file:///other-repo".to_string(), ..git.clone() },
+        GitResolution {
+            commit: "abcdef0123456789abcdef0123456789abcdef01".to_string(),
+            ..git.clone()
+        },
+        GitResolution { path: Some("packages/example".to_string()), ..git },
+    ];
+    for git in mismatched {
+        lockfile.packages = Some(HashMap::from([(
+            key.clone(),
+            PackageMetadata { resolution: LockfileResolution::Git(git), ..registry_metadata() },
+        )]));
+        assert_eq!(prior_key(&lockfile, &locator), None);
+    }
 }
 
 #[test]
