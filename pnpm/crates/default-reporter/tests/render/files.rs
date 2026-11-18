@@ -63,7 +63,7 @@ fn the_pending_approval_notice_combines_source_package_labels() {
             ignored_scripts(&["my-skills@link:packages/my-skills"]),
             LogEvent::PendingSkills(PendingSkillsLog {
                 level: LogLevel::Debug,
-                package_names: vec!["my-skills (local)".to_string()],
+                package_names: vec!["my-skills".to_string()],
             }),
         ],
     );

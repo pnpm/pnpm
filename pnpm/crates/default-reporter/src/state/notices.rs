@@ -24,7 +24,7 @@ fn pending_approval_packages(
     for package in pending_skills {
         let build_label = packages
             .keys()
-            .find(|label| *label == package)
+            .find(|label| skill_label_matches_build_label(package, label))
             .cloned();
         packages
             .entry(build_label.unwrap_or_else(|| package.clone()))
@@ -32,6 +32,10 @@ fn pending_approval_packages(
             .insert("skills");
     }
     packages
+}
+
+fn skill_label_matches_build_label(skill_label: &str, build_label: &str) -> bool {
+    skill_label == build_label || build_label.strip_suffix(" (local)") == Some(skill_label)
 }
 
 fn format_pending_approval_packages(packages: &BTreeMap<String, BTreeSet<&str>>) -> String {
