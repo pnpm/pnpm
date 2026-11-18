@@ -16,15 +16,19 @@ The package installs:
 
 ## Where to get it
 
-[`.github/workflows/rpm.yml`](../../.github/workflows/rpm.yml) builds it on every
-published release, and on demand via `workflow_dispatch` with a version. Download
-the `pnpm-rpm-<version>-x86_64` artifact from the run — GitHub releases in this
-repository are immutable once published, so the artifacts cannot be attached to
-them afterwards.
+Every pnpm release page carries two RPM assets, built by the release workflow
+from that release's `pnpm-linux-x64.tar.gz`:
 
-The artifact holds the bare `.rpm` and `pnpm-<version>-redos8-x86_64-repo.tar.gz`,
-a dnf repository with `repodata`, a ready `pnpm.repo`, and the runtime
-dependencies a stock RHEL 8 install is missing (`libatomic`).
+- `pnpm-<version>-1.el8.x86_64.rpm`, the bare package.
+- `pnpm-<version>-redos8-x86_64-repo.tar.gz`, a dnf repository with `repodata`,
+  a ready `pnpm.repo`, and the runtime dependencies a stock RHEL 8 install is
+  missing (`libatomic`).
+
+Both carry a build provenance attestation:
+
+```sh
+gh attestation verify pnpm-11.25.0-redos8-x86_64-repo.tar.gz --repo pnpm/pnpm
+```
 
 ## Install on a host without network access
 
@@ -52,10 +56,9 @@ carries its own copy for itself. Install one for your project with
 it.
 
 The repository is unsigned (`gpgcheck=0`), so whoever ships it into an image is
-responsible for the integrity of the copy — verify the artifact's checksum, or
-sign the RPM with your own key and set `gpgcheck=1` before distributing it
-further. In CI the tarball the package is built from is verified against its
-release build-provenance attestation.
+responsible for the integrity of the copy. Verify its attestation as shown
+above, or sign the RPM with your own key and set `gpgcheck=1` before
+distributing it further.
 
 ## Build locally
 
@@ -74,5 +77,6 @@ Pass a local `pnpm-linux-x64.tar.gz` as a second argument to package a build
 that is not on GitHub releases. The build fails if the binary needs a glibc
 newer than 2.28.
 
-`workflow_dispatch` and `build.sh` package only releases that ship
-`pnpm-linux-x64.tar.gz`, which is pnpm 11.0.0 and newer.
+`build.sh` packages only releases that ship `pnpm-linux-x64.tar.gz`, which is
+pnpm 11.0.0 and newer. Releases before the RPM assets were added can be
+packaged this way.
