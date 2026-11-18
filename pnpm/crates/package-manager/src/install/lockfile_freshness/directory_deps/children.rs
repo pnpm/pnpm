@@ -215,31 +215,11 @@ fn implicit_workspace_target_satisfies(
     child: &DependencySpec,
     recorded: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
-    let spec = child.bare_specifier.as_str();
-    if spec.starts_with("workspace:")
-        || spec.starts_with("link:")
-        || super::is_declared_by_path(spec)
-    {
-        return None;
-    }
+    let (expected_name, range) = implicit_workspace_range(child, recorded)?;
     let link = recorded.as_link_target();
-    let recorded_file = recorded
-        .ver_peer()
-        .is_some_and(|version| matches!(version.version(), pnpm_lockfile::VersionPart::File(_)));
-    if link.is_none() && !recorded_file {
-        return None;
-    }
-    let (target, range) = super::spec::parse_npm_spec(spec);
-    // The resolver picks the highest workspace version for a tag.
-    let range =
-        if crate::manifest_agreement::spec_is_distribution_tag(range) { "*" } else { range };
-    if !is_valid_semver_range(range) {
-        return None;
-    }
     if link.is_none() != (child.injected || workspace_packages_injected(check)) {
         return Some(false);
     }
-    let expected_name = target.unwrap_or(&child.alias);
     if let Some(link) = link {
         return Some(super::spec::range_link_target_satisfies(
             &dep.dirs,
@@ -261,6 +241,33 @@ fn implicit_workspace_target_satisfies(
         )
         .unwrap_or(false),
     )
+}
+
+/// The package name and workspace range of a plain or `npm:` range or tag
+/// child recorded as a `link:` or `file:` reference. A tag selects the
+/// highest workspace version, as in the resolver.
+fn implicit_workspace_range<'a>(
+    child: &'a DependencySpec,
+    recorded: &pnpm_lockfile::SnapshotDepRef,
+) -> Option<(&'a str, &'a str)> {
+    let spec = child.bare_specifier.as_str();
+    let recorded_local = recorded.as_link_target().is_some()
+        || recorded
+            .ver_peer()
+            .is_some_and(|version| {
+                matches!(version.version(), pnpm_lockfile::VersionPart::File(_))
+            });
+    if !recorded_local
+        || spec.starts_with("workspace:")
+        || spec.starts_with("link:")
+        || super::is_declared_by_path(spec)
+    {
+        return None;
+    }
+    let (target, range) = super::spec::parse_npm_spec(spec);
+    let range =
+        if crate::manifest_agreement::spec_is_distribution_tag(range) { "*" } else { range };
+    is_valid_semver_range(range).then_some((target.unwrap_or(&child.alias), range))
 }
 
 fn check_child_directory_dep_freshness(
