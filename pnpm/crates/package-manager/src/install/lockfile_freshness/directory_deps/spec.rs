@@ -33,13 +33,10 @@ pub(super) fn spec_satisfies_snapshot_dep(
     local_dep_dir: &Path,
     dep_name: &str,
     spec: &str,
-    injected: Option<bool>,
+    injected: bool,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
-    if let Some(injected) = injected
-        && uses_injection_setting(spec)
-        && lockfile_dep.as_link_target().is_none() != injected
-    {
+    if uses_injection_setting(spec) && lockfile_dep.as_link_target().is_none() != injected {
         return Some(false);
     }
     if let Some(matches) =
@@ -290,9 +287,44 @@ pub(super) fn importer_range_link_satisfies(
     if !is_valid_semver_range(range) {
         return true;
     }
-    let target_dir = project_dir.join(link_target);
-    is_missing_from_checkout(dirs, &target_dir)
-        || target_dir_satisfies(dirs, &target_dir, target.unwrap_or(dep_name), range)
+    range_link_target_satisfies(dirs, project_dir, link_target, target.unwrap_or(dep_name), range)
+}
+
+/// Whether the project a `link:` records, relative to `base_dir`, is named
+/// `expected_name` with a version in `range`. A target missing from the
+/// checkout is accepted when it would lie inside the workspace.
+pub(super) fn range_link_target_satisfies(
+    dirs: &SpecDirs<'_>,
+    base_dir: &Path,
+    link_target: &str,
+    expected_name: &str,
+    range: &str,
+) -> bool {
+    let target_dir = base_dir.join(link_target);
+    (missing_target_stays_inside_workspace(dirs, &target_dir)
+        && is_missing_from_checkout(dirs, &target_dir))
+        || target_dir_satisfies(dirs, &target_dir, expected_name, range)
+}
+
+/// Whether `target_dir` lies inside the workspace as written and through the
+/// real path of its nearest existing ancestor.
+fn missing_target_stays_inside_workspace(dirs: &SpecDirs<'_>, target_dir: &Path) -> bool {
+    let normalized = pnpm_fs::lexical_normalize(target_dir);
+    if !pnpm_fs::is_subdir(dirs.workspace_root, &normalized) {
+        return false;
+    }
+    let Some(existing) = normalized
+        .ancestors()
+        .find(|ancestor| std::fs::symlink_metadata(ancestor).is_ok())
+    else {
+        return false;
+    };
+    let Ok(canonical_root) = dirs.canonical_paths.canonicalize(dirs.workspace_root) else {
+        return false;
+    };
+    dirs.canonical_paths
+        .canonicalize(existing)
+        .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical))
 }
 
 /// An unbuilt `publishConfig.directory` is absent too, but its project is
@@ -376,7 +408,7 @@ pub(crate) fn spec_target_and_range(spec: &str) -> (Option<&str>, &str) {
     parse_npm_spec(spec)
 }
 
-fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
+pub(super) fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
     let Some(stripped) = spec.strip_prefix("npm:") else {
         return (None, spec);
     };

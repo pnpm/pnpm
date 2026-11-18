@@ -1299,24 +1299,145 @@ fn recorded_workspace_catalog_children_reject_catalog_range_changes() {
 
 #[test]
 fn recorded_catalog_ranges_accept_matching_injected_workspace_targets() {
-    assert!(catalog_child_matches_workspace_target("2.0.0"));
-    assert!(!catalog_child_matches_workspace_target("1.0.0"));
+    assert!(workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "child",
+        workspace_version: "2.0.0",
+        bare_specifier: "2.0.0",
+        recorded_ref: "file:packages/child",
+        dep_injected: true,
+        inject_workspace_packages: false,
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "child",
+        workspace_version: "1.0.0",
+        bare_specifier: "2.0.0",
+        recorded_ref: "file:packages/child",
+        dep_injected: true,
+        inject_workspace_packages: false,
+    }));
 }
 
-fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
+#[test]
+fn plain_range_workspace_children_require_a_matching_injection_mode() {
+    let linked = WorkspaceTargetChild {
+        workspace_name: "child",
+        workspace_version: "2.0.0",
+        bare_specifier: "2.0.0",
+        recorded_ref: "link:packages/child",
+        dep_injected: false,
+        inject_workspace_packages: false,
+    };
+    assert!(workspace_target_child_is_fresh(&linked));
+    assert!(workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "@scope/child",
+        bare_specifier: "npm:@scope/child",
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "other",
+        bare_specifier: "npm:@scope/child",
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_version: "1.0.0",
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        dep_injected: true,
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        inject_workspace_packages: true,
+        ..linked
+    }));
+    let injected = WorkspaceTargetChild { recorded_ref: "file:packages/child", ..linked };
+    assert!(!workspace_target_child_is_fresh(&injected));
+    assert!(workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        inject_workspace_packages: true,
+        ..injected
+    }));
+}
+
+#[test]
+fn tag_workspace_children_check_the_linked_target_name() {
+    let linked = WorkspaceTargetChild {
+        workspace_name: "child",
+        workspace_version: "2.0.0",
+        bare_specifier: "latest",
+        recorded_ref: "link:packages/child",
+        dep_injected: false,
+        inject_workspace_packages: false,
+    };
+    assert!(workspace_target_child_is_fresh(&linked));
+    assert!(workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        bare_specifier: "npm:child@next",
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        workspace_name: "other",
+        ..linked
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        recorded_ref: "file:packages/child",
+        ..linked
+    }));
+}
+
+#[test]
+fn plain_range_workspace_children_accept_a_link_missing_from_the_checkout() {
+    let missing = WorkspaceTargetChild {
+        workspace_name: "child",
+        workspace_version: "2.0.0",
+        bare_specifier: "^1.0.0",
+        recorded_ref: "link:packages/missing",
+        dep_injected: false,
+        inject_workspace_packages: false,
+    };
+    assert!(workspace_target_child_is_fresh(&missing));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        dep_injected: true,
+        ..missing
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        recorded_ref: "link:../outside/missing",
+        ..missing
+    }));
+    assert!(!workspace_target_child_is_fresh(&WorkspaceTargetChild {
+        recorded_ref: "link:packages/redirect/missing",
+        ..missing
+    }));
+}
+
+#[derive(Clone, Copy)]
+struct WorkspaceTargetChild<'a> {
+    workspace_name: &'a str,
+    workspace_version: &'a str,
+    bare_specifier: &'a str,
+    recorded_ref: &'a str,
+    dep_injected: bool,
+    inject_workspace_packages: bool,
+}
+
+fn workspace_target_child_is_fresh(case: &WorkspaceTargetChild<'_>) -> bool {
     let temp = tempfile::tempdir().expect("create workspace");
     let workspace_dir = temp.path();
     let local_dir = workspace_dir.join("packages/lib");
     let target_dir = workspace_dir.join("packages/child");
     std::fs::create_dir_all(&local_dir).expect("create directory dependency");
     std::fs::create_dir_all(&target_dir).expect("create workspace target");
+    let outside = tempfile::tempdir().expect("create outside directory");
+    let redirect = workspace_dir.join("packages/redirect");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(outside.path(), &redirect).expect("link redirect");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(outside.path(), &redirect).expect("link redirect");
     let local_manifest = PackageManifest::from_value(
         local_dir.join("package.json"),
         serde_json::json!({ "name": "lib" }),
     );
     let target_manifest = PackageManifest::from_value(
         target_dir.join("package.json"),
-        serde_json::json!({ "name": "child", "version": workspace_version }),
+        serde_json::json!({ "name": case.workspace_name, "version": case.workspace_version }),
     );
     let manifests_by_dir =
         HashMap::from([(pnpm_fs::lexical_normalize(&target_dir), &target_manifest)]);
@@ -1324,6 +1445,7 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
     let registries = pnpm_lockfile::RegistryContext::default();
     let mut config = pnpm_config::Config::new();
     config.workspace_dir = Some(workspace_dir.to_path_buf());
+    config.inject_workspace_packages = case.inject_workspace_packages;
     let ignored = pnpm_matcher::create_matcher(&[]);
     let lockfile: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").expect("parse lockfile");
@@ -1345,7 +1467,7 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
         },
         optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
             ignored: &ignored,
-            frozen_lockfile: false,
+            frozen_lockfile: true,
         },
         overrider: None,
     };
@@ -1363,14 +1485,14 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
         catalogs: &catalogs,
     };
     let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
-        "dependencies": { "child": "file:packages/child" },
+        "dependencies": { "child": case.recorded_ref },
     }))
     .expect("parse snapshot");
     let child = pnpm_resolving_deps_resolver::DependencySpec {
         alias: "child".to_string(),
-        bare_specifier: "2.0.0".to_string(),
+        bare_specifier: case.bare_specifier.to_string(),
         optional: false,
-        injected: false,
+        injected: case.dep_injected,
     };
 
     catalog_child_is_fresh(&check, &dep, &snapshot, &child)

@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
@@ -15,7 +14,6 @@ import {
 } from '@pnpm/installing.deps-resolver'
 import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
 import { barePathIsUnambiguous, isLocalFilesystemSpecifier, isTarballFilename, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
@@ -32,10 +30,10 @@ import {
   getLocalPath,
   getTargetPkgName,
   getVersionRange,
-  isSubdirectory,
   isWorkspacePath,
+  linkedWorkspaceTargetSatisfies,
+  registrySpecWorkspaceRange,
   usesInjectionSetting,
-  versionSatisfies,
 } from './dependencySpec.js'
 import { recordedPeersMatch } from './recordedPeersMatch.js'
 
@@ -230,8 +228,10 @@ function dependencyAliasesOf (pkgSnapshot: PackageSnapshot): Record<string, true
 async function readDirectoryManifest (dir: string): Promise<DependencyManifest | undefined> {
   const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest | null
   if (manifest != null) return manifest
+  const publishManifest = await safeReadParentPublishManifest(dir) as DependencyManifest | null
+  if (publishManifest != null) return publishManifest
   if (!await pathExists(dir)) return undefined
-  return (await safeReadParentPublishManifest(dir) as DependencyManifest | null) ?? { name: path.basename(dir) } as DependencyManifest
+  return { name: path.basename(dir) } as DependencyManifest
 }
 
 async function readHookedManifestOnce (ctx: LocalDirectoryDepContext, dir: string): Promise<DependencyManifest | undefined> {
@@ -291,7 +291,7 @@ async function childIsUpToDate (
   }
   const currentSpec = resolvedChildSpec(ctx, child, walk)
   if (currentSpec == null) return false
-  if (isLocalSpec(currentSpec)) {
+  if (isLocalSpec(currentSpec) || getLocalPath(removeSuffix(lockfileDep)) != null) {
     return localChildIsUpToDate(ctx, localDep, pkgSnapshot, child, currentSpec, lockfileDep, walk)
   }
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
@@ -326,7 +326,8 @@ async function localChildIsUpToDate (
   lockfileDep: string,
   walk: DirectoryWalk
 ): Promise<boolean> {
-  const injected = child.injected === true || (currentSpec.startsWith('workspace:') && ctx.injectWorkspacePackages === true)
+  const injected = child.injected === true ||
+    ((currentSpec.startsWith('workspace:') || !isLocalSpec(currentSpec)) && ctx.injectWorkspacePackages === true)
   if (!await localSpecIsUpToDate(localDep, { depName: child.alias, currentSpec, lockfileDep, injected })) return false
   // A directory child whose spec still matches can itself be stale: its own
   // dependencies may have changed without the directory moving. Links have
@@ -415,7 +416,7 @@ async function localSpecIsUpToDate (
   localDep: LocalDirectoryDep,
   { depName, currentSpec, lockfileDep, injected }: DependencyOfLocalDirectoryDep
 ): Promise<boolean> {
-  if (usesInjectionSetting(currentSpec) && lockfileDep.startsWith('link:') === injected) return false
+  if ((usesInjectionSetting(currentSpec) || !isLocalSpec(currentSpec)) && lockfileDep.startsWith('link:') === injected) return false
   if (currentSpec.startsWith('link:')) {
     return (
       lockfileDep.startsWith('link:') &&
@@ -463,10 +464,13 @@ async function workspaceDependencyIsUpToDate (
     lockfilePath: string | null
   }
 ): Promise<boolean> {
-  if (isWorkspacePath(currentSpec.slice(10))) {
+  if (currentSpec.startsWith('workspace:') && isWorkspacePath(currentSpec.slice(10))) {
     return localPathMatches(localDep, currentSpec, lockfilePath)
   }
-  const range = getVersionRange(currentSpec)
+  const range = currentSpec.startsWith('workspace:')
+    ? getVersionRange(currentSpec)
+    : registrySpecWorkspaceRange(currentSpec, depName)
+  if (range == null) return false
   if (lockfilePath != null) {
     return linkedWorkspaceTargetSatisfies(localDep, { depName, currentSpec, range, lockfilePath })
   }
@@ -475,47 +479,4 @@ async function workspaceDependencyIsUpToDate (
   }
   const lockfileVersion = getDepVersion(cleanLockfileDep)
   return !semver.valid(lockfileVersion) || semver.satisfies(lockfileVersion, range, { loose: true })
-}
-
-async function linkedWorkspaceTargetSatisfies (
-  localDep: LocalDirectoryDep,
-  { depName, currentSpec, range, lockfilePath }: {
-    depName: string
-    currentSpec: string
-    range: string
-    lockfilePath: string
-  }
-): Promise<boolean> {
-  if (path.isAbsolute(lockfilePath)) {
-    return false
-  }
-  const targetDir = path.resolve(localDep.lockfileDir, lockfilePath)
-  if (!isSubdirectory(localDep.workspaceRoot, targetDir)) {
-    return false
-  }
-  if (!await realPathStaysInsideWorkspace(localDep.workspaceRoot, targetDir)) {
-    return false
-  }
-  const targetPkg = localDep.manifestsByDir[targetDir] ?? await safeReadPackageJsonFromDir(targetDir)
-  const expectedName = getTargetPkgName(currentSpec, depName)
-  if (!targetPkg || targetPkg.name !== expectedName) {
-    return false
-  }
-  return versionSatisfies(targetPkg.version, range)
-}
-
-async function realPathStaysInsideWorkspace (workspaceRoot: string, targetDir: string): Promise<boolean> {
-  let realTargetDir: string
-  let realWorkspaceRoot: string
-  let realManifestPath: string
-  try {
-    [realTargetDir, realWorkspaceRoot, realManifestPath] = await Promise.all([
-      fs.promises.realpath(targetDir),
-      fs.promises.realpath(workspaceRoot),
-      fs.promises.realpath(path.join(targetDir, 'package.json')),
-    ])
-  } catch {
-    return false
-  }
-  return isSubdirectory(realWorkspaceRoot, realTargetDir) && isSubdirectory(realWorkspaceRoot, realManifestPath)
 }
