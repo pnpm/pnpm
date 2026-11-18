@@ -51,13 +51,9 @@ tar -xzf "$work/SOURCES/pnpm-linux-x64.tar.gz" -C "$work/payload"
 
 # The ELF version references, not the symbol table: a binary can also require
 # a non-numeric tag such as GLIBC_ABI_DT_RELR, which glibc 2.28 lacks.
-addons=$(find "$work/payload/dist" -name '*.node')
-glibc_refs=
-for binary in "$work/payload/pnpm" $addons; do
-  version_info=$(objdump -p "$binary")
-  glibc_refs+=$(grep -oE 'GLIBC_[A-Za-z0-9_.]+' <<<"$version_info" || true)$'\n'
-done
-glibc_refs=$(grep . <<<"$glibc_refs" | sort -u)
+version_info=$(objdump -p "$work/payload/pnpm")
+version_info+=$'\n'$(find "$work/payload/dist" -name '*.node' -exec objdump -p {} +)
+glibc_refs=$(grep -oE 'GLIBC_[A-Za-z0-9_.]+' <<<"$version_info" | sort -u)
 unsupported_tags=$(grep -v '^GLIBC_[0-9][0-9.]*$' <<<"$glibc_refs" || true)
 if [ -n "$unsupported_tags" ]; then
   echo "pnpm $version requires glibc tags missing from glibc $max_glibc:" $unsupported_tags >&2
@@ -77,9 +73,11 @@ rpmbuild -bb "$spec_dir/pnpm.spec" \
 rpm_file=$(find "$work/RPMS/x86_64" -name '*.rpm' -print -quit)
 test -n "$rpm_file"
 
-# Outputs are assembled here and replace the previous ones in OUT_DIR only once
-# all of them are built.
-stage=$work/out
+# Outputs are assembled in a staging directory inside OUT_DIR, so replacing the
+# previous ones is a rename on one filesystem, done only once all are built.
+mkdir -p "$out_dir"
+stage=$(mktemp -d "$out_dir/.stage.XXXXXX")
+trap 'rm -rf "$work" "$stage"' EXIT
 mkdir -p "$stage/repo"
 
 # The offline target resolves the package's Requires against its own installed
@@ -88,7 +86,7 @@ mkdir -p "$stage/repo"
 # them; `--resolve` on the dependency names would drag in every architecture's
 # build of each.
 dnf install -y --downloadonly --destdir="$work/deps" "$rpm_file"
-find "$work/deps" -name '*.rpm' ! -name 'pnpm-*' -exec cp {} "$stage/repo/" \;
+find "$work/deps" -name '*.rpm' ! -name 'pnpm-*' -exec cp -t "$stage/repo/" -- {} +
 if [ -z "$(find "$stage/repo" -name 'libatomic*.rpm' -print -quit)" ]; then
   dnf download --destdir="$stage/repo" --arch x86_64 libatomic
 fi
@@ -110,7 +108,6 @@ tar czf "$stage/pnpm-${version}-el8-x86_64-repo.tar.gz" -C "$stage" repo
 # Only this script's own outputs are removed: OUT_DIR may hold other files, and
 # a stale RPM left beside the current one would be picked up by anything copying
 # the directory.
-mkdir -p "$out_dir"
 rm -rf "${out_dir:?}/repo"
 rm -f "$out_dir"/pnpm-*.rpm "$out_dir"/pnpm-*-el8-x86_64-repo.tar.gz
 mv "$stage"/* "$out_dir/"

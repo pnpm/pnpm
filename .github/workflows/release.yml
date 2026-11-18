@@ -1373,7 +1373,8 @@ jobs:
           gh release download "v${VERSION}" --repo "$GITHUB_REPOSITORY" \
             --pattern pnpm-linux-x64.tar.gz --output pnpm-linux-x64.tar.gz
           gh attestation verify pnpm-linux-x64.tar.gz --repo "$GITHUB_REPOSITORY" \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+            --source-digest "$GITHUB_SHA"
 
       - name: Build the RPM and the dnf repository
         # Built inside RHEL 8 rather than on the runner: the repository has to
