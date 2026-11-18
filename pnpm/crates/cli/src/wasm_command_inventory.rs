@@ -15,7 +15,7 @@ fn every_clap_command_has_a_webcontainer_classification() {
             assert!(matches!(fields[1], "partial" | "routed" | "none"));
             assert!(
                 fields[0].starts_with("mode:") || fields[1] != "none",
-                "every CLI command must be exercised by the WebContainer routing audit: {line}"
+                "every CLI command must be exercised by the WebContainer routing audit: {line}",
             );
             assert!(matches!(
                 fields[2],

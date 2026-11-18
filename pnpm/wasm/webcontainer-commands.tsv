@@ -34,7 +34,7 @@ rebuild	partial	available
 rb	partial	available
 pack	partial	available
 publish	partial	available
-stage	routed	available
+stage	partial	available
 remove	partial	available
 patch	routed	available
 patch-commit	routed	available
@@ -168,9 +168,9 @@ mode:lifecycle-scripts	partial	available
 mode:metadata-rollback	partial	host-blocked
 mode:native-dependency-builds	none	host-limited
 mode:permission-inheritance-race	none	host-blocked
-mode:pnpmfile-hooks	none	available
+mode:pnpmfile-hooks	partial	available
 mode:provenance-signing	none	implementation-gap
 mode:publish-registry	partial	available
-mode:redirect-authentication	none	available
+mode:redirect-authentication	partial	available
 mode:store-linkers	partial	available
-mode:watch-and-cancellation	none	host-limited
+mode:watch-and-cancellation	partial	host-limited

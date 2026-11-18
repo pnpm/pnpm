@@ -8,7 +8,7 @@ execution modes that Clap does not model as subcommands.
 `coverage` records behavioral evidence from the packaged WebContainer CLI.
 `partial` means some command behavior is tested in the real runtime, but the
 success and failure cases are incomplete. `routed` means the packaged browser
-runtime accepts the command's help path and rejects an unknown global option;
+runtime accepts each command's help path and rejects one unknown global option;
 it does not claim the command's behavior works. `none` means neither is tested.
 
 `capability` records the current host assessment:
