@@ -8,10 +8,10 @@ use pnpr_config::{BackendConfig, DatabaseBackend, default_database_path};
 use std::{io::IsTerminal, path::PathBuf};
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
 
-/// Rendering a packument makes large, short-lived allocations on many threads.
-/// glibc malloc keeps that memory after the requests finish, so the resident
-/// size of an idle server stays near its peak. The other targets keep the
-/// system allocator until mimalloc's C build is verified there.
+// Rendering a packument makes large, short-lived allocations on many threads.
+// glibc malloc keeps that memory after the requests finish, so the resident
+// size of an idle server stays near its peak. The other targets keep the
+// system allocator until mimalloc's C build is verified there.
 #[cfg(all(
     any(target_os = "linux", target_os = "macos", target_os = "windows"),
     any(target_arch = "x86_64", target_arch = "aarch64"),
@@ -22,23 +22,70 @@ mod allocator {
     #[global_allocator]
     static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-    /// `mi_option_purge_delay` in `mimalloc.h`. `libmimalloc-sys` binds the
-    /// options on either side of it but not this one.
+    // `mi_option_purge_delay` in `mimalloc.h`. `libmimalloc-sys` binds the
+    // options on either side of it but not this one.
     const MI_OPTION_PURGE_DELAY: c_int = 15;
 
     unsafe extern "C" {
         fn mi_option_set_default(option: c_int, value: c_long);
+        #[cfg(test)]
+        fn mi_option_get(option: c_int) -> c_long;
     }
 
-    /// mimalloc purges freed memory only while a thread is allocating, and by
-    /// default only after a delay. Memory freed by the last requests of a
-    /// burst then stays resident for as long as the server is idle. Purging
-    /// without a delay returns it at once. `MIMALLOC_PURGE_DELAY` overrides
-    /// this.
+    // mimalloc purges freed memory only while a thread is allocating, and by
+    // default only after a delay. Memory freed by the last requests of a
+    // burst then stays resident for as long as the server is idle. Purging
+    // without a delay returns it at once. `MIMALLOC_PURGE_DELAY` overrides
+    // this.
+    //
+    // Call it before the process starts another thread.
     pub(super) fn purge_freed_memory_immediately() {
-        // SAFETY: `mimalloc` links the library that defines this function, and
-        // it accepts any option index and value.
+        // SAFETY: `mimalloc` links the library that defines this function.
+        // The index is a valid option in mimalloc v2 and v3. The function
+        // writes the option without synchronization, and no other thread
+        // exists yet to read it.
         unsafe { mi_option_set_default(MI_OPTION_PURGE_DELAY, 0) };
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{MI_OPTION_PURGE_DELAY, mi_option_get, purge_freed_memory_immediately};
+        use std::{env, process::Command};
+
+        const EXPECTED_PURGE_DELAY: &str = "PNPR_TEST_EXPECTED_PURGE_DELAY";
+
+        // mimalloc reads `MIMALLOC_PURGE_DELAY` once per process, so each case
+        // reruns this test in a child process. The override case also proves
+        // that `MI_OPTION_PURGE_DELAY` indexes the option that variable sets.
+        #[test]
+        fn purge_delay_is_zero_unless_the_environment_sets_it() {
+            if let Ok(expected) = env::var(EXPECTED_PURGE_DELAY) {
+                purge_freed_memory_immediately();
+                // SAFETY: `mimalloc` links the library that defines this
+                // function, and the index is a valid option.
+                let purge_delay = unsafe { mi_option_get(MI_OPTION_PURGE_DELAY) };
+                assert_eq!(purge_delay.to_string(), expected);
+                return;
+            }
+            for (setting, expected) in [(None, "0"), (Some("1234"), "1234")] {
+                let mut child = Command::new(env::current_exe().expect("test binary path"));
+                child
+                    .args([
+                        "--exact",
+                        "allocator::tests::purge_delay_is_zero_unless_the_environment_sets_it",
+                    ])
+                    .env(EXPECTED_PURGE_DELAY, expected)
+                    .env_remove("MIMALLOC_PURGE_DELAY");
+                if let Some(setting) = setting {
+                    child.env("MIMALLOC_PURGE_DELAY", setting);
+                }
+                let output = child.output().expect("run the test binary");
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                eprintln!("MIMALLOC_PURGE_DELAY={setting:?}, expecting {expected}:\n{stdout}");
+                assert!(output.status.success());
+                assert!(stdout.contains("1 passed"));
+            }
+        }
     }
 }
 
