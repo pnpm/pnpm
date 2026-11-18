@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pacquet": minor
 ---
 
-`pnpm change` leaves private packages out when `versioning.includePrivatePackages` is `false`. `pnpm lane` uses that same list. Private packages stay included when the setting is absent [`pnpm/pnpm#13813`](https://github.com/pnpm/pnpm/issues/13813).
+Added the `versioning.includePrivatePackages` setting. Set it to `false` to leave private packages out of `pnpm change` and `pnpm lane` [#13813](https://github.com/pnpm/pnpm/issues/13813).
