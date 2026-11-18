@@ -36,6 +36,10 @@ auditConfig:
     # No patched release exists. It is reached only through argparse 1, which
     # formats its own help text with it, never attacker-controlled formats.
     - GHSA-hp3w-g68c-fv3c
+    # GHSA-fc5q-39xc-vjpf: picomatch ReDoS through single-branch repeated
+    # extglobs. No patched release exists upstream; patched locally via
+    # .config/pnpm/patches/picomatch@2.3.2.patch and picomatch@4.0.7.patch.
+    - GHSA-fc5q-39xc-vjpf
     # GHSA-gcqx-w48m-w2h4: deepmerge mergeObject() prototype poisoning of returned
     # objects. No patched release exists upstream; patched locally via
     # .config/pnpm/patches/deepmerge@4.3.1.patch.
