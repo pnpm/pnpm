@@ -149,7 +149,7 @@ export async function prepareCiCleanPlan (opts: CleanOptions): Promise<CiCleanPl
       externalVirtualStoreDir,
       installStateDir: opts.virtualStoreDir && !opts.enableGlobalVirtualStore
         ? path.resolve(anchorDir, opts.virtualStoreDir)
-        : path.resolve(anchorDir, modulesDir, '.pnpm'),
+        : path.resolve(anchorDir, modulesDir),
       modulesTargets,
       realRootDir: scope.realRootDir,
     }),
