@@ -439,7 +439,7 @@ test('lockfile-only updates reuse locked Git dependencies with peers and aliased
   fs.writeFileSync(path.join(parentDir, 'package.json'), JSON.stringify({
     name: 'example-parent',
     version: '1.0.0',
-    dependencies: { 'child-alias': childSpec },
+    dependencies: { 'child-alias': childSpec, 'is-positive': '1.0.0' },
     peerDependencies: { 'is-positive': '^1.0.0' },
   }))
   const parentSpec = (await commitLocalGitRepo(parentDir)).replace(/#.+$/, '#main')
@@ -491,6 +491,27 @@ test('a targeted lockfile-only update uses the range declared by its Git parent'
     updateMatching: (pkgName: string) => pkgName === 'is-negative',
   }))
   expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.1' })
+})
+
+test('a locked Git package keeps its own dependency when its inherited peer is removed', async () => {
+  const project = prepareEmpty()
+  const repoDir = path.resolve('git-parent')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+    name: 'example-parent',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+    peerDependencies: { 'is-negative': '^1.0.0' },
+  }))
+  const parentSpec = await commitLocalGitRepo(repoDir)
+  const options = { lockfileOnly: true, trustLockfile: true, autoInstallPeers: false }
+  await install({ dependencies: { 'example-parent': parentSpec, 'is-negative': '1.0.1' } }, testDefaults(options))
+  const initialGitSnapshot = `example-parent@${parentSpec}(is-negative@1.0.1)`
+  expect(project.readLockfile().snapshots[initialGitSnapshot].dependencies).toEqual({ 'is-negative': '1.0.1' })
+
+  await install({ dependencies: { 'example-parent': parentSpec } }, testDefaults(options))
+
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.0' })
 })
 
 test('from a subdirectory of a hosted git repo', async () => {

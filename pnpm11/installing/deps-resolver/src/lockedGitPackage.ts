@@ -1,15 +1,16 @@
 import * as dp from '@pnpm/deps.path'
-import type { LockfileResolution, ResolvedDependencies } from '@pnpm/lockfile.types'
+import type { LockfileResolution, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { getLockfileImporterId } from '@pnpm/lockfile.utils'
 import type { PackageResponse } from '@pnpm/store.controller-types'
 
+import { getPeerShadowedDependencies } from './hoistPeers.js'
 import type { DependencyRequest } from './requestDependencyPackage.js'
 
 export function readLockedGitPackage (request: DependencyRequest): PackageResponse | undefined {
   const { currentPkg, ctx } = request
   const { dependencyLockfile: snapshot, name, pkgId, resolution, version } = currentPkg
   if (!snapshot || !name || !version || !pkgId || !resolution) return undefined
-  if (!isGitResolution(snapshot.resolution) || !canReadLockedGitPackage(request)) return undefined
+  if (!isGitResolution(snapshot.resolution) || !canReadLockedGitPackage(request, snapshot)) return undefined
 
   return {
     body: {
@@ -43,12 +44,24 @@ export function isGitResolution (resolution: LockfileResolution | undefined): bo
   return resolution != null && (('type' in resolution && resolution.type === 'git') || ('gitHosted' in resolution && resolution.gitHosted === true))
 }
 
-function canReadLockedGitPackage ({ ctx, currentPkg, detached, options, wantedDependency }: DependencyRequest): boolean {
+function canReadLockedGitPackage (
+  { ctx, currentPkg, detached, options, wantedDependency }: DependencyRequest,
+  snapshot: PackageSnapshot
+): boolean {
   // Locked dependency references hold exact versions. Updating descendants
   // needs the ranges from the repository's manifest.
   const updatesDescendants = options.currentDepth < options.updateDepth
   const requiresFreshMetadata = options.update || updatesDescendants || options.updateChecksums || ctx.staleOverrideTargets?.size
   if (detached || !ctx.dryRun || !ctx.trustLockfile || !ctx.lockedPeersAreCurrent || requiresFreshMetadata) return false
+  // A peer that is no longer supplied may have a regular dependency fallback.
+  // The snapshot from the prior peer context cannot distinguish those cases.
+  if (snapshot.peerDependencies != null) {
+    const shadowed = getPeerShadowedDependencies(snapshot, {
+      autoInstallPeers: ctx.autoInstallPeers,
+      inScope: (alias) => Boolean(options.parentPkgAliases[alias]),
+    })
+    if (shadowed.length !== Object.keys(snapshot.peerDependencies).length) return false
+  }
   const { alias, bareSpecifier } = wantedDependency
   if (options.currentDepth > 0) return bareSpecifier === currentPkg.pkgId
   const importer = getLockfileImporterId(ctx.lockfileDir, options.parentPkg.rootDir)
