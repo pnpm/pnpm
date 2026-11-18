@@ -78,9 +78,9 @@ pub struct VersioningSettings {
     /// propagation.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ignore: Vec<String>,
-    /// When `false`, private packages are not releasable. `pnpm change` and
-    /// `pnpm lane` leave them out, and naming one is rejected. Absent or
-    /// `true` keeps private packages releasable.
+    /// When `false`, `pnpm change` leaves private packages out and rejects
+    /// naming one. Release planning and lanes still include them. Absent or
+    /// `true` keeps private packages selectable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_private_packages: Option<bool>,
     /// Caps the bump a release from the current checkout may apply. Enforced

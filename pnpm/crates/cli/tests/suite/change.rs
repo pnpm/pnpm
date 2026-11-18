@@ -637,6 +637,37 @@ fn change_leaves_private_packages_out_when_include_private_packages_is_false() {
 }
 
 #[test]
+fn lane_moves_a_fixed_group_with_a_private_member_when_include_private_packages_is_false() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nversioning:\n  includePrivatePackages: false\n  fixed:\n    - [cli, app]\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+    add_pkg(&workspace, "cli", "1.0.0", "{}");
+    let app_dir = workspace.join("packages").join("app");
+    fs::create_dir_all(&app_dir).expect("create package dir");
+    fs::write(
+        app_dir.join("package.json"),
+        "{\"name\": \"app\", \"version\": \"1.0.0\", \"private\": true}\n",
+    )
+    .expect("write package.json");
+
+    let entered = stdout_of(
+        pnpm(&workspace).with_args(["lane", "alpha", "--filter", "cli", "--filter", "app"]),
+    );
+    assert!(entered.contains("  app"), "unexpected: {entered}");
+    assert!(entered.contains("  cli"), "unexpected: {entered}");
+
+    let exited = stdout_of(
+        pnpm(&workspace).with_args(["lane", "main", "--filter", "cli", "--filter", "app"]),
+    );
+    assert!(exited.contains("  app"), "unexpected: {exited}");
+}
+
+#[test]
 fn change_check_rejects_an_intent_naming_a_package_outside_the_workspace() {
     let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")

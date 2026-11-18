@@ -90,7 +90,7 @@ impl ChangeArgs {
             return Ok(());
         }
 
-        let releasable = releasable_projects(&engine_projects, &workspace_dir, &config.versioning);
+        let releasable = recordable_projects(&engine_projects, &workspace_dir, &config.versioning);
         if releasable.is_empty() {
             return Err(ChangeError::NoPackages.into());
         }
@@ -385,8 +385,7 @@ pub struct ReleasableProject {
 
 /// The projects a change intent may demand a release from: named, carrying a
 /// valid semver version, and not frozen by `versioning.ignore`. Matches the
-/// participant set of the release-plan assembler, except that private
-/// packages are omitted when `versioning.includePrivatePackages` is `false`.
+/// participant set of the release-plan assembler.
 pub fn releasable_projects(
     projects: &[WorkspaceProject],
     workspace_dir: &Path,
@@ -403,7 +402,7 @@ pub fn releasable_projects(
             let (Some(name), Some(version)) = (&project.name, &project.version) else {
                 return None;
             };
-            if !is_releasable(project, version, versioning) {
+            if Version::parse(version).is_err() {
                 return None;
             }
             let dir = to_project_dir(workspace_dir, &project.root_dir);
@@ -419,16 +418,25 @@ pub fn releasable_projects(
     releasable
 }
 
-/// Whether a project with this manifest version may be released: the version
-/// is valid semver, and the project is public or private packages are
-/// included.
-fn is_releasable(
-    project: &WorkspaceProject,
-    version: &str,
+/// The releasable projects `pnpm change` offers and accepts. Private
+/// packages are left out when `versioning.includePrivatePackages` is
+/// `false`. Lanes and release planning still include them, because an
+/// existing intent or a dependent bump can still release one.
+fn recordable_projects(
+    projects: &[WorkspaceProject],
+    workspace_dir: &Path,
     versioning: &VersioningSettings,
-) -> bool {
-    Version::parse(version).is_ok()
-        && (!project.private || versioning.include_private_packages != Some(false))
+) -> Vec<ReleasableProject> {
+    let mut releasable = releasable_projects(projects, workspace_dir, versioning);
+    if versioning.include_private_packages == Some(false) {
+        let private_dirs: HashSet<String> = projects
+            .iter()
+            .filter(|project| project.private)
+            .map(|project| to_project_dir(workspace_dir, &project.root_dir))
+            .collect();
+        releasable.retain(|project| !private_dirs.contains(&project.dir));
+    }
+    releasable
 }
 
 /// Extracts the manifest fields the release-plan assembler consumes from the

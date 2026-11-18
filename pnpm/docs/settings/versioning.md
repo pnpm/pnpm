@@ -43,7 +43,7 @@ Added in: v12.23.0
 * Default: **true**
 * Type: **Boolean**
 
-When `false`, private packages (`"private": true`) are left out of the packages [`pnpm change`](../cli/change.md) and [`pnpm lane`](../cli/lane.md) offer, and naming one on the command line fails. A change intent that already names a private package still applies, and a private package can still be bumped as a dependent.
+When `false`, [`pnpm change`](../cli/change.md) leaves private packages (`"private": true`) out of the packages it offers, and naming one on the command line fails. A change intent that already names a private package still applies, a private package can still be bumped as a dependent, and [`pnpm lane`](../cli/lane.md) can still move one.
 
 ```yaml title="pnpm-workspace.yaml"
 versioning:
