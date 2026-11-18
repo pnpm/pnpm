@@ -10,30 +10,11 @@ use super::{
 };
 use pnpm_config::SkillsPermission;
 
-/// Whether `path` ends with a tarball extension (`.tgz`, `.tar.gz`, `.tar`),
-/// ASCII case-insensitively, matching `pnpm_local_spec`.
-pub(crate) fn is_tarball_path(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    let ends_with_ignore_case = |suffix: &[u8]| {
-        bytes.len() >= suffix.len()
-            && bytes[bytes.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
-    };
-    ends_with_ignore_case(b".tgz")
-        || ends_with_ignore_case(b".tar.gz")
-        || ends_with_ignore_case(b".tar")
-}
-
 /// Whether `version` (the peer-free version half of a dep path) names a local
 /// directory (`link:` or non-tarball `file:`).
 #[must_use]
 pub fn is_local_directory_version(version: &str) -> bool {
-    if version.starts_with("link:") {
-        return true;
-    }
-    if let Some(path) = version.strip_prefix("file:") {
-        return !is_tarball_path(path);
-    }
-    false
+    pnpm_package_name::is_local_directory_version(version)
 }
 
 /// The `permissions` key under which a package's agent skills are approved:

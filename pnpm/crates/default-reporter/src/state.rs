@@ -286,7 +286,10 @@ impl ReporterState {
         if !self.level_permits(event) {
             return Output::None;
         }
-        if matches!(event, LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
+        if matches!(event, LogEvent::Summary(_))
+            || matches!(event, LogEvent::ExecutionTime(_))
+                && self.options.max_log_level >= MaxLogLevel::Info
+        {
             self.flush_pending_lockfile_message();
         }
         self.handle_event(event);
@@ -377,6 +380,7 @@ impl ReporterState {
                 matches!(log.message, LockfileVerificationMessage::Failed { .. })
                     || self.options.max_log_level >= MaxLogLevel::Info
             }
+            LogEvent::ExecutionTime(_) if self.options.append_only => true,
             _ => self.options.max_log_level >= MaxLogLevel::Info,
         }
     }

@@ -5145,6 +5145,7 @@ dependencies = [
  "owo-colors",
  "pnpm-config",
  "pnpm-matcher",
+ "pnpm-package-name",
  "pnpm-reporter",
  "pnpm-text-sanitize",
  "pnpm-time",
@@ -6203,7 +6204,9 @@ name = "pnpm-package-name"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "node-semver",
  "pep508_rs",
+ "pnpm-deps-path",
 ]
 
 [[package]]

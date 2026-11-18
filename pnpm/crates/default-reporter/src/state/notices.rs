@@ -8,17 +8,7 @@ use super::{
     update_command, zoom_out,
 };
 use jiff::Timestamp;
-
-fn short_package_label(package: &str) -> String {
-    let separator = if let Some(scoped_package) = package.strip_prefix('@') {
-        scoped_package
-            .find('@')
-            .map(|index| index + 1)
-    } else {
-        package.find('@')
-    };
-    separator.map_or_else(|| package.to_owned(), |index| package[..index].to_owned())
-}
+use pnpm_package_name::short_package_label;
 
 fn pending_approval_packages(
     pending_builds: &[String],
@@ -34,7 +24,7 @@ fn pending_approval_packages(
     for package in pending_skills {
         let build_label = packages
             .keys()
-            .find(|label| package.starts_with(&format!("{label}@")))
+            .find(|label| *label == package)
             .cloned();
         packages
             .entry(build_label.unwrap_or_else(|| package.clone()))
@@ -101,12 +91,16 @@ impl ReporterState {
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
         // only duplicate the error. The structured event still carries the
         // names for NDJSON consumers.
-        self.render_pending_approvals();
+        if !self.options.append_only {
+            self.render_pending_approvals();
+        }
     }
 
     pub(super) fn on_pending_skills(&mut self, log: &PendingSkillsLog) {
         self.notices.pending_skills.clone_from(&log.package_names);
-        self.render_pending_approvals();
+        if !self.options.append_only {
+            self.render_pending_approvals();
+        }
     }
 
     fn render_pending_approvals(&mut self) {
@@ -297,6 +291,12 @@ impl ReporterState {
     }
 
     pub(super) fn on_execution_time(&mut self, log: &ExecutionTimeLog) {
+        if self.options.append_only {
+            self.render_pending_approvals();
+        }
+        if self.options.max_log_level < MaxLogLevel::Info {
+            return;
+        }
         let elapsed = log.ended_at.saturating_sub(log.started_at);
         let msg =
             format!("Done in {} using pnpm v{}", pretty_ms(elapsed), crate::package_version());

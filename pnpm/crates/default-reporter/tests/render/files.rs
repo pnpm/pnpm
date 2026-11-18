@@ -1,5 +1,6 @@
 use super::{ReporterOptions, ignored_scripts, render, state, state_with_options};
-use pnpm_reporter::{LogEvent, LogLevel, PendingSkillsLog};
+use pnpm_default_reporter::state::Output;
+use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel, PendingSkillsLog};
 
 #[test]
 fn the_ignored_builds_instruction_defaults_to_the_pnpm_command() {
@@ -51,4 +52,45 @@ fn the_pending_approval_notice_combines_builds_and_skills_by_package() {
     );
     assert!(!frame.contains("Ignored build scripts"), "frame: {frame}");
     assert!(!frame.contains("Agent skills awaiting approval"), "frame: {frame}");
+}
+
+#[test]
+fn the_pending_approval_notice_combines_source_package_labels() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            ignored_scripts(&["my-skills@link:packages/my-skills"]),
+            LogEvent::PendingSkills(PendingSkillsLog {
+                level: LogLevel::Debug,
+                package_names: vec!["my-skills (local)".to_string()],
+            }),
+        ],
+    );
+
+    assert!(frame.contains("  my-skills (local)  build, skills"), "frame: {frame}",);
+    assert_eq!(frame.matches("my-skills (local)").count(), 1, "frame: {frame}");
+}
+
+#[test]
+fn append_only_output_emits_one_combined_pending_approval_notice() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let _ = reporter.handle(&ignored_scripts(&["esbuild@1.0.0"]));
+    let _ = reporter.handle(&LogEvent::PendingSkills(PendingSkillsLog {
+        level: LogLevel::Debug,
+        package_names: vec!["esbuild".to_string()],
+    }));
+    let output = reporter.handle(&LogEvent::ExecutionTime(ExecutionTimeLog {
+        level: LogLevel::Debug,
+        started_at: 0,
+        ended_at: 1,
+    }));
+    let Output::Lines(lines) = output else {
+        panic!("expected appended lines");
+    };
+    let output = lines.join("\n");
+
+    assert_eq!(output.matches("Packages awaiting approval:").count(), 1, "{output}");
+    assert!(output.contains("  esbuild  build, skills"), "{output}");
 }

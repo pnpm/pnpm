@@ -4,7 +4,13 @@
 pub use is_valid_old_npm_package_name as is_valid_dependency_alias;
 pub use python::{PythonNameError, canonicalize_python_name};
 
+mod dep_path;
 mod python;
+
+pub use dep_path::{
+    git_repo_allow_build_key_from_dep_path, is_git_hosted_dep_path, is_git_repo_dep_path,
+    is_local_directory_version, parse_dep_path_name_version, short_package_label,
+};
 
 /// Whether `version` is a valid package version component for the filesystem.
 /// Rejects path traversal (`..`), path separators (`/`, `\`), current directory (`.`),
