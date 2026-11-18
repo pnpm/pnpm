@@ -19,11 +19,11 @@ pub enum SupportedPlatform {
     Named(NamedPlatform),
 }
 
-/// A platform named outright: a platform tag, as package variants name
-/// their platforms, or a spelling pnpm read before it read tags.
+/// A platform named outright: a platform tag, or a spelling pnpm read
+/// before it read tags.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamedPlatform {
-    /// The platform in the tag vocabulary pnpr shares: `os` and `cpu` as
+    /// The platform in the tag vocabulary: `os` and `cpu` as
     /// packages declare them, the C library of a Linux platform (glibc when
     /// it names none), and the floors and ABI it states.
     pub platform: Platform,
