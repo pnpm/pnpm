@@ -63,7 +63,7 @@ export function inspectionWorkflowSteps (entry) {
     { name: 'diagnose the WebContainer offline', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--doctor', entry], expectOutput: 'offline checks' },
     { name: 'run scripts with the recursive command', command: 'node', args: [entry, 'recursive', 'run', 'build'], expectOutput: 'wasm-filter-ok' },
     { name: 'list dependencies in long format with ll', command: 'node', args: [entry, 'll'], expectOutput: '4 packages' },
-    { name: 'long list alias la', command: 'node', args: [entry, 'la'], expectOutput: '5 packages' },
+    { name: 'long list alias la', command: 'node', args: [entry, 'la'], expectOutput: '4 packages' },
     { name: 'create an install-test project', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--install-test-fixture'] },
     { name: 'install dependencies and run tests', command: 'node', args: [entry, '--dir', 'install-test-audit', 'install-test', '--offline'] },
     { name: 'verify install-test ran the test script', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('node:fs').readFileSync('install-test-audit/install-test-ok', 'utf8'), 'yes')"] },
