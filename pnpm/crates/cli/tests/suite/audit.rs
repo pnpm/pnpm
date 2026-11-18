@@ -593,6 +593,37 @@ fn audit_reports_the_lowest_non_deprecated_published_patch() {
 }
 
 #[test]
+fn audit_reports_the_published_patch_when_the_time_map_has_an_unpublished_marker() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"time":{"2.1.0":"2020-01-01T00:00:00.000Z","unpublished":null}}"#)
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet
+        .arg("audit")
+        .output()
+        .expect("run pacquet audit");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    assert!(stdout.contains(">=2.1.0"), "the report should name the published patch:\n{stdout}",);
+    mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
 fn audit_reports_no_patched_version_when_none_was_published() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..

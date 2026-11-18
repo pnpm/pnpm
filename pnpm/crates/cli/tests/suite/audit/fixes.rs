@@ -838,12 +838,7 @@ fn audit_ignore_unfixable_ignores_advisories_whose_inferred_fix_was_never_publis
 
     assert_success(&output);
     assert_eq!(stdout(&output), "1 new vulnerabilities were ignored:\nGHSA-test-1111-2222\n");
-    let manifest =
-        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
-    assert!(
-        manifest.contains("- GHSA-test-1111-2222"),
-        "manifest should hold the GHSA:\n{manifest}",
-    );
+    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()]);
     mock.assert();
     packument_mock.assert();
 }
@@ -874,12 +869,7 @@ fn audit_ignore_unfixable_keeps_the_inferred_fix_when_a_version_timestamp_is_mal
         .expect("run pacquet audit --ignore-unfixable");
 
     assert_eq!(output.status.code(), Some(1));
-    let manifest =
-        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
-    assert!(
-        !manifest.contains("GHSA-test-1111-2222"),
-        "a fixable advisory must not be ignored:\n{manifest}",
-    );
+    assert_eq!(audit_config_ignore_ghsas(&workspace), Vec::<String>::new());
     mock.assert();
     packument_mock.assert();
 }
