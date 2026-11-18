@@ -77,10 +77,12 @@ in any workspace package's `scripts`.
 ### Interrupting a script
 
 On Unix, if a foreground command handles `SIGINT` and exits successfully,
-the shell can continue with the rest of the script. The shell can also continue
-when the interrupt arrives while it is running builtins. If you supervise a
-script without a terminal and need to stop the shell itself, send `SIGTERM`
-to pnpm.
+the shell continues with the rest of the script.
+
+A single `SIGINT` that arrives while the shell runs builtins, such as a `while`
+loop, does not stop the script ([#18221](https://github.com/pnpm/pnpm/issues/18221)).
+Press `Ctrl+C` a second time to stop it. Without a terminal, send `SIGTERM` to
+pnpm instead. A script that traps `SIGTERM` keeps running.
 
 ## Environment
 
