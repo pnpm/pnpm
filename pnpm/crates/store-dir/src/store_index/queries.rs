@@ -473,7 +473,7 @@ fn encode_index_entry(
     value: &PackageFilesIndex,
     policy: EncodingErrorPolicy,
 ) -> Result<Option<(String, Vec<u8>)>, StoreIndexError> {
-    match crate::msgpackr_records::encode_package_files_index(&value) {
+    match crate::msgpackr_records::encode_package_files_index(value) {
         Ok(encoded) => Ok(Some((key, encoded))),
         Err(source) => match policy {
             EncodingErrorPolicy::Return => Err(StoreIndexError::Encode { source }),
