@@ -43,7 +43,7 @@ fn every_clap_command_has_a_webcontainer_classification() {
         .collect::<BTreeSet<_>>();
     assert_eq!(
         actual, classified,
-        "update pnpm/wasm/webcontainer-commands.tsv for the Clap command tree"
+        "update pnpm/wasm/webcontainer-commands.tsv for the Clap command tree",
     );
 
     for (classification, expected) in [
