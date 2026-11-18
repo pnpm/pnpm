@@ -20,14 +20,7 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
         })?;
     let config = global_update_config(base_config);
     let ignored = ignored_dependencies_matcher(config);
-    let query = OutdatedQuery {
-        target_version,
-        include_direct: &[DependencyGroup::Prod],
-        match_names: None,
-        ignore_names: ignored.as_ref(),
-        include_deprecated: false,
-        full_metadata: false,
-    };
+    let query = global_outdated_query(target_version, ignored.as_ref());
     let Some(matched_packages) = matching_global_packages(&global_pkg_dir, packages)? else {
         return Ok(None);
     };
@@ -50,6 +43,21 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
         return Ok(None);
     }
     Ok(Some(selected))
+}
+
+fn global_outdated_query<'a>(
+    target_version: TargetVersion<'a>,
+    ignored: Option<&'a pnpm_matcher::Matcher>,
+) -> OutdatedQuery<'a> {
+    OutdatedQuery {
+        target_version,
+        include_direct: &[DependencyGroup::Prod],
+        match_names: None,
+        ignore_names: ignored,
+        include_deprecated: false,
+        full_metadata: false,
+        trust_evidence: false,
+    }
 }
 
 /// One prompt row per global group that has an update available, labelled

@@ -2,11 +2,12 @@ use super::{
     CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Cow,
     DeclaredEngineDep, DependencyGroup, HashMap, LatestQuery, Lockfile, OutdatedMetadata,
     OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest, ResolverWantedDependency,
-    TargetVersion, Version, dereference_catalog_protocol, min_version_of_spec,
+    TargetVersion, TrustChange, Version, dereference_catalog_protocol, min_version_of_spec,
     resolve_from_catalog,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_resolving_resolver_base::VersionSelectorType;
+use pnpm_resolving_npm_resolver::{TrustEvidence, get_manifest_trust_evidence};
 
 pub(super) struct OutdatedCandidate<'a> {
     pub(super) alias: &'a str,
@@ -139,7 +140,52 @@ pub(super) async fn outdated_dependency(
     let Some(target_manifest) = latest.and_then(|latest| latest.latest_manifest) else {
         return Ok(None);
     };
-    Ok(outdated_target(query, workspace, candidate, &target_manifest, &resolved_package_name))
+    let is_engine = candidate.is_engine;
+    let Some(mut package) =
+        outdated_target(query, workspace, candidate, &target_manifest, &resolved_package_name)
+    else {
+        return Ok(None);
+    };
+    if query.trust_evidence && !is_engine {
+        package.metadata.trust = Some(TrustChange {
+            current: current_trust_evidence(run, &package, &resolved_package_name).await,
+            target: get_manifest_trust_evidence(&target_manifest),
+        });
+    }
+    Ok(Some(package))
+}
+
+/// The trust evidence of the version `package` has installed. The lookup
+/// reads the packument the target resolution already fetched. A version
+/// the registry no longer serves reads as having no evidence: the column
+/// it feeds is advisory, and the install's own trust check still runs.
+async fn current_trust_evidence(
+    run: &OutdatedRun,
+    package: &OutdatedPackage,
+    resolved_package_name: &str,
+) -> Option<TrustEvidence> {
+    let bare_specifier = if resolved_package_name == package.alias {
+        package.current.to_string()
+    } else {
+        format!("npm:{resolved_package_name}@{}", package.current)
+    };
+    run.resolver
+        .resolve_latest(
+            &LatestQuery {
+                wanted_dependency: ResolverWantedDependency {
+                    alias: Some(package.alias.clone()),
+                    bare_specifier: Some(bare_specifier),
+                    ..ResolverWantedDependency::default()
+                },
+                compatible: true,
+            },
+            &run.resolve_options,
+        )
+        .await
+        .ok()
+        .flatten()
+        .and_then(|latest| latest.latest_manifest)
+        .and_then(|manifest| get_manifest_trust_evidence(&manifest))
 }
 
 fn dereference_catalog<'a>(
@@ -303,6 +349,7 @@ fn outdated_target(
                 .map(str::to_string),
             workspace: Some(workspace.to_string()),
             display_versions: None,
+            trust: None,
         },
     })
 }

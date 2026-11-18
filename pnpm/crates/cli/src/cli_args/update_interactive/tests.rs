@@ -4,13 +4,17 @@ use super::{
     ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdatePrompt,
     collect_choices, dependencies_prompt_message,
 };
-use crate::{checkbox_prompt::KeyOutcome, cli_args::update::UpdateArgs};
+use crate::{
+    checkbox_prompt::KeyOutcome,
+    cli_args::{outdated::TrustChange, update::UpdateArgs},
+};
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_resolving_npm_resolver::TrustEvidence;
 use pnpm_testing_utils::registry::TestRegistry;
 use serde_json::{Value, json};
 use std::{
@@ -393,6 +397,100 @@ fn manifest_without_usable_name(
     }
     std::fs::write(&manifest_path, manifest.to_string()).expect("write project manifest");
     PackageManifest::from_path(manifest_path).expect("read project manifest")
+}
+
+/// A registry package whose installed `1.0.0` was published by a trusted
+/// publisher and whose newer `1.1.0` carries only a provenance attestation.
+fn package_body_with_trust_downgrade(name: &str, registry: &str) -> String {
+    let mut body: Value =
+        serde_json::from_str(&package_body(name, registry)).expect("parse package body");
+    let provenance = json!({ "provenance": { "predicateType": "https://slsa.dev/provenance/v1" } });
+    body["versions"]["1.0.0"]["_npmUser"] =
+        json!({ "name": "ci", "trustedPublisher": { "id": "github", "oidcConfigId": "release" } });
+    body["versions"]["1.0.0"]["dist"]["attestations"] = provenance.clone();
+    body["versions"]["1.1.0"]["dist"]["attestations"] = provenance;
+    body["time"] = json!({
+        "1.0.0": "2020-01-01T00:00:00.000Z",
+        "1.1.0": "2020-02-01T00:00:00.000Z",
+    });
+    body.to_string()
+}
+
+async fn trust_of_choices(
+    dependency: (&str, &str),
+    trust_policy: pnpm_config::TrustPolicy,
+) -> Vec<Option<TrustChange>> {
+    let temp = tempfile::tempdir().expect("create temporary workspace");
+    let manifest = manifest_with_dependency_spec(temp.path(), "packages/a", dependency);
+    let lockfile: Lockfile = serde_saphyr::from_str(&format!(
+        "
+lockfileVersion: '9.0'
+importers:
+  packages/a:
+    dependencies:
+      {alias}:
+        specifier: {specifier}
+        version: {version}
+",
+        alias = dependency.0,
+        specifier = dependency.1,
+        version = if dependency.1.starts_with("npm:") { "foo@1.0.0" } else { "1.0.0" },
+    ))
+    .expect("parse workspace lockfile");
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let foo_mock = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(package_body_with_trust_downgrade("foo", &registry))
+        .expect(1)
+        .create_async()
+        .await;
+    let mut config = Config::new();
+    config.registry = registry;
+    config.cache_dir = temp.path().join("cache");
+    config.trust_policy = trust_policy;
+    let projects =
+        [InteractiveUpdateProject { manifest: &manifest, importer_id: "packages/a".to_string() }];
+
+    let choices = collect_choices(
+        &projects,
+        Some(&lockfile),
+        &config,
+        &Arc::new(ThrottledClient::default()),
+        true,
+        &[DependencyGroup::Prod],
+    )
+    .await
+    .expect("collect interactive choices");
+
+    foo_mock.assert_async().await;
+    choices
+        .into_iter()
+        .map(|choice| choice.metadata.trust)
+        .collect()
+}
+
+#[tokio::test]
+async fn no_downgrade_trust_policy_reports_the_trust_of_both_versions() {
+    let downgrade = Some(TrustChange {
+        current: Some(TrustEvidence::TrustedPublisher),
+        target: Some(TrustEvidence::Provenance),
+    });
+    assert_eq!(
+        trust_of_choices(("foo", "^1.0.0"), pnpm_config::TrustPolicy::NoDowngrade).await,
+        [downgrade],
+    );
+    assert_eq!(
+        trust_of_choices(("bar", "npm:foo@^1.0.0"), pnpm_config::TrustPolicy::NoDowngrade).await,
+        [downgrade],
+    );
+}
+
+#[tokio::test]
+async fn trust_is_not_looked_up_without_the_no_downgrade_policy() {
+    assert_eq!(trust_of_choices(("foo", "^1.0.0"), pnpm_config::TrustPolicy::Off).await, [None]);
 }
 
 fn package_body(name: &str, registry: &str) -> String {

@@ -163,6 +163,7 @@ fn build_cargo_outdated_package(
                 target: target.to_string(),
                 wanted: wanted.to_string(),
             })),
+            trust: None,
         },
     }
 }

@@ -16,6 +16,7 @@ use crate::cli_args::{
     engine_deps::{DeclaredEngineDep, declared_engine_deps, min_version_of_spec},
 };
 use candidates::{collect_importer_candidates, outdated_dependency};
+use pnpm_resolving_npm_resolver::TrustEvidence;
 
 mod candidates;
 
@@ -262,6 +263,17 @@ pub(crate) struct OutdatedMetadata {
     /// Exact version strings to display when the ecosystem's version format
     /// differs from 3-component semver (e.g. PEP 440 `"1.0"`).
     pub display_versions: Option<Box<OutdatedDisplayVersions>>,
+    /// The trust evidence of `current` and `target`, set only when the
+    /// query asked for it with [`OutdatedQuery::trust_evidence`].
+    pub trust: Option<TrustChange>,
+}
+
+/// The supply-chain evidence of the installed version and of the version
+/// an update moves to. `None` stands for no evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct TrustChange {
+    pub current: Option<TrustEvidence>,
+    pub target: Option<TrustEvidence>,
 }
 
 impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
@@ -279,6 +291,7 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
                 homepage: Some(action.homepage),
                 workspace: None,
                 display_versions: None,
+                trust: None,
             },
         }
     }
@@ -306,6 +319,10 @@ pub struct OutdatedQuery<'a> {
     /// metadata. The full document is the only source of `homepage`,
     /// which the `--long` details column renders.
     pub full_metadata: bool,
+    /// Look up the trust evidence of each registry dependency's current
+    /// and target versions, for the interactive update list's `Trust`
+    /// column.
+    pub trust_evidence: bool,
 }
 
 impl OutdatedQuery<'_> {
