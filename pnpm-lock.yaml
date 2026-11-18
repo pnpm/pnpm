@@ -250,7 +250,7 @@ snapshots:
 					"specifier": "^6.0.1",
 					"version": "6.0.1",
 				},
-				"@tybys/wasm-util": "0.10.4",
+				"@tybys/wasm-util": "0.10.5",
 				"@types/adm-zip": {
 					"specifier": "^0.6.0",
 					"version": "0.6.0",
@@ -1058,7 +1058,7 @@ snapshots:
 			"deepmerge-ts@<8.0.0": "^8.0.0",
 		},
 		"patchedDependencies": {
-			"@tybys/wasm-util@0.10.4": "055e4dc4f0d5875fa7a4fe053318a52f9018a9d1020af186bd2fc41987d7a665",
+			"@tybys/wasm-util@0.10.5": "b4720f25df1fb0342d181651d5be567d5239215aaca02dd8bbedf8d541d5bb4e",
 			"deepmerge@4.3.1": "6241e75cd0ebdeefbe93564d0f9a0da153bc6608add12970bd3c390910e7e4f4",
 			"glob@11.1.0": "aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3",
 			"glob@13.0.7": "4180fd60a9de76af2ee45420e5bb63a5917c0dd37d298b0845c74707b83c8455",
@@ -10020,7 +10020,7 @@ snapshots:
 			"dependencies": {
 				"command-exists": "1.2.9",
 				"cross-spawn": "7.0.6",
-				"pnpm": "11.28.12",
+				"pnpm": "11.28.13",
 			},
 		},
 
@@ -11660,8 +11660,8 @@ snapshots:
 			},
 		},
 
-		"@tybys/wasm-util@0.10.4": {
-			"integrity": "sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==",
+		"@tybys/wasm-util@0.10.5": {
+			"integrity": "sha512-dOGOPxlaNV+G046mZzN+9C0dAcQZeSKcXiVaM0TYy/LM4ttTmgSBDxYfovcYI8Em3+eAbiAYpvWLOv8+ZVRJKA==",
 			"dependencies": {
 				"tslib": "2.9.1",
 			},
@@ -19418,8 +19418,8 @@ snapshots:
 			"hasBin": true,
 		},
 
-		"pnpm@11.28.12": {
-			"integrity": "sha512-lIMzh+NdUD6K0QEEF83rgsEg5+abr98KnbBpBRW+rnFZJ0Vx5pK5arwqCF01Zv7FQ4Gv2Xj2X2SoU2Lf1+EI9w==",
+		"pnpm@11.28.13": {
+			"integrity": "sha512-1cqpzc1gZ6wpAvn0TaoAsSiKc7q/Hpj083Wzp1g7GJS01J91J9qPXhUwGYuxDgOtujIaHwFUKdwpRs6KepqMZQ==",
 			"engines": {"node": ">=22.13"},
 			"hasBin": true,
 		},
