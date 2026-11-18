@@ -50,9 +50,10 @@ async function run (binary) {
   const onInterrupt = () => { interrupted = true }
   process.on('SIGINT', onInterrupt)
   const args = process.argv.slice(2)
+  const env = childEnv(binary)
   let result = process.platform === 'win32'
-    ? spawnSync(binary, args, { stdio: 'inherit' })
-    : await runUnix(binary, args, () => interrupted)
+    ? spawnSync(binary, args, { stdio: 'inherit', env })
+    : await runUnix(binary, args, env, () => interrupted)
   process.removeListener('SIGINT', onInterrupt)
   if (result.shellMissing === true) {
     // A shell-free image can still run pnpm. Leave Node's default SIGINT
@@ -61,7 +62,7 @@ async function run (binary) {
       process.exitCode = 130
       return
     }
-    const child = spawn(binary, args, { stdio: 'inherit' })
+    const child = spawn(binary, args, { stdio: 'inherit', env })
     process.on('SIGINT', onInterrupt)
     result = await childResult(child)
     process.removeListener('SIGINT', onInterrupt)
@@ -74,7 +75,28 @@ async function run (binary) {
     : 128 + (os.constants.signals[result.signal] ?? 0)
 }
 
-async function runUnix (binary, args, wasInterrupted) {
+function childEnv (binary) {
+  // Binaries beside the wrapper can discover the payload on their own.
+  if (path.dirname(binary) === wrapperDir) return undefined
+  const binDir = path.join(wrapperDir, 'dist', 'node-gyp-bin')
+  const wrapper = path.join(binDir, process.platform === 'win32' ? 'node-gyp.cmd' : 'node-gyp')
+  const entry = path.join(wrapperDir, 'dist', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js')
+  if (binDir.includes(path.delimiter) ||
+      fs.statSync(wrapper, { throwIfNoEntry: false })?.isFile() !== true ||
+      fs.statSync(entry, { throwIfNoEntry: false })?.isFile() !== true) return undefined
+
+  const env = { ...process.env }
+  const envKey = (name) => process.platform === 'win32'
+    ? Object.keys(env).find(key => key.toLowerCase() === name.toLowerCase()) ?? name
+    : name
+  const pathKey = envKey('PATH')
+  const nodeGypKey = envKey('npm_config_node_gyp')
+  env[pathKey] = env[pathKey] ? `${binDir}${path.delimiter}${env[pathKey]}` : binDir
+  env[nodeGypKey] ||= entry
+  return env
+}
+
+async function runUnix (binary, args, env, wasInterrupted) {
   try {
     fs.accessSync(binary, fs.constants.X_OK)
   } catch (error) {
@@ -85,6 +107,7 @@ async function runUnix (binary, args, wasInterrupted) {
   const shell = process.platform === 'android' ? '/system/bin/sh' : '/bin/sh'
   const child = spawn(shell, ['-c', 'read -r launch <&3 || exit 130\nexec 3<&-\nexec "$@"', 'pnpm', binary, ...args], {
     stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
+    env,
   })
   const launch = child.stdio[3]
   const childResultPromise = childResult(child)
