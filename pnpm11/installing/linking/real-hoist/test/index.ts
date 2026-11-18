@@ -55,6 +55,43 @@ test.each([
   expect(hoistedNames).toEqual(new Set(['parent', 'peer', 'child']))
 })
 
+test('hoist does not give a package its own copy of a peer that its parent provides', () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { app: '1.0.0', react: '18.0.0' },
+        specifiers: { app: '1.0.0', react: '18.0.0' },
+      },
+    },
+    packages: {
+      ['app@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-app' },
+        dependencies: { react: '17.0.0', widget: '1.0.0(react@17.0.0)' },
+      },
+      ['widget@1.0.0(react@17.0.0)' as DepPath]: {
+        resolution: { integrity: 'sha512-widget' },
+        dependencies: { react: '17.0.0' },
+        peerDependencies: { react: '*' },
+      },
+      ['react@17.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-react17' },
+      },
+      ['react@18.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-react18' },
+      },
+    },
+  }
+
+  const result = hoist(lockfile, { autoInstallPeers: false })
+  const app = [...result.dependencies].find(({ name }) => name === 'app')!
+  const widget = [...app.dependencies].find(({ name }) => name === 'widget')
+
+  expect([...result.dependencies].map(({ name }) => name).sort()).toEqual(['app', 'react'])
+  expect([...app.dependencies].map(({ name }) => name).sort()).toEqual(['react', 'widget'])
+  expect(widget?.dependencies.size).toBe(0)
+})
+
 test.each([
   ['Set', (name: string) => new Set([name])],
   ['Array', (name: string) => [name]],

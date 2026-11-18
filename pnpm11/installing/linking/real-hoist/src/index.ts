@@ -294,7 +294,7 @@ function getOrCreatePackageNode (
       dependencyKind: HoisterDependencyKind.REGULAR,
       identName: pkgName,
       name: alias,
-      peerNames: resolvePeerNames(pkgSnapshot, ctx.autoInstallPeers),
+      peerNames: ctx.autoInstallPeers ? new Set() : resolvePeerNames(depPath as DepPath, pkgSnapshot),
       reference: ctx.depPathByPkgId.get(id)!,
     }
     ctx.nodes.set(key, node)
@@ -306,21 +306,42 @@ function getOrCreatePackageNode (
   return node
 }
 
-function resolvePeerNames (
-  pkgSnapshot: PackageSnapshot,
-  autoInstallPeers?: boolean
-): Set<string> {
-  if (autoInstallPeers) {
-    return new Set()
-  }
+function resolvePeerNames (depPath: DepPath, pkgSnapshot: PackageSnapshot): Set<string> {
   const peerNames = new Set([
     ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
     ...(pkgSnapshot.transitivePeerDependencies ?? []),
   ])
-  // The lockfile records a peer even when the package's own dependency
-  // provides it. That dependency is a child of the node, not a peer.
-  for (const name of Object.keys({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })) {
+  for (const name of getOwnDependenciesDeclaredAsPeers(depPath, pkgSnapshot)) {
     peerNames.delete(name)
   }
   return peerNames
+}
+
+/**
+ * The declared peers that the package's own dependency provides. The lockfile
+ * records every declared peer, but `depPath`'s peer suffix binds only the
+ * peers resolved from outside the package. A hashed suffix names no provider,
+ * so every declared peer stays a peer.
+ */
+function getOwnDependenciesDeclaredAsPeers (depPath: DepPath, pkgSnapshot: PackageSnapshot): string[] {
+  const declaredPeers = Object.keys(pkgSnapshot.peerDependencies ?? {})
+  if (declaredPeers.length === 0) return []
+  const bindings = dp.parsePeerBindings(depPath)
+  const boundProviders = bindings == null ? new Set<string>() : dp.getBoundPeerProviders(bindings)
+  if (boundProviders == null) return []
+  return declaredPeers.filter((name) => {
+    const ref = getOwnDependencyRef(pkgSnapshot, name)
+    const target = ref == null ? null : dp.refToRelative(ref, name)
+    return target != null && !boundProviders.has(dp.removePeersSuffix(target))
+  })
+}
+
+function getOwnDependencyRef (pkgSnapshot: PackageSnapshot, name: string): string | undefined {
+  if (pkgSnapshot.dependencies != null && Object.hasOwn(pkgSnapshot.dependencies, name)) {
+    return pkgSnapshot.dependencies[name]
+  }
+  if (pkgSnapshot.optionalDependencies != null && Object.hasOwn(pkgSnapshot.optionalDependencies, name)) {
+    return pkgSnapshot.optionalDependencies[name]
+  }
+  return undefined
 }
