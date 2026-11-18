@@ -809,6 +809,71 @@ fn audit_ignore_unfixable_ignores_advisories_without_a_fix() {
     mock.assert();
 }
 
+#[test]
+fn audit_ignore_unfixable_ignores_advisories_whose_inferred_fix_was_never_published() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"time":{"1.0.0":"2020-01-01T00:00:00.000Z","unpublished":{"time":"2020-03-01T00:00:00.000Z","versions":["2.0.0"]}}}"#,
+        )
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--ignore-unfixable")
+        .output()
+        .expect("run pacquet audit --ignore-unfixable");
+
+    assert_success(&output);
+    assert_eq!(stdout(&output), "1 new vulnerabilities were ignored:\nGHSA-test-1111-2222\n");
+    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()]);
+    mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
+fn audit_ignore_unfixable_keeps_the_inferred_fix_when_a_version_timestamp_is_malformed() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"time":{"1.0.0":"2020-01-01T00:00:00.000Z","2.0.0":null}}"#)
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--ignore-unfixable")
+        .output()
+        .expect("run pacquet audit --ignore-unfixable");
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(audit_config_ignore_ghsas(&workspace), Vec::<String>::new());
+    mock.assert();
+    packument_mock.assert();
+}
+
 /// Run `pnpm audit <args>` against a registry serving one unfixable high
 /// advisory (`GHSA-test-1111-2222`) and one fixable low advisory
 /// (`GHSA-test-3333-4444`), returning the exit code.
