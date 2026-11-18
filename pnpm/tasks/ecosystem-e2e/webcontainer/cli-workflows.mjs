@@ -95,9 +95,9 @@ export function inspectionWorkflowSteps (entry) {
 
 export function cleanCapabilitySteps (entry) {
   return [
-    { name: 'clean workspace dependencies', command: 'node', args: [entry, 'clean'], expectExitCode: 1, expectOutput: 'Directory not empty' },
+    { name: 'clean workspace dependencies', command: 'node', args: [entry, 'clean'], env: { npm_config_manage_package_manager_versions: 'false' }, expectExitCode: 1, expectOutput: 'Directory not empty' },
     { name: 'inspect entries left by WASI cleanup', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--list-clean-remnants'], expectOutput: 'clean left' },
-    { name: 'clean alias purge reports the same filesystem error', command: 'node', args: [entry, 'purge'], expectExitCode: 1, expectOutput: 'Directory not empty' },
+    { name: 'clean alias purge reports the same filesystem error', command: 'node', args: [entry, 'purge'], env: { npm_config_manage_package_manager_versions: 'false' }, expectExitCode: 1, expectOutput: 'Directory not empty' },
     { name: 'remove remaining virtual store through the WebContainer Node API', command: 'node', args: ['-e', "require('node:fs').rmSync('node_modules/.pnpm', { recursive: true, force: true })"] },
     { name: 'verify Node recursive removal cleared the virtual store', command: 'node', args: ['-e', "if (require('node:fs').existsSync('node_modules/.pnpm')) throw new Error('Node recursive removal left .pnpm')"] },
   ]
