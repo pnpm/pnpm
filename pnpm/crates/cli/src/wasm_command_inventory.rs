@@ -12,7 +12,11 @@ fn every_clap_command_has_a_webcontainer_classification() {
         .map(|line| {
             let fields = line.split('\t').collect::<Vec<_>>();
             assert_eq!(fields.len(), 3, "invalid command inventory row: {line}");
-            assert!(matches!(fields[1], "partial" | "none"));
+            assert!(matches!(fields[1], "partial" | "routed" | "none"));
+            assert!(
+                fields[0].starts_with("mode:") || fields[1] != "none",
+                "every CLI command must be exercised by the WebContainer routing audit: {line}"
+            );
             assert!(matches!(
                 fields[2],
                 "available"

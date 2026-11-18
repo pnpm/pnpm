@@ -16,6 +16,7 @@ else if (process.argv[2] === '--network-cert-fixtures') writeNetworkCertificateF
 else if (process.argv[2] === '--client-identity-config') writeClientIdentityConfig()
 else if (process.argv[2] === '--install-test-fixture') createInstallTestFixture()
 else if (process.argv[2] === '--doctor') inspectDoctor(process.argv[3])
+else if (process.argv[2] === '--command-routing') assertCommandRouting(process.argv[3], process.argv[4])
 else if (process.argv[2] === '--list-clean-remnants') listCleanRemnants()
 else if (process.argv[2] === '--clean-tree-fixture') createCleanTreeFixture()
 else createWorkspaceFixture()
@@ -491,6 +492,33 @@ function inspectDoctor (entry) {
   const failures = report.checks.filter(check => check.status === 'fail').map(check => `${check.title}: ${check.detail}`)
   console.log(`doctor completed ${report.checks.length} offline checks with exit code ${result.status}; failed checks: ${failures.join('; ') || 'none'}`)
   assert.equal(result.status, 0, `${result.stderr}\n${failures.join('\n')}`)
+}
+
+function assertCommandRouting (entry, inventoryPath) {
+  const rows = readFileSync(inventoryPath, 'utf8').trim().split('\n').slice(1)
+  const projectBefore = snapshot('.')
+  let tested = 0
+  for (const row of rows) {
+    const [path] = row.split('\t')
+    if (path.startsWith('mode:')) continue
+    const commandPath = path.startsWith('alias:') ? aliasCommandPath(path) : path
+    const args = commandPath.split(' ')
+    const help = spawnSync(process.execPath, [entry, ...args, '--help'], { encoding: 'utf8' })
+    assert.equal(help.status, 0, `${path} help failed: ${help.stderr || help.stdout}`)
+    assert.match(help.stdout, /Usage:/, `${path} did not print command usage`)
+
+    const invalid = spawnSync(process.execPath, [entry, '--__pnpm_wasm_audit_unknown_option', ...args], { encoding: 'utf8' })
+    assert.equal(invalid.status, 2, `${path} accepted an unknown global option: ${invalid.stderr || invalid.stdout}`)
+    tested++
+  }
+  assert.deepEqual(snapshot('.'), projectBefore, 'command routing checks changed project files')
+  console.log(`WebContainer command routing passed for ${tested} commands, subcommands and aliases`)
+}
+
+function aliasCommandPath (path) {
+  const [canonicalPath, alias] = path.slice('alias:'.length).split('=')
+  const parentPath = canonicalPath.split(' ').slice(0, -1).join(' ')
+  return [parentPath, alias].filter(Boolean).join(' ')
 }
 
 function listCleanRemnants () {

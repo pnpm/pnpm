@@ -6,8 +6,10 @@ paths and aliases are checked against the Clap tree in
 execution modes that Clap does not model as subcommands.
 
 `coverage` records behavioral evidence from the packaged WebContainer CLI.
-`partial` means some real-runtime behavior is covered, not that success and
-failure cases are complete. `none` means no such coverage is recorded.
+`partial` means some command behavior is tested in the real runtime, but the
+success and failure cases are incomplete. `routed` means the packaged browser
+runtime accepts the command's help path and rejects an unknown global option;
+it does not claim the command's behavior works. `none` means neither is tested.
 
 `capability` records the current host assessment:
 
@@ -22,7 +24,8 @@ failure cases are complete. `none` means no such coverage is recorded.
 - `not-implemented`: pnpm does not implement the command in its native CLI.
 
 Update the ledger when the Clap tree or audited capability changes. Add
-packaged-runtime coverage before changing a command from `none` to `partial`.
+behavioral runtime coverage before changing a command from `routed` to
+`partial`.
 
 The installed-workspace `clean` and `purge` probes report `Directory not empty`;
 the validation record distinguishes these failures from the successful isolated
