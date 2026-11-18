@@ -1703,12 +1703,42 @@ describe('local file dependency', () => {
           ...options.wantedLockfile,
           packages: {
             'local@file:./local-dir': { ...localDirSnapshot, dependencies: { other: ref } },
+            'other@file:other-dir': { resolution: { directory: 'other-dir', type: 'directory' } },
           } as LockfileObject['packages'],
         },
       })
     }
     expect(await check('../other-dir', 'link:other-dir')).toBeTruthy()
     expect(await check('../other.tgz', 'link:other.tgz')).toBeFalsy()
+  })
+
+  test.each([
+    [true, 'file:other-dir', 'link:other-dir'],
+    [false, 'link:other-dir', 'file:other-dir'],
+  ])('allProjectsAreUpToDate(): detects a changed injected setting for a local child', async (injected, initialRef, changedRef) => {
+    await mkdir('other-dir')
+    await writeFile('./other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    const check = async (metaInjected: boolean, ref: string) => {
+      await writeLocalDirManifest({
+        dependencies: { other: '../other-dir' },
+        dependenciesMeta: { other: { injected: metaInjected } },
+      })
+      return allProjectsAreUpToDate(projects, {
+        ...options,
+        lockfileDir: process.cwd(),
+        wantedLockfile: {
+          ...options.wantedLockfile,
+          packages: {
+            'local@file:./local-dir': { ...localDirSnapshot, dependencies: { other: ref } },
+            'other@file:other-dir': { resolution: { directory: 'other-dir', type: 'directory' } },
+          } as LockfileObject['packages'],
+        },
+      })
+    }
+    expect(await check(injected, initialRef)).toBeTruthy()
+    expect(await check(!injected, initialRef)).toBeFalsy()
+    expect(await check(!injected, changedRef)).toBeTruthy()
   })
 
   // Windows forbids a colon in a directory name.
@@ -2759,6 +2789,9 @@ test('allProjectsAreUpToDate(): works with injected workspace dependency with a 
     version: '1.0.0',
     dependencies: {
       'pkg-b': 'workspace:*',
+    },
+    dependenciesMeta: {
+      'pkg-b': { injected: true },
     },
   }))
   await writeFile('./packages/pkg-b/package.json', JSON.stringify({

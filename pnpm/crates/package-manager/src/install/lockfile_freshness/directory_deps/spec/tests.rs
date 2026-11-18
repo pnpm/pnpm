@@ -349,8 +349,77 @@ fn local_spec_satisfies(
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    super::spec_satisfies_snapshot_dep(dirs, local_dep_dir, dep_name, spec, lockfile_dep)
-        .expect("a local spec is judged")
+    local_spec_satisfies_injected(
+        dirs,
+        local_dep_dir,
+        dep_name,
+        spec,
+        lockfile_dep.as_link_target().is_none(),
+        lockfile_dep,
+    )
+}
+
+fn local_spec_satisfies_injected(
+    dirs: &SpecDirs<'_>,
+    local_dep_dir: &Path,
+    dep_name: &str,
+    spec: &str,
+    injected: bool,
+    lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
+) -> bool {
+    super::spec_satisfies_snapshot_dep(
+        dirs,
+        local_dep_dir,
+        dep_name,
+        spec,
+        Some(injected),
+        lockfile_dep,
+    )
+    .expect("a local spec is judged")
+}
+
+#[test]
+fn local_child_injection_setting_must_match_the_lockfile_reference_kind() {
+    let workspace_root = PathBuf::from("/workspace");
+    let local_dep_dir = workspace_root.join("packages/injected");
+    let dirs = dirs(&workspace_root, &workspace_root);
+    let linked: pnpm_lockfile::SnapshotDepRef = "link:packages/child".parse().unwrap();
+    let injected: pnpm_lockfile::SnapshotDepRef = "file:packages/child".parse().unwrap();
+
+    for spec in ["../child", "workspace:../child"] {
+        assert!(local_spec_satisfies_injected(
+            &dirs,
+            &local_dep_dir,
+            "child",
+            spec,
+            false,
+            &linked
+        ));
+        assert!(!local_spec_satisfies_injected(
+            &dirs,
+            &local_dep_dir,
+            "child",
+            spec,
+            true,
+            &linked
+        ));
+        assert!(local_spec_satisfies_injected(
+            &dirs,
+            &local_dep_dir,
+            "child",
+            spec,
+            true,
+            &injected
+        ));
+        assert!(!local_spec_satisfies_injected(
+            &dirs,
+            &local_dep_dir,
+            "child",
+            spec,
+            false,
+            &injected
+        ));
+    }
 }
 
 #[test]

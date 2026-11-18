@@ -94,8 +94,7 @@ use super::{
         wanted_lockfile_contains_satisfying_entry,
     },
     tree_ctx::{
-        TreeCtx, declaring_manifest_dir, opts_relative_to_declaring_manifest,
-        project_relative_cache_scope,
+        TreeCtx, declaring_manifest_dir, opts_for_child_spec, project_relative_cache_scope,
     },
     update_scope::{is_update_target, update_unpins_edge},
     workspace_ctx::{

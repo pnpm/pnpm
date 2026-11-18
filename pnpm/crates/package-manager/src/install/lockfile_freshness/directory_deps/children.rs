@@ -218,12 +218,14 @@ fn implicit_workspace_target_satisfies(
         && !super::is_declared_by_path(&child.bare_specifier)
     {
         let spec = child.bare_specifier.strip_prefix("npm:").unwrap_or(&child.bare_specifier);
+        let workspace_spec = format!("workspace:{spec}");
         return Some(
             super::spec::spec_satisfies_snapshot_dep(
                 &dep.dirs,
                 dep.dir,
                 &child.alias,
-                &format!("workspace:{spec}"),
+                &workspace_spec,
+                None,
                 recorded,
             )
             .unwrap_or(false),
@@ -305,8 +307,24 @@ fn recorded_child_satisfies_spec(
     child: &DependencySpec,
     recorded: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, &child.alias, &child.bare_specifier, recorded)
-        .unwrap_or(check.optional_exclusions.frozen_lockfile)
+    spec_satisfies_snapshot_dep(
+        &dep.dirs,
+        dep.dir,
+        &child.alias,
+        &child.bare_specifier,
+        Some(child_is_injected(check, child)),
+        recorded,
+    )
+    .unwrap_or(check.optional_exclusions.frozen_lockfile)
+}
+
+fn child_is_injected(check: &ImporterSatisfactionCheck<'_>, child: &DependencySpec) -> bool {
+    child.injected
+        || (child.bare_specifier.starts_with("workspace:")
+            && (check.config.inject_workspace_packages
+                || check.lockfile.settings
+                    .as_ref()
+                    .is_some_and(|settings| settings.inject_workspace_packages)))
 }
 
 /// Which of a snapshot's two dependency maps a child is recorded in.
