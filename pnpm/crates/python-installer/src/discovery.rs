@@ -2,6 +2,7 @@
 //! the workspace selection and the install itself see the same manifests.
 
 use super::{
+    environment::{EnvironmentLink, EnvironmentStore},
     manifest::{Manifest, RequirementScope},
     requirements,
     workspace::{Workspace, members::DeclaredWorkspaces},
@@ -43,6 +44,10 @@ const DEFAULT_IGNORED_DIRECTORY_BASENAMES: &[&str] = &[
 pub struct Discovery {
     pub(super) roots: Vec<(PathBuf, Arc<Manifest>)>,
     pub(super) workspace: Workspace,
+    /// The requirements-only directories whose `.venv` is unmanaged.
+    /// Such a `requirements.txt` often lists tooling its user installs by
+    /// other means, so the directory is not a project.
+    pub(super) unmanaged: Vec<PathBuf>,
 }
 
 /// A discovered project as the workspace filter sees it: the directory
@@ -69,13 +74,18 @@ pub async fn discover(
     workspace_root: &Path,
     manifests: &[PathBuf],
 ) -> Result<Discovery> {
-    let roots = read_project_manifests(manifests, workspace_root, config.workspace_dir.as_deref())
-        .await?
+    let reading = Reading {
+        workspace_root,
+        allowed_root: config.workspace_dir.as_deref(),
+        environments: EnvironmentStore::new(config),
+    };
+    let (roots, unmanaged) = read_project_manifests(manifests, reading).await?;
+    let roots = roots
         .into_iter()
         .map(|(root, manifest)| (root, Arc::new(manifest)))
         .collect::<Vec<_>>();
     let workspace = Workspace::new(&roots)?;
-    Ok(Discovery { roots, workspace })
+    Ok(Discovery { roots, workspace, unmanaged })
 }
 
 impl Discovery {
@@ -112,13 +122,15 @@ impl Discovery {
         config: &pnpm_config::Config,
         edited: &BTreeSet<PathBuf>,
     ) -> Result<Self> {
+        let environments = EnvironmentStore::new(config);
         for root in edited {
             let path = root.join("pyproject.toml");
             let contents = tokio::fs::read_to_string(&path).await
                 .into_diagnostic()
                 .wrap_err_with(|| format!("read {}", path.display()))?;
             let allowed_root = config.workspace_dir.as_deref().unwrap_or(root);
-            let manifest = Arc::new(read_manifest(&path, &contents, allowed_root).await?);
+            let adjacent = Adjacent { allowed_root, environments: &environments };
+            let manifest = Arc::new(read_manifest(&path, &contents, adjacent).await?);
             match self.roots
                 .iter_mut()
                 .find(|(discovered, _)| discovered == root)
@@ -162,47 +174,58 @@ impl Discovery {
     }
 }
 
-/// The Python manifests admitted by the nearest `[tool.uv.workspace]`.
+struct Reading<'a> {
+    workspace_root: &'a Path,
+    allowed_root: Option<&'a Path>,
+    environments: EnvironmentStore,
+}
+
+/// The Python manifests admitted by the nearest `[tool.uv.workspace]`, and
+/// the directories [`Discovery::unmanaged`] names.
 /// Outside a declared workspace, conventional sample and fixture directories
 /// are not projects unless a declaration explicitly includes them.
 async fn read_project_manifests(
     manifests: &[PathBuf],
-    workspace_root: &Path,
-    allowed_root: Option<&Path>,
-) -> Result<Vec<(PathBuf, Manifest)>> {
-    let (pyprojects, declared) = read_pyprojects(manifests, workspace_root).await?;
-    let mut candidates = ProjectManifests { pyprojects, declared, workspace_root, allowed_root };
+    reading: Reading<'_>,
+) -> Result<(Vec<(PathBuf, Manifest)>, Vec<PathBuf>)> {
+    let (pyprojects, declared) = read_pyprojects(manifests, reading.workspace_root).await?;
+    let mut candidates = ProjectManifests { pyprojects, declared, reading };
     let mut roots = Vec::new();
+    let mut unmanaged = Vec::new();
     for path in manifests {
         let root = path.parent().expect("manifest has a parent");
         let Some(manifest) = candidates.read(path).await? else { continue };
+        if manifest.has_unmanaged_requirements {
+            unmanaged.push(root.to_path_buf());
+        }
         if declares_python_project(&manifest) {
             roots.push((root.to_path_buf(), manifest));
         }
     }
-    Ok(roots)
+    Ok((roots, unmanaged))
 }
 
 struct ProjectManifests<'a> {
     pyprojects: BTreeMap<PathBuf, Manifest>,
     declared: DeclaredWorkspaces,
-    workspace_root: &'a Path,
-    allowed_root: Option<&'a Path>,
+    reading: Reading<'a>,
 }
 
 impl ProjectManifests<'_> {
     async fn read(&mut self, path: &Path) -> Result<Option<Manifest>> {
         let root = path.parent().expect("manifest has a parent");
+        let adjacent = Adjacent {
+            allowed_root: self.reading.allowed_root.unwrap_or(root),
+            environments: &self.reading.environments,
+        };
         if is_pyproject(path) {
             let Some(manifest) = self.pyprojects.remove(path) else { return Ok(None) };
-            return read_adjacent_requirements(path, manifest, self.allowed_root.unwrap_or(root))
-                .await
-                .map(Some);
+            return read_adjacent_requirements(path, manifest, adjacent).await.map(Some);
         }
-        if !is_discovered(root, self.workspace_root, &self.declared) {
+        if !is_discovered(root, self.reading.workspace_root, &self.declared) {
             return Ok(None);
         }
-        read_manifest(path, "", self.allowed_root.unwrap_or(root)).await.map(Some)
+        read_manifest(path, "", adjacent).await.map(Some)
     }
 }
 
@@ -305,36 +328,64 @@ fn is_ignored_by_default(project: &Path, workspace_root: &Path) -> bool {
         })
 }
 
-async fn read_manifest(path: &Path, contents: &str, allowed_root: &Path) -> Result<Manifest> {
+async fn read_manifest(path: &Path, contents: &str, adjacent: Adjacent<'_>) -> Result<Manifest> {
     let manifest =
         if is_pyproject(path) { Manifest::parse(contents)? } else { Manifest::parse("")? };
-    read_adjacent_requirements(path, manifest, allowed_root).await
+    read_adjacent_requirements(path, manifest, adjacent).await
+}
+
+/// What reading a `requirements.txt` beside a manifest needs.
+#[derive(Clone, Copy)]
+struct Adjacent<'a> {
+    allowed_root: &'a Path,
+    environments: &'a EnvironmentStore,
 }
 
 /// Read the `requirements.txt` beside a manifest that declares no
 /// `[project]` as its dependencies. A manifest that declares a workspace
 /// is excluded: like uv's virtual workspace root, it is not a member of
 /// its own workspace, and a `requirements.txt` there usually lists tooling
-/// installed by other means.
+/// installed by other means. So is a directory [`Discovery::unmanaged`]
+/// names, whose file is left unread.
 async fn read_adjacent_requirements(
     path: &Path,
     mut manifest: Manifest,
-    allowed_root: &Path,
+    adjacent: Adjacent<'_>,
 ) -> Result<Manifest> {
-    if manifest.project.is_none() && manifest.tool.uv.workspace.is_none() {
-        let requirements_path = path.with_file_name("requirements.txt");
-        if tokio::fs::try_exists(&requirements_path).await.into_diagnostic()? {
-            let allowed_root = allowed_root.to_path_buf();
-            let requirements = tokio::task::spawn_blocking(move || {
-                requirements::read(&requirements_path, &allowed_root)
-            })
-            .await
-            .into_diagnostic()
-            .wrap_err("join Python requirements parsing")??;
-            manifest.set_requirements_file(requirements);
-        }
+    if manifest.project.is_some() || manifest.tool.uv.workspace.is_some() {
+        return Ok(manifest);
+    }
+    let requirements_path = path.with_file_name("requirements.txt");
+    if !tokio::fs::try_exists(&requirements_path).await.into_diagnostic()? {
+        return Ok(manifest);
+    }
+    let allowed_root = adjacent.allowed_root.to_path_buf();
+    let environments = adjacent.environments.clone();
+    let requirements = tokio::task::spawn_blocking(move || {
+        read_managed_requirements(&environments, &requirements_path, &allowed_root)
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("join Python requirements parsing")??;
+    match requirements {
+        Some(requirements) => manifest.set_requirements_file(requirements),
+        None => manifest.has_unmanaged_requirements = true,
     }
     Ok(manifest)
+}
+
+/// The requirements `path` lists, or `None` when the `.venv` beside it is
+/// unmanaged.
+fn read_managed_requirements(
+    environments: &EnvironmentStore,
+    path: &Path,
+    allowed_root: &Path,
+) -> Result<Option<Vec<String>>> {
+    let root = path.parent().expect("requirements file has a parent");
+    if matches!(environments.link(root)?, EnvironmentLink::Unmanaged) {
+        return Ok(None);
+    }
+    requirements::read(path, allowed_root).map(Some)
 }
 
 #[cfg(test)]

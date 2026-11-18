@@ -580,7 +580,13 @@ fn a_requirements_only_project_with_an_unmanaged_environment_is_skipped() {
             Some(contents) => fs::write(root.path().join("pyproject.toml"), contents).unwrap(),
             None => fs::remove_file(root.path().join("pyproject.toml")).unwrap(),
         }
-        fs::write(root.path().join("requirements.txt"), "ruff==0.14.13\n").unwrap();
+        // An option pnpm does not read: the file is the user's, so it is
+        // never parsed.
+        fs::write(
+            root.path().join("requirements.txt"),
+            "--index-url https://example.com/simple\nruff==0.14.13\n",
+        )
+        .unwrap();
         fs::create_dir(root.path().join(".venv")).unwrap();
         fs::write(root.path().join(".venv/owned-by-user"), "preserve").unwrap();
         for arguments in
