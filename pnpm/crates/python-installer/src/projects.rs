@@ -8,13 +8,13 @@ mod disagreement;
 use super::{
     Environments, Interpreter, Interpreters, Prepared,
     build::MetadataScope,
-    environment::{PythonPrepare, Shared},
+    environment::{EnvironmentLink, EnvironmentStore, PythonPrepare, Shared},
     interpreter, manifest,
     workspace::{self, members::Membership},
 };
 use futures_util::{StreamExt, stream};
 use miette::Result;
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
@@ -48,7 +48,8 @@ async fn select<Reporter: self::Reporter + 'static>(
 ) -> Result<Vec<Unit>> {
     let config = shared.context.config;
     let mut interpreters = Interpreters::new(config, &shared.context.http_client);
-    let memberships = workspace.memberships(selected);
+    let memberships =
+        installable::<Reporter>(shared, workspace.memberships(selected), &discovered)?;
     let needed = memberships
         .iter()
         .flat_map(|membership| membership.members.iter().cloned())
@@ -72,6 +73,44 @@ async fn select<Reporter: self::Reporter + 'static>(
         units.push(selecting.unit::<Reporter>(membership).await?);
     }
     Ok(units)
+}
+
+/// The memberships an install prepares. A requirements-only project often
+/// lists tooling its user installs into a `.venv` of their own, so one
+/// whose `.venv` is unmanaged is left alone with a warning. A command that
+/// names the project it changes still refuses the environment.
+fn installable<Reporter: self::Reporter + 'static>(
+    shared: &Shared<'_>,
+    mut memberships: Vec<Membership>,
+    discovered: &[(PathBuf, Arc<manifest::Manifest>)],
+) -> Result<Vec<Membership>> {
+    if shared.asked.resolve {
+        return Ok(memberships);
+    }
+    let store = EnvironmentStore::new(shared.context.config);
+    for (root, _) in discovered.iter().filter(|(_, manifest)| manifest.is_requirements_only) {
+        let Some(position) = memberships
+            .iter()
+            .position(|membership| membership.root == *root)
+        else {
+            continue;
+        };
+        if !matches!(store.link(root)?, EnvironmentLink::Unmanaged) {
+            continue;
+        }
+        memberships.remove(position);
+        let environment = root.join(".venv");
+        Reporter::emit(&LogEvent::Global(GlobalLog {
+            level: LogLevel::Warn,
+            message: format!(
+                "Skipping the Python requirements in {}: pnpm did not create {}. Remove that \
+                 directory to let pnpm install them.",
+                root.display(),
+                environment.display(),
+            ),
+        }));
+    }
+    Ok(memberships)
 }
 
 /// What selecting the units of one install reads and looks at.

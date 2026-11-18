@@ -55,7 +55,7 @@ Python requirement, marker, and lockfile semantics are kept separate from npm's 
 
 Added in: v12.5.0
 
-pnpm installs the project's own package editable when it declares `[build-system]`, making its imports and `[project.scripts]` commands available immediately. Source edits take effect without reinstalling. `[tool.uv].package` overrides whether the project is packaged. Dynamic metadata is read from the declared build backend. A project with only `requirements.txt` can also receive an environment and `pylock.toml`.
+pnpm installs the project's own package editable when it declares `[build-system]`, making its imports and `[project.scripts]` commands available immediately. Source edits take effect without reinstalling. `[tool.uv].package` overrides whether the project is packaged. Dynamic metadata is read from the declared build backend. A project with only `requirements.txt` can also receive an environment and `pylock.toml`. If its directory already has a `.venv` that pnpm did not create, `pnpm install` leaves that project alone and prints a warning. Remove the `.venv` to let pnpm install the requirements.
 
 Declare workspace and local dependencies in `pyproject.toml`:
 

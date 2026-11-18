@@ -570,3 +570,40 @@ fn a_virtual_workspace_root_leaves_its_requirements_and_environment_alone() {
     assert_eq!(fs::read_to_string(root.path().join(".venv/owned-by-user")).unwrap(), "preserve");
     assert!(!root.path().join("pylock.toml").exists());
 }
+
+#[test]
+fn a_requirements_only_project_with_an_unmanaged_environment_is_skipped() {
+    for manifest in [None, Some("[tool.ruff]\nline-length = 100\n")] {
+        let root = tempfile::tempdir().unwrap();
+        project(root.path(), "https://unused.invalid", &[]);
+        match manifest {
+            Some(contents) => fs::write(root.path().join("pyproject.toml"), contents).unwrap(),
+            None => fs::remove_file(root.path().join("pyproject.toml")).unwrap(),
+        }
+        fs::write(root.path().join("requirements.txt"), "ruff==0.14.13\n").unwrap();
+        fs::create_dir(root.path().join(".venv")).unwrap();
+        fs::write(root.path().join(".venv/owned-by-user"), "preserve").unwrap();
+        for arguments in
+            [&["install", "--offline"][..], &["install", "--offline", "--frozen-lockfile"]]
+        {
+            let output = super::pacquet_in(root.path())
+                .args(arguments)
+                .assert()
+                .success()
+                .get_output()
+                .clone();
+            let reported = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+            eprintln!("{reported}");
+            assert!(reported.contains("Skipping the Python requirements in"));
+        }
+        assert_eq!(
+            fs::read_to_string(root.path().join(".venv/owned-by-user")).unwrap(),
+            "preserve",
+        );
+        assert!(!root.path().join("pylock.toml").exists());
+    }
+}

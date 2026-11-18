@@ -22,6 +22,19 @@ pub(crate) struct EnvironmentStore {
     frozen: bool,
 }
 
+/// What a project's `.venv` is to pnpm.
+pub(crate) enum EnvironmentLink {
+    /// There is no `.venv`, or it links to an environment that no longer
+    /// exists.
+    Absent,
+    /// A link to this generation of pnpm's. A link into the store from
+    /// another project's directory is still pnpm's: a project that has
+    /// moved keeps its environment.
+    Managed(PathBuf),
+    /// A directory, or a link to anything but a generation of pnpm's.
+    Unmanaged,
+}
+
 impl EnvironmentStore {
     pub(crate) fn new(config: &pnpm_config::Config) -> Self {
         Self { root: config.store_dir.root().join("python-envs"), frozen: config.frozen_store }
@@ -66,34 +79,35 @@ impl EnvironmentStore {
     }
 
     /// The generation the project's `.venv` currently links to, or `None`
-    /// when it has no environment, or links to one that no longer exists.
-    ///
-    /// pnpm replaces only a link it made, so a `.venv` that is a directory,
-    /// or a link to anything but a generation of pnpm's, is refused. A link
-    /// into this store from another project's directory is still pnpm's: a
-    /// project that has moved keeps its environment.
+    /// when it has no environment. pnpm replaces only a link it made, so
+    /// an [`EnvironmentLink::Unmanaged`] one is refused.
     pub(crate) fn validate_link(&self, root: &Path) -> Result<Option<PathBuf>> {
+        match self.link(root)? {
+            EnvironmentLink::Absent => Ok(None),
+            EnvironmentLink::Managed(generation) => Ok(Some(generation)),
+            EnvironmentLink::Unmanaged => {
+                let link = root.join(".venv");
+                bail!("pnpm will not replace an unmanaged Python environment: {}", link.display());
+            }
+        }
+    }
+
+    pub(crate) fn link(&self, root: &Path) -> Result<EnvironmentLink> {
         let link = root.join(".venv");
         match fs::symlink_metadata(&link) {
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(EnvironmentLink::Absent),
             Err(error) => Err(error).into_diagnostic(),
             Ok(_) => {
                 if !pnpm_fs::is_symlink_or_junction(&link).into_diagnostic()? {
-                    bail!(
-                        "pnpm will not replace an unmanaged Python environment: {}",
-                        link.display(),
-                    );
+                    return Ok(EnvironmentLink::Unmanaged);
                 }
                 let Some(target) = link_target(root, &link)? else {
-                    return Ok(None);
+                    return Ok(EnvironmentLink::Absent);
                 };
                 if !self.holds(&target)? && !holds_beside_project(root, &target)? {
-                    bail!(
-                        "pnpm will not replace an unmanaged Python environment: {}",
-                        link.display(),
-                    );
+                    return Ok(EnvironmentLink::Unmanaged);
                 }
-                Ok(Some(target))
+                Ok(EnvironmentLink::Managed(target))
             }
         }
     }

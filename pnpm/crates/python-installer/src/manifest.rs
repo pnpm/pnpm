@@ -40,6 +40,9 @@ pub(super) struct Manifest {
     pub(super) metadata_wheel: Option<std::sync::Arc<super::build::FallbackWheel>>,
     #[serde(skip)]
     pub(super) metadata_output: Option<std::sync::Arc<tempfile::TempDir>>,
+    /// Whether the project is a `requirements.txt`, not a `[project]` table.
+    #[serde(skip)]
+    pub(super) is_requirements_only: bool,
     #[serde(default, rename = "dependency-groups")]
     groups: BTreeMap<String, Vec<toml::Value>>,
     #[serde(default, rename = "build-system")]
@@ -232,6 +235,7 @@ impl Manifest {
             optional_dependencies: BTreeMap::new(),
         });
         self.tool.uv.package = Some(false);
+        self.is_requirements_only = true;
     }
 
     pub(super) fn parse(contents: &str) -> Result<Self> {
