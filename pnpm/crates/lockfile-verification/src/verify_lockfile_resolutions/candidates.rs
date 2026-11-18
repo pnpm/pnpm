@@ -112,7 +112,7 @@ pub(super) async fn run_fan_out(
 ) -> Result<Vec<ResolutionPolicyViolation>, String> {
     let limit = concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
     let semaphore = Arc::new(Semaphore::new(limit));
-    let mut futures = FuturesUnordered::new();
+    let futures = FuturesUnordered::new();
     for candidate in candidates {
         let verifiers = candidate_verifiers(&candidate, verifiers);
         if verifiers.is_empty() {
