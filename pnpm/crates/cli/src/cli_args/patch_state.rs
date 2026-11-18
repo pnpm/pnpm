@@ -175,7 +175,9 @@ fn remove_matching_state_entries(
     let target_keys: HashSet<String> = patches
         .iter()
         .map(|patch| state_dir.join(patch))
-        .filter(|edit_dir| !edit_dir.exists() || is_link_free_under(state_dir, edit_dir))
+        .filter(|edit_dir| {
+            !edit_dir.exists() || link_free_relative_path(state_dir, edit_dir).is_some()
+        })
         .map(|edit_dir| edit_dir_key(&edit_dir))
         .collect::<Result<_, _>>()?;
     state.retain(|key, entry| {
@@ -212,33 +214,33 @@ fn save_or_remove_state_file(
 
 fn remove_edit_dirs(state_dir: &Path, dirs: &HashSet<PathBuf>) -> Result<(), StateFileError> {
     for dir in dirs {
-        if !is_real_dir(dir) || !is_link_free_under(state_dir, dir) {
+        if !is_real_dir(dir) {
             continue;
         }
+        let Some(relative) = link_free_relative_path(state_dir, dir) else { continue };
         if let Err(source) = fs::remove_dir_all(dir)
             && source.kind() != io::ErrorKind::NotFound
         {
             return Err(StateFileError::RemoveEditDir { path: dir.clone(), source });
         }
-        remove_empty_ancestors(state_dir, dir);
+        remove_empty_ancestors(state_dir, &relative);
     }
     Ok(())
 }
 
-/// Whether `dir` is strictly inside `state_dir` with no symbolic link on the
-/// way, so removing it cannot reach another edit directory or leave the state
-/// directory. `dir` may be spelled through `state_dir` or its canonical form.
-fn is_link_free_under(state_dir: &Path, dir: &Path) -> bool {
-    let Ok(canonical_state_dir) = dunce::canonicalize(state_dir) else { return false };
-    let Some(relative) = dir
+/// The path of `dir` relative to `state_dir` when `dir` is strictly inside
+/// `state_dir` with no symbolic link on the way, so removing it cannot reach
+/// another edit directory or leave the state directory. `dir` may be spelled
+/// through `state_dir` or its canonical form.
+fn link_free_relative_path(state_dir: &Path, dir: &Path) -> Option<PathBuf> {
+    let canonical_state_dir = dunce::canonicalize(state_dir).ok()?;
+    let relative = dir
         .strip_prefix(state_dir)
         .or_else(|_| dir.strip_prefix(&canonical_state_dir))
-        .ok()
-    else {
-        return false;
-    };
-    !relative.as_os_str().is_empty()
-        && dunce::canonicalize(dir).is_ok_and(|real| real == canonical_state_dir.join(relative))
+        .ok()?;
+    let is_link_free = !relative.as_os_str().is_empty()
+        && dunce::canonicalize(dir).is_ok_and(|real| real == canonical_state_dir.join(relative));
+    is_link_free.then(|| relative.to_path_buf())
 }
 
 /// Whether `path` is a directory itself, not a file or a link to a directory.
@@ -246,11 +248,12 @@ fn is_real_dir(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|meta| meta.is_dir())
 }
 
-/// Removes the directories between `state_dir` and a removed edit directory,
-/// such as the scope directory of `@scope/pkg@1.0.0`, while they are empty.
-fn remove_empty_ancestors(state_dir: &Path, removed_dir: &Path) {
-    for dir in removed_dir.ancestors().skip(1) {
-        if dir == state_dir || !is_subdir(state_dir, dir) || fs::remove_dir(dir).is_err() {
+/// Removes the directories between `state_dir` and a removed edit directory
+/// at `relative`, such as the scope directory of `@scope/pkg@1.0.0`, while
+/// they are empty.
+fn remove_empty_ancestors(state_dir: &Path, relative: &Path) {
+    for parent in relative.ancestors().skip(1) {
+        if parent.as_os_str().is_empty() || fs::remove_dir(state_dir.join(parent)).is_err() {
             break;
         }
     }

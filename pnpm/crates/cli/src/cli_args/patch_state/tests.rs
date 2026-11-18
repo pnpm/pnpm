@@ -401,11 +401,27 @@ fn patch_state_clean_keeps_state_file_when_patch_names_it() {
 #[test]
 fn patch_state_clean_removes_empty_scope_dir() {
     let tmp = tempdir().expect("temp dir");
-    let modules_dir = tmp.path().join("node_modules");
-    let edit_dir = modules_dir.join(".pnpm_patches/@scope/pkg@1.0.0");
+    assert_scope_dir_removed(&tmp.path().join("node_modules"));
+}
+
+/// State keys are canonical paths, as on macOS where the temp dir is under
+/// the `/var` -> `/private/var` link. The edit directory is not at the
+/// default path, so only its canonical state key leads to it.
+#[cfg(unix)]
+#[test]
+fn patch_state_clean_removes_empty_scope_dir_through_symlinked_root() {
+    let tmp = tempdir().expect("temp dir");
+    fs::create_dir(tmp.path().join("real")).expect("create real root");
+    std::os::unix::fs::symlink(tmp.path().join("real"), tmp.path().join("alias"))
+        .expect("create root symlink");
+    assert_scope_dir_removed(&tmp.path().join("alias/node_modules"));
+}
+
+fn assert_scope_dir_removed(modules_dir: &Path) {
+    let edit_dir = modules_dir.join(".pnpm_patches/@scope/custom-edit");
     fs::create_dir_all(&edit_dir).expect("create scoped edit dir");
     write_edit_dir_state(
-        &modules_dir,
+        modules_dir,
         &edit_dir,
         &EditDirState {
             patched_pkg: "@scope/pkg@1.0.0".to_string(),
@@ -415,7 +431,7 @@ fn patch_state_clean_removes_empty_scope_dir() {
     )
     .unwrap();
 
-    clean_patch_state_and_edit_dirs(&modules_dir, &["@scope/pkg@1.0.0".to_string()]).unwrap();
+    clean_patch_state_and_edit_dirs(modules_dir, &["@scope/pkg@1.0.0".to_string()]).unwrap();
 
     assert!(!modules_dir.join(".pnpm_patches").exists());
 }
