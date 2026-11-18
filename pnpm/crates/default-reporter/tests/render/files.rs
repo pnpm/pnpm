@@ -94,3 +94,23 @@ fn append_only_output_emits_one_combined_pending_approval_notice() {
     assert_eq!(output.matches("Packages awaiting approval:").count(), 1, "{output}");
     assert!(output.contains("  esbuild  build, skills"), "{output}");
 }
+
+#[test]
+fn append_only_output_flushes_pending_approvals_before_an_install_error() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let _ = reporter.handle(&ignored_scripts(&["esbuild@1.0.0"]));
+    let _ = reporter.handle(&LogEvent::PendingSkills(PendingSkillsLog {
+        level: LogLevel::Debug,
+        package_names: vec!["esbuild".to_string()],
+    }));
+    let Output::Lines(lines) = reporter.handle(&super::lifecycle_exit("/repo", "postinstall", 1))
+    else {
+        panic!("expected appended lines");
+    };
+    let output = lines.join("\n");
+
+    assert_eq!(output.matches("Packages awaiting approval:").count(), 1, "{output}");
+    assert!(output.contains("  esbuild  build, skills"), "{output}");
+    assert!(output.contains("Failed"), "{output}");
+}

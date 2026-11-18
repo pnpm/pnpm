@@ -10,6 +10,11 @@ impl ReporterState {
     // --- lifecycle --------------------------------------------------------
 
     pub(super) fn on_lifecycle(&mut self, message: &LifecycleMessage) {
+        if self.options.append_only
+            && matches!(message, LifecycleMessage::Exit { exit_code, .. } if *exit_code != 0)
+        {
+            self.render_pending_approvals();
+        }
         let quiet = self.options.max_log_level < crate::MaxLogLevel::Info;
         if quiet
             || ((self.options.append_only || self.options.lifecycle.stream_output)

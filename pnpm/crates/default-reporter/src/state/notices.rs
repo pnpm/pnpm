@@ -107,7 +107,7 @@ impl ReporterState {
         }
     }
 
-    fn render_pending_approvals(&mut self) {
+    pub(super) fn render_pending_approvals(&mut self) {
         let packages =
             pending_approval_packages(&self.notices.pending_builds, &self.notices.pending_skills);
         if packages.is_empty() {
@@ -251,6 +251,9 @@ impl ReporterState {
     }
 
     pub(super) fn on_pnpm(&mut self, level: LogLevel, message: &str, prefix: &str) {
+        if level == LogLevel::Error && self.options.append_only {
+            self.render_pending_approvals();
+        }
         match level {
             LogLevel::Debug if self.options.max_log_level >= MaxLogLevel::Debug => {
                 self.display.frame.push_block(message.to_string());
