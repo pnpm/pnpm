@@ -30,7 +30,7 @@ catalog:
   '@reflink/reflink': 0.1.19
   '@rushstack/worker-pool': 0.7.32
   '@stylistic/eslint-plugin': ^6.0.1
-  '@tybys/wasm-util': 0.10.4
+  '@tybys/wasm-util': 0.10.5
   '@types/adm-zip': ^0.6.0
   '@types/archy': 0.0.36
   '@types/cross-spawn': ^6.0.6
