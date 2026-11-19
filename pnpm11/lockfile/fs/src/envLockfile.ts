@@ -5,8 +5,9 @@ import type { EnvLockfile } from '@pnpm/lockfile.types'
 import yaml from 'js-yaml'
 
 import { envLockfileFromNextFormat, isNextFormatDocument, type NextEnvDocument } from './envLockfileNextFormat.js'
+import { lockfileYamlDump } from './lockfileYamlDump.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
-import { lockfileYamlDump, writeWantedLockfileAtomic } from './write.js'
+import { writeWantedLockfileAtomic } from './write.js'
 import {
   extractMainDocument,
   readLockfileToString,

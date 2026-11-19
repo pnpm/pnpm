@@ -86,7 +86,6 @@ catalog:
   '@yarnpkg/parsers': 3.1.0
   '@yarnpkg/pnp': ^4.1.7
   '@yarnpkg/shell': 4.1.3
-  '@zkochan/js-yaml': 0.0.11
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
