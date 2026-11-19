@@ -761,9 +761,6 @@ fn install_prepost_with_ignored_build_and(
     (harness, workspace)
 }
 
-/// Remove `removed` and check that the pre/postinstall fixture's ignored
-/// build survives the removal: it is still listed as pending, and
-/// `approve-builds --all` builds it and records the approval.
 fn assert_prepost_approvable_after_removing(workspace: &Path, removed: &str) {
     pacquet(workspace)
         .with_args(["remove", removed])
