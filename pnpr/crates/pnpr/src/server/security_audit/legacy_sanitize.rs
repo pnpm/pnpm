@@ -9,9 +9,9 @@ use super::{
     PackageDestination,
     legacy_nodes::{MAX_DEPENDENCY_DEPTH, PACKAGE_SPEC_FIELDS},
     legacy_specs::{
-        REDACTED_SCOPE_PREFIX, ScopeIndexPool, collect_reserved_scope_indices, entry_bool,
-        is_safe_semver_range, is_safe_semver_version, is_safe_sri_integrity, node_modules_segments,
-        parse_name_and_spec, parse_npm_alias,
+        LocalScopePool, REDACTED_SCOPE_PREFIX, ScopeIndexPool, collect_reserved_scope_indices,
+        entry_bool, is_safe_semver_range, is_safe_semver_version, is_safe_sri_integrity,
+        node_modules_segments, parse_name_and_spec, parse_npm_alias,
     },
 };
 
@@ -23,6 +23,7 @@ const ALLOWED_NODE_ENVS: [&str; 3] = ["production", "development", "test"];
 pub(super) struct SanitizeCtx<'a> {
     pub(super) upstream_name: &'a str,
     pub(super) destinations: &'a HashMap<String, PackageDestination>,
+    global_scope_pool: Option<ScopeIndexPool>,
 }
 
 enum SanitizedSpecEntry {
@@ -35,7 +36,7 @@ pub(super) fn build_upstream_legacy_payload(
     upstream_name: &str,
     destinations: &HashMap<String, PackageDestination>,
 ) -> Map<String, Value> {
-    let ctx = SanitizeCtx { upstream_name, destinations };
+    let mut ctx = SanitizeCtx { upstream_name, destinations, global_scope_pool: None };
     let mut sanitized = Map::new();
     ctx.copy_sanitized_root_identity(payload, &mut sanitized);
     if let Some(lockfile_version) = payload
@@ -78,10 +79,14 @@ fn backfill_promoted_requires(requires: &mut Map<String, Value>, deps: &Map<Stri
 }
 
 impl SanitizeCtx<'_> {
-    pub(super) fn build_scope_pool(&self, extra_reserved: HashSet<usize>) -> ScopeIndexPool {
-        let mut reserved = extra_reserved;
-        collect_reserved_scope_indices(self.destinations.keys().map(String::as_str), &mut reserved);
-        ScopeIndexPool::new(reserved)
+    pub(super) fn global_scope_index_at(&mut self, ordinal: usize) -> usize {
+        let destinations = self.destinations;
+        let pool = self.global_scope_pool.get_or_insert_with(|| {
+            let mut reserved = HashSet::new();
+            collect_reserved_scope_indices(destinations.keys().map(String::as_str), &mut reserved);
+            ScopeIndexPool::new(reserved)
+        });
+        pool.scope_index_at(ordinal)
     }
 
     pub(super) fn routes(&self, package_name: &str) -> bool {

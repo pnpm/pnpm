@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 
 use super::{
-    PACKAGE_SPEC_FIELDS, REDACTED_SCOPE_PREFIX, SanitizeCtx, ScopeIndexPool,
+    LocalScopePool, PACKAGE_SPEC_FIELDS, REDACTED_SCOPE_PREFIX, SanitizeCtx,
     collect_reserved_scope_indices, copy_bool_fields, copy_sri_integrity, entry_bool,
     is_safe_semver_version, node_modules_segments, parse_npm_alias,
 };
@@ -15,7 +15,10 @@ struct ResolvedPackageCoordinate {
 }
 
 impl SanitizeCtx<'_> {
-    pub(super) fn filter_packages_map(&self, packages: &Map<String, Value>) -> Map<String, Value> {
+    pub(super) fn filter_packages_map(
+        &mut self,
+        packages: &Map<String, Value>,
+    ) -> Map<String, Value> {
         let mut kept = Map::new();
         if let Some(root_entry) = packages.get("").and_then(Value::as_object) {
             kept.insert(String::new(), Value::Object(self.sanitize_root_package_entry(root_entry)));
@@ -43,19 +46,14 @@ impl SanitizeCtx<'_> {
     }
 
     fn insert_rewritten_packages(
-        &self,
+        &mut self,
         kept: &mut Map<String, Value>,
         rewritten: Vec<(String, Value)>,
     ) {
         if rewritten.is_empty() {
             return;
         }
-        let mut extra_reserved = HashSet::new();
-        collect_reserved_scope_indices(
-            kept.keys().flat_map(|key| node_modules_segments(key)),
-            &mut extra_reserved,
-        );
-        let mut pool = self.build_scope_pool(extra_reserved);
+        let mut local_pool: Option<LocalScopePool> = None;
         let mut next_ordinal_by_key: HashMap<String, usize> = HashMap::new();
         for (sanitized_key, entry_val) in rewritten {
             if !kept.contains_key(&sanitized_key) {
@@ -65,10 +63,29 @@ impl SanitizeCtx<'_> {
             if kept.get(&sanitized_key) == Some(&entry_val) {
                 continue;
             }
+            let pool = local_pool.get_or_insert_with(|| init_local_pkg_pool(kept));
             let ordinal = next_ordinal_by_key.entry(sanitized_key.clone()).or_insert(0);
             let distinct_key =
-                allocate_pooled_package_key(kept, &mut pool, &sanitized_key, ordinal);
+                self.allocate_pooled_package_key(kept, pool, &sanitized_key, ordinal);
             kept.insert(distinct_key, entry_val);
+        }
+    }
+
+    fn allocate_pooled_package_key(
+        &mut self,
+        kept: &Map<String, Value>,
+        pool: &mut LocalScopePool,
+        sanitized_key: &str,
+        ordinal: &mut usize,
+    ) -> String {
+        loop {
+            let idx = pool.scope_index_at(*ordinal, |ord| self.global_scope_index_at(ord));
+            *ordinal += 1;
+            let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
+            let candidate = format!("node_modules/{scope_name}/{sanitized_key}");
+            if !kept.contains_key(&candidate) {
+                return candidate;
+            }
         }
     }
 
@@ -185,19 +202,11 @@ impl SanitizeCtx<'_> {
     }
 }
 
-fn allocate_pooled_package_key(
-    kept: &Map<String, Value>,
-    pool: &mut ScopeIndexPool,
-    sanitized_key: &str,
-    ordinal: &mut usize,
-) -> String {
-    loop {
-        let idx = pool.scope_index_at(*ordinal);
-        *ordinal += 1;
-        let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
-        let candidate = format!("node_modules/{scope_name}/{sanitized_key}");
-        if !kept.contains_key(&candidate) {
-            return candidate;
-        }
-    }
+fn init_local_pkg_pool(kept: &Map<String, Value>) -> LocalScopePool {
+    let mut local_reserved = HashSet::new();
+    collect_reserved_scope_indices(
+        kept.keys().flat_map(|key| node_modules_segments(key)),
+        &mut local_reserved,
+    );
+    LocalScopePool::new(local_reserved)
 }

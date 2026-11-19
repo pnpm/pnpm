@@ -340,7 +340,24 @@ fn legacy_sanitizer_rejects_trailing_spec_tokens_fake_integrity_and_scales_linea
     for idx in 0..2_000usize {
         let pkg = format!("public-pkg-{idx}");
         destinations.insert(pkg.clone(), PackageDestination::Upstream("npmjs".to_string()));
-        dependencies.insert(pkg.clone(), json!({ "version": "1.0.0" }));
+        dependencies.insert(
+            pkg.clone(),
+            json!({
+                "version": "1.0.0",
+                "dependencies": {
+                    "ms": { "version": "2.1.3" },
+                    "@acme/private-parent": {
+                        "version": "1.0.0",
+                        "dependencies": {
+                            "ms": { "version": "2.0.0" },
+                        },
+                    },
+                    "@acme/private-alias": {
+                        "version": "npm:lodash@4.17.20",
+                    },
+                },
+            }),
+        );
         nested_private_deps.insert(pkg.clone(), json!({ "version": "2.0.0" }));
         packages.insert(format!("node_modules/{pkg}"), json!({ "version": "1.0.0" }));
         packages.insert(
@@ -398,6 +415,15 @@ fn legacy_sanitizer_rejects_trailing_spec_tokens_fake_integrity_and_scales_linea
     assert_eq!(
         sanitized["dependencies"]["pnpr-redacted-scope-2001"]["dependencies"]["public-pkg-0"]["version"],
         "2.0.0",
+    );
+    assert_eq!(
+        sanitized["dependencies"]["public-pkg-0"]["dependencies"]["pnpr-redacted-scope-2001"]["dependencies"]
+            ["ms"]["version"],
+        "2.0.0",
+    );
+    assert_eq!(
+        sanitized["dependencies"]["public-pkg-0"]["dependencies"]["lodash"]["version"],
+        "4.17.20",
     );
     assert_eq!(sanitized["packages"]["node_modules/lodash"]["integrity"], valid_sri);
     assert!(sanitized["packages"]["node_modules/ms"].get("integrity").is_none());

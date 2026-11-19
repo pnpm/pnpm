@@ -28,6 +28,33 @@ impl ScopeIndexPool {
     }
 }
 
+pub(super) struct LocalScopePool {
+    local_reserved: HashSet<usize>,
+    local_free: Vec<usize>,
+    global_ordinal: usize,
+}
+
+impl LocalScopePool {
+    pub(super) fn new(local_reserved: HashSet<usize>) -> Self {
+        Self { local_reserved, local_free: Vec::new(), global_ordinal: 0 }
+    }
+
+    pub(super) fn scope_index_at(
+        &mut self,
+        ordinal: usize,
+        mut global_at: impl FnMut(usize) -> usize,
+    ) -> usize {
+        while self.local_free.len() <= ordinal {
+            let candidate = global_at(self.global_ordinal);
+            self.global_ordinal = self.global_ordinal.saturating_add(1);
+            if !self.local_reserved.contains(&candidate) {
+                self.local_free.push(candidate);
+            }
+        }
+        self.local_free[ordinal]
+    }
+}
+
 pub(super) fn collect_reserved_scope_indices<'a>(
     names: impl IntoIterator<Item = &'a str>,
     reserved: &mut HashSet<usize>,

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 
 use super::{
-    MAX_DEPENDENCY_DEPTH, REDACTED_SCOPE_PREFIX, SanitizeCtx, ScopeIndexPool,
+    LocalScopePool, MAX_DEPENDENCY_DEPTH, REDACTED_SCOPE_PREFIX, SanitizeCtx,
     collect_reserved_scope_indices, copy_bool_fields, copy_sri_integrity, is_safe_semver_version,
     parse_npm_alias,
 };
@@ -21,7 +21,7 @@ struct DependencyBuckets {
 
 impl SanitizeCtx<'_> {
     pub(super) fn filter_dependencies_map(
-        &self,
+        &mut self,
         deps: &Map<String, Value>,
         depth: usize,
     ) -> Map<String, Value> {
@@ -39,7 +39,7 @@ impl SanitizeCtx<'_> {
     }
 
     fn collect_sanitized_dependency(
-        &self,
+        &mut self,
         package_name: &str,
         entry: &Map<String, Value>,
         depth: usize,
@@ -102,16 +102,14 @@ impl SanitizeCtx<'_> {
     }
 
     fn insert_deferred_dependencies(
-        &self,
+        &mut self,
         kept: &mut Map<String, Value>,
         deferred: Vec<(String, Value)>,
     ) {
         if deferred.is_empty() {
             return;
         }
-        let mut extra_reserved = HashSet::new();
-        collect_reserved_scope_indices(kept.keys().map(String::as_str), &mut extra_reserved);
-        let mut pool = self.build_scope_pool(extra_reserved);
+        let mut local_pool: Option<LocalScopePool> = None;
         let mut next_ordinal_by_pkg: HashMap<String, usize> = HashMap::new();
         for (child_name, child_val) in deferred {
             if !kept.contains_key(&child_name) {
@@ -121,8 +119,31 @@ impl SanitizeCtx<'_> {
             if kept.get(&child_name) == Some(&child_val) {
                 continue;
             }
+            let pool = local_pool.get_or_insert_with(|| init_local_dep_pool(kept));
             let ordinal = next_ordinal_by_pkg.entry(child_name.clone()).or_insert(0);
-            insert_into_pooled_scope(kept, &mut pool, child_name, child_val, ordinal);
+            self.insert_into_pooled_scope(kept, pool, child_name, child_val, ordinal);
+        }
+    }
+
+    fn insert_into_pooled_scope(
+        &mut self,
+        kept: &mut Map<String, Value>,
+        pool: &mut LocalScopePool,
+        child_name: String,
+        child_val: Value,
+        ordinal: &mut usize,
+    ) {
+        loop {
+            let idx = pool.scope_index_at(*ordinal, |ord| self.global_scope_index_at(ord));
+            *ordinal += 1;
+            let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
+            if !kept.contains_key(&scope_name) {
+                kept.insert(scope_name, build_redacted_scope_node(child_name, child_val));
+                return;
+            }
+            if try_insert_into_existing_scope(kept.get_mut(&scope_name), &child_name, &child_val) {
+                return;
+            }
         }
     }
 
@@ -146,25 +167,10 @@ impl SanitizeCtx<'_> {
     }
 }
 
-fn insert_into_pooled_scope(
-    kept: &mut Map<String, Value>,
-    pool: &mut ScopeIndexPool,
-    child_name: String,
-    child_val: Value,
-    ordinal: &mut usize,
-) {
-    loop {
-        let idx = pool.scope_index_at(*ordinal);
-        *ordinal += 1;
-        let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
-        if !kept.contains_key(&scope_name) {
-            kept.insert(scope_name, build_redacted_scope_node(child_name, child_val));
-            return;
-        }
-        if try_insert_into_existing_scope(kept.get_mut(&scope_name), &child_name, &child_val) {
-            return;
-        }
-    }
+fn init_local_dep_pool(kept: &Map<String, Value>) -> LocalScopePool {
+    let mut local_reserved = HashSet::new();
+    collect_reserved_scope_indices(kept.keys().map(String::as_str), &mut local_reserved);
+    LocalScopePool::new(local_reserved)
 }
 
 fn build_redacted_scope_node(child_name: String, child_val: Value) -> Value {
