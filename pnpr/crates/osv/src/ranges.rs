@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use node_semver::{Range, Version};
 use serde::Deserialize;
 
-use super::{SemverEvent, SemverRange};
+use super::{MAX_RANGE_COVERAGE_CHECKS, RegistryError, SemverEvent, SemverRange, invalid_config};
 
 #[derive(Deserialize)]
 pub(super) struct OsvRange {
@@ -147,14 +147,21 @@ fn format_open_clause(intro: &str) -> String {
 }
 
 pub(super) fn build_vulnerable_versions_str(
+    advisory_id: &str,
     range_clauses: &[String],
     versions: &HashSet<String>,
-) -> String {
-    let mut unique_clauses: Vec<&str> = Vec::new();
+) -> Result<String, RegistryError> {
+    let mut seen_clauses = HashSet::with_capacity(range_clauses.len());
+    let mut unique_clauses: Vec<&str> = Vec::with_capacity(range_clauses.len());
     for clause in range_clauses {
-        if !unique_clauses.contains(&clause.as_str()) {
+        if seen_clauses.insert(clause.as_str()) {
             unique_clauses.push(clause.as_str());
         }
+    }
+    if versions.len().saturating_mul(unique_clauses.len()) > MAX_RANGE_COVERAGE_CHECKS {
+        return Err(invalid_config(format!(
+            "OSV record {advisory_id} exceeds the {MAX_RANGE_COVERAGE_CHECKS} version-range comparison limit",
+        )));
     }
     let parsed_ranges: Vec<Range> = unique_clauses
         .iter()
@@ -170,7 +177,7 @@ pub(super) fn build_vulnerable_versions_str(
 
     let mut parts = unique_clauses;
     parts.extend(uncovered);
-    if parts.is_empty() { "*".to_string() } else { parts.join(" || ") }
+    Ok(if parts.is_empty() { "*".to_string() } else { parts.join(" || ") })
 }
 
 fn is_safe_version_token(token: &str) -> bool {

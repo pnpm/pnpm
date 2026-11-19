@@ -434,3 +434,36 @@ fn cvss_v2_and_osv_severity_mapping_cover_fallbacks() {
     let label_level = SeverityLevel::from_osv_severity(&label_entry);
     assert_eq!(label_level, Some(SeverityLevel::Moderate));
 }
+
+#[test]
+fn rejects_record_exceeding_version_range_comparison_budget() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let versions: Vec<String> = (0..1000)
+        .map(|idx| format!("1.0.{idx}"))
+        .collect();
+    let ranges: Vec<serde_json::Value> = (0..600)
+        .map(|idx| {
+            serde_json::json!({
+                "type": "SEMVER",
+                "events": [
+                    { "introduced": format!("2.{idx}.0") },
+                    { "fixed": format!("2.{idx}.1") }
+                ]
+            })
+        })
+        .collect();
+    let record = serde_json::json!({
+        "id": "GHSA-quadratic",
+        "affected": [{
+            "package": { "ecosystem": "npm", "name": "quad-pkg" },
+            "ranges": ranges,
+            "versions": versions
+        }]
+    });
+    fs::write(dir.path().join("GHSA-quadratic.json"), record.to_string()).expect("write record");
+
+    let err = OsvIndex::load_from_path(dir.path()).expect_err("must reject quadratic work");
+    let message = format!("{err}");
+    eprintln!("ERR:\n{message}");
+    assert!(message.contains("version-range comparison limit"));
+}

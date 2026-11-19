@@ -115,7 +115,7 @@ pub(super) fn ingest_record_bytes(
     }
 
     for (name, affected_list) in by_package {
-        if let Some(advisory) = advisory_from_record(&record, affected_list) {
+        if let Some(advisory) = advisory_from_record(&record, affected_list)? {
             packages
                 .entry(name)
                 .or_default()
@@ -209,22 +209,25 @@ fn collect_affected_bounds(affected_list: Vec<OsvAffected>) -> AffectedBounds {
 pub(super) fn advisory_from_record(
     record: &OsvRecord,
     affected_list: Vec<OsvAffected>,
-) -> Option<Advisory> {
+) -> Result<Option<Advisory>, RegistryError> {
+    let id = truncate_advisory_id(&record.id);
     let bounds = collect_affected_bounds(affected_list);
+    if bounds.versions.len() > MAX_VERSIONS_PER_AFFECTED
+        || bounds.ranges.len() > MAX_RANGES_PER_AFFECTED
+    {
+        return Err(invalid_config(format!(
+            "OSV record {id} has combined affected entries exceeding the version/range limits",
+        )));
+    }
     if bounds.versions.is_empty() && bounds.ranges.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     let vulnerable_versions =
-        build_vulnerable_versions_str(&bounds.range_clauses, &bounds.versions);
+        build_vulnerable_versions_str(&id, &bounds.range_clauses, &bounds.versions)?;
     let bulk = build_bulk_advisory(record, vulnerable_versions, bounds.max_severity);
 
-    Some(Advisory {
-        id: truncate_advisory_id(&record.id),
-        versions: bounds.versions,
-        ranges: bounds.ranges,
-        bulk,
-    })
+    Ok(Some(Advisory { id, versions: bounds.versions, ranges: bounds.ranges, bulk }))
 }
 
 fn build_bulk_advisory(

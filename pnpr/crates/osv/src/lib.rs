@@ -48,6 +48,7 @@ const MAX_ADVISORY_ID_BYTES: usize = 256;
 const MAX_VERSIONS_PER_AFFECTED: usize = 100_000;
 const MAX_RANGES_PER_AFFECTED: usize = 10_000;
 const MAX_EVENTS_PER_RANGE: usize = 10_000;
+const MAX_RANGE_COVERAGE_CHECKS: usize = 500_000;
 
 /// An advisory payload matching the npm/pnpm bulk advisories endpoint contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
