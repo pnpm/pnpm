@@ -354,9 +354,9 @@ pub(super) struct WorkspaceResolutionPolicy {
     ///
     /// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
     pub(super) auto_install_peers: bool,
-    /// Parsed `pnpm.overrides`, used to reframe
-    /// `ERR_PNPM_NO_MATCHING_VERSION` onto the responsible override entry
-    /// when an override forces a version the registry does not serve.
+    /// The `overrides` entries, used to attribute an
+    /// `ERR_PNPM_NO_MATCHING_VERSION` to the entry that forced the missing
+    /// version.
     pub(super) parsed_overrides: Option<Arc<[crate::OverrideEntry]>>,
 }
 
@@ -534,9 +534,7 @@ impl WorkspaceTreeCtx {
         self
     }
 
-    /// Attach parsed `pnpm.overrides`, used to reframe
-    /// `ERR_PNPM_NO_MATCHING_VERSION` onto the responsible override entry
-    /// when an override forces a version the registry does not serve.
+    /// Attach the `overrides` entries. See the `parsed_overrides` field.
     #[must_use]
     pub fn with_parsed_overrides(
         mut self,

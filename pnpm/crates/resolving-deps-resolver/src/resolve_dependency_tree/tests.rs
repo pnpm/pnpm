@@ -210,3 +210,17 @@ fn max_satisfying_picks_the_highest_version_in_range() {
     assert_eq!(override_reframe::max_satisfying(&versions, "^2"), Some("2.0.0".to_string()));
     assert_eq!(override_reframe::max_satisfying(&versions, "^3"), None);
 }
+
+#[test]
+fn override_reframe_omits_help_when_the_override_aliases_another_package() {
+    let overrides = [override_entry("acme@^1", Some("^1"), "npm:other@9.0.0")];
+
+    let reframed = override_reframe::attribute_to_override(
+        acme_no_match_error("npm:other@9.0.0", &["1.0.0", "1.1.0"]),
+        &wanted_acme("npm:other@9.0.0"),
+        Some(&overrides),
+    );
+
+    assert!(matches!(reframed, ResolveDependencyTreeError::OverrideNoMatchingVersion(_)));
+    assert!(miette::Diagnostic::help(&reframed).is_none());
+}

@@ -1,6 +1,7 @@
 use miette::Diagnostic;
 use pnpm_network::redact_and_sanitize;
 use pnpm_resolving_resolver_base::{NoMatchingVersionError, WantedDependency};
+use pnpm_semver_include_prerelease::{is_valid_semver_range, parse_strict_semver_range};
 
 use super::ResolveDependencyTreeError;
 
@@ -92,8 +93,12 @@ fn overriding_error(
         .iter()
         .find(|entry| entry.name == alias && entry.new_bare_specifier == bare_specifier)?;
     let selector_range = matched.selector_range.clone();
+    // The registry metadata belongs to the package the forced specifier
+    // names, so it describes the target only for a plain range, not for an
+    // alias such as `npm:other@1`.
     let latest_matching = selector_range
         .as_deref()
+        .filter(|_| is_valid_semver_range(&matched.new_bare_specifier))
         .and_then(|range| max_satisfying(&no_matching_version.versions, range));
     Some(OverrideNoMatchingVersionError {
         name: alias.to_string(),
@@ -105,7 +110,7 @@ fn overriding_error(
 }
 
 pub(super) fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
-    let range = node_semver::Range::parse(range).ok()?;
+    let range = parse_strict_semver_range(range)?;
     versions
         .iter()
         .filter_map(|raw| Some((node_semver::Version::parse(raw).ok()?, raw)))

@@ -302,22 +302,8 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             time_based: self.setup.policy.time_based,
 
             registry_context: self.registry_context(),
-            parsed_overrides: self.override_entries(),
+            parsed_overrides: self.prep.transforms.override_entries.clone(),
         }
-    }
-
-    fn override_entries(&self) -> Option<Arc<[pnpm_resolving_deps_resolver::OverrideEntry]>> {
-        let overrides = self.prep.transforms.parsed_overrides.as_deref()?;
-        overrides
-            .iter()
-            .map(|entry| pnpm_resolving_deps_resolver::OverrideEntry {
-                selector: entry.selector.clone(),
-                name: entry.target_pkg.name.clone(),
-                selector_range: entry.target_pkg.bare_specifier.clone(),
-                new_bare_specifier: entry.new_bare_specifier.clone(),
-            })
-            .collect::<Arc<[_]>>()
-            .into()
     }
 
     fn registry_context(&self) -> pnpm_lockfile::RegistryContext {
