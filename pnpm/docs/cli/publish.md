@@ -71,6 +71,8 @@ This does what `pnpm version <version> --no-git-tag-version` followed by
 `pnpm publish` does. No commit or tag is created, and the version lifecycle
 scripts don't run. The change to `package.json` is written after the git checks
 and is kept after publishing, even with `--dry-run`.
+If `publishConfig.directory` points at a directory that already has a
+`package.json`, that manifest gets the new version too.
 
 With `--recursive`, every selected workspace package gets the new version,
 including private packages, which are still not published. Workspace

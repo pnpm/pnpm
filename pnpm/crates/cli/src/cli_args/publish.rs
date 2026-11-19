@@ -37,11 +37,7 @@ use pnpm_publish::{
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-    sync::Arc,
-};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// Publish a package to the registry.
 #[derive(Debug, Args)]
@@ -164,19 +160,13 @@ impl PublishArgs {
             .filter(|path| path.is_dir());
         let git_checks_dir = target_dir.as_deref().unwrap_or(dir);
         run_git_checks::<Host>(git_checks_dir, git_checks, publish_branch, config.ci)?;
-        let bumped = self.apply_new_version(dir, config, recursive)?;
 
         if recursive {
-            let published = self.run_recursive::<Reporter>(
-                dir,
-                config,
-                stage,
-                &before_packing_hooks,
-                bumped.as_ref(),
-            )
-            .await?;
+            let published =
+                self.run_recursive::<Reporter>(dir, config, stage, &before_packing_hooks).await?;
             return Ok(PublishedPackages::Recursive(published));
         }
+        let bumped = self.apply_new_version(dir)?;
         let summary = self.publish_single::<Reporter>(
             dir,
             config,
@@ -195,7 +185,7 @@ impl PublishArgs {
         config: &Config,
         stage: bool,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        bumped: Option<&Arc<HashSet<String>>>,
+        bumped: Option<&new_version::BumpedPackages>,
     ) -> miette::Result<PublishSummary> {
         let otp = resolve_otp_from_env::<Host>(self.flags.registry.otp.clone());
         let opts = self.publish_options(config, otp, stage);

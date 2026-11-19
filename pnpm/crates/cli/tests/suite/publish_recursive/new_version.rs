@@ -185,3 +185,62 @@ fn recursive_new_version_packs_workspace_deps_at_the_bumped_version() {
 
     drop(root);
 }
+
+/// The `--filter` selection is made before the bump. Selected again
+/// afterwards, `...dep` would lose the consumer: its `workspace:^1.0.0` no
+/// longer matches `dep@2.0.0`, so it would be bumped but not published.
+#[test]
+fn recursive_new_version_keeps_the_pre_bump_filter_selection() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[
+            ("dep", public_pkg("dep")),
+            (
+                "consumer",
+                serde_json::json!({
+                    "name": "consumer",
+                    "version": "1.0.0",
+                    "dependencies": { "dep": "workspace:^1.0.0" },
+                }),
+            ),
+        ],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    let probes = ["dep", "consumer"].map(|name| {
+        server
+            .mock("GET", format!("/{name}").as_str())
+            .with_status(404)
+            .create()
+    });
+    let puts = ["dep", "consumer"].map(|name| {
+        server
+            .mock("PUT", format!("/{name}").as_str())
+            .match_body(
+                Matcher::PartialJsonString(r#"{"dist-tags":{"latest":"2.0.0"}}"#.to_owned()),
+            )
+            .with_status(200)
+            .with_body("{}")
+            .expect(1)
+            .create()
+    });
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("...dep")
+        .with_arg("publish")
+        .with_arg("--new-version")
+        .with_arg("2.0.0")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    for mock in probes.iter().chain(&puts) {
+        mock.assert();
+    }
+
+    drop(root);
+}

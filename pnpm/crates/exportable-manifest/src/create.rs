@@ -99,13 +99,7 @@ pub struct CreateExportableManifestOptions<'a> {
     pub embed_readme: bool,
     /// Workspace packages lookup used when a dependency is not in `node_modules`.
     pub workspace_packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
-    /// Resolve the named packages' workspace dependencies from
-    /// `workspace_packages` before the copies installed in `node_modules`.
-    /// `publish --new-version` names the packages whose version it
-    /// rewrote: the workspace manifests carry the new version while
-    /// `node_modules` can still hold the pre-bump copies, and every other
-    /// dependency keeps the installed-copy-first resolution a plain
-    /// publish uses.
+    /// See [`WorkspacePackageLookup::prefer_workspace_for`].
     pub bumped_workspace_packages: Option<&'a HashSet<String>>,
 }
 

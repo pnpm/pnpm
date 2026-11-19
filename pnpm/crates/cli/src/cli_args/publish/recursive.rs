@@ -5,13 +5,10 @@
 //! publishes the rest in dependency order, optionally
 //! writing `pnpm-publish-summary.json`.
 
-use super::{PublishArgs, PublishScope, notes::check_packed_members};
+use super::{PublishArgs, PublishScope, new_version::BumpedPackages, notes::check_packed_members};
 use crate::cli_args::{
     changelog::published_name,
-    recursive::{
-        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
-        select_recursive_projects,
-    },
+    recursive::filtered_projects_dependencies,
     registry_client::{build_publish_client, build_registry_client},
     workspace_packages::build_workspace_package_manifest_map,
 };
@@ -50,7 +47,7 @@ struct RecursivePublishContext<'a> {
     project_dependencies: &'a indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
     workspace_packages:
         &'a Arc<std::collections::HashMap<String, pnpm_pack::WorkspacePackageManifest>>,
-    bumped: Option<&'a Arc<HashSet<String>>>,
+    bumped: Option<&'a BumpedPackages>,
 }
 
 fn order_publish_roots(
@@ -143,17 +140,11 @@ impl PublishArgs {
         config: &Config,
         stage: bool,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        bumped: Option<&Arc<HashSet<String>>>,
     ) -> miette::Result<Vec<PublishSummary>> {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-        // `publish` is not in pnpm's root-auto-exclusion command set
-        // (`run` / `exec` / `add` / `test`), so the workspace root stays in the
-        // selection; its own name/version/private eligibility check drops it
-        // below.
-        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
-        let workspace_packages = Arc::new(build_workspace_package_manifest_map(&projects));
-        let selection =
-            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let (projects, selected_dirs, bumped) =
+            self.select_and_bump_projects(dir, workspace_root, config)?;
+        let selection = selected_dirs.select(&projects, config)?;
         let graph = &selection.selected;
         if graph.is_empty() {
             return Ok(Vec::new());
@@ -182,11 +173,14 @@ impl PublishArgs {
             before_packing_hooks,
             to_publish: &to_publish,
             project_dependencies: &project_dependencies,
-            workspace_packages: &workspace_packages,
-            bumped,
+            workspace_packages: &Arc::new(build_workspace_package_manifest_map(&projects)),
+            bumped: bumped.as_ref(),
         };
-        let published = self.publish_selected::<Reporter>(&ctx).await;
-        self.finish_recursive_publish(workspace_root, &opts, published)
+        self.finish_recursive_publish(
+            workspace_root,
+            &opts,
+            self.publish_selected::<Reporter>(&ctx).await,
+        )
     }
 
     fn finish_recursive_publish(

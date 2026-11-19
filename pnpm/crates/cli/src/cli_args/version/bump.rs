@@ -19,11 +19,10 @@ pub(super) enum ReleaseType {
     Prerelease,
 }
 
-/// Parse the version argument: a valid semver version wins (like upstream's
-/// `semver.valid`, so a leading `v` is accepted and stripped), then the
+/// Parse the version argument: a valid semver version wins, then the
 /// release-type keywords.
 pub(super) fn parse_bump(raw: &str) -> Result<Bump, VersionError> {
-    if let Ok(version) = Version::parse(raw) {
+    if let Some(version) = parse_exact_version(raw) {
         return Ok(Bump::Explicit(version));
     }
     let release = match raw {
@@ -37,6 +36,18 @@ pub(super) fn parse_bump(raw: &str) -> Result<Bump, VersionError> {
         _ => return Err(VersionError::InvalidBump { raw: raw.to_string() }),
     };
     Ok(Bump::Release(release))
+}
+
+/// Parse `raw` as node-semver's strict `semver.valid` does: surrounding
+/// whitespace and one leading `v` are dropped, and the rest must already be
+/// in normal form. [`Version::parse`] alone also accepts loose input such as
+/// `1.2.3foo` or `01.2.3` and normalizes it into a different version.
+pub(crate) fn parse_exact_version(raw: &str) -> Option<Version> {
+    let trimmed = raw.trim();
+    let normal = trimmed.strip_prefix('v').unwrap_or(trimmed);
+    Version::parse(normal)
+        .ok()
+        .filter(|version| version.to_string() == normal)
 }
 
 /// Increment `version` by `release`, following node-semver's `inc()` with its

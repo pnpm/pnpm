@@ -10,12 +10,14 @@
 pub use dependencies::{filtered_projects_dependencies, projects_to_verify, sequence_graph};
 pub use execution_args::RecursiveExecutionArgs;
 pub use importer_selection::{selected_workspace_importer_ids, selectors_narrow_the_run};
+pub use selected_dirs::SelectedProjectDirs;
 pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
 pub use unmatched::UnmatchedFilters;
 
 mod dependencies;
 mod execution_args;
 mod importer_selection;
+mod selected_dirs;
 mod selection_order;
 mod unmatched;
 

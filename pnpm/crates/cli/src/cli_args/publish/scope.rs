@@ -1,22 +1,18 @@
+use super::new_version::BumpedPackages;
 use pnpm_pack::WorkspacePackageManifest;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
-/// Which publish a package is part of. Both variants carry the names of the
-/// workspace packages whose manifests `--new-version` rewrote: the pack
-/// resolves those dependencies from the workspace manifests rather than the
-/// copies installed in `node_modules`.
+/// Which publish a package is part of, with the [`BumpedPackages`] of a
+/// `--new-version` run.
 #[derive(Clone, Copy)]
 pub(crate) enum PublishScope<'a> {
     /// `pnpm publish` of one package, with the `--release-notes` text that
     /// is its version note.
-    Single { summary: Option<&'a str>, bumped: Option<&'a Arc<HashSet<String>>> },
+    Single { summary: Option<&'a str>, bumped: Option<&'a BumpedPackages> },
     /// One package of `pnpm publish --recursive`.
     Recursive {
         workspace_packages: &'a Arc<HashMap<String, WorkspacePackageManifest>>,
-        bumped: Option<&'a Arc<HashSet<String>>>,
+        bumped: Option<&'a BumpedPackages>,
     },
 }
 
@@ -37,7 +33,7 @@ impl<'a> PublishScope<'a> {
         }
     }
 
-    pub(super) fn bumped(self) -> Option<&'a Arc<HashSet<String>>> {
+    pub(super) fn bumped(self) -> Option<&'a BumpedPackages> {
         match self {
             PublishScope::Single { bumped, .. } | PublishScope::Recursive { bumped, .. } => bumped,
         }

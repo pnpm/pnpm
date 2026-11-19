@@ -66,10 +66,6 @@ pub fn create_publish_pack_manifest_options(
         ),
         before_packing_hooks: before_packing_hooks.to_vec(),
         workspace_packages,
-        // `--new-version` rewrote these packages' manifests before packing,
-        // so they are newer than anything installed in `node_modules`; every
-        // other dependency keeps the installed-copy-first resolution a
-        // plain publish uses.
         bumped_workspace_packages: bumped_packages.map(Arc::clone),
     })
 }

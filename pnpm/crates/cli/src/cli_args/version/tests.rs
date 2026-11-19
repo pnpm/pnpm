@@ -64,3 +64,12 @@ fn parse_bump_strips_a_leading_v() {
     };
     assert_eq!(explicit.to_string(), "1.2.3");
 }
+
+/// `semver.valid` is strict: loose input that `Version::parse` would
+/// normalize into another version is not a version argument.
+#[test]
+fn parse_bump_rejects_loose_versions() {
+    for raw in ["1.2.3foo", "01.2.3", "V1.2.3", "1.2.3-01"] {
+        assert!(parse_bump(raw).is_err(), "{raw} must be rejected");
+    }
+}
