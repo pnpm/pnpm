@@ -129,19 +129,14 @@ fn acme_no_match_error(bare_specifier: &str, versions: &[&str]) -> ResolveDepend
 
 fn override_entry(
     selector: &str,
-    target_range: Option<&str>,
-    new_spec: &str,
-) -> pnpm_config_parse_overrides::VersionOverride {
-    pnpm_config_parse_overrides::VersionOverride {
+    selector_range: Option<&str>,
+    new_bare_specifier: &str,
+) -> crate::OverrideEntry {
+    crate::OverrideEntry {
         selector: selector.to_string(),
-        parent_pkg: None,
-        target_pkg: pnpm_config_parse_overrides::PackageSelector {
-            name: "acme".to_string(),
-            bare_specifier: target_range.map(str::to_string),
-            dep_type: None,
-        },
-        new_bare_specifier: new_spec.to_string(),
-        converge: false,
+        name: "acme".to_string(),
+        selector_range: selector_range.map(str::to_string),
+        new_bare_specifier: new_bare_specifier.to_string(),
     }
 }
 

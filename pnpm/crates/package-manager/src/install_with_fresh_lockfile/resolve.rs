@@ -146,7 +146,7 @@ pub(super) struct WorkspaceWalk {
     pub share_workspace_resolutions: bool,
     pub time_based: bool,
     pub registry_context: pnpm_lockfile::RegistryContext,
-    pub parsed_overrides: Option<Arc<[pnpm_config_parse_overrides::VersionOverride]>>,
+    pub parsed_overrides: Option<Arc<[pnpm_resolving_deps_resolver::OverrideEntry]>>,
 }
 
 /// What every importer's resolve reads, and the walk reads alongside.

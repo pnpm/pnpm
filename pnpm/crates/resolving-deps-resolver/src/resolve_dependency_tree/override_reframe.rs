@@ -1,9 +1,22 @@
 use miette::Diagnostic;
-use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_network::redact_and_sanitize;
 use pnpm_resolving_resolver_base::{NoMatchingVersionError, WantedDependency};
 
 use super::ResolveDependencyTreeError;
+
+/// An `overrides` entry, reduced to what attributing a missing version to it
+/// needs.
+#[derive(Debug, Clone)]
+pub struct OverrideEntry {
+    /// The entry's key as the user wrote it, e.g. `foo@^1`.
+    pub selector: String,
+    /// The package the entry targets.
+    pub name: String,
+    /// The version range of the target in the selector, if it has one.
+    pub selector_range: Option<String>,
+    /// The specifier the entry forces onto the target.
+    pub new_bare_specifier: String,
+}
 
 /// `ERR_PNPM_NO_MATCHING_VERSION` for a specifier that an override forced
 /// onto a dependency. It names the override entry to fix instead of the
@@ -54,7 +67,7 @@ impl Diagnostic for OverrideNoMatchingVersionError {
 pub(super) fn attribute_to_override(
     err: ResolveDependencyTreeError,
     wanted: &WantedDependency,
-    overrides: Option<&[VersionOverride]>,
+    overrides: Option<&[OverrideEntry]>,
 ) -> ResolveDependencyTreeError {
     let reframed = match (&err, overrides) {
         (ResolveDependencyTreeError::NoMatchingVersion(no_matching_version), Some(overrides)) => {
@@ -71,16 +84,14 @@ pub(super) fn attribute_to_override(
 fn overriding_error(
     wanted: &WantedDependency,
     no_matching_version: &NoMatchingVersionError,
-    overrides: &[VersionOverride],
+    overrides: &[OverrideEntry],
 ) -> Option<OverrideNoMatchingVersionError> {
     let alias = wanted.alias.as_deref()?;
     let bare_specifier = wanted.bare_specifier.as_deref()?;
     let matched = overrides
         .iter()
-        .find(|entry| {
-            entry.target_pkg.name == alias && entry.new_bare_specifier == bare_specifier
-        })?;
-    let selector_range = matched.target_pkg.bare_specifier.clone();
+        .find(|entry| entry.name == alias && entry.new_bare_specifier == bare_specifier)?;
+    let selector_range = matched.selector_range.clone();
     let latest_matching = selector_range
         .as_deref()
         .and_then(|range| max_satisfying(&no_matching_version.versions, range));

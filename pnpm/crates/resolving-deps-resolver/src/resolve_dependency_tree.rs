@@ -1,7 +1,7 @@
 pub use catalogs::{ChildCatalogs, local_directory_child_specs};
 pub use failure::{DependencyResolutionError, ResolutionCancel, ResolveDependencyTreeError};
 pub use manifest::{declared_specifiers, manifest_child_specs};
-pub use override_reframe::OverrideNoMatchingVersionError;
+pub use override_reframe::{OverrideEntry, OverrideNoMatchingVersionError};
 
 pub use update_scope::{
     LockedRuntimeReuse, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,

@@ -80,7 +80,7 @@ pub use pnpm_package_name::is_valid_dependency_alias;
 pub use resolve_dependency_tree::{
     ChildCatalogs, DependencyResolutionError, DependencySpec, Deprecation, DeprecationLogFn,
     FinalizedChild, FinalizedPackage, FinalizedPackageFn, LockedRuntimeReuse, ManifestHook,
-    OverrideNoMatchingVersionError, ResolutionCancel, ResolveDependencyTreeError,
+    OverrideEntry, OverrideNoMatchingVersionError, ResolutionCancel, ResolveDependencyTreeError,
     ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
     SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
     WorkspaceTreeCtx, declared_specifiers, dependency_is_injected, dependency_meta_is_injected,

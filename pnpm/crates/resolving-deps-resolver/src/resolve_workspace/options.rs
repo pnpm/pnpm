@@ -39,7 +39,7 @@ pub struct WorkspaceResolveOptions {
     pub version: WorkspaceVersionResolution,
     /// Parsed `overrides`, used to attribute `ERR_PNPM_NO_MATCHING_VERSION`
     /// to the override entry that forced the missing version.
-    pub parsed_overrides: Option<Arc<[pnpm_config_parse_overrides::VersionOverride]>>,
+    pub parsed_overrides: Option<Arc<[crate::OverrideEntry]>>,
 }
 
 #[derive(Default)]

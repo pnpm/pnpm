@@ -357,7 +357,7 @@ pub(super) struct WorkspaceResolutionPolicy {
     /// Parsed `pnpm.overrides`, used to reframe
     /// `ERR_PNPM_NO_MATCHING_VERSION` onto the responsible override entry
     /// when an override forces a version the registry does not serve.
-    pub(super) parsed_overrides: Option<Arc<[pnpm_config_parse_overrides::VersionOverride]>>,
+    pub(super) parsed_overrides: Option<Arc<[crate::OverrideEntry]>>,
 }
 
 /// The per-package missing-peer names
@@ -540,7 +540,7 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_parsed_overrides(
         mut self,
-        parsed_overrides: Option<Arc<[pnpm_config_parse_overrides::VersionOverride]>>,
+        parsed_overrides: Option<Arc<[crate::OverrideEntry]>>,
     ) -> Self {
         self.policy.parsed_overrides = parsed_overrides;
         self
