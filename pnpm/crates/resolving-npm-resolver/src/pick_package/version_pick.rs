@@ -6,7 +6,7 @@ use super::{
     warn_missing_time_once,
 };
 use crate::{OfflineStoreView, PickPackageFromMetaError};
-use node_semver::Version;
+use node_semver::{Identifier, Version};
 
 /// Same fields as [`super::PickPackageOptions`] minus the dispatcher-only
 /// ones (registry, `dry_run`); plus the `ignore_missing_time_field`
@@ -118,41 +118,53 @@ pub(super) fn pick_respecting_min_release_age(
     spec: &RegistryPackageSpec,
     meta: &Package,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
-    run_picker(picker_opts, meta, spec, |target_spec| {
-        let pick_mature = if picker_opts.pick_lowest_version {
+    let pick_mature = |target_spec: &RegistryPackageSpec| {
+        let pick_by_range = if picker_opts.pick_lowest_version {
             pick_lowest_version_by_version_range
         } else {
             pick_version_by_version_range
         };
         let mature =
-            pick_package_from_meta(pick_mature, &meta_opts(picker_opts), meta, target_spec)?;
+            pick_package_from_meta(pick_by_range, &meta_opts(picker_opts), meta, target_spec)?;
         if mature.is_some() {
             return Ok(mature);
         }
-        pick_release_age_fallback(picker_opts, target_spec, meta)
-    })
+        pick_within_fallback_cutoff(picker_opts, target_spec, meta)
+    };
+    run_picker(
+        picker_opts,
+        meta,
+        spec,
+        |target_spec| match pick_mature(target_spec)? {
+            Some(mature) => Ok(Some(mature)),
+            None => pick_ignoring_maturity(picker_opts, target_spec, meta),
+        },
+        // An immature channel pick would win over a mature `latest` and
+        // hide it.
+        pick_mature,
+    )
 }
 
-fn pick_release_age_fallback(
+fn pick_within_fallback_cutoff(
     picker_opts: &PickerOpts<'_>,
     target_spec: &RegistryPackageSpec,
     meta: &Package,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
-    if picker_opts.fallback_published_by > picker_opts.published_by {
-        let fallback_opts = PickPackageFromMetaOptions {
-            published_by: picker_opts.fallback_published_by,
-            ..meta_opts(picker_opts)
-        };
-        let mature = pick_package_from_meta(
-            pick_lowest_version_by_version_range,
-            &fallback_opts,
-            meta,
-            target_spec,
-        )?;
-        if mature.is_some() {
-            return Ok(mature);
-        }
+    if picker_opts.fallback_published_by <= picker_opts.published_by {
+        return Ok(None);
     }
+    let fallback_opts = PickPackageFromMetaOptions {
+        published_by: picker_opts.fallback_published_by,
+        ..meta_opts(picker_opts)
+    };
+    pick_package_from_meta(pick_lowest_version_by_version_range, &fallback_opts, meta, target_spec)
+}
+
+fn pick_ignoring_maturity(
+    picker_opts: &PickerOpts<'_>,
+    target_spec: &RegistryPackageSpec,
+    meta: &Package,
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     let fallback_opts = PickPackageFromMetaOptions {
         preferred_version_selectors: picker_opts.preferred_version_selectors,
         published_by: None,
@@ -167,38 +179,33 @@ pub(super) fn pick_ignoring_release_age(
     spec: &RegistryPackageSpec,
     meta: &Package,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
-    run_picker(picker_opts, meta, spec, |target_spec| {
-        if picker_opts.pick_lowest_version {
-            pick_package_from_meta(
-                pick_lowest_version_by_version_range,
-                &meta_opts(picker_opts),
-                meta,
-                target_spec,
-            )
-        } else {
-            pick_package_from_meta(
-                pick_version_by_version_range,
-                &meta_opts(picker_opts),
-                meta,
-                target_spec,
-            )
-        }
-    })
+    let pick_by_range = if picker_opts.pick_lowest_version {
+        pick_lowest_version_by_version_range
+    } else {
+        pick_version_by_version_range
+    };
+    let pick_one = |target_spec: &RegistryPackageSpec| {
+        pick_package_from_meta(pick_by_range, &meta_opts(picker_opts), meta, target_spec)
+    };
+    run_picker(picker_opts, meta, spec, pick_one, pick_one)
 }
 
 /// `include_latest_tag` runner. When the flag is off, just delegate
 /// to the inner picker. When on, additionally pick against the
 /// `latest` tag and return the higher of the two. An installed prerelease
-/// also adds the dist-tag that follows its prerelease channel, which a lower
-/// stable `latest` would otherwise hide.
-pub(super) fn run_picker<PickOne>(
+/// also adds the dist-tag that follows its prerelease channel, picked with
+/// `pick_channel_tag`, which a lower stable `latest` would otherwise hide.
+pub(super) fn run_picker<PickOne, PickChannelTag>(
     picker_opts: &PickerOpts<'_>,
     meta: &Package,
     spec: &RegistryPackageSpec,
     pick_one: PickOne,
+    pick_channel_tag: PickChannelTag,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
 where
     PickOne:
+        Fn(&RegistryPackageSpec) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>,
+    PickChannelTag:
         Fn(&RegistryPackageSpec) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>,
 {
     let current = pick_one(spec)?;
@@ -216,46 +223,40 @@ where
         find_prerelease_channel_tag(meta, current_version)
     });
     match channel_tag {
-        Some(tag) if tag != "latest" => Ok(pick_max(picked, pick_one(&tag_spec(tag))?)),
+        Some(tag) if tag != "latest" => Ok(pick_max(picked, pick_channel_tag(&tag_spec(tag))?)),
         _ => Ok(picked),
     }
 }
 
-/// The dist-tag pointing at the highest version on the same prerelease
-/// channel as `current_version`. `None` when `current_version` is not a
-/// prerelease or no dist-tag follows its channel.
+/// The dist-tag pointing at the highest published version on the same
+/// prerelease channel as `current_version`. `None` when `current_version` is
+/// not a prerelease or no dist-tag follows its channel.
 fn find_prerelease_channel_tag<'meta>(
     meta: &'meta Package,
     current_version: &Version,
 ) -> Option<&'meta str> {
     let channel = prerelease_channel(current_version)?;
     meta.dist_tags()
+        .filter(|(_, version)| meta.versions.contains_key(version))
         .filter_map(|(tag, version)| {
             let version = Version::parse(version).ok()?;
-            (prerelease_channel(&version).as_deref() == Some(channel.as_str())).then_some((
-                tag, version,
-            ))
+            (prerelease_channel(&version) == Some(channel)).then_some((tag, version))
         })
         .max_by(|(_, version1), (_, version2)| version1.cmp(version2))
         .map(|(tag, _)| tag)
 }
 
-/// The prerelease identifiers without their trailing build counter:
-/// `rc` for `3.0.0-rc.1`, `next` for `0.0.0-next-2`, and `beta` for
-/// `1.0.0-beta2`.
-fn prerelease_channel(version: &Version) -> Option<String> {
-    let identifiers = version.pre_release
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(".");
-    if !identifiers.ends_with(|char: char| char.is_ascii_digit()) {
-        return (!identifiers.is_empty()).then_some(identifiers);
-    }
-    let channel = identifiers.trim_end_matches(|char: char| {
-        char.is_ascii_digit() || char == '.' || char == '-'
-    });
-    (!channel.is_empty()).then(|| channel.to_string())
+/// The leading run of letters in the first prerelease identifier. Build
+/// counters, dates, and commit hashes that follow it do not change the
+/// channel.
+fn prerelease_channel(version: &Version) -> Option<&str> {
+    let Some(Identifier::AlphaNumeric(first)) = version.pre_release.first() else {
+        return None;
+    };
+    let end = first
+        .find(|char: char| !char.is_ascii_alphabetic())
+        .unwrap_or(first.len());
+    (end > 0).then(|| &first[..end])
 }
 
 /// Higher-version-wins between two optional picks. Treats `None`

@@ -276,7 +276,9 @@ async fn resolve_outdated_target(
                 ..ResolverWantedDependency::default()
             },
             compatible,
-            current_version: Some(candidate.current.clone()),
+            current_version: query.follow_prerelease_channels.then(|| {
+                candidate.current.clone()
+            }),
         },
         &run.resolve_options,
     )

@@ -261,6 +261,8 @@ fn prerelease_channel_body(dist_tags: &[(&str, &str)]) -> String {
     let versions = [
         "1.0.0",
         "2.0.0-canary-2",
+        "2.0.0-canary-abc123-20260101",
+        "2.0.0-canary-def456-20260102",
         "2.0.0-next-1",
         "2.0.0-next-2",
         "2.0.0-rc.0",
@@ -308,11 +310,24 @@ async fn resolve_latest_follows_the_prerelease_channel_of_the_current_version() 
             current: "2.0.0-rc.1",
             expected: "2.0.0-rc.2",
         },
-        // A stable `latest` above a stale channel tag still wins.
         PrereleaseChannelCase {
             dist_tags: &[("latest", "2.0.0"), ("next", "2.0.0-next-2")],
             current: "2.0.0-next-1",
             expected: "2.0.0",
+        },
+        PrereleaseChannelCase {
+            dist_tags: &[("latest", "1.0.0"), ("canary", "2.0.0-canary-def456-20260102")],
+            current: "2.0.0-canary-abc123-20260101",
+            expected: "2.0.0-canary-def456-20260102",
+        },
+        PrereleaseChannelCase {
+            dist_tags: &[
+                ("latest", "1.0.0"),
+                ("next", "2.0.0-next-2"),
+                ("preview", "2.0.0-next-9"),
+            ],
+            current: "2.0.0-next-1",
+            expected: "2.0.0-next-2",
         },
         PrereleaseChannelCase {
             dist_tags: &[("latest", "1.0.0"), ("canary", "2.0.0-canary-2")],
@@ -348,4 +363,67 @@ async fn resolve_latest_follows_the_prerelease_channel_of_the_current_version() 
         let manifest = info.latest_manifest.expect("manifest present");
         assert_eq!(manifest["version"].as_str(), Some(expected), "current {current}");
     }
+}
+
+#[tokio::test]
+async fn resolve_latest_ignores_an_immature_prerelease_channel_tag() {
+    let manifest = |version: &str| {
+        serde_json::json!({
+            "name": "acme",
+            "version": version,
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "tarball": format!("https://registry/acme-{version}.tgz"),
+            },
+        })
+    };
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "2.0.0", "next": "3.0.0-beta.0" },
+        "modified": "2026-03-01T00:00:00.000Z",
+        "time": {
+            "2.0.0-beta.0": "2026-01-01T00:00:00.000Z",
+            "2.0.0": "2026-01-02T00:00:00.000Z",
+            "3.0.0-beta.0": "2026-03-01T00:00:00.000Z",
+        },
+        "versions": {
+            "2.0.0-beta.0": manifest("2.0.0-beta.0"),
+            "2.0.0": manifest("2.0.0"),
+            "3.0.0-beta.0": manifest("3.0.0-beta.0"),
+        },
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let query = LatestQuery {
+        wanted_dependency: WantedDependency {
+            alias: Some("acme".to_string()),
+            bare_specifier: Some("2.0.0-beta.0".to_string()),
+            ..WantedDependency::default()
+        },
+        compatible: false,
+        current_version: Some("2.0.0-beta.0".parse().expect("valid version")),
+    };
+    let opts = ResolveOptions {
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some("2026-02-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap()),
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+    let info = resolver
+        .resolve_latest(&query, &opts)
+        .await
+        .unwrap()
+        .expect("latest info");
+    let manifest = info.latest_manifest.expect("manifest present");
+    assert_eq!(manifest["version"].as_str(), Some("2.0.0"));
 }

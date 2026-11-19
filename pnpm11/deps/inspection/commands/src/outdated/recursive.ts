@@ -80,6 +80,7 @@ export async function outdatedRecursive (
     ? await outdatedDepsOfProjects(pkgs, packageParams, {
       ...opts,
       fullMetadata: opts.long,
+      followPrereleaseChannels: true,
       ignoreDependencies: opts.updateConfig?.ignoreDependencies,
       minimumReleaseAge: opts.minimumReleaseAge,
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,

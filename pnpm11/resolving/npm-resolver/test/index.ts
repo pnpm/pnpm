@@ -102,10 +102,22 @@ test.each([
     expected: '2.0.0-rc.2',
   },
   {
-    name: 'prefers a stable latest above a stale channel dist-tag',
+    name: 'prefers a stable latest above a channel dist-tag',
     distTags: { latest: '2.0.0', next: '2.0.0-next-2' },
     currentVersion: '2.0.0-next-1',
     expected: '2.0.0',
+  },
+  {
+    name: 'follows a hash-stamped prerelease channel',
+    distTags: { latest: '1.0.0', canary: '2.0.0-canary-def456-20260102' },
+    currentVersion: '2.0.0-canary-abc123-20260101',
+    expected: '2.0.0-canary-def456-20260102',
+  },
+  {
+    name: 'skips a channel dist-tag that points to an unpublished version',
+    distTags: { latest: '1.0.0', next: '2.0.0-next-2', preview: '2.0.0-next-9' },
+    currentVersion: '2.0.0-next-1',
+    expected: '2.0.0-next-2',
   },
   {
     name: 'ignores dist-tags of other prerelease channels',
@@ -123,7 +135,7 @@ test.each([
       tarball: `${registriesByScope.default}${name}/-/${name}-${version}.tgz`,
     },
   })
-  const versions = ['1.0.0', '2.0.0-canary-2', '2.0.0-next-1', '2.0.0-next-2', '2.0.0-rc.0', '2.0.0-rc.1', '2.0.0-rc.2', '2.0.0']
+  const versions = ['1.0.0', '2.0.0-canary-2', '2.0.0-canary-abc123-20260101', '2.0.0-canary-def456-20260102', '2.0.0-next-1', '2.0.0-next-2', '2.0.0-rc.0', '2.0.0-rc.1', '2.0.0-rc.2', '2.0.0']
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, {
@@ -147,6 +159,50 @@ test.each([
   })
 
   expect(info?.latestManifest?.version).toBe(expected)
+})
+
+test('resolveLatestFromNpm() does not let an immature channel dist-tag hide a mature latest', async () => {
+  const name = 'prerelease-channel-release-age'
+  const manifest = (version: string) => ({
+    name,
+    version,
+    dist: {
+      integrity: ssri.fromData(version).toString(),
+      tarball: `${registriesByScope.default}${name}/-/${name}-${version}.tgz`,
+    },
+  })
+  const versions = ['2.0.0-beta.0', '2.0.0', '3.0.0-beta.0']
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
+    .reply(200, {
+      name,
+      'dist-tags': { latest: '2.0.0', next: '3.0.0-beta.0' },
+      modified: '2026-03-01T00:00:00.000Z',
+      time: {
+        '2.0.0-beta.0': '2026-01-01T00:00:00.000Z',
+        '2.0.0': '2026-01-02T00:00:00.000Z',
+        '3.0.0-beta.0': '2026-03-01T00:00:00.000Z',
+      },
+      versions: Object.fromEntries(versions.map((version) => [version, manifest(version)])),
+    })
+
+  const { resolveLatestFromNpm } = createResolveFromNpm({
+    cacheDir: temporaryDirectory(),
+    fullMetadata: true,
+    registriesByScope,
+  })
+  const info = await resolveLatestFromNpm({
+    wantedDependency: { alias: name, bareSpecifier: '2.0.0-beta.0' },
+    compatible: false,
+    currentVersion: '2.0.0-beta.0',
+  }, {
+    lockfileDir: temporaryDirectory(),
+    preferredVersions: {},
+    projectDir: temporaryDirectory(),
+    publishedBy: new Date('2026-02-01T00:00:00.000Z'),
+  })
+
+  expect(info?.latestManifest?.version).toBe('2.0.0')
 })
 
 test.each([

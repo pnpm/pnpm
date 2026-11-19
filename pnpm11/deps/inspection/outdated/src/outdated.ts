@@ -47,6 +47,12 @@ export interface OutdatedOptions {
   catalogs?: Catalogs
   compatible?: boolean
   currentLockfile: LockfileObject | null
+  /**
+   * Compare an installed prerelease with the dist-tag of its prerelease
+   * channel too. `pnpm update` leaves this off because it installs only what
+   * `latest` and the declared range resolve to.
+   */
+  followPrereleaseChannels?: boolean
   resolveLatest: ResolveLatestDispatcher
   ignoreDependencies?: string[]
   include?: IncludedDependencies
@@ -249,7 +255,11 @@ async function resolveOutdatedPackage (params: ResolvePackageContext): Promise<O
   const bareSpecifier = ctx.replaceCatalog({ alias, bareSpecifier: declaredSpecifier })
   const { packageName, wanted, current } = getPackageDisplayVersions(ctx, alias, wantedRef, currentRef)
   const info = await ctx.opts.resolveLatest(
-    { wantedDependency: { alias, bareSpecifier }, compatible: ctx.opts.compatible, currentVersion: current },
+    {
+      wantedDependency: { alias, bareSpecifier },
+      compatible: ctx.opts.compatible,
+      currentVersion: ctx.opts.followPrereleaseChannels ? current ?? wanted : undefined,
+    },
     ctx.resolveOpts
   )
   if (info == null) return undefined

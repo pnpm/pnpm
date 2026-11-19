@@ -57,6 +57,7 @@ fn global_outdated_query<'a>(
         include_deprecated: false,
         full_metadata: false,
         apply_trust_policy: false,
+        follow_prerelease_channels: false,
     }
 }
 
