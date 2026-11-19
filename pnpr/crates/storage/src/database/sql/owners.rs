@@ -170,7 +170,7 @@ fn maintainer_ids(state: &Value) -> Vec<String> {
     ids
 }
 
-fn query_package_owners(
+pub(super) fn query_package_owners(
     connection: &dyn Connection,
     key: &PackageKey,
 ) -> Result<Option<Vec<String>>> {

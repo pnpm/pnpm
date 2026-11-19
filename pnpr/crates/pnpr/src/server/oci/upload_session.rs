@@ -1,15 +1,17 @@
 use super::{
-    BlobUpload, Body, CanonicalPackageName, Digest, ECOSYSTEM, ErrorCode, Method, RegistryError,
-    Request, Response, StatusCode, Storage, accepted, append_body, created, error, hash_upload,
-    header, hosted_read_namespace, method_not_allowed, no_content, parse_content_range,
-    query_param, range_not_satisfiable, registry_error, upload_lock_key,
+    Action, BlobUpload, Body, CanonicalPackageName, Digest, ECOSYSTEM, ErrorCode, Method,
+    OciTarget, Refusal, RegistryError, RegistrySource, Request, Response, StatusCode, Storage,
+    accepted, append_body, created, error, hash_upload, header, hosted_read_namespace,
+    method_not_allowed, no_content, parse_content_range, query_param, range_not_satisfiable,
+    registry_error, upload_lock_key,
 };
+use crate::server::{AuthorizationDecision, authorize_without_owners};
 
 impl Request {
     pub(super) async fn mount_blob(
         &self,
         destination: &Storage,
-        key: &CanonicalPackageName,
+        target: &OciTarget,
         mount: &str,
         from: &str,
     ) -> Result<Option<Response>, RegistryError> {
@@ -38,7 +40,7 @@ impl Request {
         else {
             return Ok(None);
         };
-        let upload = destination.begin_blob_upload(key, self.identity.user_id()).await?;
+        let upload = destination.begin_blob_upload(&target.key, target.publisher.user_id()).await?;
         if let Err(refusal) =
             append_body(destination, &upload, body, self.state.inner.config.http.oci.max_blob_bytes)
                 .await
@@ -46,7 +48,7 @@ impl Request {
             destination.abort_blob_upload(&upload).await?;
             return Ok(Some(refusal.respond()));
         }
-        Ok(Some(self.finish_upload(destination, upload, key, mount).await))
+        Ok(Some(self.finish_upload(destination, upload, target, mount).await))
     }
 
     /// `POST /v2/<name>/blobs/uploads/` — start an upload, or complete one in
@@ -63,7 +65,7 @@ impl Request {
         if let (Some(mount), Some(from)) =
             (query_param(Some(&self.query), "mount"), query_param(Some(&self.query), "from"))
         {
-            match self.mount_blob(&storage, &target.key, &mount, &from).await {
+            match self.mount_blob(&storage, &target, &mount, &from).await {
                 Ok(Some(response)) => return response,
                 Ok(None) => {}
                 Err(err) => return registry_error(err),
@@ -82,7 +84,7 @@ impl Request {
             return refusal.respond();
         }
         match self.digest.as_deref() {
-            Some(digest) => self.finish_upload(&storage, upload, &target.key, digest).await,
+            Some(digest) => self.finish_upload(&storage, upload, &target, digest).await,
             None => self.upload_progress(&target.key, &upload).await,
         }
     }
@@ -107,7 +109,7 @@ impl Request {
             };
         match self.method {
             Method::PATCH => self.append_chunk(&storage, &target.key, &upload, body).await,
-            Method::PUT => self.complete_upload(&storage, target.key, upload, body).await,
+            Method::PUT => self.complete_upload(&storage, &target, upload, body).await,
             Method::GET => self.upload_progress(&target.key, &upload).await,
             Method::DELETE => match storage.abort_blob_upload(&upload).await {
                 Ok(_) => no_content(StatusCode::NO_CONTENT),
@@ -142,7 +144,7 @@ impl Request {
     pub(super) async fn complete_upload(
         &self,
         storage: &pnpr_storage::Storage,
-        key: CanonicalPackageName,
+        target: &OciTarget,
         upload: BlobUpload,
         body: Body,
     ) -> Response {
@@ -155,7 +157,7 @@ impl Request {
         if let Err(refusal) = appended {
             return refusal.respond();
         }
-        self.finish_upload(storage, upload, &key, digest).await
+        self.finish_upload(storage, upload, target, digest).await
     }
 
     /// Refuse a chunk that does not continue where the upload left off, so a
@@ -246,33 +248,81 @@ impl Request {
         &self,
         storage: &Storage,
         upload: BlobUpload,
-        key: &CanonicalPackageName,
+        target: &OciTarget,
         digest: &str,
     ) -> Response {
-        let Ok(digest) = Digest::parse(digest) else {
-            let _ = storage.abort_blob_upload(&upload).await;
-            return error(ErrorCode::DigestInvalid, "not a supported digest");
+        let digest = match verify_upload_digest(storage, &upload, digest).await {
+            Ok(digest) => digest,
+            Err(response) => return response,
         };
-        match hash_upload(&upload).await {
-            Ok(actual) if actual == digest => {}
-            Ok(_) => {
+        let required_owner = match self.required_owner_for_completion(target) {
+            Ok(owner) => owner,
+            Err(refusal) => {
                 let _ = storage.abort_blob_upload(&upload).await;
-                return error(ErrorCode::DigestInvalid, "uploaded bytes do not match the digest");
+                return refusal.respond();
             }
-            Err(err) => return registry_error(err),
-        }
-        if let Err(refusal) = self.publish_target(key.as_str()).await {
-            if refusal.status.is_client_error() {
-                let _ = storage.abort_blob_upload(&upload).await;
-            }
-            return refusal.respond();
-        }
+        };
         let filename = digest.blob_filename();
         let id =
             pnpr_storage::BlobId::parse(&filename).expect("a digest's file name is an identity");
-        match storage.finalize_uploaded_blob(upload, key, (&filename, id)).await {
-            Ok(()) => created(&format!("{}/{}/blobs/{digest}", self.base, key.as_str()), &digest),
+        match storage.finalize_uploaded_blob_for_owner(
+            upload,
+            &target.key,
+            (&filename, id),
+            required_owner,
+        )
+        .await
+        {
+            Ok(()) => {
+                created(&format!("{}/{}/blobs/{digest}", self.base, target.key.as_str()), &digest)
+            }
+            Err(RegistryError::Forbidden { action, resource, .. }) => {
+                registry_error(RegistryError::Forbidden {
+                    user: target.publisher
+                        .username()
+                        .unwrap_or_default()
+                        .to_string(),
+                    action,
+                    resource,
+                })
+            }
             Err(err) => registry_error(err),
         }
+    }
+
+    fn required_owner_for_completion<'target>(
+        &self,
+        target: &'target OciTarget,
+    ) -> Result<Option<&'target str>, Refusal> {
+        let source = RegistrySource::Hosted(target.registry.clone());
+        match authorize_without_owners(
+            &self.state,
+            &target.publisher,
+            &source,
+            target.key.as_str(),
+            Action::Publish,
+        )? {
+            AuthorizationDecision::AllowedWithoutOwners => Ok(None),
+            AuthorizationDecision::NeedsOwners => Ok(target.publisher.user_id()),
+        }
+    }
+}
+
+async fn verify_upload_digest(
+    storage: &Storage,
+    upload: &BlobUpload,
+    digest: &str,
+) -> Result<Digest, Response> {
+    let Ok(digest) = Digest::parse(digest) else {
+        let _ = storage.abort_blob_upload(upload).await;
+        return Err(error(ErrorCode::DigestInvalid, "not a supported digest"));
+    };
+    match hash_upload(upload).await {
+        Ok(actual) if actual == digest => Ok(digest),
+        Ok(_) => {
+            let _ = storage.abort_blob_upload(upload).await;
+            Err(error(ErrorCode::DigestInvalid, "uploaded bytes do not match the digest"))
+        }
+        Err(err) => Err(registry_error(err)),
     }
 }

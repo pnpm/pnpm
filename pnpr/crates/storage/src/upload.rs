@@ -250,6 +250,18 @@ impl Storage {
         name: &CanonicalPackageName,
         (filename, id): (&str, BlobId),
     ) -> Result<()> {
+        self.finalize_uploaded_blob_for_owner(upload, name, (filename, id), None).await
+    }
+
+    /// Like [`Self::finalize_uploaded_blob`], requiring `required_owner` to own
+    /// `name` in the mapping transaction whenever `name` already records owners.
+    pub async fn finalize_uploaded_blob_for_owner(
+        &self,
+        upload: BlobUpload,
+        name: &CanonicalPackageName,
+        (filename, id): (&str, BlobId),
+        required_owner: Option<&str>,
+    ) -> Result<()> {
         let remote = upload.remote.clone();
         let slot = self.stage_uploaded_blob(upload, name, filename).await?;
         if let Some(remote) = &remote {
@@ -259,15 +271,10 @@ impl Storage {
         let rows = self.blob_rows(vec![id.clone()]).await?;
         let row = rows.get(&id);
         let promoted = self.promote_blob_slot(slot, (id, size), row).await?;
-        if let Err(error) = self.map_hosted_artifact(promoted.artifact.clone()).await {
-            if promoted.stored {
-                let blob = promoted.artifact.blob;
-                if let Err(error) =
-                    self.remove_uncommitted(vec![Uncommitted { blob, may_fence: true }]).await
-                {
-                    tracing::warn!(%error, "an unmapped upload awaits `pnpr gc`");
-                }
-            }
+        if let Err(error) =
+            self.map_hosted_artifact_for_owner(promoted.artifact.clone(), required_owner).await
+        {
+            self.cleanup_failed_promotion(promoted, remote.as_deref(), &error).await;
             return Err(error);
         }
         if let Some(remote) = remote
@@ -276,6 +283,27 @@ impl Storage {
             tracing::warn!(error = %error.log_message(), "promoted upload awaits session cleanup");
         }
         Ok(())
+    }
+
+    async fn cleanup_failed_promotion(
+        &self,
+        promoted: crate::PromotedArchive,
+        remote: Option<&remote::RemoteUpload>,
+        error: &RegistryError,
+    ) {
+        if promoted.stored {
+            let blob = promoted.artifact.blob;
+            if let Err(err) =
+                self.remove_uncommitted(vec![Uncommitted { blob, may_fence: true }]).await
+            {
+                tracing::warn!(error = %err, "an unmapped upload awaits `pnpr gc`");
+            }
+        }
+        if matches!(error, RegistryError::Forbidden { .. })
+            && let Some(remote) = remote
+        {
+            let _ = remote.close().await;
+        }
     }
 
     /// Move a finished upload into a hosted blob slot, ready for

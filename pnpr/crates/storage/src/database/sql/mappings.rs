@@ -76,20 +76,23 @@ impl SqlDatabase {
         namespace: &str,
         artifact: ArtifactBlob,
     ) -> Result<()> {
+        self.map_artifact_for_owner(namespace, artifact, None).await
+    }
+
+    /// Like [`Self::map_artifact`], refusing with
+    /// [`pnpr_error::RegistryError::Forbidden`] when `required_owner` is `Some`
+    /// and the package already records owners that do not include that account.
+    pub async fn map_artifact_for_owner(
+        self: &Arc<Self>,
+        namespace: &str,
+        artifact: ArtifactBlob,
+        required_owner: Option<&str>,
+    ) -> Result<()> {
         let namespace = namespace.to_string();
+        let required_owner = required_owner.map(str::to_owned);
         let fence = BlobFence { artifacts: vec![artifact], references: Vec::new() };
         self.write(move |connection| {
-            let read = FenceRead::new(&fence).expect("a fence of one file");
-            let transaction = WriteTransaction::begin(connection)?;
-            let results = transaction.query_all(&read.queries(transaction.dialect(), &namespace))?;
-            let check = read.check(&mut results.into_iter())?;
-            read.write(&*transaction, &namespace, &check)?;
-            for artifact in &fence.artifacts {
-                if artifact.ecosystem == Ecosystem::Npm {
-                    super::cdn::enqueue(&*transaction, &artifact.name)?;
-                }
-            }
-            transaction.commit()
+            map_fenced_artifact(connection, &namespace, &fence, required_owner.as_deref())
         })
         .await
     }
@@ -186,6 +189,44 @@ impl SqlDatabase {
         let scanned = (json_array(&any), json_array(&exact));
         self.write(move |connection| unmap(connection, &key, &scanned, expected)).await
     }
+}
+
+fn map_fenced_artifact(
+    connection: &dyn Connection,
+    namespace: &str,
+    fence: &BlobFence,
+    required_owner: Option<&str>,
+) -> Result<()> {
+    let read = FenceRead::new(fence).expect("a fence of one file");
+    let transaction = WriteTransaction::begin(connection)?;
+    if let Some(user_id) = required_owner {
+        let artifact = &fence.artifacts[0];
+        let key = PackageKey {
+            namespace: namespace.to_string(),
+            ecosystem: artifact.ecosystem,
+            name: artifact.name.clone(),
+        };
+        if let Some(owners) = super::owners::query_package_owners(&*transaction, &key)?
+            && !owners
+                .iter()
+                .any(|owner| owner == user_id)
+        {
+            return Err(pnpr_error::RegistryError::Forbidden {
+                user: String::new(),
+                action: "publish",
+                resource: format!("package {:?}", key.name),
+            });
+        }
+    }
+    let results = transaction.query_all(&read.queries(transaction.dialect(), namespace))?;
+    let check = read.check(&mut results.into_iter())?;
+    read.write(&*transaction, namespace, &check)?;
+    for artifact in &fence.artifacts {
+        if artifact.ecosystem == Ecosystem::Npm {
+            super::cdn::enqueue(&*transaction, &artifact.name)?;
+        }
+    }
+    transaction.commit()
 }
 
 /// The mappings of a package that `?4`, a JSON array of files whose current

@@ -8,6 +8,9 @@ mod referrers;
 #[path = "oci_registry/authorization.rs"]
 mod authorization;
 
+#[path = "oci_registry/upload_authorization.rs"]
+mod upload_authorization;
+
 #[path = "oci_registry/discovery.rs"]
 mod discovery;
 
