@@ -703,7 +703,7 @@ test('removing a dependency without executable scripts does not affect ignoredBu
   expect(wsManifest!.allowBuilds?.[pendingPkg]).toBe(true)
 })
 
-test('installing additional dependencies preserves ignoredBuilds of existing packages (#9240, #9313)', async () => {
+test('installing additional dependencies preserves ignoredBuilds of existing packages (#9240)', async () => {
   const project = prepare({})
 
   const firstPkg = '@pnpm.e2e/pre-and-postinstall-scripts-example'

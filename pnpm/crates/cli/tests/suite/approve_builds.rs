@@ -861,6 +861,7 @@ fn approve_builds_works_after_adding_another_dependency() {
         .success();
     let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
     assert!(output.contains(PREPOST), "first package stays pending: {output}");
+    assert!(!output.contains("is-positive"), "package without scripts is not pending: {output}");
 
     pacquet(&workspace)
         .with_args(["add", &format!("{INSTALL}@1.0.0")])
