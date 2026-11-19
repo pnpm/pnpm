@@ -301,7 +301,6 @@ pub(super) fn seed_skip_set(
     config: &pnpm_config::Config,
     seed_skipped: Option<Vec<String>>,
 ) -> SkippedSnapshots {
-    // Re-evaluating skipped snapshots or forcing re-materialization clears the recorded skip set.
     if config.reevaluates_every_snapshot() {
         return SkippedSnapshots::new();
     }

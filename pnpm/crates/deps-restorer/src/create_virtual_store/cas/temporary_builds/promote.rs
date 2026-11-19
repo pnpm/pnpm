@@ -10,7 +10,8 @@ pub(super) fn retain(
     selected: &Snapshots,
 ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
     let layout = installer.ctx.linker.layout;
-    // `--force` builds a placed package again, and its build replaces it.
+    // `--force` and `--reinstall` build a placed package again, and its build
+    // replaces it.
     let when_placed = if installer.ctx.config.reinstalls_every_package() {
         WhenPlaced::Replace
     } else {

@@ -515,9 +515,9 @@ pub enum InstallError {
     ConfigConflictLockfileOnlyWithNoLockfile,
 
     /// `--force` or `--reinstall` was requested together with
-    /// `frozenStore`. Both re-import packages into the store, which `frozenStore` opens
-    /// read-only, so the combination cannot proceed. Mirrors pnpm's
-    /// `ERR_PNPM_CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE`.
+    /// `frozenStore`. Both re-import packages into the store, which
+    /// `frozenStore` opens read-only, so the combination cannot proceed.
+    /// Mirrors pnpm's `ERR_PNPM_CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE`.
     #[display(
         "Cannot use --force or --reinstall together with frozenStore: they re-import packages into the store, which is opened read-only when frozenStore is enabled"
     )]
