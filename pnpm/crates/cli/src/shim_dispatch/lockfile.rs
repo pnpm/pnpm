@@ -27,7 +27,7 @@ pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<S
         match load_importer_snapshot(&lockfile_path, &importer_id) {
             Ok(ImporterLoad::MissingLockfile) => continue,
             Ok(ImporterLoad::Importer(Some(importer))) => {
-                return importer_runtime_version(&importer, &package_name).flatten();
+                return importer_runtime_version(importer.as_ref(), &package_name).flatten();
             }
             Ok(ImporterLoad::Importer(None)) | Err(_) => return None,
         }

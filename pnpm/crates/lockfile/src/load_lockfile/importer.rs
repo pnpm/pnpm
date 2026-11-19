@@ -9,7 +9,7 @@ pub enum ImporterLoad {
     /// The file or its main document is absent.
     MissingLockfile,
     /// The main document is present, with the requested importer if found.
-    Importer(Option<ProjectSnapshot>),
+    Importer(Option<Box<ProjectSnapshot>>),
 }
 
 #[derive(Deserialize)]
@@ -40,11 +40,15 @@ impl Lockfile {
         if !LockfileVersion::<9>::is_compatible(parsed.lockfile_version) {
             return Ok(match Lockfile::load_from_path(file_path)? {
                 Some(lockfile) => {
-                    ImporterLoad::Importer(lockfile.importers.get(importer_id).cloned())
+                    ImporterLoad::Importer(
+                        lockfile.importers.get(importer_id).cloned().map(Box::new),
+                    )
                 }
                 None => ImporterLoad::MissingLockfile,
             });
         }
-        Ok(ImporterLoad::Importer(parsed.importers.get(importer_id).cloned()))
+        Ok(ImporterLoad::Importer(
+            parsed.importers.get(importer_id).cloned().map(Box::new),
+        ))
     }
 }
