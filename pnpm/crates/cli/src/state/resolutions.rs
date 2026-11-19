@@ -126,8 +126,12 @@ fn format_migrated_entry(selector: &str, original: &str, resolved: &str) -> Stri
 
 /// Convert a Yarn `resolutions` selector to a pnpm override selector:
 /// `**/foo` becomes `foo` and `parent/foo` becomes `parent>foo`. `None` for a
-/// path pnpm overrides cannot express, such as `a/**/foo` or `a/b/foo`.
+/// path pnpm overrides cannot express, such as `a/**/foo` or `a/b/foo`. A
+/// selector in pnpm's own `parent>child` syntax is kept.
 fn to_override_selector(yarn_selector: &str) -> Option<String> {
+    if yarn_selector.contains('>') {
+        return Some(yarn_selector.to_owned());
+    }
     let mut path = yarn_selector.trim();
     while let Some(rest) = path.strip_prefix("**/") {
         path = rest;

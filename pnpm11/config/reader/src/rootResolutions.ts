@@ -61,9 +61,10 @@ function formatMigratedEntry (selector: string, original: string, resolved: stri
  * Converts a Yarn `resolutions` selector to a pnpm override selector:
  * `**\/foo` becomes `foo` and `parent/foo` becomes `parent>foo`. Returns
  * `undefined` for a path pnpm overrides cannot express, such as `a/**\/foo`
- * or `a/b/foo`.
+ * or `a/b/foo`. A selector in pnpm's own `parent>child` syntax is kept.
  */
 function toOverrideSelector (yarnSelector: string): string | undefined {
+  if (yarnSelector.includes('>')) return yarnSelector
   let path = yarnSelector.trim()
   while (path.startsWith('**/')) path = path.slice(3)
   const packages = splitPackagePath(path)

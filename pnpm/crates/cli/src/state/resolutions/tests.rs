@@ -317,6 +317,7 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
             "@esbuild/*": "5.0.0",
             "a/**/deep": "6.0.0",
             "a/b/c": "7.0.0",
+            "foo>@scope/bar": "8.0.0",
         },
     }));
     let mut config = Config::new();
@@ -327,6 +328,7 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
         ("parent>child", "3.0.0"),
         ("@scope/parent>@scope/child", "4.0.0"),
         ("@esbuild/*", "5.0.0"),
+        ("foo>@scope/bar", "8.0.0"),
     ]
     .into_iter()
     .map(|(selector, spec)| (selector.to_owned(), spec.to_owned()))
