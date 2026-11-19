@@ -56,6 +56,23 @@ pub(crate) fn resync_agent_skills_at(
     workspace_root: &Path,
     current_lockfile: Option<&Lockfile>,
 ) -> Result<Vec<String>, ResyncAgentSkillsError> {
+    resync_agent_skills_dep_paths_at(config, workspace_root, current_lockfile)
+        .map(|dep_paths| {
+            dep_paths
+                .iter()
+                .map(|dep_path| crate::skill_approval_key(dep_path))
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect()
+        })
+}
+
+/// Resync installed skills and return the dependency paths awaiting approval.
+pub(crate) fn resync_agent_skills_dep_paths_at(
+    config: &Config,
+    workspace_root: &Path,
+    current_lockfile: Option<&Lockfile>,
+) -> Result<Vec<String>, ResyncAgentSkillsError> {
     let Some(mut modules) = pnpm_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir)
         .map_err(ResyncAgentSkillsError::ReadModules)?
     else {
@@ -80,12 +97,12 @@ pub(crate) fn resync_agent_skills_at(
         hoisted_locations: modules.hoisted_locations.as_ref(),
     })
     .map_err(ResyncAgentSkillsError::Sync)?;
-    let pending_keys = state.pending_keys();
+    let pending_dep_paths = state.pending.clone();
     if state.update_modules(&mut modules) {
         pnpm_modules_yaml::write_modules_manifest::<Host>(&config.modules_dir, modules)
             .map_err(ResyncAgentSkillsError::WriteModules)?;
     }
-    Ok(pending_keys)
+    Ok(pending_dep_paths)
 }
 
 /// Errors from [`skill_approval_options`].

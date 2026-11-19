@@ -116,8 +116,7 @@ fn install_ignore_scripts_does_not_fail_under_strict_dep_builds() {
 }
 
 /// With `strictDepBuilds: false`, an ignored build is a non-fatal
-/// warning printed to stdout and the install exits 0 — the
-/// ignored-build-scripts warning box.
+/// warning printed to stdout and the install exits 0.
 #[test]
 fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
     let CommandTempCwd {
@@ -140,9 +139,10 @@ fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
     eprintln!("pacquet add stdout:\n{stdout}");
     assert!(output.status.success(), "non-strict add must exit zero");
     assert!(
-        stdout.contains("Ignored build scripts")
+        stdout.contains("Packages awaiting approval:")
+            && stdout.contains("  @pnpm.e2e/pre-and-postinstall-scripts-example  build")
             && stdout.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
-        "expected an ignored-build-scripts warning naming the package; got:\n{stdout}",
+        "expected the approval notice to name the package and its build capability; got:\n{stdout}",
     );
 
     let pkg_dir = workspace.join(

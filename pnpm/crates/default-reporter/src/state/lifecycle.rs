@@ -10,6 +10,7 @@ impl ReporterState {
     // --- lifecycle --------------------------------------------------------
 
     pub(super) fn on_lifecycle(&mut self, message: &LifecycleMessage) {
+        self.render_approvals_before_failure(message);
         let quiet = self.options.max_log_level < crate::MaxLogLevel::Info;
         if quiet
             || ((self.options.append_only || self.options.lifecycle.stream_output)
@@ -49,6 +50,14 @@ impl ReporterState {
         let mut slot = self.scripts.slots.remove(&key).unwrap_or_default();
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.scripts.slots.insert(key, slot);
+    }
+
+    fn render_approvals_before_failure(&mut self, message: &LifecycleMessage) {
+        if self.options.append_only
+            && matches!(message, LifecycleMessage::Exit { exit_code, .. } if *exit_code != 0)
+        {
+            self.render_pending_approvals();
+        }
     }
 
     pub(super) fn update_lifecycle_cache(&mut self, key: &str, message: &LifecycleMessage) {

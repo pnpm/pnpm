@@ -9,7 +9,7 @@
 //! the same skill name, or the name is already taken in an agent skill
 //! directory, the entry is `pnpm-<package>-<skill>` instead.
 
-pub(crate) use installed::resync_agent_skills_at;
+pub(crate) use installed::resync_agent_skills_dep_paths_at;
 pub use installed::{
     ResyncAgentSkillsError, SkillApprovalError, SkillApprovalOptions,
     resync_installed_agent_skills, skill_approval_options,
@@ -97,6 +97,17 @@ pub struct AgentSkillsState {
 }
 
 impl AgentSkillsState {
+    /// The keys `permissions` approves the pending packages under, sorted.
+    #[must_use]
+    pub fn pending_keys(&self) -> Vec<String> {
+        self.pending
+            .iter()
+            .map(|dep_path| crate::skill_approval_key(dep_path))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
     pub(crate) fn update_modules(self, modules: &mut pnpm_modules_yaml::Modules) -> bool {
         let pending = (!self.pending.is_empty()).then(|| {
             self.pending
@@ -116,17 +127,6 @@ impl AgentSkillsState {
         modules.linked_skills = linked;
         modules.has_unlinked_skills = unlinked;
         true
-    }
-
-    /// The keys `permissions` approves the pending packages under, sorted.
-    #[must_use]
-    pub fn pending_keys(&self) -> Vec<String> {
-        self.pending
-            .iter()
-            .map(|dep_path| crate::skill_approval_key(dep_path))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect()
     }
 }
 
