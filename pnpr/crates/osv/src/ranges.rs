@@ -52,7 +52,6 @@ pub(super) fn parse_npm_range(range: &OsvRange) -> Option<ParsedNpmRange<'_>> {
     if range.kind != "SEMVER" && range.kind != "ECOSYSTEM" {
         return None;
     }
-    let limit = resolve_range_limit(&range.events)?;
     let mut events: Vec<(&str, SemverEvent)> = range.events
         .iter()
         .filter_map(semver_event_from_osv)
@@ -60,11 +59,18 @@ pub(super) fn parse_npm_range(range: &OsvRange) -> Option<ParsedNpmRange<'_>> {
     if events.is_empty() {
         return None;
     }
+    let has_closing_event = events
+        .iter()
+        .any(|(_, ev)| matches!(ev, SemverEvent::Fixed(_) | SemverEvent::LastAffected(_)));
+    let limit = resolve_range_limit(&range.events, has_closing_event)?;
     events.sort_by(|left, right| left.1.cmp_events(&right.1));
     Some(ParsedNpmRange { events, limit })
 }
 
-fn resolve_range_limit(events: &[OsvEvent]) -> Option<Option<(&str, Version)>> {
+fn resolve_range_limit(
+    events: &[OsvEvent],
+    has_closing_event: bool,
+) -> Option<Option<(&str, Version)>> {
     let mut has_limit_event = false;
     let mut unbounded = false;
     let mut max_limit: Option<(&str, Version)> = None;
@@ -74,7 +80,7 @@ fn resolve_range_limit(events: &[OsvEvent]) -> Option<Option<(&str, Version)>> {
         .map(str::trim)
     {
         has_limit_event = true;
-        if raw.is_empty() || raw == "*" {
+        if raw.is_empty() || raw.contains('*') {
             unbounded = true;
             continue;
         }
@@ -86,7 +92,7 @@ fn resolve_range_limit(events: &[OsvEvent]) -> Option<Option<(&str, Version)>> {
             max_limit = Some((raw, parsed));
         }
     }
-    if unbounded || !has_limit_event {
+    if unbounded || !has_limit_event || (max_limit.is_none() && has_closing_event) {
         return Some(None);
     }
     max_limit.map(Some)
@@ -238,14 +244,17 @@ pub(super) fn build_vulnerable_versions_str(
         .iter()
         .filter_map(|clause| clause.parse::<Range>().ok())
         .collect();
-    let mut uncovered: Vec<&str> = versions
+    let mut uncovered: Vec<String> = versions
         .iter()
         .filter_map(|raw| uncovered_exact_version(raw, &parsed_ranges))
         .collect();
     uncovered.sort_unstable();
     uncovered.dedup();
 
-    let mut parts = unique_clauses;
+    let mut parts: Vec<String> = unique_clauses
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
     parts.extend(uncovered);
     Ok(if parts.is_empty() { "<0.0.0-0".to_string() } else { parts.join(" || ") })
 }
@@ -280,19 +289,10 @@ fn validate_coverage_budget(
     Ok(())
 }
 
-fn uncovered_exact_version<'a>(raw: &'a str, ranges: &[Range]) -> Option<&'a str> {
-    let trimmed = raw.trim();
-    if !trimmed
-        .bytes()
-        .next()
-        .is_some_and(|byte| byte.is_ascii_digit())
-        || trimmed.chars().any(char::is_whitespace)
-    {
-        return None;
-    }
-    let parsed = Version::parse(trimmed).ok()?;
+fn uncovered_exact_version(raw: &str, ranges: &[Range]) -> Option<String> {
+    let parsed = Version::parse(raw.trim()).ok()?;
     (!ranges
         .iter()
         .any(|range| parsed.satisfies(range)))
-    .then_some(trimmed)
+    .then(|| parsed.to_string())
 }

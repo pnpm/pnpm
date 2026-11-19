@@ -191,11 +191,26 @@ fn bulk_advisories_unions_ranges_with_uncovered_versions_and_dedupes_covered() {
     )
     .expect("write covered record");
 
+    fs::write(
+        dir.path().join("GHSA-0000-0000-0003.json"),
+        r#"{
+          "id": "GHSA-0000-0000-0003",
+          "summary": "Prefixed exact version without ranges",
+          "database_specific": { "severity": "HIGH" },
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "@acme/prefixed" },
+            "versions": ["v1.0.0", "1.x"]
+          }]
+        }"#,
+    )
+    .expect("write prefixed record");
+
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
 
     let mut query = HashMap::new();
     query.insert("@acme/vuln".to_string(), vec!["2.0.1".to_string()]);
     query.insert("@acme/covered".to_string(), vec!["1.0.2".to_string()]);
+    query.insert("@acme/prefixed".to_string(), vec!["v1.0.0".to_string()]);
 
     let result = index.bulk_advisories(&query);
     let mixed = &result["@acme/vuln"][0];
@@ -203,11 +218,17 @@ fn bulk_advisories_unions_ranges_with_uncovered_versions_and_dedupes_covered() {
 
     let parsed_mixed: Range = mixed.vulnerable_versions.parse().expect("parse union range");
     let target_ver = Version::parse("2.0.1").expect("parse 2.0.1");
-    dbg!(&parsed_mixed, &target_ver);
     assert!(target_ver.satisfies(&parsed_mixed));
 
     let covered = &result["@acme/covered"][0];
     assert_eq!(covered.vulnerable_versions, ">=1.0.0 <1.0.5");
+
+    let prefixed = &result["@acme/prefixed"][0];
+    assert_eq!(prefixed.vulnerable_versions, "1.0.0");
+    let parsed_prefixed: Range =
+        prefixed.vulnerable_versions.parse().expect("parse canonical version");
+    let v_prefixed = Version::parse("v1.0.0").expect("parse v1.0.0");
+    assert!(v_prefixed.satisfies(&parsed_prefixed));
 }
 
 #[test]
@@ -284,22 +305,86 @@ fn bulk_advisories_skips_git_ranges_and_handles_limit_events() {
         }"#,
     )
     .expect("write multi-limit record");
+    fs::write(
+        dir.path().join("GHSA-wildcard-limit.json"),
+        r#"{
+          "id": "GHSA-wildcard-limit",
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "wildcard-limit-pkg" },
+            "ranges": [{
+              "type": "SEMVER",
+              "events": [
+                { "introduced": "1.0.0" },
+                { "fixed": "2.0.0" },
+                { "limit": "1.*" }
+              ]
+            }]
+          }]
+        }"#,
+    )
+    .expect("write wildcard-limit record");
+    fs::write(
+        dir.path().join("GHSA-invalid-limit.json"),
+        r#"{
+          "id": "GHSA-invalid-limit",
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "invalid-limit-pkg" },
+            "ranges": [{
+              "type": "SEMVER",
+              "events": [
+                { "introduced": "1.0.0" },
+                { "fixed": "2.0.0" },
+                { "limit": "not-a-semver" }
+              ]
+            }]
+          }]
+        }"#,
+    )
+    .expect("write invalid-limit record");
+
+    fs::write(
+        dir.path().join("GHSA-wildcard-open.json"),
+        r#"{
+          "id": "GHSA-wildcard-open",
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "wildcard-open-pkg" },
+            "ranges": [{
+              "type": "SEMVER",
+              "events": [
+                { "introduced": "1.0.0" },
+                { "limit": "1.*" }
+              ]
+            }]
+          }]
+        }"#,
+    )
+    .expect("write wildcard-open record");
 
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
     assert!(index.is_vulnerable("multi-limit-pkg", "2.5.0"));
     assert!(!index.is_vulnerable("multi-limit-pkg", "3.0.0"));
+    assert!(index.is_vulnerable("wildcard-limit-pkg", "1.5.0"));
+    assert!(!index.is_vulnerable("wildcard-limit-pkg", "2.0.0"));
+    assert!(index.is_vulnerable("wildcard-open-pkg", "2.5.0"));
+    assert!(index.is_vulnerable("invalid-limit-pkg", "1.5.0"));
 
     let mut query = HashMap::new();
     query.insert("git-pkg".to_string(), vec!["1.2.3".to_string()]);
     query.insert("limit-pkg".to_string(), vec!["1.2.5".to_string()]);
     query.insert("fixed-limit-pkg".to_string(), vec!["1.5.0".to_string()]);
     query.insert("multi-limit-pkg".to_string(), vec!["2.5.0".to_string()]);
+    query.insert("wildcard-limit-pkg".to_string(), vec!["1.5.0".to_string()]);
+    query.insert("wildcard-open-pkg".to_string(), vec!["2.5.0".to_string()]);
+    query.insert("invalid-limit-pkg".to_string(), vec!["1.5.0".to_string()]);
 
     let result = index.bulk_advisories(&query);
     assert_eq!(result["git-pkg"][0].vulnerable_versions, "1.2.3");
     assert_eq!(result["limit-pkg"][0].vulnerable_versions, ">=1.2.0 <1.3.0");
     assert_eq!(result["fixed-limit-pkg"][0].vulnerable_versions, ">=1.0.0 <2.0.0");
     assert_eq!(result["multi-limit-pkg"][0].vulnerable_versions, ">=1.0.0 <3.0.0");
+    assert_eq!(result["wildcard-limit-pkg"][0].vulnerable_versions, ">=1.0.0 <2.0.0");
+    assert_eq!(result["wildcard-open-pkg"][0].vulnerable_versions, ">=1.0.0");
+    assert_eq!(result["invalid-limit-pkg"][0].vulnerable_versions, ">=1.0.0 <2.0.0");
 }
 
 #[test]
