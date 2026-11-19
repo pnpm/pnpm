@@ -1,9 +1,14 @@
+use std::fmt::Write as _;
+
+use sha2::{Digest, Sha256};
+
 use super::{
     Advisory, BulkAdvisory, Cow, Deserialize, HashMap, HashSet, MAX_ADVISORY_ID_BYTES,
-    MAX_EVENTS_PER_RANGE, MAX_RANGES_PER_AFFECTED, MAX_VERSIONS_PER_AFFECTED, RegistryError,
-    SemverEvent, SemverRange, Version, invalid_config,
+    MAX_EVENTS_PER_RANGE, MAX_EXPLICIT_RANGE_BYTES, MAX_RANGES_PER_AFFECTED,
+    MAX_VERSIONS_PER_AFFECTED, RegistryError, SemverRange, Version, invalid_config,
+    ranges::{OsvRange, build_vulnerable_versions_str, parse_npm_range},
+    severity::{OsvSeverity, SeverityLevel},
 };
-use sha2::{Digest, Sha256};
 
 #[derive(Deserialize)]
 pub(super) struct OsvRecord {
@@ -18,11 +23,15 @@ pub(super) struct OsvRecord {
     pub(super) database_specific: Option<OsvDatabaseSpecific>,
     #[serde(default)]
     pub(super) references: Vec<OsvReference>,
+    #[serde(default)]
+    pub(super) aliases: Option<Vec<String>>,
+    #[serde(default)]
+    pub(super) severity: Option<Vec<OsvSeverity>>,
 }
 
 #[derive(Deserialize)]
 pub(super) struct OsvDatabaseSpecific {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
     pub(super) severity: Option<String>,
     #[serde(default)]
     pub(super) cwe_ids: Vec<String>,
@@ -45,38 +54,43 @@ pub(super) struct OsvAffected {
     pub(super) versions: Vec<String>,
     #[serde(default)]
     pub(super) database_specific: Option<OsvAffectedDatabaseSpecific>,
+    #[serde(default)]
+    pub(super) ecosystem_specific: Option<OsvEcosystemSpecific>,
+    #[serde(default)]
+    pub(super) severity: Option<Vec<OsvSeverity>>,
 }
 
 #[derive(Deserialize)]
 pub(super) struct OsvAffectedDatabaseSpecific {
     #[serde(default)]
     pub(super) last_known_affected_version_range: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    pub(super) severity: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct OsvEcosystemSpecific {
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    pub(super) severity: Option<String>,
+}
+
+fn deserialize_optional_string<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<String>, Deser::Error>
+where
+    Deser: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::String(text)) => Some(text),
+        _ => None,
+    })
 }
 
 #[derive(Deserialize)]
 pub(super) struct OsvPackage {
     pub(super) ecosystem: String,
     pub(super) name: String,
-}
-
-#[derive(Deserialize)]
-pub(super) struct OsvRange {
-    #[serde(rename = "type")]
-    pub(super) kind: String,
-    #[serde(default)]
-    pub(super) events: Vec<OsvEvent>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct OsvEvent {
-    #[serde(default)]
-    pub(super) introduced: Option<String>,
-    #[serde(default)]
-    pub(super) fixed: Option<String>,
-    #[serde(default, rename = "last_affected")]
-    pub(super) last_affected: Option<String>,
-    #[serde(default)]
-    pub(super) limit: Option<String>,
 }
 
 pub(super) fn ingest_record_bytes(
@@ -114,7 +128,7 @@ pub(super) fn ingest_record_bytes(
     }
 
     for (name, affected_list) in by_package {
-        if let Some(advisory) = advisory_from_record(&record, affected_list) {
+        if let Some(advisory) = advisory_from_record(&record, affected_list)? {
             packages
                 .entry(name)
                 .or_default()
@@ -125,7 +139,12 @@ pub(super) fn ingest_record_bytes(
 }
 
 pub(super) fn exceeds_affected_limits(affected: &OsvAffected) -> bool {
-    affected.versions.len() > MAX_VERSIONS_PER_AFFECTED
+    let explicit_len = affected.database_specific
+        .as_ref()
+        .and_then(|specific| specific.last_known_affected_version_range.as_deref())
+        .map_or(0, str::len);
+    explicit_len > MAX_EXPLICIT_RANGE_BYTES
+        || affected.versions.len() > MAX_VERSIONS_PER_AFFECTED
         || affected.ranges.len() > MAX_RANGES_PER_AFFECTED
         || affected.ranges
             .iter()
@@ -141,12 +160,18 @@ pub(super) fn normalized_name(name: &str) -> Cow<'_, str> {
 }
 
 struct AffectedBounds {
-    versions: HashSet<String>,
+    raw_versions: HashSet<String>,
+    exact_versions: HashSet<Version>,
     ranges: Vec<SemverRange>,
     range_clauses: Vec<String>,
+    max_severity: Option<SeverityLevel>,
 }
 
 fn process_one_affected(affected: OsvAffected, bounds: &mut AffectedBounds) {
+    bounds.max_severity = [bounds.max_severity, affected_max_severity(&affected)]
+        .into_iter()
+        .flatten()
+        .max();
     let explicit = affected.database_specific
         .as_ref()
         .and_then(|specific| specific.last_known_affected_version_range.as_deref())
@@ -155,20 +180,63 @@ fn process_one_affected(affected: OsvAffected, bounds: &mut AffectedBounds) {
     if let Some(explicit) = explicit {
         bounds.range_clauses.push(explicit.to_string());
     }
-    for range in affected.ranges {
-        if explicit.is_none() {
-            bounds.range_clauses.extend(format_range_events(&range.events));
-        }
-        if let Some(semver_range) = semver_range_from_osv(&range) {
-            bounds.ranges.push(semver_range);
+    for range in &affected.ranges {
+        if let Some(parsed) = parse_npm_range(range) {
+            if explicit.is_none() {
+                bounds.range_clauses.extend(parsed.format_clauses());
+            }
+            bounds.ranges.push(parsed.into_semver_range());
         }
     }
-    bounds.versions.extend(affected.versions);
+    ingest_affected_versions(affected.versions, bounds);
+}
+
+fn ingest_affected_versions(versions: Vec<String>, bounds: &mut AffectedBounds) {
+    for raw in versions {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        match Version::parse(trimmed) {
+            Ok(parsed) => {
+                bounds.exact_versions.insert(parsed);
+            }
+            Err(_) => {
+                bounds.raw_versions.insert(trimmed.to_owned());
+            }
+        }
+    }
+}
+
+fn affected_max_severity(affected: &OsvAffected) -> Option<SeverityLevel> {
+    let db_sev = affected.database_specific
+        .as_ref()
+        .and_then(|specific| specific.severity.as_deref())
+        .and_then(SeverityLevel::from_label);
+    let eco_sev = affected.ecosystem_specific
+        .as_ref()
+        .and_then(|specific| specific.severity.as_deref())
+        .and_then(SeverityLevel::from_label);
+    let vec_sev = affected.severity
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(SeverityLevel::from_osv_severity)
+        .max();
+    [db_sev, eco_sev, vec_sev]
+        .into_iter()
+        .flatten()
+        .max()
 }
 
 fn collect_affected_bounds(affected_list: Vec<OsvAffected>) -> AffectedBounds {
-    let mut bounds =
-        AffectedBounds { versions: HashSet::new(), ranges: Vec::new(), range_clauses: Vec::new() };
+    let mut bounds = AffectedBounds {
+        raw_versions: HashSet::new(),
+        exact_versions: HashSet::new(),
+        ranges: Vec::new(),
+        range_clauses: Vec::new(),
+        max_severity: None,
+    };
     for affected in affected_list {
         process_one_affected(affected, &mut bounds);
     }
@@ -178,28 +246,38 @@ fn collect_affected_bounds(affected_list: Vec<OsvAffected>) -> AffectedBounds {
 pub(super) fn advisory_from_record(
     record: &OsvRecord,
     affected_list: Vec<OsvAffected>,
-) -> Option<Advisory> {
+) -> Result<Option<Advisory>, RegistryError> {
+    let id = truncate_advisory_id(&record.id);
     let bounds = collect_affected_bounds(affected_list);
-    if bounds.versions.is_empty() && bounds.ranges.is_empty() {
-        return None;
+    let total_versions = bounds.raw_versions.len().saturating_add(bounds.exact_versions.len());
+    if total_versions > MAX_VERSIONS_PER_AFFECTED || bounds.ranges.len() > MAX_RANGES_PER_AFFECTED {
+        return Err(invalid_config(format!(
+            "OSV record {id} has combined affected entries exceeding the version/range limits",
+        )));
+    }
+    if total_versions == 0 && bounds.ranges.is_empty() {
+        return Ok(None);
     }
 
     let vulnerable_versions =
-        build_vulnerable_versions_str(&bounds.range_clauses, &bounds.versions);
-    let bulk = build_bulk_advisory(record, vulnerable_versions);
+        build_vulnerable_versions_str(&id, &bounds.range_clauses, &bounds.exact_versions)?;
+    let bulk = build_bulk_advisory(record, vulnerable_versions, bounds.max_severity);
 
-    Some(Advisory {
-        id: truncate_advisory_id(&record.id),
-        versions: bounds.versions,
+    Ok(Some(Advisory {
+        id,
+        raw_versions: bounds.raw_versions,
+        exact_versions: bounds.exact_versions,
         ranges: bounds.ranges,
         bulk,
-    })
+    }))
 }
 
-fn build_bulk_advisory(record: &OsvRecord, vulnerable_versions: String) -> BulkAdvisory {
-    let severity = normalize_severity(
-        record.database_specific.as_ref().and_then(|specific| specific.severity.as_deref()),
-    );
+fn build_bulk_advisory(
+    record: &OsvRecord,
+    vulnerable_versions: String,
+    affected_severity: Option<SeverityLevel>,
+) -> BulkAdvisory {
+    let severity = resolve_record_severity(record, affected_severity);
     let cwe = record.database_specific
         .as_ref()
         .map(|specific| specific.cwe_ids.clone())
@@ -214,45 +292,108 @@ fn build_bulk_advisory(record: &OsvRecord, vulnerable_versions: String) -> BulkA
     }
 }
 
-fn build_vulnerable_versions_str(range_clauses: &[String], versions: &HashSet<String>) -> String {
-    if !range_clauses.is_empty() {
-        range_clauses.join(" || ")
-    } else if !versions.is_empty() {
-        let mut sorted: Vec<&str> = versions
-            .iter()
-            .map(String::as_str)
-            .collect();
-        sorted.sort_unstable();
-        sorted.join(" || ")
-    } else {
-        "*".to_string()
-    }
+fn resolve_record_severity(record: &OsvRecord, affected_severity: Option<SeverityLevel>) -> String {
+    let db_sev = record.database_specific
+        .as_ref()
+        .and_then(|specific| specific.severity.as_deref())
+        .and_then(SeverityLevel::from_label);
+    let vec_sev = record.severity
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(SeverityLevel::from_osv_severity)
+        .max();
+    [db_sev, vec_sev, affected_severity]
+        .into_iter()
+        .flatten()
+        .max()
+        .unwrap_or(SeverityLevel::Moderate)
+        .as_str()
+        .to_string()
 }
 
 fn advisory_url(record: &OsvRecord) -> String {
-    if record.id.starts_with("GHSA-") {
-        return format!("https://github.com/advisories/{}", record.id);
+    if is_ghsa_id(&record.id) {
+        return format_ghsa_url(&record.id);
     }
-    for reference in &record.references {
-        if reference.kind == "ADVISORY" {
-            return reference.url.clone();
-        }
+    if let Some(ghsa) = record.aliases
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .find(|alias| is_ghsa_id(alias))
+    {
+        return format_ghsa_url(ghsa);
     }
-    format!("https://github.com/advisories/{}", record.id)
+    if let Some(reference) = record.references
+        .iter()
+        .find(|reference| reference.kind == "ADVISORY" && is_http_url(&reference.url))
+    {
+        return reference.url.clone();
+    }
+    let truncated = truncate_advisory_id(&record.id);
+    let encoded_id = encode_url_path_segment(&truncated);
+    format!("https://osv.dev/vulnerability/{encoded_id}")
 }
 
-fn normalize_severity(raw: Option<&str>) -> String {
-    let Some(raw) = raw else {
-        return "moderate".to_string();
-    };
-    match raw.to_ascii_lowercase().as_str() {
-        "info" => "info".to_string(),
-        "low" => "low".to_string(),
-        "moderate" | "medium" => "moderate".to_string(),
-        "high" => "high".to_string(),
-        "critical" => "critical".to_string(),
-        _ => "moderate".to_string(),
+fn format_ghsa_url(ghsa: &str) -> String {
+    format!("https://github.com/advisories/GHSA-{}", ghsa[5..].to_ascii_lowercase())
+}
+
+fn is_ghsa_id(candidate: &str) -> bool {
+    let bytes = candidate.as_bytes();
+    if bytes.len() != 19 || !bytes[..5].eq_ignore_ascii_case(b"GHSA-") {
+        return false;
     }
+    bytes[9] == b'-'
+        && bytes[14] == b'-'
+        && is_ghsa_segment(&bytes[5..9])
+        && is_ghsa_segment(&bytes[10..14])
+        && is_ghsa_segment(&bytes[15..19])
+}
+
+fn is_ghsa_segment(segment: &[u8]) -> bool {
+    segment
+        .iter()
+        .all(|byte| {
+            matches!(
+                byte.to_ascii_lowercase(),
+                b'2'..=b'9'
+                    | b'c'
+                    | b'f'
+                    | b'g'
+                    | b'h'
+                    | b'j'
+                    | b'm'
+                    | b'p'
+                    | b'q'
+                    | b'r'
+                    | b'v'
+                    | b'w'
+                    | b'x',
+            )
+        })
+}
+
+fn is_http_url(raw_url: &str) -> bool {
+    if raw_url.chars().any(char::is_control) {
+        return false;
+    }
+    let Ok(parsed) = url::Url::parse(raw_url) else {
+        return false;
+    };
+    matches!(parsed.scheme(), "http" | "https") && parsed.has_host()
+}
+
+fn encode_url_path_segment(segment: &str) -> String {
+    let mut out = String::with_capacity(segment.len());
+    for &byte in segment.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.') {
+            out.push(char::from(byte));
+        } else {
+            let _ = write!(out, "%{byte:02X}");
+        }
+    }
+    out
 }
 
 pub(super) fn derive_numeric_id(id: &str) -> u64 {
@@ -271,57 +412,6 @@ pub(super) fn derive_numeric_id(id: &str) -> u64 {
     (num & 0x001F_FFFF_FFFF_FFFF) | 1
 }
 
-fn sorted_format_events(events: &[OsvEvent]) -> Vec<(&OsvEvent, SemverEvent)> {
-    let mut sorted: Vec<(&OsvEvent, SemverEvent)> = events
-        .iter()
-        .filter_map(|event| semver_event_from_osv(event).map(|parsed| (event, parsed)))
-        .collect();
-    sorted.sort_by(|left, right| left.1.cmp_events(&right.1));
-    sorted
-}
-
-fn format_range_events(events: &[OsvEvent]) -> Vec<String> {
-    let mut clauses = Vec::new();
-    let mut current_intro: Option<&str> = None;
-
-    for (event, _) in sorted_format_events(events) {
-        if let Some(intro) = &event.introduced {
-            current_intro = Some(intro.as_str());
-        }
-        if let Some(fixed) = &event.fixed {
-            clauses.push(format_fixed_clause(current_intro, fixed));
-            current_intro = None;
-        } else if let Some(last) = &event.last_affected {
-            clauses.push(format_last_affected_clause(current_intro, last));
-            current_intro = None;
-        }
-    }
-
-    if let Some(intro) = current_intro {
-        clauses.push(format_open_clause(intro));
-    }
-
-    clauses
-}
-
-fn format_fixed_clause(intro: Option<&str>, fixed: &str) -> String {
-    match intro {
-        Some("0") | None => format!("<{fixed}"),
-        Some(intro) => format!(">={intro} <{fixed}"),
-    }
-}
-
-fn format_last_affected_clause(intro: Option<&str>, last: &str) -> String {
-    match intro {
-        Some("0") | None => format!("<={last}"),
-        Some(intro) => format!(">={intro} <={last}"),
-    }
-}
-
-fn format_open_clause(intro: &str) -> String {
-    if intro == "0" { "*".to_string() } else { format!(">={intro}") }
-}
-
 pub(super) fn truncate_advisory_id(id: &str) -> String {
     if id.len() <= MAX_ADVISORY_ID_BYTES {
         return id.to_string();
@@ -331,52 +421,4 @@ pub(super) fn truncate_advisory_id(id: &str) -> String {
         .find(|&i| id.is_char_boundary(i))
         .unwrap_or(0);
     format!("{}…", &id[..end])
-}
-
-pub(super) fn semver_range_from_osv(range: &OsvRange) -> Option<SemverRange> {
-    if range.kind != "SEMVER" && range.kind != "ECOSYSTEM" {
-        return None;
-    }
-    let mut events = range.events
-        .iter()
-        .filter_map(semver_event_from_osv)
-        .collect::<Vec<_>>();
-    events.sort_by(SemverEvent::cmp_events);
-    (!events.is_empty()).then_some(SemverRange { events })
-}
-
-pub(super) fn semver_event_from_osv(event: &OsvEvent) -> Option<SemverEvent> {
-    if let Some(introduced) = &event.introduced {
-        return parse_osv_version(introduced).map(SemverEvent::Introduced);
-    }
-    if let Some(fixed) = &event.fixed {
-        return parse_osv_version(fixed).map(SemverEvent::Fixed);
-    }
-    if let Some(last_affected) = &event.last_affected {
-        return parse_osv_version(last_affected).map(SemverEvent::LastAffected);
-    }
-    if let Some(limit) = &event.limit {
-        return parse_osv_version(limit).map(SemverEvent::Limit);
-    }
-    None
-}
-
-pub(super) fn parse_osv_version(raw: &str) -> Option<Version> {
-    if raw == "0" {
-        return Version::parse("0.0.0-0").ok();
-    }
-    let parsed = Version::parse(raw).ok();
-    if parsed.is_none() {
-        const MAX_LOGGED_CHARS: usize = 64;
-        let prefix: String = raw
-            .chars()
-            .take(MAX_LOGGED_CHARS)
-            .collect();
-        tracing::warn!(
-            version_prefix = %prefix,
-            version_len = raw.len(),
-            "ignoring OSV range event with an unparsable version; that range will not be enforced",
-        );
-    }
-    parsed
 }
