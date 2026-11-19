@@ -298,7 +298,7 @@ fn runtime_bin_in_package(package_dir: &Path, name: &str) -> Option<PathBuf> {
         _ => return None,
     };
     let bin = dunce::canonicalize(package_dir.join(bin_path)).ok()?;
-    (bin.starts_with(&package_dir) && bin.is_file()).then_some(bin)
+    (bin.starts_with(package_dir) && bin.is_file()).then_some(bin)
 }
 
 pub(super) fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
