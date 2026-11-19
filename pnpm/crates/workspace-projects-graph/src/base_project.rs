@@ -27,7 +27,7 @@ pub trait GraphProject: BaseProject {
 /// A project's declared `(name, raw_specifier)` pairs, kept per manifest
 /// field so a [`DependencyRewriter`](crate::DependencyRewriter) can apply
 /// rules scoped to one field.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct DependencyGroups {
     pub peer: Vec<(String, String)>,
     pub dev: Option<Vec<(String, String)>>,
