@@ -574,10 +574,19 @@ async fn published_tarball_mapper_accepts_routed_split_domain_url_and_redacts_mi
         .with_body(packument.to_string())
         .create_async()
         .await;
+    let routed_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let flag_for_mapper = std::sync::Arc::clone(&routed_flag);
     let mut opts = default_opts(&registry);
-    opts.artifacts.published_tarball_mapper = Some(std::sync::Arc::new(|reg, pkg, ver, _| {
-        format!("{}/{pkg}/-/split-{ver}.tgz", reg.trim_end_matches('/'))
-    }));
+    opts.artifacts.published_tarball_mapper =
+        Some(std::sync::Arc::new(move |reg, pkg, ver, _, _| {
+            let synthetic = format!("{}/{pkg}/-/split-{ver}.tgz", reg.trim_end_matches('/'));
+            crate::MappedTarballUrl {
+                display_url: format!("https://pnpr.example/npm/~corp/{pkg}/-/split-{ver}.tgz"),
+                accepted_routed_url: flag_for_mapper
+                    .load(std::sync::atomic::Ordering::SeqCst)
+                    .then_some(synthetic),
+            }
+        }));
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "@corp/split".parse().expect("parse");
     let ok = tarball_resolution(
@@ -586,8 +595,61 @@ async fn published_tarball_mapper_accepts_routed_split_domain_url_and_redacts_mi
     );
     assert_eq!(verifier.verify(&ok, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
 
+    // Direct non-routed lockfile entries must not pass via the synthetic URL.
+    routed_flag.store(false, std::sync::atomic::Ordering::SeqCst);
+    let ResolutionVerification::Err { code, reason } =
+        verifier.verify(&ok, ctx(&name, "1.0.0")).await
+    else {
+        panic!("expected unpublished synthetic URL to be rejected");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+    assert!(!reason.contains("cdn.split.example"), "{reason}");
+
+    let signed_bad = tarball_resolution(
+        &format!(
+            "{}/@corp/split/-/wrong-1.0.0.tgz?X-Amz-Signature=LOCKFILE_PRESIGNED_SECRET#frag",
+            server.url(),
+        ),
+        Some(fake_integrity()),
+    );
+    let ResolutionVerification::Err { code, reason } =
+        verifier.verify(&signed_bad, ctx(&name, "1.0.0")).await
+    else {
+        panic!("expected mismatch");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+    for secret in ["cdn.split.example", "EXAMPLE_PRESIGNED_TOKEN", "LOCKFILE_PRESIGNED_SECRET"] {
+        assert!(!reason.contains(secret), "{secret} leaked in {reason}");
+    }
+}
+
+#[tokio::test]
+async fn unmapped_tarball_mismatch_strips_presigned_query_and_fragment() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let packument = serde_json::json!({
+        "name": "public-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "public-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "tarball": "https://cdn.public.example/public-pkg-1.0.0.tgz?X-Amz-Signature=UPSTREAM_PRESIGNED_SECRET",
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/public-pkg")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let verifier = create_npm_resolution_verifier(default_opts(&registry));
+    let name: PkgName = "public-pkg".parse().expect("parse");
     let bad = tarball_resolution(
-        &format!("{}/@corp/split/-/wrong-1.0.0.tgz", server.url()),
+        "https://other.public.example/public-pkg-1.0.0.tgz?X-Amz-Signature=LOCKFILE_PRESIGNED_SECRET#frag",
         Some(fake_integrity()),
     );
     let ResolutionVerification::Err { code, reason } =
@@ -596,8 +658,7 @@ async fn published_tarball_mapper_accepts_routed_split_domain_url_and_redacts_mi
         panic!("expected mismatch");
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
-    assert!(
-        !reason.contains("cdn.split.example") && !reason.contains("X-Amz-Signature"),
-        "{reason}",
-    );
+    for secret in ["UPSTREAM_PRESIGNED_SECRET", "LOCKFILE_PRESIGNED_SECRET", "frag"] {
+        assert!(!reason.contains(secret), "{secret} leaked in {reason}");
+    }
 }

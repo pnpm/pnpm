@@ -4,6 +4,8 @@ use super::{Arc, Duration, HeaderMap, RedirectGuard, ThrottledClient, UpstreamCo
 pub(super) struct UpstreamHttp {
     pub(super) client: Arc<ThrottledClient>,
     pub(super) fetch_guard: Option<RedirectGuard>,
+    pub(super) declared_tarball_client: Option<Arc<ThrottledClient>>,
+    pub(super) declared_tarball_guard: Option<RedirectGuard>,
     /// Resolved per-upstream request headers (auth + custom) attached to
     /// every fetch. Empty for an upstream with no `auth:`/`headers:`.
     pub(super) headers: HeaderMap,
@@ -17,11 +19,23 @@ impl UpstreamHttp {
         Self {
             client: Arc::new(ThrottledClient::new_for_installs()),
             fetch_guard: None,
+            declared_tarball_client: None,
+            declared_tarball_guard: None,
             headers: config.headers.clone(),
             timeout: config.requests.timeout,
             max_packument_size: config.requests.max_packument_size,
         }
     }
+}
+
+/// Strip query, fragment, and userinfo credentials before storing an upstream
+/// URL in an error value so logs and diagnostics never expose presigned tokens.
+pub(super) fn diagnostic_url(url: &str) -> String {
+    let without_query = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(url);
+    pnpm_network::redact_url_credentials(without_query)
 }
 
 pub(super) const UPSTREAM_ERROR_BODY_LIMIT: usize = 64 * 1024;

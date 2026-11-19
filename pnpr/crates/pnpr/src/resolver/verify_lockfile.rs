@@ -314,27 +314,21 @@ async fn verify_input_lockfile(
     raw_lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {
     let epoch = runtime.local_registry.verdict_epoch();
-    let lockfile = Arc::new(context.tarball_router.verification_lockfile(raw_lockfile));
-    let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+    let (lockfile, routed_entries) =
+        context.tarball_router.verification_lockfile_with_routed_entries(raw_lockfile);
+    let lockfile = Arc::new(lockfile);
+    let routed_entries = Arc::new(routed_entries);
+    let hash = verification_verdict_hash(&lockfile, &routed_entries);
     let dist_stats = observed_dist_stats_sink();
-    let artifacts = VerificationArtifacts {
-        observed_stats: Some(Arc::clone(&dist_stats)),
-        canonical_fetches: None,
-        lookups: None,
-        published_tarball_mapper: Some(context.tarball_router.published_tarball_mapper()),
-    };
-    let verifiers = build_resolution_verifiers_with_artifacts(
+    let verifiers = build_input_verifiers(
+        runtime,
         context.config,
-        Arc::clone(&runtime.client),
-        Some(meta_cache as Arc<dyn PackageMetaCache>),
-        Some(Arc::clone(context.auth_headers)),
-        artifacts,
-    )
-    .map_err(|err| {
-        VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
-    })?;
+        context.auth_headers,
+        context.tarball_router,
+        &dist_stats,
+        Arc::clone(&routed_entries),
+    )?;
 
-    let hash = hash_lockfile(&lockfile);
     if let Some(cached) =
         past_verdict_footprint(runtime, context.identity, &hash, epoch.as_deref(), &verifiers)
     {
@@ -361,6 +355,57 @@ async fn verify_input_lockfile(
     }
 
     Err(VerifyFailure::Violations(render_violations(&violations, osv_violations)))
+}
+
+fn build_input_verifiers(
+    runtime: &Resolver,
+    config: &PacquetConfig,
+    auth_headers: &Arc<AuthHeaders>,
+    tarball_router: &TarballRouter,
+    dist_stats: &ObservedDistStats,
+    routed_entries: Arc<super::wire::RoutedVerificationEntries>,
+) -> Result<Vec<Arc<dyn ResolutionVerifier>>, VerifyFailure> {
+    let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+    let artifacts = VerificationArtifacts {
+        observed_stats: Some(Arc::clone(dist_stats)),
+        canonical_fetches: None,
+        lookups: None,
+        published_tarball_mapper: Some(tarball_router.published_tarball_mapper(routed_entries)),
+    };
+    build_resolution_verifiers_with_artifacts(
+        config,
+        Arc::clone(&runtime.client),
+        Some(meta_cache as Arc<dyn PackageMetaCache>),
+        Some(Arc::clone(auth_headers)),
+        artifacts,
+    )
+    .map_err(|err| {
+        VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
+    })
+}
+
+fn verification_verdict_hash(
+    lockfile: &Lockfile,
+    routed_entries: &super::wire::RoutedVerificationEntries,
+) -> String {
+    let base = hash_lockfile(lockfile);
+    if routed_entries.is_empty() {
+        return base;
+    }
+    use sha2::{Digest as _, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(base.as_bytes());
+    for (name, version, registry_name) in routed_entries {
+        hasher.update([0]);
+        hasher.update(name.as_bytes());
+        hasher.update([0]);
+        hasher.update(version.as_bytes());
+        hasher.update([0]);
+        if let Some(registry_name) = registry_name {
+            hasher.update(registry_name.as_bytes());
+        }
+    }
+    format!("{:x}", hasher.finalize())
 }
 
 fn record_verdict(

@@ -12,7 +12,7 @@ pub use request::UpstreamTarballRoute;
 
 mod http;
 mod request;
-use http::{UpstreamHttp, same_origin};
+use http::{UpstreamHttp, diagnostic_url, same_origin};
 use request::Deadline;
 
 mod circuit_breaker;
@@ -204,6 +204,31 @@ impl Upstream {
         self
     }
 
+    /// Install a tarball-only URL and connect guard used by tarball downloads,
+    /// keeping metadata, search, and other requests restricted to
+    /// [`Self::with_fetch_and_connect_guards`].
+    #[must_use]
+    pub fn with_declared_tarball_guards(
+        mut self,
+        guard: RedirectGuard,
+        connect_guard: AddressGuard,
+    ) -> Self {
+        let redirect_guard = Arc::clone(&guard);
+        self.http.declared_tarball_client =
+            Some(Arc::new(ThrottledClient::new_for_installs_with_guards(
+                move |url| redirect_guard(url),
+                Arc::new(GuardedDnsResolver::new(native_dns_resolver(), connect_guard)),
+            )));
+        self.http.declared_tarball_guard = Some(guard);
+        self
+    }
+
+    /// Whether `url` shares scheme, host, and port with this upstream's base URL.
+    #[must_use]
+    pub fn is_same_origin(&self, url: &str) -> bool {
+        same_origin(&self.base, url)
+    }
+
     /// The configured upstream request deadline.
     #[must_use]
     pub fn timeout(&self) -> Duration {
@@ -341,8 +366,7 @@ impl Upstream {
 
     async fn fetch_tarball_url(&self, url: &str) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
-        let (response, guard) =
-            self.get_with_scoped_headers(url, &HeaderMap::new(), Deadline::Head).await?;
+        let (response, guard) = self.get_tarball_with_scoped_headers(url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -412,12 +436,12 @@ impl Upstream {
         let body = read_limited_body(response, limit).await
             .map_err(|err| {
                 self.record_body_failure(&err);
-                RegistryError::Upstream { url: url.to_string(), source: err }
+                RegistryError::Upstream { url: diagnostic_url(url), source: err.without_url() }
             })?;
         self.breaker.record_success();
         if body.truncated {
             return Err(RegistryError::UpstreamResponse {
-                url: url.to_string(),
+                url: diagnostic_url(url),
                 reason: format!("response body exceeds the {limit}-byte limit"),
             });
         }

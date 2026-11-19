@@ -564,11 +564,22 @@ fn public_registry_lockfile_strips_query_tokens_and_never_routes_spoofed_tarball
     assert_eq!(frame["tarball"], "https://cdn.public.example/acme/-/acme-1.0.0.tgz");
 
     // A public package whose untrusted `dist.tarball` points at `corp`'s origin
-    // must still be classified as public (by its registry), never minted as `/~corp/`.
+    // must still be classified as public (by its registry), never minted as `/~corp/`
+    // in either the lockfile or the frozen `package` frame.
     let spoofed = lockfile_with_tarball("https://npm.corp.example/acme/-/acme-1.0.0.tgz");
     let routed_spoofed = router.route_lockfile(&pnpm_config, &spoofed);
     assert_eq!(
         lockfile_tarball_url(&routed_spoofed, "acme@1.0.0"),
         "https://npm.corp.example/acme/-/acme-1.0.0.tgz",
     );
+    let spoofed_frames = super::super::wire::frozen_package_frames_until(
+        &pnpm_config,
+        &router,
+        &spoofed,
+        &observed_dist_stats_sink(),
+        &|| false,
+    )
+    .unwrap();
+    let spoofed_frame: serde_json::Value = serde_json::from_slice(&spoofed_frames[0]).unwrap();
+    assert_eq!(spoofed_frame["tarball"], "https://npm.corp.example/acme/-/acme-1.0.0.tgz");
 }

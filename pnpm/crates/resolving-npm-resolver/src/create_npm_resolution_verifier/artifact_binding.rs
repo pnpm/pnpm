@@ -30,12 +30,11 @@ pub(super) fn missing_artifact_violation(
 
 /// Bind `lockfile_tarball` against `registry_tarball`, honoring an optional
 /// [`PublishedTarballUrlMapper`] when a registry server rewrites split-domain
-/// upstream tarballs onto its own endpoint routes. Any mismatch error formats
-/// the mapped URL rather than the raw upstream URL.
+/// upstream tarballs onto its own endpoint routes.
 pub(super) fn mapped_tarball_url_violation(
     lockfile_tarball: Option<&str>,
     registry_tarball: Option<&str>,
-    (registry, name, version): (&str, &str, &str),
+    (registry, name, version, registry_name): (&str, &str, &str, Option<&str>),
     mapper: Option<&PublishedTarballUrlMapper>,
 ) -> Option<ResolutionVerification> {
     let Some(mapper) = mapper else {
@@ -44,13 +43,22 @@ pub(super) fn mapped_tarball_url_violation(
     let Some(published) = registry_tarball else {
         return tarball_url_violation(lockfile_tarball, None);
     };
-    let expected = mapper(registry, name, version, published);
-    if let Some(lockfile) = lockfile_tarball
-        && (same_tarball_url(lockfile, &expected) || same_tarball_url(lockfile, published))
-    {
+    let lockfile = lockfile_tarball?;
+    let mapped = mapper(registry, name, version, registry_name, published);
+    let matches = match mapped.accepted_routed_url.as_deref() {
+        Some(routed) => same_tarball_url(lockfile, routed),
+        None => same_tarball_url(lockfile, published),
+    };
+    if matches {
         return None;
     }
-    tarball_url_violation(lockfile_tarball, Some(&expected))
+    Some(ResolutionVerification::Err {
+        code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        reason: format!(
+            "has a tarball URL that does not match the registry's published metadata ({})",
+            sanitize_diagnostic_url(&mapped.display_url),
+        ),
+    })
 }
 
 /// A recorded tarball URL must be the one the registry publishes.
@@ -65,8 +73,8 @@ pub(super) fn tarball_url_violation(
             code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
             reason: format!(
                 "has a tarball URL ({}) that does not match the registry's published metadata ({})",
-                redact_url_credentials(lockfile),
-                redact_url_credentials(registry),
+                sanitize_diagnostic_url(lockfile),
+                sanitize_diagnostic_url(registry),
             ),
         }),
         (Some(_), None) => Some(ResolutionVerification::Err {
@@ -74,6 +82,14 @@ pub(super) fn tarball_url_violation(
             reason: "could not be verified against the registry's published metadata".to_string(),
         }),
     }
+}
+
+fn sanitize_diagnostic_url(url: &str) -> String {
+    let without_query = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(url);
+    redact_url_credentials(without_query)
 }
 
 /// The revision the registry currently serves. A version without one is

@@ -7,7 +7,7 @@ use pnpm_package_manager::{
 };
 use pnpm_resolving_npm_resolver::{DistStats, ObservedDistStats};
 
-use super::{MAX_NDJSON_FRAME_BYTES, TarballRouter, ndjson_line, package_frame};
+use super::{MAX_NDJSON_FRAME_BYTES, TarballRouter, ndjson_line, routed_package_frame};
 
 /// `package` frames for every tarball-fetchable entry of a verified
 /// frozen lockfile, deduplicated by tarball URL. Mirrors what the
@@ -98,8 +98,7 @@ fn frozen_package_frame(
     let revision =
         pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
     let stats = frozen_dist_stats(inputs.dist_stats, &name, &bare_version);
-    let frame = package_frame(
-        inputs.router,
+    let frame = routed_package_frame(
         &ResolvedPackageHint {
             integrity: &integrity.to_string(),
             tarball_url: &tarball_url,
@@ -110,6 +109,8 @@ fn frozen_package_frame(
             from_registry: false,
             identity: ResolvedPackageIdentity { id: &id, name: &name, version: &bare_version },
         },
+        &tarball_url,
+        revision,
     );
     ndjson_line(&frame).ok()
 }

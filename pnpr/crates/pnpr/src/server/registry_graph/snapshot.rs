@@ -168,28 +168,30 @@ fn stored_upstream(
     upstream: &UpstreamConfig,
     guard_context: &UpstreamGuardContext,
 ) -> Upstream {
+    let fetch_guard = upstream_fetch_guard(guard_context, upstream);
     let literal_context = Arc::clone(guard_context);
-    let guard: RedirectGuard = if ecosystem == Ecosystem::Npm {
-        // An npm packument's `dist.tarball` may live on a separate blob/CDN
-        // host (for example presigned object-storage URLs). Credentials stay
-        // origin-scoped in `Upstream::request_headers`, while every hop is
-        // checked against the stored-upstream URL and address guards.
-        Arc::new(move |url| {
-            is_fetchable_artifact_url(url)
-                && current_context(&literal_context).allows_stored_upstream_url(url.as_str())
-        })
-    } else {
-        let fetch_guard = upstream_fetch_guard(guard_context, upstream);
-        Arc::new(move |url| {
-            fetch_guard(url)
-                && current_context(&literal_context).allows_stored_upstream_url(url.as_str())
-        })
-    };
-    let connect_context = Arc::clone(guard_context);
-    let connect_guard: AddressGuard = Arc::new(move |_host, address| {
-        current_context(&connect_context).allows_stored_upstream_address(address)
+    let guard: RedirectGuard = Arc::new(move |url| {
+        fetch_guard(url)
+            && current_context(&literal_context).allows_stored_upstream_url(url.as_str())
     });
-    Upstream::new(name, upstream).with_fetch_and_connect_guards(guard, connect_guard)
+    let connect_guard = stored_connect_guard(guard_context);
+    let client = Upstream::new(name, upstream).with_fetch_and_connect_guards(guard, connect_guard);
+    if ecosystem != Ecosystem::Npm {
+        return client;
+    }
+    let tarball_context = Arc::clone(guard_context);
+    let tarball_guard: RedirectGuard = Arc::new(move |url| {
+        is_fetchable_artifact_url(url)
+            && current_context(&tarball_context).allows_stored_upstream_url(url.as_str())
+    });
+    client.with_declared_tarball_guards(tarball_guard, stored_connect_guard(guard_context))
+}
+
+fn stored_connect_guard(guard_context: &UpstreamGuardContext) -> AddressGuard {
+    let connect_context = Arc::clone(guard_context);
+    Arc::new(move |_host, address| {
+        current_context(&connect_context).allows_stored_upstream_address(address)
+    })
 }
 
 fn current_context(guard_context: &UpstreamGuardContext) -> Arc<RouteContext> {

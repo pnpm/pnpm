@@ -367,3 +367,73 @@ async fn revision_download_budget_starts_after_waiting_for_a_permit() {
     assert!(stream.next().await.is_none());
     server.await.unwrap();
 }
+
+#[test]
+fn declared_tarball_route_preserves_signed_version_shaped_cdn_urls() {
+    let pkg =
+        CanonicalPackageName::parse("@corp/split", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let signed_cdn =
+        "https://cdn.split.example/@corp/split@1.0.0?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN";
+    assert_eq!(
+        crate::UpstreamTarballRoute::from_dist_tarball(Some(signed_cdn), &pkg),
+        crate::UpstreamTarballRoute::Url(signed_cdn.to_string()),
+    );
+    assert_eq!(
+        crate::UpstreamTarballRoute::from_dist_tarball(Some("@corp/split@1.0.0"), &pkg),
+        crate::UpstreamTarballRoute::Version("1.0.0".to_string()),
+    );
+}
+
+#[tokio::test]
+async fn declared_tarball_errors_never_expose_presigned_query_credentials_and_isolate_packument_guards()
+ {
+    let mut reg = mockito::Server::new_async().await;
+    let mut cdn = mockito::Server::new_async().await;
+    let forbidden_cdn = cdn
+        .mock(
+            "GET",
+            mockito::Matcher::Exact(
+                "/@corp/split@1.0.0?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN".to_string(),
+            ),
+        )
+        .with_status(403)
+        .with_body("SignatureDoesNotMatch")
+        .expect(1)
+        .create_async()
+        .await;
+    let blocked_packument_redirect = reg
+        .mock("GET", "/@corp/split")
+        .with_status(302)
+        .with_header("location", &format!("{}/off-origin-packument", cdn.url()))
+        .expect(1)
+        .create_async()
+        .await;
+
+    let reg_origin = reqwest::Url::parse(&reg.url()).unwrap().origin();
+    let client = upstream(reg.url(), auth_and_custom_headers())
+        .with_fetch_guard(std::sync::Arc::new(move |url| url.origin() == reg_origin))
+        .with_declared_tarball_guards(
+            std::sync::Arc::new(|url| matches!(url.scheme(), "http" | "https")),
+            std::sync::Arc::new(|_, _| true),
+        );
+
+    let pkg =
+        CanonicalPackageName::parse("@corp/split", pnpr_package_name::Ecosystem::Npm).unwrap();
+    assert!(
+        client
+            .fetch_packument(&pkg, &crate::CacheValidators::default())
+            .await
+            .is_err(),
+    );
+    blocked_packument_redirect.assert_async().await;
+
+    let signed_url =
+        format!("{}/@corp/split@1.0.0?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN", cdn.url());
+    let route = crate::UpstreamTarballRoute::from_dist_tarball(Some(&signed_url), &pkg);
+    let err =
+        client.fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &route).await.unwrap_err();
+    forbidden_cdn.assert_async().await;
+    for formatted in [err.log_message(), err.to_string(), format!("{err:?}")] {
+        assert!(!formatted.contains("EXAMPLE_PRESIGNED_TOKEN"), "leaked in {formatted}");
+    }
+}

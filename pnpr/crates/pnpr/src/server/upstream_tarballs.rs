@@ -252,13 +252,7 @@ pub(super) async fn fetch_upstream_tarball(
     tarball: UpstreamTarball<'_>,
 ) -> Response {
     let UpstreamTarball {
-        namespace,
-        name,
-        filename,
-        route,
-        integrity: _,
-        unpacked_size: _,
-        manifest_generation: _,
+        namespace, name, filename, route, ..
     } = tarball;
     let fetched = timed(
         "tarball:upstream_fetch",
@@ -266,6 +260,12 @@ pub(super) async fn fetch_upstream_tarball(
         upstream.fetch_declared_tarball_response(name, filename, route),
     )
     .await;
+    let fetched = match fetched {
+        Err(err) if should_refresh_signed_tarball_url(route, &err) => {
+            retry_expired_signed_tarball(state, upstream, tarball, err).await
+        }
+        other => other,
+    };
     let response = match fetched {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
@@ -285,6 +285,44 @@ pub(super) async fn fetch_upstream_tarball(
         .await;
     }
     stream_and_record_upstream_tarball(state, response, write, tarball)
+}
+
+fn should_refresh_signed_tarball_url(route: &UpstreamTarballRoute, err: &RegistryError) -> bool {
+    matches!(route, UpstreamTarballRoute::Url(url) if url.contains('?'))
+        && matches!(err, RegistryError::UpstreamStatus { status: 401 | 403 | 410, .. })
+}
+
+async fn retry_expired_signed_tarball(
+    state: &AppState,
+    upstream: &Upstream,
+    tarball: UpstreamTarball<'_>,
+    initial_err: RegistryError,
+) -> Result<FetchOutcome<pnpm_network::ThrottledResponse>, RegistryError> {
+    state.inner.proxy.version_tgzs.invalidate(tarball.namespace, tarball.name);
+    let refreshed = super::upstream_packuments::fetch_coalesced_upstream_packument(
+        state,
+        tarball.namespace,
+        upstream,
+        tarball.name,
+        Duration::ZERO,
+    )
+    .await?;
+    let Some(packument) = refreshed.map(|doc| doc.bytes.to_vec()) else {
+        return Err(initial_err);
+    };
+    let Some(dist) = parse_tarball_dist(state, packument, tarball.name, tarball.filename).await?
+    else {
+        return Err(initial_err);
+    };
+    if dist.integrity != *tarball.integrity || dist.route == *tarball.route {
+        return Err(initial_err);
+    }
+    timed(
+        "tarball:upstream_fetch",
+        tarball.name.as_str(),
+        upstream.fetch_declared_tarball_response(tarball.name, tarball.filename, &dist.route),
+    )
+    .await
 }
 
 fn stream_and_record_upstream_tarball(

@@ -55,10 +55,33 @@ async fn spawn_presigned_cdn(tgz: Vec<u8>) -> (String, Arc<AtomicUsize>) {
     (authority, hits)
 }
 
+const MAX_TEST_HEADER_BYTES: usize = 16 * 1024;
+
+async fn read_http_headers(socket: &mut tokio::net::TcpStream) -> Option<String> {
+    let mut buf = Vec::with_capacity(1024);
+    let mut chunk = [0u8; 1024];
+    loop {
+        let read = socket.read(&mut chunk).await.ok()?;
+        if read == 0 {
+            return None;
+        }
+        buf.extend_from_slice(&chunk[..read]);
+        if buf
+            .windows(4)
+            .any(|window| window == b"\r\n\r\n")
+        {
+            return Some(String::from_utf8_lossy(&buf).into_owned());
+        }
+        if buf.len() > MAX_TEST_HEADER_BYTES {
+            return None;
+        }
+    }
+}
+
 async fn serve_cdn_connection(socket: &mut tokio::net::TcpStream, tgz: &[u8], hits: &AtomicUsize) {
-    let mut buf = vec![0u8; 4096];
-    let read = socket.read(&mut buf).await.unwrap_or(0);
-    let req = String::from_utf8_lossy(&buf[..read]);
+    let Some(req) = read_http_headers(socket).await else {
+        return;
+    };
     let expected_line = format!("GET /@corp/split/split-1.0.0.tgz?{PRESIGNED_QUERY} HTTP/");
     let leaked_auth = req
         .lines()
@@ -94,9 +117,9 @@ async fn spawn_split_packument_upstream(packument: String) -> String {
 }
 
 async fn serve_packument_connection(socket: &mut tokio::net::TcpStream, packument: &str) {
-    let mut buf = vec![0u8; 4096];
-    let read = socket.read(&mut buf).await.unwrap_or(0);
-    let req = String::from_utf8_lossy(&buf[..read]);
+    let Some(req) = read_http_headers(socket).await else {
+        return;
+    };
     let is_split_get = req.starts_with("GET /@corp%2fsplit HTTP/")
         || req.starts_with("GET /@corp%2Fsplit HTTP/")
         || req.starts_with("GET /@corp/split HTTP/");
@@ -372,6 +395,27 @@ async fn assert_tamper_rejection(harness: &SplitDomainHarness, lockfile: &Value)
     assert_no_cdn_or_credential_leak(&violations, &harness.cdn_authority);
     assert_eq!(violations[0]["type"], "violations", "{violations:?}");
 
+    // Directly supplying an unpublished synthetic `{upstream}/@corp/split/-/split-1.0.0.tgz`
+    // URL (rather than the `/~corp/` route) must also be rejected, even after
+    // the valid `/~corp/` lockfile was recorded in `verdict_cache`.
+    let mut synthetic = lockfile.clone();
+    synthetic["packages"]["@corp/split@1.0.0"]["resolution"]["tarball"] = json!(format!(
+        "{}/@corp/split/-/split-1.0.0.tgz",
+        harness.upstream_url.trim_end_matches('/'),
+    ));
+    let synthetic_violations = post_ndjson(
+        &harness.app,
+        "/-/pnpr/v0/verify-lockfile",
+        &harness.reader_token,
+        json!({
+            "registries": corp_scope_registries(&harness.upstream_url),
+            "lockfile": synthetic,
+        }),
+    )
+    .await;
+    assert_no_cdn_or_credential_leak(&synthetic_violations, &harness.cdn_authority);
+    assert_eq!(synthetic_violations[0]["type"], "violations", "{synthetic_violations:?}");
+
     let outsider_verify = harness.app
         .clone()
         .oneshot(
@@ -421,4 +465,132 @@ async fn assert_tarball_proxy_download(harness: &SplitDomainHarness) {
         assert_eq!(bytes, harness.tgz, "{path}");
     }
     assert_eq!(harness.cdn_hits.load(Ordering::SeqCst), 1);
+}
+
+async fn spawn_rotating_version_cdn(tgz: Vec<u8>) -> (String, Arc<AtomicUsize>, Arc<AtomicUsize>) {
+    let listener = bind_loopback_preferring("127.0.0.3").await;
+    let authority = listener
+        .local_addr()
+        .unwrap()
+        .to_string();
+    let expired_hits = Arc::new(AtomicUsize::new(0));
+    let fresh_hits = Arc::new(AtomicUsize::new(0));
+    let expired = Arc::clone(&expired_hits);
+    let fresh = Arc::clone(&fresh_hits);
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let tgz = tgz.clone();
+            let expired = Arc::clone(&expired);
+            let fresh = Arc::clone(&fresh);
+            tokio::spawn(async move {
+                serve_rotating_cdn_connection(&mut socket, &tgz, &expired, &fresh).await;
+            });
+        }
+    });
+    (authority, expired_hits, fresh_hits)
+}
+
+async fn serve_rotating_cdn_connection(
+    socket: &mut tokio::net::TcpStream,
+    tgz: &[u8],
+    expired: &AtomicUsize,
+    fresh: &AtomicUsize,
+) {
+    let Some(req) = read_http_headers(socket).await else {
+        return;
+    };
+    if req.starts_with("GET /@corp/split@1.0.0?X-Amz-Signature=EXPIRED_TOKEN HTTP/") {
+        expired.fetch_add(1, Ordering::SeqCst);
+        let _ = socket.write_all(
+            b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        )
+        .await;
+        return;
+    }
+    if !req.starts_with("GET /@corp/split@1.0.0?X-Amz-Signature=FRESH_TOKEN HTTP/") {
+        let _ = socket.write_all(
+            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        )
+        .await;
+        return;
+    }
+    fresh.fetch_add(1, Ordering::SeqCst);
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        tgz.len(),
+    );
+    let _ = socket.write_all(head.as_bytes()).await;
+    let _ = socket.write_all(tgz).await;
+}
+
+async fn spawn_rotating_packument_upstream(cdn_authority: String, tgz: Vec<u8>) -> String {
+    let listener = bind_loopback_preferring("127.0.0.2").await;
+    let url = format!("http://{}/", listener.local_addr().unwrap());
+    let fetches = Arc::new(AtomicUsize::new(0));
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let step = fetches.fetch_add(1, Ordering::SeqCst);
+            let sig = if step == 0 { "EXPIRED_TOKEN" } else { "FRESH_TOKEN" };
+            let doc = json!({
+                "name": "@corp/split",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": {
+                    "1.0.0": {
+                        "name": "@corp/split",
+                        "version": "1.0.0",
+                        "dist": {
+                            "tarball": format!("http://{cdn_authority}/@corp/split@1.0.0?X-Amz-Signature={sig}"),
+                            "integrity": sha512_integrity(&tgz),
+                        }
+                    }
+                }
+            })
+            .to_string();
+            tokio::spawn(async move {
+                serve_packument_connection(&mut socket, &doc).await;
+            });
+        }
+    });
+    url
+}
+
+#[tokio::test]
+async fn split_domain_tarball_proxy_recovers_expired_presigned_version_route_url() {
+    let tmp = TempDir::new().unwrap();
+    let (_, tgz) = package_tar_and_tgz(r#"{"name":"@corp/split","version":"1.0.0"}"#);
+    let (cdn_authority, expired_hits, fresh_hits) = spawn_rotating_version_cdn(tgz.clone()).await;
+    let upstream_url = spawn_rotating_packument_upstream(cdn_authority, tgz.clone()).await;
+    let config = build_split_config("http://127.0.0.1:1", &upstream_url, tmp.path().to_path_buf());
+    let auth = seeded_auth(&config, &[("alice", "password")]);
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(config, auth);
+
+    // Warm the cached packument with the first (`EXPIRED_TOKEN`) signed URL.
+    let packument_res = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/~corp/@corp/split")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(packument_res.status(), StatusCode::OK);
+
+    // Downloading `@1.0.0` hits the cached `EXPIRED_TOKEN` URL (403), refreshes
+    // the packument to `FRESH_TOKEN`, and succeeds on the same request.
+    let tarball_res = app
+        .oneshot(
+            Request::get("/npm/~corp/@corp/split@1.0.0")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(tarball_res.status(), StatusCode::OK);
+    assert_eq!(body_bytes(tarball_res.into_body()).await, tgz);
+    assert_eq!(expired_hits.load(Ordering::SeqCst), 1);
+    assert_eq!(fresh_hits.load(Ordering::SeqCst), 1);
 }

@@ -213,6 +213,7 @@ fn redact_url(url: &reqwest::Url) -> String {
     let _ = url.set_username("");
     let _ = url.set_password(None);
     url.set_query(None);
+    url.set_fragment(None);
     url.to_string()
 }
 
@@ -322,7 +323,7 @@ async fn download(
     max_bytes: u64,
     mut hash: impl FnMut(&[u8]),
 ) -> Result<u64, BlobStreamError> {
-    let url = response.url().to_string();
+    let url = redact_url(response.url());
     if let Some(received) = response.content_length()
         && received > max_bytes
     {

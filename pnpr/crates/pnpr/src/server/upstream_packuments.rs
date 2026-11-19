@@ -87,7 +87,7 @@ async fn read_cached_upstream_packument(
 }
 
 pub(super) struct AdmittedPackument {
-    bytes: Bytes,
+    pub(super) bytes: Bytes,
     _admission: SourceAdmission,
 }
 
@@ -97,7 +97,7 @@ impl AdmittedPackument {
     }
 }
 
-async fn fetch_coalesced_upstream_packument(
+pub(super) async fn fetch_coalesced_upstream_packument(
     state: &AppState,
     namespace: &str,
     upstream: &Upstream,

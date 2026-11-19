@@ -1,14 +1,16 @@
 //! Sending a request to an upstream and checking its response status.
 
 use super::{
-    CanonicalPackageName, HeadError, HeaderMap, Instant, RegistryError, Result,
-    ThrottledClientGuard, Upstream, http::read_upstream_error_body, version_route_tarball_version,
+    CanonicalPackageName, HeadError, HeaderMap, Instant, RedirectGuard, RegistryError, Result,
+    ThrottledClient, ThrottledClientGuard, Upstream,
+    http::{diagnostic_url, read_upstream_error_body},
+    version_route_tarball_version,
 };
 
 /// Where an upstream packument's `dist.tarball` points for a version.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpstreamTarballRoute {
-    /// A `pnpr` `{pkg}@{version}` route on the upstream's base URL.
+    /// A relative `pnpr` `{pkg}@{version}` route on the upstream's base URL.
     Version(String),
     /// An absolute HTTP(S) `dist.tarball` URL (same-origin or split-domain CDN).
     Url(String),
@@ -22,11 +24,13 @@ impl UpstreamTarballRoute {
         let Some(url) = url else {
             return Self::Archive;
         };
-        if let Some(version) = version_route_tarball_version(url, pkg) {
-            return Self::Version(version.to_string());
-        }
         if is_http_tarball_url(url) {
             return Self::Url(url.to_string());
+        }
+        if !url.contains(['?', '#'])
+            && let Some(version) = version_route_tarball_version(url, pkg)
+        {
+            return Self::Version(version.to_string());
         }
         Self::Archive
     }
@@ -56,7 +60,7 @@ impl Upstream {
             .await
             .map_err(|source| {
                 self.breaker.record_failure();
-                RegistryError::Upstream { url: url.to_string(), source }
+                RegistryError::Upstream { url: diagnostic_url(url), source: source.without_url() }
             })
     }
 
@@ -73,7 +77,35 @@ impl Upstream {
         headers: &HeaderMap,
         deadline: Deadline,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
-        self.ensure_allowed_url(url)?;
+        self.get_using_client(
+            &self.http.client,
+            self.http.fetch_guard.as_ref(),
+            url,
+            headers,
+            deadline,
+        )
+        .await
+    }
+
+    pub(crate) async fn get_tarball_with_scoped_headers(
+        &self,
+        url: &str,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
+        let client = self.http.declared_tarball_client.as_ref().unwrap_or(&self.http.client);
+        let guard =
+            self.http.declared_tarball_guard.as_ref().or(self.http.fetch_guard.as_ref());
+        self.get_using_client(client, guard, url, &HeaderMap::new(), Deadline::Head).await
+    }
+
+    async fn get_using_client<'a>(
+        &'a self,
+        client: &'a ThrottledClient,
+        guard: Option<&RedirectGuard>,
+        url: &str,
+        headers: &HeaderMap,
+        deadline: Deadline,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'a>)> {
+        self.ensure_url_passes_guard(url, guard)?;
         let started = Instant::now();
         let configure = |request: reqwest::RequestBuilder, destination: &str| {
             let request = request
@@ -87,23 +119,26 @@ impl Upstream {
             }
         };
         let response = match deadline {
-            Deadline::Whole => self.http.client
+            Deadline::Whole => client
                 .get_response_with_scoped_headers(url, configure)
                 .await
                 .map_err(HeadError::Request),
             Deadline::Head => {
-                self.http.client.get_response_head_within(url, self.http.timeout, configure).await
+                client.get_response_head_within(url, self.http.timeout, configure).await
             }
         };
-        response.map_err(|error| {
-            self.breaker.record_failure();
-            match error {
-                HeadError::Request(source) => {
-                    RegistryError::Upstream { url: url.to_string(), source }
-                }
-                HeadError::TimedOut => RegistryError::UpstreamTimeout { url: url.to_string() },
+        response.map_err(|error| self.map_head_error(url, error))
+    }
+
+    fn map_head_error(&self, url: &str, error: HeadError) -> RegistryError {
+        self.breaker.record_failure();
+        let url = diagnostic_url(url);
+        match error {
+            HeadError::Request(source) => {
+                RegistryError::Upstream { url, source: source.without_url() }
             }
-        })
+            HeadError::TimedOut => RegistryError::UpstreamTimeout { url },
+        }
     }
 
     /// Wait for `response` until `deadline`. Used for a body pnpr streams:
@@ -119,17 +154,21 @@ impl Upstream {
         tokio::time::timeout(remaining, response).await
             .unwrap_or_else(|_| {
                 self.breaker.record_failure();
-                Err(RegistryError::UpstreamTimeout { url: url.to_string() })
+                Err(RegistryError::UpstreamTimeout { url: diagnostic_url(url) })
             })
     }
 
     pub(crate) fn ensure_allowed_url(&self, url: &str) -> Result<()> {
+        self.ensure_url_passes_guard(url, self.http.fetch_guard.as_ref())
+    }
+
+    fn ensure_url_passes_guard(&self, url: &str, guard: Option<&RedirectGuard>) -> Result<()> {
         self.ensure_may_fetch()?;
-        if let Some(guard) = &self.http.fetch_guard
+        if let Some(guard) = guard
             && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
         {
             return Err(RegistryError::UpstreamResponse {
-                url: url.to_string(),
+                url: diagnostic_url(url),
                 reason: "URL is not allowed by the fetch allowlist".to_string(),
             });
         }
@@ -161,7 +200,11 @@ impl Upstream {
         let body = tokio::time::timeout(self.http.timeout, read_upstream_error_body(response))
             .await
             .unwrap_or_default();
-        Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
+        Err(RegistryError::UpstreamStatus {
+            url: diagnostic_url(url),
+            status: status.as_u16(),
+            body,
+        })
     }
 }
 

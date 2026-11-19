@@ -1,10 +1,11 @@
 use super::{
     Arc, DistStats, LockfileResolution, NpmResolutionVerifier, OnceCell, PkgName,
     PublishedTarballUrlMapper, RegistryArtifactHistory, ResolutionVerification,
-    TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TarballRevision, current_history_violation,
-    current_revision_number, has_complete_sha512_digest, is_revision_registry_tarball_url,
-    lockfile_revision, mapped_tarball_url_violation, missing_artifact_violation,
-    redact_url_credentials, select_revision, tarball_url_violation, to_registry_url,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TarballRevision, VerifyCtx,
+    current_history_violation, current_revision_number, has_complete_sha512_digest,
+    is_revision_registry_tarball_url, lockfile_revision, mapped_tarball_url_violation,
+    missing_artifact_violation, redact_url_credentials, select_revision, tarball_url_violation,
+    to_registry_url,
 };
 use crate::pick_package::{ReleaseRecordError, ReleaseRecordRequest};
 
@@ -21,12 +22,11 @@ impl NpmResolutionVerifier {
     pub(super) async fn run_registry_artifact_check(
         &self,
         registry: &str,
-        name: &PkgName,
-        version: &str,
+        ctx: &VerifyCtx<'_>,
         resolution: &LockfileResolution,
         lockfile_tarball: Option<&str>,
     ) -> Option<ResolutionVerification> {
-        let artifact = match self.published_artifact(registry, name, version).await {
+        let artifact = match self.published_artifact(registry, ctx.name, ctx.version).await {
             Ok(artifact) => artifact,
             Err(violation) => return Some(violation),
         };
@@ -39,7 +39,7 @@ impl NpmResolutionVerifier {
         if self.routing.is_pnpr_registry(registry) && artifact.install_v2.is_some() {
             return self.verify_pnpr_document_artifact(
                 registry,
-                (name, version),
+                (ctx.name, ctx.version),
                 resolution,
                 lockfile_tarball,
                 &artifact,
@@ -48,7 +48,7 @@ impl NpmResolutionVerifier {
         }
         verify_npm_artifact(
             &artifact,
-            (name, version),
+            ctx,
             resolution,
             lockfile_tarball,
             registry,
@@ -226,13 +226,14 @@ impl NpmResolutionVerifier {
 
 fn verify_npm_artifact(
     artifact: &RegistryArtifactHistory,
-    (name, version): (&PkgName, &str),
+    ctx: &VerifyCtx<'_>,
     resolution: &LockfileResolution,
     lockfile_tarball: Option<&str>,
     registry: &str,
     mapper: Option<&PublishedTarballUrlMapper>,
 ) -> Option<ResolutionVerification> {
-    let pkg_name = name.to_string();
+    let pkg_name = ctx.name.to_string();
+    let version = ctx.version;
     let requested = lockfile_revision(resolution);
     let revision_aware = requested.is_some()
         || artifact.current.revision.is_some()
@@ -241,7 +242,7 @@ fn verify_npm_artifact(
         return mapped_tarball_url_violation(
             lockfile_tarball,
             artifact.current.tarball.as_deref(),
-            (registry, &pkg_name, version),
+            (registry, &pkg_name, version, ctx.registry_name),
             mapper,
         );
     }
@@ -260,13 +261,13 @@ fn verify_npm_artifact(
         return mapped_tarball_url_violation(
             lockfile_tarball,
             artifact.current.tarball.as_deref(),
-            (registry, &pkg_name, version),
+            (registry, &pkg_name, version, ctx.registry_name),
             mapper,
         );
     };
     verify_selected_revision(
         artifact,
-        (&pkg_name, version, requested, current_revision),
+        (&pkg_name, version, ctx.registry_name, requested, current_revision),
         resolution,
         lockfile_tarball,
         registry,
@@ -276,7 +277,13 @@ fn verify_npm_artifact(
 
 fn verify_selected_revision(
     artifact: &RegistryArtifactHistory,
-    (pkg_name, version, requested, current_revision): (&str, &str, u64, u64),
+    (pkg_name, version, registry_name, requested, current_revision): (
+        &str,
+        &str,
+        Option<&str>,
+        u64,
+        u64,
+    ),
     resolution: &LockfileResolution,
     lockfile_tarball: Option<&str>,
     registry: &str,
@@ -297,7 +304,7 @@ fn verify_selected_revision(
         mapped_tarball_url_violation(
             lockfile_tarball,
             selected.tarball.as_deref(),
-            (registry, pkg_name, version),
+            (registry, pkg_name, version, registry_name),
             mapper,
         )
     })

@@ -202,9 +202,21 @@ pub struct VerificationMetadataClient {
     pub retry_opts: RetryOpts,
 }
 
-/// Maps `(registry, package_name, version, published_tarball_url)` to the
-/// verification tarball URL expected in the lockfile.
-pub type PublishedTarballUrlMapper = Arc<dyn Fn(&str, &str, &str, &str) -> String + Send + Sync>;
+/// Expected tarball URL binding produced by [`PublishedTarballUrlMapper`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MappedTarballUrl {
+    /// Sanitized or routed URL formatted in `TARBALL_URL_MISMATCH` diagnostics.
+    pub display_url: String,
+    /// Synthetic reversed URL accepted only when the input lockfile entry came
+    /// from an authorized endpoint route; `None` requires matching the
+    /// published URL directly.
+    pub accepted_routed_url: Option<String>,
+}
+
+/// Maps `(registry, package_name, version, registry_name, published_tarball_url)`
+/// to the [`MappedTarballUrl`] expected in the verified lockfile.
+pub type PublishedTarballUrlMapper =
+    Arc<dyn Fn(&str, &str, &str, Option<&str>, &str) -> MappedTarballUrl + Send + Sync>;
 
 pub struct VerificationArtifacts {
     /// Optional sink the verifier fills with each verified entry's
@@ -484,8 +496,7 @@ impl NpmResolutionVerifier {
         if !binds_an_artifact {
             return None;
         }
-        self.run_registry_artifact_check(registry, ctx.name, ctx.version, resolution, tarball_url)
-            .await
+        self.run_registry_artifact_check(registry, ctx, resolution, tarball_url).await
     }
 
     /// Whether the maturity and trust policies apply to this entry.

@@ -284,6 +284,16 @@ pub(super) fn is_sensitive_query_key(key: &str) -> bool {
             | "secret"
             | "token"
             | "accesstoken"
-            | "apikey",
+            | "apikey"
+            | "signature"
+            | "sig"
+            | "credential"
+            | "accesskeyid"
+            | "awsaccesskeyid"
+            | "xamzsignature"
+            | "xamzcredential"
+            | "xamzsecuritytoken"
+            | "xgoogsignature"
+            | "xgoogcredential",
     )
 }
