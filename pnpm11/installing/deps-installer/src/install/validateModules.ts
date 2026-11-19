@@ -22,6 +22,8 @@ import { checkCompatibility } from './checkCompatibility/index.js'
 
 interface ImporterToPurge {
   modulesDir: string
+  /** Why the modules directory has to be recreated. */
+  reason: string
   rootDir: ProjectRootDir
   rootDirRealPath?: string
 }
@@ -72,7 +74,7 @@ export async function validateModules (
   const layoutMismatch = findLayoutSettingMismatch(modules, opts)
   if (layoutMismatch != null) {
     if (canRecreateModulesDirs && rootProject != null) {
-      return { purged: await purgeModulesDirsOfImporter(opts, rootProject) }
+      return { purged: await purgeModulesDirsOfImporter(opts, { ...rootProject, reason: toPurgeReason(layoutMismatch) }) }
     }
     throw layoutMismatch
   }
@@ -85,6 +87,7 @@ export async function validateModules (
     importersToPurge.push({
       modulesDir: pathAbsolute(opts.modulesDir, opts.lockfileDir),
       rootDir: opts.lockfileDir as ProjectRootDir,
+      reason: importersToPurge[0].reason,
     })
   }
 
@@ -148,8 +151,11 @@ function collectImportersToPurge (
   }
 ): ImporterToPurge[] {
   const importersToPurge: ImporterToPurge[] = []
-  if (rootProject != null && needsPurge(() => checkHoistPattern(modules, opts), canRecreateModulesDirs)) {
-    importersToPurge.push(rootProject)
+  if (rootProject != null) {
+    const reason = findPurgeReason(() => checkHoistPattern(modules, opts), canRecreateModulesDirs)
+    if (reason != null) {
+      importersToPurge.push({ ...rootProject, reason })
+    }
   }
   for (const project of projects) {
     const compatibilityOpts = {
@@ -158,27 +164,35 @@ function collectImportersToPurge (
       virtualStoreDir: opts.virtualStoreDir,
     }
     const isSkipped = opts.forceNewModules && !opts.mutatedProjectDirs.has(project.rootDir)
-    if (
-      needsPurge(() => checkCompatibility(modules, compatibilityOpts), canRecreateModulesDirs) ||
-      (!isSkipped && needsPurge(() => checkIncludedDeps(modules, project, opts), opts.forceNewModules))
-    ) {
-      importersToPurge.push(project)
+    const reason = findPurgeReason(() => checkCompatibility(modules, compatibilityOpts), canRecreateModulesDirs) ??
+      (isSkipped ? undefined : findPurgeReason(() => checkIncludedDeps(modules, project, opts), opts.forceNewModules))
+    if (reason != null) {
+      importersToPurge.push({ ...project, reason })
     }
   }
   return importersToPurge
 }
 
 /**
- * Whether `check` fails. The failure is thrown instead unless `canPurge`.
+ * Why `check` fails, if it does. The failure is thrown instead unless `canPurge`.
  */
-function needsPurge (check: () => void, canPurge: boolean): boolean {
+function findPurgeReason (check: () => void, canPurge: boolean): string | undefined {
   try {
     check()
-    return false
+    return undefined
   } catch (err: unknown) {
     if (!canPurge) throw err
-    return true
+    return toPurgeReason(err)
   }
+}
+
+/**
+ * The message of an incompatibility error without its advice to recreate the
+ * modules directory, as the purge about to happen does exactly that.
+ */
+function toPurgeReason (err: unknown): string {
+  const message = isError(err) ? err.message : String(err)
+  return message.replace(/\s*Run "pnpm install[^"]*" to recreate (?:the modules directory|node_modules)\.$/, '')
 }
 
 function skipsHoistedTree (opts: ValidateModulesOptions): boolean {
@@ -225,6 +239,12 @@ async function purgeModulesDirsOfImporters (
     .filter((importer): importer is SafeImporterToPurge => importer != null)
   if (safeImporters.length === 0) return true
 
+  for (const importer of safeImporters) {
+    logger.warn({
+      message: `The modules directory at "${importer.modulesDir}" will be recreated. ${importer.reason}`,
+      prefix: importer.rootDir,
+    })
+  }
   if (opts.confirmModulesPurge ?? true) {
     await confirmPurge(safeImporters)
   }

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
@@ -51,6 +51,20 @@ test('a plain install recreates the modules directory after changing nodeLinker'
   await install(manifest, testDefaults({ confirmModulesPurge: false, nodeLinker: 'isolated' }))
 
   expect(fs.existsSync(hoistedDep)).toBe(false)
+})
+
+test('a warning explains why the modules directory is recreated', async () => {
+  prepareEmpty()
+  const manifest = { dependencies: { 'is-positive': '1.0.0' } }
+  await install(manifest, testDefaults({ nodeLinker: 'hoisted' }))
+
+  const reporter = jest.fn()
+  await install(manifest, testDefaults({ confirmModulesPurge: false, nodeLinker: 'isolated', reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: `The modules directory at "${path.resolve('node_modules')}" will be recreated. This modules directory was created using a different node-linker value.`,
+  }))
 })
 
 test.each([
