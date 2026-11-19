@@ -26,7 +26,7 @@ pub use calc_specifier_for_workspace_dep::{
 };
 pub use create_npm_resolution_verifier::{
     CreateNpmResolutionVerifierOptions, DistStats, MappedTarballUrl, NpmResolutionVerifier,
-    ObservedDistStats, PublishedTarballUrlMapper, VerificationArtifacts,
+    ObservedDistStats, PublishedTarballUrlMapper, ReverseRoutedTarballUrl, VerificationArtifacts,
     VerificationMetadataClient, VerificationReleaseAgeOptions, VerificationTrustOptions,
     create_npm_resolution_verifier, observed_dist_stats_sink,
 };

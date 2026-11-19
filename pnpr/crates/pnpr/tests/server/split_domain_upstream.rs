@@ -66,13 +66,16 @@ async fn read_http_headers(socket: &mut tokio::net::TcpStream) -> Option<String>
             return None;
         }
         buf.extend_from_slice(&chunk[..read]);
-        if buf
+        if let Some(pos) = buf
             .windows(4)
-            .any(|window| window == b"\r\n\r\n")
+            .position(|window| window == b"\r\n\r\n")
         {
-            return Some(String::from_utf8_lossy(&buf).into_owned());
+            let end = pos + 4;
+            return (end <= MAX_TEST_HEADER_BYTES).then(|| {
+                String::from_utf8_lossy(&buf[..end]).into_owned()
+            });
         }
-        if buf.len() > MAX_TEST_HEADER_BYTES {
+        if buf.len() >= MAX_TEST_HEADER_BYTES {
             return None;
         }
     }
@@ -416,6 +419,30 @@ async fn assert_tamper_rejection(harness: &SplitDomainHarness, lockfile: &Value)
     assert_no_cdn_or_credential_leak(&synthetic_violations, &harness.cdn_authority);
     assert_eq!(synthetic_violations[0]["type"], "violations", "{synthetic_violations:?}");
 
+    // A routed peer-dependency variant in the same lockfile must not vouch for
+    // a sibling entry that smuggles an unrouted synthetic upstream URL.
+    let mut mixed_peers = lockfile.clone();
+    let valid_entry = mixed_peers["packages"]["@corp/split@1.0.0"].clone();
+    let mut forged_peer = valid_entry.clone();
+    forged_peer["resolution"]["tarball"] = json!(format!(
+        "{}/@corp/split/-/split-1.0.0.tgz",
+        harness.upstream_url.trim_end_matches('/'),
+    ));
+    mixed_peers["packages"]["@corp/split@1.0.0(peer@1.0.0)"] = valid_entry;
+    mixed_peers["packages"]["@corp/split@1.0.0(peer@2.0.0)"] = forged_peer;
+    let mixed_violations = post_ndjson(
+        &harness.app,
+        "/-/pnpr/v0/verify-lockfile",
+        &harness.reader_token,
+        json!({
+            "registries": corp_scope_registries(&harness.upstream_url),
+            "lockfile": mixed_peers,
+        }),
+    )
+    .await;
+    assert_no_cdn_or_credential_leak(&mixed_violations, &harness.cdn_authority);
+    assert_eq!(mixed_violations[0]["type"], "violations", "{mixed_violations:?}");
+
     let outsider_verify = harness.app
         .clone()
         .oneshot(
@@ -523,14 +550,19 @@ async fn serve_rotating_cdn_connection(
     let _ = socket.write_all(tgz).await;
 }
 
-async fn spawn_rotating_packument_upstream(cdn_authority: String, tgz: Vec<u8>) -> String {
+async fn spawn_rotating_packument_upstream(
+    cdn_authority: String,
+    tgz: Vec<u8>,
+    rotates: bool,
+) -> (String, Arc<AtomicUsize>) {
     let listener = bind_loopback_preferring("127.0.0.2").await;
     let url = format!("http://{}/", listener.local_addr().unwrap());
     let fetches = Arc::new(AtomicUsize::new(0));
+    let fetches_for_task = Arc::clone(&fetches);
     tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
-            let step = fetches.fetch_add(1, Ordering::SeqCst);
-            let sig = if step == 0 { "EXPIRED_TOKEN" } else { "FRESH_TOKEN" };
+            let step = fetches_for_task.fetch_add(1, Ordering::SeqCst);
+            let sig = if !rotates || step == 0 { "EXPIRED_TOKEN" } else { "FRESH_TOKEN" };
             let doc = json!({
                 "name": "@corp/split",
                 "dist-tags": { "latest": "1.0.0" },
@@ -551,7 +583,7 @@ async fn spawn_rotating_packument_upstream(cdn_authority: String, tgz: Vec<u8>) 
             });
         }
     });
-    url
+    (url, fetches)
 }
 
 #[tokio::test]
@@ -559,7 +591,8 @@ async fn split_domain_tarball_proxy_recovers_expired_presigned_version_route_url
     let tmp = TempDir::new().unwrap();
     let (_, tgz) = package_tar_and_tgz(r#"{"name":"@corp/split","version":"1.0.0"}"#);
     let (cdn_authority, expired_hits, fresh_hits) = spawn_rotating_version_cdn(tgz.clone()).await;
-    let upstream_url = spawn_rotating_packument_upstream(cdn_authority, tgz.clone()).await;
+    let (upstream_url, packument_fetches) =
+        spawn_rotating_packument_upstream(cdn_authority, tgz.clone(), true).await;
     let config = build_split_config("http://127.0.0.1:1", &upstream_url, tmp.path().to_path_buf());
     let auth = seeded_auth(&config, &[("alice", "password")]);
     let token = issue_token(&auth, "alice").await;
@@ -577,6 +610,7 @@ async fn split_domain_tarball_proxy_recovers_expired_presigned_version_route_url
         .await
         .unwrap();
     assert_eq!(packument_res.status(), StatusCode::OK);
+    assert_eq!(packument_fetches.load(Ordering::SeqCst), 1);
 
     // Downloading `@1.0.0` hits the cached `EXPIRED_TOKEN` URL (403), refreshes
     // the packument to `FRESH_TOKEN`, and succeeds on the same request.
@@ -593,4 +627,52 @@ async fn split_domain_tarball_proxy_recovers_expired_presigned_version_route_url
     assert_eq!(body_bytes(tarball_res.into_body()).await, tgz);
     assert_eq!(expired_hits.load(Ordering::SeqCst), 1);
     assert_eq!(fresh_hits.load(Ordering::SeqCst), 1);
+    assert_eq!(packument_fetches.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn split_domain_tarball_proxy_throttles_packument_refetches_on_persistent_forbidden_url() {
+    let tmp = TempDir::new().unwrap();
+    let (_, tgz) = package_tar_and_tgz(r#"{"name":"@corp/split","version":"1.0.0"}"#);
+    let (cdn_authority, expired_hits, _) = spawn_rotating_version_cdn(tgz.clone()).await;
+    let (upstream_url, packument_fetches) =
+        spawn_rotating_packument_upstream(cdn_authority, tgz, false).await;
+    let config = build_split_config("http://127.0.0.1:1", &upstream_url, tmp.path().to_path_buf());
+    let auth = seeded_auth(&config, &[("alice", "password")]);
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(config, auth);
+
+    let packument_res = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/~corp/@corp/split")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(packument_res.status(), StatusCode::OK);
+    assert_eq!(packument_fetches.load(Ordering::SeqCst), 1);
+
+    for path in [
+        "/npm/~corp/@corp/split@1.0.0",
+        "/npm/~corp/@corp/split@1.0.0",
+        "/npm/~corp/@corp/split/-/split-1.0.0.tgz",
+    ] {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_GATEWAY, "{path}");
+    }
+    // 1 initial packument load + 1 throttled forced refresh across 3 failed downloads.
+    assert_eq!(packument_fetches.load(Ordering::SeqCst), 2);
+    assert_eq!(expired_hits.load(Ordering::SeqCst), 3);
 }

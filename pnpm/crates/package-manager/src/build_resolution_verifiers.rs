@@ -95,6 +95,7 @@ pub fn build_resolution_verifiers(
             canonical_fetches: planned_canonical_fetches,
             lookups,
             published_tarball_mapper: None,
+            reverse_routed_tarball_url: None,
         },
     )
 }

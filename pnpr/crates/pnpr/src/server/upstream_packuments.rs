@@ -1,6 +1,6 @@
 pub(super) use missing_versions::{
-    PackumentRefetches, reload_source_packument_lacking_version,
-    reload_upstream_packument_lacking_version,
+    PackumentRefetches, REFETCH_INTERVAL, reload_source_packument_lacking_version,
+    reload_upstream_packument_for_expired_tarball, reload_upstream_packument_lacking_version,
 };
 
 use super::{
@@ -108,7 +108,7 @@ pub(super) async fn fetch_coalesced_upstream_packument(
         let admission =
             state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace)).await;
         let fetched =
-            fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await?;
+            fetch_and_cache_upstream_packument(state, namespace, upstream, name, Some(ttl)).await?;
         Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))
     })
     .await
@@ -126,7 +126,19 @@ where
     Read: FnOnce() -> Pending + Send,
     Pending: Future<Output = Result<Option<Arc<AdmittedPackument>>, Arc<RegistryError>>> + Send,
 {
-    let key = (namespace.to_string(), name.clone());
+    coalesce_upstream_packument_keyed(state, (namespace.to_string(), name.clone(), None), read)
+        .await
+}
+
+async fn coalesce_upstream_packument_keyed<Read, Pending>(
+    state: &AppState,
+    key: (String, CanonicalPackageName, Option<String>),
+    read: Read,
+) -> Result<Option<Arc<AdmittedPackument>>, RegistryError>
+where
+    Read: FnOnce() -> Pending + Send,
+    Pending: Future<Output = Result<Option<Arc<AdmittedPackument>>, Arc<RegistryError>>> + Send,
+{
     Box::pin(state.inner.proxy.packument_singleflight.work(key, || Box::pin(read())))
         .await
         .map_err(RegistryError::Shared)
@@ -137,9 +149,10 @@ async fn fetch_and_cache_upstream_packument(
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
-    ttl: Duration,
+    ttl: Option<Duration>,
 ) -> Result<Option<Vec<u8>>, Arc<RegistryError>> {
-    if upstream.caches()
+    if let Some(ttl) = ttl
+        && upstream.caches()
         && let Ok(Some(bytes)) =
             state.inner.storage.read_upstream_document(namespace, name, ttl).await
     {

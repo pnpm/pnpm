@@ -2,13 +2,13 @@ pub(super) mod osv;
 
 pub(super) use frozen_frames::frozen_package_frames_until;
 pub(super) use osv::{osv_violations_for_lockfile_until, verify_done_frame};
-pub(super) use tarball_router::{RoutedVerificationEntries, TarballRouter};
+pub(super) use tarball_router::TarballRouter;
 
 mod frozen_frames;
 mod tarball_router;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     sync::Arc,
 };
 
@@ -26,6 +26,7 @@ use pnpm_lockfile::{
 use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
 use pnpm_resolving_npm_resolver::{
     BUILTIN_REGISTRIES_BY_PREFIX, MappedTarballUrl, PublishedTarballUrlMapper,
+    ReverseRoutedTarballUrl,
 };
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 use pnpr_package_name::CanonicalPackageName;

@@ -572,38 +572,45 @@ async fn published_tarball_mapper_accepts_routed_split_domain_url_and_redacts_mi
     let _meta_mock = server
         .mock("GET", "/@corp%2Fsplit")
         .with_body(packument.to_string())
+        .expect_at_least(1)
         .create_async()
         .await;
-    let routed_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-    let flag_for_mapper = std::sync::Arc::clone(&routed_flag);
     let mut opts = default_opts(&registry);
     opts.artifacts.published_tarball_mapper =
-        Some(std::sync::Arc::new(move |reg, pkg, ver, _, _| {
-            let synthetic = format!("{}/{pkg}/-/split-{ver}.tgz", reg.trim_end_matches('/'));
+        Some(std::sync::Arc::new(move |_, pkg, ver, lockfile_url, _| {
+            let routed = format!("https://pnpr.example/npm/~corp/{pkg}/-/split-{ver}.tgz");
             crate::MappedTarballUrl {
-                display_url: format!("https://pnpr.example/npm/~corp/{pkg}/-/split-{ver}.tgz"),
-                accepted_routed_url: flag_for_mapper
-                    .load(std::sync::atomic::Ordering::SeqCst)
-                    .then_some(synthetic),
+                accepted_routed_url: lockfile_url
+                    .starts_with("https://pnpr.example/npm/~")
+                    .then(|| routed.clone()),
+                display_url: routed,
+                accept_published_url: false,
             }
         }));
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "@corp/split".parse().expect("parse");
     let ok = tarball_resolution(
-        &format!("{}/@corp/split/-/split-1.0.0.tgz", server.url()),
+        "https://pnpr.example/npm/~corp/@corp/split/-/split-1.0.0.tgz",
         Some(fake_integrity()),
     );
     assert_eq!(verifier.verify(&ok, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
 
-    // Direct non-routed lockfile entries must not pass via the synthetic URL.
-    routed_flag.store(false, std::sync::atomic::Ordering::SeqCst);
-    let ResolutionVerification::Err { code, reason } =
-        verifier.verify(&ok, ctx(&name, "1.0.0")).await
-    else {
-        panic!("expected unpublished synthetic URL to be rejected");
-    };
-    assert_eq!(code, "TARBALL_URL_MISMATCH");
-    assert!(!reason.contains("cdn.split.example"), "{reason}");
+    // Direct synthetic upstream URLs and raw presigned CDN URLs are rejected.
+    for unrouted in [
+        format!("{}/@corp/split/-/split-1.0.0.tgz", server.url()),
+        "https://cdn.split.example/@corp/split/split-1.0.0.tgz?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN".to_string(),
+    ] {
+        let candidate = tarball_resolution(&unrouted, Some(fake_integrity()));
+        let ResolutionVerification::Err { code, reason } =
+            verifier.verify(&candidate, ctx(&name, "1.0.0")).await
+        else {
+            panic!("expected unrouted URL {unrouted} to be rejected");
+        };
+        assert_eq!(code, "TARBALL_URL_MISMATCH");
+        for secret in ["cdn.split.example", "EXAMPLE_PRESIGNED_TOKEN"] {
+            assert!(!reason.contains(secret), "{secret} leaked in {reason}");
+        }
+    }
 
     let signed_bad = tarball_resolution(
         &format!(
@@ -620,6 +627,58 @@ async fn published_tarball_mapper_accepts_routed_split_domain_url_and_redacts_mi
     assert_eq!(code, "TARBALL_URL_MISMATCH");
     for secret in ["cdn.split.example", "EXAMPLE_PRESIGNED_TOKEN", "LOCKFILE_PRESIGNED_SECRET"] {
         assert!(!reason.contains(secret), "{secret} leaked in {reason}");
+    }
+}
+
+#[tokio::test]
+async fn published_tarball_mapper_accepts_both_published_and_sanitized_public_urls() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let packument = serde_json::json!({
+        "name": "public-query-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "public-query-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "tarball": "https://cdn.public.example/public-query-pkg-1.0.0.tgz?download=1",
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/public-query-pkg")
+        .with_body(packument.to_string())
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.artifacts.published_tarball_mapper = Some(std::sync::Arc::new(|_, _, _, _, published| {
+        let sanitized = published
+            .split(['?', '#'])
+            .next()
+            .unwrap_or(published)
+            .to_string();
+        crate::MappedTarballUrl {
+            accepted_routed_url: (sanitized != published).then(|| sanitized.clone()),
+            display_url: sanitized,
+            accept_published_url: true,
+        }
+    }));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "public-query-pkg".parse().expect("parse");
+    for allowed in [
+        "https://cdn.public.example/public-query-pkg-1.0.0.tgz?download=1",
+        "https://cdn.public.example/public-query-pkg-1.0.0.tgz",
+    ] {
+        let candidate = tarball_resolution(allowed, Some(fake_integrity()));
+        assert_eq!(
+            verifier.verify(&candidate, ctx(&name, "1.0.0")).await,
+            ResolutionVerification::Ok,
+            "{allowed} should pass",
+        );
     }
 }
 

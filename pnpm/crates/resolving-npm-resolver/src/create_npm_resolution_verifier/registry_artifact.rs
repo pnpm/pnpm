@@ -242,7 +242,7 @@ fn verify_npm_artifact(
         return mapped_tarball_url_violation(
             lockfile_tarball,
             artifact.current.tarball.as_deref(),
-            (registry, &pkg_name, version, ctx.registry_name),
+            (registry, &pkg_name, version),
             mapper,
         );
     }
@@ -261,13 +261,13 @@ fn verify_npm_artifact(
         return mapped_tarball_url_violation(
             lockfile_tarball,
             artifact.current.tarball.as_deref(),
-            (registry, &pkg_name, version, ctx.registry_name),
+            (registry, &pkg_name, version),
             mapper,
         );
     };
     verify_selected_revision(
         artifact,
-        (&pkg_name, version, ctx.registry_name, requested, current_revision),
+        (&pkg_name, version, requested, current_revision),
         resolution,
         lockfile_tarball,
         registry,
@@ -277,13 +277,7 @@ fn verify_npm_artifact(
 
 fn verify_selected_revision(
     artifact: &RegistryArtifactHistory,
-    (pkg_name, version, registry_name, requested, current_revision): (
-        &str,
-        &str,
-        Option<&str>,
-        u64,
-        u64,
-    ),
+    (pkg_name, version, requested, current_revision): (&str, &str, u64, u64),
     resolution: &LockfileResolution,
     lockfile_tarball: Option<&str>,
     registry: &str,
@@ -304,7 +298,7 @@ fn verify_selected_revision(
         mapped_tarball_url_violation(
             lockfile_tarball,
             selected.tarball.as_deref(),
-            (registry, pkg_name, version, registry_name),
+            (registry, pkg_name, version),
             mapper,
         )
     })

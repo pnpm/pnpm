@@ -157,9 +157,14 @@ impl VersionTgzCache {
         entries.insert(key, CachedVersionTgz { origin, tgz });
     }
 
-    pub(in super::super) fn invalidate(&self, namespace: &str, name: &CanonicalPackageName) {
+    pub(in super::super) fn invalidate_version(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        version: &str,
+    ) {
         let mut entries = self.entries.lock().expect("version dist cache lock poisoned");
-        entries.retain(|(ns, pkg, _), _| ns != namespace || pkg != name.as_str());
+        entries.remove(&(namespace.to_string(), name.as_str().to_string(), version.to_string()));
     }
 }
 

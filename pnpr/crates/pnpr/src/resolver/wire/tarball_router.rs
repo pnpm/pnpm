@@ -1,13 +1,11 @@
 use super::{
-    Arc, BTreeMap, BTreeSet, BUILTIN_REGISTRIES_BY_PREFIX, CanonicalPackageName, HashMap, Identity,
-    Lockfile, LockfileResolution, MappedTarballUrl, PackageKey, PackageMetadata, PacquetConfig,
-    PublishedTarballUrlMapper, RouteClass, RouteContext, TarballResolution,
-    is_git_hosted_tarball_url, is_http_tarball_url, pick_registry_for_package,
+    Arc, BTreeMap, BUILTIN_REGISTRIES_BY_PREFIX, CanonicalPackageName, HashMap, Identity, Lockfile,
+    LockfileResolution, MappedTarballUrl, PackageKey, PackageMetadata, PacquetConfig,
+    PublishedTarballUrlMapper, ReverseRoutedTarballUrl, RouteClass, RouteContext,
+    TarballResolution, is_git_hosted_tarball_url, is_http_tarball_url, pick_registry_for_package,
     sanitize_registry_tarball_url, strip_url_credentials, tarball_basename,
     tarball_basename_for_package, tarball_url_and_integrity, version_route_tarball_version,
 };
-
-pub(in super::super) type RoutedVerificationEntries = BTreeSet<(String, String, Option<String>)>;
 
 #[derive(Clone)]
 pub(in super::super) struct TarballRouter {
@@ -148,29 +146,27 @@ impl TarballRouter {
             })
     }
 
-    /// Mapper for [`pnpm_resolving_npm_resolver::VerificationArtifacts`] so
-    /// input-lockfile verification compares a split-domain upstream's published
-    /// `dist.tarball` against the verification URL [`Self::verification_lockfile`]
-    /// produces only for entries reversed from an authorized `/~<name>/` route,
-    /// without exposing raw CDN hosts or presigned query credentials on mismatch.
-    pub(in super::super) fn published_tarball_mapper(
-        &self,
-        routed_entries: Arc<RoutedVerificationEntries>,
-    ) -> PublishedTarballUrlMapper {
+    /// Mapper for [`pnpm_resolving_npm_resolver::VerificationArtifacts`]:
+    /// public routes accept both the published URL and its sanitized form,
+    /// while hosted and proxied routes resolve exclusively through their
+    /// authorized `pnpr` endpoint without exposing raw CDN URLs or query tokens.
+    pub(in super::super) fn published_tarball_mapper(&self) -> PublishedTarballUrlMapper {
         let router = self.clone();
-        Arc::new(move |registry, package, version, registry_name, published_tarball| {
-            let was_routed = routed_entries.contains(&(
-                package.to_string(),
-                version.to_string(),
-                registry_name.map(str::to_string),
-            ));
+        Arc::new(move |registry, package, version, lockfile_tarball, published_tarball| {
             router.expected_verification_tarball(
                 registry,
                 package,
                 version,
+                lockfile_tarball,
                 published_tarball,
-                was_routed,
             )
+        })
+    }
+
+    pub(in super::super) fn reverse_routed_tarball_mapper(&self) -> ReverseRoutedTarballUrl {
+        let router = self.clone();
+        Arc::new(move |package, tarball_url| {
+            router.upstream_endpoint_tarball_url(tarball_url, Some(package))
         })
     }
 
@@ -179,8 +175,8 @@ impl TarballRouter {
         registry: &str,
         package: &str,
         version: &str,
+        lockfile_tarball: &str,
         published_tarball: &str,
-        was_routed: bool,
     ) -> MappedTarballUrl {
         match self.context.classify(&self.identity, registry, Some(package)) {
             RouteClass::Public => {
@@ -190,12 +186,17 @@ impl TarballRouter {
                         sanitized.clone()
                     }),
                     display_url: sanitized,
+                    accept_published_url: true,
                 }
             }
             RouteClass::Hosted { .. } => {
                 let hosted =
                     pnpr_tarball_url(&self.public_url, package, version, published_tarball);
-                MappedTarballUrl { accepted_routed_url: Some(hosted.clone()), display_url: hosted }
+                MappedTarballUrl {
+                    accepted_routed_url: Some(hosted.clone()),
+                    display_url: hosted,
+                    accept_published_url: false,
+                }
             }
             RouteClass::Proxied { alias, .. } => {
                 let display_url = upstream_endpoint_tarball_url(
@@ -205,17 +206,13 @@ impl TarballRouter {
                     version,
                     published_tarball,
                 );
-                let accepted_routed_url = was_routed
+                let accepted_routed_url = self
+                    .upstream_endpoint_tarball_url(lockfile_tarball, Some(package))
+                    .is_some()
                     .then(|| self.context.upstream_registry(&self.identity, &alias, Some(package)))
                     .flatten()
-                    .map(|upstream| {
-                        format!(
-                            "{}/{}",
-                            upstream.trim_end_matches('/'),
-                            tarball_route_tail(package, version, published_tarball),
-                        )
-                    });
-                MappedTarballUrl { display_url, accepted_routed_url }
+                    .map(|_| display_url.clone());
+                MappedTarballUrl { display_url, accepted_routed_url, accept_published_url: false }
             }
         }
     }
@@ -293,17 +290,9 @@ impl TarballRouter {
     }
 
     pub(in super::super) fn verification_lockfile(&self, lockfile: &Lockfile) -> Lockfile {
-        self.verification_lockfile_with_routed_entries(lockfile).0
-    }
-
-    pub(in super::super) fn verification_lockfile_with_routed_entries(
-        &self,
-        lockfile: &Lockfile,
-    ) -> (Lockfile, RoutedVerificationEntries) {
         let mut upstream = lockfile.clone();
-        let mut routed = RoutedVerificationEntries::new();
         let Some(packages) = upstream.packages.as_mut() else {
-            return (upstream, routed);
+            return upstream;
         };
         for (package_key, metadata) in packages {
             let LockfileResolution::Tarball(resolution) = &mut metadata.resolution else {
@@ -314,14 +303,9 @@ impl TarballRouter {
                 self.upstream_endpoint_tarball_url(&resolution.tarball, Some(&name))
             {
                 resolution.tarball = tarball_url;
-                let (registry_name, version) = match package_key.suffix.registry_qualified() {
-                    Some((reg, ver)) => (Some(reg.to_string()), ver.to_string()),
-                    None => (None, package_key.suffix.version().to_string()),
-                };
-                routed.insert((name, version, registry_name));
             }
         }
-        (upstream, routed)
+        upstream
     }
 
     pub(super) fn route_url(&self, package: &str, version: &str, tarball_url: &str) -> String {

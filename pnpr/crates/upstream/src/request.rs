@@ -2,9 +2,8 @@
 
 use super::{
     CanonicalPackageName, HeadError, HeaderMap, Instant, RedirectGuard, RegistryError, Result,
-    ThrottledClient, ThrottledClientGuard, Upstream,
-    http::{diagnostic_url, read_upstream_error_body},
-    version_route_tarball_version,
+    ThrottledClient, ThrottledClientGuard, Upstream, http::read_upstream_error_body,
+    redact_url_for_display, version_route_tarball_version,
 };
 
 /// Where an upstream packument's `dist.tarball` points for a version.
@@ -60,7 +59,10 @@ impl Upstream {
             .await
             .map_err(|source| {
                 self.breaker.record_failure();
-                RegistryError::Upstream { url: diagnostic_url(url), source: source.without_url() }
+                RegistryError::Upstream {
+                    url: redact_url_for_display(url),
+                    source: source.without_url(),
+                }
             })
     }
 
@@ -132,7 +134,7 @@ impl Upstream {
 
     fn map_head_error(&self, url: &str, error: HeadError) -> RegistryError {
         self.breaker.record_failure();
-        let url = diagnostic_url(url);
+        let url = redact_url_for_display(url);
         match error {
             HeadError::Request(source) => {
                 RegistryError::Upstream { url, source: source.without_url() }
@@ -154,7 +156,7 @@ impl Upstream {
         tokio::time::timeout(remaining, response).await
             .unwrap_or_else(|_| {
                 self.breaker.record_failure();
-                Err(RegistryError::UpstreamTimeout { url: diagnostic_url(url) })
+                Err(RegistryError::UpstreamTimeout { url: redact_url_for_display(url) })
             })
     }
 
@@ -168,7 +170,7 @@ impl Upstream {
             && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
         {
             return Err(RegistryError::UpstreamResponse {
-                url: diagnostic_url(url),
+                url: redact_url_for_display(url),
                 reason: "URL is not allowed by the fetch allowlist".to_string(),
             });
         }
@@ -201,7 +203,7 @@ impl Upstream {
             .await
             .unwrap_or_default();
         Err(RegistryError::UpstreamStatus {
-            url: diagnostic_url(url),
+            url: redact_url_for_display(url),
             status: status.as_u16(),
             body,
         })

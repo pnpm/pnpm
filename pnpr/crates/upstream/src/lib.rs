@@ -12,7 +12,8 @@ pub use request::UpstreamTarballRoute;
 
 mod http;
 mod request;
-use http::{UpstreamHttp, diagnostic_url, same_origin};
+use http::{UpstreamHttp, same_origin};
+use pnpm_network::redact_url_for_display;
 use request::Deadline;
 
 mod circuit_breaker;
@@ -436,12 +437,15 @@ impl Upstream {
         let body = read_limited_body(response, limit).await
             .map_err(|err| {
                 self.record_body_failure(&err);
-                RegistryError::Upstream { url: diagnostic_url(url), source: err.without_url() }
+                RegistryError::Upstream {
+                    url: redact_url_for_display(url),
+                    source: err.without_url(),
+                }
             })?;
         self.breaker.record_success();
         if body.truncated {
             return Err(RegistryError::UpstreamResponse {
-                url: diagnostic_url(url),
+                url: redact_url_for_display(url),
                 reason: format!("response body exceeds the {limit}-byte limit"),
             });
         }

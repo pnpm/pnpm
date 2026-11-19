@@ -583,3 +583,41 @@ fn public_registry_lockfile_strips_query_tokens_and_never_routes_spoofed_tarball
     let spoofed_frame: serde_json::Value = serde_json::from_slice(&spoofed_frames[0]).unwrap();
     assert_eq!(spoofed_frame["tarball"], "https://npm.corp.example/acme/-/acme-1.0.0.tgz");
 }
+
+#[test]
+fn published_tarball_mapper_accepts_public_query_urls_and_binds_private_entries_individually() {
+    let mut registry = registry_config();
+    registry.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
+    let router = tarball_router(&registry, user("alice"));
+    let mapper = router.published_tarball_mapper();
+
+    let public_published = "https://cdn.public.example/acme/-/acme-1.0.0.tgz?download=1";
+    let public_mapped =
+        mapper("https://registry.npmjs.org/", "acme", "1.0.0", public_published, public_published);
+    assert!(public_mapped.accept_published_url);
+    assert_eq!(
+        public_mapped.accepted_routed_url.as_deref(),
+        Some("https://cdn.public.example/acme/-/acme-1.0.0.tgz"),
+    );
+
+    let private_published =
+        "https://cdn.corp.example/@corp/split/split-1.0.0.tgz?X-Amz-Signature=EXAMPLE_TOKEN";
+    let routed = "http://127.0.0.1:7677/npm/~corp/@corp/split/-/split-1.0.0.tgz";
+    let routed_mapped =
+        mapper("https://npm.corp.example/", "@corp/split", "1.0.0", routed, private_published);
+    assert!(!routed_mapped.accept_published_url);
+    assert_eq!(routed_mapped.accepted_routed_url.as_deref(), Some(routed));
+
+    let unrouted_mapped = mapper(
+        "https://npm.corp.example/",
+        "@corp/split",
+        "1.0.0",
+        "https://npm.corp.example/@corp/split/-/split-1.0.0.tgz",
+        private_published,
+    );
+    assert!(!unrouted_mapped.accept_published_url);
+    assert_eq!(unrouted_mapped.accepted_routed_url, None);
+}

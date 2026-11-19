@@ -408,6 +408,11 @@ async fn declared_tarball_errors_never_expose_presigned_query_credentials_and_is
         .expect(1)
         .create_async()
         .await;
+    let off_origin_packument = cdn
+        .mock("GET", "/off-origin-packument")
+        .expect(0)
+        .create_async()
+        .await;
 
     let reg_origin = reqwest::Url::parse(&reg.url()).unwrap().origin();
     let client = upstream(reg.url(), auth_and_custom_headers())
@@ -426,6 +431,7 @@ async fn declared_tarball_errors_never_expose_presigned_query_credentials_and_is
             .is_err(),
     );
     blocked_packument_redirect.assert_async().await;
+    off_origin_packument.assert_async().await;
 
     let signed_url =
         format!("{}/@corp/split@1.0.0?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN", cdn.url());

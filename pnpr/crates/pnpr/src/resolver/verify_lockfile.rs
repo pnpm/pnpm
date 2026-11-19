@@ -314,11 +314,8 @@ async fn verify_input_lockfile(
     raw_lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {
     let epoch = runtime.local_registry.verdict_epoch();
-    let (lockfile, routed_entries) =
-        context.tarball_router.verification_lockfile_with_routed_entries(raw_lockfile);
-    let lockfile = Arc::new(lockfile);
-    let routed_entries = Arc::new(routed_entries);
-    let hash = verification_verdict_hash(&lockfile, &routed_entries);
+    let lockfile = Arc::new(raw_lockfile.clone());
+    let hash = verification_verdict_hash(context.tarball_router, &lockfile);
     let dist_stats = observed_dist_stats_sink();
     let verifiers = build_input_verifiers(
         runtime,
@@ -326,7 +323,6 @@ async fn verify_input_lockfile(
         context.auth_headers,
         context.tarball_router,
         &dist_stats,
-        Arc::clone(&routed_entries),
     )?;
 
     if let Some(cached) =
@@ -363,14 +359,14 @@ fn build_input_verifiers(
     auth_headers: &Arc<AuthHeaders>,
     tarball_router: &TarballRouter,
     dist_stats: &ObservedDistStats,
-    routed_entries: Arc<super::wire::RoutedVerificationEntries>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, VerifyFailure> {
     let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
     let artifacts = VerificationArtifacts {
         observed_stats: Some(Arc::clone(dist_stats)),
         canonical_fetches: None,
         lookups: None,
-        published_tarball_mapper: Some(tarball_router.published_tarball_mapper(routed_entries)),
+        published_tarball_mapper: Some(tarball_router.published_tarball_mapper()),
+        reverse_routed_tarball_url: Some(tarball_router.reverse_routed_tarball_mapper()),
     };
     build_resolution_verifiers_with_artifacts(
         config,
@@ -384,27 +380,17 @@ fn build_input_verifiers(
     })
 }
 
-fn verification_verdict_hash(
-    lockfile: &Lockfile,
-    routed_entries: &super::wire::RoutedVerificationEntries,
-) -> String {
-    let base = hash_lockfile(lockfile);
-    if routed_entries.is_empty() {
-        return base;
+fn verification_verdict_hash(tarball_router: &TarballRouter, raw_lockfile: &Lockfile) -> String {
+    let raw_hash = hash_lockfile(raw_lockfile);
+    let reversed_hash = hash_lockfile(&tarball_router.verification_lockfile(raw_lockfile));
+    if reversed_hash == raw_hash {
+        return raw_hash;
     }
     use sha2::{Digest as _, Sha256};
     let mut hasher = Sha256::new();
-    hasher.update(base.as_bytes());
-    for (name, version, registry_name) in routed_entries {
-        hasher.update([0]);
-        hasher.update(name.as_bytes());
-        hasher.update([0]);
-        hasher.update(version.as_bytes());
-        hasher.update([0]);
-        if let Some(registry_name) = registry_name {
-            hasher.update(registry_name.as_bytes());
-        }
-    }
+    hasher.update(raw_hash.as_bytes());
+    hasher.update([0]);
+    hasher.update(reversed_hash.as_bytes());
     format!("{:x}", hasher.finalize())
 }
 

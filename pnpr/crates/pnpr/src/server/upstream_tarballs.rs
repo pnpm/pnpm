@@ -13,6 +13,9 @@ use axum::response::IntoResponse;
 
 mod background_scan;
 mod cached;
+mod expired_signature;
+
+use self::expired_signature::{retry_expired_signed_tarball, should_refresh_signed_tarball_url};
 
 /// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
 /// `dist.integrity` is read from the upstream's own packument (served from the
@@ -285,44 +288,6 @@ pub(super) async fn fetch_upstream_tarball(
         .await;
     }
     stream_and_record_upstream_tarball(state, response, write, tarball)
-}
-
-fn should_refresh_signed_tarball_url(route: &UpstreamTarballRoute, err: &RegistryError) -> bool {
-    matches!(route, UpstreamTarballRoute::Url(url) if url.contains('?'))
-        && matches!(err, RegistryError::UpstreamStatus { status: 401 | 403 | 410, .. })
-}
-
-async fn retry_expired_signed_tarball(
-    state: &AppState,
-    upstream: &Upstream,
-    tarball: UpstreamTarball<'_>,
-    initial_err: RegistryError,
-) -> Result<FetchOutcome<pnpm_network::ThrottledResponse>, RegistryError> {
-    state.inner.proxy.version_tgzs.invalidate(tarball.namespace, tarball.name);
-    let refreshed = super::upstream_packuments::fetch_coalesced_upstream_packument(
-        state,
-        tarball.namespace,
-        upstream,
-        tarball.name,
-        Duration::ZERO,
-    )
-    .await?;
-    let Some(packument) = refreshed.map(|doc| doc.bytes.to_vec()) else {
-        return Err(initial_err);
-    };
-    let Some(dist) = parse_tarball_dist(state, packument, tarball.name, tarball.filename).await?
-    else {
-        return Err(initial_err);
-    };
-    if dist.integrity != *tarball.integrity || dist.route == *tarball.route {
-        return Err(initial_err);
-    }
-    timed(
-        "tarball:upstream_fetch",
-        tarball.name.as_str(),
-        upstream.fetch_declared_tarball_response(tarball.name, tarball.filename, &dist.route),
-    )
-    .await
 }
 
 fn stream_and_record_upstream_tarball(

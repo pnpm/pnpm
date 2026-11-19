@@ -28,16 +28,6 @@ impl UpstreamHttp {
     }
 }
 
-/// Strip query, fragment, and userinfo credentials before storing an upstream
-/// URL in an error value so logs and diagnostics never expose presigned tokens.
-pub(super) fn diagnostic_url(url: &str) -> String {
-    let without_query = url
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(url);
-    pnpm_network::redact_url_credentials(without_query)
-}
-
 pub(super) const UPSTREAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 pub(super) async fn read_upstream_error_body(response: reqwest::Response) -> String {

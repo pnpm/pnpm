@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use pnpm_lockfile::PkgName;
-use pnpm_resolving_resolver_base::ResolutionVerification;
+use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
 
 use crate::{
+    ReverseRoutedTarballUrl,
     create_npm_resolution_verifier::artifact_binding::canonical_tarball_url,
     named_registry::pick_registry_for_package,
     violation_codes::MISSING_NAMED_REGISTRY_VIOLATION_CODE,
@@ -64,8 +65,27 @@ impl VerificationRegistryRoutes {
         }
     }
 
-    pub(super) fn pick_registry(&self, name: &PkgName, tarball_url: Option<&str>) -> String {
-        if let Some(url) = tarball_url
+    pub(super) fn resolve_registry(
+        &self,
+        ctx: &VerifyCtx<'_>,
+        tarball_url: Option<&str>,
+        reverse: Option<&ReverseRoutedTarballUrl>,
+    ) -> Result<String, ResolutionVerification> {
+        if let Some(named_registry) = self.named_registry_url(ctx.registry_name)? {
+            return Ok(named_registry);
+        }
+        Ok(self.pick_registry(ctx.name, tarball_url, reverse))
+    }
+
+    pub(super) fn pick_registry(
+        &self,
+        name: &PkgName,
+        tarball_url: Option<&str>,
+        reverse: Option<&ReverseRoutedTarballUrl>,
+    ) -> String {
+        let reversed =
+            tarball_url.and_then(|url| reverse.and_then(|rev| rev(&name.to_string(), url)));
+        if let Some(url) = reversed.as_deref().or(tarball_url)
             && let Some(matched) = self.match_tarball_registry(url, name)
         {
             return matched;

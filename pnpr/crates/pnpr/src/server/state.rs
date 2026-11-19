@@ -45,7 +45,7 @@ pub(crate) struct AppInner {
 }
 
 type PackumentSingleflight = Singleflight<
-    (String, CanonicalPackageName),
+    (String, CanonicalPackageName, Option<String>),
     Result<Option<Arc<super::upstream_packuments::AdmittedPackument>>, Arc<RegistryError>>,
 >;
 pub(super) struct BuildServices {

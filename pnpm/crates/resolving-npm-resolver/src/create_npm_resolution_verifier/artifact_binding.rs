@@ -2,7 +2,7 @@ use super::{
     JsonValue, LockfileResolution, PublishedTarballUrlMapper, RegistryArtifact,
     RegistryArtifactHistory, ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
     TARBALL_URL_MISMATCH_VIOLATION_CODE, TarballRevision, has_complete_sha512_digest,
-    is_revision_registry_tarball_url, redact_url_credentials,
+    is_revision_registry_tarball_url, redact_url_for_display,
 };
 
 pub(super) fn same_tarball_url(left: &str, right: &str) -> bool {
@@ -34,7 +34,7 @@ pub(super) fn missing_artifact_violation(
 pub(super) fn mapped_tarball_url_violation(
     lockfile_tarball: Option<&str>,
     registry_tarball: Option<&str>,
-    (registry, name, version, registry_name): (&str, &str, &str, Option<&str>),
+    (registry, name, version): (&str, &str, &str),
     mapper: Option<&PublishedTarballUrlMapper>,
 ) -> Option<ResolutionVerification> {
     let Some(mapper) = mapper else {
@@ -44,19 +44,19 @@ pub(super) fn mapped_tarball_url_violation(
         return tarball_url_violation(lockfile_tarball, None);
     };
     let lockfile = lockfile_tarball?;
-    let mapped = mapper(registry, name, version, registry_name, published);
-    let matches = match mapped.accepted_routed_url.as_deref() {
-        Some(routed) => same_tarball_url(lockfile, routed),
-        None => same_tarball_url(lockfile, published),
-    };
-    if matches {
+    let mapped = mapper(registry, name, version, lockfile, published);
+    let matches_routed = mapped.accepted_routed_url
+        .as_deref()
+        .is_some_and(|routed| same_tarball_url(lockfile, routed));
+    let matches_published = mapped.accept_published_url && same_tarball_url(lockfile, published);
+    if matches_routed || matches_published {
         return None;
     }
     Some(ResolutionVerification::Err {
         code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
         reason: format!(
             "has a tarball URL that does not match the registry's published metadata ({})",
-            sanitize_diagnostic_url(&mapped.display_url),
+            redact_url_for_display(&mapped.display_url),
         ),
     })
 }
@@ -73,8 +73,8 @@ pub(super) fn tarball_url_violation(
             code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
             reason: format!(
                 "has a tarball URL ({}) that does not match the registry's published metadata ({})",
-                sanitize_diagnostic_url(lockfile),
-                sanitize_diagnostic_url(registry),
+                redact_url_for_display(lockfile),
+                redact_url_for_display(registry),
             ),
         }),
         (Some(_), None) => Some(ResolutionVerification::Err {
@@ -82,14 +82,6 @@ pub(super) fn tarball_url_violation(
             reason: "could not be verified against the registry's published metadata".to_string(),
         }),
     }
-}
-
-fn sanitize_diagnostic_url(url: &str) -> String {
-    let without_query = url
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(url);
-    redact_url_credentials(without_query)
 }
 
 /// The revision the registry currently serves. A version without one is

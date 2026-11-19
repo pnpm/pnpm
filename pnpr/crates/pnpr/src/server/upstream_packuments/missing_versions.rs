@@ -4,7 +4,8 @@
 use super::{
     AdmittedPackument, AppState, CanonicalPackageName, DocumentSource, Duration, Identity,
     RegistryError, RegistrySource, Upstream, authorized_upstream, coalesce_upstream_packument,
-    fetch_and_cache_upstream_packument, upstream_cache_namespace,
+    coalesce_upstream_packument_keyed, fetch_and_cache_upstream_packument,
+    upstream_cache_namespace,
 };
 use std::{collections::HashMap, sync::Mutex, time::Instant};
 
@@ -16,7 +17,7 @@ mod tests;
 /// version published upstream after the fetch is then served before the
 /// packument TTL expires, and requests for versions that do not exist reach
 /// the upstream at most once per package per interval.
-const REFETCH_INTERVAL: Duration = Duration::from_secs(60);
+pub(in crate::server) const REFETCH_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Packages tracked before attempts are dropped: those older than
 /// [`REFETCH_INTERVAL`], and a quarter of the rest if that frees none.
@@ -121,9 +122,40 @@ pub(in crate::server) async fn reload_upstream_packument_lacking_version(
             return Ok(cached.map(|bytes| AdmittedPackument::new(bytes, admission)));
         }
         let admission = admissions.acquire(DocumentSource::Upstream(namespace)).await;
+        let fetched = fetch_and_cache_upstream_packument(
+            state,
+            namespace,
+            upstream,
+            name,
+            Some(REFETCH_INTERVAL),
+        )
+        .await?;
+        Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))
+    })
+    .await?;
+    Ok(document.map(|document| document.bytes.to_vec()))
+}
+
+/// Refetch a package's packument after a signed tarball URL failed with
+/// `401`/`403`/`410`. Keyed on `Some(failed_url)` so the refresh starts after
+/// the rejection rather than joining an earlier read, while throttling
+/// sequential forced refreshes via [`PackumentRefetches::claim`].
+pub(in crate::server) async fn reload_upstream_packument_for_expired_tarball(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &CanonicalPackageName,
+    failed_url: &str,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    let key = (namespace.to_string(), name.clone(), Some(failed_url.to_string()));
+    let document = coalesce_upstream_packument_keyed(state, key, || async {
+        if !state.inner.proxy.packument_refetches.claim(namespace, name) {
+            return Ok(None);
+        }
+        let admission =
+            state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace)).await;
         let fetched =
-            fetch_and_cache_upstream_packument(state, namespace, upstream, name, REFETCH_INTERVAL)
-                .await?;
+            fetch_and_cache_upstream_packument(state, namespace, upstream, name, None).await?;
         Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))
     })
     .await?;

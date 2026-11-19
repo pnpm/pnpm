@@ -59,7 +59,9 @@ use pnpm_lockfile::{
     LockfileResolution, PkgName, TarballRevision, has_complete_sha512_digest,
     is_git_hosted_tarball_url, is_revision_registry_tarball_url, normalized_registry_key,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
+use pnpm_network::{
+    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, redact_url_for_display,
+};
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, TrustPolicy, VerifyCtx, VerifyFuture,
@@ -207,16 +209,22 @@ pub struct VerificationMetadataClient {
 pub struct MappedTarballUrl {
     /// Sanitized or routed URL formatted in `TARBALL_URL_MISMATCH` diagnostics.
     pub display_url: String,
-    /// Synthetic reversed URL accepted only when the input lockfile entry came
-    /// from an authorized endpoint route; `None` requires matching the
-    /// published URL directly.
+    /// Endpoint-routed or sanitized URL accepted by the server (`/~<alias>/...`,
+    /// hosted `/npm/...`, or query-stripped public URL).
     pub accepted_routed_url: Option<String>,
+    /// Whether the registry's exact `published` URL is also accepted.
+    pub accept_published_url: bool,
 }
 
-/// Maps `(registry, package_name, version, registry_name, published_tarball_url)`
-/// to the [`MappedTarballUrl`] expected in the verified lockfile.
+/// Maps `(registry, package_name, version, lockfile_tarball_url, published_tarball_url)`
+/// to the [`MappedTarballUrl`] expected for that lockfile entry.
 pub type PublishedTarballUrlMapper =
-    Arc<dyn Fn(&str, &str, &str, Option<&str>, &str) -> MappedTarballUrl + Send + Sync>;
+    Arc<dyn Fn(&str, &str, &str, &str, &str) -> MappedTarballUrl + Send + Sync>;
+
+/// Reverses an authorized server-routed `/~<alias>/...` lockfile tarball URL
+/// `(package_name, lockfile_tarball_url)` back to its upstream URL for
+/// registry prefix selection without mutating the candidate's recorded URL.
+pub type ReverseRoutedTarballUrl = Arc<dyn Fn(&str, &str) -> Option<String> + Send + Sync>;
 
 pub struct VerificationArtifacts {
     /// Optional sink the verifier fills with each verified entry's
@@ -239,6 +247,9 @@ pub struct VerificationArtifacts {
     /// Optional mapper that translates a registry's published `dist.tarball`
     /// URL into the routed/sanitized URL expected in the verified lockfile.
     pub published_tarball_mapper: Option<PublishedTarballUrlMapper>,
+    /// Optional callback reversing server-routed `/~<alias>/...` lockfile URLs
+    /// for registry prefix matching while keeping each candidate's recorded URL.
+    pub reverse_routed_tarball_url: Option<ReverseRoutedTarballUrl>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -449,17 +460,18 @@ impl NpmResolutionVerifier {
             return ResolutionVerification::Ok;
         }
 
-        let named_registry = match self.routing.named_registry_url(ctx.registry_name) {
-            Ok(named_registry) => named_registry,
-            Err(violation) => return violation,
-        };
-
         let (age_applies, trust_applies) = self.policies_for(&ctx);
         if tarball_url.is_none() && !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }
-        let registry =
-            named_registry.unwrap_or_else(|| self.routing.pick_registry(ctx.name, tarball_url));
+        let registry = match self.routing.resolve_registry(
+            &ctx,
+            tarball_url,
+            self.artifacts.reverse_routed_tarball_url.as_ref(),
+        ) {
+            Ok(registry) => registry,
+            Err(violation) => return violation,
+        };
 
         if let Some(violation) = self.run_artifact_binding(
             &registry,
