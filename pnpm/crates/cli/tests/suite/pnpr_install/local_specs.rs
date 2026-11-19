@@ -132,3 +132,45 @@ fn install_with_pnpr_server_falls_back_locally_for_file_specs_in_overrides_and_c
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn install_and_ci_with_pnpr_and_frozen_store_fall_back_locally_for_file_specs() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let store_dir = root.path().join("store");
+    let local_lib = workspace.join("deps/local-lib");
+    fs::create_dir_all(&local_lib).expect("create local-lib");
+    fs::write(local_lib.join("package.json"), r#"{"name":"local-lib","version":"1.0.0"}"#)
+        .expect("write local-lib manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("storeDir: {}\n", serde_json::to_string(&store_dir).expect("quote storeDir")),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"app","version":"1.0.0","dependencies":{"local-lib":"file:deps/local-lib"}}"#,
+    )
+    .expect("write app manifest");
+
+    // Populate the store first so `--frozen-store` can read from it.
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    for cmd in ["install", "ci"] {
+        pacquet_at(&workspace)
+            .with_args([
+                cmd,
+                "--frozen-lockfile",
+                "--frozen-store",
+                "--pnpr-server",
+                "http://127.0.0.1:0",
+            ])
+            .assert()
+            .success();
+        assert!(workspace.join("node_modules/local-lib/package.json").exists());
+    }
+
+    drop(root);
+}

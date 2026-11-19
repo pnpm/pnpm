@@ -5,10 +5,9 @@ use super::{
     TarballPrefetcher, WantedLockfileSatisfactionCheck, check_frozen_pnpmfile,
     check_pnpr_applied_settings, full_workspace_importer_ids, install_from_local_lockfile,
     link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs,
-    pnpr_config_validation::validate_pnpr_config,
     pnpr_local_specs::{
-        PnprLocalDependencyUnsupported, check_no_local_lockfile_specs_for_pnpr,
-        check_no_local_specs_for_pnpr,
+        PnprLocalDependencyUnsupported, check_pnpr_lockfile_specs_and_config,
+        check_pnpr_project_specs_and_config,
     },
     pnpr_lockfile_dir, pnpr_request_inputs, report_merged_lockfile_conflicts,
     resolve_projects_for_pnpr, resolve_projects_options, selection_importer_ids,
@@ -56,8 +55,6 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     selection: Option<&InstallFamilySelection>,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    validate_pnpr_config(state.config, link.lockfile.frozen)?;
-
     let pnpr_server = target.server;
     let lockfile_dir = pnpr_lockfile_dir(state, &link);
     let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir).await?;
@@ -121,15 +118,13 @@ async fn prepare_pnpr_session<'a, Reporter: self::Reporter + 'static>(
 ) -> miette::Result<PnprSession<'a>> {
     let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
     let catalogs = pnpr_catalogs(state)?;
-    check_no_local_specs_for_pnpr(state.config, &projects, catalogs.as_ref())?;
+    check_pnpr_project_specs_and_config(state.config, &projects, catalogs.as_ref(), link)?;
 
     let PreviousWanted {
         lockfile: previous_wanted,
         had_conflicts,
     } = load_previous_wanted::<Reporter>(state, link, lockfile_dir)?;
-    if link.lockfile.ignore_manifest_check {
-        check_no_local_lockfile_specs_for_pnpr(state.config, previous_wanted)?;
-    }
+    check_pnpr_lockfile_specs_and_config(state.config, previous_wanted, link)?;
     let merge_wanted = merge_source(state, link, previous_wanted)?;
 
     let selection_importer_ids = selection_importer_ids(state, selection);

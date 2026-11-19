@@ -517,3 +517,22 @@ test('mutateModules falls back locally without calling pnpr when adding an alias
   expect(resolveViaPnprServer).not.toHaveBeenCalled()
   expect(fs.existsSync(path.join(rootDir, 'node_modules/local-lib/package.json'))).toBe(true)
 })
+
+test('install with pnprServer and frozenStore falls back locally for file: dependencies instead of throwing store conflict', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.mkdirSync(path.join(rootDir, 'local-lib'))
+  fs.writeFileSync(path.join(rootDir, 'local-lib/package.json'), JSON.stringify({ name: 'local-lib', version: '1.0.0' }))
+  const manifest: ProjectManifest = { name: 'app', version: '1.0.0', dependencies: { 'local-lib': 'file:./local-lib' } }
+
+  // Populate the store first, then rerun with frozenStore + pnprServer.
+  await install(manifest, createOptions(workspaceRoot, rootDir, { pnprServer: undefined, lockfileOnly: false }))
+  await install(manifest, createOptions(workspaceRoot, rootDir, {
+    frozenLockfile: true,
+    frozenStore: true,
+    lockfileOnly: false,
+  }))
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/local-lib/package.json'))).toBe(true)
+})

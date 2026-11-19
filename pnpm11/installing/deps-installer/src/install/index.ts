@@ -90,12 +90,15 @@ function shouldInstallViaPnprServer (
   if (!opts.pnprServer || !canUsePnprForInstall(opts) || pnpmfileHookPnprCannotRun(opts.hooks) != null) {
     return false
   }
-  assertPnprCompatibleWithStore(opts)
-  return findLocalSpecForPnpr({
+  if (findLocalSpecForPnpr({
     lockfileDir: opts.lockfileDir ?? rootDir,
     projects: [{ rootDir, manifest }],
     opts,
-  }) == null
+  }) != null) {
+    return false
+  }
+  assertPnprCompatibleWithStore(opts)
+  return true
 }
 
 export async function mutateModulesInSingleProject (

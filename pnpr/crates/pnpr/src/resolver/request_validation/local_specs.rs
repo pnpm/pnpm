@@ -6,7 +6,7 @@ use pnpm_package_manifest::DependencyGroup;
 
 use crate::resolver::{
     json_error,
-    protocol::{ProjectDeps, ResolveRequest},
+    protocol::{DepMap, ResolveRequest},
 };
 
 /// Reject a request that asks the server to resolve a client-local filesystem
@@ -23,12 +23,10 @@ pub(in crate::resolver) fn reject_local_dependency_specs(
         .values()
         .flat_map(|declaration| declaration.prefixes.iter())
         .collect();
-    let projects = request.projects_normalized();
-    first_local_project_spec(&projects, &declared_prefixes)
+    first_local_project_spec(request, &declared_prefixes)
         .or_else(|| first_local_catalog_spec(request, &declared_prefixes))
         .or_else(|| first_local_extension_spec(request, &declared_prefixes))
         .or_else(|| first_local_lockfile_importer_spec(request, &declared_prefixes))
-        .map(str::to_owned)
         .or_else(|| {
             request.overrides
                 .as_ref()
@@ -47,11 +45,14 @@ fn is_local_request_spec(
     importer_dir: &str,
     declared_prefixes: &HashSet<&str>,
 ) -> bool {
-    // `git+...://...` transports are network URLs owned by the route allowlist
-    // check (`reject_off_allowlist_fetches`).
+    // Non-`file:` `git+...://...` transports are network URLs owned by the
+    // route allowlist check (`reject_off_allowlist_fetches`).
     if spec
         .get(..4)
         .is_some_and(|head| head.eq_ignore_ascii_case("git+"))
+        && spec
+            .get(4..9)
+            .is_none_or(|scheme| !scheme.eq_ignore_ascii_case("file:"))
         && spec.contains("://")
     {
         return false;
@@ -60,26 +61,50 @@ fn is_local_request_spec(
 }
 
 fn first_local_project_spec<'a>(
-    projects: &'a [ProjectDeps],
+    request: &'a ResolveRequest,
     declared_prefixes: &HashSet<&str>,
 ) -> Option<&'a str> {
-    for project in projects {
-        for dependencies in [
-            &project.dependencies,
-            &project.dev_dependencies,
-            &project.optional_dependencies,
-            &project.peer_dependencies,
-        ] {
-            if let Some(spec) = dependencies
-                .values()
-                .map(String::as_str)
-                .find(|spec| is_local_request_spec(spec, &project.dir, declared_prefixes))
-            {
+    if let Some(projects) = request.projects
+        .as_deref()
+        .filter(|projects| !projects.is_empty())
+    {
+        for project in projects {
+            if let Some(spec) = first_local_in_dep_maps(
+                [
+                    Some(&project.dependencies),
+                    Some(&project.dev_dependencies),
+                    Some(&project.optional_dependencies),
+                    Some(&project.peer_dependencies),
+                ],
+                &project.dir,
+                declared_prefixes,
+            ) {
                 return Some(spec);
             }
         }
+        return None;
     }
-    None
+    first_local_in_dep_maps(
+        [
+            request.dependencies.as_ref(),
+            request.dev_dependencies.as_ref(),
+            request.optional_dependencies.as_ref(),
+            request.peer_dependencies.as_ref(),
+        ],
+        ".",
+        declared_prefixes,
+    )
+}
+
+fn first_local_in_dep_maps<'a>(
+    maps: [Option<&'a DepMap>; 4],
+    importer_dir: &str,
+    declared_prefixes: &HashSet<&str>,
+) -> Option<&'a str> {
+    maps.into_iter()
+        .flatten()
+        .flat_map(|dependencies| dependencies.values().map(String::as_str))
+        .find(|spec| is_local_request_spec(spec, importer_dir, declared_prefixes))
 }
 
 fn first_local_catalog_spec<'a>(
@@ -140,13 +165,13 @@ fn first_local_lockfile_importer_spec<'a>(
     None
 }
 
-fn first_local_override_spec(
-    value: &serde_json::Value,
+fn first_local_override_spec<'a>(
+    value: &'a serde_json::Value,
     declared_prefixes: &HashSet<&str>,
-) -> Option<String> {
+) -> Option<&'a str> {
     match value {
         serde_json::Value::String(spec) => {
-            is_local_request_spec(spec, ".", declared_prefixes).then(|| spec.clone())
+            is_local_request_spec(spec, ".", declared_prefixes).then_some(spec.as_str())
         }
         serde_json::Value::Array(items) => {
             items.iter().find_map(|item| first_local_override_spec(item, declared_prefixes))

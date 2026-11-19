@@ -259,8 +259,8 @@ export async function mutateModulesViaPnpr (
 ): Promise<MutateModulesResult | null> {
   const pnprProjects = await preparePnprProjects(projects, opts)
   if (!pnprProjects) return null
-  assertPnprCompatibleWithStore(opts)
   if (!pnprCanResolveProjects(pnprProjects, projects, opts)) return null
+  assertPnprCompatibleWithStore(opts)
 
   const projectOptionsByDir = new Map(opts.allProjects?.map(project => [project.rootDir, project]))
 

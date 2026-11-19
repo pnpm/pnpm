@@ -1,4 +1,8 @@
-use super::{Lockfile, PnprLink, Reporter, State, pnpr_lockfile_dir};
+use super::{
+    InstallFamilySelection, Lockfile, PnprLink, Reporter, State, pnpr_catalogs,
+    pnpr_local_specs::{check_no_local_lockfile_specs_for_pnpr, check_no_local_specs_for_pnpr},
+    pnpr_lockfile_dir, resolve_projects_for_pnpr,
+};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::redact_url_for_display;
 use std::sync::Arc;
@@ -73,13 +77,27 @@ pub(crate) async fn pnpr_target<'a, Reporter: self::Reporter>(
 
 /// Side-effect-free counterpart to [`pnpr_target`] for pre-clean validation,
 /// avoiding a duplicate fallback warning when the install later runs locally.
-pub(crate) async fn uses_pnpr_server(state: &State, link: &PnprLink<'_>) -> miette::Result<bool> {
+pub(crate) async fn uses_pnpr_server(
+    state: &State,
+    selection: Option<&InstallFamilySelection>,
+    link: &PnprLink<'_>,
+) -> miette::Result<bool> {
     if state.config.pnpr_server.is_none() {
         return Ok(false);
     }
     let pnpmfile_hook = load_pnpmfile(state, pnpr_lockfile_dir(state, link))?;
     if let Some(hook) = pnpmfile_hook.as_ref()
         && resolution_hook(hook.as_ref()).await?.is_some()
+    {
+        return Ok(false);
+    }
+    let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
+    let catalogs = pnpr_catalogs(state)?;
+    if check_no_local_specs_for_pnpr(state.config, &projects, catalogs.as_ref()).is_err() {
+        return Ok(false);
+    }
+    if link.lockfile.ignore_manifest_check
+        && check_no_local_lockfile_specs_for_pnpr(state.config, state.lockfile.get()?).is_err()
     {
         return Ok(false);
     }

@@ -1,4 +1,7 @@
-use super::{Catalogs, DependencyGroup, Display, Error, Lockfile, ResolveProject};
+use super::{
+    Catalogs, DependencyGroup, Display, Error, Lockfile, PnprLink, ResolveProject,
+    pnpr_config_validation::validate_pnpr_config,
+};
 use pnpm_local_spec::is_host_filesystem_specifier;
 
 /// The install declares a local filesystem dependency (`file:`, `link:`, a bare
@@ -11,6 +14,31 @@ pub(crate) struct PnprLocalDependencyUnsupported {
 }
 
 impl miette::Diagnostic for PnprLocalDependencyUnsupported {}
+
+pub(super) fn check_pnpr_project_specs_and_config(
+    config: &pnpm_config::Config,
+    projects: &[ResolveProject],
+    catalogs: Option<&Catalogs>,
+    link: &PnprLink<'_>,
+) -> miette::Result<()> {
+    check_no_local_specs_for_pnpr(config, projects, catalogs)?;
+    if !link.lockfile.ignore_manifest_check {
+        validate_pnpr_config(config, link.lockfile.frozen)?;
+    }
+    Ok(())
+}
+
+pub(super) fn check_pnpr_lockfile_specs_and_config(
+    config: &pnpm_config::Config,
+    lockfile: Option<&Lockfile>,
+    link: &PnprLink<'_>,
+) -> miette::Result<()> {
+    if link.lockfile.ignore_manifest_check {
+        check_no_local_lockfile_specs_for_pnpr(config, lockfile)?;
+        validate_pnpr_config(config, link.lockfile.frozen)?;
+    }
+    Ok(())
+}
 
 pub(super) fn check_no_local_specs_for_pnpr(
     config: &pnpm_config::Config,

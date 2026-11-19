@@ -22,7 +22,7 @@ impl InstallArgs {
         let frozen_lockfile = self.resolve_frozen_lockfile(state)?;
         let lockfile_path = state.lockfile_path();
         let link = self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
-        if uses_pnpr_server(state, &link).await? {
+        if uses_pnpr_server(state, selection, &link).await? {
             pnpr_config_validation::validate_pnpr_config(state.config, link.lockfile.frozen)?;
         }
         let install = self.build_local_install(state, link);

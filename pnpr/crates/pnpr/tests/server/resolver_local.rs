@@ -178,6 +178,8 @@ async fn resolve_rejects_local_file_and_link_specs_without_reading_server_filesy
         json!({ "dependencies": { "sneaky": format!("file:{secret_tgz_str}") } }),
         json!({ "dependencies": { "sneaky": "file:./local.tgz" } }),
         json!({ "dependencies": { "sneaky": format!("file://{secret}") } }),
+        json!({ "dependencies": { "sneaky": format!("git+file://{secret}") } }),
+        json!({ "dependencies": { "sneaky": format!("git+file://localhost{secret}") } }),
         json!({ "dependencies": { "sneaky": format!("link:{secret}") } }),
         json!({ "dependencies": { "sneaky": "link:../server-only-dir" } }),
         json!({ "dependencies": { "sneaky": secret } }),
@@ -202,7 +204,11 @@ async fn resolve_rejects_local_file_and_link_specs_without_reading_server_filesy
         )
         .await;
         let text = String::from_utf8(body).unwrap();
-        assert!(status.is_client_error(), "expected 4xx for {payload}, got {status}: {text}");
+        assert_eq!(status, StatusCode::BAD_REQUEST, "expected 400 for {payload}, got {text}");
+        assert!(
+            text.contains("ERR_PNPR_BAD_REQUEST"),
+            "expected ERR_PNPR_BAD_REQUEST for {payload}, got {text}",
+        );
         assert!(!text.contains("server-secret"), "leaked manifest name for {payload}: {text}");
         assert!(!text.contains("canary-pkg"), "leaked transitive dep for {payload}: {text}");
     }
@@ -229,10 +235,14 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
     .unwrap();
     let secret = secret_dir.to_str().unwrap();
 
-    for (idx, transitive_spec) in
-        [format!("file:{secret}"), format!("link:{secret}"), secret.to_string()]
-            .into_iter()
-            .enumerate()
+    for (idx, (transitive_spec, expected_error)) in [
+        (format!("file:{secret}"), "cannot be resolved on the server"),
+        (format!("link:{secret}"), "cannot be resolved on the server"),
+        (secret.to_string(), "isn't supported by any available resolver"),
+        (format!("git+file://localhost{secret}"), "is not allowed by this pnpr server"),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let pkg_name = format!("evil-wrapper-{idx}");
         let manifest_str = json!({
@@ -242,8 +252,9 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
         })
         .to_string();
         let (_, tgz) = package_tar_and_tgz(&manifest_str);
-        let _packument = upstream
+        let packument = upstream
             .mock("GET", format!("/{pkg_name}").as_str())
+            .expect(1)
             .with_header("content-type", "application/json")
             .with_body(
                 json!({
@@ -271,7 +282,7 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
             tmp.path()
                 .join(format!("storage-{idx}")),
         );
-        config.http.public_url = "http://localhost:4873/".into();
+        config.http.public_url = "http://localhost/".into();
         config.routing.route_policy.public.push(super::PublicRoute {
             registry: Some(upstream.url()),
             package: None,
@@ -285,7 +296,7 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
             .header("authorization", format!("Bearer {reader}"))
             .body(Body::from(
                 json!({
-                    "dependencies": { pkg_name: "1.0.0" },
+                    "dependencies": { pkg_name.as_str(): "1.0.0" },
                     "registry": upstream.url(),
                     "preferFrozenLockfile": false,
                 })
@@ -299,9 +310,14 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
                 .unwrap(),
         )
         .await;
+        packument.assert_async().await;
         let text = String::from_utf8(resp_body).unwrap();
         assert_eq!(status, StatusCode::OK);
         assert!(text.contains(r#""type":"error""#), "expected error frame: {text}");
+        assert!(
+            text.contains(expected_error),
+            "expected {expected_error:?} in error frame for {pkg_name}: {text}",
+        );
         assert!(!text.contains(r#""type":"done""#), "must not resolve: {text}");
         assert!(!text.contains("server-secret"), "leaked server manifest: {text}");
         assert!(!text.contains("canary-pkg"), "leaked transitive dep: {text}");

@@ -184,6 +184,8 @@ async fn reject_local_dependency_specs_refuses_host_filesystem_specs_across_requ
         "link:/path/on/server",
         "link:../dir",
         "git+file:/path/on/server",
+        "git+file:///path/on/server",
+        "git+file://localhost/path/on/server",
         "./local-dir",
         "../local-dir",
         "/path/on/server",
@@ -208,7 +210,10 @@ async fn reject_local_dependency_specs_refuses_host_filesystem_specs_across_requ
                 reject_local_dependency_specs(&request).expect("local spec must be rejected");
             assert_eq!(response.status(), StatusCode::BAD_REQUEST, "spec: {spec}");
             assert_eq!(error_code(response).await, "ERR_PNPR_BAD_REQUEST");
-            assert!(reject_unusable_resolve(&request, &context, 100).is_some(), "spec: {spec}");
+            let chain_response =
+                reject_unusable_resolve(&request, &context, 100).expect("chain must reject spec");
+            assert_eq!(chain_response.status(), StatusCode::BAD_REQUEST, "spec: {spec}");
+            assert_eq!(error_code(chain_response).await, "ERR_PNPR_BAD_REQUEST");
         }
     }
 
