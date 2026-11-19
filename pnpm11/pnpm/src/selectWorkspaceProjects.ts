@@ -4,6 +4,7 @@ import path from 'node:path'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { filterProjectsFromDir, orderWorkspaceFilters, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
+import { getProjectsGraphOverrides } from '@pnpm/workspace.projects-graph'
 import { isEmpty } from 'ramda'
 
 import { recursiveByDefaultCommands } from './cmd/index.js'
@@ -180,9 +181,7 @@ function createProjectsFilterOptions (config: Config, context: ConfigContext, op
     modulesDir: config.modulesDir,
     modulesDirsByProjectName: config.modulesDirsByProjectName,
     linkWorkspacePackages: !!config.linkWorkspacePackages,
-    overrides: config.overrides == null
-      ? undefined
-      : { overrides: config.overrides, catalogs: config.catalogs, lockfileDir: config.lockfileDir ?? options.wsDir },
+    overrides: getProjectsGraphOverrides(config, options.wsDir),
     prefix: config.dir,
     workspaceDir: options.wsDir,
     testPattern: config.testPattern,

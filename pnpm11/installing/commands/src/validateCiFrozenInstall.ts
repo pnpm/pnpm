@@ -12,7 +12,7 @@ import {
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import type { IncludedDependencies, Project, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
-import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
+import { createProjectsGraph, getProjectsGraphOverrides } from '@pnpm/workspace.projects-graph'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import { isSubdir, strict as isStrictSubdir } from 'is-subdir'
 
@@ -186,6 +186,7 @@ async function validateWorkspaceCi (
   const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createProjectsGraph(allProjects, {
     catalogs: opts.catalogs,
     linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+    overrides: getProjectsGraphOverrides(opts, workspaceDir),
   }).graph
   const ctx = await createRecursiveContext({
     allProjects,

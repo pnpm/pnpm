@@ -23,7 +23,7 @@ import type {
   Project,
   ProjectsGraph,
 } from '@pnpm/types'
-import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
+import { createProjectsGraph, getProjectsGraphOverrides } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 
@@ -351,9 +351,7 @@ async function installWorkspaceProjects (
   const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createProjectsGraph(allProjects, {
     catalogs: opts.catalogs,
     linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
-    overrides: opts.overrides == null
-      ? undefined
-      : { overrides: opts.overrides, catalogs: opts.catalogs, lockfileDir: opts.lockfileDir ?? workspaceDir },
+    overrides: getProjectsGraphOverrides(opts, workspaceDir),
   }).graph
 
   return recursiveInstallThenUpdateWorkspaceState(allProjects,

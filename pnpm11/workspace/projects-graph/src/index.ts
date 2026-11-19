@@ -35,6 +35,19 @@ export interface ProjectsGraphOverrides {
   lockfileDir: string
 }
 
+/**
+ * The {@link ProjectsGraphOverrides} for a workspace's config, or `undefined`
+ * when no overrides are configured. Relative targets are anchored at
+ * `lockfileDir`, falling back to `workspaceDir`, as the install anchors them.
+ */
+export function getProjectsGraphOverrides (
+  config: { overrides?: Record<string, string>, catalogs?: Catalogs, lockfileDir?: string },
+  workspaceDir: string
+): ProjectsGraphOverrides | undefined {
+  if (config.overrides == null) return undefined
+  return { overrides: config.overrides, catalogs: config.catalogs, lockfileDir: config.lockfileDir ?? workspaceDir }
+}
+
 export interface CreateProjectsGraphOptions {
   catalogs?: Catalogs
   ignoreDevDeps?: boolean
