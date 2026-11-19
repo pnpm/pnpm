@@ -311,17 +311,24 @@ async function pickResolutionFetcher (
   resolution: Resolution,
   id: string
 ): Promise<Pick<ResolvedRequest, 'fetcherForResolution' | 'resolutionNeedsFetch'>> {
-  const fetcherForResolution = resolution.type === 'variations'
-    ? undefined
-    : await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
-      customFetchers: ctx.customFetchers,
-      packageId: id,
-    })
-  const resolutionNeedsFetchHook = fetcherForResolution?.resolutionNeedsFetch
-  const resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
-    ? resolutionNeedsFetchHook(resolution)
-    : false
+  if (!fetcherMustBePickedBeforeSkipFetch(resolution, ctx.customFetchers)) {
+    return { fetcherForResolution: undefined, resolutionNeedsFetch: false }
+  }
+  const fetcherForResolution = await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
+    customFetchers: ctx.customFetchers,
+    packageId: id,
+  })
+  const resolutionNeedsFetch = fetcherForResolution.resolutionNeedsFetch?.(resolution) ?? false
   return { fetcherForResolution, resolutionNeedsFetch }
+}
+
+// Only a tarball with integrity and no custom fetchers can defer picking to a store miss:
+// custom fetchers may demand a fetch, an integrity-less tarball needs one, and an
+// unsupported typed resolution must fail even when the fetch is skipped.
+function fetcherMustBePickedBeforeSkipFetch (resolution: Resolution, customFetchers: CustomFetcher[] | undefined): boolean {
+  if (resolution.type === 'variations') return false
+  if (customFetchers != null && customFetchers.length > 0) return true
+  return resolution.type == null && getExpectedIntegrity(resolution) == null
 }
 
 // Fetching can be skipped only when the manifest is available, the package content
