@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use super::{
     Advisory, BulkAdvisory, Cow, Deserialize, HashMap, HashSet, MAX_ADVISORY_ID_BYTES,
     MAX_EVENTS_PER_RANGE, MAX_EXPLICIT_RANGE_BYTES, MAX_RANGES_PER_AFFECTED,
-    MAX_VERSIONS_PER_AFFECTED, RegistryError, SemverRange, invalid_config,
+    MAX_VERSIONS_PER_AFFECTED, RegistryError, SemverRange, Version, invalid_config,
     ranges::{OsvRange, build_vulnerable_versions_str, parse_npm_range},
     severity::{OsvSeverity, SeverityLevel},
 };
@@ -160,7 +160,8 @@ pub(super) fn normalized_name(name: &str) -> Cow<'_, str> {
 }
 
 struct AffectedBounds {
-    versions: HashSet<String>,
+    raw_versions: HashSet<String>,
+    exact_versions: HashSet<Version>,
     ranges: Vec<SemverRange>,
     range_clauses: Vec<String>,
     max_severity: Option<SeverityLevel>,
@@ -187,7 +188,24 @@ fn process_one_affected(affected: OsvAffected, bounds: &mut AffectedBounds) {
             bounds.ranges.push(parsed.into_semver_range());
         }
     }
-    bounds.versions.extend(affected.versions);
+    ingest_affected_versions(affected.versions, bounds);
+}
+
+fn ingest_affected_versions(versions: Vec<String>, bounds: &mut AffectedBounds) {
+    for raw in versions {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        match Version::parse(trimmed) {
+            Ok(parsed) => {
+                bounds.exact_versions.insert(parsed);
+            }
+            Err(_) => {
+                bounds.raw_versions.insert(trimmed.to_owned());
+            }
+        }
+    }
 }
 
 fn affected_max_severity(affected: &OsvAffected) -> Option<SeverityLevel> {
@@ -213,7 +231,8 @@ fn affected_max_severity(affected: &OsvAffected) -> Option<SeverityLevel> {
 
 fn collect_affected_bounds(affected_list: Vec<OsvAffected>) -> AffectedBounds {
     let mut bounds = AffectedBounds {
-        versions: HashSet::new(),
+        raw_versions: HashSet::new(),
+        exact_versions: HashSet::new(),
         ranges: Vec::new(),
         range_clauses: Vec::new(),
         max_severity: None,
@@ -230,22 +249,27 @@ pub(super) fn advisory_from_record(
 ) -> Result<Option<Advisory>, RegistryError> {
     let id = truncate_advisory_id(&record.id);
     let bounds = collect_affected_bounds(affected_list);
-    if bounds.versions.len() > MAX_VERSIONS_PER_AFFECTED
-        || bounds.ranges.len() > MAX_RANGES_PER_AFFECTED
-    {
+    let total_versions = bounds.raw_versions.len().saturating_add(bounds.exact_versions.len());
+    if total_versions > MAX_VERSIONS_PER_AFFECTED || bounds.ranges.len() > MAX_RANGES_PER_AFFECTED {
         return Err(invalid_config(format!(
             "OSV record {id} has combined affected entries exceeding the version/range limits",
         )));
     }
-    if bounds.versions.is_empty() && bounds.ranges.is_empty() {
+    if total_versions == 0 && bounds.ranges.is_empty() {
         return Ok(None);
     }
 
     let vulnerable_versions =
-        build_vulnerable_versions_str(&id, &bounds.range_clauses, &bounds.versions)?;
+        build_vulnerable_versions_str(&id, &bounds.range_clauses, &bounds.exact_versions)?;
     let bulk = build_bulk_advisory(record, vulnerable_versions, bounds.max_severity);
 
-    Ok(Some(Advisory { id, versions: bounds.versions, ranges: bounds.ranges, bulk }))
+    Ok(Some(Advisory {
+        id,
+        raw_versions: bounds.raw_versions,
+        exact_versions: bounds.exact_versions,
+        ranges: bounds.ranges,
+        bulk,
+    }))
 }
 
 fn build_bulk_advisory(

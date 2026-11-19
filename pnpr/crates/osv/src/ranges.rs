@@ -59,19 +59,12 @@ pub(super) fn parse_npm_range(range: &OsvRange) -> Option<ParsedNpmRange<'_>> {
     if events.is_empty() {
         return None;
     }
-    let has_closing_event = events
-        .iter()
-        .any(|(_, ev)| matches!(ev, SemverEvent::Fixed(_) | SemverEvent::LastAffected(_)));
-    let limit = resolve_range_limit(&range.events, has_closing_event)?;
+    let limit = resolve_range_limit(&range.events);
     events.sort_by(|left, right| left.1.cmp_events(&right.1));
     Some(ParsedNpmRange { events, limit })
 }
 
-fn resolve_range_limit(
-    events: &[OsvEvent],
-    has_closing_event: bool,
-) -> Option<Option<(&str, Version)>> {
-    let mut has_limit_event = false;
+fn resolve_range_limit(events: &[OsvEvent]) -> Option<(&str, Version)> {
     let mut unbounded = false;
     let mut max_limit: Option<(&str, Version)> = None;
     for raw in events
@@ -79,7 +72,6 @@ fn resolve_range_limit(
         .filter_map(|event| event.limit.as_deref())
         .map(str::trim)
     {
-        has_limit_event = true;
         if raw.is_empty() || raw.contains('*') {
             unbounded = true;
             continue;
@@ -92,10 +84,7 @@ fn resolve_range_limit(
             max_limit = Some((raw, parsed));
         }
     }
-    if unbounded || !has_limit_event || (max_limit.is_none() && has_closing_event) {
-        return Some(None);
-    }
-    max_limit.map(Some)
+    if unbounded { None } else { max_limit }
 }
 
 fn semver_event_from_osv(event: &OsvEvent) -> Option<(&str, SemverEvent)> {
@@ -236,17 +225,22 @@ fn format_open_clause(intro: &str) -> String {
 pub(super) fn build_vulnerable_versions_str(
     advisory_id: &str,
     range_clauses: &[String],
-    versions: &HashSet<String>,
+    exact_versions: &HashSet<Version>,
 ) -> Result<String, RegistryError> {
     let unique_clauses = dedup_range_clauses(range_clauses);
-    validate_coverage_budget(advisory_id, &unique_clauses, versions.len())?;
+    validate_coverage_budget(advisory_id, &unique_clauses, exact_versions.len())?;
     let parsed_ranges: Vec<Range> = unique_clauses
         .iter()
         .filter_map(|clause| clause.parse::<Range>().ok())
         .collect();
-    let mut uncovered: Vec<String> = versions
+    let mut uncovered: Vec<String> = exact_versions
         .iter()
-        .filter_map(|raw| uncovered_exact_version(raw, &parsed_ranges))
+        .filter(|version| {
+            !parsed_ranges
+                .iter()
+                .any(|range| version.satisfies(range))
+        })
+        .map(ToString::to_string)
         .collect();
     uncovered.sort_unstable();
     uncovered.dedup();
@@ -287,12 +281,4 @@ fn validate_coverage_budget(
         )));
     }
     Ok(())
-}
-
-fn uncovered_exact_version(raw: &str, ranges: &[Range]) -> Option<String> {
-    let parsed = Version::parse(raw.trim()).ok()?;
-    (!ranges
-        .iter()
-        .any(|range| parsed.satisfies(range)))
-    .then(|| parsed.to_string())
 }

@@ -125,10 +125,11 @@ impl OsvIndex {
         let Some(advisories) = self.advisories(name) else {
             return false;
         };
-        let parsed = Version::parse(version).ok();
+        let trimmed = version.trim();
+        let parsed = Version::parse(trimmed).ok();
         advisories
             .iter()
-            .any(|advisory| advisory.affects(version, parsed.as_ref()))
+            .any(|advisory| advisory.affects(trimmed, parsed.as_ref()))
     }
 
     #[must_use]
@@ -136,11 +137,12 @@ impl OsvIndex {
         let Some(advisories) = self.advisories(name) else {
             return Vec::new();
         };
-        let parsed = Version::parse(version).ok();
+        let trimmed = version.trim();
+        let parsed = Version::parse(trimmed).ok();
         let mut seen = HashSet::new();
         advisories
             .iter()
-            .filter(|advisory| advisory.affects(version, parsed.as_ref()))
+            .filter(|advisory| advisory.affects(trimmed, parsed.as_ref()))
             .filter(|advisory| seen.insert(advisory.id.as_str()))
             .map(|advisory| advisory.id.clone())
             .collect()
@@ -160,7 +162,10 @@ impl OsvIndex {
             };
             let parsed_versions: Vec<(&str, Option<Version>)> = versions
                 .iter()
-                .map(|raw_version| (raw_version.as_str(), Version::parse(raw_version).ok()))
+                .map(|raw_version| {
+                    let trimmed = raw_version.trim();
+                    (trimmed, Version::parse(trimmed).ok())
+                })
                 .collect();
             let mut matched = Vec::new();
             let mut seen_ids = HashSet::new();
@@ -208,22 +213,23 @@ impl PackageVersionGuard for OsvIndex {
 #[derive(Debug)]
 struct Advisory {
     id: String,
-    versions: HashSet<String>,
+    raw_versions: HashSet<String>,
+    exact_versions: HashSet<Version>,
     ranges: Vec<SemverRange>,
     bulk: BulkAdvisory,
 }
 
 impl Advisory {
     fn affects(&self, version: &str, parsed: Option<&Version>) -> bool {
-        if self.versions.contains(version) {
-            return true;
+        if let Some(parsed) = parsed {
+            if self.exact_versions.contains(parsed) {
+                return true;
+            }
+            return self.ranges
+                .iter()
+                .any(|range| range.affects(parsed));
         }
-        let Some(parsed) = parsed else {
-            return false;
-        };
-        self.ranges
-            .iter()
-            .any(|range| range.affects(parsed))
+        self.raw_versions.contains(version)
     }
 }
 
