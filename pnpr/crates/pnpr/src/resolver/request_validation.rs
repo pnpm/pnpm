@@ -1,7 +1,11 @@
+pub(super) use local_specs::reject_local_dependency_specs;
+
 use axum::{http::StatusCode, response::Response};
 use pnpm_lockfile::LockfileResolution;
 
 use pnpr_route::RouteContext;
+
+mod local_specs;
 
 use super::{
     json_error, json_error_with_code,
@@ -103,7 +107,10 @@ fn fetchable_specs<'a>(request: &'a ResolveRequest, projects: &'a [ProjectDeps])
 /// semver ranges, `npm:`/`workspace:`/`file:`/`link:` aliases (no `://`),
 /// scoped names — return `false`.
 fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
-    let url = spec.strip_prefix("git+").unwrap_or(spec);
+    let url = match spec.get(..4) {
+        Some(head) if head.eq_ignore_ascii_case("git+") => &spec[4..],
+        _ => spec,
+    };
     if url.contains("://") {
         // Gate by origin regardless of scheme: any transport that reaches a
         // host can be an SSRF vector (every git transport — git/ssh/rsync/ftp/

@@ -66,6 +66,8 @@ impl<'a> ResolutionInstall<'a> {
         install.execution.node_linker = NodeLinker::Isolated;
         install.execution.lockfile_only = true;
         install.resolution.update_seed_policy = update_seed_policy(request);
+        install.resolution.local_filesystem_policy =
+            pnpm_package_manager::LocalFilesystemPolicy::WorkspaceOnly;
         install.resolution.auth_override = Some(Arc::clone(auth_headers));
         install.resolution.observer = observer;
         install.context.lockfile_path = request.lockfile.as_ref().map(|_| lockfile_path);

@@ -35,7 +35,9 @@ use pnpm_engine_runtime_deno_resolver::DenoResolver;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
-use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
+use pnpm_resolving_local_resolver::{
+    LocalFilesystemPolicy, LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
+};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
     OfflineStoreView, merge_named_registries, shared_in_memory_cache,
@@ -84,7 +86,7 @@ pub fn build_standalone_chain(
     // install path.
     let local_ctx = LocalResolverContext {
         preserve_absolute_paths: false,
-        tarball_resolution: opts.local_tarball_resolution,
+        filesystem_policy: LocalFilesystemPolicy::HostFilesystem(opts.local_tarball_resolution),
         ..Default::default()
     };
 

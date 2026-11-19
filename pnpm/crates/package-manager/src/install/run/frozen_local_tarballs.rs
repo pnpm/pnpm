@@ -125,6 +125,10 @@ async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
     if !has_local_tarball(lockfile) {
         return false;
     }
+    match settled.owned.resolution.local_filesystem_policy {
+        pnpm_resolving_local_resolver::LocalFilesystemPolicy::HostFilesystem(_) => {}
+        pnpm_resolving_local_resolver::LocalFilesystemPolicy::WorkspaceOnly => return true,
+    }
     let workspace_root = settled.projects.workspace.dirs.workspace_root.clone();
     let kind = lockfile.integrity_target().into();
     let groups = crate::GroupSelection::classify(

@@ -88,6 +88,7 @@ pub(crate) struct ResolverChainProject<'a> {
     pub requester: &'a str,
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub lockfile: Option<&'a Lockfile>,
+    pub local_filesystem_policy: pnpm_resolving_local_resolver::LocalFilesystemPolicy,
 }
 
 pub(crate) struct ReuseLockfileInputs<'a> {

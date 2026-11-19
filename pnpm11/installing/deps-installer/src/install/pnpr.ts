@@ -11,7 +11,7 @@ import { clone } from 'ramda'
 import { removeDeps } from '../uninstall/removeDeps.js'
 import type { ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
 import { removesAnyDependency, rootProjectRunsPreinstallEarly } from './installPredicates.js'
-import { installViaPnprServer } from './installViaPnprServer.js'
+import { assertPnprCompatibleWithStore, installViaPnprServer } from './installViaPnprServer.js'
 import { mergeInstallSelectors } from './mergeInstallSelectors.js'
 import type {
   InstallDepsMutation,
@@ -21,6 +21,7 @@ import type {
   MutateModulesResult,
   SingleProjectInstallOptions,
 } from './mutationTypes.js'
+import { findLocalSpecForPnpr } from './pnprLocalSpecs.js'
 
 export interface PnprNewDep {
   alias: string
@@ -258,6 +259,8 @@ export async function mutateModulesViaPnpr (
 ): Promise<MutateModulesResult | null> {
   const pnprProjects = await preparePnprProjects(projects, opts)
   if (!pnprProjects) return null
+  assertPnprCompatibleWithStore(opts)
+  if (!pnprCanResolveProjects(pnprProjects, projects, opts)) return null
 
   const projectOptionsByDir = new Map(opts.allProjects?.map(project => [project.rootDir, project]))
 
@@ -295,4 +298,20 @@ export async function mutateModulesViaPnpr (
     ignoredBuilds: result.ignoredBuilds,
     resolutionPolicyViolations: result.resolutionPolicyViolations,
   }
+}
+
+function pnprCanResolveProjects (
+  pnprProjects: PnprInstallProject[],
+  mutations: MutatedProject[],
+  opts: MutateModulesOptions
+): boolean {
+  const localSpec = findLocalSpecForPnpr({
+    lockfileDir: opts.lockfileDir ?? pnprProjects[0].rootDir,
+    projects: pnprProjects,
+    mutations,
+    opts,
+  })
+  if (localSpec == null) return true
+  globalWarn(`Resolving dependencies locally because the pnpr server at ${redactUrlForDisplay(opts.pnprServer!)} cannot resolve local dependency "${localSpec}"`)
+  return false
 }

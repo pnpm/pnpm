@@ -5,6 +5,7 @@ use super::{
 use crate::resolver::{
     parse_request,
     protocol::{CargoResolveRequest, PypiResolveRequest},
+    request_validation::reject_local_dependency_specs,
 };
 
 async fn error_code(response: axum::response::Response) -> String {
@@ -166,4 +167,70 @@ fn parse_request_accepts_the_fields_existing_clients_send() {
         "acceptedLockfileFormats": ["pnpm-lock/9.0"],
     });
     assert!(parse_request::<ResolveRequest>(body.to_string().as_bytes()).is_ok());
+}
+
+#[tokio::test]
+async fn reject_local_dependency_specs_refuses_host_filesystem_specs_across_request_fields() {
+    let context = RouteContext::from_config(&registry_config());
+    let parse = |body: serde_json::Value| {
+        serde_json::from_value::<ResolveRequest>(body).expect("resolve request parses")
+    };
+
+    for spec in [
+        "file:/path/on/server",
+        "file:../dir",
+        "file:./local.tgz",
+        "file:///path/on/server",
+        "link:/path/on/server",
+        "link:../dir",
+        "git+file:/path/on/server",
+        "./local-dir",
+        "../local-dir",
+        "/path/on/server",
+        "~/local-dir",
+        "workspace:/path/on/server",
+        "workspace:../../../outside",
+        "npm:alias@file:../dir",
+    ] {
+        for body in [
+            serde_json::json!({ "dependencies": { "sneaky": spec } }),
+            serde_json::json!({ "devDependencies": { "sneaky": spec } }),
+            serde_json::json!({ "optionalDependencies": { "sneaky": spec } }),
+            serde_json::json!({ "peerDependencies": { "sneaky": spec } }),
+            serde_json::json!({ "projects": [{ "dir": "packages/app", "dependencies": { "sneaky": spec } }] }),
+            serde_json::json!({ "overrides": { "sneaky": spec } }),
+            serde_json::json!({ "overrides": { "parent>sneaky": { "nested": spec } } }),
+            serde_json::json!({ "catalogs": { "default": { "sneaky": spec } } }),
+            serde_json::json!({ "packageExtensions": { "foo@1": { "dependencies": { "sneaky": spec } } } }),
+        ] {
+            let request = parse(body);
+            let response =
+                reject_local_dependency_specs(&request).expect("local spec must be rejected");
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST, "spec: {spec}");
+            assert_eq!(error_code(response).await, "ERR_PNPR_BAD_REQUEST");
+            assert!(reject_unusable_resolve(&request, &context, 100).is_some(), "spec: {spec}");
+        }
+    }
+
+    let allowed = parse(serde_json::json!({
+        "projects": [
+            { "dir": "packages/lib", "name": "@ws/lib", "version": "1.0.0" },
+            {
+                "dir": "packages/app",
+                "name": "@ws/app",
+                "version": "1.0.0",
+                "dependencies": {
+                    "@ws/lib": "workspace:*",
+                    "sibling": "workspace:../lib",
+                    "corp-pkg": "c:^1.0.0"
+                }
+            }
+        ],
+        "registries": {
+            "https://registry.npmjs.org/": { "prefix": "c" }
+        },
+        "overrides": { "target": "workspace:./packages/lib" },
+        "catalogs": { "default": { "is-positive": "^1.0.0" } }
+    }));
+    assert!(reject_local_dependency_specs(&allowed).is_none());
 }
