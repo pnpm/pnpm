@@ -155,6 +155,7 @@ fn host(node_version: &str, os: &'static str, cpu: &'static str) -> Installabili
     InstallabilityHost {
         node_version: node_version.to_string(),
         node_detected: true,
+        node_probed: true,
         os,
         cpu,
         libc: "unknown",

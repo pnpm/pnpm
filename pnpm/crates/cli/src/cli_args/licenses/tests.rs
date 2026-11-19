@@ -9,12 +9,18 @@ use serde_json::json;
 use tempfile::TempDir;
 
 #[test]
-fn project_runtime_from_json5_selects_the_license_store_slot() {
+fn license_store_slot_follows_the_lockfile_runtime_pin() {
     let dir = TempDir::new().unwrap();
-    let lockfile: Lockfile = serde_saphyr::from_str(
-        "lockfileVersion: '9.0'\nimporters: {}\nsnapshots:\n  native@1.0.0: {}\n",
-    )
-    .unwrap();
+    let lockfile = |importers: &str| -> Lockfile {
+        serde_saphyr::from_str(&format!(
+            "lockfileVersion: '9.0'\nimporters: {importers}\nsnapshots:\n  native@1.0.0: {{}}\n",
+        ))
+        .unwrap()
+    };
+    let unpinned = lockfile("{}");
+    let pinned = lockfile(
+        "\n  .:\n    devDependencies:\n      node:\n        specifier: runtime:18.0.0\n        version: runtime:18.0.0",
+    );
     let key = "native@1.0.0".parse().unwrap();
     let mut config = Config {
         enable_global_virtual_store: true,
@@ -22,27 +28,20 @@ fn project_runtime_from_json5_selects_the_license_store_slot() {
         ..Config::default()
     };
     config.allow_builds.insert("native".to_owned(), true);
-    let slot_dir = |config: &Config| {
-        super::lockfiles::lockfile_layout(config, dir.path(), dir.path(), &lockfile)
-            .unwrap()
-            .slot_dir(&key)
+    let slot_dir = |config: &Config, lockfile: &Lockfile| {
+        super::lockfiles::lockfile_layout(config, dir.path(), lockfile).unwrap().slot_dir(&key)
     };
-    let host = slot_dir(&config);
+    let host = slot_dir(&config, &unpinned);
+    let pinned_18 = slot_dir(&config, &pinned);
     config.node_version = Some("20.0.0".to_owned());
-    assert_eq!(slot_dir(&config), host, "nodeVersion does not move the store slot");
-    std::fs::write(
-        dir.path().join("package.json5"),
-        "{devEngines: {runtime: {name: 'node', version: '18.0.0'}}}",
-    )
-    .unwrap();
-    let pinned_18 = slot_dir(&config);
+    assert_eq!(slot_dir(&config, &unpinned), host, "nodeVersion does not move the store slot");
+    assert_eq!(slot_dir(&config, &pinned), pinned_18);
     std::fs::write(
         dir.path().join("package.json"),
-        r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0"}}}"#,
+        r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0","onFail":"warn"}}}"#,
     )
     .unwrap();
-    let pinned_20 = slot_dir(&config);
-    assert_ne!(pinned_18, pinned_20, "package.json wins over package.json5");
+    assert_eq!(slot_dir(&config, &unpinned), host, "an undownloaded runtime does not either");
 }
 
 #[test]

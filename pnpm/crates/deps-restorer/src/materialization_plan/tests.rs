@@ -3,7 +3,6 @@ use super::{
     target_node_version,
 };
 use crate::InstallabilityHost;
-use pnpm_config::Config;
 use std::{sync::mpsc, time::Duration};
 
 #[test]
@@ -53,11 +52,11 @@ fn execution_ignores_node_version() {
 }
 
 #[test]
-fn execution_host_node_drops_a_host_set_by_node_version() {
-    let host = InstallabilityHost::detect_with(false, Some("20.0.0".to_owned()));
-    let configured = Config { node_version: Some("20.0.0".to_owned()), ..Config::default() };
-    assert!(execution_host_node(Some(&host), &configured).is_none());
+fn execution_host_node_keeps_only_a_probed_host() {
+    let overridden = InstallabilityHost::detect_with(false, Some("20.0.0".to_owned()));
+    assert!(execution_host_node(Some(&overridden)).is_none());
+    let probed = InstallabilityHost { node_probed: true, ..overridden };
     let HostNode { version, detected } =
-        execution_host_node(Some(&host), &Config::default()).expect("host without nodeVersion");
+        execution_host_node(Some(&probed)).expect("a probed host keys the store");
     assert_eq!((version.as_str(), detected), ("20.0.0", true));
 }

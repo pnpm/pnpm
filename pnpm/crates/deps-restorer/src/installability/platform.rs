@@ -20,6 +20,11 @@ pub struct InstallabilityHost {
     /// installs would key on the actual node major and miss every
     /// row written under the fallback.
     pub node_detected: bool,
+    /// `true` only when `node --version` produced `node_version`. An
+    /// override passed to [`Self::detect_with`] leaves it `false`, so the
+    /// version does not key the store (see
+    /// [`execution_host_node`](crate::materialization_plan::execution_host_node)).
+    pub node_probed: bool,
     pub os: &'static str,
     pub cpu: &'static str,
     pub libc: &'static str,
@@ -48,6 +53,7 @@ impl InstallabilityHost {
         Self {
             node_version,
             node_detected,
+            node_probed: node_detected,
             os: pnpm_graph_hasher::host_platform(),
             cpu: pnpm_graph_hasher::host_arch(),
             libc: pnpm_graph_hasher::host_libc(),
@@ -61,9 +67,8 @@ impl InstallabilityHost {
     /// config settings).
     ///
     /// An explicit `node_version` is authoritative for installability checks:
-    /// no `node --version` probe runs and `node_detected` is `true`. Store
-    /// keys ignore a `nodeVersion` setting passed here; see
-    /// [`execution_host_node`](crate::materialization_plan::execution_host_node). A leading `v`
+    /// no `node --version` probe runs, `node_detected` is `true`, and
+    /// `node_probed` is `false`. A leading `v`
     /// (as in `process.version` / `node --version`, e.g. `v22.11.0`) is
     /// stripped so the value parses as exact semver, matching the auto-detect
     /// path. `None` falls back to [`Self::detect`], then overrides
@@ -74,6 +79,7 @@ impl InstallabilityHost {
             Some(node_version) => Self {
                 node_version,
                 node_detected: true,
+                node_probed: false,
                 os: pnpm_graph_hasher::host_platform(),
                 cpu: pnpm_graph_hasher::host_arch(),
                 libc: pnpm_graph_hasher::host_libc(),

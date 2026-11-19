@@ -63,29 +63,23 @@ pub fn target_node_major(
 }
 
 /// The engine name an installed lockfile's store slots key on, by
-/// [`TargetNodeUse::Execution`]. The lockfile's root runtime pin wins over
-/// `manifest_runtime_pin`; without either, the host is probed.
+/// [`TargetNodeUse::Execution`]: the lockfile's root runtime pin, else the
+/// probed host.
 #[must_use]
-pub fn lockfile_engine_name(
-    importers: &HashMap<String, ProjectSnapshot>,
-    manifest_runtime_pin: Option<&str>,
-) -> Option<String> {
-    let lockfile_pin = find_root_runtime_node_version(importers);
-    let runtime_pin = lockfile_pin.as_deref().or(manifest_runtime_pin);
-    target_node_major(TargetNodeUse::Execution, None, runtime_pin, None)
+pub fn lockfile_engine_name(importers: &HashMap<String, ProjectSnapshot>) -> Option<String> {
+    let runtime_pin = find_root_runtime_node_version(importers);
+    target_node_major(TargetNodeUse::Execution, None, runtime_pin.as_deref(), None)
         .or_else(pnpm_graph_hasher::detect_node_major)
         .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
 }
 
 /// The host Node that keys store slots under [`TargetNodeUse::Execution`].
-/// `None` when the `nodeVersion` setting replaced the probed version, so
-/// [`resolve_engine_name`] probes the real host.
+/// `None` unless `node --version` produced the host's version, so a
+/// `nodeVersion` setting or a runtime pin pnpm does not download leaves
+/// [`resolve_engine_name`] to probe the real host.
 #[must_use]
-pub fn execution_host_node(host: Option<&InstallabilityHost>, config: &Config) -> Option<HostNode> {
-    if config.node_version.is_some() {
-        return None;
-    }
-    host.map(HostNode::from)
+pub fn execution_host_node(host: Option<&InstallabilityHost>) -> Option<HostNode> {
+    host.filter(|host| host.node_probed).map(HostNode::from)
 }
 
 /// The host Node, reduced to what the phases after the installability
@@ -114,6 +108,8 @@ pub enum HostDetection {
     Resolved(Option<InstallabilityHost>),
     Pending {
         task: tokio::task::JoinHandle<Option<InstallabilityHost>>,
+        /// `false` when an override replaces the `node --version` probe.
+        probes_node: bool,
         /// Carried so a joined-task failure can synthesize the same
         /// fallback host [`detect_installability_host`] would have,
         /// CLI-merged `supportedArchitectures` accept lists included.
@@ -135,6 +131,7 @@ impl HostDetection {
         supported_architectures: Option<SupportedArchitectures>,
     ) -> Self {
         HostDetection::Pending {
+            probes_node: node_version.is_none(),
             task: tokio::spawn({
                 let supported_architectures = supported_architectures.clone();
                 async move {
@@ -163,6 +160,7 @@ impl HostDetection {
                 task,
                 engine_strict,
                 supported_architectures,
+                ..
             } => task.await.unwrap_or_else(|error| {
                 tracing::warn!(
                     target: "pacquet::install",
@@ -185,6 +183,7 @@ fn synthetic_installability_host(engine_strict: bool) -> InstallabilityHost {
     InstallabilityHost {
         node_version: "99999.0.0".to_string(),
         node_detected: false,
+        node_probed: false,
         os: pnpm_graph_hasher::host_platform(),
         cpu: pnpm_graph_hasher::host_arch(),
         libc: pnpm_graph_hasher::host_libc(),

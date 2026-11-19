@@ -584,6 +584,7 @@ fn engine_strict_hard_fails_a_required_incompatible_dep() {
     let strict_host = InstallabilityHost {
         node_version: "20.10.0".to_string(),
         node_detected: true,
+        node_probed: true,
         os: "darwin",
         cpu: "arm64",
         libc: "unknown",

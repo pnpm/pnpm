@@ -427,18 +427,12 @@ fn is_gvs_slot_contained(store_dir: &Path, key: &PackageKey, slot_dir: &Path) ->
 #[must_use]
 pub fn virtual_store_layout_for_lockfile(
     config: &Config,
-    manifest_runtime_pin: Option<&str>,
     lockfile: &Lockfile,
     allow_build_policy: Option<&AllowBuildPolicy>,
     lockfile_dir: Option<&Path>,
 ) -> VirtualStoreLayout {
     let engine = config.enable_global_virtual_store
-        .then(|| {
-            crate::materialization_plan::lockfile_engine_name(
-                &lockfile.importers,
-                manifest_runtime_pin,
-            )
-        })
+        .then(|| crate::materialization_plan::lockfile_engine_name(&lockfile.importers))
         .flatten();
     VirtualStoreLayout::new(
         config,
