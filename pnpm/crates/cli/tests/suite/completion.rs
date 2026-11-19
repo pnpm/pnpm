@@ -271,7 +271,9 @@ fn completion_server_lists_ci_command() {
 
 #[test]
 fn completion_server_completes_ci_aliases() {
+    let project = TempDir::new().unwrap();
     let output = pacquet()
+        .current_dir(project.path())
         .args(["completion-server", "--", "pnpm", "ci"])
         .output()
         .expect("run pnpm completion-server");
@@ -437,12 +439,17 @@ fn completion_server_completes_project_scripts() {
     let project = TempDir::new().unwrap();
     std::fs::write(
         project.path().join("package.json"),
-        r#"{"scripts":{"hello":"echo hi","build":"echo b","build:watch":"echo w"}}"#,
+        r#"{"scripts":{".hidden":"echo h","adduser":"echo a","hello":"echo hi","build":"echo b","build:watch":"echo w"}}"#,
     )
     .unwrap();
     for shell in ["bash", "fish", "pwsh", "zsh"] {
         for (words, expected) in [
-            (vec!["pnpm", "run", ""], "build\nbuild:watch\nhello\n"),
+            (vec!["pn", "he"], "help\nhello\n"),
+            (vec!["pnpm", "build:"], "build:watch\n"),
+            (vec!["pnpm", "add"], "add\nadduser\n"),
+            (vec!["pnpm", ".hid"], ""),
+            (vec!["pnpm", "hello", "he"], "help\n"),
+            (vec!["pnpm", "run", ""], ".hidden\nadduser\nbuild\nbuild:watch\nhello\n"),
             (vec!["pnpm", "run", "bu"], "build\nbuild:watch\n"),
             (vec!["pnpm", "run", "build:"], "build:watch\n"),
             (vec!["pnpm", "--color", "run", "he"], "hello\n"),

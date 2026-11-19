@@ -5,7 +5,8 @@ use pnpm_workspace::{
 };
 
 pub(super) fn complete_packages(context: &CompletionContext<'_>) -> miette::Result<Vec<String>> {
-    let directory = context.resolve_project_directory()?;
+    let directory =
+        context.resolve_project_directory(|cwd| context.resolve_implicit_directory(cwd))?;
     let workspace_dir = find_workspace_dir(&directory)?.unwrap_or(directory);
     let manifest = read_workspace_manifest(&workspace_dir)?;
     let projects = find_workspace_projects(

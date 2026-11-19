@@ -8,6 +8,25 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
 
+test('completion includes script shortcuts among built-in commands', () => {
+  prepare({ scripts: { add: 'echo unused', 'build:watch': 'echo unused', hello: 'echo unused', '.hidden': 'echo unused', 'bad\nname': 'echo unused' } })
+  const complete = (word: string): string[] => {
+    const line = `pn ${word}`
+    const { status, stdout, stderr } = execPnpmSync(['completion-server', '--', 'pn', word], {
+      env: { XDG_CONFIG_HOME: path.resolve('.config'), SHELL: 'bash', COMP_CWORD: '1', COMP_LINE: line, COMP_POINT: String(line.length) },
+    })
+    expect({ status, stderr: stderr.toString() }).toEqual({ status: 0, stderr: '' })
+    return stdout.toString().trimEnd().split('\n')
+  }
+  expect(complete('he')).toEqual(expect.arrayContaining(['help', 'hello']))
+  const names = complete('')
+  expect(names).toEqual(expect.arrayContaining(['help', 'hello', 'build:watch']))
+  expect(names.filter((name) => name === 'add')).toEqual(['add'])
+  expect(names).not.toContain('.hidden')
+  expect(names).not.toContain('bad')
+  expect(names).not.toContain('name')
+})
+
 test.each(['bash', 'fish', 'pwsh', 'zsh'])('completion omits unsafe package and script names for %s', (shell) => {
   const unsafeNames = ['bad\nname', 'bad\rname', 'bad\tname', 'bad\u001B[31mname', 'bad\u007Fname', 'bad\u0085name', 'bad\u202Ename', 'bad\u2028name']
   if (shell === 'fish') unsafeNames.push('bad\\nname', 'bad\\ename', 'bad\\x1bname', 'bad\\u001Bname')

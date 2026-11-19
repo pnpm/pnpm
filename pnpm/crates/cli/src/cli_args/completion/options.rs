@@ -130,7 +130,9 @@ fn path_base_directory(
     {
         return Ok(cwd);
     }
-    let selected = context.resolve_selected_directory(&cwd, home_dir)?;
+    let selected = context.resolve_selected_directory(&cwd, home_dir, |cwd| {
+        context.resolve_implicit_directory(cwd)
+    })?;
     let selected = if context.workspace_root {
         match find_workspace_root_dir(&selected) {
             Ok(root) => root,

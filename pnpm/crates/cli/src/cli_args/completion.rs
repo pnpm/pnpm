@@ -152,10 +152,13 @@ struct CompletionContext<'a> {
 }
 
 impl<'a> CompletionContext<'a> {
-    fn resolve_project_directory(&self) -> miette::Result<PathBuf> {
+    fn resolve_project_directory(
+        &self,
+        resolve_prefix: impl FnOnce(&Path) -> miette::Result<PathBuf>,
+    ) -> miette::Result<PathBuf> {
         let cwd = env::current_dir().into_diagnostic()?;
         let home_dir = pnpm_config::home_dir();
-        let directory = self.resolve_selected_directory(&cwd, home_dir.as_deref())?;
+        let directory = self.resolve_selected_directory(&cwd, home_dir.as_deref(), resolve_prefix)?;
         Ok(if self.workspace_root { find_workspace_root_dir(&directory)? } else { directory })
     }
 
@@ -163,6 +166,7 @@ impl<'a> CompletionContext<'a> {
         &self,
         cwd: &Path,
         home_dir: Option<&Path>,
+        resolve_prefix: impl FnOnce(&Path) -> miette::Result<PathBuf>,
     ) -> miette::Result<PathBuf> {
         match self.directory {
             Some(directory) => {
@@ -172,7 +176,7 @@ impl<'a> CompletionContext<'a> {
                 };
                 Ok(paths::resolve_directory_arg(cwd, dir_home, directory.path))
             }
-            None => self.resolve_implicit_directory(cwd),
+            None => resolve_prefix(cwd),
         }
     }
 
@@ -209,6 +213,20 @@ impl<'a> CompletionContext<'a> {
                 .map(|shell| (*shell).to_string())
                 .collect()),
             Some("run") => scripts::complete_scripts(self),
+            None if !self.has_positional => {
+                let mut commands = visible_subcommands(self.command);
+                // Built-in commands remain available when the manifest cannot be read.
+                let mut scripts = scripts::complete_scripts(self).unwrap_or_default();
+                scripts.retain(|script| {
+                    !script.is_empty()
+                        && !script.starts_with(['.', '-'])
+                        && !self.command
+                            .get_subcommands()
+                            .any(|command| command_matches(command, script))
+                });
+                commands.extend(scripts);
+                Ok(commands)
+            }
             _ => Ok(visible_subcommands(self.command)),
         }
     }
