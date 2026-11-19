@@ -38,12 +38,12 @@ impl Request {
         else {
             return Ok(None);
         };
-        let upload = destination.begin_blob_upload(key).await?;
+        let upload = destination.begin_blob_upload(key, self.identity.user_id()).await?;
         if let Err(refusal) =
             append_body(destination, &upload, body, self.state.inner.config.http.oci.max_blob_bytes)
                 .await
         {
-            destination.abort_blob_upload(upload.id()).await?;
+            destination.abort_blob_upload(&upload).await?;
             return Ok(Some(refusal.respond()));
         }
         Ok(Some(self.finish_upload(destination, upload, key, mount).await))
@@ -55,21 +55,22 @@ impl Request {
         if self.method != Method::POST {
             return method_not_allowed();
         }
-        let (key, namespace) = match self.publish_target(name).await {
-            Ok(target) => (target.key, target.namespace),
+        let target = match self.publish_target(name).await {
+            Ok(target) => target,
             Err(refusal) => return refusal.respond(),
         };
-        let storage = self.state.inner.storage.for_hosted(&namespace, ECOSYSTEM);
+        let storage = self.state.inner.storage.for_hosted(&target.namespace, ECOSYSTEM);
         if let (Some(mount), Some(from)) =
             (query_param(Some(&self.query), "mount"), query_param(Some(&self.query), "from"))
         {
-            match self.mount_blob(&storage, &key, &mount, &from).await {
+            match self.mount_blob(&storage, &target.key, &mount, &from).await {
                 Ok(Some(response)) => return response,
                 Ok(None) => {}
                 Err(err) => return registry_error(err),
             }
         }
-        let upload = match storage.begin_blob_upload(&key).await {
+        let upload = match storage.begin_blob_upload(&target.key, target.publisher.user_id()).await
+        {
             Ok(upload) => upload,
             Err(err) => return registry_error(err),
         };
@@ -77,19 +78,19 @@ impl Request {
             append_body(&storage, &upload, body, self.state.inner.config.http.oci.max_blob_bytes)
                 .await
         {
-            let _ = storage.abort_blob_upload(upload.id()).await;
+            let _ = storage.abort_blob_upload(&upload).await;
             return refusal.respond();
         }
         match self.digest.as_deref() {
-            Some(digest) => self.finish_upload(&storage, upload, &key, digest).await,
-            None => self.upload_progress(&key, &upload).await,
+            Some(digest) => self.finish_upload(&storage, upload, &target.key, digest).await,
+            None => self.upload_progress(&target.key, &upload).await,
         }
     }
 
     /// `PATCH`/`PUT`/`GET`/`DELETE /v2/<name>/blobs/uploads/<id>`.
     pub(super) async fn upload(&self, name: &str, id: &str, body: Body) -> Response {
-        let (key, namespace) = match self.session_target(name) {
-            Ok(target) => (target.key, target.namespace),
+        let target = match self.publish_target(name).await {
+            Ok(target) => target,
             Err(refusal) => return refusal.respond(),
         };
         // One upload is one sequence of bytes, so its requests are serialized:
@@ -97,17 +98,18 @@ impl Request {
         // and the promotion, would store bytes that are not the digest they
         // are stored under.
         let _guard = self.state.inner.locks.packages.lock(&upload_lock_key(id)).await;
-        let storage = self.state.inner.storage.for_hosted(&namespace, ECOSYSTEM);
-        let upload = match storage.open_blob_upload(&key, id).await {
-            Ok(Some(upload)) => upload,
-            Ok(None) => return error(ErrorCode::BlobUploadUnknown, "no such upload"),
-            Err(err) => return registry_error(err),
-        };
+        let storage = self.state.inner.storage.for_hosted(&target.namespace, ECOSYSTEM);
+        let upload =
+            match storage.open_blob_upload(&target.key, target.publisher.user_id(), id).await {
+                Ok(Some(upload)) => upload,
+                Ok(None) => return error(ErrorCode::BlobUploadUnknown, "no such upload"),
+                Err(err) => return registry_error(err),
+            };
         match self.method {
-            Method::PATCH => self.append_chunk(&storage, &key, &upload, body).await,
-            Method::PUT => self.complete_upload(&storage, key, upload, body).await,
-            Method::GET => self.upload_progress(&key, &upload).await,
-            Method::DELETE => match storage.abort_blob_upload(upload.id()).await {
+            Method::PATCH => self.append_chunk(&storage, &target.key, &upload, body).await,
+            Method::PUT => self.complete_upload(&storage, target.key, upload, body).await,
+            Method::GET => self.upload_progress(&target.key, &upload).await,
+            Method::DELETE => match storage.abort_blob_upload(&upload).await {
                 Ok(_) => no_content(StatusCode::NO_CONTENT),
                 Err(err) => registry_error(err),
             },
@@ -248,16 +250,22 @@ impl Request {
         digest: &str,
     ) -> Response {
         let Ok(digest) = Digest::parse(digest) else {
-            let _ = storage.abort_blob_upload(upload.id()).await;
+            let _ = storage.abort_blob_upload(&upload).await;
             return error(ErrorCode::DigestInvalid, "not a supported digest");
         };
         match hash_upload(&upload).await {
             Ok(actual) if actual == digest => {}
             Ok(_) => {
-                let _ = storage.abort_blob_upload(upload.id()).await;
+                let _ = storage.abort_blob_upload(&upload).await;
                 return error(ErrorCode::DigestInvalid, "uploaded bytes do not match the digest");
             }
             Err(err) => return registry_error(err),
+        }
+        if let Err(refusal) = self.publish_target(key.as_str()).await {
+            if refusal.status.is_client_error() {
+                let _ = storage.abort_blob_upload(&upload).await;
+            }
+            return refusal.respond();
         }
         let filename = digest.blob_filename();
         let id =
