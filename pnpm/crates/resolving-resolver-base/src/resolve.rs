@@ -254,6 +254,10 @@ pub struct VersionSelectionOptions {
     pub preferred_versions_overlay: Option<Arc<PreferredVersionsOverlay>>,
     pub default_tag: Option<String>,
     pub pick_lowest_version: bool,
+    /// The installed version [`Resolver::resolve_latest`] compares against.
+    /// With [`UpdateBehavior::Latest`], an installed prerelease adds the
+    /// dist-tag that follows its prerelease channel to the `latest` candidates.
+    pub latest_current_version: Option<node_semver::Version>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -266,10 +270,6 @@ pub struct ResolutionRefreshOptions {
     /// update, so the resolver picks again instead of reusing
     /// [`Self::current_pkg`] as it is.
     pub repick_current_version: bool,
-    /// The installed version [`Resolver::resolve_latest`] compares against.
-    /// With [`UpdateBehavior::Latest`], an installed prerelease adds the
-    /// dist-tag that follows its prerelease channel to the `latest` candidates.
-    pub latest_current_version: Option<node_semver::Version>,
     pub update: UpdateBehavior,
     pub refresh_metadata: bool,
     /// True only when this specific package matches the user's update
