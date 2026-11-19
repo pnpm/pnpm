@@ -861,8 +861,8 @@ fn load_importer_from_path_skips_package_and_snapshot_maps() {
     )
     .expect("write lockfile");
 
-    let ImporterLoad::Importer(Some(importer)) = Lockfile::load_importer_from_path(&path, ".")
-        .expect("read importer")
+    let ImporterLoad::Importer(Some(importer)) =
+        Lockfile::load_importer_from_path(&path, ".").expect("read importer")
     else {
         panic!("root importer present");
     };
