@@ -1,6 +1,6 @@
 ---
-"@pnpm/plugin-commands-installation": major
-"@pnpm/outdated": major
+"@pnpm/plugin-commands-installation": minor
+"pnpm": minor
 ---
 
-The `update` command adds the `long` option to be used together with the `interactive` option.
+Add `--long` to `pnpm update --interactive` to fetch and display package homepage or repository URLs. The URL column is hidden by default.
