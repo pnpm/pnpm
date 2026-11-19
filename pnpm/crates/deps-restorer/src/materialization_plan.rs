@@ -22,6 +22,72 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
+/// What a project's target Node.js version decides. [`target_node_version`]
+/// applies the order for each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetNodeUse {
+    /// `engines.node` and installability checks: the `nodeVersion` setting,
+    /// then the root project's runtime pin, then the host.
+    Compatibility,
+    /// Global virtual store directory names and the side-effects cache key:
+    /// the root project's runtime pin, then the host. `nodeVersion` does not
+    /// apply, because dependency build scripts run on the pinned runtime or
+    /// the host.
+    Execution,
+}
+
+/// The Node.js version a project targets for `use_kind`.
+#[must_use]
+pub fn target_node_version<'a>(
+    use_kind: TargetNodeUse,
+    config_node_version: Option<&'a str>,
+    runtime_pin: Option<&'a str>,
+    host_node_version: Option<&'a str>,
+) -> Option<&'a str> {
+    match use_kind {
+        TargetNodeUse::Compatibility => config_node_version.or(runtime_pin).or(host_node_version),
+        TargetNodeUse::Execution => runtime_pin.or(host_node_version),
+    }
+}
+
+/// The major of [`target_node_version`].
+#[must_use]
+pub fn target_node_major(
+    use_kind: TargetNodeUse,
+    config_node_version: Option<&str>,
+    runtime_pin: Option<&str>,
+    host_node_version: Option<&str>,
+) -> Option<u32> {
+    target_node_version(use_kind, config_node_version, runtime_pin, host_node_version)
+        .and_then(parse_major_from_version)
+}
+
+/// The engine name an installed lockfile's store slots key on, by
+/// [`TargetNodeUse::Execution`]. The lockfile's root runtime pin wins over
+/// `manifest_runtime_pin`; without either, the host is probed.
+#[must_use]
+pub fn lockfile_engine_name(
+    importers: &HashMap<String, ProjectSnapshot>,
+    manifest_runtime_pin: Option<&str>,
+) -> Option<String> {
+    let lockfile_pin = find_root_runtime_node_version(importers);
+    let runtime_pin = lockfile_pin.as_deref().or(manifest_runtime_pin);
+    target_node_major(TargetNodeUse::Execution, None, runtime_pin, None)
+        .or_else(pnpm_graph_hasher::detect_node_major)
+        .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
+}
+
+/// The host Node that keys store slots under [`TargetNodeUse::Execution`].
+/// `None` when the `nodeVersion` setting replaced the probed version, so
+/// [`resolve_engine_name`] probes the real host.
+#[must_use]
+pub fn execution_host_node(host: Option<&InstallabilityHost>, config: &Config) -> Option<HostNode> {
+    if config.node_version.is_some() {
+        return None;
+    }
+    host.map(HostNode::from)
+}
+
 /// The host Node, reduced to what the phases after the installability
 /// check still need.
 #[derive(Debug, Clone)]
@@ -254,8 +320,9 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     Ok(skipped)
 }
 
-/// `host` with its Node.js version set to the one the root project's
-/// runtime dependency is locked to, unless `nodeVersion` is configured.
+/// `host` with its Node.js version set by [`TargetNodeUse::Compatibility`].
+/// A configured `nodeVersion` is already the host's version, normalized by
+/// [`InstallabilityHost::detect_with`].
 #[must_use]
 pub fn with_locked_runtime_node(
     host: Option<&InstallabilityHost>,
@@ -263,14 +330,17 @@ pub fn with_locked_runtime_node(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<InstallabilityHost> {
     let host = host?.clone();
-    let locked_node_version = config.node_version
-        .is_none()
-        .then(|| find_root_runtime_node_version(importers))
-        .flatten();
-    Some(match locked_node_version {
-        Some(node_version) => InstallabilityHost { node_version, ..host },
-        None => host,
-    })
+    let runtime_pin = find_root_runtime_node_version(importers);
+    let configured = config.node_version.is_some().then_some(host.node_version.as_str());
+    let node_version = target_node_version(
+        TargetNodeUse::Compatibility,
+        configured,
+        runtime_pin.as_deref(),
+        Some(&host.node_version),
+    )
+    .unwrap_or(&host.node_version)
+    .to_owned();
+    Some(InstallabilityHost { node_version, ..host })
 }
 
 /// A `node --version` probe still in flight or skipped at planning time.
@@ -410,12 +480,12 @@ pub fn engine_name_from_runtime_pin(
 }
 
 /// Resolve the engine name that keys the install's store slots and the
-/// side-effects-cache prefix.
+/// side-effects-cache prefix, by [`TargetNodeUse::Execution`].
 ///
 /// The root project's `node@runtime:` pin wins outright, so pinned and
 /// non-pinned installs on the same host share one store rather than
 /// splitting it under whatever `node --version` the shell reports. Then
-/// the already-detected host, then a probe.
+/// the already-detected host (see [`execution_host_node`]), then a probe.
 ///
 /// The probe comes back as a still-running [`DeferredEngineName`] so it
 /// overlaps the virtual-store I/O — except under the global virtual

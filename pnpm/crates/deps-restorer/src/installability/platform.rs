@@ -60,9 +60,10 @@ impl InstallabilityHost {
     /// optional Node.js version override (the `engineStrict` / `nodeVersion`
     /// config settings).
     ///
-    /// An explicit `node_version` is authoritative: no `node --version` probe
-    /// runs and `node_detected` is `true`, so the side-effects cache keys off
-    /// the pinned major exactly as it would off a detected one. A leading `v`
+    /// An explicit `node_version` is authoritative for installability checks:
+    /// no `node --version` probe runs and `node_detected` is `true`. Store
+    /// keys ignore a `nodeVersion` setting passed here; see
+    /// [`execution_host_node`](crate::materialization_plan::execution_host_node). A leading `v`
     /// (as in `process.version` / `node --version`, e.g. `v22.11.0`) is
     /// stripped so the value parses as exact semver, matching the auto-detect
     /// path. `None` falls back to [`Self::detect`], then overrides

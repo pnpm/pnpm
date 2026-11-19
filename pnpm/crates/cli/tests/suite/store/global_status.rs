@@ -57,7 +57,7 @@ fn store_status_checks_global_packages_without_optional_dependencies() {
 }
 
 #[test]
-fn store_status_reports_unverifiable_global_slots_after_node_version_changes() {
+fn store_status_finds_global_slots_after_node_version_changes() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
     } = CommandTempCwd::init().add_mocked_registry();
@@ -69,14 +69,10 @@ fn store_status_reports_unverifiable_global_slots_after_node_version_changes() {
     let settings = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&settings).unwrap();
     fs::write(&settings, yaml.replace("22.0.0", "24.0.0")).unwrap();
-    let output = pacquet_at(&workspace)
+    pacquet_at(&workspace)
         .args(["store", "status"])
-        .output()
-        .unwrap();
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success());
-    assert!(stderr.contains("ERR_PNPM_STORE_STATUS_UNVERIFIABLE"), "{stderr}");
-    assert!(!stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"));
+        .assert()
+        .success();
 }
 
 #[test]

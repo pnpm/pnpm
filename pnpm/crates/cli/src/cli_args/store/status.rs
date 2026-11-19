@@ -152,13 +152,7 @@ fn installed_layout(
     }) as usize;
     let layout = if config.enable_global_virtual_store {
         let policy = installed_build_policy(config, modules_manifest)?;
-        virtual_store_layout_for_lockfile(
-            config,
-            config.node_version.as_deref(),
-            lockfile,
-            Some(&policy),
-            Some(lockfile_dir),
-        )
+        virtual_store_layout_for_lockfile(config, None, lockfile, Some(&policy), Some(lockfile_dir))
     } else {
         VirtualStoreLayout::legacy(virtual_store_dir, max_length)
     };

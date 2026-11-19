@@ -19,38 +19,30 @@ fn project_runtime_from_json5_selects_the_license_store_slot() {
     let mut config = Config {
         enable_global_virtual_store: true,
         global_virtual_store_dir: dir.path().join("store/links"),
-        node_version: Some("18.0.0".to_owned()),
         ..Config::default()
     };
     config.allow_builds.insert("native".to_owned(), true);
-    let expected = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
+    let slot_dir = |config: &Config| {
+        super::lockfiles::lockfile_layout(config, dir.path(), dir.path(), &lockfile)
+            .unwrap()
+            .slot_dir(&key)
+    };
+    let host = slot_dir(&config);
     config.node_version = Some("20.0.0".to_owned());
-    let other = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    dbg!(&expected, &other);
-    assert_ne!(expected, other);
-    config.node_version = None;
+    assert_eq!(slot_dir(&config), host, "nodeVersion does not move the store slot");
     std::fs::write(
         dir.path().join("package.json5"),
         "{devEngines: {runtime: {name: 'node', version: '18.0.0'}}}",
     )
     .unwrap();
-    let actual = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    assert_eq!(actual, expected);
+    let pinned_18 = slot_dir(&config);
     std::fs::write(
         dir.path().join("package.json"),
         r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0"}}}"#,
     )
     .unwrap();
-    let preferred = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    assert_eq!(preferred, other);
+    let pinned_20 = slot_dir(&config);
+    assert_ne!(pinned_18, pinned_20, "package.json wins over package.json5");
 }
 
 #[test]
