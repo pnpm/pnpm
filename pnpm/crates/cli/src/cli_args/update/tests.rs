@@ -242,7 +242,7 @@ fn long_requests_details_only_when_enabled() {
         [(vec!["--interactive"], false), (vec!["--interactive", "--long"], true)]
     {
         let args = update_args(&flags);
-        let options = args.interactive_options(&[], false);
+        let options = args.interactive_options(&[], false, &[]);
         assert_eq!(options.details.shows_urls(), expected);
     }
 }

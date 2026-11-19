@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import { isSubdir } from 'is-subdir'
-import YAML, { isMap, isNode, isScalar, isSeq, type Node, type Scalar, type YAMLMap } from 'yaml'
+import YAML, { type Document, isAlias, isMap, isNode, isScalar, isSeq, type Node, type Scalar, type YAMLMap } from 'yaml'
 
 import { getCommentVersionToken } from './commentVersion.js'
 import { isErrorCode, workflowError } from './errors.js'
@@ -75,7 +75,7 @@ function collectWorkflowReferences (realFilePath: string, source: string): Workf
   if (document.errors.length > 0) throw workflowError('PARSE', realFilePath, document.errors[0])
   const file = { path: realFilePath }
   const references: WorkflowReferences = { actions: [], localReferences: [] }
-  for (const node of findUsesScalars(document.contents)) {
+  for (const node of findUsesScalars(document, document.contents)) {
     const localReference = parseLocalReference(node.value)
     if (localReference != null) {
       references.localReferences.push(localReference)
@@ -107,49 +107,88 @@ function createActionReference ({ file, node, parsed, source }: {
   }
 }
 
-function findUsesScalars (node: Node | null | undefined): Array<Scalar<string>> {
-  if (!isMap(node)) return []
-  const found: Array<Scalar<string>> = []
-  const jobs = findMapValue(node, 'jobs')
-  if (isMap(jobs)) {
-    found.push(...findJobsUses(jobs))
-  }
-  const runs = findMapValue(node, 'runs')
-  if (isMap(runs)) {
-    found.push(...findStepUses(findMapValue(runs, 'steps')))
-  }
-  return found
+const MAX_MERGE_DEPTH = 8
+
+interface MapLookupContext {
+  document: Document
+  key: string
+  visited: Set<YAMLMap>
 }
 
-function findJobsUses (jobs: YAMLMap): Array<Scalar<string>> {
+function findUsesScalars (document: Document, root: Node | null | undefined): Array<Scalar<string>> {
+  const resolvedRoot = derefNode(document, root)
+  if (!isMap(resolvedRoot)) return []
+  const found: Array<Scalar<string>> = []
+  const jobs = findMapValue(document, resolvedRoot, 'jobs')
+  if (isMap(jobs)) {
+    found.push(...findJobsUses(document, jobs))
+  }
+  const runs = findMapValue(document, resolvedRoot, 'runs')
+  if (isMap(runs)) {
+    found.push(...findStepUses(document, findMapValue(document, runs, 'steps')))
+  }
+  return [...new Set(found)]
+}
+
+function findJobsUses (document: Document, jobs: YAMLMap): Array<Scalar<string>> {
   const found: Array<Scalar<string>> = []
   for (const job of jobs.items) {
-    if (!isMap(job.value)) continue
-    const jobUses = findStringScalar(job.value, 'uses')
+    const jobValue = derefNode(document, job.value)
+    if (!isMap(jobValue)) continue
+    const jobUses = findStringScalar(document, jobValue, 'uses')
     if (jobUses != null) found.push(jobUses)
-    found.push(...findStepUses(findMapValue(job.value, 'steps')))
+    found.push(...findStepUses(document, findMapValue(document, jobValue, 'steps')))
   }
   return found
 }
 
-function findStepUses (node: Node | null): Array<Scalar<string>> {
-  if (!isSeq(node)) return []
-  return node.items.flatMap((item) => {
-    if (!isMap(item)) return []
-    const uses = findStringScalar(item, 'uses')
+function findStepUses (document: Document, node: Node | null): Array<Scalar<string>> {
+  const resolved = derefNode(document, node)
+  if (!isSeq(resolved)) return []
+  return resolved.items.flatMap((item) => {
+    const step = derefNode(document, isNode(item) ? item : null)
+    if (!isMap(step)) return []
+    const uses = findStringScalar(document, step, 'uses')
     return uses == null ? [] : [uses]
   })
 }
 
-function findMapValue (node: Node, key: string): Node | null {
-  if (!isMap(node)) return null
-  const value = node.items.find((pair) => isScalar(pair.key) && pair.key.value === key)?.value
-  return isNode(value) ? value : null
+function derefNode (document: Document, node: unknown): Node | null {
+  let current: unknown = node
+  for (let hop = 0; hop < MAX_MERGE_DEPTH && isAlias(current); hop++) {
+    current = current.resolve(document)
+  }
+  return isNode(current) && !isAlias(current) ? current : null
 }
 
-function findStringScalar (node: Node, key: string): Scalar<string> | null {
-  const value = findMapValue(node, key)
+function findStringScalar (document: Document, node: Node, key: string): Scalar<string> | null {
+  const value = findMapValue(document, node, key)
   return isScalar(value) && typeof value.value === 'string' ? value as Scalar<string> : null
+}
+
+function findMapValue (document: Document, node: Node, key: string): Node | null {
+  return lookupMapValue({ document, key, visited: new Set<YAMLMap>() }, node, 0)
+}
+
+function lookupMapValue (context: MapLookupContext, node: Node, depth: number): Node | null {
+  if (!isMap(node) || context.visited.has(node)) return null
+  context.visited.add(node)
+  const directPair = node.items.find((pair) => isScalar(pair.key) && pair.key.value === context.key)
+  if (directPair !== undefined) return derefNode(context.document, directPair.value)
+  if (depth >= MAX_MERGE_DEPTH) return null
+  return lookupMergedValue(context, node, depth + 1)
+}
+
+function lookupMergedValue (context: MapLookupContext, node: YAMLMap, depth: number): Node | null {
+  const merged = derefNode(context.document, node.items.find((pair) => isScalar(pair.key) && pair.key.value === '<<')?.value)
+  if (isMap(merged)) return lookupMapValue(context, merged, depth)
+  if (!isSeq(merged)) return null
+  for (const entry of merged.items) {
+    const entryMap = derefNode(context.document, entry)
+    const found = entryMap != null ? lookupMapValue(context, entryMap, depth) : null
+    if (found != null) return found
+  }
+  return null
 }
 
 /**

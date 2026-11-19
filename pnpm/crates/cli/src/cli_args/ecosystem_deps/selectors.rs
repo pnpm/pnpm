@@ -52,10 +52,7 @@ pub(crate) fn validate_ecosystem_selectors(selectors: &[String], config: &Config
 /// Whether every selector is negated, so the update covers every dependency
 /// of every ecosystem except the named ones.
 pub(crate) fn excludes_only(selectors: &[String]) -> bool {
-    !selectors.is_empty()
-        && selectors
-            .iter()
-            .all(|selector| selector.starts_with('!'))
+    !selectors.is_empty() && !pnpm_matcher::has_include_pattern(selectors)
 }
 
 /// A negated bare pattern already selects the rest through the bare matcher.
@@ -97,7 +94,7 @@ pub(crate) fn patterns_for_ecosystem(
     for raw in packages {
         push_selector_pattern(raw, kind, &mut out)?;
     }
-    Ok(out)
+    Ok(pnpm_matcher::prune_orphan_ignores(out, packages))
 }
 
 fn push_selector_pattern(
@@ -105,9 +102,17 @@ fn push_selector_pattern(
     kind: EcosystemFilterKind,
     out: &mut Vec<String>,
 ) -> Result<()> {
-    let (negated, raw) = raw
-        .strip_prefix('!')
-        .map_or((false, raw), |raw| (true, raw));
+    let (negated, raw) = match raw.strip_prefix('!') {
+        Some(stripped) => (true, stripped),
+        None => (false, raw),
+    };
+    if raw.starts_with('@') {
+        match kind {
+            EcosystemFilterKind::Node => out.push(format_pattern(negated, raw)),
+            EcosystemFilterKind::Cargo | EcosystemFilterKind::Python => {}
+        }
+        return Ok(());
+    }
     if let Some(rest) = raw.strip_prefix("crate:") {
         return push_prefixed_pattern(rest, kind, EcosystemFilterKind::Cargo, negated, out);
     }
@@ -230,17 +235,18 @@ pub(crate) fn parse_update_selectors(
     validate_ecosystem_selectors(packages, config)?;
     let mut parsed = ParsedUpdateSelectors::default();
     for raw in packages {
-        let (selector, mode) = raw
-            .strip_prefix('!')
-            .map_or((raw.as_str(), SelectorMode::Include), |selector| {
-                (selector, SelectorMode::Exclude)
-            });
+        let (selector, mode) = match raw.strip_prefix('!') {
+            Some(selector) => (selector, SelectorMode::Exclude),
+            None => (raw.as_str(), SelectorMode::Include),
+        };
         if is_cargo_prefixed(selector) || is_python_prefixed(selector) || is_purl(selector) {
             parse_prefixed_update_selector(selector, mode, &mut parsed)?;
         } else {
             parse_bare_update_selector(raw, &mut parsed);
         }
     }
+    parsed.node_selectors = pnpm_matcher::prune_orphan_ignores(parsed.node_selectors, packages);
+    parsed.bare_patterns = pnpm_matcher::prune_orphan_ignores(parsed.bare_patterns, packages);
     Ok(parsed)
 }
 
@@ -313,41 +319,51 @@ fn push_python_update_selector(
     mode: SelectorMode,
     parsed: &mut ParsedUpdateSelectors,
 ) -> Result<()> {
-    let parsed_req = pnpm_python_resolver::parse_requirement(req)?;
     match mode {
-        SelectorMode::Include => {
-            if matches!(
-                parsed_req.version_or_url,
-                Some(pnpm_python_installer::VersionOrUrl::Url(_)),
-            ) {
-                miette::bail!(
-                    "direct URL requirements are not supported by pnpm update; use pnpm add instead",
-                );
-            }
-            let version_spec = parsed_req.version_or_url.as_ref().map(ToString::to_string);
-            parsed.python_requests.push(PythonUpdateSelector {
-                name: parsed_req.name.to_string(),
-                version_spec,
-                explicit: true,
-            });
+        SelectorMode::Exclude => {
+            parsed.python_exclusions.push(python_pattern_name(req)?);
+            return Ok(());
         }
-        SelectorMode::Exclude => parsed.python_exclusions.push(parsed_req.name.to_string()),
+        SelectorMode::Include => {}
     }
+    let parsed_req = pnpm_python_resolver::parse_requirement(req)?;
+    if matches!(parsed_req.version_or_url, Some(pnpm_python_installer::VersionOrUrl::Url(_))) {
+        miette::bail!(
+            "direct URL requirements are not supported by pnpm update; use pnpm add instead",
+        );
+    }
+    let version_spec = parsed_req.version_or_url.as_ref().map(ToString::to_string);
+    parsed.python_requests.push(PythonUpdateSelector {
+        name: parsed_req.name.to_string(),
+        version_spec,
+        explicit: true,
+    });
     Ok(())
 }
 
 fn parse_bare_update_selector(raw: &str, parsed: &mut ParsedUpdateSelectors) {
     parsed.node_selectors.push(raw.to_string());
-    if raw.starts_with('@') {
+    let unnegated = raw.strip_prefix('!').unwrap_or(raw);
+    if unnegated.starts_with('@') {
         return;
     }
-    if raw.contains('*') || raw.starts_with('!') {
+    if let Some(excluded) = raw.strip_prefix('!') {
+        let bare_name = strip_version_suffix(excluded);
+        parsed.cargo_exclusions.push(bare_name.to_string());
+        if let Ok(py_name) = python_pattern_name(excluded) {
+            parsed.python_exclusions.push(py_name);
+        }
         parsed.bare_patterns.push(raw.to_string());
         return;
     }
-    let (name, spec) = raw
-        .rsplit_once('@')
-        .map_or((raw, None), |(name, ver)| (name, Some(ver.to_string())));
+    if raw.contains('*') {
+        parsed.bare_patterns.push(raw.to_string());
+        return;
+    }
+    let (name, spec) = match raw.rsplit_once('@') {
+        Some((name, ver)) => (name, Some(ver.to_string())),
+        None => (raw, None),
+    };
     parsed.cargo_requests.push(CargoUpdateSelector {
         name: name.to_string(),
         version_spec: spec.clone(),

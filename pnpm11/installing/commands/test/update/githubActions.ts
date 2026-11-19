@@ -117,3 +117,36 @@ test('update with a negated action selector still updates npm dependencies', asy
   const lockfile = fs.readFileSync(path.join(process.cwd(), 'pnpm-lock.yaml'), 'utf8')
   expect(lockfile).toContain('100.1.0')
 })
+
+test('update with a positive action selector and negated package selector skips npm updates', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+  })
+  await handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/foo@100.0.0'])
+
+  const manifestPath = path.join(process.cwd(), 'package.json')
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    name: 'project',
+    version: '0.0.0',
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  }, null, 2))
+
+  await handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    includeGithubActions: true,
+  }, ['actions/checkout', '!@pnpm.e2e/foo'])
+
+  expect(updateGitHubActions).toHaveBeenCalledTimes(1)
+  const lockfile = fs.readFileSync(path.join(process.cwd(), 'pnpm-lock.yaml'), 'utf8')
+  expect(lockfile).not.toContain('100.1.0')
+})

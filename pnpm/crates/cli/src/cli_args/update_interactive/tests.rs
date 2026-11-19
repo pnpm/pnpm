@@ -1,13 +1,18 @@
 mod long;
 mod named_registry;
+mod selectors;
 
 use super::{
     ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdateDetails,
-    UpdatePrompt, collect_choices, dependencies_prompt_message,
+    UpdatePrompt, dependencies_prompt_message,
+    gather::{ChoiceFilter, collect_filtered_choices},
 };
 use crate::{
     checkbox_prompt::KeyOutcome,
-    cli_args::{outdated::TrustChange, update::UpdateArgs},
+    cli_args::{
+        outdated::{OutdatedPackage, TrustChange},
+        update::UpdateArgs,
+    },
 };
 use clap::Parser;
 use pnpm_config::Config;
@@ -30,6 +35,25 @@ const TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 /// The default release-age policy fetches abbreviated metadata, then upgrades
 /// it to full metadata when this test fixture omits publish times.
 const RELEASE_AGE_METADATA_REQUESTS: usize = 2;
+
+pub(super) async fn collect_choices(
+    projects: &[InteractiveUpdateProject<'_>],
+    lockfile: Option<&Lockfile>,
+    config: &Config,
+    http_client: &Arc<ThrottledClient>,
+    target_version: TargetVersion<'_>,
+    include_direct: &[DependencyGroup],
+    details: UpdateDetails,
+) -> miette::Result<Vec<OutdatedPackage>> {
+    collect_filtered_choices(
+        projects,
+        lockfile,
+        config,
+        http_client,
+        ChoiceFilter { target_version, include_direct, details, package_selectors: &[] },
+    )
+    .await
+}
 
 #[tokio::test]
 async fn interactive_choices_respect_minimum_release_age() {
@@ -964,10 +988,9 @@ impl UpdateFixture {
             #[clap(flatten)]
             args: UpdateArgs,
         }
+        assert_eq!(args.first(), Some(&"update"));
         let mut parsed =
-            Harness::try_parse_from(std::iter::once("pacquet-test").chain(args.iter().copied()))
-                .expect("parse update arguments")
-                .args;
+            Harness::try_parse_from(args.iter().copied()).expect("parse update arguments").args;
         parsed.prompt = UpdatePrompt::Scripted;
         let state = crate::State::init(self.project.join("package.json"), self.config, false)
             .expect("initialize the state");

@@ -544,6 +544,7 @@ async fn rejects_a_server_url_that_is_not_http() {
     assert!(error.to_string().contains("must use HTTPS, except for HTTP on loopback hosts"));
 }
 
+mod anchors;
 mod concurrent_edits;
 mod release_age;
 mod selectors_and_comments;

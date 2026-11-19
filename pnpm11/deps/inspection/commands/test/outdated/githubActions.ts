@@ -101,6 +101,26 @@ test('outdated with negated action selector still checks npm dependencies and fi
   expect(match?.('actions/checkout')).toBe(true)
 })
 
+test('outdated with positive action selector and negated package selector skips npm dependencies', async () => {
+  tempDir()
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  writeWorkflow()
+
+  const result = await handler({
+    ...DEFAULT_OUTDATED_OPTS,
+    dir: process.cwd(),
+    includeGithubActions: true,
+  }, ['actions/checkout', '!is-negative'])
+
+  expect(result.exitCode).toBe(0)
+  expect(result.output).toBe('')
+  const match = jest.mocked(findOutdatedGitHubActions).mock.calls[0]?.[0]?.match
+  expect(match?.('actions/checkout')).toBe(true)
+  expect(match?.('actions/cache')).toBe(false)
+})
+
 function writeWorkflow (): void {
   fs.mkdirSync(path.join('.github', 'workflows'), { recursive: true })
   fs.writeFileSync(path.join('.github', 'workflows', 'ci.yml'), `jobs:

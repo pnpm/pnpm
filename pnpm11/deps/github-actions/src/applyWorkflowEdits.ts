@@ -49,8 +49,8 @@ async function editWorkflowFile (file: ActionFile, replacements: WorkflowEdit[])
   if (!replacements.every(({ originalValue, range }) => isUnchanged(source, range, originalValue))) {
     throw new PnpmError('GITHUB_ACTIONS_WORKFLOW_CHANGED', `GitHub Actions workflow ${file.path} changed while resolving updates; retry the command`)
   }
-  replacements.sort((left, right) => right.range[0] - left.range[0])
-  for (const replacement of replacements) {
+  const uniqueReplacements = dedupeReplacements(replacements, file.path)
+  for (const replacement of uniqueReplacements) {
     source = source.slice(0, replacement.range[0]) + replacement.value + source.slice(replacement.range[1])
   }
   try {
@@ -62,6 +62,22 @@ async function editWorkflowFile (file: ActionFile, replacements: WorkflowEdit[])
 
 function isUnchanged (source: string, [start, end]: readonly [number, number], originalValue: string): boolean {
   return start >= 0 && start <= end && end <= source.length && source.slice(start, end) === originalValue
+}
+
+function dedupeReplacements (replacements: WorkflowEdit[], filePath: string): WorkflowEdit[] {
+  const sorted = [...replacements].sort((left, right) => right.range[0] - left.range[0] || right.range[1] - left.range[1])
+  const unique: WorkflowEdit[] = []
+  for (const edit of sorted) {
+    const previous = unique[unique.length - 1]
+    if (previous != null && previous.range[0] === edit.range[0] && previous.range[1] === edit.range[1] && previous.value === edit.value) {
+      continue
+    }
+    if (previous != null && ((previous.range[0] === edit.range[0] && previous.range[1] === edit.range[1]) || edit.range[1] > previous.range[0])) {
+      throw new PnpmError('GITHUB_ACTIONS_OVERLAPPING_EDITS', `GitHub Actions workflow ${filePath} has conflicting overlapping edits`)
+    }
+    unique.push(edit)
+  }
+  return unique
 }
 
 function renderTargetValue (action: ActionReference, currentVersion: semver.SemVer, target: RepoVersion): string {

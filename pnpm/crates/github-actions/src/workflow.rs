@@ -211,9 +211,12 @@ struct UsesValue<'a> {
 fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
     let value = parse_workflow(text)?;
     let document = Document::new(text)?;
+    let mut seen_ranges = HashSet::new();
     let mut values = Vec::new();
     for route in uses_routes(&value) {
-        if let Some(uses) = uses_value_at(text, &document, &route)? {
+        if let Some(uses) = uses_value_at(text, &document, &route)?
+            && seen_ranges.insert(uses.range.clone())
+        {
             values.push(uses);
         }
     }
@@ -223,9 +226,10 @@ fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
 fn parse_workflow(text: &str) -> Result<Value, QueryError> {
     yaml_serde::from_str::<Value>(text)
         .map_err(|err| {
-            let (line, column) = err
-                .location()
-                .map_or((0, 0), |loc| (loc.line(), loc.column()));
+            let (line, column) = match err.location() {
+                Some(loc) => (loc.line(), loc.column()),
+                None => (0, 0),
+            };
             QueryError::InvalidInput(line, column)
         })
 }
@@ -237,23 +241,95 @@ fn uses_value_at<'text>(
     document: &Document,
     route: &Route<'_>,
 ) -> Result<Option<UsesValue<'text>>, QueryError> {
-    let Some(feature) = document.query_exact(route)? else {
+    let Some(feature) = (match document.query_exact(route) {
+        Ok(feature) => feature,
+        Err(QueryError::ExhaustedMapping(_) | QueryError::UnexpectedNode(_)) => return Ok(None),
+        Err(error) => return Err(error),
+    }) else {
         return Ok(None);
     };
-    let key = document.query_key_only(route)?;
+    let key = match document.query_key_only(route) {
+        Ok(key) => key,
+        Err(QueryError::ExhaustedMapping(_) | QueryError::UnexpectedNode(_)) => return Ok(None),
+        Err(error) => return Err(error),
+    };
     let (start, scalar_end) = feature.location.byte_span;
-    let separator = start
-        .checked_sub(key.location.byte_span.1)
-        .map(|_| &text[key.location.byte_span.1..start]);
-    if separator.is_none_or(|separator| {
-        !separator.starts_with(':') || !separator[1..].chars().all(char::is_whitespace)
-    }) {
+    let (Some(before_start), Some(raw_scalar), Some(end_info)) =
+        (text.get(..start), text.get(start..scalar_end), uses_scalar_end(text, scalar_end))
+    else {
+        return Ok(None);
+    };
+    let line_start = before_start
+        .rfind('\n')
+        .map(|line_break| line_break + 1)
+        .unwrap_or(0);
+    if !is_inline_uses_target(
+        text,
+        key.location.byte_span.1,
+        start,
+        raw_scalar,
+        &before_start[line_start..],
+    ) {
         return Ok(None);
     }
-    let line_end = text[scalar_end..]
+    let Some(value) = text.get(start..end_info.end) else {
+        return Ok(None);
+    };
+    Ok(Some(UsesValue {
+        flow_style: end_info.flow_style,
+        indentation: " ".repeat(start - line_start),
+        range: start..end_info.end,
+        value,
+    }))
+}
+
+fn is_inline_uses_target(
+    text: &str,
+    key_end: usize,
+    start: usize,
+    raw_scalar: &str,
+    line_prefix: &str,
+) -> bool {
+    if raw_scalar.contains('\n') || raw_scalar.starts_with(['|', '>']) {
+        return false;
+    }
+    text.get(key_end..start)
+        .is_some_and(is_inline_uses_separator)
+        || has_trailing_anchor(line_prefix)
+}
+
+fn is_inline_uses_separator(separator: &str) -> bool {
+    let Some(after_colon) = separator.strip_prefix(':') else {
+        return false;
+    };
+    after_colon.chars().all(char::is_whitespace)
+        || (after_colon.trim_start().starts_with('&') && has_trailing_anchor(after_colon))
+}
+
+fn has_trailing_anchor(prefix: &str) -> bool {
+    let Some((_, after_amp)) = prefix.rsplit_once('&') else {
+        return false;
+    };
+    let anchor_len = after_amp
+        .find(|character: char| {
+            character.is_whitespace() || matches!(character, '[' | ']' | '{' | '}' | ',')
+        })
+        .unwrap_or(0);
+    anchor_len > 0 && after_amp[anchor_len..].chars().all(char::is_whitespace)
+}
+
+struct UsesScalarEnd {
+    end: usize,
+    flow_style: bool,
+}
+
+fn uses_scalar_end(text: &str, scalar_end: usize) -> Option<UsesScalarEnd> {
+    let after_scalar = text.get(scalar_end..)?;
+    let line_end = after_scalar
         .find('\n')
-        .map_or(text.len(), |end| scalar_end + end);
-    let trailing = &text[scalar_end..line_end];
+        .map(|end| scalar_end + end)
+        .unwrap_or(text.len());
+    let trailing = text.get(scalar_end..line_end)?;
     let following = trailing.trim_start();
     let flow_style = matches!(following.chars().next(), Some('}' | ']' | ','));
     let end = if following.starts_with('#') {
@@ -263,66 +339,92 @@ fn uses_value_at<'text>(
     } else {
         scalar_end
     };
-    let line_start = text[..start]
-        .rfind('\n')
-        .map_or(0, |line_break| line_break + 1);
-    Ok(Some(UsesValue {
-        flow_style,
-        indentation: " ".repeat(start - line_start),
-        range: start..end,
-        value: &text[start..end],
-    }))
+    Some(UsesScalarEnd { end, flow_style })
 }
+
+const MAX_MERGE_DEPTH: usize = 8;
 
 fn uses_routes(value: &Value) -> Vec<Route<'static>> {
     let mut routes = Vec::new();
     if let Some(jobs) = value.get("jobs").and_then(Value::as_mapping) {
-        for (name, job) in jobs {
-            let Some(name) = name.as_str() else { continue };
-            if job
-                .get("uses")
-                .and_then(Value::as_str)
-                .is_some()
-            {
-                routes.push(Route::from(vec![
-                    "jobs".into(),
-                    name.to_string().into(),
-                    "uses".into(),
-                ]));
-            }
-            add_step_routes(
-                &mut routes,
-                job.get("steps"),
-                &["jobs".into(), name.to_string().into(), "steps".into()],
-            );
-        }
+        add_job_routes(&mut routes, jobs);
     }
-    add_step_routes(
-        &mut routes,
-        value
-            .get("runs")
-            .and_then(|runs| runs.get("steps")),
-        &["runs".into(), "steps".into()],
-    );
+    if let Some(runs) = value.get("runs")
+        && let Some((steps, step_prefix)) = find_key_in_mapping(runs, "steps", &["runs".into()], 0)
+    {
+        add_step_routes(&mut routes, steps, &step_prefix);
+    }
     routes
 }
 
-fn add_step_routes(
-    routes: &mut Vec<Route<'static>>,
-    steps: Option<&Value>,
-    prefix: &[Component<'static>],
-) {
-    let Some(steps) = steps.and_then(Value::as_sequence) else { return };
-    for (index, step) in steps.iter().enumerate() {
-        if step
-            .get("uses")
-            .and_then(Value::as_str)
-            .is_none()
-        {
-            continue;
+fn add_job_routes(routes: &mut Vec<Route<'static>>, jobs: &yaml_serde::Mapping) {
+    for (name, job) in jobs {
+        let Some(name) = name.as_str() else { continue };
+        let prefix = ["jobs".into(), name.to_string().into()];
+        if let Some(route) = find_uses_route(job, &prefix) {
+            routes.push(route);
         }
-        let mut route = prefix.to_owned();
-        route.extend([index.into(), "uses".into()]);
-        routes.push(Route::from(route));
+        if let Some((steps, step_prefix)) = find_key_in_mapping(job, "steps", &prefix, 0) {
+            add_step_routes(routes, steps, &step_prefix);
+        }
+    }
+}
+
+fn find_uses_route(mapping: &Value, prefix: &[Component<'static>]) -> Option<Route<'static>> {
+    find_key_in_mapping(mapping, "uses", prefix, 0)
+        .filter(|(val, _)| val.is_string())
+        .map(|(_, path)| Route::from(path))
+}
+
+fn find_key_in_mapping<'value>(
+    mapping: &'value Value,
+    key: &'static str,
+    prefix: &[Component<'static>],
+    depth: usize,
+) -> Option<(&'value Value, Vec<Component<'static>>)> {
+    if let Some(found) = mapping.get(key) {
+        let mut path = prefix.to_owned();
+        path.push(key.into());
+        return Some((found, path));
+    }
+    if depth >= MAX_MERGE_DEPTH {
+        return None;
+    }
+    find_in_merged_mappings(mapping, prefix, |merged, merged_prefix| {
+        find_key_in_mapping(merged, key, &merged_prefix, depth + 1)
+    })
+}
+
+fn find_in_merged_mappings<'value, Found>(
+    mapping: &'value Value,
+    prefix: &[Component<'static>],
+    mut lookup: impl FnMut(&'value Value, Vec<Component<'static>>) -> Option<Found>,
+) -> Option<Found> {
+    let merged = mapping.get("<<")?;
+    if merged.is_mapping() {
+        let mut merged_prefix = prefix.to_owned();
+        merged_prefix.push("<<".into());
+        return lookup(merged, merged_prefix);
+    }
+    merged
+        .as_sequence()?
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| item.is_mapping())
+        .find_map(|(index, item)| {
+            let mut item_prefix = prefix.to_owned();
+            item_prefix.extend(["<<".into(), index.into()]);
+            lookup(item, item_prefix)
+        })
+}
+
+fn add_step_routes(routes: &mut Vec<Route<'static>>, steps: &Value, prefix: &[Component<'static>]) {
+    let Some(steps) = steps.as_sequence() else { return };
+    for (index, step) in steps.iter().enumerate() {
+        let mut step_prefix = prefix.to_owned();
+        step_prefix.push(index.into());
+        if let Some(route) = find_uses_route(step, &step_prefix) {
+            routes.push(route);
+        }
     }
 }

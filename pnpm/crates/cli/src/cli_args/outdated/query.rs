@@ -451,12 +451,21 @@ async fn collect_node_outdated_for_importer(
     run: &OutdatedRun,
 ) -> miette::Result<Vec<OutdatedPackage>> {
     let node_patterns = patterns_for_ecosystem(&run.raw_packages, EcosystemFilterKind::Node)?;
-    if !run.raw_packages.is_empty() && node_patterns.is_empty() {
+    if !run.raw_packages.is_empty()
+        && !crate::cli_args::ecosystem_deps::excludes_only(&run.raw_packages)
+        && node_patterns.is_empty()
+    {
         return Ok(Vec::new());
     }
     let node_matcher = (!node_patterns.is_empty()).then(|| create_matcher(&node_patterns));
-    let node_query =
-        OutdatedQuery { match_names: node_matcher.as_ref().or(query.match_names), ..*query };
+    let match_names = if node_patterns.is_empty()
+        && crate::cli_args::ecosystem_deps::excludes_only(&run.raw_packages)
+    {
+        None
+    } else {
+        node_matcher.as_ref().or(query.match_names)
+    };
+    let node_query = OutdatedQuery { match_names, ..*query };
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, node_query.include_direct);
     let engine_deps = declared_engine_deps(manifest, &run.config, node_query.include_direct);

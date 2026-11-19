@@ -11,9 +11,9 @@ use std::{
 use tokio::fs;
 
 pub(super) struct WorkflowEdit {
-    range: Range<usize>,
-    expected: String,
-    replacement: String,
+    pub(super) range: Range<usize>,
+    pub(super) expected: String,
+    pub(super) replacement: String,
 }
 
 pub(super) fn planned_edits(
@@ -54,7 +54,7 @@ pub(super) async fn apply_workflow_edits(
     Ok(())
 }
 
-fn apply_replacements(
+pub(super) fn apply_replacements(
     file: &Path,
     mut text: String,
     mut replacements: Vec<WorkflowEdit>,
@@ -69,7 +69,22 @@ fn apply_replacements(
             "GitHub Actions workflow {file_display} changed while resolving updates; retry the command",
         ));
     }
-    replacements.sort_by_key(|edit| Reverse(edit.range.start));
+    replacements.sort_by_key(|edit| (Reverse(edit.range.start), Reverse(edit.range.end)));
+    replacements.dedup_by(|later, earlier| {
+        later.range == earlier.range && later.replacement == earlier.replacement
+    });
+    if replacements
+        .windows(2)
+        .any(|pair| {
+            pair[1].range == pair[0].range || pair[1].range.end > pair[0].range.start
+        })
+    {
+        let file_display = file.display();
+        return Err(miette::miette!(
+            code = "ERR_PNPM_GITHUB_ACTIONS_OVERLAPPING_EDITS",
+            "GitHub Actions workflow {file_display} has conflicting overlapping edits",
+        ));
+    }
     for edit in replacements {
         text.replace_range(edit.range, &edit.replacement);
     }

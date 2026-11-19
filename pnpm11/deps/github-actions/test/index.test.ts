@@ -18,6 +18,7 @@ const {
   isGitHubActionSelector,
   normalizeGitHubActionSelector,
   updateGitHubActions,
+  withoutGitHubActionSelectors,
 } = await import('@pnpm/deps.github-actions')
 
 const dirs: string[] = []
@@ -70,6 +71,66 @@ describe('GitHub Actions dependencies', () => {
     ])
     expect(hasPositiveGitHubActionSelector(['!actions/checkout'])).toBe(false)
     expect(hasPositiveGitHubActionSelector(['actions/checkout'])).toBe(true)
+    expect(withoutGitHubActionSelectors(['actions/checkout', '!lodash'])).toEqual([])
+    expect(withoutGitHubActionSelectors(['!lodash'])).toEqual(['!lodash'])
+    expect(withoutGitHubActionSelectors(['!actions/checkout', '!lodash'])).toEqual(['!lodash'])
+    expect(withoutGitHubActionSelectors(['react', 'actions/checkout', '!lodash'])).toEqual(['react', '!lodash'])
+  })
+
+  test('updates workflows using YAML anchors, aliases, merge keys, and multibyte comments once', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `x-checkout: &top_checkout
+  uses: actions/checkout@${'a'.repeat(40)} # v4.1.1000
+jobs:
+  first:
+    runs-on: ubuntu-latest
+    steps: &shared
+      - uses: 'actions/checkout@${'a'.repeat(40)}' # v4.1.1000
+      - <<: *top_checkout
+        name: Merged checkout
+# café: 🌍🌍🌍🌍
+  second:
+    runs-on: ubuntu-latest
+    steps: *shared
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.1000', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toBe(`x-checkout: &top_checkout
+  uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+jobs:
+  first:
+    runs-on: ubuntu-latest
+    steps: &shared
+      - uses: 'actions/checkout@${'b'.repeat(40)}' # v4.2.0
+      - <<: *top_checkout
+        name: Merged checkout
+# café: 🌍🌍🌍🌍
+  second:
+    runs-on: ubuntu-latest
+    steps: *shared
+`)
+  })
+
+  test('does not re-walk shared YAML merge-key DAGs exponentially', async () => {
+    const branches = Array.from({ length: 20 }, (_, idx) => idx)
+    const dagLines = ['m0: &m0 { runs-on: ubuntu-latest }']
+    for (let level = 1; level <= 8; level++) {
+      const refs = branches.map(() => `*m${level - 1}`).join(', ')
+      dagLines.push(`m${level}: &m${level} { <<: [${refs}] }`)
+    }
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `${dagLines.join('\n')}\njobs:\n  build:\n    <<: *m8\n`,
+    })
+    await expect(findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => ({}),
+    })).resolves.toEqual([])
   })
 
   test('finds actions in workflows and referenced local composite actions', async () => {

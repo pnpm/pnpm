@@ -226,3 +226,22 @@ fn matches_any_evaluates_includes_and_ignores_across_all_identities() {
     assert!(!create_matcher(&pats(["*ryu*", "!other_ryu"])).matches_any(&ids));
     assert!(create_matcher(&pats(["!ryu*", "other_ryu"])).matches_any(&ids));
 }
+
+#[test]
+fn prune_orphan_ignores_clears_leftover_exclusions_only_when_original_had_includes() {
+    assert_eq!(
+        crate::prune_orphan_ignores(pats(["!lodash"]), &pats(["actions/checkout", "!lodash"])),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        crate::prune_orphan_ignores(pats(["!lodash"]), &pats(["!lodash"])),
+        pats(["!lodash"]),
+    );
+    assert_eq!(
+        crate::prune_orphan_ignores(
+            pats(["react", "!lodash"]),
+            &pats(["react", "actions/checkout", "!lodash"]),
+        ),
+        pats(["react", "!lodash"]),
+    );
+}
