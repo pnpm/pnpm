@@ -31,7 +31,7 @@ import {
 } from './installPredicates.js'
 import type { InstallResult, MutatedProject, SingleProjectInstallOptions } from './mutationTypes.js'
 import { applyResolvedSpecsFromLockfile, type PnprNewDep } from './pnpr.js'
-import { verifyLockfileDependencyAliases, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { verifyLockfileFileOffline, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
 interface PnprInstallProjectOptions {
@@ -208,18 +208,14 @@ async function resolveLockfileViaPnpr (
     recordsDependencies(existingLockfile)
   )
   const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
-  await verifyExistingPnprLockfile({ existingLockfile, frozenLockfile, opts, pnpmfileChecksum })
+  verifyExistingPnprLockfile({ existingLockfile, frozenLockfile, opts, pnpmfileChecksum })
 
   logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
   const { lockfile, stats: pnprStats } = await request.resolveViaPnprServer(
     createResolveRequest(request, { existingLockfile, frozenLockfile, patchedDependencies })
   )
-  if (opts.trustLockfile) {
-    verifyLockfileDependencyAliases(lockfile)
-  } else {
-    await verifyLockfileResolutions(lockfile, [])
-  }
+  await verifyLockfileResolutions(lockfile, [])
 
   // The server never sees the pnpmfile, so the fields a local resolution
   // records for it are stamped here.
@@ -248,7 +244,7 @@ async function resolveLockfileViaPnpr (
   return lockfile
 }
 
-async function verifyExistingPnprLockfile ({
+function verifyExistingPnprLockfile ({
   existingLockfile,
   frozenLockfile,
   opts,
@@ -258,14 +254,9 @@ async function verifyExistingPnprLockfile ({
   frozenLockfile: boolean
   opts: SingleProjectInstallOptions
   pnpmfileChecksum: string | undefined
-}): Promise<void> {
+}): void {
   if (existingLockfile == null) return
-  const convertedLockfile = convertToLockfileObject(existingLockfile)
-  if (opts.trustLockfile) {
-    verifyLockfileDependencyAliases(convertedLockfile)
-  } else {
-    await verifyLockfileResolutions(convertedLockfile, [])
-  }
+  verifyLockfileFileOffline(existingLockfile)
   if (frozenLockfile) {
     assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
   }

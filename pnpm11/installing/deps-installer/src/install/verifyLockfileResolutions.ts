@@ -1,9 +1,8 @@
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
-import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
-import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.fs'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import type {
   Resolution,
@@ -14,10 +13,19 @@ import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import {
+  collectInvalidAliases,
+  collectLockfileFileOfflineViolations,
+  collectShapeViolations,
+  hasOfflineLockfileViolations,
+  RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+} from './verifyLockfileOfflineChecks.js'
+import {
   recordVerification,
   tryLockfileVerificationCache,
   type VerifierCacheIdentity,
 } from './verifyLockfileResolutionsCache.js'
+
+export { hasOfflineLockfileViolations, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE }
 
 // Re-exported for back-compat with the existing import surface.
 // The interface itself lives in resolver-base so deps-resolver can
@@ -33,8 +41,6 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 // (Math.min(96, Math.max(workers*3, 64))); keep them aligned so the
 // verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 64
-
-export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
 
 // Violations from policies the user can relax. Relaxing a policy cannot clear
 // any other violation.
@@ -62,15 +68,10 @@ const VARIATION_RESOLUTION_CACHE_IDENTITY: VerifierCacheIdentity = {
 }
 
 /**
- * Every verifier list that flows into the verification cache must carry
- * the always-on offline structural checks' identities, so a record
- * written before one of those rules existed cannot stat-fast-path around
- * it — its missing flag fails `canTrustPastCheck`, forcing a
- * re-verification that runs the new check. Used by the gate itself and by
- * {@link recordLockfileVerified}, whose freshly-resolved lockfile
- * satisfies these invariants by construction (the resolver validates
- * aliases at manifest-read time and derives every resolution key from the
- * resolution it just produced).
+ * Append the always-on offline structural checks' identities to `verifiers`
+ * before consulting or recording the verification cache, so a record written
+ * before one of those rules existed fails `canTrustPastCheck` and forces
+ * re-verification.
  */
 export function withOfflineCheckCacheIdentities (verifiers: readonly VerifierCacheIdentity[]): VerifierCacheIdentity[] {
   return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY, VARIATION_RESOLUTION_CACHE_IDENTITY]
@@ -121,7 +122,8 @@ export interface VerifyLockfileResolutionsOptions {
  * rather than passing silently — otherwise a registry hiccup or an
  * unpublished version would re-open the bypass.
  *
- * No-op when `verifiers` is empty.
+ * Offline dependency-alias and resolution-shape checks always run first, even
+ * when `verifiers` is empty or the verification cache holds a prior record.
  */
 export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
@@ -354,8 +356,9 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
  * is what populates / honors the cache; this is for callers that need
  * to inspect violations.
  *
- * Returns an empty array when `verifiers` is empty or the lockfile has
- * no packages, so callers don't need a separate emptiness check.
+ * Returns offline resolution-shape violations immediately without invoking
+ * `verifiers`, and returns an empty array when the lockfile has no packages or
+ * when shapes are valid and `verifiers` is empty.
  */
 export async function collectResolutionPolicyViolations (
   lockfile: LockfileObject,
@@ -375,8 +378,14 @@ export function verifyLockfileDependencyAliases (lockfile: LockfileObject): void
   }
 }
 
-export function hasOfflineLockfileViolations (lockfile: LockfileObject): boolean {
-  return collectInvalidAliases(lockfile).length > 0 || collectShapeViolations(lockfile).length > 0
+export function verifyLockfileFileOffline (lockfile: LockfileFile): void {
+  const { invalidAliases, shapeViolations } = collectLockfileFileOfflineViolations(lockfile)
+  if (invalidAliases.length > 0) {
+    throw buildInvalidAliasError(invalidAliases)
+  }
+  if (shapeViolations.length > 0) {
+    throw buildVerificationError(shapeViolations)
+  }
 }
 
 function verifyOfflineLockfileChecks (lockfile: LockfileObject): void {
@@ -387,82 +396,6 @@ function verifyOfflineLockfileChecks (lockfile: LockfileObject): void {
   }
 }
 
-function collectInvalidAliases (lockfile: LockfileObject): string[] {
-  const invalidAliases = new Set<string>()
-  for (const importer of Object.values(lockfile.importers ?? {})) {
-    pushInvalidAliases(importer.dependencies, invalidAliases)
-    pushInvalidAliases(importer.devDependencies, invalidAliases)
-    pushInvalidAliases(importer.optionalDependencies, invalidAliases)
-  }
-  for (const snapshot of Object.values(lockfile.packages ?? {})) {
-    pushInvalidAliases(snapshot.dependencies, invalidAliases)
-    pushInvalidAliases(snapshot.optionalDependencies, invalidAliases)
-  }
-  return Array.from(invalidAliases)
-}
-
-function collectShapeViolations (lockfile: LockfileObject): ResolutionPolicyViolation[] {
-  const shapeViolations: ResolutionPolicyViolation[] = []
-  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
-    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
-    if (!name || !version) continue
-    if (nonSemverVersion == null && !isRegistryShapedResolution(snapshot.resolution)) {
-      shapeViolations.push({
-        name,
-        version,
-        resolution: snapshot.resolution as Resolution,
-        code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-        reason: 'a registry-style dependency path is backed by a non-registry resolution',
-      })
-    }
-  }
-  return shapeViolations
-}
-
-function isRegistryShapedResolution (resolution: unknown): boolean {
-  if (resolution == null) return true
-  if (typeof resolution !== 'object') return false
-  const { type, gitHosted, tarball, variants } = resolution as {
-    type?: unknown
-    gitHosted?: unknown
-    tarball?: unknown
-    variants?: unknown
-  }
-  if (type === 'variations') return areRegistryShapedVariants(variants)
-  // Custom resolver protocols (`type: 'custom:*'`) are a legitimate
-  // non-registry source the user opted into. They can only be materialized by
-  // a project-configured custom fetcher — an unrecognized custom type throws at
-  // fetch time (see @pnpm/fetching.pick-fetcher) — so a forged custom type
-  // cannot launder an artifact past this gate into a build.
-  if (typeof type === 'string' && type.startsWith('custom:')) return true
-  if (type != null) return false
-  return isRegistryShapedTarballResolution(gitHosted, tarball)
-}
-
-function areRegistryShapedVariants (variants: unknown): boolean {
-  return Array.isArray(variants) && variants.length > 0 && variants.every((variant) => {
-    const resolution = (variant as { resolution?: unknown })?.resolution
-    return resolution != null && isRegistryShapedResolution(resolution)
-  })
-}
-
-function isRegistryShapedTarballResolution (gitHosted: unknown, tarball: unknown): boolean {
-  // Plain tarball / registry resolution. The lockfile is parsed from YAML
-  // without schema validation, so the `gitHosted` flag is not trustworthy on
-  // its own: a tampered entry could set a non-boolean (dodging a strict
-  // `=== true`) or an explicit `false` on a git-host URL (the loader only
-  // backfills the flag when absent). Treat any non-boolean flag as git-hosted
-  // and gate on the URL so the verdict never depends on the flag alone.
-  if (gitHosted != null && (typeof gitHosted !== 'boolean' || gitHosted)) return false
-  // A registry resolution reconstructs its tarball URL from name+version, so
-  // an absent/empty `tarball` is registry-shaped. When a URL is present it
-  // must be an HTTP or HTTPS registry artifact: the npm verifier's tarball-URL
-  // binding skips schemes other than HTTP and HTTPS (file:, etc.), so a `file:` tarball
-  // under a name@semver key would otherwise be trusted with no safety net.
-  if (typeof tarball !== 'string' || tarball === '') return true
-  return /^https?:\/\//i.test(tarball) && !isGitHostedTarballUrl(tarball)
-}
-
 interface Candidate {
   name: string
   version: string
@@ -471,19 +404,6 @@ interface Candidate {
   resolution: Resolution
 }
 
-// depPath can include peer-dependency and patch_hash suffixes (e.g.
-// `react@18.0.0(peer)(patch_hash=...)`); the same (name, version) pair may
-// therefore appear multiple times. Dedupe so we issue at most one
-// verification per package version.
-//
-// Include a serialization of `resolution` and `nonSemverVersion` in the key
-// so two entries that share a (name, version) but differ in *what* was
-// resolved (e.g. one pinned via npm, another a URL-keyed tarball whose
-// snapshot copied the same semver `version` from its manifest) don't
-// collapse: `nonSemverVersion` flips whether the npm verifier enforces or
-// skips the tarball/policy checks, so if the wrong shape wins the dedup the
-// surviving entry is verified under the wrong rules and the real one is
-// never checked.
 function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
   const candidates = new Map<string, Candidate>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
@@ -499,19 +419,6 @@ function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
     })
   }
   return candidates
-}
-
-/**
- * Add every key of `deps` that is not a valid {@link isValidDependencyAlias}
- * to `invalid`. Only pass maps whose keys become `node_modules/<alias>`
- * directories — not `overrides` (`foo>bar` selectors) or
- * `patchedDependencies` (`name@version` keys).
- */
-function pushInvalidAliases (deps: Record<string, string> | undefined, invalid: Set<string>): void {
-  if (deps == null) return
-  for (const alias of Object.keys(deps)) {
-    if (!isValidDependencyAlias(alias)) invalid.add(alias)
-  }
 }
 
 async function iterateLockfileViolations (

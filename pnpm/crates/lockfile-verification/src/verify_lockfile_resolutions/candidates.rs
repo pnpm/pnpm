@@ -1,8 +1,7 @@
 use super::{
     Arc, BTreeMap, DEFAULT_CONCURRENCY, FuturesUnordered, Lockfile, LockfileResolution, PkgName,
     RenderedViolation, ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier,
-    Semaphore, StreamExt, VerifyCtx, VerifyError, has_registry_shape_mismatch,
-    resolution_shape_violation,
+    Semaphore, StreamExt, VerifyCtx, VerifyError,
 };
 
 /// One `(name, version, resolution)` tuple deduplicated from
@@ -23,14 +22,11 @@ pub(super) struct Candidate {
 /// `BTreeMap` over a serialized key gives deterministic iteration
 /// order for tests; the fan-out runs across the value iter so order
 /// doesn't affect correctness, only the reproducibility of failures.
-pub(super) fn collect_candidates(
-    lockfile: &Lockfile,
-) -> (Vec<Candidate>, Vec<ResolutionPolicyViolation>) {
+pub(super) fn collect_candidates(lockfile: &Lockfile) -> Vec<Candidate> {
     let Some(packages) = lockfile.packages.as_ref() else {
-        return (Vec::new(), Vec::new());
+        return Vec::new();
     };
     let mut deduped: BTreeMap<String, Candidate> = BTreeMap::new();
-    let mut shape_violations = Vec::new();
     for (key, metadata) in packages {
         let name = key.name.clone();
         // A registry-qualified key (`<name>@<registryName>:<version>`)
@@ -43,19 +39,6 @@ pub(super) fn collect_candidates(
             Some((_, version)) => version.to_string(),
             None => key.suffix.version().to_string(),
         };
-        // A registry-style dep path (`name@semver`, no `runtime:`-style
-        // prefix) must be backed by a registry-shaped resolution: the
-        // allowBuilds policy derives a trusted package identity from
-        // that key shape, which is only sound while this invariant
-        // holds. The check is offline, so it applies even when no
-        // policy verifiers are active.
-        if has_registry_shape_mismatch(key, &metadata.resolution) {
-            shape_violations.push(resolution_shape_violation(
-                name.clone(),
-                version.clone(),
-                metadata.resolution.clone(),
-            ));
-        }
         // Every `LockfileResolution` variant derives `Serialize`, and
         // the wire shape never contains non-string keys or non-finite
         // numbers — the only way this `expect` could fire is a future
@@ -77,7 +60,7 @@ pub(super) fn collect_candidates(
                 resolution: metadata.resolution.clone(),
             });
     }
-    (deduped.into_values().collect(), shape_violations)
+    deduped.into_values().collect()
 }
 
 /// Run every active verifier against every candidate with a

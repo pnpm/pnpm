@@ -6,7 +6,8 @@ use super::{
     ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
     ResolveRequest, Resolver, Response, StatusCode, StreamedResolveInputs, TarballRouter,
     VerificationArtifacts, build_resolution_verifiers_with_artifacts,
-    collect_resolution_policy_violations, extract_admitted_body, json_error,
+    collect_resolution_policy_violations, collect_resolution_shape_violations,
+    extract_admitted_body, json_error,
     limits::{
         AdmittedResolve, CancelToken, ResolvePermit, reject_oversized_graph,
         request_timeout_response,
@@ -14,8 +15,7 @@ use super::{
     ndjson_single_frame, observed_dist_stats_sink, osv_violations_for_lockfile_until,
     parse_request, reject_inline_url_auth, reject_invalid_lockfile_dependency_names,
     reject_invalid_registries, reject_off_allowlist_fetches, request_tarball_router, verdict_cache,
-    verify_done_frame, verify_lockfile_resolution_shapes, violations_frame,
-    with_offline_check_cache_identities,
+    verify_done_frame, violations_frame, with_offline_check_cache_identities,
 };
 
 /// Admit `POST /-/pnpr/v0/verify-lockfile` before buffering or parsing the
@@ -111,27 +111,27 @@ async fn verify_trusted_lockfile(
         Err(response) => return response,
     };
     let done = verify_done_frame(&request);
-    let Some(input_lockfile) = request.lockfile else {
+    let Some(raw_lockfile) = request.lockfile.as_ref() else {
         return json_error(StatusCode::BAD_REQUEST, "`lockfile` is required");
     };
+    let shape_violations = collect_resolution_shape_violations(raw_lockfile);
     match scan_osv_until_deadline(
         runtime.osv_index.clone(),
-        Arc::new(input_lockfile),
+        Arc::new(request.lockfile.expect("checked above")),
         Arc::clone(&permit),
         deadline,
     )
     .await
     {
-        Ok(violations) if violations.is_empty() => {
+        Ok(osv_violations) if shape_violations.is_empty() && osv_violations.is_empty() => {
             let response = within_verify_deadline(ndjson_single_frame(&done), deadline);
             drop(permit);
             response
         }
-        Ok(violations) => {
-            let response = within_verify_deadline(
-                ndjson_single_frame(&violations_frame(&violations)),
-                deadline,
-            );
+        Ok(osv_violations) => {
+            let rendered = render_violations(&shape_violations, osv_violations);
+            let response =
+                within_verify_deadline(ndjson_single_frame(&violations_frame(&rendered)), deadline);
             drop(permit);
             response
         }
@@ -242,23 +242,29 @@ fn finish_verified_lockfile(
 /// Verify the *input* lockfile under the client's policy before any package is
 /// streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
 ///
-/// The client skips its own `verifyLockfileResolutions` whenever a pnpr server
-/// is configured, so this is the only place the committed/reused entries get
-/// checked. A true first install sends no lockfile — nothing to verify.
-/// `trustLockfile` is the client's opt-out (mirrors the local path's
-/// `--trust-lockfile`). Freshly-resolved entries are held to the same policy by
-/// the resolver's pick-time gate (the policy is wired into `config`).
+/// Offline resolution-shape invariants apply to every input lockfile, including
+/// under `trustLockfile`. `trustLockfile` opts out of the online supply-chain
+/// policy verifiers only; freshly-resolved entries are held to the active
+/// policy by the resolver's pick-time gate.
 pub(super) async fn verify_request_lockfile(
     runtime: &Resolver,
     identity: &Identity,
     inputs: &StreamedResolveInputs,
 ) -> Result<Option<ObservedDistStats>, Response> {
-    if inputs.request.trust_lockfile {
-        return Ok(None);
-    }
     let Some(input_lockfile) = inputs.request.lockfile.as_ref() else {
         return Ok(None);
     };
+    if inputs.request.trust_lockfile {
+        let shape_violations = collect_resolution_shape_violations(input_lockfile);
+        if shape_violations.is_empty() {
+            return Ok(None);
+        }
+        let rendered = render_violations(&shape_violations, Vec::new());
+        return Err(within_verify_deadline(
+            ndjson_single_frame(&violations_frame(&rendered)),
+            inputs.deadline,
+        ));
+    }
     match verify_input_lockfile(
         runtime,
         &LockfileVerifyContext {
@@ -317,6 +323,8 @@ async fn verify_input_lockfile(
     context: &LockfileVerifyContext<'_>,
     raw_lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {
+    reject_shape_violations(runtime, context, raw_lockfile).await?;
+
     let epoch = runtime.local_registry.verdict_epoch();
     let hash = compute_verdict_hash(context, raw_lockfile)?;
     let dist_stats = observed_dist_stats_sink();
@@ -328,9 +336,7 @@ async fn verify_input_lockfile(
         &dist_stats,
     )?;
     let cache_verifiers = with_offline_check_cache_identities(&verifiers);
-    if verify_lockfile_resolution_shapes(raw_lockfile).is_ok()
-        && apply_cached_verdict(runtime, context, &hash, epoch.as_deref(), &cache_verifiers)
-    {
+    if apply_cached_verdict(runtime, context, &hash, epoch.as_deref(), &cache_verifiers) {
         return Ok(None);
     }
 
@@ -351,6 +357,26 @@ async fn verify_input_lockfile(
     }
 
     Err(VerifyFailure::Violations(render_violations(&violations, osv_violations)))
+}
+
+async fn reject_shape_violations(
+    runtime: &Resolver,
+    context: &LockfileVerifyContext<'_>,
+    raw_lockfile: &Lockfile,
+) -> Result<(), VerifyFailure> {
+    let shape_violations = collect_resolution_shape_violations(raw_lockfile);
+    if shape_violations.is_empty() {
+        return Ok(());
+    }
+    let osv_violations = scan_osv_until_deadline(
+        runtime.osv_index.clone(),
+        Arc::new(raw_lockfile.clone()),
+        Arc::clone(context.permit),
+        context.deadline,
+    )
+    .await
+    .map_err(VerifyFailure::Internal)?;
+    Err(VerifyFailure::Violations(render_violations(&shape_violations, osv_violations)))
 }
 
 fn build_input_verifiers(

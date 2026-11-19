@@ -718,6 +718,11 @@ test('a frozen install via the pnpr server rejects a shape-mismatched lockfile w
   expect(fs.existsSync(markerPath)).toBe(false)
   expect(fs.existsSync(path.join(cacheDir, 'lockfile-verified.jsonl'))).toBe(false)
 
+  await expect(
+    execPnpm(['install', '--frozen-lockfile', '--config.trustLockfile=true', `--config.cacheDir=${cacheDir}`])
+  ).rejects.toThrow('ERR_PNPM_RESOLUTION_SHAPE_MISMATCH')
+  expect(fs.existsSync(markerPath)).toBe(false)
+
   writeYamlFileSync('pnpm-workspace.yaml', {
     minimumReleaseAge: 0,
     allowBuilds: { 'is-positive': true },

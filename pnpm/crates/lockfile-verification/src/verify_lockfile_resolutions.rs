@@ -8,9 +8,9 @@
 //! dispatch-free at this layer.
 
 pub use offline_checks::{
-    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, verify_lockfile_dependency_names,
-    verify_lockfile_importer_snapshot_links, verify_lockfile_resolution_shapes,
-    with_offline_check_cache_identities,
+    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, collect_resolution_shape_violations,
+    verify_lockfile_dependency_names, verify_lockfile_importer_snapshot_links,
+    verify_lockfile_resolution_shapes, with_offline_check_cache_identities,
 };
 
 use std::{collections::BTreeMap, path::Path, sync::Arc};
@@ -91,9 +91,8 @@ impl std::fmt::Debug for ReplacedEntries<'_> {
 /// at `lockfile_path` under the policy `verifiers` currently demand —
 /// i.e. whether a [`verify_lockfile_resolutions`] call would
 /// short-circuit on the cache without running the fan-out. The offline
-/// structural dependency-name gate runs here too (it is cheap and the
-/// cache never covers a lockfile that fails it), so a `true` return
-/// carries the same guarantee as the runner's cache hit.
+/// structural and resolution-shape checks run here too, so a `true`
+/// return carries the same guarantee as the runner's cache hit.
 ///
 /// Lets the pnpr client decide locally whether the server-side
 /// `verify_lockfile` round trip can be skipped
@@ -148,12 +147,13 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
-    // Offline structural gate first: reject invalid dependency names
-    // or missing importer snapshot links before the `packages`-absent
-    // short-circuit and the cache lookup.
+    // Offline structural gate first: reject invalid dependency names,
+    // missing importer snapshot links, or resolution-shape mismatches
+    // before the `packages`-absent / empty-verifiers short-circuit and
+    // the cache lookup.
     verify_structure_before_install(lockfile, opts)?;
 
-    if lockfile.packages.is_none() {
+    if lockfile.packages.is_none() || verifiers.is_empty() {
         return Ok(());
     }
 
@@ -179,10 +179,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         CacheOutcome::Miss(precomputed) => precomputed,
     };
 
-    let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced)?;
-    if verifiers.is_empty() {
-        return Ok(());
-    }
+    let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced);
     let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
@@ -207,12 +204,9 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
 fn collect_candidates_to_verify(
     lockfile: &Lockfile,
     replaced: Option<ReplacedEntries<'_>>,
-) -> Result<(Vec<Candidate>, bool), VerifyError> {
-    let (mut candidates, shape_violations) = collect_candidates(lockfile);
-    if !shape_violations.is_empty() {
-        return Err(build_verification_error(shape_violations));
-    }
-    let Some(ReplacedEntries(is_replaced)) = replaced else { return Ok((candidates, false)) };
+) -> (Vec<Candidate>, bool) {
+    let mut candidates = collect_candidates(lockfile);
+    let Some(ReplacedEntries(is_replaced)) = replaced else { return (candidates, false) };
     let entries = candidates.len();
     candidates.retain(|candidate| {
         !is_replaced(ReplacedCandidate {
@@ -222,7 +216,7 @@ fn collect_candidates_to_verify(
         })
     });
     let skipped_replaced = candidates.len() < entries;
-    Ok((candidates, skipped_replaced))
+    (candidates, skipped_replaced)
 }
 
 /// Run the verifiers over every candidate, reporting the run to the
@@ -323,13 +317,13 @@ pub async fn collect_resolution_policy_violations(
     if lockfile.packages.is_none() {
         return Ok(Vec::new());
     }
-    let (candidates, shape_violations) = collect_candidates(lockfile);
+    let shape_violations = collect_resolution_shape_violations(lockfile);
     if !shape_violations.is_empty() || verifiers.is_empty() {
         return Ok(shape_violations);
     }
     // `Err(message)` is a transport failure the caller must surface rather than
     // treat as "no violations" — see [`run_fan_out`].
-    run_fan_out(candidates, verifiers, concurrency, &mut || {}).await
+    run_fan_out(collect_candidates(lockfile), verifiers, concurrency, &mut || {}).await
 }
 
 #[cfg(test)]
@@ -340,8 +334,5 @@ mod offline_checks;
 mod progress;
 
 use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
-use offline_checks::{
-    has_registry_shape_mismatch, resolution_shape_violation, verify_offline_structural_checks,
-    verify_structure_before_install,
-};
+use offline_checks::{verify_offline_structural_checks, verify_structure_before_install};
 use progress::{VerificationProgress, emit};

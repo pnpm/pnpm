@@ -11,6 +11,7 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import {
   collectResolutionPolicyViolations,
   RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+  verifyLockfileFileOffline,
   verifyLockfileResolutions,
   withOfflineCheckCacheIdentities,
 } from '../../src/install/verifyLockfileResolutions.js'
@@ -88,4 +89,53 @@ test('poisoned lockfile-verified.jsonl record cannot bypass resolution shape che
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
   }
+})
+
+test('rejects a traversal package snapshot key even when importer alias is valid', async () => {
+  const lockfile = {
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      '.': {
+        specifiers: { 'legit-alias': 'npm:../../../escape@1.0.0' },
+        dependencies: { 'legit-alias': '../../../escape@1.0.0' },
+      },
+    },
+    packages: {
+      '../../../escape@1.0.0': {
+        resolution: { integrity: 'sha512-deadbeef' },
+      },
+    },
+  } as unknown as LockfileObject
+
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
+})
+
+test('verifyLockfileFileOffline rejects unreferenced shape-mismatched and traversal packages entries', () => {
+  expect(() => verifyLockfileFileOffline({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: { '.': {} },
+    packages: {
+      'safe-pkg@1.0.0': {
+        resolution: { integrity: 'sha512-deadbeef', tarball: 'file:alt.tgz' },
+      },
+    },
+    snapshots: {},
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  }))
+
+  expect(() => verifyLockfileFileOffline({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: { '.': {} },
+    packages: {
+      '../../../escape@1.0.0': {
+        resolution: { integrity: 'sha512-deadbeef' },
+      },
+    },
+    snapshots: {},
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  }))
 })

@@ -37,6 +37,25 @@ snapshots:
     assert!(breakdown.contains("../../../escape"), "breakdown {breakdown:?}");
 }
 
+#[test]
+fn rejects_a_traversal_package_key_when_snapshots_absent() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+packages:
+
+  ../../../escape@1.0.0:
+    resolution: {integrity: sha512-deadbeef}
+",
+    );
+    let err = crate::verify_lockfile_dependency_names(&lockfile)
+        .expect_err("a traversal packages key must be rejected even without snapshots");
+    let VerifyError::InvalidDependencyAlias { breakdown, .. } = err else {
+        panic!("expected InvalidDependencyAlias, got {err:?}");
+    };
+    assert!(breakdown.contains("../../../escape"), "breakdown {breakdown:?}");
+}
+
 async fn assert_shape_violation_for_resolution(label: &str, resolution: &str) {
     let yaml = format!(
         "lockfileVersion: '9.0'

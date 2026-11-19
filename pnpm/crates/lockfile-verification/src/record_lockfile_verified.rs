@@ -9,8 +9,9 @@
 //! already passed the gate at the top of the same install.
 //!
 //! The function is a no-op when caching is disabled, when no
-//! verifiers are active, or when the lockfile has no `packages:`
-//! section.
+//! verifiers are active, when the lockfile has no `packages:`
+//! section, or when the lockfile fails an offline dependency-name or
+//! resolution-shape check.
 
 use std::{path::Path, sync::Arc};
 

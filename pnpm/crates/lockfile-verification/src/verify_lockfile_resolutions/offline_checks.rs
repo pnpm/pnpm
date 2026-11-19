@@ -57,16 +57,10 @@ fn variation_resolution_cache_identity() -> Arc<dyn ResolutionVerifier> {
     Arc::new(OfflineCheckCacheIdentity { policy, flag: "variationResolutionCheck" })
 }
 
-/// Every verifier list that flows into the verification cache must
-/// carry the always-on offline structural checks' identities, so a
-/// record written before one of those rules existed cannot
-/// stat-fast-path around it — its missing flag fails
-/// `can_trust_past_check`, forcing a re-verification that runs the new
-/// check. Used by the gate itself and by
-/// [`crate::record_lockfile_verified()`], whose freshly-resolved
-/// lockfile satisfies these invariants by construction (the resolver
-/// validates aliases at manifest-read time and derives every resolution
-/// key from the resolution it just produced).
+/// Append the always-on offline structural checks' identities to `verifiers`
+/// before consulting or recording a whole-lockfile verification cache, so a
+/// record written before one of those rules existed fails
+/// `can_trust_past_check` and forces re-verification.
 pub fn with_offline_check_cache_identities(
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> Vec<Arc<dyn ResolutionVerifier>> {
@@ -145,7 +139,7 @@ fn is_http_tarball_url(url: &str) -> bool {
 
 /// A registry-style key must have a registry-shaped resolution because
 /// build approval derives the trusted package identity from that key.
-pub(super) fn has_registry_shape_mismatch(
+fn has_registry_shape_mismatch(
     key: &pnpm_lockfile::PkgNameVerPeer,
     resolution: &LockfileResolution,
 ) -> bool {
@@ -158,7 +152,7 @@ pub(super) fn has_registry_shape_mismatch(
         && !is_registry_shaped_resolution(resolution)
 }
 
-pub(super) fn resolution_shape_violation(
+fn resolution_shape_violation(
     name: PkgName,
     version: String,
     resolution: LockfileResolution,
@@ -173,12 +167,13 @@ pub(super) fn resolution_shape_violation(
     }
 }
 
-/// Reject a lockfile whose registry-style `packages` keys are backed by
-/// non-registry resolutions (`file:`, `directory`, `git`, git-hosted tarballs,
+/// Collect every registry-style `packages` entry whose resolution has a
+/// non-registry shape (`file:`, `directory`, `git`, git-hosted tarballs,
 /// non-registry `variations`, or `binary`).
-pub fn verify_lockfile_resolution_shapes(lockfile: &Lockfile) -> Result<(), VerifyError> {
+#[must_use]
+pub fn collect_resolution_shape_violations(lockfile: &Lockfile) -> Vec<ResolutionPolicyViolation> {
     let Some(packages) = lockfile.packages.as_ref() else {
-        return Ok(());
+        return Vec::new();
     };
     let mut violations = Vec::new();
     for (key, metadata) in packages {
@@ -195,6 +190,14 @@ pub fn verify_lockfile_resolution_shapes(lockfile: &Lockfile) -> Result<(), Veri
             metadata.resolution.clone(),
         ));
     }
+    violations
+}
+
+/// Reject a lockfile whose registry-style `packages` keys are backed by
+/// non-registry resolutions (`file:`, `directory`, `git`, git-hosted tarballs,
+/// non-registry `variations`, or `binary`).
+pub fn verify_lockfile_resolution_shapes(lockfile: &Lockfile) -> Result<(), VerifyError> {
+    let violations = collect_resolution_shape_violations(lockfile);
     if violations.is_empty() {
         return Ok(());
     }
@@ -219,10 +222,10 @@ fn push_invalid_aliases<'alias>(
 }
 
 /// Collect every lockfile-controlled dependency name that isn't a valid
-/// npm package name. Three sources, each of which becomes a
-/// `node_modules/<name>` path component at install time:
+/// npm package name across:
 ///
 /// - every importer's direct-dependency aliases,
+/// - every `packages:` entry's package name,
 /// - every snapshot's own package name (the `snapshots:` map key), and
 /// - every snapshot's `dependencies` / `optionalDependencies` aliases.
 ///
@@ -242,6 +245,9 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> BTreeSet<String> {
                 &mut invalid,
             );
         }
+    }
+    if let Some(packages) = lockfile.packages.as_ref() {
+        push_invalid_aliases(packages.keys().map(|key| &key.name), &mut invalid);
     }
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return invalid };
     for (key, snapshot) in snapshots {

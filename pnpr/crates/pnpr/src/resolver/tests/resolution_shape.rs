@@ -86,18 +86,18 @@ fn assert_shape_mismatch_frame(frame: &Value) {
     assert_eq!(violations[0]["code"], "RESOLUTION_SHAPE_MISMATCH");
 }
 
-async fn assert_shape_mismatch_rejected(
+async fn assert_shape_mismatch_for_trust_mode(
     runtime: &Resolver,
     identity: &pnpr_policy::Identity,
     origin: &str,
     label: &str,
-    resolution: &Value,
+    lockfile: &Lockfile,
+    trust_lockfile: bool,
 ) {
-    let lockfile = shape_mismatched_lockfile(resolution);
-
     let verify_body = Bytes::from(
         json!({
             "registry": format!("{origin}/"),
+            "trustLockfile": trust_lockfile,
             "lockfile": lockfile,
         })
         .to_string(),
@@ -114,6 +114,7 @@ async fn assert_shape_mismatch_rejected(
                 "dependencies": { "safe-pkg": "1.0.0" },
                 "registry": format!("{origin}/"),
                 "frozenLockfile": frozen_lockfile,
+                "trustLockfile": trust_lockfile,
                 "lockfile": lockfile,
             })
             .to_string(),
@@ -126,22 +127,48 @@ async fn assert_shape_mismatch_rejected(
         let epoch = runtime.local_registry.verdict_epoch().expect("stable epoch");
         let pacquet_config = super::config_for_registry(&format!("{origin}/"));
         let hash = request_tarball_router(runtime, identity, &pacquet_config)
-            .verification_verdict_hash(&pacquet_config, &lockfile);
-        let is_verified = runtime.cache.verdicts.as_ref().is_some_and(|cache| {
-            cache
-                .verified_footprint(
-                    &VerdictLookup {
-                        hash: &hash,
-                        epoch: &epoch,
-                        secret: &runtime.cache.secret,
-                        route_context: &runtime.route_context,
-                        identity,
-                    },
-                    |_| true,
-                )
-                .is_some()
-        });
-        assert!(!is_verified, "{label} (frozen={frozen_lockfile}) must not record a verdict");
+            .verification_verdict_hash(&pacquet_config, lockfile);
+        let is_verified = runtime.cache.verdicts
+            .as_ref()
+            .is_some_and(|cache| {
+                cache
+                    .verified_footprint(
+                        &VerdictLookup {
+                            hash: &hash,
+                            epoch: &epoch,
+                            secret: &runtime.cache.secret,
+                            route_context: &runtime.route_context,
+                            identity,
+                        },
+                        |_| true,
+                    )
+                    .is_some()
+            });
+        assert!(
+            !is_verified,
+            "{label} (frozen={frozen_lockfile}, trust={trust_lockfile}) must not record a verdict",
+        );
+    }
+}
+
+async fn assert_shape_mismatch_rejected(
+    runtime: &Resolver,
+    identity: &pnpr_policy::Identity,
+    origin: &str,
+    label: &str,
+    resolution: &Value,
+) {
+    let lockfile = shape_mismatched_lockfile(resolution);
+    for trust_lockfile in [false, true] {
+        assert_shape_mismatch_for_trust_mode(
+            runtime,
+            identity,
+            origin,
+            label,
+            &lockfile,
+            trust_lockfile,
+        )
+        .await;
     }
 }
 
@@ -285,7 +312,7 @@ async fn verify_lockfile_and_resolve_reject_invalid_lockfile_dependency_names() 
     let runtime = test_resolver(origin, &dir);
     let identity = user("alice");
 
-    let lockfile: Lockfile = serde_json::from_value(json!({
+    let importer_traversal: Lockfile = serde_json::from_value(json!({
         "lockfileVersion": "9.0",
         "importers": {
             ".": {
@@ -300,8 +327,30 @@ async fn verify_lockfile_and_resolve_reject_invalid_lockfile_dependency_names() 
         "packages": {},
         "snapshots": {},
     }))
-    .expect("fixture lockfile parses");
+    .expect("importer traversal lockfile parses");
+    let packages_traversal: Lockfile = serde_json::from_value(json!({
+        "lockfileVersion": "9.0",
+        "importers": { ".": {} },
+        "packages": {
+            "../../../escape@1.0.0": {
+                "resolution": { "integrity": "sha512-deadbeef" },
+            }
+        },
+        "snapshots": {},
+    }))
+    .expect("packages traversal lockfile parses");
 
+    for lockfile in [&importer_traversal, &packages_traversal] {
+        assert_invalid_dependency_name_rejected(&runtime, &identity, origin, lockfile).await;
+    }
+}
+
+async fn assert_invalid_dependency_name_rejected(
+    runtime: &Resolver,
+    identity: &pnpr_policy::Identity,
+    origin: &str,
+    lockfile: &Lockfile,
+) {
     for trust_lockfile in [false, true] {
         let verify_body = Bytes::from(
             json!({
@@ -311,7 +360,7 @@ async fn verify_lockfile_and_resolve_reject_invalid_lockfile_dependency_names() 
             })
             .to_string(),
         );
-        let verify_resp = handle_verify_lockfile(&runtime, identity.clone(), verify_body).await;
+        let verify_resp = handle_verify_lockfile(runtime, identity.clone(), verify_body).await;
         assert_eq!(verify_resp.status(), StatusCode::BAD_REQUEST);
         let verify_bytes = to_bytes(verify_resp.into_body(), 64 * 1024).await.expect("read body");
         let verify_json: Value = serde_json::from_slice(&verify_bytes).expect("parse json");
@@ -326,7 +375,7 @@ async fn verify_lockfile_and_resolve_reject_invalid_lockfile_dependency_names() 
             })
             .to_string(),
         );
-        let resolve_resp = handle_resolve(&runtime, identity.clone(), resolve_body).await;
+        let resolve_resp = handle_resolve(runtime, identity.clone(), resolve_body).await;
         assert_eq!(resolve_resp.status(), StatusCode::BAD_REQUEST);
         let resolve_bytes = to_bytes(resolve_resp.into_body(), 64 * 1024).await.expect("read body");
         let resolve_json: Value = serde_json::from_slice(&resolve_bytes).expect("parse json");

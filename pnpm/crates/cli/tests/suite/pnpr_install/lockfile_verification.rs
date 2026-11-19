@@ -118,6 +118,24 @@ fn frozen_install_via_pnpr_rejects_shape_mismatch_without_running_builds_or_cach
         );
     }
 
+    // `--trust-lockfile` opts out only of online supply-chain policies, never offline shape checks.
+    let trusted_assert = pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("MARKER_FILE", &pnpr_marker)
+        .with_args(["install", "--frozen-lockfile", "--trust-lockfile"])
+        .assert()
+        .failure();
+    let trusted_output = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&trusted_assert.get_output().stdout),
+        String::from_utf8_lossy(&trusted_assert.get_output().stderr),
+    );
+    assert!(
+        trusted_output.contains("ERR_PNPM_RESOLUTION_SHAPE_MISMATCH"),
+        "expected ERR_PNPM_RESOLUTION_SHAPE_MISMATCH under --trust-lockfile, got:\n{trusted_output}",
+    );
+    assert!(!pnpr_marker.exists(), "postinstall script must never run under --trust-lockfile");
+
     // Subsequent local frozen install without pnprServer must also fail without running postinstall.
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -188,28 +206,36 @@ fn client_rejects_shape_mismatched_lockfile_from_permissive_pnpr_server() {
                 }),
             )
         })
-        .expect(1)
+        .expect(2)
         .create();
 
     let marker = root.path().join("marker-malicious-server");
-    let assert = pacquet
-        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .with_env("MARKER_FILE", &marker)
-        .with_args(["install", "--pnpr-server", &malicious_server.url()])
-        .assert()
-        .failure();
-    let output = format!(
-        "{}\n{}",
-        String::from_utf8_lossy(&assert.get_output().stdout),
-        String::from_utf8_lossy(&assert.get_output().stderr),
-    );
+    for extra_flag in [None, Some("--trust-lockfile")] {
+        let mut cmd = pacquet_at(&workspace);
+        cmd.env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .env("MARKER_FILE", &marker)
+            .args(["install", "--pnpr-server", &malicious_server.url()]);
+        if let Some(flag) = extra_flag {
+            cmd.arg(flag);
+        }
+        let assert = cmd.assert().failure();
+        let output = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&assert.get_output().stdout),
+            String::from_utf8_lossy(&assert.get_output().stderr),
+        );
+        assert!(
+            output.contains("ERR_PNPM_RESOLUTION_SHAPE_MISMATCH"),
+            "expected ERR_PNPM_RESOLUTION_SHAPE_MISMATCH ({extra_flag:?}), got:\n{output}",
+        );
+        assert!(!marker.exists(), "postinstall must not run ({extra_flag:?})");
+        assert!(
+            !workspace.join("pnpm-lock.yaml").exists(),
+            "tampered lockfile must not be saved ({extra_flag:?})",
+        );
+    }
     resolve_mock.assert();
-    assert!(
-        output.contains("ERR_PNPM_RESOLUTION_SHAPE_MISMATCH"),
-        "expected ERR_PNPM_RESOLUTION_SHAPE_MISMATCH, got:\n{output}",
-    );
-    assert!(!marker.exists(), "postinstall must not run");
-    assert!(!workspace.join("pnpm-lock.yaml").exists(), "tampered lockfile must not be saved");
+    let _ = pacquet;
     if cache_dir.exists() {
         let cached_files = get_all_files(&cache_dir);
         assert!(

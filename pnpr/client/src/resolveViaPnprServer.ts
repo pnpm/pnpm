@@ -96,14 +96,14 @@ export interface ResolveViaPnprServerOptions {
    */
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   /**
-   * The client's verification policy. The server is the only place these
-   * run on the pnpr path — the client skips its own
-   * `verifyLockfileResolutions` whenever a pnpr server is configured — so
-   * every field has to travel with the request. Anything omitted is not
-   * merely defaulted server-side: the server clears the field from its
-   * config, which enforces a *stricter* policy than the user configured
-   * (an omitted `minimumReleaseAgeExclude` re-applies the age gate to
-   * packages the user opted out of).
+   * The client's supply-chain verification policy. The client runs offline
+   * structural and resolution-shape checks locally, while the server enforces
+   * the online supply-chain policy on the pnpr path — so every policy field
+   * has to travel with the request. Anything omitted is not merely defaulted
+   * server-side: the server clears the field from its config, which enforces a
+   * *stricter* policy than the user configured (an omitted
+   * `minimumReleaseAgeExclude` re-applies the age gate to packages the user
+   * opted out of).
    */
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]

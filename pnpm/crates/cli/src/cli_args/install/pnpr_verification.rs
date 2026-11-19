@@ -3,18 +3,17 @@ use super::{
     PnprClient, PnprClientError, PnprLink, Reporter, State, VerifyLockfileOptions,
     VerifyLockfileResolutionsOptions, build_resolution_verifiers, lockfile_verification_is_cached,
     lockfile_verification_is_cached_by_content, record_lockfile_verified,
-    verify_lockfile_dependency_names, verify_lockfile_resolutions,
+    verify_lockfile_resolutions,
 };
 
 /// Offline structural and shape verification for an existing lockfile before
-/// delegating policy verification or resolution to the pnpr server.
+/// delegating policy verification or resolution to the pnpr server. Runs even
+/// under `--trust-lockfile`, which opts out only of online supply-chain policy
+/// verifiers.
 pub(super) async fn verify_pnpr_input_lockfile<Reporter: self::Reporter + 'static>(
     link: &PnprLink<'_>,
     lockfile: &Lockfile,
 ) -> miette::Result<()> {
-    if link.lockfile.trust {
-        return verify_lockfile_dependency_names(lockfile).map_err(miette::Report::new);
-    }
     verify_lockfile_resolutions::<Reporter>(
         lockfile,
         &[],
@@ -38,17 +37,13 @@ pub(super) async fn verify_settled_pnpr_lockfile<Reporter: self::Reporter + 'sta
 ) -> miette::Result<Option<Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>>>
 {
     if !(link.lockfile.fix && partial_selection) {
-        if link.lockfile.trust {
-            verify_lockfile_dependency_names(lockfile).map_err(miette::Report::new)?;
-        } else {
-            verify_lockfile_resolutions::<Reporter>(
-                lockfile,
-                &[],
-                &VerifyLockfileResolutionsOptions::default(),
-            )
-            .await
-            .map_err(miette::Report::new)?;
-        }
+        verify_lockfile_resolutions::<Reporter>(
+            lockfile,
+            &[],
+            &VerifyLockfileResolutionsOptions::default(),
+        )
+        .await
+        .map_err(miette::Report::new)?;
         return Ok(None);
     }
     let verifiers =

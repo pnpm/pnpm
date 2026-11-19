@@ -91,7 +91,7 @@ use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
-    collect_resolution_policy_violations, verify_lockfile_resolution_shapes,
+    collect_resolution_policy_violations, collect_resolution_shape_violations,
     with_offline_check_cache_identities,
 };
 use pnpm_network::{AuthHeaders, GuardedDnsResolver, ThrottledClient, native_dns_resolver};
