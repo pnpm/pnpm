@@ -10,6 +10,7 @@ use super::{
     ConfigDependency,
     Deserialize,
     Deserializer,
+    EnvVar,
     HashMap,
     HoistingLimits,
     IndexMap,
@@ -850,15 +851,18 @@ impl WorkspaceSettings {
         read_workspace_document(dir)?
             .map(|document| {
                 Self::read_document(document, settings_read, |text, path| {
-                    Self::read_valid(text, path)
+                    Self::read_valid_with::<SystemEnv>(text, path)
                 })
             })
             .transpose()
     }
 
     /// Parse and validate the text of the `pnpm-workspace.yaml` at `path`.
-    fn read_valid(text: &str, path: &Path) -> Result<Self, LoadWorkspaceYamlError> {
-        let settings = parse_settings_file::<SystemEnv, Self>(text, path)?;
+    pub(crate) fn read_valid_with<Sys: EnvVar>(
+        text: &str,
+        path: &Path,
+    ) -> Result<Self, LoadWorkspaceYamlError> {
+        let settings = parse_settings_file::<Sys, Self>(text, path)?;
         settings.validate_all_sections()?;
         settings.reject_repo_controlled_trust_material(path)?;
         Ok(settings)
