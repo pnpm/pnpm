@@ -152,7 +152,8 @@ fn compares_against_the_catalog_an_update_config_hook_sets() {
         "packages:\n  - packages/*\ncatalog:\n  react: ^18.0.0\n",
     );
     write(&workspace, "package.json", r#"{ "name": "root", "private": true }"#);
-    let manifest = r#"{ "name": "foo", "dependencies": { "react": "^18.0.0" } }"#;
+    let manifest =
+        r#"{ "name": "foo", "dependencies": { "lodash": "^4.0.0", "react": "^18.0.0" } }"#;
     write(&workspace, "packages/foo/package.json", manifest);
     write(
         &workspace,
@@ -172,7 +173,12 @@ fn compares_against_the_catalog_an_update_config_hook_sets() {
         stdout.trim_end(),
         "These dependencies were left unchanged because the projects or the default catalog disagree on their specifier:
   react: ^18.0.0 (catalog: ^19.0.0)
+These dependencies were left unchanged because the catalogs come from an updateConfig hook that has no entry for them: lodash
 No dependencies were moved to the default catalog.",
     );
     assert_eq!(read(&workspace, "packages/foo/package.json"), manifest);
+    assert_eq!(
+        read(&workspace, "pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\ncatalog:\n  react: ^18.0.0\n",
+    );
 }

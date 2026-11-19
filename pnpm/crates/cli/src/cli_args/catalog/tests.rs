@@ -1,5 +1,6 @@
 use super::{
-    Conflict, DeclaredSpecifiers, MigrationPlan, is_migratable, plan_migration, render_report,
+    CatalogSource, Conflict, DeclaredSpecifiers, MigrationPlan, is_migratable, plan_migration,
+    render_report,
 };
 use pnpm_catalogs_types::Catalog;
 use pretty_assertions::assert_eq;
@@ -57,6 +58,7 @@ fn moves_agreed_specifiers_and_lists_the_rest() {
             ("off-catalog", &["^4.0.0"]),
         ]),
         Some(&catalog(&[("cataloged", "^3.0.0"), ("off-catalog", "^4.1.0")])),
+        CatalogSource::WorkspaceManifest,
     );
     assert_eq!(
         plan,
@@ -78,6 +80,7 @@ fn moves_agreed_specifiers_and_lists_the_rest() {
                     catalog_entry: None,
                 },
             ],
+            missing_from_hook_catalogs: Vec::new(),
         },
     );
     assert_eq!(
@@ -91,7 +94,7 @@ Moved 2 dependencies to the default catalog. Run `pnpm install` to update the lo
 
 #[test]
 fn reports_when_nothing_moves() {
-    let plan = plan_migration(&DeclaredSpecifiers::new(), None);
+    let plan = plan_migration(&DeclaredSpecifiers::new(), None, CatalogSource::WorkspaceManifest);
     assert_eq!(render_report(&plan), "No dependencies were moved to the default catalog.");
 }
 
@@ -103,4 +106,27 @@ fn strips_control_characters_from_conflicts() {
         catalog_entry: Some("^3.0.0\u{7}".to_string()),
     };
     assert_eq!(conflict.to_string(), "evil[2J: ^1.0.0[31m, ^2.0.0 (catalog: ^3.0.0)");
+}
+
+#[test]
+fn adds_no_entries_to_catalogs_a_hook_supplies() {
+    let plan = plan_migration(
+        &declared(&[("cataloged", &["^1.0.0"]), ("uncataloged", &["^2.0.0"])]),
+        Some(&catalog(&[("cataloged", "^1.0.0")])),
+        CatalogSource::UpdateConfigHook,
+    );
+    assert_eq!(
+        plan,
+        MigrationPlan {
+            migrated: BTreeMap::from([("cataloged".to_string(), "^1.0.0".to_string())]),
+            new_entries: Catalog::new(),
+            conflicts: Vec::new(),
+            missing_from_hook_catalogs: vec!["uncataloged".to_string()],
+        },
+    );
+    assert_eq!(
+        render_report(&plan),
+        "These dependencies were left unchanged because the catalogs come from an updateConfig hook that has no entry for them: uncataloged
+Moved 1 dependency to the default catalog. Run `pnpm install` to update the lockfile.",
+    );
 }

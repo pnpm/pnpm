@@ -64,6 +64,19 @@ struct MigrationPlan {
     /// The entries to add to the default catalog.
     new_entries: Catalog,
     conflicts: Vec<Conflict>,
+    /// Dependencies the projects agree on that would need a new entry in
+    /// catalogs an `updateConfig` hook supplies.
+    missing_from_hook_catalogs: Vec<String>,
+}
+
+/// Where the catalogs that installs resolve through come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CatalogSource {
+    WorkspaceManifest,
+    /// The hook's output replaces the workspace catalogs, so an entry
+    /// written to `pnpm-workspace.yaml` reaches installs only if the hook
+    /// keeps it.
+    UpdateConfigHook,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -77,7 +90,13 @@ fn migrate(config: &Config) -> miette::Result<()> {
     let workspace_dir = config.workspace_dir.as_deref().ok_or(CatalogError::NoWorkspace)?;
     let (mut projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
     let catalogs = configured_catalogs(config)?;
-    let plan = plan_migration(&declared_specifiers(&projects), catalogs.get(DEFAULT_CATALOG_NAME));
+    let source = if config.catalogs.is_some() {
+        CatalogSource::UpdateConfigHook
+    } else {
+        CatalogSource::WorkspaceManifest
+    };
+    let plan =
+        plan_migration(&declared_specifiers(&projects), catalogs.get(DEFAULT_CATALOG_NAME), source);
 
     // The catalog is written before the manifests that reference it, so a
     // failed manifest write leaves an unused entry rather than a dangling
@@ -135,6 +154,7 @@ fn is_migratable(specifier: &str) -> bool {
 fn plan_migration(
     declared: &DeclaredSpecifiers,
     default_catalog: Option<&Catalog>,
+    source: CatalogSource,
 ) -> MigrationPlan {
     let mut plan = MigrationPlan::default();
     for (name, specifiers) in declared {
@@ -148,6 +168,9 @@ fn plan_migration(
             _ => None,
         };
         match (agreed, catalog_entry) {
+            (Some(_), None) if source == CatalogSource::UpdateConfigHook => {
+                plan.missing_from_hook_catalogs.push(name.clone());
+            }
             (Some(specifier), None) => {
                 plan.new_entries.insert(name.clone(), specifier.clone());
                 plan.migrated.insert(name.clone(), specifier.clone());
@@ -200,8 +223,23 @@ fn render_report(plan: &MigrationPlan) -> String {
             report.push('\n');
         }
     }
+    report.push_str(&render_missing_from_hook_catalogs(&plan.missing_from_hook_catalogs));
     report.push_str(&render_summary(plan.migrated.len()));
     report
+}
+
+fn render_missing_from_hook_catalogs(names: &[String]) -> String {
+    if names.is_empty() {
+        return String::new();
+    }
+    let names = names
+        .iter()
+        .map(|name| sanitize_inline(name))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "These dependencies were left unchanged because the catalogs come from an updateConfig hook that has no entry for them: {names}\n",
+    )
 }
 
 fn render_summary(migrated: usize) -> String {
