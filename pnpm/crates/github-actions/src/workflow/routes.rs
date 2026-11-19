@@ -1,291 +1,238 @@
 use super::{
-    Component, Document, QueryError, Route,
-    root::{ContainerSummary, DirectUses, StepField, StepSummary, parse_workflow_root},
+    Component, HashSet, QueryError, Route,
+    graph::{MAX_MERGE_DEPTH, NodeId, YamlGraph, YamlNode},
 };
 use std::collections::HashMap;
 
-const MAX_MERGE_DEPTH: usize = 8;
-
-pub(super) fn uses_routes(
-    text: &str,
-    document: &Document,
-) -> Result<Vec<Route<'static>>, QueryError> {
-    let root = parse_workflow_root(text)?;
+pub(super) fn uses_routes(text: &str) -> Result<Vec<Route<'static>>, QueryError> {
+    let graph = YamlGraph::parse(text)?;
+    let Some(root_id) = graph.root else {
+        return Ok(Vec::new());
+    };
     let mut routes = Vec::new();
-    for (job_name, job) in root.jobs {
-        let prefix = ["jobs".into(), job_name.into()];
-        add_container_routes(document, &mut routes, &prefix, &job, true)?;
+    if let Some((jobs_id, jobs_prefix)) = find_map_entry(&graph, root_id, &[], "jobs") {
+        add_jobs_routes(&graph, &mut routes, jobs_id, &jobs_prefix);
     }
-    match root.runs {
-        Some(runs) => add_container_routes(document, &mut routes, &["runs".into()], &runs, false)?,
-        None if root.has_merge => add_merged_runs_routes(document, &mut routes)?,
-        None => {}
+    if let Some((runs_id, runs_prefix)) = find_map_entry(&graph, root_id, &[], "runs")
+        && let Some((steps_id, steps_prefix)) =
+            find_map_entry(&graph, runs_id, &runs_prefix, "steps")
+    {
+        add_step_routes(&graph, &mut routes, steps_id, &steps_prefix);
     }
     Ok(routes)
 }
 
-fn add_container_routes(
-    document: &Document,
+fn add_jobs_routes(
+    graph: &YamlGraph,
     routes: &mut Vec<Route<'static>>,
-    prefix: &[Component<'static>],
-    container: &ContainerSummary,
-    include_container_uses: bool,
-) -> Result<(), QueryError> {
-    if include_container_uses {
-        add_uses_for_summary(document, routes, prefix, container.uses, container.has_merge)?;
-    }
-    match &container.steps {
-        Some(StepField::Sequence(steps)) => {
-            let mut steps_prefix = prefix.to_vec();
-            steps_prefix.push("steps".into());
-            add_direct_step_routes(document, routes, &steps_prefix, steps)?;
-        }
-        Some(StepField::NonSequence) => {}
-        None if container.has_merge => {
-            if let Some(steps_prefix) = find_key_path(document, prefix, "steps")? {
-                add_merged_step_routes(document, routes, &steps_prefix)?;
-            }
-        }
-        None => {}
-    }
-    Ok(())
-}
-
-fn add_merged_runs_routes(
-    document: &Document,
-    routes: &mut Vec<Route<'static>>,
-) -> Result<(), QueryError> {
-    if let Some(runs_prefix) = find_key_path(document, &[], "runs")?
-        && let Some(steps_prefix) = find_key_path(document, &runs_prefix, "steps")?
-    {
-        add_merged_step_routes(document, routes, &steps_prefix)?;
-    }
-    Ok(())
-}
-
-fn add_direct_step_routes(
-    document: &Document,
-    routes: &mut Vec<Route<'static>>,
-    steps_prefix: &[Component<'static>],
-    steps: &[StepSummary],
-) -> Result<(), QueryError> {
-    for (index, step) in steps.iter().enumerate() {
-        if step.uses == DirectUses::Missing && !step.has_merge {
+    jobs_id: NodeId,
+    jobs_prefix: &[Component<'static>],
+) {
+    for (job_id, job_prefix) in collect_map_entries(graph, jobs_id, jobs_prefix) {
+        if !matches!(graph.deref(job_id), Some((_, YamlNode::Mapping(_)))) {
             continue;
         }
-        let mut step_prefix = steps_prefix.to_vec();
-        step_prefix.push(index.into());
-        add_uses_for_summary(document, routes, &step_prefix, step.uses, step.has_merge)?;
+        if let Some(route) = find_string_route(graph, job_id, &job_prefix, "uses") {
+            routes.push(route);
+        }
+        if let Some((steps_id, steps_prefix)) = find_map_entry(graph, job_id, &job_prefix, "steps")
+        {
+            add_step_routes(graph, routes, steps_id, &steps_prefix);
+        }
     }
-    Ok(())
 }
 
-fn add_uses_for_summary(
-    document: &Document,
+fn add_step_routes(
+    graph: &YamlGraph,
     routes: &mut Vec<Route<'static>>,
-    prefix: &[Component<'static>],
-    uses: DirectUses,
-    has_merge: bool,
-) -> Result<(), QueryError> {
-    match uses {
-        DirectUses::StringScalar => {
-            let mut path = prefix.to_vec();
-            path.push("uses".into());
-            routes.push(Route::from(path));
-        }
-        DirectUses::NonString => {}
-        DirectUses::Missing if has_merge => {
-            if let Some(route) = find_uses_route(document, prefix)? {
-                routes.push(route);
-            }
-        }
-        DirectUses::Missing => {}
-    }
-    Ok(())
-}
-
-fn find_uses_route(
-    document: &Document,
-    prefix: &[Component<'static>],
-) -> Result<Option<Route<'static>>, QueryError> {
-    let Some(path) = find_key_path(document, prefix, "uses")? else {
-        return Ok(None);
-    };
-    Ok(matches!(node_shape(document, &path)?.0, NodeShape::Scalar).then(|| Route::from(path)))
-}
-
-fn find_key_path(
-    document: &Document,
-    prefix: &[Component<'static>],
-    key: &'static str,
-) -> Result<Option<Vec<Component<'static>>>, QueryError> {
-    let mut visited_depth = HashMap::new();
-    lookup_key_path(document, prefix, key, 0, &mut visited_depth)
-}
-
-fn lookup_key_path(
-    document: &Document,
-    prefix: &[Component<'static>],
-    key: &'static str,
-    depth: usize,
-    visited_depth: &mut HashMap<(usize, usize), usize>,
-) -> Result<Option<Vec<Component<'static>>>, QueryError> {
-    let (shape, Some(span)) = node_shape(document, prefix)? else {
-        return Ok(None);
-    };
-    if !matches!(shape, NodeShape::Mapping)
-        || visited_depth
-            .get(&span)
-            .is_some_and(|&previous| previous <= depth)
-    {
-        return Ok(None);
-    }
-    visited_depth.insert(span, depth);
-    let mut direct = prefix.to_vec();
-    direct.push(key.into());
-    match direct_key_status(document, &direct)? {
-        DirectKey::PresentWithValue => return Ok(Some(direct)),
-        DirectKey::PresentEmpty => return Ok(None),
-        DirectKey::Missing => {}
-    }
-    if depth >= MAX_MERGE_DEPTH {
-        return Ok(None);
-    }
-    lookup_merged_key_path(document, prefix, key, depth + 1, visited_depth)
-}
-
-fn lookup_merged_key_path(
-    document: &Document,
-    prefix: &[Component<'static>],
-    key: &'static str,
-    depth: usize,
-    visited_depth: &mut HashMap<(usize, usize), usize>,
-) -> Result<Option<Vec<Component<'static>>>, QueryError> {
-    let mut merge_prefix = prefix.to_vec();
-    merge_prefix.push("<<".into());
-    match node_shape(document, &merge_prefix)?.0 {
-        NodeShape::Mapping => lookup_key_path(document, &merge_prefix, key, depth, visited_depth),
-        NodeShape::Sequence => {
-            lookup_merged_sequence_path(document, &merge_prefix, key, depth, visited_depth)
-        }
-        NodeShape::Scalar | NodeShape::Absent => Ok(None),
-    }
-}
-
-fn lookup_merged_sequence_path(
-    document: &Document,
-    merge_prefix: &[Component<'static>],
-    key: &'static str,
-    depth: usize,
-    visited_depth: &mut HashMap<(usize, usize), usize>,
-) -> Result<Option<Vec<Component<'static>>>, QueryError> {
-    for index in 0.. {
-        let mut item_prefix = merge_prefix.to_vec();
-        item_prefix.push(index.into());
-        if !sequence_has_item(document, &item_prefix)? {
-            return Ok(None);
-        }
-        if let Some(found) = lookup_key_path(document, &item_prefix, key, depth, visited_depth)? {
-            return Ok(Some(found));
-        }
-    }
-    Ok(None)
-}
-
-fn add_merged_step_routes(
-    document: &Document,
-    routes: &mut Vec<Route<'static>>,
+    steps_id: NodeId,
     steps_prefix: &[Component<'static>],
-) -> Result<(), QueryError> {
-    if !matches!(node_shape(document, steps_prefix)?.0, NodeShape::Sequence) {
-        return Ok(());
-    }
-    for index in 0.. {
+) {
+    let Some((_, YamlNode::Sequence(items))) = graph.deref(steps_id) else {
+        return;
+    };
+    for (index, &step_id) in items.iter().enumerate() {
         let mut step_prefix = steps_prefix.to_vec();
         step_prefix.push(index.into());
-        if !sequence_has_item(document, &step_prefix)? {
-            break;
-        }
-        if let Some(route) = find_uses_route(document, &step_prefix)? {
+        if let Some(route) = find_string_route(graph, step_id, &step_prefix, "uses") {
             routes.push(route);
         }
     }
-    Ok(())
 }
 
-enum NodeShape {
-    Mapping,
-    Sequence,
-    Scalar,
-    Absent,
-}
-
-enum DirectKey {
-    PresentWithValue,
-    PresentEmpty,
-    Missing,
-}
-
-fn direct_key_status(
-    document: &Document,
-    direct_route: &[Component<'static>],
-) -> Result<DirectKey, QueryError> {
-    match document.query_exact(&Route::from(direct_route.to_vec())) {
-        Ok(Some(_)) => Ok(DirectKey::PresentWithValue),
-        Ok(None) => Ok(DirectKey::PresentEmpty),
-        Err(QueryError::ExhaustedMapping(_)) => Ok(DirectKey::Missing),
-        Err(
-            QueryError::UnexpectedNode(_) | QueryError::MissingChild(_, _) | QueryError::Other(_),
-        ) => Ok(DirectKey::PresentEmpty),
-        Err(error) => Err(error),
-    }
-}
-
-fn sequence_has_item(
-    document: &Document,
-    item_prefix: &[Component<'static>],
-) -> Result<bool, QueryError> {
-    match document.query_exact(&Route::from(item_prefix.to_vec())) {
-        Ok(_) => Ok(true),
-        Err(
-            QueryError::ExhaustedList(_, _)
-            | QueryError::ExpectedList(_)
-            | QueryError::UnexpectedNode(_)
-            | QueryError::MissingChild(_, _)
-            | QueryError::Other(_),
-        ) => Ok(false),
-        Err(error) => Err(error),
-    }
-}
-
-fn node_shape(
-    document: &Document,
+fn find_string_route(
+    graph: &YamlGraph,
+    node_id: NodeId,
     prefix: &[Component<'static>],
-) -> Result<(NodeShape, Option<(usize, usize)>), QueryError> {
-    let feature = match document.query_exact(&Route::from(prefix.to_vec())) {
-        Ok(Some(feature)) => feature,
-        Ok(None)
-        | Err(
-            QueryError::ExhaustedMapping(_)
-            | QueryError::ExhaustedList(_, _)
-            | QueryError::ExpectedMapping(_)
-            | QueryError::ExpectedList(_)
-            | QueryError::UnexpectedNode(_)
-            | QueryError::MissingChild(_, _)
-            | QueryError::Other(_),
-        ) => return Ok((NodeShape::Absent, None)),
-        Err(error) => return Err(error),
-    };
-    let span = Some(feature.location.byte_span);
-    let mut probe = prefix.to_vec();
-    probe.push(0usize.into());
-    match document.query_exact(&Route::from(probe)) {
-        Ok(_) | Err(QueryError::ExhaustedList(_, _) | QueryError::MissingChild(_, _)) => {
-            Ok((NodeShape::Sequence, span))
+    key: &'static str,
+) -> Option<Route<'static>> {
+    let (value_id, path) = find_map_entry(graph, node_id, prefix, key)?;
+    graph.string_at(value_id).map(|_| Route::from(path))
+}
+
+fn find_map_entry(
+    graph: &YamlGraph,
+    node_id: NodeId,
+    prefix: &[Component<'static>],
+    key: &'static str,
+) -> Option<(NodeId, Vec<Component<'static>>)> {
+    let mut lookup = MapLookup { graph, key, visited_depth: HashMap::new() };
+    lookup.find(node_id, prefix, 0)
+}
+
+struct MapLookup<'graph> {
+    graph: &'graph YamlGraph,
+    key: &'static str,
+    visited_depth: HashMap<NodeId, usize>,
+}
+
+impl MapLookup<'_> {
+    fn find(
+        &mut self,
+        node_id: NodeId,
+        prefix: &[Component<'static>],
+        depth: usize,
+    ) -> Option<(NodeId, Vec<Component<'static>>)> {
+        let (resolved_id, YamlNode::Mapping(entries)) = self.graph.deref(node_id)? else {
+            return None;
+        };
+        if self.visited_depth
+            .get(&resolved_id)
+            .is_some_and(|&previous| previous <= depth)
+        {
+            return None;
         }
-        Err(QueryError::ExpectedList(_)) => Ok((NodeShape::Mapping, span)),
-        Err(QueryError::UnexpectedNode(_)) => Ok((NodeShape::Scalar, span)),
-        Err(QueryError::Other(_)) => Ok((NodeShape::Absent, None)),
-        Err(error) => Err(error),
+        self.visited_depth.insert(resolved_id, depth);
+
+        let mut merge_target = None;
+        for &(key_id, value_id) in entries {
+            let Some(entry_key) = key_id.and_then(|id| self.graph.string_at(id)) else {
+                continue;
+            };
+            if entry_key == self.key {
+                let mut path = prefix.to_vec();
+                path.push(self.key.into());
+                return Some((value_id, path));
+            }
+            if entry_key == "<<" && merge_target.is_none() {
+                merge_target = Some(value_id);
+            }
+        }
+        if depth >= MAX_MERGE_DEPTH {
+            return None;
+        }
+        self.find_merged(merge_target?, prefix, depth + 1)
+    }
+
+    fn find_merged(
+        &mut self,
+        merge_id: NodeId,
+        prefix: &[Component<'static>],
+        depth: usize,
+    ) -> Option<(NodeId, Vec<Component<'static>>)> {
+        match self.graph.deref(merge_id)?.1 {
+            YamlNode::Mapping(_) => {
+                let mut merge_prefix = prefix.to_vec();
+                merge_prefix.push("<<".into());
+                self.find(merge_id, &merge_prefix, depth)
+            }
+            YamlNode::Sequence(items) => {
+                for (index, &item_id) in items.iter().enumerate() {
+                    let mut item_prefix = prefix.to_vec();
+                    item_prefix.extend(["<<".into(), index.into()]);
+                    if let Some(found) = self.find(item_id, &item_prefix, depth) {
+                        return Some(found);
+                    }
+                }
+                None
+            }
+            YamlNode::Scalar(_) | YamlNode::Alias(_) => None,
+        }
+    }
+}
+
+fn collect_map_entries(
+    graph: &YamlGraph,
+    node_id: NodeId,
+    prefix: &[Component<'static>],
+) -> Vec<(NodeId, Vec<Component<'static>>)> {
+    let mut collector = MapCollector {
+        graph,
+        seen_keys: HashSet::new(),
+        visited_depth: HashMap::new(),
+        entries: Vec::new(),
+    };
+    collector.collect(node_id, prefix, 0);
+    collector.entries
+}
+
+struct MapCollector<'graph> {
+    graph: &'graph YamlGraph,
+    seen_keys: HashSet<String>,
+    visited_depth: HashMap<NodeId, usize>,
+    entries: Vec<(NodeId, Vec<Component<'static>>)>,
+}
+
+impl MapCollector<'_> {
+    fn collect(&mut self, node_id: NodeId, prefix: &[Component<'static>], depth: usize) {
+        let Some((resolved_id, YamlNode::Mapping(entries))) = self.graph.deref(node_id) else {
+            return;
+        };
+        if self.visited_depth
+            .get(&resolved_id)
+            .is_some_and(|&previous| previous <= depth)
+        {
+            return;
+        }
+        self.visited_depth.insert(resolved_id, depth);
+
+        let merge_target = self.collect_direct_entries(entries, prefix);
+        if depth < MAX_MERGE_DEPTH
+            && let Some(merge_id) = merge_target
+        {
+            self.collect_merged(merge_id, prefix, depth + 1);
+        }
+    }
+
+    fn collect_direct_entries(
+        &mut self,
+        entries: &[(Option<NodeId>, NodeId)],
+        prefix: &[Component<'static>],
+    ) -> Option<NodeId> {
+        let mut merge_target = None;
+        for &(key_id, value_id) in entries {
+            let Some(key_name) = key_id.and_then(|id| self.graph.string_at(id)) else {
+                continue;
+            };
+            if key_name == "<<" {
+                merge_target.get_or_insert(value_id);
+            } else if self.seen_keys.insert(key_name.to_owned()) {
+                let mut entry_prefix = prefix.to_vec();
+                entry_prefix.push(key_name.to_owned().into());
+                self.entries.push((value_id, entry_prefix));
+            }
+        }
+        merge_target
+    }
+
+    fn collect_merged(&mut self, merge_id: NodeId, prefix: &[Component<'static>], depth: usize) {
+        let Some((_, merged_node)) = self.graph.deref(merge_id) else {
+            return;
+        };
+        match merged_node {
+            YamlNode::Mapping(_) => {
+                let mut merge_prefix = prefix.to_vec();
+                merge_prefix.push("<<".into());
+                self.collect(merge_id, &merge_prefix, depth);
+            }
+            YamlNode::Sequence(items) => {
+                for (index, &item_id) in items.iter().enumerate() {
+                    let mut item_prefix = prefix.to_vec();
+                    item_prefix.extend(["<<".into(), index.into()]);
+                    self.collect(item_id, &item_prefix, depth);
+                }
+            }
+            YamlNode::Scalar(_) | YamlNode::Alias(_) => {}
+        }
     }
 }

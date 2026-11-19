@@ -3,7 +3,7 @@ use super::{
     VecDeque, fs, parse_comment_version,
 };
 
-mod root;
+mod graph;
 mod routes;
 
 pub(super) async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
@@ -215,7 +215,7 @@ fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
     let document = Document::new(text)?;
     let mut seen_ranges = HashSet::new();
     let mut values = Vec::new();
-    for route in routes::uses_routes(text, &document)? {
+    for route in routes::uses_routes(text)? {
         if let Some(uses) = uses_value_at(text, &document, &route)?
             && seen_ranges.insert(uses.range.clone())
         {

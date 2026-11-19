@@ -115,6 +115,13 @@ interface MapLookupContext {
   visitedDepth: Map<YAMLMap, number>
 }
 
+interface MapEntriesContext {
+  document: Document
+  seenKeys: Set<string>
+  visitedDepth: Map<YAMLMap, number>
+  values: Array<Node | null>
+}
+
 function findUsesScalars (document: Document, root: Node | null | undefined): Array<Scalar<string>> {
   const resolvedRoot = derefNode(document, root)
   if (!isMap(resolvedRoot)) return []
@@ -132,14 +139,70 @@ function findUsesScalars (document: Document, root: Node | null | undefined): Ar
 
 function findJobsUses (document: Document, jobs: YAMLMap): Array<Scalar<string>> {
   const found: Array<Scalar<string>> = []
-  for (const job of jobs.items) {
-    const jobValue = derefNode(document, job.value)
+  for (const jobValue of collectMapValues(document, jobs)) {
     if (!isMap(jobValue)) continue
     const jobUses = findStringScalar(document, jobValue, 'uses')
     if (jobUses != null) found.push(jobUses)
     found.push(...findStepUses(document, findMapValue(document, jobValue, 'steps')))
   }
   return found
+}
+
+function collectMapValues (document: Document, rootMap: YAMLMap): Array<Node | null> {
+  const context: MapEntriesContext = {
+    document,
+    seenKeys: new Set<string>(),
+    visitedDepth: new Map<YAMLMap, number>(),
+    values: [],
+  }
+  visitMapEntries(context, rootMap, 0)
+  return context.values
+}
+
+function visitMapEntries (context: MapEntriesContext, node: Node | null, depth: number): void {
+  if (!isMap(node)) return
+  const previousDepth = context.visitedDepth.get(node)
+  if (previousDepth !== undefined && previousDepth <= depth) return
+  context.visitedDepth.set(node, depth)
+
+  const mergeNode = collectDirectMapValues(context, node)
+  if (depth < MAX_MERGE_DEPTH && mergeNode != null) {
+    visitMergedMapEntries(context, mergeNode, depth + 1)
+  }
+}
+
+function collectDirectMapValues (context: MapEntriesContext, node: YAMLMap): Node | null {
+  let mergePairValue: unknown
+  let hasMerge = false
+  for (const pair of node.items) {
+    const key = pairKeyName(context.document, pair.key)
+    if (key === '<<') {
+      if (!hasMerge) {
+        mergePairValue = pair.value
+        hasMerge = true
+      }
+    } else if (key != null && !context.seenKeys.has(key)) {
+      context.seenKeys.add(key)
+      context.values.push(derefNode(context.document, pair.value))
+    }
+  }
+  return hasMerge ? derefNode(context.document, mergePairValue) : null
+}
+
+function visitMergedMapEntries (context: MapEntriesContext, merged: Node, depth: number): void {
+  if (isMap(merged)) {
+    visitMapEntries(context, merged, depth)
+    return
+  }
+  if (!isSeq(merged)) return
+  for (const entry of merged.items) {
+    visitMapEntries(context, derefNode(context.document, entry), depth)
+  }
+}
+
+function pairKeyName (document: Document, key: unknown): string | null {
+  const resolved = derefNode(document, key)
+  return isScalar(resolved) && typeof resolved.value === 'string' ? resolved.value : null
 }
 
 function findStepUses (document: Document, node: Node | null): Array<Scalar<string>> {
@@ -175,14 +238,17 @@ function lookupMapValue (context: MapLookupContext, node: Node, depth: number): 
   const previousDepth = context.visitedDepth.get(node)
   if (previousDepth !== undefined && previousDepth <= depth) return null
   context.visitedDepth.set(node, depth)
-  const directPair = node.items.find((pair) => isScalar(pair.key) && pair.key.value === context.key)
+  const directPair = node.items.find((pair) => pairKeyName(context.document, pair.key) === context.key)
   if (directPair !== undefined) return derefNode(context.document, directPair.value)
   if (depth >= MAX_MERGE_DEPTH) return null
   return lookupMergedValue(context, node, depth + 1)
 }
 
 function lookupMergedValue (context: MapLookupContext, node: YAMLMap, depth: number): Node | null {
-  const merged = derefNode(context.document, node.items.find((pair) => isScalar(pair.key) && pair.key.value === '<<')?.value)
+  const merged = derefNode(
+    context.document,
+    node.items.find((pair) => pairKeyName(context.document, pair.key) === '<<')?.value
+  )
   if (isMap(merged)) return lookupMapValue(context, merged, depth)
   if (!isSeq(merged)) return null
   for (const entry of merged.items) {

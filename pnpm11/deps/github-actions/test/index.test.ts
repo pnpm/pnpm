@@ -166,6 +166,78 @@ jobs:
     )
   })
 
+  test('updates actions inherited through root and jobs-map merges with direct overrides', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const dir = await fixture({
+      '.github/workflows/root-merged.yml': `template: &template
+  jobs:
+    lint:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@${shaOld} # v4.1.0
+<<: *template
+`,
+      '.github/workflows/jobs-merged.yml': `ignored_root: &ignored_root
+  jobs:
+    shadowed_root_job:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@${shaOld} # v4.1.0
+shared_jobs: &shared_jobs
+  inherited_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${shaOld} # v4.1.0
+  overridden_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${shaOld} # v4.1.0
+<<: *ignored_root
+jobs:
+  <<: *shared_jobs
+  overridden_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@${shaOld} # v4.1.0
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/root-merged.yml'), 'utf8')).resolves.toContain(
+      `uses: actions/checkout@${shaNew} # v4.2.0`
+    )
+    const jobsMerged = await fs.readFile(path.join(dir, '.github/workflows/jobs-merged.yml'), 'utf8')
+    expect(jobsMerged).toBe(`ignored_root: &ignored_root
+  jobs:
+    shadowed_root_job:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@${shaOld} # v4.1.0
+shared_jobs: &shared_jobs
+  inherited_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${shaNew} # v4.2.0
+  overridden_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${shaOld} # v4.1.0
+<<: *ignored_root
+jobs:
+  <<: *shared_jobs
+  overridden_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@${shaNew} # v4.2.0
+`)
+  })
+
   test('finds actions in workflows and referenced local composite actions', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `jobs:

@@ -300,6 +300,130 @@ async fn updates_action_in_large_step_sequence() {
     assert!(updated_source.contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")));
 }
 
+#[tokio::test]
+async fn updates_actions_from_root_and_jobs_map_merges_with_direct_overrides() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+
+    let root_merged = workflows.join("root-merged.yml");
+    fs::write(
+        &root_merged,
+        format!(
+            concat!(
+                "template: &template\n",
+                "  jobs:\n",
+                "    lint:\n",
+                "      runs-on: ubuntu-latest\n",
+                "      steps:\n",
+                "        - uses: actions/checkout@{0} # v4.1.0\n",
+                "<<: *template\n",
+            ),
+            SHA_V4_1_0,
+        ),
+    )
+    .expect("write root-merged workflow");
+
+    let jobs_merged = workflows.join("jobs-merged.yml");
+    fs::write(
+        &jobs_merged,
+        format!(
+            concat!(
+                "ignored_root: &ignored_root\n",
+                "  jobs:\n",
+                "    shadowed_root_job:\n",
+                "      runs-on: ubuntu-latest\n",
+                "      steps:\n",
+                "        - uses: actions/checkout@{0} # v4.1.0\n",
+                "shared_jobs: &shared_jobs\n",
+                "  inherited_job:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps:\n",
+                "      - uses: actions/checkout@{0} # v4.1.0\n",
+                "  overridden_job:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps:\n",
+                "      - uses: actions/checkout@{0} # v4.1.0\n",
+                "<<: *ignored_root\n",
+                "jobs:\n",
+                "  <<: *shared_jobs\n",
+                "  overridden_job:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps:\n",
+                "      - uses: actions/setup-node@{0} # v4.1.0\n",
+            ),
+            SHA_V4_1_0,
+        ),
+    )
+    .expect("write jobs-merged workflow");
+
+    let updated_actions = update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+        None,
+    )
+    .await
+    .expect("update merged workflows");
+    let mut updated_names = updated_actions
+        .into_iter()
+        .map(|action| action.name)
+        .collect::<Vec<_>>();
+    updated_names.sort();
+    assert_eq!(
+        updated_names,
+        vec!["actions/checkout".to_string(), "actions/setup-node".to_string()],
+    );
+
+    assert_eq!(
+        fs::read_to_string(&root_merged).expect("read root-merged workflow"),
+        format!(
+            concat!(
+                "template: &template\n",
+                "  jobs:\n",
+                "    lint:\n",
+                "      runs-on: ubuntu-latest\n",
+                "      steps:\n",
+                "        - uses: actions/checkout@{0} # v4.2.0\n",
+                "<<: *template\n",
+            ),
+            SHA_V4_2_0,
+        ),
+    );
+    assert_eq!(
+        fs::read_to_string(&jobs_merged).expect("read jobs-merged workflow"),
+        format!(
+            concat!(
+                "ignored_root: &ignored_root\n",
+                "  jobs:\n",
+                "    shadowed_root_job:\n",
+                "      runs-on: ubuntu-latest\n",
+                "      steps:\n",
+                "        - uses: actions/checkout@{0} # v4.1.0\n",
+                "shared_jobs: &shared_jobs\n",
+                "  inherited_job:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps:\n",
+                "      - uses: actions/checkout@{1} # v4.2.0\n",
+                "  overridden_job:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps:\n",
+                "      - uses: actions/checkout@{0} # v4.1.0\n",
+                "<<: *ignored_root\n",
+                "jobs:\n",
+                "  <<: *shared_jobs\n",
+                "  overridden_job:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps:\n",
+                "      - uses: actions/setup-node@{1} # v4.2.0\n",
+            ),
+            SHA_V4_1_0, SHA_V4_2_0,
+        ),
+    );
+}
+
 #[test]
 fn apply_replacements_deduplicates_identical_edits_and_rejects_overlapping_ones() {
     let text = "uses: 'actions/checkout@old' # v4.1.1000\n# café: éééé\n";
