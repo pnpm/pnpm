@@ -680,6 +680,92 @@ async fn published_tarball_mapper_accepts_both_published_and_sanitized_public_ur
             "{allowed} should pass",
         );
     }
+
+    // Any other query string matches neither `published` nor `sanitized`.
+    let other_query = tarball_resolution(
+        "https://cdn.public.example/public-query-pkg-1.0.0.tgz?download=2",
+        Some(fake_integrity()),
+    );
+    assert!(matches!(
+        verifier.verify(&other_query, ctx(&name, "1.0.0")).await,
+        ResolutionVerification::Err { code: "TARBALL_URL_MISMATCH", .. },
+    ));
+}
+
+#[tokio::test]
+async fn undeclared_named_registry_is_rejected_even_without_tarball_url_or_active_policies() {
+    let verifier =
+        create_npm_resolution_verifier(default_opts("http://nonexistent.example.invalid/"));
+    let name: PkgName = "acme".parse().expect("parse");
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: fake_integrity(),
+        revision: None,
+    });
+    let ctx = pnpm_resolving_resolver_base::VerifyCtx {
+        name: &name,
+        version: "1.0.0",
+        registry_name: Some("undeclared"),
+    };
+    let result = verifier.verify(&resolution, ctx).await;
+    assert!(
+        matches!(result, ResolutionVerification::Err { code: "MISSING_NAMED_REGISTRY", .. }),
+        "got {result:?}",
+    );
+}
+
+#[tokio::test]
+async fn published_tarball_mapper_binds_routed_pnpr_install_v2_documents() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let packument = serde_json::json!({
+        "name": "@corp/v2",
+        "distTags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "integrity": FAKE_INTEGRITY,
+                "manifest": {},
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/@corp%2Fv2")
+        .with_header("content-type", "application/vnd.pnpr.install-v2+json")
+        .with_body(packument.to_string())
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    let mut reg_opts = std::collections::BTreeMap::new();
+    reg_opts.insert(
+        registry.clone(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            supports_time_field: None,
+        },
+    );
+    opts.registry_options_by_url = Some(reg_opts);
+    opts.artifacts.published_tarball_mapper =
+        Some(std::sync::Arc::new(|_, pkg, ver, lockfile_url, _| {
+            let routed = format!("https://pnpr.example/npm/~corp/{pkg}@{ver}");
+            crate::MappedTarballUrl {
+                accepted_routed_url: lockfile_url
+                    .starts_with("https://pnpr.example/npm/~")
+                    .then(|| routed.clone()),
+                display_url: routed,
+                accept_published_url: false,
+            }
+        }));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "@corp/v2".parse().expect("parse");
+    let ok =
+        tarball_resolution("https://pnpr.example/npm/~corp/@corp/v2@1.0.0", Some(fake_integrity()));
+    assert_eq!(verifier.verify(&ok, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+    let unrouted =
+        tarball_resolution(&format!("{registry}@corp/v2/-/v2-1.0.0.tgz"), Some(fake_integrity()));
+    assert!(matches!(
+        verifier.verify(&unrouted, ctx(&name, "1.0.0")).await,
+        ResolutionVerification::Err { code: "TARBALL_URL_MISMATCH", .. },
+    ));
 }
 
 #[tokio::test]

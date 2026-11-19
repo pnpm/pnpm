@@ -620,4 +620,14 @@ fn published_tarball_mapper_accepts_public_query_urls_and_binds_private_entries_
     );
     assert!(!unrouted_mapped.accept_published_url);
     assert_eq!(unrouted_mapped.accepted_routed_url, None);
+
+    // A lockfile without `/~` endpoint URLs still hashes differently for a
+    // caller whose registry is `Proxied` (`alice`) vs `Public` (`bob`).
+    let pnpm_config = config_for_registry("https://npm.corp.example/");
+    let raw = lockfile_with_tarball("https://npm.corp.example/acme/-/acme-1.0.0.tgz");
+    let outsider_router = tarball_router(&registry, user("bob"));
+    assert_ne!(
+        router.verification_verdict_hash(&pnpm_config, &raw),
+        outsider_router.verification_verdict_hash(&pnpm_config, &raw),
+    );
 }

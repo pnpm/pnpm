@@ -17,9 +17,9 @@ pub(super) async fn retry_expired_signed_tarball(
     tarball: UpstreamTarball<'_>,
     initial_err: RegistryError,
 ) -> Result<FetchOutcome<pnpm_network::ThrottledResponse>, RegistryError> {
-    let UpstreamTarballRoute::Url(failed_url) = tarball.route else {
+    if !matches!(tarball.route, UpstreamTarballRoute::Url(_)) {
         return Err(initial_err);
-    };
+    }
     let mut rotated = recent_rotated_tarball_dist(state, upstream, tarball).await?;
     if rotated.is_none()
         && let Some(packument) =
@@ -28,7 +28,6 @@ pub(super) async fn retry_expired_signed_tarball(
                 tarball.namespace,
                 upstream,
                 tarball.name,
-                failed_url,
             )
             .await?
     {
@@ -37,6 +36,7 @@ pub(super) async fn retry_expired_signed_tarball(
     let Some(dist) = rotated else {
         return Err(initial_err);
     };
+    crate::server::ensure_osv_allowed(state, tarball.name, &dist.version)?;
     state.inner.proxy.version_tgzs.invalidate_version(
         tarball.namespace,
         tarball.name,

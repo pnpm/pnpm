@@ -90,7 +90,7 @@ use axum::{body::Bytes, http::StatusCode, response::Response};
 use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
-use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
+use pnpm_lockfile_verification::collect_resolution_policy_violations;
 use pnpm_network::{AuthHeaders, GuardedDnsResolver, ThrottledClient, native_dns_resolver};
 use pnpm_package_manager::build_resolution_verifiers_with_artifacts;
 use pnpm_resolving_npm_resolver::{

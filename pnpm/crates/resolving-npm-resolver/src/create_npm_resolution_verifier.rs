@@ -39,7 +39,6 @@ mod artifact_binding;
 use artifact_binding::{
     current_history_violation, current_revision_number, lockfile_revision,
     mapped_tarball_url_violation, missing_artifact_violation, select_revision,
-    tarball_url_violation,
 };
 
 mod metadata_projection;
@@ -212,7 +211,10 @@ pub struct MappedTarballUrl {
     /// Endpoint-routed or sanitized URL accepted by the server (`/~<alias>/...`,
     /// hosted `/npm/...`, or query-stripped public URL).
     pub accepted_routed_url: Option<String>,
-    /// Whether the registry's exact `published` URL is also accepted.
+    /// Whether the registry's exact `published` URL is also accepted. Enabled
+    /// for public routes so both `pnpr`'s query-stripped lockfiles and
+    /// pre-existing lockfiles carrying the exact published URL verify, while
+    /// any other query string matches neither.
     pub accept_published_url: bool,
 }
 
@@ -460,18 +462,15 @@ impl NpmResolutionVerifier {
             return ResolutionVerification::Ok;
         }
 
+        let named_registry = match self.routing.named_registry_url(ctx.registry_name) {
+            Ok(named_registry) => named_registry,
+            Err(violation) => return violation,
+        };
         let (age_applies, trust_applies) = self.policies_for(&ctx);
         if tarball_url.is_none() && !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }
-        let registry = match self.routing.resolve_registry(
-            &ctx,
-            tarball_url,
-            self.artifacts.reverse_routed_tarball_url.as_ref(),
-        ) {
-            Ok(registry) => registry,
-            Err(violation) => return violation,
-        };
+        let registry = self.pick_entry_registry(named_registry, ctx.name, tarball_url);
 
         if let Some(violation) = self.run_artifact_binding(
             &registry,
@@ -486,6 +485,21 @@ impl NpmResolutionVerifier {
         }
 
         self.run_policy_checks(&registry, &ctx, age_applies, trust_applies).await
+    }
+
+    fn pick_entry_registry(
+        &self,
+        named_registry: Option<String>,
+        name: &PkgName,
+        tarball_url: Option<&str>,
+    ) -> String {
+        named_registry.unwrap_or_else(|| {
+            self.routing.pick_registry(
+                name,
+                tarball_url,
+                self.artifacts.reverse_routed_tarball_url.as_ref(),
+            )
+        })
     }
 
     /// A registry entry that pins an explicit tarball URL must point at the

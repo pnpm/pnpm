@@ -114,6 +114,12 @@ pub(super) async fn fetch_coalesced_upstream_packument(
     .await
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum PackumentFlightKind {
+    Read,
+    ForcedRefresh,
+}
+
 /// Run `read` as the one in-flight read of an upstream package's packument,
 /// or wait for the read already in flight for it.
 async fn coalesce_upstream_packument<Read, Pending>(
@@ -126,13 +132,17 @@ where
     Read: FnOnce() -> Pending + Send,
     Pending: Future<Output = Result<Option<Arc<AdmittedPackument>>, Arc<RegistryError>>> + Send,
 {
-    coalesce_upstream_packument_keyed(state, (namespace.to_string(), name.clone(), None), read)
-        .await
+    coalesce_upstream_packument_keyed(
+        state,
+        (namespace.to_string(), name.clone(), PackumentFlightKind::Read),
+        read,
+    )
+    .await
 }
 
 async fn coalesce_upstream_packument_keyed<Read, Pending>(
     state: &AppState,
-    key: (String, CanonicalPackageName, Option<String>),
+    key: (String, CanonicalPackageName, PackumentFlightKind),
     read: Read,
 ) -> Result<Option<Arc<AdmittedPackument>>, RegistryError>
 where

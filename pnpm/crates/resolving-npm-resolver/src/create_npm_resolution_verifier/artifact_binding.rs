@@ -62,7 +62,7 @@ pub(super) fn mapped_tarball_url_violation(
 }
 
 /// A recorded tarball URL must be the one the registry publishes.
-pub(super) fn tarball_url_violation(
+fn tarball_url_violation(
     lockfile_tarball: Option<&str>,
     registry_tarball: Option<&str>,
 ) -> Option<ResolutionVerification> {

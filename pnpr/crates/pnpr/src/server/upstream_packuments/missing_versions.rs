@@ -3,9 +3,9 @@
 
 use super::{
     AdmittedPackument, AppState, CanonicalPackageName, DocumentSource, Duration, Identity,
-    RegistryError, RegistrySource, Upstream, authorized_upstream, coalesce_upstream_packument,
-    coalesce_upstream_packument_keyed, fetch_and_cache_upstream_packument,
-    upstream_cache_namespace,
+    PackumentFlightKind, RegistryError, RegistrySource, Upstream, authorized_upstream,
+    coalesce_upstream_packument, coalesce_upstream_packument_keyed,
+    fetch_and_cache_upstream_packument, upstream_cache_namespace,
 };
 use std::{collections::HashMap, sync::Mutex, time::Instant};
 
@@ -137,23 +137,30 @@ pub(in crate::server) async fn reload_upstream_packument_lacking_version(
 }
 
 /// Refetch a package's packument after a signed tarball URL failed with
-/// `401`/`403`/`410`. Keyed on `Some(failed_url)` so the refresh starts after
-/// the rejection rather than joining an earlier read, while throttling
-/// sequential forced refreshes via [`PackumentRefetches::claim`].
+/// `401`/`403`/`410`. Coordinated per package on [`PackumentFlightKind::ForcedRefresh`]
+/// so concurrent expired downloads across versions share one post-rejection
+/// refresh without joining an earlier [`PackumentFlightKind::Read`], while
+/// throttling sequential forced refreshes via [`PackumentRefetches::claim`].
 pub(in crate::server) async fn reload_upstream_packument_for_expired_tarball(
     state: &AppState,
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
-    failed_url: &str,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    let key = (namespace.to_string(), name.clone(), Some(failed_url.to_string()));
+    let key = (namespace.to_string(), name.clone(), PackumentFlightKind::ForcedRefresh);
     let document = coalesce_upstream_packument_keyed(state, key, || async {
+        let admissions = &state.inner.packuments.admissions;
         if !state.inner.proxy.packument_refetches.claim(namespace, name) {
-            return Ok(None);
+            if !upstream.caches() {
+                return Ok(None);
+            }
+            let admission = admissions.acquire(DocumentSource::Stored).await;
+            let cached =
+                state.inner.storage.read_upstream_document(namespace, name, REFETCH_INTERVAL)
+                    .await?;
+            return Ok(cached.map(|bytes| AdmittedPackument::new(bytes, admission)));
         }
-        let admission =
-            state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace)).await;
+        let admission = admissions.acquire(DocumentSource::Upstream(namespace)).await;
         let fetched =
             fetch_and_cache_upstream_packument(state, namespace, upstream, name, None).await?;
         Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))

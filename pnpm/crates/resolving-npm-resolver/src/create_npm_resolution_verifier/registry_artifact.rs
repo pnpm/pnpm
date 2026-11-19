@@ -4,8 +4,7 @@ use super::{
     TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TarballRevision, VerifyCtx,
     current_history_violation, current_revision_number, has_complete_sha512_digest,
     is_revision_registry_tarball_url, lockfile_revision, mapped_tarball_url_violation,
-    missing_artifact_violation, redact_url_credentials, select_revision, tarball_url_violation,
-    to_registry_url,
+    missing_artifact_violation, redact_url_credentials, select_revision, to_registry_url,
 };
 use crate::pick_package::{ReleaseRecordError, ReleaseRecordRequest};
 
@@ -73,7 +72,12 @@ impl NpmResolutionVerifier {
         let Some(requested) = requested else {
             let published_tarball =
                 pnpr_published_tarball_url(registry, &pkg_name, version, current_revision);
-            return tarball_url_violation(lockfile_tarball, Some(&published_tarball));
+            return mapped_tarball_url_violation(
+                lockfile_tarball,
+                Some(&published_tarball),
+                (registry, &pkg_name, version),
+                self.artifacts.published_tarball_mapper.as_ref(),
+            );
         };
         let current_revision = current_revision.expect("checked when requested is Some");
         let integrity = resolution.checkable_integrity().expect("checked before artifact binding");
@@ -82,6 +86,7 @@ impl NpmResolutionVerifier {
             (&pkg_name, version, requested),
             lockfile_tarball,
             integrity,
+            self.artifacts.published_tarball_mapper.as_ref(),
         ) {
             return Some(violation);
         }
@@ -319,6 +324,7 @@ fn pnpr_revision_url_violation(
     (name, version, requested): (&str, &str, u64),
     lockfile_tarball: Option<&str>,
     integrity: &ssri::Integrity,
+    mapper: Option<&PublishedTarballUrlMapper>,
 ) -> Option<ResolutionVerification> {
     let expected_tarball = TarballRevision::try_from(requested)
         .ok()
@@ -331,7 +337,14 @@ fn pnpr_revision_url_violation(
         integrity,
         registry,
     )
-    .or_else(|| tarball_url_violation(lockfile_tarball, expected_tarball.as_deref()))
+    .or_else(|| {
+        mapped_tarball_url_violation(
+            lockfile_tarball,
+            expected_tarball.as_deref(),
+            (registry, name, version),
+            mapper,
+        )
+    })
 }
 
 /// A revision is only trustworthy when its URL matches its revision and its

@@ -494,7 +494,16 @@ async fn assert_tarball_proxy_download(harness: &SplitDomainHarness) {
     assert_eq!(harness.cdn_hits.load(Ordering::SeqCst), 1);
 }
 
-async fn spawn_rotating_version_cdn(tgz: Vec<u8>) -> (String, Arc<AtomicUsize>, Arc<AtomicUsize>) {
+#[derive(Clone, Copy)]
+enum SigningFixture {
+    RotatesAfterFirstFetch,
+    StaysExpired,
+}
+
+async fn spawn_rotating_version_cdn(
+    tgz_v1: Vec<u8>,
+    tgz_v2: Vec<u8>,
+) -> (String, Arc<AtomicUsize>, Arc<AtomicUsize>) {
     let listener = bind_loopback_preferring("127.0.0.3").await;
     let authority = listener
         .local_addr()
@@ -506,11 +515,13 @@ async fn spawn_rotating_version_cdn(tgz: Vec<u8>) -> (String, Arc<AtomicUsize>, 
     let fresh = Arc::clone(&fresh_hits);
     tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
-            let tgz = tgz.clone();
+            let tgz_v1 = tgz_v1.clone();
+            let tgz_v2 = tgz_v2.clone();
             let expired = Arc::clone(&expired);
             let fresh = Arc::clone(&fresh);
             tokio::spawn(async move {
-                serve_rotating_cdn_connection(&mut socket, &tgz, &expired, &fresh).await;
+                serve_rotating_cdn_connection(&mut socket, (&tgz_v1, &tgz_v2), &expired, &fresh)
+                    .await;
             });
         }
     });
@@ -519,14 +530,16 @@ async fn spawn_rotating_version_cdn(tgz: Vec<u8>) -> (String, Arc<AtomicUsize>, 
 
 async fn serve_rotating_cdn_connection(
     socket: &mut tokio::net::TcpStream,
-    tgz: &[u8],
+    (tgz_v1, tgz_v2): (&[u8], &[u8]),
     expired: &AtomicUsize,
     fresh: &AtomicUsize,
 ) {
     let Some(req) = read_http_headers(socket).await else {
         return;
     };
-    if req.starts_with("GET /@corp/split@1.0.0?X-Amz-Signature=EXPIRED_TOKEN HTTP/") {
+    if req.starts_with("GET /@corp/split@1.0.0?X-Amz-Signature=EXPIRED_TOKEN_V1 HTTP/")
+        || req.starts_with("GET /@corp/split@2.0.0?X-Amz-Signature=EXPIRED_TOKEN_V2 HTTP/")
+    {
         expired.fetch_add(1, Ordering::SeqCst);
         let _ = socket.write_all(
             b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -534,13 +547,20 @@ async fn serve_rotating_cdn_connection(
         .await;
         return;
     }
-    if !req.starts_with("GET /@corp/split@1.0.0?X-Amz-Signature=FRESH_TOKEN HTTP/") {
+    let body = if req.starts_with("GET /@corp/split@1.0.0?X-Amz-Signature=FRESH_TOKEN_V1 HTTP/") {
+        Some(tgz_v1)
+    } else if req.starts_with("GET /@corp/split@2.0.0?X-Amz-Signature=FRESH_TOKEN_V2 HTTP/") {
+        Some(tgz_v2)
+    } else {
+        None
+    };
+    let Some(tgz) = body else {
         let _ = socket.write_all(
             b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
         )
         .await;
         return;
-    }
+    };
     fresh.fetch_add(1, Ordering::SeqCst);
     let head = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -552,8 +572,9 @@ async fn serve_rotating_cdn_connection(
 
 async fn spawn_rotating_packument_upstream(
     cdn_authority: String,
-    tgz: Vec<u8>,
-    rotates: bool,
+    tgz_v1: Vec<u8>,
+    tgz_v2: Vec<u8>,
+    mode: SigningFixture,
 ) -> (String, Arc<AtomicUsize>) {
     let listener = bind_loopback_preferring("127.0.0.2").await;
     let url = format!("http://{}/", listener.local_addr().unwrap());
@@ -562,17 +583,30 @@ async fn spawn_rotating_packument_upstream(
     tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
             let step = fetches_for_task.fetch_add(1, Ordering::SeqCst);
-            let sig = if !rotates || step == 0 { "EXPIRED_TOKEN" } else { "FRESH_TOKEN" };
+            let prefix = match (mode, step) {
+                (SigningFixture::StaysExpired, _) | (SigningFixture::RotatesAfterFirstFetch, 0) => {
+                    "EXPIRED_TOKEN"
+                }
+                (SigningFixture::RotatesAfterFirstFetch, _) => "FRESH_TOKEN",
+            };
             let doc = json!({
                 "name": "@corp/split",
-                "dist-tags": { "latest": "1.0.0" },
+                "dist-tags": { "latest": "2.0.0" },
                 "versions": {
                     "1.0.0": {
                         "name": "@corp/split",
                         "version": "1.0.0",
                         "dist": {
-                            "tarball": format!("http://{cdn_authority}/@corp/split@1.0.0?X-Amz-Signature={sig}"),
-                            "integrity": sha512_integrity(&tgz),
+                            "tarball": format!("http://{cdn_authority}/@corp/split@1.0.0?X-Amz-Signature={prefix}_V1"),
+                            "integrity": sha512_integrity(&tgz_v1),
+                        }
+                    },
+                    "2.0.0": {
+                        "name": "@corp/split",
+                        "version": "2.0.0",
+                        "dist": {
+                            "tarball": format!("http://{cdn_authority}/@corp/split@2.0.0?X-Amz-Signature={prefix}_V2"),
+                            "integrity": sha512_integrity(&tgz_v2),
                         }
                     }
                 }
@@ -587,18 +621,25 @@ async fn spawn_rotating_packument_upstream(
 }
 
 #[tokio::test]
-async fn split_domain_tarball_proxy_recovers_expired_presigned_version_route_url() {
+async fn split_domain_tarball_proxy_recovers_parallel_expired_presigned_version_urls() {
     let tmp = TempDir::new().unwrap();
-    let (_, tgz) = package_tar_and_tgz(r#"{"name":"@corp/split","version":"1.0.0"}"#);
-    let (cdn_authority, expired_hits, fresh_hits) = spawn_rotating_version_cdn(tgz.clone()).await;
-    let (upstream_url, packument_fetches) =
-        spawn_rotating_packument_upstream(cdn_authority, tgz.clone(), true).await;
+    let (_, tgz_v1) = package_tar_and_tgz(r#"{"name":"@corp/split","version":"1.0.0"}"#);
+    let (_, tgz_v2) = package_tar_and_tgz(r#"{"name":"@corp/split","version":"2.0.0"}"#);
+    let (cdn_authority, expired_hits, fresh_hits) =
+        spawn_rotating_version_cdn(tgz_v1.clone(), tgz_v2.clone()).await;
+    let (upstream_url, packument_fetches) = spawn_rotating_packument_upstream(
+        cdn_authority,
+        tgz_v1.clone(),
+        tgz_v2.clone(),
+        SigningFixture::RotatesAfterFirstFetch,
+    )
+    .await;
     let config = build_split_config("http://127.0.0.1:1", &upstream_url, tmp.path().to_path_buf());
     let auth = seeded_auth(&config, &[("alice", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
-    // Warm the cached packument with the first (`EXPIRED_TOKEN`) signed URL.
+    // Warm the cached packument with the first (`EXPIRED_TOKEN_*`) signed URLs.
     let packument_res = app
         .clone()
         .oneshot(
@@ -612,21 +653,30 @@ async fn split_domain_tarball_proxy_recovers_expired_presigned_version_route_url
     assert_eq!(packument_res.status(), StatusCode::OK);
     assert_eq!(packument_fetches.load(Ordering::SeqCst), 1);
 
-    // Downloading `@1.0.0` hits the cached `EXPIRED_TOKEN` URL (403), refreshes
-    // the packument to `FRESH_TOKEN`, and succeeds on the same request.
-    let tarball_res = app
+    // Downloading `@1.0.0` and `@2.0.0` concurrently hits distinct expired URLs,
+    // shares one package-level refresh to `FRESH_TOKEN_*`, and succeeds for both.
+    let req_v1 = app
+        .clone()
         .oneshot(
             Request::get("/npm/~corp/@corp/split@1.0.0")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(tarball_res.status(), StatusCode::OK);
-    assert_eq!(body_bytes(tarball_res.into_body()).await, tgz);
-    assert_eq!(expired_hits.load(Ordering::SeqCst), 1);
-    assert_eq!(fresh_hits.load(Ordering::SeqCst), 1);
+        );
+    let req_v2 = app.oneshot(
+        Request::get("/npm/~corp/@corp/split@2.0.0")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap(),
+    );
+    let (res_v1, res_v2) = tokio::join!(req_v1, req_v2);
+    let (res_v1, res_v2) = (res_v1.unwrap(), res_v2.unwrap());
+    assert_eq!(res_v1.status(), StatusCode::OK);
+    assert_eq!(res_v2.status(), StatusCode::OK);
+    assert_eq!(body_bytes(res_v1.into_body()).await, tgz_v1);
+    assert_eq!(body_bytes(res_v2.into_body()).await, tgz_v2);
+    assert_eq!(expired_hits.load(Ordering::SeqCst), 2);
+    assert_eq!(fresh_hits.load(Ordering::SeqCst), 2);
     assert_eq!(packument_fetches.load(Ordering::SeqCst), 2);
 }
 
@@ -634,9 +684,15 @@ async fn split_domain_tarball_proxy_recovers_expired_presigned_version_route_url
 async fn split_domain_tarball_proxy_throttles_packument_refetches_on_persistent_forbidden_url() {
     let tmp = TempDir::new().unwrap();
     let (_, tgz) = package_tar_and_tgz(r#"{"name":"@corp/split","version":"1.0.0"}"#);
-    let (cdn_authority, expired_hits, _) = spawn_rotating_version_cdn(tgz.clone()).await;
-    let (upstream_url, packument_fetches) =
-        spawn_rotating_packument_upstream(cdn_authority, tgz, false).await;
+    let (cdn_authority, expired_hits, _) =
+        spawn_rotating_version_cdn(tgz.clone(), tgz.clone()).await;
+    let (upstream_url, packument_fetches) = spawn_rotating_packument_upstream(
+        cdn_authority,
+        tgz.clone(),
+        tgz,
+        SigningFixture::StaysExpired,
+    )
+    .await;
     let config = build_split_config("http://127.0.0.1:1", &upstream_url, tmp.path().to_path_buf());
     let auth = seeded_auth(&config, &[("alice", "password")]);
     let token = issue_token(&auth, "alice").await;

@@ -7,6 +7,8 @@ use super::{
     tarball_basename_for_package, tarball_url_and_integrity, version_route_tarball_version,
 };
 
+mod verdict_salt;
+
 #[derive(Clone)]
 pub(in super::super) struct TarballRouter {
     pub(super) context: Arc<RouteContext>,

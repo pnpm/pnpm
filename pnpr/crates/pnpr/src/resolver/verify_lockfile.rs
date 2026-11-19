@@ -3,7 +3,7 @@ use super::{
     ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
     ResolveRequest, Resolver, Response, StatusCode, StreamedResolveInputs, TarballRouter,
     VerificationArtifacts, build_resolution_verifiers_with_artifacts,
-    collect_resolution_policy_violations, extract_admitted_body, hash_lockfile, json_error,
+    collect_resolution_policy_violations, extract_admitted_body, json_error,
     limits::{
         AdmittedResolve, CancelToken, ResolvePermit, reject_oversized_graph,
         request_timeout_response,
@@ -314,8 +314,7 @@ async fn verify_input_lockfile(
     raw_lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {
     let epoch = runtime.local_registry.verdict_epoch();
-    let lockfile = Arc::new(raw_lockfile.clone());
-    let hash = verification_verdict_hash(context.tarball_router, &lockfile);
+    let hash = context.tarball_router.verification_verdict_hash(context.config, raw_lockfile);
     let dist_stats = observed_dist_stats_sink();
     let verifiers = build_input_verifiers(
         runtime,
@@ -336,7 +335,8 @@ async fn verify_input_lockfile(
     }
 
     let violations =
-        collect_policy_violations_until(&lockfile, &verifiers, context.deadline).await?;
+        collect_policy_violations_until(raw_lockfile, &verifiers, context.deadline).await?;
+    let lockfile = Arc::new(raw_lockfile.clone());
     let osv_violations = scan_osv_until_deadline(
         runtime.osv_index.clone(),
         lockfile,
@@ -378,20 +378,6 @@ fn build_input_verifiers(
     .map_err(|err| {
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
     })
-}
-
-fn verification_verdict_hash(tarball_router: &TarballRouter, raw_lockfile: &Lockfile) -> String {
-    let raw_hash = hash_lockfile(raw_lockfile);
-    let reversed_hash = hash_lockfile(&tarball_router.verification_lockfile(raw_lockfile));
-    if reversed_hash == raw_hash {
-        return raw_hash;
-    }
-    use sha2::{Digest as _, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(raw_hash.as_bytes());
-    hasher.update([0]);
-    hasher.update(reversed_hash.as_bytes());
-    format!("{:x}", hasher.finalize())
 }
 
 fn record_verdict(

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use pnpm_lockfile::PkgName;
-use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
+use pnpm_resolving_resolver_base::ResolutionVerification;
 
 use crate::{
     ReverseRoutedTarballUrl,
@@ -63,18 +63,6 @@ impl VerificationRegistryRoutes {
                 ),
             }),
         }
-    }
-
-    pub(super) fn resolve_registry(
-        &self,
-        ctx: &VerifyCtx<'_>,
-        tarball_url: Option<&str>,
-        reverse: Option<&ReverseRoutedTarballUrl>,
-    ) -> Result<String, ResolutionVerification> {
-        if let Some(named_registry) = self.named_registry_url(ctx.registry_name)? {
-            return Ok(named_registry);
-        }
-        Ok(self.pick_registry(ctx.name, tarball_url, reverse))
     }
 
     pub(super) fn pick_registry(
