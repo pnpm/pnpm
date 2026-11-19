@@ -110,6 +110,18 @@ test('rejects a traversal package snapshot key even when importer alias is valid
   await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
     code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
   })
+
+  await expect(verifyLockfileResolutions({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: { '.': {} },
+    packages: {
+      '@../../../escape': {
+        resolution: { integrity: 'sha512-deadbeef' },
+      },
+    },
+  } as unknown as LockfileObject, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
 })
 
 test('verifyLockfileFileOffline rejects unreferenced shape-mismatched and traversal packages entries', () => {

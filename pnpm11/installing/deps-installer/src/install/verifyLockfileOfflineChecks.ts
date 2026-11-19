@@ -20,7 +20,7 @@ export function collectInvalidAliases (lockfile: LockfileObject): string[] {
   }
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
-    if (name && !isValidDependencyAlias(name)) invalidAliases.add(name)
+    if (!name || !isValidDependencyAlias(name)) invalidAliases.add(name || depPath)
     pushInvalidAliases(snapshot.dependencies, invalidAliases)
     pushInvalidAliases(snapshot.optionalDependencies, invalidAliases)
   }
@@ -62,8 +62,8 @@ function collectLockfileFilePackageViolations (
 ): void {
   for (const [depPath, pkgInfo] of Object.entries(packages ?? {})) {
     const parsed = dp.parse(depPath)
-    if (parsed.name && !isValidDependencyAlias(parsed.name)) {
-      invalidAliases.add(parsed.name)
+    if (!parsed.name || !isValidDependencyAlias(parsed.name)) {
+      invalidAliases.add(parsed.name ?? depPath)
     }
     const version = pkgInfo.version ?? parsed.version
     if (!parsed.name || !version) continue
@@ -79,8 +79,8 @@ function collectLockfileFileSnapshotAliases (
 ): void {
   for (const [depPath, snapshot] of Object.entries(snapshots ?? {})) {
     const parsed = dp.parse(depPath)
-    if (parsed.name && !isValidDependencyAlias(parsed.name)) {
-      invalidAliases.add(parsed.name)
+    if (!parsed.name || !isValidDependencyAlias(parsed.name)) {
+      invalidAliases.add(parsed.name ?? depPath)
     }
     pushInvalidAliases(snapshot.dependencies, invalidAliases)
     pushInvalidAliases(snapshot.optionalDependencies, invalidAliases)
