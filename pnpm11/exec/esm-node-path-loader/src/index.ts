@@ -23,7 +23,12 @@
  * such an entry point as CommonJS, which hands it back to the CommonJS
  * loader, as Node.js does without `--import`. Entry points ending in `.js`
  * or without an extension are left alone, because Node.js may detect module
- * syntax in them.
+ * syntax in them. A `require()` from a module without a filename also has no
+ * `parentURL`. Unless the user adds `--conditions=import`, only the entry
+ * point resolves with the `import` condition, so the hook leaves such a
+ * `require()` to `require.extensions`. Some Node.js
+ * versions pass the conditions of a `require()` as a `Set`, so the hook
+ * spreads them before searching.
  *
  * The Rust CLI embeds an identical copy of these sources — the two must
  * stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
@@ -31,7 +36,7 @@
 const RESOLVE_HELPERS = `\
 const nodePaths = (process.env.NODE_PATH ?? '').split(delimiter).filter(Boolean)
 const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')
-const isEntryPointUnknownToEsm = (resolved, context) => context.parentURL === undefined && resolved.format == null && resolved.url.startsWith('file:') && !['', '.js'].includes(extname(new URL(resolved.url).pathname))
+const isEntryPointUnknownToEsm = (resolved, context) => context.parentURL === undefined && [...(context.conditions ?? ['import'])].includes('import') && resolved.format == null && resolved.url.startsWith('file:') && !['', '.js'].includes(extname(new URL(resolved.url).pathname))
 const markUnknownEntryPointAsCommonJs = (resolved, context) => isEntryPointUnknownToEsm(resolved, context) ? { ...resolved, format: 'commonjs' } : resolved
 `
 
