@@ -451,3 +451,31 @@ fn peer_variants_keep_one_link_target_and_replace_unrecorded_links() {
     assert!(first.is_dir(), "the variant that left the lockfile is still installed");
     drop(harness);
 }
+
+/// `approve-builds` prints no `Done in ...` footer, so the approval notice
+/// that append-only output holds until the end of the command is printed
+/// when the command finishes.
+#[test]
+fn approve_builds_reports_skills_still_awaiting_approval_in_append_only_output() {
+    let (harness, workspace) = project(PACKAGE, "strictDepBuilds: false\n");
+    let package_json = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/install-script-example": "1.0.0" },
+        "devDependencies": { PACKAGE: "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    output_of(pnpm(&workspace).with_arg("install"));
+
+    let output = output_of(
+        pnpm(&workspace)
+            .with_env("CI", "true")
+            .with_args(["approve-builds", "--all", "--reporter=append-only"]),
+    );
+
+    assert!(
+        output.contains("Packages awaiting approval:\n  @pnpm.e2e/with-agent-skills  skills"),
+        "{output}",
+    );
+    assert_eq!(output.matches("Packages awaiting approval:").count(), 1, "{output}");
+    drop(harness);
+}
