@@ -8,7 +8,11 @@ use pnpr_fixtures::MockConfigPresets;
 
 use pnpm_resolving_resolver_base::{PackageVersionGuard, PackageVersionGuardDecision};
 
-use super::OsvIndex;
+use super::{
+    OsvIndex,
+    cvss_v4::cvss_v4_score,
+    severity::{OsvSeverity, SeverityLevel, cvss_v2_score, cvss_v3_score},
+};
 
 #[test]
 fn loads_directory_and_matches_semver_ranges() {
@@ -373,4 +377,60 @@ fn default_path_loads_from_storage_hidden_osv_directory() {
         super::load_osv_index(&config).expect("load default osv index").expect("osv enabled");
     assert_eq!(index.vulnerability_ids("default-pkg", "1.0.0"), vec!["GHSA-default"]);
     assert!(!cache.join("osv").exists(), "default OSV path must not live inside cache_dir");
+}
+
+#[test]
+fn cvss_v3_scores_match_first_specification_vectors() {
+    let cases = [
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H", Some(10.0)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", Some(9.8)),
+        ("CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H", Some(9.9)),
+        ("CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:C/C:H/I:H/A:N", Some(8.7)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N", Some(7.5)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", Some(6.1)),
+        ("CVSS:3.0/AV:L/AC:H/PR:H/UI:R/S:U/C:L/I:N/A:N", Some(1.8)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N", Some(0.0)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N/E:P/RL:O/RC:C", Some(7.5)),
+        ("CVSS:3.1/AV:Z/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", None),
+        ("CVSS:3.1/AV:N/AC:L", None),
+    ];
+    for (vector, expected) in cases {
+        let actual = cvss_v3_score(vector);
+        assert_eq!(actual, expected, "vector: {vector}");
+    }
+}
+
+#[test]
+fn cvss_v4_scores_match_first_specification_vectors() {
+    let cases = [
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H", Some(10.0)),
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", Some(9.3)),
+        ("CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", Some(9.2)),
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:L/VA:N/SC:N/SI:N/SA:N", Some(7.1)),
+        ("CVSS:4.0/AV:N/AC:H/AT:P/PR:L/UI:P/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N", Some(5.9)),
+        ("CVSS:4.0/AV:L/AC:H/AT:P/PR:H/UI:A/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N", Some(1.0)),
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:N/SC:N/SI:N/SA:N", Some(0.0)),
+        ("CVSS:4.0/AV:L/AC:L/AT:N/PR:H/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N/MSI:S", Some(7.6)),
+        ("CVSS:4.0/AV:Z/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", None),
+    ];
+    for (vector, expected) in cases {
+        let actual = cvss_v4_score(vector);
+        assert_eq!(actual, expected, "vector: {vector}");
+    }
+}
+
+#[test]
+fn cvss_v2_and_osv_severity_mapping_cover_fallbacks() {
+    let v2_high = cvss_v2_score("AV:N/AC:L/Au:N/C:P/I:P/A:P");
+    assert_eq!(v2_high, Some(7.5));
+    let v2_parens = cvss_v2_score("(AV:N/AC:L/Au:N/C:C/I:C/A:C)");
+    assert_eq!(v2_parens, Some(10.0));
+
+    let numeric_entry = OsvSeverity { kind: "CVSS_V3".to_string(), score: "9.1".to_string() };
+    let numeric_level = SeverityLevel::from_osv_severity(&numeric_entry);
+    assert_eq!(numeric_level, Some(SeverityLevel::Critical));
+
+    let label_entry = OsvSeverity { kind: "Ubuntu".to_string(), score: "Medium".to_string() };
+    let label_level = SeverityLevel::from_osv_severity(&label_entry);
+    assert_eq!(label_level, Some(SeverityLevel::Moderate));
 }

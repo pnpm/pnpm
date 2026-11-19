@@ -1,8 +1,11 @@
+mod cvss_v4;
 mod loader;
 use loader::{load_from_directory, load_from_zip};
 
+mod ranges;
 mod records;
 use records::{ingest_record_bytes, normalized_name};
+mod severity;
 
 use std::{
     borrow::Cow,
