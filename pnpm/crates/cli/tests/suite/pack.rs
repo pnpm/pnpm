@@ -878,3 +878,47 @@ fn pack_exports_the_command_to_lifecycle_scripts() {
 
     drop(root);
 }
+
+#[test]
+fn dry_run_json_reports_the_publish_transformed_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "main": "./src/index.ts",
+            "publishConfig": { "main": "./dist/index.js" },
+            "scripts": { "build": "exit 0", "prepublishOnly": "exit 0" },
+            "pnpm": { "overrides": { "is-positive": "1.0.0" } },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("README.md"), "# pkg").expect("write README.md");
+
+    let output = pacquet
+        .with_arg("pack")
+        .with_arg("--dry-run")
+        .with_arg("--json")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let result: serde_json::Value =
+        serde_json::from_slice(&output).expect("parse pack --json output");
+    let manifest = &result["manifest"];
+
+    assert_eq!(manifest["main"], json!("./dist/index.js"), "publishConfig must be applied");
+    assert!(manifest.get("publishConfig").is_none(), "publishConfig must be stripped");
+    assert_eq!(manifest["scripts"], json!({ "build": "exit 0" }));
+    assert!(manifest.get("pnpm").is_none(), "the pnpm field must be stripped");
+    assert!(
+        manifest.get("readme").is_none(),
+        "the readme is registry metadata, not part of the packed manifest",
+    );
+    assert!(!workspace.join("pkg-1.0.0.tgz").exists(), "--dry-run must not write a tarball");
+
+    drop(root);
+}

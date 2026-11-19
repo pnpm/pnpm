@@ -1,5 +1,6 @@
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { type Config, type ConfigContext, getDefaultWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import chalk from 'chalk'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -73,7 +74,7 @@ function getPackOptionsHelp (): Array<{ description: string, name: string, short
       name: '--pack-destination <dir>',
     },
     {
-      description: 'Prints the packed tarball and contents in the json format.',
+      description: 'Prints the packed tarball, its contents, and the manifest that goes into it in the json format.',
       name: '--json',
     },
     {
@@ -153,6 +154,7 @@ export interface PackResultJson {
   version: string
   filename: string
   files: Array<{ path: string }>
+  manifest: ExportedManifest
 }
 
 export async function handler (opts: PackOptions): Promise<string> {

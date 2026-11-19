@@ -23,7 +23,10 @@ import { bindRunScriptsIfPresent } from './publish.js'
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 
 export interface PackResult {
+  /** The manifest sent to the registry as package metadata. See {@link withRegistryReadme}. */
   publishedManifest: ExportedManifest
+  /** The `package.json` written into the tarball. */
+  packedManifest: ExportedManifest
   contents: string[]
   tarballPath: string
   /** Total uncompressed size of all files in the tarball, in bytes. */
@@ -117,6 +120,7 @@ async function packProject ({ opts, dir, manifest, selectedManifestFileName, run
   }
   return {
     publishedManifest: await withRegistryReadme(publishManifest, dir),
+    packedManifest: publishManifest,
     contents: packedContents,
     tarballPath: opts.dir !== destDir
       ? outputPath
@@ -368,11 +372,12 @@ async function createPublishManifest (opts: {
 }
 
 export function toPackResultJson (packResult: PackResult): PackResultJson {
-  const { publishedManifest, contents, tarballPath } = packResult
+  const { packedManifest, contents, tarballPath } = packResult
   return {
-    name: publishedManifest.name as string,
-    version: publishedManifest.version as string,
+    name: packedManifest.name as string,
+    version: packedManifest.version as string,
     filename: tarballPath,
     files: contents.map((file) => ({ path: file })),
+    manifest: packedManifest,
   }
 }
