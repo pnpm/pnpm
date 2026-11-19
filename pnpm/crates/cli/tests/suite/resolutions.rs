@@ -272,3 +272,58 @@ fn run_gate_accepts_promoted_resolutions() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn recursive_run_gate_accepts_promoted_resolutions_with_dedicated_lockfiles() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "resolutions-recursive-host",
+            "version": "1.0.0",
+            "resolutions": { "@pnpm.e2e/foo": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json with resolutions");
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "scripts": { "hello": "echo hello" },
+        })
+        .to_string(),
+    )
+    .expect("write project package.json");
+    let mut yaml = OpenOptions::new()
+        .append(true)
+        .open(workspace.join("pnpm-workspace.yaml"))
+        .expect("open pnpm-workspace.yaml for append");
+    writeln!(
+        yaml,
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*",
+    )
+    .expect("append workspace settings");
+
+    let install = pnpm_at(&workspace)
+        .with_args(["install", "-r"])
+        .output()
+        .expect("spawn pnpm install");
+    assert!(install.status.success(), "{}", String::from_utf8_lossy(&install.stderr));
+
+    let run = pnpm_at(&workspace)
+        .with_args(["-r", "run", "hello"])
+        .output()
+        .expect("spawn pnpm run");
+    let printed =
+        format!("{}{}", String::from_utf8_lossy(&run.stdout), String::from_utf8_lossy(&run.stderr));
+    assert!(run.status.success(), "{printed}");
+
+    drop((root, mock_instance));
+}

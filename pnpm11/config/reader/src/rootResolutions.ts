@@ -62,22 +62,27 @@ function formatMigratedEntry (selector: string, original: string, resolved: stri
  * Converts a Yarn `resolutions` selector to a pnpm override selector:
  * `**\/foo` becomes `foo` and `parent/foo` becomes `parent>foo`. Returns
  * `undefined` for a path pnpm overrides cannot express, such as `a/**\/foo`
- * or `a/b/foo`. A valid selector in pnpm's own `parent>child` syntax is kept.
- * A selector the override parser rejects is skipped too.
+ * or `a/b/foo`. A valid selector in pnpm's own `parent>child` syntax is kept,
+ * while `parent@>=1/child` is a Yarn path. A selector the override parser
+ * rejects is skipped too.
  */
 function toOverrideSelector (yarnSelector: string): string | undefined {
-  const selector = yarnSelector.includes('>') ? yarnSelector : convertYarnPath(yarnSelector)
+  const selector = parseSelector(yarnSelector)?.parentPkg != null ? yarnSelector : convertYarnPath(yarnSelector)
   if (selector == null) return undefined
-  let parsed: ReturnType<typeof parsePkgAndParentSelector>
-  try {
-    parsed = parsePkgAndParentSelector(selector)
-  } catch {
-    return undefined
-  }
+  const parsed = parseSelector(selector)
+  if (parsed == null) return undefined
   const namesOnePackage = (name: string): boolean => splitPackagePath(name)?.length === 1
   return (parsed.parentPkg == null || namesOnePackage(parsed.parentPkg.name)) && namesOnePackage(parsed.targetPkg.name)
     ? selector
     : undefined
+}
+
+function parseSelector (selector: string): ReturnType<typeof parsePkgAndParentSelector> | undefined {
+  try {
+    return parsePkgAndParentSelector(selector)
+  } catch {
+    return undefined
+  }
 }
 
 function convertYarnPath (yarnSelector: string): string | undefined {

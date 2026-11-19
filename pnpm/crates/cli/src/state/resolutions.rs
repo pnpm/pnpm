@@ -151,13 +151,13 @@ fn format_migrated_entry(selector: &str, original: &str, resolved: &str) -> Stri
 /// Convert a Yarn `resolutions` selector to a pnpm override selector:
 /// `**/foo` becomes `foo` and `parent/foo` becomes `parent>foo`. `None` for a
 /// path pnpm overrides cannot express, such as `a/**/foo` or `a/b/foo`. A
-/// valid selector in pnpm's own `parent>child` syntax is kept. A selector the
-/// override parser rejects is skipped too.
+/// valid selector in pnpm's own `parent>child` syntax is kept, while
+/// `parent@>=1/child` is a Yarn path. A selector the override parser rejects
+/// is skipped too.
 fn to_override_selector(yarn_selector: &str) -> Option<String> {
-    let selector = if yarn_selector.contains('>') {
-        yarn_selector.to_owned()
-    } else {
-        convert_yarn_path(yarn_selector)?
+    let selector = match parse_pkg_and_parent_selector(yarn_selector) {
+        Ok((Some(_), _)) => yarn_selector.to_owned(),
+        _ => convert_yarn_path(yarn_selector)?,
     };
     let (parent, target) = parse_pkg_and_parent_selector(&selector).ok()?;
     let names_one_package =

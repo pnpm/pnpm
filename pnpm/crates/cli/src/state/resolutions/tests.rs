@@ -327,6 +327,7 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
             "@scope/**": "13.0.0",
             "parent@>=1>@scope/child": "14.0.0",
             "%": "15.0.0",
+            "parent@>=1/child": "16.0.0",
         },
     }));
     let mut config = Config::new();
@@ -340,6 +341,7 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
         ("foo>@scope/bar", "8.0.0"),
         ("@scope/**", "13.0.0"),
         ("parent@>=1>@scope/child", "14.0.0"),
+        ("parent@>=1>child", "16.0.0"),
     ]
     .into_iter()
     .map(|(selector, spec)| (selector.to_owned(), spec.to_owned()))

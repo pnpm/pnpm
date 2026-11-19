@@ -1139,6 +1139,7 @@ test('applyRootResolutions() converts Yarn selectors and skips the ones pnpm can
       '@scope/**': '13.0.0',
       'parent@>=1>@scope/child': '14.0.0',
       '%': '15.0.0',
+      'parent@>=1/child': '16.0.0',
     },
   }, undefined, warnings)).toStrictEqual({
     foo: '1.0.0',
@@ -1149,6 +1150,7 @@ test('applyRootResolutions() converts Yarn selectors and skips the ones pnpm can
     'foo>@scope/bar': '8.0.0',
     '@scope/**': '13.0.0',
     'parent@>=1>@scope/child': '14.0.0',
+    'parent@>=1>child': '16.0.0',
   })
   expect(warnings[0]).toContain('These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c, @scope/, a/**, foo>, a/b>c, %')
 })
