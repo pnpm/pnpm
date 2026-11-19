@@ -47,6 +47,12 @@ export interface StrictInstallOptions extends RegistryContext {
   updateChecksums: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
+  /**
+   * When true, the settings recorded in the lockfile are not compared with
+   * the current configuration, so a mismatch neither fails a frozen install
+   * nor triggers a re-resolution.
+   */
+  ignoreLockfileSettingsChecks: boolean
   ignorePackageManifest: boolean
   /**
    * When true, skip fetching local dependencies (file: protocol pointing to directories).
@@ -364,6 +370,7 @@ const SCALAR_DEFAULTS = {
   nodePackageMapType: 'standard',
   ownLifecycleHooksStdio: 'inherit',
   ignoreCompatibilityDb: false,
+  ignoreLockfileSettingsChecks: false,
   ignorePackageManifest: false,
   ignoreLocalPackages: false,
   preferFrozenLockfile: true,
