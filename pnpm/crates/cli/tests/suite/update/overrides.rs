@@ -465,3 +465,26 @@ fn update_latest_moves_the_override_in_the_workspace_root_with_per_project_lockf
 
     drop((root, anchor));
 }
+
+/// A wildcard range has no operator the move could keep: writing the new
+/// version would turn it into an exact pin, so it is reported instead.
+#[test]
+fn update_latest_warns_when_a_wildcard_override_excludes_the_latest() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    set_overrides(&workspace, &[(DEP, "100.0.x")]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", DEP]).output().expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("is controlled by an override"), "warned: {stdout}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        before_yaml,
+    );
+
+    drop((root, anchor));
+}

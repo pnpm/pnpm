@@ -36,8 +36,13 @@ pub(super) struct BareOverrideEntry {
 /// compatible update — one that moves the resolution inside the override's
 /// range — has no room to move.
 fn override_pins_one_version(value: &str) -> bool {
-    movable_override_style(value)
-        .is_some_and(|style| matches!(style, RangeSpecStyle::Patch | RangeSpecStyle::Exact))
+    Version::parse(
+        value
+            .strip_prefix('=')
+            .unwrap_or(value)
+            .trim(),
+    )
+    .is_ok()
 }
 
 /// The direct dependency `name` declares in `group`, when an override
@@ -54,8 +59,8 @@ pub(super) fn override_governed<'scope>(
 
 /// Whether an override keeps the declaration of `name` from moving: every
 /// override that governs it does for a compatible update, while under
-/// `--latest` only a bare-name one does. A range-scoped override stops
-/// matching once the declaration moves past its range.
+/// `--latest` or `--tag` only a bare-name one does. A range-scoped override
+/// stops matching once the declaration moves past its range.
 pub(super) fn override_holds_declaration(
     scope: &UpdateScope<'_>,
     name: &str,
@@ -63,7 +68,8 @@ pub(super) fn override_holds_declaration(
 ) -> bool {
     override_governed(scope, name, group)
         .is_some_and(|overridden| {
-            overridden.bare_override.is_some() || !scope.version.latest
+            overridden.bare_override.is_some()
+                || !(scope.version.latest || scope.version.tag.is_some())
         })
 }
 
@@ -203,7 +209,9 @@ fn override_admits(override_value: &str, version: &Version) -> bool {
 /// dependency of its own is not the update's to rewrite, and a compound
 /// range has no single shape to keep.
 fn movable_override_style(value: &str) -> Option<RangeSpecStyle> {
-    if names_another_dependency(value) {
+    // An `x`/`*` wildcard reads as a version part to the style inference,
+    // which would turn `1.2.x` into an exact pin.
+    if names_another_dependency(value) || value.contains(['x', 'X', '*']) {
         return None;
     }
     infer_range_spec_style(value).filter(|style| !matches!(style, RangeSpecStyle::None))

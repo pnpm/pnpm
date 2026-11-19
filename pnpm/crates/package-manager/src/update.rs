@@ -92,11 +92,13 @@ use std::{
 /// a non-registry protocol is left alone, and a `catalog:` reference moves
 /// the catalog entry rather than the manifest entry.
 ///
-/// A dependency an override governs answers to the override, not its
+/// A dependency a bare-name override governs answers to the override, not its
 /// declaration: the declaration never moves, and an update that names the
-/// dependency moves a bare-name override with it — keeping the override's own
-/// range shape — or reports the overrides it cannot move
-/// ([pnpm/pnpm#8701](https://github.com/pnpm/pnpm/issues/8701)).
+/// dependency moves the override with it — keeping the override's own range
+/// shape — or reports an override it cannot move
+/// ([pnpm/pnpm#8701](https://github.com/pnpm/pnpm/issues/8701)). Under
+/// `--latest` or `--tag`, a range-scoped override leaves the declaration to
+/// move past its range, where the override stops matching.
 ///
 /// Selector handling:
 /// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and neither
