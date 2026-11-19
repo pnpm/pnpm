@@ -1056,13 +1056,13 @@ test('getOptionsFromPnpmSettings() accepts valid strictSsl and localAddress', ()
   expect(options.localAddress).toBe('127.0.0.1')
 })
 
-test('getOptionsFromPnpmSettings() treats null strictSsl and localAddress as unset', () => {
+test('getOptionsFromPnpmSettings() preserves null strictSsl and localAddress as unset', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     strictSsl: null as unknown as boolean,
     localAddress: null as unknown as string,
   })
-  expect(options.strictSsl).toBeUndefined()
-  expect(options.localAddress).toBeUndefined()
+  expect(options.strictSsl).toBeNull()
+  expect(options.localAddress).toBeNull()
 })
 
 test.each([
@@ -1082,4 +1082,3 @@ test.each([
     message: `The "${settingName}" setting should be a ${settingName === 'strictSsl' ? 'boolean' : 'string'}, but got ${expectedType}`,
   }))
 })
-
