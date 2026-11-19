@@ -247,11 +247,8 @@ where
 
     // The size pass must run before `postpack`, which may delete
     // prepack-generated files that were packed. See pnpm/pnpm#12775.
-    let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?
-        + opts.output.injected_files
-            .iter()
-            .map(|(_, bytes)| bytes.len() as u64)
-            .sum::<u64>();
+    let unpacked_size =
+        unpacked_size::<Sys>(&files_map, manifest_json.len() as u64, &opts.output.injected_files)?;
     let contents = packed_contents_with_injected(&files_map, &opts.output.injected_files);
 
     let mut archive = None;
@@ -272,9 +269,8 @@ where
     }
 
     let tarball_path = packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name);
-    let published_manifest = with_registry_readme(source.publish_manifest.clone(), &source.dir)?;
     Ok(PackResult {
-        published_manifest,
+        published_manifest: with_registry_readme(source.publish_manifest.clone(), &source.dir)?,
         packed_manifest: source.publish_manifest,
         contents,
         tarball_path,
