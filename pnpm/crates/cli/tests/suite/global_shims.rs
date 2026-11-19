@@ -457,7 +457,15 @@ fn project_runtime_reuses_an_exact_global_install() {
     )
     .unwrap();
     crate::install_runtimes::write_runtime_lockfile(&project, std::slice::from_ref(&fixture));
-    prepare_global_runtime(&root, version, "reused-global-node");
+    let global_store = root.path().join("global-store");
+    let config_path = root.path().join("config/pnpm/config.yaml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    fs::write(
+        &config_path,
+        format!("{config}globalPackagesConfig:\n  storeDir: {}\n", global_store.display()),
+    )
+    .unwrap();
+    prepare_global_runtime_in_store(&root, version, "reused-global-node", &global_store);
     let global_dir = root.path().join("pnpm-home/global/v11");
     let groups = pnpm_global::scan_global_packages(&global_dir).unwrap();
     assert_eq!(groups.len(), 1);
@@ -479,6 +487,70 @@ fn project_runtime_reuses_an_exact_global_install() {
         1,
         "an exact global runtime match must not create a managed runtime environment",
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn project_runtime_uses_the_current_branch_lockfile() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let shared_version = "22.11.0";
+    let branch_version = "22.12.0";
+    let shared_fixture = crate::install_runtimes::runtime_fixture(
+        &mut server,
+        "node",
+        shared_version,
+        pnpm_graph_hasher::host_platform(),
+        pnpm_graph_hasher::host_arch(),
+    );
+    let branch_fixture = crate::install_runtimes::runtime_fixture(
+        &mut server,
+        "node",
+        branch_version,
+        pnpm_graph_hasher::host_platform(),
+        pnpm_graph_hasher::host_arch(),
+    );
+    let (project, global_target) = runtime_pin_project(&root, &server, shared_version, ".nvmrc");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": shared_version } }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        project.join("pnpm-workspace.yaml"),
+        "gitBranchLockfile: true\n",
+    )
+    .unwrap();
+    fs::create_dir(project.join(".git")).unwrap();
+    fs::write(project.join(".git/HEAD"), "ref: refs/heads/feature\n").unwrap();
+    crate::install_runtimes::write_runtime_lockfile(
+        &project,
+        std::slice::from_ref(&shared_fixture),
+    );
+    crate::install_runtimes::write_runtime_lockfile(
+        &project,
+        std::slice::from_ref(&branch_fixture),
+    );
+    fs::rename(
+        project.join("pnpm-lock.yaml"),
+        project.join("pnpm-lock.feature.yaml"),
+    )
+    .unwrap();
+    crate::install_runtimes::write_runtime_lockfile(
+        &project,
+        std::slice::from_ref(&shared_fixture),
+    );
+    prepare_global_runtime(&root, branch_version, "branch-lockfile-node");
+
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node": true}"#)
+        .assert()
+        .success()
+        .stdout("branch-lockfile-node\n");
 }
 
 #[cfg(unix)]
@@ -523,23 +595,32 @@ fn project_runtime_ignores_a_different_global_version_and_uses_the_lockfile() {
 
 #[cfg(unix)]
 fn prepare_global_runtime(root: &TempDir, version: &str, output: &str) {
+    prepare_global_runtime_in_store(root, version, output, &root.path().join("store/v11"));
+}
+
+#[cfg(unix)]
+fn prepare_global_runtime_in_store(root: &TempDir, version: &str, output: &str, store_dir: &Path) {
     use std::os::unix::fs::symlink;
 
     let global_dir = root.path().join("pnpm-home/global/v11");
     let install_dir = global_dir.join("node-runtime-install");
-    fs::create_dir_all(install_dir.join("node_modules/node/bin")).unwrap();
+    let package_dir = store_dir
+        .join("links/node-runtime/1/node_modules/node");
+    fs::create_dir_all(package_dir.join("bin")).unwrap();
+    fs::create_dir_all(install_dir.join("node_modules")).unwrap();
+    symlink(&package_dir, install_dir.join("node_modules/node")).unwrap();
     fs::write(
         install_dir.join("package.json"),
         serde_json::json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
     )
     .unwrap();
     fs::write(
-        install_dir.join("node_modules/node/package.json"),
+        package_dir.join("package.json"),
         serde_json::json!({ "name": "node", "version": version, "bin": { "node": "bin/node" } })
             .to_string(),
     )
     .unwrap();
-    write_script(&install_dir.join("node_modules/node/bin/node"), output);
+    write_script(&package_dir.join("bin/node"), output);
     fs::create_dir_all(&global_dir).unwrap();
     symlink(&install_dir, global_dir.join("node-runtime-link")).unwrap();
 }

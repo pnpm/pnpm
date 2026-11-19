@@ -104,6 +104,14 @@ fn env_document_merges(content: &str, file_path: &Path) -> bool {
         .is_ok_and(|parsed| parsed.merged_conflict_files > 0)
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImporterOnlyLockfile {
+    lockfile_version: ComVer,
+    #[serde(default, alias = "projects")]
+    importers: HashMap<String, ProjectSnapshot>,
+}
+
 impl Lockfile {
     /// Load lockfile from the current directory.
     pub fn load_from_current_dir() -> Result<Option<Self>, LoadLockfileError> {
@@ -352,6 +360,25 @@ impl Lockfile {
     pub fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
         Self::parse(&content, file_path)
+    }
+
+    /// Load one project's importer without parsing the lockfile's package and
+    /// snapshot maps. `None` when the file or importer is absent.
+    pub fn load_importer_from_path(
+        file_path: &Path,
+        importer_id: &str,
+    ) -> Result<Option<ProjectSnapshot>, LoadLockfileError> {
+        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
+        let main = extract_main_document(&content);
+        let parsed: ImporterOnlyLockfile = serde_saphyr::from_str_with_options(
+            &main,
+            yaml_parse_options(main.len()),
+        )
+        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
+        if !LockfileVersion::<9>::is_compatible(parsed.lockfile_version) {
+            return Ok(None);
+        }
+        Ok(parsed.importers.get(importer_id).cloned())
     }
 
     /// [`Self::load_from_path`] for the file an install reads and writes

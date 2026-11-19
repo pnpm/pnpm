@@ -1,21 +1,81 @@
 use std::path::Path;
 
+use pnpm_config::{Config, Host};
 use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, Prefix};
 
-/// The exact runtime version resolved for this project in its nearest
-/// ancestor lockfile. Missing, unreadable, or unsupported lockfiles leave
-/// the manifest selector in force.
+enum LockfileRuntimeVersion {
+    NoResolution,
+    NotRuntime,
+    Runtime(String),
+}
+
+/// The exact runtime version resolved for this project in the wanted lockfile.
+/// Missing, unreadable, or unsupported lockfiles leave the manifest selector
+/// in force.
 pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<String> {
     let package_name = PkgName::parse(name).ok()?;
-    for lockfile_dir in project_dir.ancestors() {
-        let lockfile_path = lockfile_dir.join(Lockfile::FILE_NAME);
-        let Ok(Some(lockfile)) = Lockfile::load_from_path(&lockfile_path) else { continue };
+    let config = Config::default().current::<Host>(project_dir).ok()?;
+    let lockfile_dir = config.lockfile_dir_for(project_dir);
+    let selection = config.wanted_lockfile_selection();
+    if selection.merge_git_branch_lockfiles {
+        let lockfile = Lockfile::load_wanted(lockfile_dir, &selection).ok()??;
         let importer_id = importer_id(project_dir, lockfile_dir)?;
-        let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
-        let Some(version) = importer_runtime_version(importer, &package_name) else { continue };
-        return Some(version);
+        return lockfile
+            .importers
+            .get(&importer_id)
+            .and_then(|importer| importer_runtime_version(importer, &package_name))
+            .flatten();
+    }
+    for file_name in selection.read_order() {
+        let lockfile_path = lockfile_dir.join(file_name);
+        if !lockfile_path.exists() {
+            continue;
+        }
+        return match runtime_version_in_lockfile(
+            project_dir,
+            lockfile_dir,
+            &lockfile_path,
+            &package_name,
+        ) {
+            LockfileRuntimeVersion::Runtime(version) => Some(version),
+            LockfileRuntimeVersion::NotRuntime | LockfileRuntimeVersion::NoResolution => None,
+        };
     }
     None
+}
+
+fn runtime_version_in_lockfile(
+    project_dir: &Path,
+    lockfile_dir: &Path,
+    lockfile_path: &Path,
+    package_name: &PkgName,
+) -> LockfileRuntimeVersion {
+    let Some(importer_id) = importer_id(project_dir, lockfile_dir) else {
+        return LockfileRuntimeVersion::NoResolution;
+    };
+    let Some(importer) = load_importer_snapshot(lockfile_path, &importer_id) else {
+        return LockfileRuntimeVersion::NoResolution;
+    };
+    match importer_runtime_version(&importer, package_name) {
+        Some(Some(version)) => LockfileRuntimeVersion::Runtime(version),
+        Some(None) => LockfileRuntimeVersion::NotRuntime,
+        None => LockfileRuntimeVersion::NotRuntime,
+    }
+}
+
+fn load_importer_snapshot(
+    lockfile_path: &Path,
+    importer_id: &str,
+) -> Option<pnpm_lockfile::ProjectSnapshot> {
+    match Lockfile::load_importer_from_path(lockfile_path, importer_id) {
+        Ok(importer) => importer,
+        Err(_) => Lockfile::load_from_path(lockfile_path)
+            .ok()
+            .flatten()?
+            .importers
+            .get(importer_id)
+            .cloned(),
+    }
 }
 
 fn importer_id(project_dir: &Path, lockfile_dir: &Path) -> Option<String> {
@@ -30,7 +90,7 @@ fn importer_id(project_dir: &Path, lockfile_dir: &Path) -> Option<String> {
 fn importer_runtime_version(
     importer: &pnpm_lockfile::ProjectSnapshot,
     package_name: &PkgName,
-) -> Option<String> {
+) -> Option<Option<String>> {
     let dependency = importer.dev_dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(package_name))
@@ -39,8 +99,9 @@ fn importer_runtime_version(
                 .as_ref()
                 .and_then(|dependencies| dependencies.get(package_name))
         })?;
-    let ImporterDepVersion::Regular(version) = &dependency.version else { return None };
-    (version.prefix() == Prefix::Runtime)
-        .then(|| version.version_semver().map(ToString::to_string))
-        .flatten()
+    let ImporterDepVersion::Regular(version) = &dependency.version else { return Some(None) };
+    if version.prefix() != Prefix::Runtime {
+        return Some(None);
+    }
+    Some(version.version_semver().map(ToString::to_string))
 }

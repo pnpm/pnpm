@@ -839,3 +839,37 @@ fn unsupported_version_at_names_only_a_rejected_version() {
     assert_eq!(version_at(Some(MAIN_DOC)), None);
     assert_eq!(version_at(Some("packages: [")), None);
 }
+
+#[test]
+fn load_importer_from_path_skips_package_and_snapshot_maps() {
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join(Lockfile::FILE_NAME);
+    std::fs::write(
+        &path,
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "importers:"
+            "  .:"
+            "    devDependencies:"
+            "      node:"
+            "        specifier: runtime:22"
+            "        version: runtime:22.11.0"
+            "packages: invalid"
+            "snapshots: invalid"
+        },
+    )
+    .expect("write lockfile");
+
+    let importer = Lockfile::load_importer_from_path(&path, ".")
+        .expect("read importer")
+        .expect("root importer present");
+    let node = PkgName::parse("node").expect("parse node name");
+    assert_eq!(
+        importer
+            .dev_dependencies
+            .as_ref()
+            .and_then(|dependencies| dependencies.get(&node))
+            .map(|dependency| &dependency.version),
+        Some(&ImporterDepVersion::Regular("runtime:22.11.0".parse().unwrap())),
+    );
+}

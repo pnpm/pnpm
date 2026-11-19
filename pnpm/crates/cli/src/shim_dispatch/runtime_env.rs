@@ -21,6 +21,7 @@ use miette::{
     IntoDiagnostic,
 };
 use pnpm_config::{
+    CommandTarget,
     Config,
     Host,
     NodeLinker,
@@ -72,6 +73,14 @@ pub(super) const PACKAGE_MANAGER_ENVS_DIR_NAME: &str = "global-shim-package-mana
 /// stops ancestor discovery, so only the global `config.yaml`, user
 /// files, and the environment contribute.
 pub(crate) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<Config> {
+    trusted_config(environments_dir, CommandTarget::Project)
+}
+
+fn trusted_global_runtime_config(environments_dir: &Path) -> miette::Result<Config> {
+    trusted_config(environments_dir, CommandTarget::GlobalPackages)
+}
+
+fn trusted_config(environments_dir: &Path, command_target: CommandTarget) -> miette::Result<Config> {
     fs::create_dir_all(environments_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("create {}", environments_dir.display()))?;
@@ -81,7 +90,9 @@ pub(crate) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<
             .into_diagnostic()
             .wrap_err_with(|| format!("seed {}", workspace_manifest.display()))?;
     }
-    Config::default()
+    let mut config = Config::default();
+    config.cli.command_target = command_target;
+    config
         .current::<Host>(environments_dir)
         .map_err(miette::Report::new)
         .wrap_err("load configuration for the managed runtime")
@@ -158,7 +169,12 @@ pub(crate) async fn materialize_runtime(
     }
     let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
     let config = trusted_runtime_config(&environments_dir)?;
-    if let Some(bin) = installed_global_runtime_bin(&config, &name, &version_spec) {
+    let global_config = if config.global_packages_config.is_some() {
+        trusted_global_runtime_config(&environments_dir)?
+    } else {
+        config.clone()
+    };
+    if let Some(bin) = installed_global_runtime_bin(&global_config, &name, &version_spec) {
         return Ok(MaterializedRuntime::shared(bin));
     }
     let global_virtual_store_dir = config.store_dir.links();
