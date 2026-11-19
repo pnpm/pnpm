@@ -245,7 +245,7 @@ catalog:
   semver: ^7.8.6
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
-  shlex: ^3.0.0
+  shlex: ^3.0.1
   shx: ^0.4.0
   signal-exit: ^4.1.0
   socks: ^2.8.10

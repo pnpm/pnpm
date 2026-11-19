@@ -854,8 +854,8 @@ snapshots:
 					"version": "1.1.4",
 				},
 				"shlex": {
-					"specifier": "^3.0.0",
-					"version": "3.0.0",
+					"specifier": "^3.0.1",
+					"version": "3.0.1",
 				},
 				"shx": {
 					"specifier": "^0.4.0",
@@ -13460,8 +13460,8 @@ snapshots:
 			"dependencies": {
 				"baseline-browser-mapping": "2.11.38",
 				"caniuse-lite": "1.0.30001826",
-				"electron-to-chromium": "1.5.487",
-				"node-releases": "2.0.64",
+				"electron-to-chromium": "1.5.489",
+				"node-releases": "2.0.65",
 				"update-browserslist-db": "1.4.0",
 			},
 		},
@@ -14544,8 +14544,8 @@ snapshots:
 			"integrity": "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==",
 		},
 
-		"electron-to-chromium@1.5.487": {
-			"integrity": "sha512-qWotOhQYeYEj+DK4+Y+cfPj44qiC6ETIiWtJLfmDJydED2BJJ7loPA4SfBbbrMI6X/X3tryJgxnY9nxsO545Zw==",
+		"electron-to-chromium@1.5.489": {
+			"integrity": "sha512-1cF87WItryk9lj5wg5SLsNegUihdkcHuOfrANPpO02y/d2krm1Oc3GjA9KBwlT5o145FTa1bbjdLc7pZnvtnYQ==",
 		},
 
 		"emittery@0.13.1": {
@@ -18421,8 +18421,8 @@ snapshots:
 			"integrity": "sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==",
 		},
 
-		"node-releases@2.0.64": {
-			"integrity": "sha512-zAPCKqMcnqs2nGy6nlkm7JduFseiBJy3EXHGLh+8pFR+TxGCBxxiEN21+UROU5CKwX/f4TlUcYjiM+vs/tsyxw==",
+		"node-releases@2.0.65": {
+			"integrity": "sha512-PfvofsGQ+MiOQIPkX9fU8ELUWmy5zL74CdQaph/ismKszfFkfwXaw0cGiwbwym2hT9k5+mdyl8O5WQ1MD8EHmA==",
 			"engines": {"node": ">=18"},
 		},
 
@@ -20335,8 +20335,8 @@ snapshots:
 			"integrity": "sha512-Nz6gtibMVgYeMEhUjp2KuwAgqaJA1K155dU/HuDaEJUGgnmYfVtVZah+uerVWdH8UGnyahhDCgABbYTbs254+w==",
 		},
 
-		"shlex@3.0.0": {
-			"integrity": "sha512-jHPXQQk9d/QXCvJuLPYMOYWez3c43sORAgcIEoV7bFv5AJSJRAOyw5lQO12PMfd385qiLRCaDt7OtEzgrIGZUA==",
+		"shlex@3.0.1": {
+			"integrity": "sha512-5ZM9M0xaWThR0cJDJKfNSKKbrACHjND55F25yS8HLl1FsQcyVy5oAxcaBLLaV/vHUtWpzd+PZlzGfxYLibVLZg==",
 		},
 
 		"short-tree@3.0.0": {
