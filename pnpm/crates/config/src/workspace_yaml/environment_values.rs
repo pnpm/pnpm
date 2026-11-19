@@ -1,4 +1,7 @@
-use super::{BTreeMap, EnvVar, IndexMap, RegistryEntry, SentinelPlaceholders, env_replace_lossy};
+use super::{
+    BTreeMap, EnvVar, IndexMap, LoadWorkspaceYamlError, RegistryEntry, SentinelPlaceholders,
+    env_replace_lossy,
+};
 use std::ops::Range;
 
 /// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
@@ -28,6 +31,9 @@ pub(super) fn has_env_placeholder(value: &str) -> bool {
 /// used while probing whether the target setting accepts free text.
 pub(super) struct Placeholder {
     pub(super) range: Range<usize>,
+    /// Whether the placeholder sits where a value can stand, outside a YAML
+    /// anchor, alias, or tag token and outside an incomplete escape.
+    pub(super) in_value: bool,
     pub(super) resolved: Option<String>,
     pub(super) sentinel: String,
 }
@@ -56,7 +62,16 @@ pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentP
     if ranges.is_empty() {
         return None;
     }
-    let resolved_values = resolve_bare_tokens::<Sys>(text, &ranges);
+    let in_values = value_positions(text, &ranges);
+    let resolved_values: Vec<Option<String>> = ranges
+        .iter()
+        .zip(&in_values)
+        .map(|(range, &in_value)| {
+            in_value
+                .then(|| resolve_bare_token::<Sys>(&text[range.clone()]))
+                .flatten()
+        })
+        .collect();
     let sentinels = SentinelPlaceholders::with_extra(
         text,
         ranges.clone(),
@@ -64,34 +79,31 @@ pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentP
     )?;
     let mut items = Vec::with_capacity(ranges.len());
     let mut resolvable = Vec::new();
-    for (index, (range, resolved)) in ranges
+    for (index, ((range, in_value), resolved)) in ranges
         .into_iter()
+        .zip(in_values)
         .zip(resolved_values)
         .enumerate()
     {
         if resolved.is_some() {
             resolvable.push(index);
         }
-        items.push(Placeholder { range, resolved, sentinel: sentinels.sentinel(index) });
+        items.push(Placeholder { range, in_value, resolved, sentinel: sentinels.sentinel(index) });
     }
     Some(DocumentPlaceholders { sentinels, items, resolvable })
 }
 
-fn resolve_bare_tokens<Sys: EnvVar>(text: &str, ranges: &[Range<usize>]) -> Vec<Option<String>> {
+fn value_positions(text: &str, ranges: &[Range<usize>]) -> Vec<bool> {
     let mut in_meta_token = false;
     let mut cursor = 0;
-    let mut resolved = Vec::with_capacity(ranges.len());
-    for range in ranges {
-        advance_yaml_meta_state(&mut in_meta_token, &text[cursor..range.start]);
-        cursor = range.end;
-        let eligible = !in_meta_token && !has_incomplete_hex_escape_before(&text[..range.start]);
-        resolved.push(
-            eligible
-                .then(|| resolve_bare_token::<Sys>(&text[range.clone()]))
-                .flatten(),
-        );
-    }
-    resolved
+    ranges
+        .iter()
+        .map(|range| {
+            advance_yaml_meta_state(&mut in_meta_token, &text[cursor..range.start]);
+            cursor = range.end;
+            !in_meta_token && !has_incomplete_hex_escape_before(&text[..range.start])
+        })
+        .collect()
 }
 
 fn advance_yaml_meta_state(in_meta_token: &mut bool, segment: &str) {
@@ -175,56 +187,118 @@ fn is_bare_token(value: &str) -> bool {
             })
 }
 
-pub(super) fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {
-    if let Some(value) = value {
-        let (substituted, _) = env_replace_lossy::<Sys>(value);
-        *value = substituted;
+/// What a substitution pass does with a `${VAR}` placeholder that has no
+/// value and no fallback.
+#[derive(Clone, Copy)]
+enum OnUnresolved {
+    /// Expand it to an empty string and fail the pass once it is done.
+    Fail,
+    /// Expand it to an empty string.
+    ExpandEmpty,
+    /// Leave its setting out.
+    LeaveOut,
+}
+
+/// The state of one substitution pass over unresolved placeholders.
+pub(super) struct UnresolvedPlaceholders {
+    on_unresolved: OnUnresolved,
+    first: Option<String>,
+}
+
+impl UnresolvedPlaceholders {
+    pub(super) fn fail() -> Self {
+        Self { on_unresolved: OnUnresolved::Fail, first: None }
+    }
+
+    pub(super) fn expand_empty() -> Self {
+        Self { on_unresolved: OnUnresolved::ExpandEmpty, first: None }
+    }
+
+    pub(super) fn leave_out() -> Self {
+        Self { on_unresolved: OnUnresolved::LeaveOut, first: None }
+    }
+
+    /// [`LoadWorkspaceYamlError::ConfigUnresolvedEnvVar`] for the first
+    /// placeholder a [`Self::fail`] pass could not resolve.
+    pub(super) fn into_result(self) -> Result<(), LoadWorkspaceYamlError> {
+        self.first.map_or(Ok(()), |var| Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var }))
+    }
+
+    /// `text` expanded, or `None` when its setting is to be left out.
+    fn replace<Sys: EnvVar>(&mut self, text: &str) -> Option<String> {
+        let (substituted, unresolved) = env_replace_lossy::<Sys>(text);
+        let Some(var) = unresolved.into_iter().next() else { return Some(substituted) };
+        match self.on_unresolved {
+            OnUnresolved::Fail => {
+                self.first.get_or_insert(var);
+                Some(substituted)
+            }
+            OnUnresolved::ExpandEmpty => Some(substituted),
+            OnUnresolved::LeaveOut => None,
+        }
     }
 }
 
-pub(super) fn substitute_json_string<Sys: EnvVar>(value: &mut Option<serde_json::Value>) {
-    if let Some(serde_json::Value::String(value)) = value {
-        let (substituted, _) = env_replace_lossy::<Sys>(value);
-        *value = substituted;
+pub(super) fn substitute_optional_string<Sys: EnvVar>(
+    value: &mut Option<String>,
+    unresolved: &mut UnresolvedPlaceholders,
+) {
+    if let Some(text) = value.as_deref() {
+        *value = unresolved.replace::<Sys>(text);
+    }
+}
+
+pub(super) fn substitute_json_string<Sys: EnvVar>(
+    value: &mut Option<serde_json::Value>,
+    unresolved: &mut UnresolvedPlaceholders,
+) {
+    if let Some(serde_json::Value::String(text)) = value {
+        *value = unresolved.replace::<Sys>(text).map(serde_json::Value::String);
     }
 }
 
 pub(super) fn substitute_optional_string_map<Sys: EnvVar>(
     value: &mut Option<BTreeMap<String, String>>,
+    unresolved: &mut UnresolvedPlaceholders,
 ) {
-    if let Some(value) = value {
-        for map_value in value.values_mut() {
-            let (substituted, _) = env_replace_lossy::<Sys>(map_value);
-            *map_value = substituted;
-        }
-    }
+    let Some(map) = value.take() else { return };
+    *value = Some(
+        map.into_iter()
+            .filter_map(|(key, text)| {
+                unresolved
+                    .replace::<Sys>(&text)
+                    .map(|substituted| (key, substituted))
+            })
+            .collect(),
+    );
 }
 
 /// Expands `${VAR}` in the half of each `registries` entry that carries the
 /// request destination: the value of a scope route, the key of a declaration.
 pub(super) fn substitute_registry_entries<Sys: EnvVar>(
     value: &mut Option<IndexMap<String, RegistryEntry>>,
+    unresolved: &mut UnresolvedPlaceholders,
 ) {
     let Some(map) = value.take() else { return };
     *value = Some(
         map.into_iter()
-            .map(|(key, entry)| match entry {
-                RegistryEntry::ScopeRoute(url) => {
-                    let (substituted, _) = env_replace_lossy::<Sys>(&url);
-                    (key, RegistryEntry::ScopeRoute(substituted))
-                }
-                RegistryEntry::Declaration(declaration) => {
-                    let (substituted, _) = env_replace_lossy::<Sys>(&key);
-                    (substituted, RegistryEntry::Declaration(declaration))
-                }
+            .filter_map(|(key, entry)| match entry {
+                RegistryEntry::ScopeRoute(url) => unresolved
+                    .replace::<Sys>(&url)
+                    .map(|url| (key, RegistryEntry::ScopeRoute(url))),
+                RegistryEntry::Declaration(declaration) => unresolved
+                    .replace::<Sys>(&key)
+                    .map(|key| (key, RegistryEntry::Declaration(declaration))),
             })
             .collect(),
     );
 }
 
-pub(super) fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<String>>) {
-    if let Some(Some(value)) = value {
-        let (substituted, _) = env_replace_lossy::<Sys>(value);
-        *value = substituted;
+pub(super) fn substitute_optional_inner_string<Sys: EnvVar>(
+    value: &mut Option<Option<String>>,
+    unresolved: &mut UnresolvedPlaceholders,
+) {
+    if let Some(Some(text)) = value {
+        *value = unresolved.replace::<Sys>(text).map(Some);
     }
 }

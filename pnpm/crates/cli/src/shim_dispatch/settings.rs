@@ -66,7 +66,10 @@ fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSe
         let mut settings = TrustedSettings::load_global(&config_dir)
             .map_err(LoadGlobalShimsSettingError::Workspace)?;
         if let Some(settings) = settings.as_mut() {
-            settings.substitute_env_trusted::<Host>();
+            // The full config load reports an unresolved placeholder. Shims
+            // read only `stateDir` and `globalShims`, so another setting's
+            // unset variable must not turn them off.
+            settings.substitute_env_trusted_readable::<Host>();
             apply_state_dir_setting(
                 &mut state_dir,
                 settings.machine.state_dir.as_deref(),
@@ -79,7 +82,7 @@ fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSe
     }
     apply_settings_above_global_config(&mut shims)?;
     let mut env_settings = TrustedSettings::from_pnpm_config_env::<Host>().machine;
-    env_settings.substitute_env::<Host>();
+    env_settings.substitute_env_lossy::<Host>();
     apply_state_dir_setting(&mut state_dir, env_settings.state_dir.as_deref(), &default_state_dir);
     Ok(TrustedShimSettings { shims, state_dir })
 }

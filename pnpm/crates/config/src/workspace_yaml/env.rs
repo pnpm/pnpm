@@ -1,27 +1,38 @@
 use super::{
-    EnvVar, GetHomeDir, LoadWorkspaceYamlError, Path, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceSettings, has_env_placeholder, join_fragment, redact_registry_url, registries,
-    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
-    substitute_optional_string_map, substitute_registry_entries,
+    EnvVar, GetHomeDir, LoadWorkspaceYamlError, Path, UnresolvedPlaceholders,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, has_env_placeholder, join_fragment,
+    redact_registry_url, registries, substitute_json_string, substitute_optional_inner_string,
+    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
 };
 
 impl WorkspaceSettings {
-    /// Expand `${VAR}` in trusted user-controlled settings.
+    /// Expand `${VAR}` in trusted user-controlled settings, failing with
+    /// [`LoadWorkspaceYamlError::ConfigUnresolvedEnvVar`] on a placeholder
+    /// with no value and no fallback.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`](crate::settings::Config).
-    pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
-        self.substitute_env_scalars::<Sys>();
-        substitute_optional_string::<Sys>(&mut self.user_agent);
-        substitute_optional_string::<Sys>(&mut self.pnpr_server);
-        substitute_optional_string::<Sys>(&mut self.registry);
-        substitute_optional_string::<Sys>(&mut self.https_proxy);
-        substitute_optional_string::<Sys>(&mut self.http_proxy);
-        substitute_optional_string::<Sys>(&mut self.proxy);
-        substitute_json_string::<Sys>(&mut self.no_proxy);
-        substitute_json_string::<Sys>(&mut self.noproxy);
-        substitute_registry_entries::<Sys>(&mut self.registries);
-        substitute_optional_string_map::<Sys>(&mut self.named_registries);
+    pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) -> Result<(), LoadWorkspaceYamlError> {
+        let mut unresolved = UnresolvedPlaceholders::fail();
+        self.substitute_trusted_values::<Sys>(&mut unresolved);
+        unresolved.into_result()
+    }
+
+    pub(super) fn substitute_trusted_values<Sys: EnvVar>(
+        &mut self,
+        unresolved: &mut UnresolvedPlaceholders,
+    ) {
+        self.substitute_env_scalars::<Sys>(unresolved);
+        substitute_optional_string::<Sys>(&mut self.user_agent, unresolved);
+        substitute_optional_string::<Sys>(&mut self.pnpr_server, unresolved);
+        substitute_optional_string::<Sys>(&mut self.registry, unresolved);
+        substitute_optional_string::<Sys>(&mut self.https_proxy, unresolved);
+        substitute_optional_string::<Sys>(&mut self.http_proxy, unresolved);
+        substitute_optional_string::<Sys>(&mut self.proxy, unresolved);
+        substitute_json_string::<Sys>(&mut self.no_proxy, unresolved);
+        substitute_json_string::<Sys>(&mut self.noproxy, unresolved);
+        substitute_registry_entries::<Sys>(&mut self.registries, unresolved);
+        substitute_optional_string_map::<Sys>(&mut self.named_registries, unresolved);
     }
 
     /// Expand `${VAR}` in ordinary string settings, but not inside
@@ -36,13 +47,33 @@ impl WorkspaceSettings {
     /// from another registry. Any other request setting with a placeholder is
     /// dropped, and the returned warnings name each one.
     ///
+    /// A placeholder with no value and no fallback in an ordinary string
+    /// setting fails with [`LoadWorkspaceYamlError::ConfigUnresolvedEnvVar`].
+    ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`](crate::settings::Config) and filtered values do not.
     pub fn substitute_env_untrusted<Sys: EnvVar>(
         &mut self,
     ) -> Result<Vec<String>, LoadWorkspaceYamlError> {
         self.refuse_unexpanded_registries()?;
-        self.substitute_env_scalars::<Sys>();
+        self.substitute_untrusted_values::<Sys>(UnresolvedPlaceholders::fail())
+    }
+
+    /// [`Self::substitute_env_untrusted`] for a load that leaves out what this
+    /// pnpm cannot read: a registry setting it would refuse and a setting with
+    /// a placeholder that has no value and no fallback are left out.
+    pub(crate) fn substitute_env_untrusted_readable<Sys: EnvVar>(&mut self) -> Vec<String> {
+        self.drop_unexpanded_registries();
+        self.substitute_untrusted_values::<Sys>(UnresolvedPlaceholders::leave_out())
+            .expect("a pass that leaves out unresolved placeholders does not fail")
+    }
+
+    fn substitute_untrusted_values<Sys: EnvVar>(
+        &mut self,
+        mut unresolved: UnresolvedPlaceholders,
+    ) -> Result<Vec<String>, LoadWorkspaceYamlError> {
+        self.substitute_env_scalars::<Sys>(&mut unresolved);
+        unresolved.into_result()?;
         let mut dropped = Vec::new();
         self.drop_unexpanded_request_scalars(&mut dropped);
         Ok(dropped
@@ -53,7 +84,7 @@ impl WorkspaceSettings {
 
     /// Drop the registry settings [`Self::substitute_env_untrusted`] would
     /// refuse, for a load that leaves out what this pnpm refuses.
-    pub(crate) fn drop_unexpanded_registries(&mut self) {
+    fn drop_unexpanded_registries(&mut self) {
         if self.registry.as_deref().is_some_and(has_env_placeholder) {
             self.registry = None;
         }
@@ -130,19 +161,22 @@ impl WorkspaceSettings {
         }
     }
 
-    pub(super) fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
-        substitute_optional_string::<Sys>(&mut self.tag);
-        substitute_optional_string::<Sys>(&mut self.store_dir);
-        substitute_optional_string::<Sys>(&mut self.modules_dir);
-        substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
-        substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
-        substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
-        substitute_optional_string::<Sys>(&mut self.lockfile_dir);
-        substitute_optional_string::<Sys>(&mut self.patches_dir);
-        substitute_optional_string::<Sys>(&mut self.cache_dir);
-        substitute_optional_string::<Sys>(&mut self.local_address);
-        substitute_optional_inner_string::<Sys>(&mut self.script_shell);
-        substitute_optional_inner_string::<Sys>(&mut self.node_options);
+    pub(super) fn substitute_env_scalars<Sys: EnvVar>(
+        &mut self,
+        unresolved: &mut UnresolvedPlaceholders,
+    ) {
+        substitute_optional_string::<Sys>(&mut self.tag, unresolved);
+        substitute_optional_string::<Sys>(&mut self.store_dir, unresolved);
+        substitute_optional_string::<Sys>(&mut self.modules_dir, unresolved);
+        substitute_optional_string::<Sys>(&mut self.virtual_store_dir, unresolved);
+        substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir, unresolved);
+        substitute_optional_string::<Sys>(&mut self.npmrc_auth_file, unresolved);
+        substitute_optional_string::<Sys>(&mut self.lockfile_dir, unresolved);
+        substitute_optional_string::<Sys>(&mut self.patches_dir, unresolved);
+        substitute_optional_string::<Sys>(&mut self.cache_dir, unresolved);
+        substitute_optional_string::<Sys>(&mut self.local_address, unresolved);
+        substitute_optional_inner_string::<Sys>(&mut self.script_shell, unresolved);
+        substitute_optional_inner_string::<Sys>(&mut self.node_options, unresolved);
     }
 
     /// Resolve a path-like `scriptShell` against the workspace root, the
