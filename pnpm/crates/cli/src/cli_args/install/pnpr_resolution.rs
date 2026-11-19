@@ -412,11 +412,11 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     mut session: PnprSession<'_>,
     mut inputs: PnprRequestInputs,
 ) -> miette::Result<()> {
-    if let Some(previous_wanted) = session.previous_wanted {
+    if link.lockfile.frozen
+        && let Some(previous_wanted) = session.previous_wanted
+    {
         verify_pnpr_input_lockfile::<Reporter>(&link, previous_wanted).await?;
-        if link.lockfile.frozen {
-            check_frozen_pnpmfile(state, inputs.pnpmfile_hook.as_ref(), previous_wanted).await?;
-        }
+        check_frozen_pnpmfile(state, inputs.pnpmfile_hook.as_ref(), previous_wanted).await?;
     }
     let prefetcher = streaming_prefetcher(state, lockfile_dir, &link, &session, &inputs).await;
     let opts = resolve_projects_options(state, pnpr_server, &link, &mut session, &mut inputs);
