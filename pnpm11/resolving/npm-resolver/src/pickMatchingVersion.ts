@@ -54,8 +54,8 @@ function runPicker ({ pickerOpts, meta, spec, pickOne, pickChannelTag = pickOne 
   if (!pickerOpts.includeLatestTag) return currentPkg
   const picked = pickMax(pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' }), currentPkg)
   for (const channelTag of findPrereleaseChannelTags(meta, pickerOpts.currentVersion)) {
-    // `latest` is already a candidate, and the tags after it point lower.
-    if (channelTag === 'latest') break
+    // `latest` is already a candidate.
+    if (channelTag === 'latest') continue
     const channelPkg = pickChannelTag({ ...spec, type: 'tag', fetchSpec: channelTag })
     // The maturity filter moves an immature tag to an older version, which
     // may be on another channel. Only the tag's own target counts.

@@ -223,9 +223,9 @@ where
         .map(|current_version| find_prerelease_channel_tags(meta, current_version))
         .unwrap_or_default();
     for (tag, target) in channel_tags {
-        // `latest` is already a candidate, and the tags after it point lower.
+        // `latest` is already a candidate.
         if tag == "latest" {
-            break;
+            continue;
         }
         // The maturity filter moves an immature tag to an older version,
         // which may be on another channel. Only the tag's own target counts.
