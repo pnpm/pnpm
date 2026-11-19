@@ -4,6 +4,9 @@ import type { PolicyViolation } from '../lib/policyHandlers.js'
 
 const confirm = jest.fn<(options: { message: string, default: boolean }) => Promise<boolean>>()
 jest.unstable_mockModule('@inquirer/prompts', () => ({ confirm }))
+const globalInfo = jest.fn<(message: string) => void>()
+const actualLogger = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => ({ ...actualLogger, globalInfo }))
 const { setupPolicyHandlers } = await import('../lib/policyHandlers.js')
 
 function violation (
@@ -197,4 +200,27 @@ test('approval prompts list each package version once', async () => {
       default: false,
     })
   })
+})
+
+test('approval confirms the persisted excludes without listing them again', async () => {
+  confirm.mockResolvedValueOnce(true)
+  globalInfo.mockClear()
+  await withStdinTTY(true, async () => {
+    const plan = setupPolicyHandlers({ minimumReleaseAge: 60, minimumReleaseAgeStrict: true, ci: false })!
+    const violations = [violation('foo', '1.0.0'), violation('bar', '1.0.0')]
+    await plan.handleResolutionPolicyViolations(violations)
+    expect(plan.pickManifestUpdates(violations)).toEqual({ addedMinimumReleaseAgeExcludes: ['bar@1.0.0', 'foo@1.0.0'] })
+  })
+  expect(globalInfo.mock.calls).toEqual([
+    ['Added 2 entries to minimumReleaseAgeExclude in pnpm-workspace.yaml (approved at the prompt)'],
+  ])
+})
+
+test('loose mode lists the excludes it added', () => {
+  globalInfo.mockClear()
+  const plan = setupPolicyHandlers({ minimumReleaseAge: 60 })!
+  plan.pickManifestUpdates([violation('foo', '1.0.0')])
+  expect(globalInfo.mock.calls).toEqual([
+    ['Added 1 entry to minimumReleaseAgeExclude in pnpm-workspace.yaml (set minimumReleaseAgeStrict to true to gate these updates with a prompt):\n  foo@1.0.0'],
+  ])
 })
