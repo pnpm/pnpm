@@ -1,10 +1,9 @@
-use crate::cli_args::update_interactive::UpdateDetails;
 mod long;
 mod named_registry;
 
 use super::{
-    ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdatePrompt,
-    collect_choices, dependencies_prompt_message,
+    ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdateDetails,
+    UpdatePrompt, collect_choices, dependencies_prompt_message,
 };
 use crate::{
     checkbox_prompt::KeyOutcome,
