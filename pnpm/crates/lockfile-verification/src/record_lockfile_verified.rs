@@ -1,5 +1,5 @@
-//! Thin wrapper around [`record_verification`] for callers that hold
-//! a freshly-written lockfile.
+//! Thin wrapper around [`record_verification`](crate::cache::record_verification)
+//! for callers that hold a freshly-written lockfile.
 //!
 //! After resolution writes a new lockfile, the install path uses this
 //! wrapper to mark the new lockfile as already-verified so the
