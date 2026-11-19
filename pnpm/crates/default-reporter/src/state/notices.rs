@@ -57,26 +57,20 @@ impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
     pub(super) fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
-        let pending_builds =
-            if log.strict_dep_builds { Vec::new() } else { log.package_names.clone() };
-        if self.notices.approvals.builds != pending_builds {
-            self.notices.approvals.builds = pending_builds;
-            self.notices.approvals.emitted = false;
-        }
         // Suppress the warning box under `strictDepBuilds` — the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
         // only duplicate the error. The structured event still carries the
         // names for NDJSON consumers.
+        if !log.strict_dep_builds {
+            self.notices.approvals.add_builds(&log.package_names);
+        }
         if !self.options.append_only {
             self.render_pending_approvals();
         }
     }
 
     pub(super) fn on_pending_skills(&mut self, log: &PendingSkillsLog) {
-        if self.notices.approvals.skills != log.package_names {
-            self.notices.approvals.skills.clone_from(&log.package_names);
-            self.notices.approvals.emitted = false;
-        }
+        self.notices.approvals.add_skills(&log.package_names);
         if !self.options.append_only {
             self.render_pending_approvals();
         }

@@ -6,15 +6,36 @@ use super::BlockSlot;
 
 #[derive(Default)]
 pub(super) struct PendingApprovals {
-    pub(super) builds: Vec<String>,
-    pub(super) skills: Vec<String>,
+    pub(super) builds: BTreeSet<String>,
+    pub(super) skills: BTreeSet<String>,
     pub(super) emitted: bool,
     pub(super) slot: BlockSlot,
 }
 
+/// Each event adds to the lists rather than replacing them: one command can
+/// run several installs, such as one per `pnpm add -g` group, and the notice
+/// covers all of them.
+impl PendingApprovals {
+    pub(super) fn add_builds(&mut self, package_names: &[String]) {
+        Self::add(&mut self.builds, &mut self.emitted, package_names);
+    }
+
+    pub(super) fn add_skills(&mut self, package_names: &[String]) {
+        Self::add(&mut self.skills, &mut self.emitted, package_names);
+    }
+
+    fn add(pending: &mut BTreeSet<String>, emitted: &mut bool, package_names: &[String]) {
+        for package in package_names {
+            if pending.insert(package.clone()) {
+                *emitted = false;
+            }
+        }
+    }
+}
+
 pub(super) fn pending_approval_packages(
-    pending_builds: &[String],
-    pending_skills: &[String],
+    pending_builds: &BTreeSet<String>,
+    pending_skills: &BTreeSet<String>,
 ) -> BTreeMap<String, BTreeSet<&'static str>> {
     let mut packages = BTreeMap::<String, BTreeSet<&'static str>>::new();
     for package in pending_builds {

@@ -94,23 +94,68 @@ fn registry_skill_labels_do_not_merge_into_local_build_labels() {
 fn append_only_output_emits_one_combined_pending_approval_notice() {
     let mut reporter =
         state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
-    let _ = reporter.handle(&ignored_scripts(&["esbuild@1.0.0"]));
-    let _ = reporter.handle(&LogEvent::PendingSkills(PendingSkillsLog {
-        level: LogLevel::Debug,
-        package_names: vec!["esbuild".to_string()],
-    }));
-    let output = reporter.handle(&LogEvent::ExecutionTime(ExecutionTimeLog {
-        level: LogLevel::Debug,
-        started_at: 0,
-        ended_at: 1,
-    }));
-    let Output::Lines(lines) = output else {
-        panic!("expected appended lines");
-    };
-    let output = lines.join("\n");
+    let output = appended_output(
+        &mut reporter,
+        &[
+            ignored_scripts(&["esbuild@1.0.0"]),
+            LogEvent::PendingSkills(PendingSkillsLog {
+                level: LogLevel::Debug,
+                package_names: vec!["esbuild".to_string()],
+            }),
+            execution_time(),
+        ],
+    );
 
     assert_eq!(output.matches("Packages awaiting approval:").count(), 1, "{output}");
     assert!(output.contains("  esbuild  build, skills"), "{output}");
+}
+
+/// One command can run several installs, such as one per `pnpm add -g`
+/// group. Each reports its own packages, and the notice lists all of them.
+#[test]
+fn the_pending_approval_notice_keeps_packages_from_every_event() {
+    let events = || {
+        vec![
+            ignored_scripts(&["esbuild@1.0.0"]),
+            ignored_scripts(&["sharp@2.0.0"]),
+            LogEvent::PendingSkills(PendingSkillsLog {
+                level: LogLevel::Debug,
+                package_names: vec!["agent-tool".to_string()],
+            }),
+            LogEvent::PendingSkills(PendingSkillsLog {
+                level: LogLevel::Debug,
+                package_names: vec!["sharp".to_string()],
+            }),
+        ]
+    };
+    let expected = "Packages awaiting approval:\n  agent-tool  skills\n  esbuild  build\n  sharp  build, skills";
+
+    let frame = render(&mut state(false), events());
+    assert!(frame.contains(expected), "frame: {frame}");
+    assert_eq!(frame.matches("Packages awaiting approval:").count(), 1, "frame: {frame}");
+
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let mut append_only_events = events();
+    append_only_events.push(execution_time());
+    let output = appended_output(&mut reporter, &append_only_events);
+    assert!(output.contains(expected), "{output}");
+    assert_eq!(output.matches("Packages awaiting approval:").count(), 1, "{output}");
+}
+
+fn execution_time() -> LogEvent {
+    LogEvent::ExecutionTime(ExecutionTimeLog { level: LogLevel::Debug, started_at: 0, ended_at: 1 })
+}
+
+fn appended_output(reporter: &mut super::ReporterState, events: &[LogEvent]) -> String {
+    events
+        .iter()
+        .filter_map(|event| match reporter.handle(event) {
+            Output::Lines(lines) => Some(lines.join("\n")),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[test]
