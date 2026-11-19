@@ -1,3 +1,4 @@
+pub(crate) use bump::parse_exact_version;
 pub(crate) use release::selected_projects;
 
 use crate::cli_args::{
@@ -259,11 +260,7 @@ impl VersionArgs {
 
         let new_version = self.next_package_version(&current_version, bump, &current)?;
 
-        manifest
-            .value_mut()
-            .as_object_mut()
-            .expect("package.json is an object — its version field was just read")
-            .insert("version".to_string(), Value::String(new_version.clone()));
+        set_manifest_version(&mut manifest, &new_version);
         if !self.dry_run {
             manifest
                 .save()
@@ -426,6 +423,16 @@ fn package_version_identity(manifest: &PackageManifest) -> Option<(String, Strin
         return None;
     }
     Some((name.to_string(), current.to_string()))
+}
+
+/// Set `version` in `manifest` without saving it. The manifest must be an
+/// object, which it is once any of its fields were read.
+pub(crate) fn set_manifest_version(manifest: &mut PackageManifest, version: &str) {
+    manifest
+        .value_mut()
+        .as_object_mut()
+        .expect("a manifest whose fields were read is a JSON object")
+        .insert("version".to_owned(), Value::String(version.to_owned()));
 }
 
 #[cfg(test)]

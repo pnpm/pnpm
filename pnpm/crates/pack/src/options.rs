@@ -1,6 +1,6 @@
 use super::{
-    Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, WorkspacePackageManifest,
-    canonicalize_output_key,
+    Arc, Catalogs, HashMap, HashSet, NodeLinker, Path, PathBuf, PnpmfileHooks,
+    WorkspacePackageManifest, canonicalize_output_key,
 };
 
 /// Inputs for [`crate::api`]. The CLI maps the resolved [`pnpm_config::Config`]
@@ -56,6 +56,8 @@ pub struct PackManifestOptions {
     pub before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     /// Workspace packages lookup used when a dependency is not installed in `node_modules`.
     pub workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
+    /// See [`pnpm_exportable_manifest::WorkspacePackageLookup::prefer_workspace_for`].
+    pub bumped_workspace_packages: Option<Arc<HashSet<String>>>,
 }
 
 pub struct PackOutputOptions {
