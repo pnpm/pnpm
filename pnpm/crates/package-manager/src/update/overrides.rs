@@ -5,19 +5,21 @@ use super::{
 };
 use crate::package_manifest_prefix;
 use node_semver::Version;
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, range_of_specifier};
+use pnpm_resolving_resolver_base::VersionSelectorType;
 
 pub(super) struct OverriddenDirect {
     pub(super) name: String,
     pub(super) group: DependencyGroup,
     pub(super) effective_specifier: Option<String>,
-    /// The override entry that governs the dependency when its selector is
-    /// the package's bare name — the one entry an update can move, because
-    /// moving it moves the resolution with no selector to reinterpret.
-    /// `None` when a range-scoped, dependency-type-scoped, or parent-scoped
+    /// The override entry that governs the dependency when its selector names
+    /// the package with no range or parent scope. It is the one entry an
+    /// update can move, because moving it moves the resolution with no
+    /// selector to reinterpret. `None` when a range-scoped or parent-scoped
     /// selector governs. `--latest` then rewrites the declaration, which a
     /// range-scoped selector stops matching once it moves past the range.
     pub(super) bare_override: Option<BareOverrideEntry>,
@@ -141,24 +143,24 @@ pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
     name: &str,
     entry: &BareOverrideEntry,
 ) -> Result<MatchedRewrite, UpdateError> {
-    // The catalog entry a `catalog:` value points at may be shared with other
-    // declarations, so moving it is the user's call.
-    if entry.value.starts_with("catalog:") {
+    // A value that names a dependency of its own (an `npm:` alias, a
+    // `workspace:` or `catalog:` reference, a `$` reference) has no version
+    // the update can move, so moving it is the user's call.
+    if names_another_dependency(&entry.value) {
         warn_unmovable_override::<Reporter>(rewrite_ctx, name, &entry.value);
         return Ok(MatchedRewrite::Target(None));
     }
-    let style = movable_override_style(&entry.value);
-    // A bare value with no recoverable operator (a dist tag, a partial
-    // version) tracks a moving target the way a tag-tracking declaration
-    // does, so it is not the update's to rewrite.
-    if style.is_none() && !names_another_dependency(&entry.value) {
+    // A dist tag tracks a moving target the way a tag-tracking declaration
+    // does, and `-` removes the dependency, so neither is the update's to
+    // rewrite.
+    if entry.value == "-"
+        || get_version_selector_type(&entry.value) == Some(VersionSelectorType::Tag)
+    {
         return Ok(MatchedRewrite::Target(None));
     }
     let Some(latest) =
         latest_version_for_spec(rewrite_ctx, latest_chain, name, &entry.value).await?
     else {
-        // Nothing claims the value — a local `link:`/`file:` reference, for
-        // instance — so there is no version to move and nothing to report.
         return Ok(MatchedRewrite::Target(None));
     };
     // An override whose range already admits the version the update picked is
@@ -166,7 +168,7 @@ pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
     if override_admits(&entry.value, &latest) {
         return Ok(MatchedRewrite::Target(None));
     }
-    if style.is_some() {
+    if movable_override_style(&entry.value).is_some() {
         let next = calc_version_range(
             &latest,
             Some(&entry.value),

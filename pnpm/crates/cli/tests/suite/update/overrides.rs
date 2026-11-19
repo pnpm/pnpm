@@ -365,3 +365,103 @@ fn update_latest_warns_when_the_override_is_a_catalog_reference() {
 
     drop((root, anchor));
 }
+
+/// The most specific override governs, so a bare entry that a range-scoped one
+/// outranks is not the update's to move.
+#[test]
+fn update_latest_does_not_move_a_bare_override_a_range_scoped_one_outranks() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let range_scoped = format!("{DEP}@^100");
+    set_overrides(&workspace, &[(DEP, "100.0.0"), (range_scoped.as_str(), "100.0.0")]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+
+    pacquet(&workspace, ["update", "--latest", DEP]).assert().success();
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        before_yaml,
+    );
+
+    drop((root, anchor));
+}
+
+/// A `$` reference resolves to another declaration's specifier when config is
+/// read, so the update must warn rather than write a range over the reference.
+#[test]
+fn update_latest_warns_when_the_override_is_a_version_reference() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let reference = format!("${DEP}");
+    set_overrides(&workspace, &[(DEP, reference.as_str())]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", DEP]).output().expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("is controlled by an override"), "warned: {stdout}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        before_yaml,
+    );
+
+    drop((root, anchor));
+}
+
+/// A compound range has no single operator to keep, so an override that
+/// excludes the latest version is reported rather than left silently.
+#[test]
+fn update_latest_warns_when_a_compound_range_override_excludes_the_latest() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    set_overrides(&workspace, &[(DEP, ">=100.0.0 <101.0.0")]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", DEP]).output().expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("is controlled by an override"), "warned: {stdout}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        before_yaml,
+    );
+
+    drop((root, anchor));
+}
+
+/// With per-project lockfiles the lockfile root is the project, but the
+/// override lives in the workspace root's `pnpm-workspace.yaml`.
+#[test]
+fn update_latest_moves_the_override_in_the_workspace_root_with_per_project_lockfiles() {
+    let (root, workspace, anchor) = setup();
+    add_workspace_package(&workspace, "pkg", "1.0.0");
+    let project = workspace.join("pkg");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "pkg", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    yaml.push_str("sharedWorkspaceLockfile: false\n");
+    fs::write(&yaml_path, yaml).expect("write yaml");
+    set_overrides(&workspace, &[(DEP, "100.0.0")]);
+    pacquet(&project, ["install"]).assert().success();
+
+    pacquet(&project, ["update", "--latest", DEP]).assert().success();
+
+    let yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    assert!(yaml.contains(&format!(r#""{DEP}": 101.0.0"#)), "override moved: {yaml}");
+    assert!(!project.join("pnpm-workspace.yaml").exists());
+    let lockfile = read_lockfile(&project.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", DEP), "101.0.0");
+
+    drop((root, anchor));
+}

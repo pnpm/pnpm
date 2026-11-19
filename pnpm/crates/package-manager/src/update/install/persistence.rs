@@ -39,7 +39,7 @@ pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(
                 .as_deref(),
         },
     )?;
-    set_moved_overrides(&site.workspace_root, &prepared.updated_overrides)?;
+    set_moved_overrides(update, site, &prepared.updated_overrides)?;
 
     if let Some(ignored_builds) = ignored_builds {
         return Err(UpdateError::Install(ignored_builds));
@@ -79,7 +79,7 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
     }
-    set_moved_overrides(&site.workspace_root, &prepared.updated_overrides)?;
+    set_moved_overrides(update, site, &prepared.updated_overrides)?;
     if update.version.save {
         post_install_prune(update.config, Some(workspace_dir), manifest)
             .map_err(UpdateError::WriteWorkspaceManifest)?;
@@ -87,17 +87,19 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
     Ok(())
 }
 /// Persist the override entries an update moved into the workspace
-/// manifest. Runs after the install succeeded under them, so a failed
-/// install leaves the manifest as it was.
+/// manifest they were read from. Runs after the install succeeded under
+/// them, so a failed install leaves the manifest as it was.
 fn set_moved_overrides(
-    workspace_root: &Path,
+    update: UpdateOptions<'_>,
+    site: &UpdateSite,
     updated_overrides: &[(String, String)],
 ) -> Result<(), UpdateError> {
     if updated_overrides.is_empty() {
         return Ok(());
     }
+    let workspace_dir = update.config.workspace_dir.as_deref().unwrap_or(&site.workspace_root);
     pnpm_workspace_manifest_writer::set_overrides(
-        workspace_root,
+        workspace_dir,
         updated_overrides
             .iter()
             .map(|(key, value)| (key.as_str(), value.as_str())),

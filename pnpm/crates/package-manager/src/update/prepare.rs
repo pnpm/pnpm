@@ -21,6 +21,7 @@ use crate::{
     emit_initial_package_manifest,
 };
 use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
@@ -170,12 +171,9 @@ fn overridden_direct(
     direct: &[(String, DependencyGroup, String)],
     catalog_ctx: &mut Option<CatalogCtx>,
 ) -> Result<Vec<OverriddenDirect>, UpdateError> {
-    let Some(raw_overrides) = update.config.overrides
-        .as_ref()
-        .filter(|overrides| !overrides.is_empty())
-    else {
+    if update.config.overrides.as_ref().is_none_or(indexmap::IndexMap::is_empty) {
         return Ok(Vec::new());
-    };
+    }
     let catalogs = &ensure_catalog_ctx(catalog_ctx, manifest, update.config)?.catalogs;
     let parsed = crate::install::parse_config_overrides(update.config, catalogs)
         .map_err(|error| UpdateError::Install(error.into()))?
@@ -186,21 +184,25 @@ fn overridden_direct(
     let overrider =
         VersionsOverrider::new(&parsed, update.config.root_project_manifest_dir(&lockfile_root))
             .with_catalogs(catalogs);
-    Ok(collect_overridden_direct(manifest, direct, &overrider, &parsed, raw_overrides))
+    Ok(collect_overridden_direct(manifest, direct, &overrider, update.config))
 }
 
 fn collect_overridden_direct(
     manifest: &PackageManifest,
     direct: &[(String, DependencyGroup, String)],
     overrider: &VersionsOverrider,
-    parsed: &[pnpm_config_parse_overrides::VersionOverride],
-    raw_overrides: &indexmap::IndexMap<String, String>,
+    config: &Config,
 ) -> Vec<OverriddenDirect> {
     let matcher = overrider.dependency_matcher(manifest.value());
     let matched = direct
         .iter()
         .filter(|(name, group, previous)| matcher.matches(*group, name, previous))
-        .map(|(name, group, _)| (name.clone(), *group))
+        .map(|(name, group, previous)| {
+            let bare_override = matcher
+                .governing_override(*group, name, previous)
+                .and_then(|governing| bare_override_entry(name, governing, config));
+            (name.clone(), *group, bare_override)
+        })
         .collect::<Vec<_>>();
     if matched.is_empty() {
         return Vec::new();
@@ -209,44 +211,50 @@ fn collect_overridden_direct(
     overrider.apply(&mut effective, Some(super::manifest_dir(manifest)));
     matched
         .into_iter()
-        .map(|(name, group)| OverriddenDirect {
+        .map(|(name, group, bare_override)| OverriddenDirect {
             effective_specifier: effective
                 .dependencies([group])
                 .find_map(|(alias, specifier)| (alias == name).then(|| specifier.to_string())),
-            bare_override: bare_override_entry(&name, parsed, raw_overrides),
+            bare_override,
             name,
             group,
         })
         .collect()
 }
 
-/// The override entry a targeted update may move for `name`: the one keyed
-/// by the package's bare name, with no parent scope, no range or
-/// dependency-type scope on the target, and no convergence form. Anything
-/// else either governs only some edges or would stop matching once its value
-/// moved.
+/// The override entry a targeted update may move for `name`, given the entry
+/// that governs it: one keyed by the package's own name, with no parent scope,
+/// no range scope on the target, and no convergence form. Anything else either
+/// governs only some edges or would stop matching once its value moved.
+///
+/// The value is the one written in `pnpm-workspace.yaml`. Config resolves a
+/// `$` reference to the specifier it points at, which the update must not
+/// write back over the reference.
 fn bare_override_entry(
     name: &str,
-    parsed: &[pnpm_config_parse_overrides::VersionOverride],
-    raw_overrides: &indexmap::IndexMap<String, String>,
+    governing: &pnpm_config_parse_overrides::VersionOverride,
+    config: &Config,
 ) -> Option<BareOverrideEntry> {
-    parsed
-        .iter()
-        .find(|entry| {
-            entry.parent_pkg.is_none()
-                && entry.target_pkg.bare_specifier.is_none()
-                && entry.target_pkg.dep_type.is_none()
-                && !entry.converge
-                && entry.target_pkg.name == name
+    if governing.parent_pkg.is_some()
+        || governing.target_pkg.bare_specifier.is_some()
+        || governing.converge
+        || governing.target_pkg.name != name
+    {
+        return None;
+    }
+    let written = config.explicit_settings
+        .get("overrides")
+        .and_then(|overrides| overrides.get(&governing.selector))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    written
+        .or_else(|| {
+            config.overrides
+                .as_ref()?
+                .get(&governing.selector)
+                .cloned()
         })
-        .and_then(|entry| {
-            raw_overrides
-                .get(&entry.selector)
-                .map(|value| BareOverrideEntry {
-                    key: entry.selector.clone(),
-                    value: value.clone(),
-                })
-        })
+        .map(|value| BareOverrideEntry { key: governing.selector.clone(), value })
 }
 /// The direct dependencies of the groups the update covers, as
 /// `(name, group, specifier)`.

@@ -133,6 +133,21 @@ impl OverriddenDependencyMatcher<'_> {
             .is_some()
             || self.overrider.converge_applies(dep_name, dep_spec)
     }
+
+    /// The override an install applies to `dep_name` declared as `dep_spec`
+    /// in `group`: the most specific entry that matches it. A convergence
+    /// override is not reported.
+    #[must_use]
+    pub fn governing_override(
+        &self,
+        group: DependencyGroup,
+        dep_name: &str,
+        dep_spec: &str,
+    ) -> Option<&VersionOverride> {
+        self.overrider
+            .choose_override(Some(group), &self.applicable_parent_scoped, dep_name, dep_spec)
+            .map(|chosen| &chosen.inner)
+    }
 }
 
 impl VersionsOverrider {
