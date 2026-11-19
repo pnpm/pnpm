@@ -52,7 +52,7 @@ export function resolvePublishDirectory (projectDir: string, publishDirectory: u
 }
 
 function isInvalidPublishDirectory (rawPath: string): boolean {
-  if (rawPath.includes('\0') || path.win32.parse(rawPath).root !== '') {
+  if (rawPath.includes('\0') || rawPath.includes(':') || path.win32.parse(rawPath).root !== '') {
     return true
   }
   return rawPath

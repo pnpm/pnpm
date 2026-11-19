@@ -208,11 +208,7 @@ fn resolve_publish_directory(project_dir: &Path, manifest: &Value) -> Result<Pat
 
 fn is_invalid_publish_directory(raw: &str) -> bool {
     let path = Path::new(raw);
-    if raw.contains('\0')
-        || path.is_absolute()
-        || raw.starts_with(['/', '\\'])
-        || has_windows_drive_prefix(raw)
-    {
+    if raw.contains(['\0', ':']) || path.is_absolute() || raw.starts_with(['/', '\\']) {
         return true;
     }
     path.components()
@@ -222,10 +218,6 @@ fn is_invalid_publish_directory(raw: &str) -> bool {
         || raw
             .split(['/', '\\'])
             .any(is_dot_traversal_segment)
-}
-
-fn has_windows_drive_prefix(raw: &str) -> bool {
-    matches!(raw.as_bytes(), [drive, b':', ..] if drive.is_ascii_alphabetic())
 }
 
 fn is_dot_traversal_segment(segment: &str) -> bool {

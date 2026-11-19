@@ -2337,6 +2337,11 @@ describe('publishConfig.directory containment', () => {
     'C:\\outside',
     'D:/outside',
     'C:',
+    'dist/C:outside',
+    'dist/D:outside',
+    'sub/C:/sensitive',
+    'dist\\D:outside',
+    'dist:stream',
     '..',
     '../outside',
     '../../outside',
@@ -2400,6 +2405,7 @@ describe('publishConfig.directory containment', () => {
   })
 
   test.each([
+    ['', '.'],
     ['./', '.'],
     ['./dist', 'dist'],
     ['./build/dist/', 'build/dist'],

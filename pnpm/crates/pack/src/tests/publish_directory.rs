@@ -31,6 +31,11 @@ fn rejects_escaping_and_rooted_publish_config_directories() {
         r"C:\outside",
         "D:/outside",
         "C:",
+        "dist/C:outside",
+        "dist/D:outside",
+        "sub/C:/sensitive",
+        r"dist\D:outside",
+        "dist:stream",
         "..",
         "../outside",
         "../../outside",
@@ -114,12 +119,14 @@ fn invalid_publish_config_directory_fails_before_prepack_scripts() {
 #[test]
 fn packs_valid_relative_publish_config_directories() {
     for (directory, rel_dir) in [
-        ("./", "."),
-        ("dist", "dist"),
-        ("./dist", "dist"),
-        ("./build/dist/", "build/dist"),
-        ("..hidden", "..hidden"),
-        ("dist..v2", "dist..v2"),
+        (json!(null), "."),
+        (json!(""), "."),
+        (json!("./"), "."),
+        (json!("dist"), "dist"),
+        (json!("./dist"), "dist"),
+        (json!("./build/dist/"), "build/dist"),
+        (json!("..hidden"), "..hidden"),
+        (json!("dist..v2"), "dist..v2"),
     ] {
         let (dir, opts) = fixture(&json!({
             "name": "pkg",
