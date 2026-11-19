@@ -46,7 +46,7 @@ pub(super) async fn append_body(
 ) -> Result<(), Refusal> {
     let mut written = upload.offset().await?;
     if written > limit {
-        storage.abort_blob_upload(upload.id()).await?;
+        storage.abort_blob_upload(upload).await?;
         return Err(Refusal::new(
             ErrorCode::SizeInvalid,
             format!("a blob may not exceed {limit} bytes"),
@@ -60,7 +60,7 @@ pub(super) async fn append_body(
             return Err(Refusal::new(ErrorCode::BlobUploadInvalid, "upload stream ended early"));
         };
         let Some(next) = advance_within_ceiling(written, chunk.len(), limit) else {
-            let _ = storage.abort_blob_upload(upload.id()).await;
+            let _ = storage.abort_blob_upload(upload).await;
             return Err(Refusal::new(
                 ErrorCode::SizeInvalid,
                 format!("a blob may not exceed {limit} bytes"),
