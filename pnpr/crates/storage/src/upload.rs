@@ -9,7 +9,10 @@ pub(crate) use remote::RemoteUploadStore;
 
 mod remote;
 
-use crate::{BlobId, BlobSlot, Storage, database::Uncommitted};
+use crate::{
+    BlobId, BlobSlot, Storage,
+    database::{BlobRef, Uncommitted},
+};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use serde::{Deserialize, Serialize};
@@ -271,10 +274,11 @@ impl Storage {
         let rows = self.blob_rows(vec![id.clone()]).await?;
         let row = rows.get(&id);
         let promoted = self.promote_blob_slot(slot, (id, size), row).await?;
+        let stored_blob = promoted.stored.then(|| promoted.artifact.blob.clone());
         if let Err(error) =
-            self.map_hosted_artifact_for_owner(promoted.artifact.clone(), required_owner).await
+            self.map_hosted_artifact_for_owner(promoted.artifact, required_owner).await
         {
-            self.cleanup_failed_promotion(promoted, remote.as_deref(), &error).await;
+            self.cleanup_failed_promotion(stored_blob, remote.as_deref(), &error).await;
             return Err(error);
         }
         if let Some(remote) = remote
@@ -287,17 +291,15 @@ impl Storage {
 
     async fn cleanup_failed_promotion(
         &self,
-        promoted: crate::PromotedArchive,
+        stored_blob: Option<BlobRef>,
         remote: Option<&remote::RemoteUpload>,
         error: &RegistryError,
     ) {
-        if promoted.stored {
-            let blob = promoted.artifact.blob;
-            if let Err(err) =
+        if let Some(blob) = stored_blob
+            && let Err(err) =
                 self.remove_uncommitted(vec![Uncommitted { blob, may_fence: true }]).await
-            {
-                tracing::warn!(error = %err, "an unmapped upload awaits `pnpr gc`");
-            }
+        {
+            tracing::warn!(error = %err, "an unmapped upload awaits `pnpr gc`");
         }
         if matches!(error, RegistryError::Forbidden { .. })
             && let Some(remote) = remote
