@@ -117,7 +117,7 @@ pub(crate) fn retry_transient_removal_locks<Value>(
     }
 }
 
-fn retry_fs_operation<Func, Value, Classify>(
+pub(crate) fn retry_fs_operation<Func, Value, Classify>(
     operation: Func,
     is_transient: Classify,
 ) -> io::Result<Value>
