@@ -78,7 +78,10 @@ export async function validateModules (
   }
 
   const importersToPurge = collectImportersToPurge(modules, projects, { rootProject, canRecreateModulesDirs, opts })
-  if (importersToPurge.length > 0 && (rootProject == null)) {
+  // Without a root project, the lockfile directory's modules directory holds
+  // the virtual store that skipped projects link into, so only an install of
+  // every project may purge it, as with a root project's modules directory.
+  if (importersToPurge.length > 0 && rootProject == null && canRecreateModulesDirs) {
     importersToPurge.push({
       modulesDir: pathAbsolute(opts.modulesDir, opts.lockfileDir),
       rootDir: opts.lockfileDir as ProjectRootDir,

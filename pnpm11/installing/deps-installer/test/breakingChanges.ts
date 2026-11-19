@@ -324,6 +324,30 @@ test('a filtered install with other dependency groups keeps the modules director
   expect(fs.existsSync(skippedProjectDep)).toBe(true)
 })
 
+test('a filtered install with other dependency groups keeps the shared virtual store of a workspace without a root project', async () => {
+  preparePackages([
+    { location: 'project-1', package: { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } } },
+    { location: 'project-2', package: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } } },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } }, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } }, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  await mutateModules(mutations, testDefaults({ allProjects }))
+  const skippedProjectDep = path.resolve('project-2/node_modules/is-negative/package.json')
+  expect(fs.existsSync(skippedProjectDep)).toBe(true)
+
+  await withoutTTY(() => mutateModules([mutations[0]], testDefaults({
+    allProjects,
+    confirmModulesPurge: true,
+    include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+  })))
+
+  expect(fs.existsSync(path.resolve('project-1/node_modules/is-positive/package.json'))).toBe(true)
+  expect(fs.existsSync(skippedProjectDep)).toBe(true)
+})
+
 async function withoutTTY<Result> (fn: () => Promise<Result>): Promise<Result> {
   const originalIsTTY = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
