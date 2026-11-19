@@ -63,7 +63,7 @@ pub(super) fn record_verdict(
 /// Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
 /// already passed in the current grant/graph epoch under a footprint this
 /// caller satisfies and a policy we still trust skips the whole fan-out.
-fn past_verdict_footprint(
+pub(in crate::resolver) fn past_verdict_footprint(
     runtime: &Resolver,
     identity: &Identity,
     hash: &str,
@@ -94,7 +94,7 @@ fn past_verdict_footprint(
 /// overwrite earlier ones on a shared key — mirrors the local cache's
 /// [`merge_policies`] so a verdict recorded here is comparable to one the
 /// client's own cache would write.
-fn merge_policies(
+pub(in crate::resolver) fn merge_policies(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     osv_index: Option<&Arc<OsvIndex>>,
 ) -> serde_json::Map<String, serde_json::Value> {

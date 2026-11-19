@@ -18,8 +18,12 @@ use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 use crate::{
-    cache::record_verification, hash_lockfile,
-    verify_lockfile_resolutions::with_offline_check_cache_identities,
+    cache::record_verification,
+    hash_lockfile,
+    verify_lockfile_resolutions::{
+        verify_lockfile_dependency_names, verify_lockfile_resolution_shapes,
+        with_offline_check_cache_identities,
+    },
 };
 
 #[cfg(test)]
@@ -43,6 +47,11 @@ pub fn record_lockfile_verified(
         return;
     }
     if lockfile.packages.is_none() {
+        return;
+    }
+    if verify_lockfile_dependency_names(lockfile).is_err()
+        || verify_lockfile_resolution_shapes(lockfile).is_err()
+    {
         return;
     }
     record_verification(

@@ -2,6 +2,7 @@ pub(super) use local_specs::reject_local_dependency_specs;
 
 use axum::{http::StatusCode, response::Response};
 use pnpm_lockfile::LockfileResolution;
+use pnpm_lockfile_verification::verify_lockfile_dependency_names;
 
 use pnpr_route::RouteContext;
 
@@ -291,6 +292,18 @@ fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
         serde_json::Value::Object(map) => map.values().any(overrides_have_inline_url_auth),
         _ => false,
     }
+}
+
+pub(super) fn reject_invalid_lockfile_dependency_names(
+    request: &ResolveRequest,
+) -> Option<Response> {
+    let lockfile = request.lockfile.as_ref()?;
+    let err = verify_lockfile_dependency_names(lockfile).err()?;
+    Some(json_error_with_code(
+        StatusCode::BAD_REQUEST,
+        &err.to_string(),
+        Some("ERR_PNPR_INVALID_DEPENDENCY_NAME"),
+    ))
 }
 
 pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> Option<Response> {

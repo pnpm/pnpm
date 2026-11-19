@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 
 use super::VerifyLockfileResolutionsOptions;
@@ -14,7 +14,7 @@ pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MIS
 pub(super) fn verify_offline_structural_checks(lockfile: &Lockfile) -> Result<(), VerifyError> {
     verify_lockfile_dependency_names(lockfile)?;
     verify_lockfile_importer_snapshot_links(lockfile)?;
-    Ok(())
+    verify_lockfile_resolution_shapes(lockfile)
 }
 
 pub(super) fn verify_structure_before_install(
@@ -22,7 +22,8 @@ pub(super) fn verify_structure_before_install(
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
     if opts.repairs_lockfile {
-        return verify_lockfile_dependency_names(lockfile);
+        verify_lockfile_dependency_names(lockfile)?;
+        return verify_lockfile_resolution_shapes(lockfile);
     }
     verify_offline_structural_checks(lockfile)
 }
@@ -66,7 +67,7 @@ fn variation_resolution_cache_identity() -> Arc<dyn ResolutionVerifier> {
 /// lockfile satisfies these invariants by construction (the resolver
 /// validates aliases at manifest-read time and derives every resolution
 /// key from the resolution it just produced).
-pub(crate) fn with_offline_check_cache_identities(
+pub fn with_offline_check_cache_identities(
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> Vec<Arc<dyn ResolutionVerifier>> {
     verifiers
@@ -135,8 +136,69 @@ pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> 
 /// registry artifact is served over. Case-insensitive to reject a
 /// tampered uppercase scheme.
 fn is_http_tarball_url(url: &str) -> bool {
-    let lower = url.to_ascii_lowercase();
-    lower.starts_with("https://") || lower.starts_with("http://")
+    url.get(..8)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"))
+        || url
+            .get(..7)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"))
+}
+
+/// A registry-style key must have a registry-shaped resolution because
+/// build approval derives the trusted package identity from that key.
+pub(super) fn has_registry_shape_mismatch(
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    resolution: &LockfileResolution,
+) -> bool {
+    key.suffix.prefix() == pnpm_lockfile::Prefix::None
+        && matches!(
+            key.suffix.version(),
+            pnpm_lockfile::VersionPart::Semver(_)
+                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
+        )
+        && !is_registry_shaped_resolution(resolution)
+}
+
+pub(super) fn resolution_shape_violation(
+    name: PkgName,
+    version: String,
+    resolution: LockfileResolution,
+) -> ResolutionPolicyViolation {
+    ResolutionPolicyViolation {
+        name,
+        version,
+        resolution,
+        code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+        reason: "a registry-style dependency path is backed by a non-registry resolution"
+            .to_string(),
+    }
+}
+
+/// Reject a lockfile whose registry-style `packages` keys are backed by
+/// non-registry resolutions (`file:`, `directory`, `git`, git-hosted tarballs,
+/// non-registry `variations`, or `binary`).
+pub fn verify_lockfile_resolution_shapes(lockfile: &Lockfile) -> Result<(), VerifyError> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Ok(());
+    };
+    let mut violations = Vec::new();
+    for (key, metadata) in packages {
+        if !has_registry_shape_mismatch(key, &metadata.resolution) {
+            continue;
+        }
+        let version = match key.suffix.registry_qualified() {
+            Some((_, version)) => version.to_string(),
+            None => key.suffix.version().to_string(),
+        };
+        violations.push(resolution_shape_violation(
+            key.name.clone(),
+            version,
+            metadata.resolution.clone(),
+        ));
+    }
+    if violations.is_empty() {
+        return Ok(());
+    }
+    Err(super::candidates::build_verification_error(violations))
 }
 
 /// Add every alias in `aliases` that fails

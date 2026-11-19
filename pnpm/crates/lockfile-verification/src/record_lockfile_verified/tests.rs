@@ -91,3 +91,27 @@ fn records_the_caller_supplied_lockfile_path() {
     let record: CacheRecord = serde_json::from_str(cache.trim_end()).expect("parse cache");
     assert_eq!(record.lockfile.path, lockfile_path.to_string_lossy());
 }
+
+#[test]
+fn refuses_to_record_a_shape_mismatched_lockfile() {
+    let yaml = "lockfileVersion: '9.0'
+
+packages:
+
+  safe-pkg@1.0.0:
+    resolution: {integrity: sha512-deadbeef, tarball: 'file:alt.tgz'}
+";
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    fs::write(&lockfile_path, yaml).expect("write lockfile");
+    let lockfile: Lockfile = serde_saphyr::from_str(yaml).expect("parse lockfile");
+
+    record_lockfile_verified(Some(dir.path()), &lockfile_path, &lockfile, &[verifier()]);
+
+    assert!(
+        !dir.path()
+            .join(CACHE_FILE_NAME)
+            .exists(),
+        "shape-mismatched lockfile must never be recorded as verified",
+    );
+}

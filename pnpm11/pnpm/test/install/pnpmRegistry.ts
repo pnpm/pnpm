@@ -671,3 +671,59 @@ test('pnpm install with pnprServer falls back locally for file: specs in overrid
   expect(requestCount).toBe(0)
   expect(loadJsonFileSync<{ version: string }>('node_modules/is-positive/package.json').version).toBe('1.0.0-local')
 })
+
+test('a frozen install via the pnpr server rejects a shape-mismatched lockfile without running scripts or poisoning cache', async () => {
+  prepareProject({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  const cacheDir = path.resolve('cache')
+  const markerPath = path.resolve('ran-postinstall')
+  fs.mkdirSync('alt', { recursive: true })
+  fs.writeFileSync('alt/package.json', JSON.stringify({
+    name: 'is-positive',
+    version: '1.0.0',
+    scripts: {
+      postinstall: `node -e "require('fs').writeFileSync(${JSON.stringify(markerPath)}, 'ran')"`,
+    },
+  }))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    pnprServer: `http://localhost:${serverPort}`,
+    minimumReleaseAge: 0,
+    allowBuilds: { 'is-positive': true },
+  })
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+    },
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: { type: 'directory', directory: 'alt' },
+      },
+    },
+    snapshots: {
+      'is-positive@1.0.0': {},
+    },
+  })
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile', `--config.cacheDir=${cacheDir}`])
+  ).rejects.toThrow('ERR_PNPM_RESOLUTION_SHAPE_MISMATCH')
+  expect(fs.existsSync(markerPath)).toBe(false)
+  expect(fs.existsSync(path.join(cacheDir, 'lockfile-verified.jsonl'))).toBe(false)
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: 0,
+    allowBuilds: { 'is-positive': true },
+  })
+  await expect(
+    execPnpm(['install', '--frozen-lockfile', `--config.cacheDir=${cacheDir}`])
+  ).rejects.toThrow('ERR_PNPM_RESOLUTION_SHAPE_MISMATCH')
+  expect(fs.existsSync(markerPath)).toBe(false)
+})

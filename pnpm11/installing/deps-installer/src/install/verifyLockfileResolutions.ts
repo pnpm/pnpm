@@ -128,7 +128,12 @@ export async function verifyLockfileResolutions (
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
-  if (!lockfile.packages) return
+  if (!lockfile.packages) {
+    verifyLockfileDependencyAliases(lockfile)
+    return
+  }
+  verifyOfflineLockfileChecks(lockfile)
+  if (verifiers.length === 0) return
 
   const cacheContext = createVerificationCacheContext(lockfile, verifiers, options)
   if (isVerifiedByCache(cacheContext, verifiers, options?.lockfilePath)) return
@@ -141,14 +146,7 @@ export async function verifyLockfileResolutions (
   // A degenerate lockfile where every snapshot fails the
   // name/version extraction (so candidates is empty) skips emission
   // entirely — no work, no noise.
-  const { candidates, shapeViolations, invalidAliases } = collectCandidates(lockfile)
-  if (invalidAliases.length > 0) {
-    throw buildInvalidAliasError(invalidAliases)
-  }
-  if (shapeViolations.length > 0) {
-    throw buildVerificationError(shapeViolations)
-  }
-  if (verifiers.length === 0) return
+  const candidates = collectCandidates(lockfile)
   if (dropReplacedCandidates(candidates, options?.isReplaced)) {
     cacheContext.cache = undefined
   }
@@ -364,11 +362,61 @@ export async function collectResolutionPolicyViolations (
   verifiers: ResolutionVerifier[],
   options?: Pick<VerifyLockfileResolutionsOptions, 'concurrency'>
 ): Promise<ResolutionPolicyViolation[]> {
-  if (verifiers.length === 0) return []
   if (!lockfile.packages) return []
-  // Shape violations are deliberately not collected here: they are hard
-  // tampering failures, not policy picks a caller may auto-exclude.
-  return iterateLockfileViolations(collectCandidates(lockfile).candidates, verifiers, options?.concurrency)
+  const shapeViolations = collectShapeViolations(lockfile)
+  if (shapeViolations.length > 0 || verifiers.length === 0) return shapeViolations
+  return iterateLockfileViolations(collectCandidates(lockfile), verifiers, options?.concurrency)
+}
+
+export function verifyLockfileDependencyAliases (lockfile: LockfileObject): void {
+  const invalidAliases = collectInvalidAliases(lockfile)
+  if (invalidAliases.length > 0) {
+    throw buildInvalidAliasError(invalidAliases)
+  }
+}
+
+export function hasOfflineLockfileViolations (lockfile: LockfileObject): boolean {
+  return collectInvalidAliases(lockfile).length > 0 || collectShapeViolations(lockfile).length > 0
+}
+
+function verifyOfflineLockfileChecks (lockfile: LockfileObject): void {
+  verifyLockfileDependencyAliases(lockfile)
+  const shapeViolations = collectShapeViolations(lockfile)
+  if (shapeViolations.length > 0) {
+    throw buildVerificationError(shapeViolations)
+  }
+}
+
+function collectInvalidAliases (lockfile: LockfileObject): string[] {
+  const invalidAliases = new Set<string>()
+  for (const importer of Object.values(lockfile.importers ?? {})) {
+    pushInvalidAliases(importer.dependencies, invalidAliases)
+    pushInvalidAliases(importer.devDependencies, invalidAliases)
+    pushInvalidAliases(importer.optionalDependencies, invalidAliases)
+  }
+  for (const snapshot of Object.values(lockfile.packages ?? {})) {
+    pushInvalidAliases(snapshot.dependencies, invalidAliases)
+    pushInvalidAliases(snapshot.optionalDependencies, invalidAliases)
+  }
+  return Array.from(invalidAliases)
+}
+
+function collectShapeViolations (lockfile: LockfileObject): ResolutionPolicyViolation[] {
+  const shapeViolations: ResolutionPolicyViolation[] = []
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
+    if (!name || !version) continue
+    if (nonSemverVersion == null && !isRegistryShapedResolution(snapshot.resolution)) {
+      shapeViolations.push({
+        name,
+        version,
+        resolution: snapshot.resolution as Resolution,
+        code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+        reason: 'a registry-style dependency path is backed by a non-registry resolution',
+      })
+    }
+  }
+  return shapeViolations
 }
 
 function isRegistryShapedResolution (resolution: unknown): boolean {
@@ -436,36 +484,11 @@ interface Candidate {
 // skips the tarball/policy checks, so if the wrong shape wins the dedup the
 // surviving entry is verified under the wrong rules and the real one is
 // never checked.
-function collectCandidates (lockfile: LockfileObject): { candidates: Map<string, Candidate>, shapeViolations: ResolutionPolicyViolation[], invalidAliases: string[] } {
+function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
   const candidates = new Map<string, Candidate>()
-  const shapeViolations: ResolutionPolicyViolation[] = []
-  // The importer alias maps are the one source not reached by the
-  // package loop below, so they're scanned here.
-  const invalidAliases = new Set<string>()
-  for (const importer of Object.values(lockfile.importers ?? {})) {
-    pushInvalidAliases(importer.dependencies, invalidAliases)
-    pushInvalidAliases(importer.devDependencies, invalidAliases)
-    pushInvalidAliases(importer.optionalDependencies, invalidAliases)
-  }
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
-    pushInvalidAliases(snapshot.dependencies, invalidAliases)
-    pushInvalidAliases(snapshot.optionalDependencies, invalidAliases)
     const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
-    // A registry-style depPath (name@semver) must be backed by a
-    // registry-shaped resolution: the allowBuilds policy derives a
-    // trusted package identity from that key shape, which is only sound
-    // while this invariant holds. The check is offline, so it applies
-    // even when no policy verifiers are active.
-    if (nonSemverVersion == null && !isRegistryShapedResolution(snapshot.resolution)) {
-      shapeViolations.push({
-        name,
-        version,
-        resolution: snapshot.resolution as Resolution,
-        code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-        reason: 'a registry-style dependency path is backed by a non-registry resolution',
-      })
-    }
     const key = `${name}@${version}@${nonSemverVersion ?? ''}@${registryName ?? ''}@${JSON.stringify(snapshot.resolution)}`
     candidates.set(key, {
       name,
@@ -475,7 +498,7 @@ function collectCandidates (lockfile: LockfileObject): { candidates: Map<string,
       resolution: snapshot.resolution as Resolution,
     })
   }
-  return { candidates, shapeViolations, invalidAliases: Array.from(invalidAliases) }
+  return candidates
 }
 
 /**

@@ -7,10 +7,10 @@
 //! resolutions outside their scope; the runner is policy-neutral and
 //! dispatch-free at this layer.
 
-pub(crate) use offline_checks::with_offline_check_cache_identities;
 pub use offline_checks::{
     RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, verify_lockfile_dependency_names,
-    verify_lockfile_importer_snapshot_links,
+    verify_lockfile_importer_snapshot_links, verify_lockfile_resolution_shapes,
+    with_offline_check_cache_identities,
 };
 
 use std::{collections::BTreeMap, path::Path, sync::Arc};
@@ -320,13 +320,13 @@ pub async fn collect_resolution_policy_violations(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
 ) -> Result<Vec<ResolutionPolicyViolation>, String> {
-    if verifiers.is_empty() || lockfile.packages.is_none() {
+    if lockfile.packages.is_none() {
         return Ok(Vec::new());
     }
-    // Shape violations and invalid aliases are deliberately not
-    // collected here: they are hard tampering failures, not policy
-    // picks a caller may auto-exclude.
-    let (candidates, _shape_violations) = collect_candidates(lockfile);
+    let (candidates, shape_violations) = collect_candidates(lockfile);
+    if !shape_violations.is_empty() || verifiers.is_empty() {
+        return Ok(shape_violations);
+    }
     // `Err(message)` is a transport failure the caller must surface rather than
     // treat as "no violations" — see [`run_fan_out`].
     run_fan_out(candidates, verifiers, concurrency, &mut || {}).await
@@ -341,7 +341,7 @@ mod progress;
 
 use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
 use offline_checks::{
-    is_registry_shaped_resolution, verify_offline_structural_checks,
+    has_registry_shape_mismatch, resolution_shape_violation, verify_offline_structural_checks,
     verify_structure_before_install,
 };
 use progress::{VerificationProgress, emit};

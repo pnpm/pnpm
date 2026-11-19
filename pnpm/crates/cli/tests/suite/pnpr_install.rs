@@ -745,6 +745,7 @@ mod resolution;
 mod pnpmfile;
 
 mod local_specs;
+mod lockfile_verification;
 
 fn pnpr_done_frame(request: &mockito::Request, mut frame: serde_json::Value) -> Vec<u8> {
     use serde_json::{Value, json};

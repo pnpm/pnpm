@@ -1,4 +1,4 @@
-mod cached_verdict;
+pub(super) mod cached_verdict;
 
 use self::cached_verdict::{apply_cached_verdict, compute_verdict_hash, record_verdict};
 use super::{
@@ -12,8 +12,10 @@ use super::{
         request_timeout_response,
     },
     ndjson_single_frame, observed_dist_stats_sink, osv_violations_for_lockfile_until,
-    parse_request, reject_inline_url_auth, reject_invalid_registries, reject_off_allowlist_fetches,
-    request_tarball_router, verdict_cache, verify_done_frame, violations_frame,
+    parse_request, reject_inline_url_auth, reject_invalid_lockfile_dependency_names,
+    reject_invalid_registries, reject_off_allowlist_fetches, request_tarball_router, verdict_cache,
+    verify_done_frame, verify_lockfile_resolution_shapes, violations_frame,
+    with_offline_check_cache_identities,
 };
 
 /// Admit `POST /-/pnpr/v0/verify-lockfile` before buffering or parsing the
@@ -74,6 +76,7 @@ async fn handle_admitted_verify_lockfile(
         .or_else(|| reject_invalid_registries(&request))
         .or_else(|| reject_inline_url_auth(&request))
         .or_else(|| reject_off_allowlist_fetches(&request, &runtime.route_context))
+        .or_else(|| reject_invalid_lockfile_dependency_names(&request))
     {
         return response;
     }
@@ -324,7 +327,10 @@ async fn verify_input_lockfile(
         context.tarball_router,
         &dist_stats,
     )?;
-    if apply_cached_verdict(runtime, context, &hash, epoch.as_deref(), &verifiers) {
+    let cache_verifiers = with_offline_check_cache_identities(&verifiers);
+    if verify_lockfile_resolution_shapes(raw_lockfile).is_ok()
+        && apply_cached_verdict(runtime, context, &hash, epoch.as_deref(), &cache_verifiers)
+    {
         return Ok(None);
     }
 
@@ -340,7 +346,7 @@ async fn verify_input_lockfile(
     .await
     .map_err(VerifyFailure::Internal)?;
     if violations.is_empty() && osv_violations.is_empty() {
-        record_verdict(runtime, &hash, epoch.as_deref(), context.footprint, &verifiers);
+        record_verdict(runtime, &hash, epoch.as_deref(), context.footprint, &cache_verifiers);
         return Ok(Some(dist_stats));
     }
 

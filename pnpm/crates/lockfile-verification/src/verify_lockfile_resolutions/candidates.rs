@@ -1,8 +1,8 @@
 use super::{
     Arc, BTreeMap, DEFAULT_CONCURRENCY, FuturesUnordered, Lockfile, LockfileResolution, PkgName,
-    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, RenderedViolation, ResolutionPolicyViolation,
-    ResolutionVerification, ResolutionVerifier, Semaphore, StreamExt, VerifyCtx, VerifyError,
-    is_registry_shaped_resolution,
+    RenderedViolation, ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier,
+    Semaphore, StreamExt, VerifyCtx, VerifyError, has_registry_shape_mismatch,
+    resolution_shape_violation,
 };
 
 /// One `(name, version, resolution)` tuple deduplicated from
@@ -50,14 +50,11 @@ pub(super) fn collect_candidates(
         // holds. The check is offline, so it applies even when no
         // policy verifiers are active.
         if has_registry_shape_mismatch(key, &metadata.resolution) {
-            shape_violations.push(ResolutionPolicyViolation {
-                name: name.clone(),
-                version: version.clone(),
-                resolution: metadata.resolution.clone(),
-                code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-                reason: "a registry-style dependency path is backed by a non-registry resolution"
-                    .to_string(),
-            });
+            shape_violations.push(resolution_shape_violation(
+                name.clone(),
+                version.clone(),
+                metadata.resolution.clone(),
+            ));
         }
         // Every `LockfileResolution` variant derives `Serialize`, and
         // the wire shape never contains non-string keys or non-finite
@@ -81,21 +78,6 @@ pub(super) fn collect_candidates(
             });
     }
     (deduped.into_values().collect(), shape_violations)
-}
-
-/// A registry-style key must have a registry-shaped resolution because
-/// build approval derives the trusted package identity from that key.
-fn has_registry_shape_mismatch(
-    key: &pnpm_lockfile::PkgNameVerPeer,
-    resolution: &pnpm_lockfile::LockfileResolution,
-) -> bool {
-    key.suffix.prefix() == pnpm_lockfile::Prefix::None
-        && matches!(
-            key.suffix.version(),
-            pnpm_lockfile::VersionPart::Semver(_)
-                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
-        )
-        && !is_registry_shaped_resolution(resolution)
 }
 
 /// Run every active verifier against every candidate with a

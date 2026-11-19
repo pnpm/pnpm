@@ -212,3 +212,21 @@ test('records a cache entry that the next install hits on both the stat shortcut
   })
   expect(hashResult.hit).toBe(true)
 })
+
+test('refuses to record a lockfile with a resolution shape mismatch', () => {
+  const tampered = {
+    ...makeLockfile(),
+    packages: {
+      'safe-pkg@1.0.0': {
+        resolution: { integrity: 'sha512-deadbeef', tarball: 'file:alt.tgz' },
+      },
+    },
+  } as unknown as LockfileObject
+  recordLockfileVerified({
+    cacheDir,
+    lockfilePath,
+    lockfile: tampered,
+    resolutionVerifiers: [mraVerifier(60)],
+  })
+  expect(fs.existsSync(path.join(cacheDir, 'lockfile-verified.jsonl'))).toBe(false)
+})
