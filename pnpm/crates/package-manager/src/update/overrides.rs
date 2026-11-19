@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use super::{
     LatestResolverChain, LatestRewriteCtx, UpdateError, latest_version_for_spec,
     rewrite::{KeptRangeVerdict, MatchedRewrite, judge_against_kept_range, kept_range_rewrite},
@@ -210,8 +213,13 @@ fn override_admits(override_value: &str, version: &Version) -> bool {
 /// range has no single shape to keep.
 fn movable_override_style(value: &str) -> Option<RangeSpecStyle> {
     // An `x`/`*` wildcard reads as a version part to the style inference,
-    // which would turn `1.2.x` into an exact pin.
-    if names_another_dependency(value) || value.contains(['x', 'X', '*']) {
+    // which would turn `1.2.x` into an exact pin. Only the version core can
+    // hold one: a prerelease or build label may contain an `x` of its own.
+    let version_core = value
+        .split(['-', '+'])
+        .next()
+        .unwrap_or(value);
+    if names_another_dependency(value) || version_core.contains(['x', 'X', '*']) {
         return None;
     }
     infer_range_spec_style(value).filter(|style| !matches!(style, RangeSpecStyle::None))
