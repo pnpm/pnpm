@@ -207,6 +207,10 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         self.check_global_options()?;
+        pnpm_package_manager::reject_versioned_selectors(
+            &self.version_options(config),
+            &self.packages,
+        )?;
         let mode = crate::cli_args::global::GlobalUpdateMode::from_flags(
             self.selection.latest,
             self.selection.tag.as_deref(),

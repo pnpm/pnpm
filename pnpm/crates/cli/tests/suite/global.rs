@@ -1311,6 +1311,25 @@ fn global_update_tag_resolves_the_named_tag() {
     drop((root, npmrc_info));
 }
 
+#[cfg(unix)]
+#[test]
+fn global_update_tag_rejects_a_versioned_selector() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--tag", "next", "@pnpm.e2e/multi-version-a@2"])
+        .output()
+        .expect("run update -g --tag next with a versioned selector");
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Specs are not allowed to be used with --tag"), "{stderr}");
+
+    drop((root, npmrc_info));
+}
+
 /// A dependency that does not publish the requested dist-tag keeps its
 /// recorded spec instead of aborting the whole group's update: the rest of
 /// the group still moves to the tag.
