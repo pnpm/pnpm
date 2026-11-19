@@ -34,8 +34,8 @@ function resolutionsFromLockfile (
 ): Map<string, Resolution> {
   const resolutions = new Map<string, Resolution>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
-    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
-    if (name != null && version != null && !isPatternName(name)) {
+    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (name != null && version != null && nonSemverVersion == null && !isPatternName(name)) {
       resolutions.set(`${name}@${version}`, pkgSnapshotToResolution(depPath, snapshot, {
         ...opts,
         registriesByScope: opts.registriesByScope ?? DEFAULT_REGISTRIES_BY_SCOPE,

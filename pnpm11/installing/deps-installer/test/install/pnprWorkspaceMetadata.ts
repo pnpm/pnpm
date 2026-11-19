@@ -323,6 +323,25 @@ test.each(['foo?', 'foo*', '!foo'])('pnpr rejects pattern package name %s in all
   }))).rejects.toThrow('not an exact version in the resolved lockfile')
 })
 
+test('pnpr rejects allowed picks backed by a non-semver lockfile entry', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  resolveViaPnprServer.mockResolvedValueOnce({
+    lockfile: {
+      lockfileVersion: '9.0',
+      importers: { ['.' as ProjectId]: { specifiers: {} } },
+      packages: { ['foo@some-weird-path' as DepPath]: { version: '1.0.0', resolution: { integrity: 'sha512-YWJj' } } },
+    },
+    stats: { totalPackages: 1 },
+    allowedPicks: ['foo@1.0.0'],
+  })
+
+  await expect(install(manifest, createOptions(workspaceRoot, rootDir, {
+    minimumReleaseAge: 1440,
+  }))).rejects.toThrow('not an exact version in the resolved lockfile')
+})
+
 test('pnpr rejects pattern package names in resolved lockfiles', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
