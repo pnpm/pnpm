@@ -203,6 +203,19 @@ test('pnpm clean runs the clean script from package.json when present', () => {
   expect(result.stdout.toString()).toContain('script-clean-ran')
 })
 
+test('pnpm clean --help prints the help even when a clean script exists', () => {
+  tempDir()
+  writeJsonFile('package.json', {
+    name: 'has-clean-script',
+    scripts: { clean: 'echo "script-clean-ran"' },
+  })
+
+  const result = execPnpmSync(['clean', '--help'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).not.toContain('script-clean-ran')
+  expect(result.stdout.toString()).toContain('Usage:')
+})
+
 test('pnpm purge runs the built-in clean even when a clean script exists', () => {
   tempDir()
   writeJsonFile('package.json', {
