@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Ignore empty or whitespace-only numeric `pnpm_config_*` / `npm_config_*` environment variables instead of coercing them to `0`.
+Empty or whitespace-only numeric `pnpm_config_*` environment variables no longer override configured values or defaults.
