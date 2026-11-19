@@ -14,7 +14,6 @@ import {
   type RegistriesByScope,
 } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
-import { isCI } from 'ci-info'
 import { isSubdir } from 'is-subdir'
 import { pathAbsolute } from 'path-absolute'
 import { equals } from 'ramda'
@@ -227,7 +226,7 @@ async function purgeModulesDirsOfImporters (
 }
 
 async function confirmPurge (safeImporters: SafeImporterToPurge[]): Promise<void> {
-  if (!process.stdin.isTTY || isCI) {
+  if (!process.stdin.isTTY) {
     await confirmNonInteractivePurge(safeImporters)
     return
   }
