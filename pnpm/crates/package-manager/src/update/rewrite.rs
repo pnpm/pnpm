@@ -334,6 +334,13 @@ pub(super) async fn tag_rewrite(
                 None => requested,
             }
         }
+        // The declaration keeps tracking a tag, so it takes the requested
+        // tag as written. Resolving it first reports a tag the registry
+        // does not publish before the manifest takes it.
+        Some(VersionSelectorType::Tag) if previous != tag => {
+            tag_version(rewrite_ctx, latest_chain, name, tag).await?;
+            requested
+        }
         Some(VersionSelectorType::Tag) => requested,
         None => None,
     };

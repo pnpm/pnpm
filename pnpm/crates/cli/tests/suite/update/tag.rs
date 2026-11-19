@@ -106,15 +106,39 @@ fn update_tag_with_spec_is_rejected() {
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
-    let output = pacquet(&workspace, ["update", "--tag", "next", &format!("{DEP}@2")])
+    let spec = format!("{DEP}@2");
+    for args in
+        [vec!["update", "--tag", "next", &spec], vec!["update", "-i", "--tag", "next", &spec]]
+    {
+        let output = pacquet(&workspace, &args).output().expect("run pacquet update");
+        assert!(!output.status.success(), "{args:?} should fail");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("Specs are not allowed to be used with --tag"),
+            "{args:?}: stderr did not mention the TAG_WITH_SPEC error: {stderr}",
+        );
+    }
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_tag_unknown_tag_fails_for_a_declared_tag() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "latest" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["update", "--tag", "no-such-tag"])
         .output()
         .expect("run pacquet update");
-    assert!(!output.status.success(), "update --tag with a spec should fail");
+    assert!(!output.status.success(), "update --tag with an unknown tag should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Specs are not allowed to be used with --tag"),
-        "stderr did not mention the TAG_WITH_SPEC error: {stderr}",
+        stderr.contains("ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_TAG"),
+        "the update did not report the unresolvable tag itself: {stderr}",
     );
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("latest"));
 
     drop((root, anchor));
 }

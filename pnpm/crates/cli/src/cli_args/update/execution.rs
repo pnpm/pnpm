@@ -327,13 +327,7 @@ impl UpdateArgs {
                     interactive: self.selection.interactive,
                     targets: None,
                 },
-                version: pnpm_package_manager::UpdateVersionOptions {
-                    latest: self.selection.latest,
-                    tag: self.selection.tag.as_deref(),
-                    patches: self.selection.patches,
-                    range_spec_style: self.range_spec_style(state.config),
-                    save: !self.save.no_save,
-                },
+                version: self.version_options(state.config),
             },
             resources: pnpm_package_manager::UpdateResources {
                 tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),

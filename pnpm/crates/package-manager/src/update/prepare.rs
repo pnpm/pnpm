@@ -149,7 +149,7 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
     latest_chain: &mut Option<LatestResolverChain>,
 ) -> Result<Option<UpdateDecision>, UpdateError> {
     let selectors = parse_selectors(update.selection.packages);
-    reject_versioned_selectors(update.version, update.selection.packages, &selectors)?;
+    reject_versioned_selectors(&update.version, update.selection.packages)?;
     // Snapshot direct dependencies before mutation so matching and rewrites
     // both see the original manifest shape.
     let direct = declared_direct(manifest, &owned.include_direct);

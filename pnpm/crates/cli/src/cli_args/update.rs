@@ -136,6 +136,10 @@ impl UpdateArgs {
         if !self.selection.interactive {
             return Ok(Some(given));
         }
+        pnpm_package_manager::reject_versioned_selectors(
+            &self.version_options(state.config),
+            &given,
+        )?;
         crate::cli_args::update_interactive::select_packages::<Reporter>(
             actions_root,
             &state.manifest,
@@ -161,6 +165,10 @@ impl UpdateArgs {
         if !self.selection.interactive {
             return Ok(Some(given));
         }
+        pnpm_package_manager::reject_versioned_selectors(
+            &self.version_options(state.config),
+            &given,
+        )?;
         crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
             actions_root,
             selection,
@@ -170,6 +178,16 @@ impl UpdateArgs {
             prompt,
         )
         .await
+    }
+
+    fn version_options(&self, config: &Config) -> pnpm_package_manager::UpdateVersionOptions<'_> {
+        pnpm_package_manager::UpdateVersionOptions {
+            latest: self.selection.latest,
+            tag: self.selection.tag.as_deref(),
+            patches: self.selection.patches,
+            range_spec_style: self.range_spec_style(config),
+            save: !self.save.no_save,
+        }
     }
 
     /// The style a rewritten specifier falls back to: `--save-exact` layered

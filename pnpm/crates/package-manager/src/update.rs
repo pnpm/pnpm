@@ -1,4 +1,4 @@
-pub use selectors::{ParsedSelector, parse_update_param};
+pub use selectors::{ParsedSelector, parse_update_param, reject_versioned_selectors};
 
 pub(crate) use latest::is_workspace_local_path_specifier;
 
