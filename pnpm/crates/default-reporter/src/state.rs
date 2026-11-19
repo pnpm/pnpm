@@ -307,14 +307,6 @@ impl ReporterState {
         self.display.finish(self.options.append_only)
     }
 
-    pub(crate) fn flush_pending_approvals(&mut self) -> Output {
-        if !self.options.append_only {
-            return Output::None;
-        }
-        self.render_pending_approvals();
-        self.display.finish(true)
-    }
-
     fn handle_event(&mut self, event: &LogEvent) {
         match event {
             LogEvent::Context(log) => self.on_context(log),

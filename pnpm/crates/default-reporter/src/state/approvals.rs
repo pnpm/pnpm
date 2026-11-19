@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use pnpm_package_name::short_package_label;
 
-use super::BlockSlot;
+use super::{BlockSlot, Output, ReporterState};
 
 #[derive(Default)]
 pub(super) struct PendingApprovals {
@@ -10,6 +10,16 @@ pub(super) struct PendingApprovals {
     pub(super) skills: BTreeSet<String>,
     pub(super) emitted: bool,
     pub(super) slot: BlockSlot,
+}
+
+impl ReporterState {
+    pub(crate) fn flush_pending_approvals(&mut self) -> Output {
+        if !self.options.append_only {
+            return Output::None;
+        }
+        self.render_pending_approvals();
+        self.display.finish(true)
+    }
 }
 
 /// Each event adds to the lists rather than replacing them: one command can
