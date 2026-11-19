@@ -39,6 +39,25 @@ impl AncestorFlags {
     }
 }
 
+#[derive(Default)]
+struct CollectedLegacyNames {
+    required: HashSet<String>,
+    non_failing_labels: HashSet<String>,
+}
+
+impl CollectedLegacyNames {
+    fn record_spec(&mut self, outer_name: &str, raw_spec: Option<&str>) {
+        if let Some(spec_str) = raw_spec
+            && let Some((alias_pkg, _)) = parse_npm_alias(spec_str)
+        {
+            self.required.insert(alias_pkg.to_string());
+            self.non_failing_labels.insert(outer_name.to_string());
+        } else {
+            self.required.insert(outer_name.to_string());
+        }
+    }
+}
+
 pub(super) fn classify_legacy_packages(
     state: &AppState,
     identity: &Identity,
@@ -46,46 +65,59 @@ pub(super) fn classify_legacy_packages(
     payload: &Map<String, Value>,
     nodes: &[InstalledNode],
 ) -> Result<LegacyClassification, RegistryError> {
-    let mut dep_names = HashSet::new();
+    let mut collected = CollectedLegacyNames::default();
     for node in nodes {
-        dep_names.insert(node.package.clone());
+        collected.required.insert(node.package.clone());
     }
-    collect_dependency_package_names(payload, &mut dep_names);
+    collect_dependency_package_names(payload, &mut collected);
 
-    let mut destinations = HashMap::with_capacity(dep_names.len() + 2);
+    let mut destinations =
+        HashMap::with_capacity(collected.required.len() + collected.non_failing_labels.len() + 2);
     let mut referenced_upstreams = HashSet::new();
-    for package_name in dep_names {
+    for package_name in collected.required {
         let destination = classify_package(state, identity, target, &package_name)?;
         if let PackageDestination::Upstream(ref upstream_name) = destination {
             referenced_upstreams.insert(upstream_name.clone());
         }
         destinations.insert(package_name, destination);
     }
-    classify_root_project_names(state, identity, target, payload, &mut destinations);
+    classify_non_failing_labels(
+        state,
+        identity,
+        target,
+        payload,
+        collected.non_failing_labels,
+        &mut destinations,
+    );
     Ok(LegacyClassification { destinations, referenced_upstreams })
 }
 
-fn classify_root_project_names(
+fn classify_non_failing_labels(
     state: &AppState,
     identity: &Identity,
     target: &str,
     payload: &Map<String, Value>,
+    mut labels: HashSet<String>,
     destinations: &mut HashMap<String, PackageDestination>,
 ) {
-    let root_pkg_name = payload
+    if let Some(name) = payload.get("name").and_then(Value::as_str) {
+        labels.insert(name.to_string());
+    }
+    if let Some(root_pkg_name) = payload
         .get("packages")
         .and_then(Value::as_object)
         .and_then(|pkgs| pkgs.get(""))
         .and_then(|root| root.get("name"))
-        .and_then(Value::as_str);
-    for candidate in
-        [payload.get("name").and_then(Value::as_str), root_pkg_name].into_iter().flatten()
+        .and_then(Value::as_str)
     {
-        if destinations.contains_key(candidate) {
+        labels.insert(root_pkg_name.to_string());
+    }
+    for candidate in labels {
+        if destinations.contains_key(&candidate) {
             continue;
         }
-        let destination = classify_non_failing_root_name(state, identity, target, candidate);
-        destinations.insert(candidate.to_string(), destination);
+        let destination = classify_non_failing_root_name(state, identity, target, &candidate);
+        destinations.insert(candidate, destination);
     }
 }
 
@@ -112,100 +144,111 @@ fn classify_non_failing_root_name(
     }
 }
 
-fn collect_dependency_package_names(payload: &Map<String, Value>, names: &mut HashSet<String>) {
+fn collect_dependency_package_names(
+    payload: &Map<String, Value>,
+    collected: &mut CollectedLegacyNames,
+) {
     if let Some(requires) = payload.get("requires").and_then(Value::as_object) {
-        collect_spec_map_names(requires, names);
+        collect_spec_map_names(requires, collected);
     }
     if let Some(deps) = payload.get("dependencies").and_then(Value::as_object) {
-        collect_dependencies_names(deps, names, 0);
+        collect_dependencies_names(deps, collected, 0);
     }
     if let Some(packages) = payload.get("packages").and_then(Value::as_object) {
-        collect_packages_map_names(packages, names);
+        collect_packages_map_names(packages, collected);
     }
     for array_key in ["install", "remove"] {
         if let Some(items) = payload.get(array_key).and_then(Value::as_array) {
-            collect_spec_array_names(items, names);
+            collect_spec_array_names(items, collected);
         }
     }
 }
 
 fn collect_dependencies_names(
     deps: &Map<String, Value>,
-    names: &mut HashSet<String>,
+    collected: &mut CollectedLegacyNames,
     depth: usize,
 ) {
     if depth > MAX_DEPENDENCY_DEPTH {
         return;
     }
     for (package_name, value) in deps {
-        names.insert(package_name.clone());
         if let Some(node) = value.as_object() {
-            collect_dependency_object_names(node, names, depth);
+            collect_dependency_object_names(package_name, node, collected, depth);
+        } else {
+            collected.required.insert(package_name.clone());
         }
     }
 }
 
 fn collect_dependency_object_names(
+    package_name: &str,
     node: &Map<String, Value>,
-    names: &mut HashSet<String>,
+    collected: &mut CollectedLegacyNames,
     depth: usize,
 ) {
-    insert_npm_alias_target(node.get("version"), names);
+    collected.record_spec(package_name, node.get("version").and_then(Value::as_str));
     if let Some(requires) = node.get("requires").and_then(Value::as_object) {
-        collect_spec_map_names(requires, names);
+        collect_spec_map_names(requires, collected);
     }
     if let Some(nested) = node.get("dependencies").and_then(Value::as_object) {
-        collect_dependencies_names(nested, names, depth + 1);
+        collect_dependencies_names(nested, collected, depth + 1);
     }
 }
 
-fn collect_packages_map_names(packages: &Map<String, Value>, names: &mut HashSet<String>) {
+fn collect_packages_map_names(packages: &Map<String, Value>, collected: &mut CollectedLegacyNames) {
     for (key, value) in packages {
         if let Some(entry) = value.as_object() {
-            collect_package_entry_names(key, entry, names);
+            collect_package_entry_names(key, entry, collected);
         }
     }
 }
 
-fn collect_package_entry_names(key: &str, entry: &Map<String, Value>, names: &mut HashSet<String>) {
+fn collect_package_entry_names(
+    key: &str,
+    entry: &Map<String, Value>,
+    collected: &mut CollectedLegacyNames,
+) {
     for field in PACKAGE_SPEC_FIELDS {
         if let Some(spec_map) = entry.get(field).and_then(Value::as_object) {
-            collect_spec_map_names(spec_map, names);
+            collect_spec_map_names(spec_map, collected);
         }
     }
-    if key.is_empty() {
+    if key.is_empty() || entry_bool(entry, "link") {
         return;
     }
-    if let Some(entry_name) = entry.get("name").and_then(Value::as_str) {
-        names.insert(entry_name.to_string());
-    }
-    insert_npm_alias_target(entry.get("version"), names);
-    names.extend(node_modules_segments(key).into_iter().map(str::to_owned));
+    record_installed_package_entry(key, entry, collected);
 }
 
-fn collect_spec_map_names(spec_map: &Map<String, Value>, names: &mut HashSet<String>) {
+fn record_installed_package_entry(
+    key: &str,
+    entry: &Map<String, Value>,
+    collected: &mut CollectedLegacyNames,
+) {
+    let segments = node_modules_segments(key);
+    let Some(&last_segment) = segments.last() else { return };
+    for &parent_segment in &segments[..segments.len() - 1] {
+        collected.non_failing_labels.insert(parent_segment.to_string());
+    }
+    let explicit_name = entry.get("name").and_then(Value::as_str);
+    let declared_name = explicit_name.unwrap_or(last_segment);
+    let raw_version = entry.get("version").and_then(Value::as_str);
+    collected.record_spec(declared_name, raw_version);
+    if declared_name != last_segment {
+        collected.non_failing_labels.insert(last_segment.to_string());
+    }
+}
+
+fn collect_spec_map_names(spec_map: &Map<String, Value>, collected: &mut CollectedLegacyNames) {
     for (package_name, spec_val) in spec_map {
-        names.insert(package_name.clone());
-        insert_npm_alias_target(Some(spec_val), names);
+        collected.record_spec(package_name, spec_val.as_str());
     }
 }
 
-fn insert_npm_alias_target(raw: Option<&Value>, names: &mut HashSet<String>) {
-    if let Some(spec_str) = raw.and_then(Value::as_str)
-        && let Some((alias_pkg, _)) = parse_npm_alias(spec_str)
-    {
-        names.insert(alias_pkg.to_string());
-    }
-}
-
-fn collect_spec_array_names(items: &[Value], names: &mut HashSet<String>) {
+fn collect_spec_array_names(items: &[Value], collected: &mut CollectedLegacyNames) {
     for raw in items.iter().filter_map(Value::as_str) {
-        let Some((package_name, spec)) = parse_name_and_spec(raw) else { continue };
-        names.insert(package_name.to_string());
-        if let Some(spec_str) = spec
-            && let Some((alias_pkg, _)) = parse_npm_alias(spec_str)
-        {
-            names.insert(alias_pkg.to_string());
+        if let Some((package_name, spec)) = parse_name_and_spec(raw) {
+            collected.record_spec(package_name, spec);
         }
     }
 }

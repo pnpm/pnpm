@@ -18,7 +18,10 @@ use super::{
     legacy_nodes::collect_installed_nodes,
     legacy_report::{build_osv_legacy_report, derive_ghsa_id, infer_patched_versions},
     legacy_sanitize::build_upstream_legacy_payload,
-    legacy_specs::{parse_name_and_spec, parse_npm_alias},
+    legacy_specs::{
+        is_safe_semver_range, is_safe_semver_version, is_safe_sri_integrity, parse_name_and_spec,
+        parse_npm_alias,
+    },
 };
 
 fn gzip_bytes(payload: &[u8]) -> Vec<u8> {
@@ -280,6 +283,94 @@ fn legacy_sanitizer_preserves_colliding_versions_rewrites_aliases_and_blocks_url
             "npm_version": "10.8.0",
             "node_version": "v22.0.0",
         }),
+    );
+}
+
+#[test]
+fn legacy_sanitizer_rejects_trailing_spec_tokens_fake_integrity_and_scales_linearly() {
+    let valid_sri = "sha512-2Z9S0000000000000000000000000000==";
+    assert!(is_safe_sri_integrity(valid_sri));
+    assert!(!is_safe_sri_integrity("https://user:secret-token@corp.internal/hash"));
+    assert!(!is_safe_sri_integrity("sha512-2Z9S00000000000000000000==?@acme/private-pkg"));
+    assert!(!is_safe_semver_range("1.2.3 secret-package"));
+    assert!(!is_safe_semver_range("^1.0.0 @acme/private-pkg"));
+    assert!(!is_safe_semver_version("1.2.3 secret-package"));
+    assert!(is_safe_semver_range(">=1.0.0 <2.0.0 || 3.x"));
+
+    let mut packages = Map::new();
+    packages.insert(String::new(), json!({ "name": "app" }));
+    packages.insert(
+        "node_modules/lodash".to_string(),
+        json!({
+            "version": "4.17.21",
+            "integrity": valid_sri,
+            "dependencies": {
+                "ms": "1.2.3 secret-package",
+            },
+        }),
+    );
+    packages.insert(
+        "node_modules/ms".to_string(),
+        json!({
+            "version": "2.1.3",
+            "integrity": "https://user:secret-token@corp.internal/ms.tgz",
+        }),
+    );
+    for idx in 0..3_000usize {
+        packages.insert(
+            format!("workspaces/w{idx}/node_modules/lodash"),
+            json!({ "version": format!("0.0.{idx}") }),
+        );
+    }
+
+    let payload: Map<String, Value> = serde_json::from_value(json!({
+        "name": "app",
+        "lockfileVersion": "secret-lockfile-string",
+        "requires": {
+            "lodash": "4.17.21 secret-package",
+            "ms": "^2.1.3",
+        },
+        "dependencies": {
+            "lodash": {
+                "version": "4.17.21",
+                "integrity": valid_sri,
+                "requires": { "ms": "2.1.3 secret-package" },
+            },
+            "ms": {
+                "version": "2.1.3",
+                "integrity": "https://user:secret-token@corp.internal/ms.tgz",
+            },
+        },
+        "packages": packages,
+        "install": [
+            "lodash@4.17.21 secret-package",
+            "ms@^2.1.3",
+        ],
+    }))
+    .unwrap();
+
+    let destinations = HashMap::from([
+        ("lodash".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("ms".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+    ]);
+
+    let sanitized = build_upstream_legacy_payload(&payload, "npmjs", &destinations);
+    let serialized = serde_json::to_string(&sanitized).unwrap();
+    assert!(!serialized.contains("secret-package"));
+    assert!(!serialized.contains("secret-token"));
+    assert!(!serialized.contains("secret-lockfile-string"));
+    assert!(!serialized.contains("corp.internal"));
+    assert_eq!(sanitized["dependencies"]["lodash"]["integrity"], valid_sri);
+    assert!(sanitized["dependencies"]["ms"].get("integrity").is_none());
+    assert_eq!(sanitized["packages"]["node_modules/lodash"]["integrity"], valid_sri);
+    assert!(sanitized["packages"]["node_modules/ms"].get("integrity").is_none());
+    assert_eq!(sanitized["install"], json!(["ms@^2.1.3"]));
+    assert_eq!(
+        sanitized["packages"]
+            .as_object()
+            .unwrap()
+            .len(),
+        3_003,
     );
 }
 

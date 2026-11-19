@@ -1,14 +1,15 @@
+use std::collections::HashMap;
+
 use serde_json::{Map, Value};
 
 use super::{
-    MAX_DEPENDENCY_DEPTH, REDACTED_SCOPE_PREFIX, SanitizeCtx, copy_bool_fields, copy_string_fields,
+    MAX_DEPENDENCY_DEPTH, REDACTED_SCOPE_PREFIX, SanitizeCtx, copy_bool_fields, copy_sri_integrity,
     is_safe_semver_version, parse_npm_alias,
 };
 
-struct RoutedDependencyNode {
-    key: String,
-    version: String,
-    is_unchanged_key: bool,
+enum DependencyPlacement {
+    UnchangedKey { key: String, version: String },
+    Deferred { key: String, version: String },
 }
 
 #[derive(Default)]
@@ -48,18 +49,23 @@ impl SanitizeCtx<'_> {
             .and_then(Value::as_object)
             .map(|nested| self.filter_dependencies_map(nested, depth + 1));
 
-        let Some(routed) = self.resolve_routed_dependency_node(package_name, entry) else {
+        let Some(placement) = self.resolve_routed_dependency_node(package_name, entry) else {
             if let Some(children) = nested_filtered {
                 buckets.deferred.extend(children);
             }
             return;
         };
-        let clean =
-            Value::Object(self.sanitize_dependency_node(entry, routed.version, nested_filtered));
-        if routed.is_unchanged_key {
-            buckets.kept.insert(routed.key, clean);
-        } else {
-            buckets.deferred.push((routed.key, clean));
+        match placement {
+            DependencyPlacement::UnchangedKey { key, version } => {
+                let clean =
+                    Value::Object(self.sanitize_dependency_node(entry, version, nested_filtered));
+                buckets.kept.insert(key, clean);
+            }
+            DependencyPlacement::Deferred { key, version } => {
+                let clean =
+                    Value::Object(self.sanitize_dependency_node(entry, version, nested_filtered));
+                buckets.deferred.push((key, clean));
+            }
         }
     }
 
@@ -67,7 +73,7 @@ impl SanitizeCtx<'_> {
         &self,
         package_name: &str,
         entry: &Map<String, Value>,
-    ) -> Option<RoutedDependencyNode> {
+    ) -> Option<DependencyPlacement> {
         let raw_version = entry.get("version").and_then(Value::as_str)?;
         if let Some((alias_pkg, alias_ver_opt)) = parse_npm_alias(raw_version) {
             let alias_ver = alias_ver_opt.filter(|ver| is_safe_semver_version(ver))?;
@@ -75,25 +81,22 @@ impl SanitizeCtx<'_> {
                 return None;
             }
             if self.routes(package_name) {
-                return Some(RoutedDependencyNode {
+                return Some(DependencyPlacement::UnchangedKey {
                     key: package_name.to_string(),
                     version: raw_version.to_string(),
-                    is_unchanged_key: true,
                 });
             }
-            return Some(RoutedDependencyNode {
+            return Some(DependencyPlacement::Deferred {
                 key: alias_pkg.to_string(),
                 version: alias_ver.to_string(),
-                is_unchanged_key: false,
             });
         }
         if !self.routes(package_name) || !is_safe_semver_version(raw_version) {
             return None;
         }
-        Some(RoutedDependencyNode {
+        Some(DependencyPlacement::UnchangedKey {
             key: package_name.to_string(),
             version: raw_version.to_string(),
-            is_unchanged_key: true,
         })
     }
 
@@ -102,6 +105,7 @@ impl SanitizeCtx<'_> {
         kept: &mut Map<String, Value>,
         deferred: Vec<(String, Value)>,
     ) {
+        let mut next_idx_by_pkg: HashMap<String, usize> = HashMap::new();
         for (child_name, child_val) in deferred {
             if !kept.contains_key(&child_name) {
                 kept.insert(child_name, child_val);
@@ -110,7 +114,8 @@ impl SanitizeCtx<'_> {
             if kept.get(&child_name) == Some(&child_val) {
                 continue;
             }
-            self.insert_into_redacted_scope(kept, child_name, child_val);
+            let next_idx = next_idx_by_pkg.entry(child_name.clone()).or_insert(1);
+            self.insert_into_redacted_scope(kept, child_name, child_val, next_idx);
         }
     }
 
@@ -119,12 +124,13 @@ impl SanitizeCtx<'_> {
         kept: &mut Map<String, Value>,
         child_name: String,
         child_val: Value,
+        next_idx: &mut usize,
     ) {
-        let mut idx = 1usize;
         loop {
+            let idx = *next_idx;
+            *next_idx += 1;
             let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
             if self.destinations.contains_key(&scope_name) {
-                idx += 1;
                 continue;
             }
             if !kept.contains_key(&scope_name) {
@@ -134,7 +140,6 @@ impl SanitizeCtx<'_> {
             if try_insert_into_existing_scope(kept.get_mut(&scope_name), &child_name, &child_val) {
                 return;
             }
-            idx += 1;
         }
     }
 
@@ -146,7 +151,7 @@ impl SanitizeCtx<'_> {
     ) -> Map<String, Value> {
         let mut clean = Map::new();
         clean.insert("version".to_string(), Value::String(version));
-        copy_string_fields(entry, &["integrity"], &mut clean);
+        copy_sri_integrity(entry, &mut clean);
         copy_bool_fields(entry, &["dev", "optional", "bundled"], &mut clean);
         self.copy_filtered_spec_fields(entry, &["requires"], &mut clean);
         if let Some(children) = nested_filtered

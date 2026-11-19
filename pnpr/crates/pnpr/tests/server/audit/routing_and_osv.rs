@@ -626,3 +626,92 @@ async fn router_legacy_audit_preserves_colliding_ms_versions_and_rewrites_hosted
     corp_never.assert_async().await;
     npmjs_audit.assert_async().await;
 }
+
+#[tokio::test]
+async fn router_legacy_audit_authorizes_npm_aliases_by_target_not_restricted_alias_spelling() {
+    let mut npmjs = mockito::Server::new_async().await;
+    let mut corp = mockito::Server::new_async().await;
+
+    let corp_never = corp
+        .mock("POST", mockito::Matcher::Any)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let npmjs_audit = npmjs
+        .mock("POST", "/-/npm/v1/security/audits/quick")
+        .match_body(mockito::Matcher::Json(json!({
+            "name": "pnpr-audit",
+            "requires": { "lodash": "^4.17.20" },
+            "dependencies": { "lodash": { "version": "4.17.20" } },
+            "packages": {
+                "": { "name": "pnpr-audit" },
+                "node_modules/lodash": { "version": "4.17.20" },
+            },
+            "install": ["lodash@4.17.20"],
+        })))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "actions": [],
+                "advisories": {},
+                "muted": [],
+                "metadata": {
+                    "vulnerabilities": { "total": 0 },
+                    "dependencies": 1,
+                    "totalDependencies": 1,
+                },
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = three_tier_router_config(&npmjs.url(), &corp.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("corp").unwrap().rules =
+        hosted_with_access("corp", "$authenticated").rules;
+    let app = router(config);
+
+    let aliased_payload = json!({
+        "name": "@corp/app",
+        "requires": { "@corp/alias": "npm:lodash@^4.17.20" },
+        "dependencies": { "@corp/alias": { "version": "npm:lodash@4.17.20" } },
+        "packages": {
+            "": { "name": "@corp/app" },
+            "node_modules/@corp/alias": { "version": "npm:lodash@4.17.20" },
+        },
+        "install": ["@corp/alias@npm:lodash@4.17.20"],
+    });
+    let ok_res = app
+        .clone()
+        .oneshot(
+            Request::post("/npm/-/npm/v1/security/audits/quick")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(aliased_payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ok_res.status(), StatusCode::OK);
+
+    let direct_corp_payload = json!({
+        "name": "app",
+        "dependencies": { "@corp/sdk": { "version": "2.0.0" } },
+    });
+    let denied_res = app
+        .oneshot(
+            Request::post("/npm/-/npm/v1/security/audits/quick")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(direct_corp_payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied_res.status(), StatusCode::UNAUTHORIZED);
+
+    corp_never.assert_async().await;
+    npmjs_audit.assert_async().await;
+}

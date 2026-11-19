@@ -3,6 +3,10 @@ use serde_json::{Map, Value};
 
 pub(super) const REDACTED_SCOPE_PREFIX: &str = "pnpr-redacted-scope-";
 
+const MAX_SEMVER_BYTES: usize = 128;
+const MAX_RANGE_BYTES: usize = 256;
+const MAX_SRI_BYTES: usize = 512;
+
 pub(super) fn node_modules_segments(key: &str) -> Vec<&str> {
     let Some((_, after_first)) = key.split_once("node_modules/") else {
         return Vec::new();
@@ -49,16 +53,119 @@ pub(super) fn parse_name_and_spec(input: &str) -> Option<(&str, Option<&str>)> {
 
 pub(super) fn is_safe_semver_version(raw: &str) -> bool {
     let trimmed = raw.trim();
-    !trimmed.is_empty()
-        && !trimmed.contains('/')
-        && !trimmed.contains(':')
-        && Version::parse(trimmed).is_ok()
+    if trimmed.is_empty() || trimmed.len() > MAX_SEMVER_BYTES {
+        return false;
+    }
+    let valid_chars = trimmed
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+'));
+    valid_chars && is_strict_version_token(trimmed) && Version::parse(trimmed).is_ok()
 }
 
 pub(super) fn is_safe_semver_range(raw: &str) -> bool {
     let trimmed = raw.trim();
-    if trimmed.is_empty() || trimmed.contains('/') || trimmed.contains(':') {
+    if trimmed.is_empty() || trimmed.len() > MAX_RANGE_BYTES {
         return false;
     }
-    trimmed == "*" || trimmed.eq_ignore_ascii_case("latest") || Range::parse(trimmed).is_ok()
+    if trimmed == "*" || trimmed.eq_ignore_ascii_case("latest") {
+        return true;
+    }
+    let all_clauses_valid = trimmed.split("||").all(|clause| is_strict_range_clause(clause.trim()));
+    all_clauses_valid && Range::parse(trimmed).is_ok()
+}
+
+fn is_strict_range_clause(clause: &str) -> bool {
+    if clause.is_empty() {
+        return false;
+    }
+    clause.split_whitespace().all(is_strict_comparator_token)
+}
+
+fn is_strict_comparator_token(token: &str) -> bool {
+    if matches!(token, "*" | "x" | "X" | "-" | "<" | "<=" | ">" | ">=" | "=" | "^" | "~" | "~>") {
+        return true;
+    }
+    let rest = strip_comparator_operator(token);
+    is_strict_version_or_xrange_token(rest)
+}
+
+fn strip_comparator_operator(token: &str) -> &str {
+    for prefix in ["<=", ">=", "~>", "<", ">", "=", "^", "~"] {
+        if let Some(rest) = token.strip_prefix(prefix) {
+            return strip_optional_v_prefix(rest);
+        }
+    }
+    strip_optional_v_prefix(token)
+}
+
+fn strip_optional_v_prefix(token: &str) -> &str {
+    if let Some(rest) = token.strip_prefix(['v', 'V'])
+        && rest
+            .bytes()
+            .next()
+            .is_some_and(|byte| byte.is_ascii_digit())
+    {
+        return rest;
+    }
+    token
+}
+
+fn is_strict_version_token(token: &str) -> bool {
+    let split_idx = token
+        .find(['-', '+'])
+        .unwrap_or(token.len());
+    let core = &token[..split_idx];
+    let mut parts = core.split('.');
+    let valid_core = (0..3).all(|_| {
+        parts
+            .next()
+            .is_some_and(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+    });
+    valid_core && parts.next().is_none()
+}
+
+fn is_strict_version_or_xrange_token(token: &str) -> bool {
+    if token.is_empty() {
+        return false;
+    }
+    if let Some(split_idx) = token.find(['-', '+']) {
+        return split_idx > 0 && is_strict_version_token(token) && Version::parse(token).is_ok();
+    }
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() > 3 {
+        return false;
+    }
+    parts
+        .into_iter()
+        .all(|part| {
+            matches!(part, "*" | "x" | "X")
+                || (!part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+        })
+}
+
+pub(super) fn is_safe_sri_integrity(raw: &str) -> bool {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.len() > MAX_SRI_BYTES {
+        return false;
+    }
+    trimmed.split_ascii_whitespace().all(is_single_sri_digest)
+}
+
+fn is_single_sri_digest(token: &str) -> bool {
+    let Some((algo, digest)) = token.split_once('-') else {
+        return false;
+    };
+    if !matches!(algo, "sha1" | "sha256" | "sha384" | "sha512") {
+        return false;
+    }
+    if !(16..=128).contains(&digest.len()) {
+        return false;
+    }
+    let unpadded = digest.trim_end_matches('=');
+    let pad_len = digest.len() - unpadded.len();
+    !unpadded.is_empty()
+        && pad_len <= 2
+        && unpadded
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/'))
 }

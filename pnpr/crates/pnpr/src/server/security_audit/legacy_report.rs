@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use indexmap::IndexMap;
 use node_semver::{Range, Version};
@@ -112,9 +112,10 @@ pub(super) fn build_osv_legacy_report(
     let mut metadata = count_installed_metadata(nodes);
     let pending = collect_osv_advisory_matches(osv_index, nodes);
     let mut advisories = BTreeMap::new();
+    let mut next_suffix = HashMap::new();
     for ((package_name, _), (bulk, findings)) in pending {
         metadata.vulnerabilities.record_severity(&bulk.severity);
-        let key = unique_advisory_key(&advisories, bulk.id);
+        let key = unique_advisory_key(&advisories, bulk.id, &mut next_suffix);
         advisories.insert(key, into_legacy_advisory(bulk, package_name, findings));
     }
     LegacyAuditReport { actions: Vec::new(), advisories, muted: Vec::new(), metadata }
@@ -185,18 +186,23 @@ fn group_installed_versions(
     grouped
 }
 
-fn unique_advisory_key(existing: &BTreeMap<String, LegacyAdvisory>, id: u64) -> String {
+fn unique_advisory_key(
+    existing: &BTreeMap<String, LegacyAdvisory>,
+    id: u64,
+    next_suffix: &mut HashMap<u64, usize>,
+) -> String {
     let base = id.to_string();
     if !existing.contains_key(&base) {
         return base;
     }
-    let mut suffix = 2usize;
+    let suffix_cursor = next_suffix.entry(id).or_insert(2);
     loop {
+        let suffix = *suffix_cursor;
+        *suffix_cursor += 1;
         let candidate = format!("{id}-{suffix}");
         if !existing.contains_key(&candidate) {
             return candidate;
         }
-        suffix += 1;
     }
 }
 

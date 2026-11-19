@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use serde_json::{Map, Value};
 
 use super::{
-    PACKAGE_SPEC_FIELDS, REDACTED_SCOPE_PREFIX, SanitizeCtx, copy_bool_fields, copy_string_fields,
+    PACKAGE_SPEC_FIELDS, REDACTED_SCOPE_PREFIX, SanitizeCtx, copy_bool_fields, copy_sri_integrity,
     entry_bool, is_safe_semver_version, node_modules_segments, parse_npm_alias,
 };
 
@@ -44,6 +46,7 @@ impl SanitizeCtx<'_> {
         kept: &mut Map<String, Value>,
         rewritten: Vec<(String, Value)>,
     ) {
+        let mut next_idx_by_key: HashMap<String, usize> = HashMap::new();
         for (sanitized_key, entry_val) in rewritten {
             if !kept.contains_key(&sanitized_key) {
                 kept.insert(sanitized_key, entry_val);
@@ -52,7 +55,8 @@ impl SanitizeCtx<'_> {
             if kept.get(&sanitized_key) == Some(&entry_val) {
                 continue;
             }
-            let distinct_key = self.allocate_distinct_package_key(kept, &sanitized_key);
+            let next_idx = next_idx_by_key.entry(sanitized_key.clone()).or_insert(1);
+            let distinct_key = self.allocate_distinct_package_key(kept, &sanitized_key, next_idx);
             kept.insert(distinct_key, entry_val);
         }
     }
@@ -61,15 +65,16 @@ impl SanitizeCtx<'_> {
         &self,
         kept: &Map<String, Value>,
         sanitized_key: &str,
+        next_idx: &mut usize,
     ) -> String {
-        let mut idx = 1usize;
         loop {
+            let idx = *next_idx;
+            *next_idx += 1;
             let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
             let candidate = format!("node_modules/{scope_name}/{sanitized_key}");
             if !self.destinations.contains_key(&scope_name) && !kept.contains_key(&candidate) {
                 return candidate;
             }
-            idx += 1;
         }
     }
 
@@ -175,7 +180,7 @@ impl SanitizeCtx<'_> {
             clean.insert("name".to_string(), Value::String(name));
         }
         clean.insert("version".to_string(), Value::String(coord.clean_version));
-        copy_string_fields(entry, &["integrity"], &mut clean);
+        copy_sri_integrity(entry, &mut clean);
         copy_bool_fields(
             entry,
             &["dev", "optional", "devOptional", "inBundle", "hasInstallScript", "peer"],

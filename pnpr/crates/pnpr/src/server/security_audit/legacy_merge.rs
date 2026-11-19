@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value, json};
 
@@ -39,6 +39,7 @@ pub(super) fn merge_upstream_legacy_responses(
     let mut merged_advisories = Map::new();
     let mut merged_muted = Vec::new();
     let mut counts = LegacyAuditMetadata::default();
+    let mut next_suffix = HashMap::new();
 
     for (allowed, mut doc) in responses {
         sanitize_upstream_legacy_response(&mut doc, &allowed);
@@ -48,7 +49,7 @@ pub(super) fn merge_upstream_legacy_responses(
         append_json_array(&mut merged_actions, doc.remove("actions"));
         append_json_array(&mut merged_muted, doc.remove("muted"));
         if let Some(Value::Object(advisories)) = doc.remove("advisories") {
-            insert_merged_advisories(&mut merged_advisories, advisories);
+            insert_merged_advisories(&mut merged_advisories, advisories, &mut next_suffix);
         }
         accumulate_upstream_metadata(&mut counts, doc.get("metadata"));
     }
@@ -77,20 +78,25 @@ fn append_json_array(target: &mut Vec<Value>, maybe_array: Option<Value>) {
     }
 }
 
-fn insert_merged_advisories(target: &mut Map<String, Value>, incoming: Map<String, Value>) {
+fn insert_merged_advisories(
+    target: &mut Map<String, Value>,
+    incoming: Map<String, Value>,
+    next_suffix: &mut HashMap<String, usize>,
+) {
     for (key, advisory) in incoming {
         if !target.contains_key(&key) {
             target.insert(key, advisory);
             continue;
         }
-        let mut suffix = 2usize;
+        let suffix_cursor = next_suffix.entry(key.clone()).or_insert(2);
         loop {
+            let suffix = *suffix_cursor;
+            *suffix_cursor += 1;
             let candidate = format!("{key}-{suffix}");
             if !target.contains_key(&candidate) {
                 target.insert(candidate, advisory);
                 break;
             }
-            suffix += 1;
         }
     }
 }

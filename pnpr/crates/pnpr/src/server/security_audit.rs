@@ -173,10 +173,16 @@ fn partition_bulk_packages(
             }
             PackageDestination::Upstream(upstream_name) => {
                 osv_packages.insert(package_name.clone(), versions.clone());
-                raw_by_upstream
-                    .entry(upstream_name)
-                    .or_default()
-                    .insert(package_name, versions);
+                let safe_versions: Vec<String> = versions
+                    .into_iter()
+                    .filter(|ver| legacy_specs::is_safe_semver_version(ver))
+                    .collect();
+                if !safe_versions.is_empty() {
+                    raw_by_upstream
+                        .entry(upstream_name)
+                        .or_default()
+                        .insert(package_name, safe_versions);
+                }
             }
             PackageDestination::Skip => {}
         }

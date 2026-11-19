@@ -10,17 +10,23 @@ use super::{
     legacy_nodes::{MAX_DEPENDENCY_DEPTH, PACKAGE_SPEC_FIELDS},
     legacy_specs::{
         REDACTED_SCOPE_PREFIX, entry_bool, is_safe_semver_range, is_safe_semver_version,
-        node_modules_segments, parse_name_and_spec, parse_npm_alias,
+        is_safe_sri_integrity, node_modules_segments, parse_name_and_spec, parse_npm_alias,
     },
 };
 
 const REDACTED_ROOT_NAME: &str = "pnpr-audit";
-const SAFE_CLIENT_METADATA_KEYS: [&str; 4] =
-    ["npm_version", "node_version", "platform", "node_env"];
+const ALLOWED_PLATFORMS: [&str; 8] =
+    ["linux", "darwin", "win32", "freebsd", "openbsd", "sunos", "aix", "android"];
+const ALLOWED_NODE_ENVS: [&str; 3] = ["production", "development", "test"];
 
 pub(super) struct SanitizeCtx<'a> {
     pub(super) upstream_name: &'a str,
     pub(super) destinations: &'a HashMap<String, PackageDestination>,
+}
+
+enum SanitizedSpecEntry {
+    Direct { name: String, spec: Value },
+    RewrittenAlias { target_name: String, range: Value },
 }
 
 pub(super) fn build_upstream_legacy_payload(
@@ -31,8 +37,12 @@ pub(super) fn build_upstream_legacy_payload(
     let ctx = SanitizeCtx { upstream_name, destinations };
     let mut sanitized = Map::new();
     ctx.copy_sanitized_root_identity(payload, &mut sanitized);
-    if let Some(lockfile_version) = payload.get("lockfileVersion") {
-        sanitized.insert("lockfileVersion".to_string(), lockfile_version.clone());
+    if let Some(lockfile_version) = payload
+        .get("lockfileVersion")
+        .and_then(Value::as_u64)
+        .filter(|version| (1..=3).contains(version))
+    {
+        sanitized.insert("lockfileVersion".to_string(), Value::from(lockfile_version));
     }
     let mut filtered_requires = payload
         .get("requires")
@@ -147,14 +157,16 @@ impl SanitizeCtx<'_> {
         let mut aliased = Vec::new();
         for (package_name, spec_val) in spec_map {
             let Some(spec_str) = spec_val.as_str() else { continue };
-            let Some((key, val, is_direct)) = self.sanitize_spec_map_entry(package_name, spec_str)
-            else {
+            let Some(outcome) = self.sanitize_spec_map_entry(package_name, spec_str) else {
                 continue;
             };
-            if is_direct {
-                clean.insert(key, val);
-            } else {
-                aliased.push((key, val));
+            match outcome {
+                SanitizedSpecEntry::Direct { name, spec } => {
+                    clean.insert(name, spec);
+                }
+                SanitizedSpecEntry::RewrittenAlias { target_name, range } => {
+                    aliased.push((target_name, range));
+                }
             }
         }
         for (alias_pkg, range_val) in aliased {
@@ -167,7 +179,7 @@ impl SanitizeCtx<'_> {
         &self,
         package_name: &str,
         spec_str: &str,
-    ) -> Option<(String, Value, bool)> {
+    ) -> Option<SanitizedSpecEntry> {
         if let Some((alias_pkg, alias_range)) = parse_npm_alias(spec_str) {
             let range_str = alias_range
                 .filter(|range| !range.is_empty())
@@ -176,14 +188,23 @@ impl SanitizeCtx<'_> {
                 return None;
             }
             if self.routes(package_name) {
-                return Some((package_name.to_string(), Value::String(spec_str.to_string()), true));
+                return Some(SanitizedSpecEntry::Direct {
+                    name: package_name.to_string(),
+                    spec: Value::String(spec_str.to_string()),
+                });
             }
-            return Some((alias_pkg.to_string(), Value::String(range_str.to_string()), false));
+            return Some(SanitizedSpecEntry::RewrittenAlias {
+                target_name: alias_pkg.to_string(),
+                range: Value::String(range_str.to_string()),
+            });
         }
         if !self.routes(package_name) || !is_safe_semver_range(spec_str) {
             return None;
         }
-        Some((package_name.to_string(), Value::String(spec_str.to_string()), true))
+        Some(SanitizedSpecEntry::Direct {
+            name: package_name.to_string(),
+            spec: Value::String(spec_str.to_string()),
+        })
     }
 
     fn filter_spec_array(&self, items: &[Value]) -> Vec<Value> {
@@ -238,35 +259,50 @@ impl SanitizeCtx<'_> {
 
 fn sanitize_client_metadata(raw: &Map<String, Value>) -> Option<Map<String, Value>> {
     let mut clean = Map::new();
-    for key in SAFE_CLIENT_METADATA_KEYS {
-        if let Some(val) = raw
-            .get(key)
-            .and_then(Value::as_str)
-            .filter(|scalar| is_safe_metadata_scalar(scalar))
-        {
-            clean.insert(key.to_string(), Value::String(val.to_string()));
-        }
+    if let Some(npm_ver) = raw
+        .get("npm_version")
+        .and_then(Value::as_str)
+        .filter(|ver| is_safe_semver_version(ver))
+    {
+        clean.insert("npm_version".to_string(), Value::String(npm_ver.trim().to_string()));
+    }
+    if let Some(node_ver) = raw
+        .get("node_version")
+        .and_then(Value::as_str)
+        .filter(|ver| {
+            is_safe_semver_version(
+                ver.trim()
+                    .strip_prefix('v')
+                    .unwrap_or(ver),
+            )
+        })
+    {
+        clean.insert("node_version".to_string(), Value::String(node_ver.trim().to_string()));
+    }
+    if let Some(platform) = raw
+        .get("platform")
+        .and_then(Value::as_str)
+        .filter(|plat| ALLOWED_PLATFORMS.contains(plat))
+    {
+        clean.insert("platform".to_string(), Value::String(platform.to_string()));
+    }
+    if let Some(node_env) = raw
+        .get("node_env")
+        .and_then(Value::as_str)
+        .filter(|env| ALLOWED_NODE_ENVS.contains(env))
+    {
+        clean.insert("node_env".to_string(), Value::String(node_env.to_string()));
     }
     (!clean.is_empty()).then_some(clean)
 }
 
-fn is_safe_metadata_scalar(val: &str) -> bool {
-    !val.is_empty()
-        && val.len() <= 128
-        && !val.contains('/')
-        && !val.contains(':')
-        && !val.contains('@')
-}
-
-pub(super) fn copy_string_fields(
-    entry: &Map<String, Value>,
-    keys: &[&str],
-    out: &mut Map<String, Value>,
-) {
-    for &key in keys {
-        if let Some(val @ Value::String(_)) = entry.get(key) {
-            out.insert(key.to_string(), val.clone());
-        }
+pub(super) fn copy_sri_integrity(entry: &Map<String, Value>, out: &mut Map<String, Value>) {
+    if let Some(integrity) = entry
+        .get("integrity")
+        .and_then(Value::as_str)
+        .filter(|raw| is_safe_sri_integrity(raw))
+    {
+        out.insert("integrity".to_string(), Value::String(integrity.trim().to_string()));
     }
 }
 
