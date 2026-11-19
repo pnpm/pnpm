@@ -134,7 +134,6 @@ export interface ResolveDependenciesOptions extends RegistryContext {
     readPackage?: ReadPackageHook
   }
   parsedOverrides?: VersionOverride[]
-  parsedOverrides?: VersionOverride[]
   overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
   /**
