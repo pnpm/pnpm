@@ -291,6 +291,9 @@ comma-separated list:
 pnpm install --allow-build=esbuild --allow-build='!core-js'
 ```
 
+Pass a git or tarball key in its own `--allow-build`. A value that contains one
+is not split at its commas.
+
 The quotes keep a POSIX shell from treating `!` as history expansion. In
 Windows `cmd.exe`, leave them out.
 

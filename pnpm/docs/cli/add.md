@@ -222,6 +222,8 @@ Since v12.23.0, the option takes a comma-separated list as well as being repeata
 pnpm add my-bundler --allow-build=esbuild,sharp
 ```
 
+Pass a git or tarball key in its own `--allow-build`. A value that contains one is not split at its commas.
+
 ### --lockfile-only
 
 Update `package.json` and `pnpm-lock.yaml` without downloading dependencies or writing `node_modules`.
