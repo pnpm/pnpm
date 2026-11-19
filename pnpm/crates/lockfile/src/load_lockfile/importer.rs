@@ -40,8 +40,7 @@ impl Lockfile {
         if !LockfileVersion::<9>::is_compatible(parsed.lockfile_version) {
             return Ok(match Lockfile::load_from_path(file_path)? {
                 Some(lockfile) => ImporterLoad::Importer(
-                    lockfile
-                        .importers
+                    lockfile.importers
                         .get(importer_id)
                         .cloned()
                         .map(Box::new),
@@ -50,8 +49,7 @@ impl Lockfile {
             });
         }
         Ok(ImporterLoad::Importer(
-            parsed
-                .importers
+            parsed.importers
                 .get(importer_id)
                 .cloned()
                 .map(Box::new),
