@@ -1211,13 +1211,16 @@ describe('locked peer provider preferences', () => {
 })
 
 describe('dedupePeers', () => {
-  test('keeps the peer provider used by each project', async () => {
+  test.each<{ context: string, providerPeers: PeerDependencies }>([
+    { context: 'acyclic peers', providerPeers: {} },
+    { context: 'cyclic peers', providerPeers: { consumer: { version: '*' } } },
+  ])('keeps the peer provider used by each project with $context', async ({ providerPeers }) => {
     const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>()
     const projects = ['1.0.0', '2.0.0'].map((version) => {
       const directNodeIdsByAlias = new Map<string, NodeId>()
       for (const [name, packageVersion, peers] of [
         ['consumer', '1.0.0', { provider: { version: '*' } }],
-        ['provider', '1.0.0', { optional: { version: '*', optional: true } }],
+        ['provider', '1.0.0', { optional: { version: '*', optional: true }, ...providerPeers }],
         ['optional', version, {}],
       ] as const) {
         const id = `${name}@${packageVersion}` as PkgIdWithPatchHash
@@ -1233,7 +1236,7 @@ describe('dedupePeers', () => {
       return { id: version, rootDir: '' as ProjectRootDir, directNodeIdsByAlias, topParents: [] }
     })
     const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
-      allPeerDepNames: new Set(['provider', 'optional']),
+      allPeerDepNames: new Set(['consumer', 'provider', 'optional']),
       dedupePeers: true,
       projects,
       resolvedImporters: {},
