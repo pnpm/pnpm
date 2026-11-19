@@ -6,8 +6,8 @@ import path from 'node:path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
+import { dump } from '@zkochan/js-yaml'
 import { rimraf } from '@zkochan/rimraf'
-import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
 import { onExit } from 'signal-exit'
 import writeFileAtomic from 'write-file-atomic'
@@ -18,6 +18,7 @@ import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { ensureLockfileIsNotSymlink, extractEnvDocument, readLockfileToString, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
 
+// The fork preserves blank lines and inline lockfile fields when writing.
 const LOCKFILE_YAML_FORMAT = {
   blankLines: true,
   lineWidth: -1,
@@ -27,7 +28,7 @@ const LOCKFILE_YAML_FORMAT = {
 }
 
 export function lockfileYamlDump (obj: object): string {
-  return yaml.dump(obj, LOCKFILE_YAML_FORMAT)
+  return dump(obj, LOCKFILE_YAML_FORMAT)
 }
 
 /**

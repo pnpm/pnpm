@@ -50,6 +50,29 @@ test('readWantedLockfile()', async () => {
   ).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
 })
 
+test('readWantedLockfile() reads dependency entries with YAML merge keys', async () => {
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), `
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo: &dependency
+        specifier: ^1.0.0
+        version: 1.0.0
+      bar:
+        <<: *dependency
+        version: 1.1.0
+`)
+
+  const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+
+  expect(lockfile?.importers['.' as ProjectId]).toMatchObject({
+    specifiers: { foo: '^1.0.0', bar: '^1.0.0' },
+    dependencies: { foo: '1.0.0', bar: '1.1.0' },
+  })
+})
+
 test('readWantedLockfile() reports the incompatible and supported lockfile versions', async () => {
   const projectPath = temporaryDirectory()
   await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'lockfileVersion: \'6.0\'\nimporters:\n  .:\n    specifiers: {}\n')

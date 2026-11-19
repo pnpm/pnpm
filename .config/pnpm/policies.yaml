@@ -19,10 +19,6 @@ auditConfig:
     # extraction. No patched adm-zip release exists. It is only a devDependency of
     # @pnpm/fetching.binary-fetcher, used to build zip fixtures, and never extracts.
     - GHSA-vwc7-r8mq-g2x9
-    # GHSA-h67p-54hq-rp68: js-yaml quadratic-complexity DoS in merge key handling.
-    # Patched only in >=4.1.2 with no v3 fix; @yarnpkg/parsers requires the js-yaml 3
-    # API (yaml.safeLoad), so its transitive js-yaml cannot be upgraded.
-    - GHSA-h67p-54hq-rp68
     # GHSA-vfj7-8cjw-p6xm: braces stack exhaustion on deeply nested patterns.
     # No patched braces release exists. pnpm expands patterns from the user's config
     # and command line, or from scripts and manifests of dependencies already allowed

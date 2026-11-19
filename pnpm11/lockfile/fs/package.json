@@ -46,6 +46,7 @@
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@zkochan/js-yaml": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "comver-to-semver": "catalog:",
     "js-yaml": "catalog:",
