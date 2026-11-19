@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -172,7 +171,7 @@ test('forced modules repair never follows a modules directory symlink', async ()
       lockfileDir: projectRoot,
       modulesDir,
       nodeLinker: opts.nodeLinker ?? 'isolated',
-      mutatesEveryProject: true,
+      mutatedProjectDirs: new Set([projectRoot]),
       registriesByScope: opts.registriesByScope,
       storeDir: opts.storeDir,
       virtualStoreDir: path.join(modulesDir, '.pnpm'),
@@ -261,26 +260,13 @@ test('do not fail on non-compatible node_modules in non-TTY environment', async 
   await saveModulesYaml('0.50.0', opts.storeDir)
   fs.writeFileSync('node_modules/sentinel.txt', 'sentinel')
 
-  let err!: PnpmError
-  try {
-    await addDependenciesToPackage({}, ['is-negative'], opts)
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
+  await expect(addDependenciesToPackage({}, ['is-negative'], opts)).rejects.toMatchObject({
+    code: 'ERR_PNPM_MODULES_BREAKING_CHANGE',
+  })
 
-  const originalIsTTY = process.stdin.isTTY
-  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
-  try {
-    await install({}, {
-      ...opts,
-      confirmModulesPurge: true,
-    })
-  } finally {
-    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
-  }
+  await withoutTTY(() => install({}, { ...opts, confirmModulesPurge: true }))
 
-  expect(fs.existsSync('node_modules/sentinel.txt')).toBeFalsy()
+  expect(fs.existsSync('node_modules/sentinel.txt')).toBe(false)
 })
 
 test('fail on non-compatible custom modules directory in non-TTY environment', async () => {
@@ -289,25 +275,14 @@ test('fail on non-compatible custom modules directory in non-TTY environment', a
 
   await saveModulesYaml('0.50.0', opts.storeDir, 'custom_modules')
 
-  const originalIsTTY = process.stdin.isTTY
-  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
-  let err: unknown
-  try {
-    await install({}, {
-      ...opts,
-      confirmModulesPurge: true,
-      modulesDir: 'custom_modules',
-    })
-  } catch (_err: unknown) {
-    err = _err
-  } finally {
-    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
-  }
-
-  expect(util.types.isNativeError(err)).toBeTruthy()
-  if (util.types.isNativeError(err)) {
-    expect('code' in err && err.code).toBe('ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE')
-  }
+  await expect(withoutTTY(() => install({}, {
+    ...opts,
+    confirmModulesPurge: true,
+    modulesDir: 'custom_modules',
+  }))).rejects.toMatchObject({
+    code: 'ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE',
+    message: expect.stringContaining(path.resolve('custom_modules')),
+  })
 })
 
 test('fail on non-compatible symlinked node_modules in non-TTY environment', async () => {
@@ -318,25 +293,46 @@ test('fail on non-compatible symlinked node_modules in non-TTY environment', asy
   fs.symlinkSync('real_modules', 'node_modules', process.platform === 'win32' ? 'junction' : 'dir')
   await saveModulesYaml('0.50.0', opts.storeDir, 'real_modules')
 
+  await expect(withoutTTY(() => install({}, { ...opts, confirmModulesPurge: true }))).rejects.toMatchObject({
+    code: 'ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE',
+  })
+})
+
+test('a filtered install with other dependency groups keeps the modules directories of skipped projects', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root' } },
+    { location: 'project-1', package: { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } } },
+    { location: 'project-2', package: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } } },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: { name: 'root' }, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } }, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } }, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  await mutateModules(mutations, testDefaults({ allProjects }))
+  const skippedProjectDep = path.resolve('project-2/node_modules/is-negative')
+  expect(fs.existsSync(skippedProjectDep)).toBe(true)
+
+  await withoutTTY(() => mutateModules([mutations[1]], testDefaults({
+    allProjects,
+    confirmModulesPurge: true,
+    include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+  })))
+
+  expect(fs.existsSync(path.resolve('project-1/node_modules/is-positive'))).toBe(true)
+  expect(fs.existsSync(skippedProjectDep)).toBe(true)
+})
+
+async function withoutTTY<Result> (fn: () => Promise<Result>): Promise<Result> {
   const originalIsTTY = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
-  let err: unknown
   try {
-    await install({}, {
-      ...opts,
-      confirmModulesPurge: true,
-    })
-  } catch (_err: unknown) {
-    err = _err
+    return await fn()
   } finally {
     Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
   }
-
-  expect(util.types.isNativeError(err)).toBeTruthy()
-  if (util.types.isNativeError(err)) {
-    expect('code' in err && err.code).toBe('ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE')
-  }
-})
+}
 
 async function saveModulesYaml (pnpmVersion: string, storeDir: string, dir: string = 'node_modules') {
   if (!fs.existsSync(dir)) {

@@ -28,6 +28,7 @@ interface ImporterToPurge {
 
 interface SafeImporterToPurge extends ImporterToPurge {
   purgeDir: string
+  projectRealDir: string
 }
 
 interface ValidateModulesOptions {
@@ -38,7 +39,7 @@ interface ValidateModulesOptions {
   lockfileDir: string
   modulesDir: string
   nodeLinker: 'hoisted' | 'isolated' | 'pnp'
-  mutatesEveryProject: boolean
+  mutatedProjectDirs: ReadonlySet<string>
   registriesByScope: RegistriesByScope
   storeDir: string
   virtualStoreDir: string
@@ -67,7 +68,7 @@ export async function validateModules (
   // A project the install skips is not relinked. Its dependencies live in
   // the root modules directory or link into the virtual store, so only an
   // install of every project may recreate them.
-  const canRecreateModulesDirs = opts.forceNewModules && opts.mutatesEveryProject
+  const canRecreateModulesDirs = opts.forceNewModules && projects.every(({ rootDir }) => opts.mutatedProjectDirs.has(rootDir))
   const layoutMismatch = findLayoutSettingMismatch(modules, opts)
   if (layoutMismatch != null) {
     if (canRecreateModulesDirs && rootProject != null) {
@@ -131,6 +132,8 @@ function findLayoutSettingMismatch (modules: Modules, opts: ValidateModulesOptio
  * Throws the incompatibility instead unless the install may recreate them:
  * `canRecreateModulesDirs` for a hoist pattern, layout, or store mismatch,
  * `forceNewModules` for a project installed with other dependency groups.
+ * A project the install skips keeps its modules directory when only its
+ * dependency groups differ, because nothing would reinstall it.
  */
 function collectImportersToPurge (
   modules: Modules,
@@ -151,9 +154,10 @@ function collectImportersToPurge (
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     }
+    const isSkipped = opts.forceNewModules && !opts.mutatedProjectDirs.has(project.rootDir)
     if (
       needsPurge(() => checkCompatibility(modules, compatibilityOpts), canRecreateModulesDirs) ||
-      needsPurge(() => checkIncludedDeps(modules, project, opts), opts.forceNewModules)
+      (!isSkipped && needsPurge(() => checkIncludedDeps(modules, project, opts), opts.forceNewModules))
     ) {
       importersToPurge.push(project)
     }
@@ -227,7 +231,7 @@ async function purgeModulesDirsOfImporters (
 
 async function confirmPurge (safeImporters: SafeImporterToPurge[]): Promise<void> {
   if (!process.stdin.isTTY) {
-    await confirmNonInteractivePurge(safeImporters)
+    confirmNonInteractivePurge(safeImporters)
     return
   }
   let confirmed: boolean
@@ -254,10 +258,12 @@ async function confirmPurge (safeImporters: SafeImporterToPurge[]): Promise<void
  * only for targets a user would not be surprised to see recreated: a real
  * `node_modules` directory directly inside the project.
  */
-async function confirmNonInteractivePurge (safeImporters: SafeImporterToPurge[]): Promise<void> {
-  const areAllSafeTargets = (await Promise.all(safeImporters.map(isSafeAutoPurgeTarget))).every(Boolean)
-  if (!areAllSafeTargets) {
-    throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_UNSAFE', 'Aborted removal of non-standard or symlinked modules directory in non-interactive environment', {
+function confirmNonInteractivePurge (safeImporters: SafeImporterToPurge[]): void {
+  const unsafeModulesDirs = safeImporters
+    .filter((importer) => !isSafeAutoPurgeTarget(importer))
+    .map(({ modulesDir }) => modulesDir)
+  if (unsafeModulesDirs.length > 0) {
+    throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_UNSAFE', `Aborted removal of a custom or symlinked modules directory without a TTY: ${unsafeModulesDirs.map((dir) => `"${dir}"`).join(', ')}`, {
       hint: 'Use a direct, non-symlinked "node_modules" directory, or set "confirmModulesPurge" to "false".',
     })
   }
@@ -301,21 +307,17 @@ async function resolveSafePurgeTarget (
       `Refusing to remove the modules directory at "${importer.modulesDir}" because its resolved target is not a strict subdirectory of the project root at "${importer.rootDir}".`
     )
   }
-  return { ...importer, purgeDir }
+  return { ...importer, purgeDir, projectRealDir: projectRootDir }
 }
 
-async function isSafeAutoPurgeTarget (importer: SafeImporterToPurge): Promise<boolean> {
-  const isDirectNodeModules = path.resolve(importer.rootDir, 'node_modules') === path.resolve(importer.modulesDir) ||
-    (importer.rootDirRealPath != null && path.resolve(importer.rootDirRealPath, 'node_modules') === path.resolve(importer.modulesDir))
-  if (!isDirectNodeModules) {
-    return false
-  }
-  try {
-    return !(await fs.lstat(importer.modulesDir)).isSymbolicLink()
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return true
-    throw err
-  }
+/**
+ * Checks the resolved `purgeDir`, which is the directory the purge empties,
+ * so a symlinked `node_modules` is rejected wherever it points.
+ */
+function isSafeAutoPurgeTarget (importer: SafeImporterToPurge): boolean {
+  const isDirectNodeModules = dirsAreEqual(path.join(importer.rootDir, 'node_modules'), importer.modulesDir) ||
+    (importer.rootDirRealPath != null && dirsAreEqual(path.join(importer.rootDirRealPath, 'node_modules'), importer.modulesDir))
+  return isDirectNodeModules && dirsAreEqual(path.join(importer.projectRealDir, 'node_modules'), importer.purgeDir)
 }
 
 async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promise<void> {
