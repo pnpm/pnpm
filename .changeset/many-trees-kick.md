@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Disable git checks for `pnpm publish` with arguments. It doesn't make sense to check the cleanliness of the current directory when the publishing is targeting another package elsewhere.
+Skip Git checks when publishing explicit directory or tarball arguments. Publishing the current project without arguments or recursively publishing a workspace still runs Git checks.

@@ -838,6 +838,61 @@ test('publish: with specified publish branch name', async () => {
   }, [])
 })
 
+test.each([
+  { recursive: false, params: [] },
+  { recursive: true, params: [] },
+  { recursive: true, params: ['ignored-directory'] },
+  { recursive: true, params: ['ignored-directory', 'another-ignored-directory'] },
+])('publish: checks the working tree with $recursive recursive and $params arguments', async ({ recursive, params }) => {
+  prepare({ name: 'test-publish-git-checks', version: '1.0.0' })
+  await execa('git', ['init', '--initial-branch=main'])
+
+  await expect(publish.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    dryRun: true,
+    recursive,
+    selectedProjectsGraph: {},
+  }, params)).rejects.toMatchObject({ code: 'ERR_PNPM_GIT_UNCLEAN' })
+})
+
+test.each([
+  { tarball: false, count: 1 },
+  { tarball: false, count: 2 },
+  { tarball: true, count: 1 },
+  { tarball: true, count: 2 },
+])('publish: skips Git checks for $count explicit targets (tarball: $tarball)', async ({ tarball, count }) => {
+  const packages = Array.from({ length: count }, (_, index) => ({
+    name: `test-publish-explicit-target-${index}`,
+    version: '1.0.0',
+  }))
+  preparePackages(packages)
+  await execa('git', ['init', '--initial-branch=unrelated-branch'])
+
+  const params: string[] = []
+  for (const pkg of packages) {
+    if (tarball) {
+      // eslint-disable-next-line no-await-in-loop
+      await pack.handler({
+        ...DEFAULT_OPTS,
+        dir: path.resolve(pkg.name),
+        extraBinPaths: [],
+      })
+      params.push(`${pkg.name}/${pkg.name}-${pkg.version}.tgz`)
+    } else {
+      params.push(pkg.name)
+    }
+  }
+
+  const result = await publish.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    dryRun: true,
+    gitChecks: true,
+  }, params)
+  expect(result?.exitCode ?? 0).toBe(0)
+})
+
 test('publish: errors when publishing a non-existing tgz', async () => {
   prepare({
     name: 'test-publish-package.json',

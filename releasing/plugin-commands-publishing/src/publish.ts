@@ -144,19 +144,8 @@ export async function publish (
   } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
   params: string[]
 ): Promise<PublishResult> {
-  if (params.length > 1) {
-    // publish should run sequentially so that there's no mixing of side-effects
-    for (const param of params) {
-      // eslint-disable-next-line no-await-in-loop
-      const result = await publish(opts, [param])
-      if (result.exitCode) return result
-    }
-
-    return { exitCode: 0 }
-  }
-
   if (
-    params.length === 0 && // the current implementation of gitChecks only makes sense for the current directory
+    (params.length === 0 || (opts.recursive && opts.selectedProjectsGraph != null)) &&
     opts.gitChecks !== false &&
     await isGitRepo()
   ) {
@@ -203,6 +192,17 @@ Do you want to continue?`,
       workspaceDir: opts.workspaceDir ?? process.cwd(),
     })
     return { exitCode }
+  }
+
+  if (params.length > 1) {
+    // publish should run sequentially so that there's no mixing of side-effects
+    for (const param of params) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await publish(opts, [param])
+      if (result.exitCode) return result
+    }
+
+    return { exitCode: 0 }
   }
 
   opts = optionsWithOtpEnv(opts, process.env)
