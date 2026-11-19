@@ -188,6 +188,7 @@ mod repeat_install_read_set;
 mod repeat_install_records;
 mod repo;
 mod reporter_setting;
+mod resolutions;
 mod restart;
 mod root;
 mod run;

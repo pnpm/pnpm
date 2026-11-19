@@ -1,3 +1,5 @@
+pub mod resolutions;
+
 pub(crate) use project_installability::{ProjectHost, host_requirements};
 
 use derive_more::{Display, Error};
@@ -96,6 +98,20 @@ pub enum InitStateError {
 
     #[display("loading the project runtime lockfile: {_0}")]
     Lockfile(#[error(not(source))] String),
+
+    #[display("The value of resolutions.{selector} should be a string, but got {actual_type}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_RESOLUTIONS))]
+    InvalidResolutionValue { selector: String, actual_type: String },
+
+    #[display("The resolutions field should be an object, but got {actual_type}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_RESOLUTIONS))]
+    InvalidResolutionsType { actual_type: String },
+
+    #[display(
+        r#"Cannot resolve version {spec} in overrides. The direct dependencies don't have dependency "{dep_name}"."#
+    )]
+    #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
+    CannotResolveOverrideVersion { spec: String, dep_name: String },
 }
 
 impl State {

@@ -182,16 +182,28 @@ impl CliArgs {
                 preloaded_config,
             )
         };
-        let Some((dir, config)) = prepared else {
+        let Some((dir, mut config)) = prepared else {
             return false;
         };
         let emit =
             reporter_emit(self.effective_reporter_with_config(config.loglevel, config.reporter));
+        // The full install promotes the resolutions itself, so a config handed
+        // over to it must not carry the promoted overrides already.
+        let configured_overrides = config.overrides.clone();
+        let Some(resolutions_warnings) =
+            crate::state::resolutions::apply_fast_path_resolutions(&dir, &mut config)
+        else {
+            config.overrides = configured_overrides;
+            *preloaded_config = Some(Ok(config));
+            return false;
+        };
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
+            crate::state::resolutions::emit_resolutions_warnings(emit, &dir, resolutions_warnings);
             warn_fast_path_config(config_overrides, &config);
             emit_execution_time(emit, started_at);
         } else {
+            config.overrides = configured_overrides;
             *preloaded_config = Some(Ok(config));
         }
         finished

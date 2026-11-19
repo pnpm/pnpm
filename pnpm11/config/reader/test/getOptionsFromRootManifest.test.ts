@@ -5,6 +5,7 @@ import { afterEach, expect, test } from '@jest/globals'
 import type { PackageExtension, PnpmSettings } from '@pnpm/types'
 
 import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
+import { applyRootResolutions } from '../lib/rootResolutions.js'
 
 const ORIGINAL_ENV = process.env
 
@@ -1059,4 +1060,62 @@ test('getOptionsFromPnpmSettings() refuses registry aliases, which only a pnpr r
       'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] },
     },
   })).toThrow(/aliases" setting is not a known registry setting/)
+})
+
+test('applyRootResolutions() promotes resolutions when no overrides are configured', () => {
+  const warnings: string[] = []
+  expect(applyRootResolutions({ resolutions: { foo: '1.0.0' } }, undefined, warnings)).toStrictEqual({ foo: '1.0.0' })
+  expect(applyRootResolutions({ resolutions: { foo: '1.0.0' } }, {}, warnings)).toStrictEqual({ foo: '1.0.0' })
+  expect(warnings).toHaveLength(2)
+  expect(warnings[0]).toContain('The "resolutions" field in package.json is deprecated')
+})
+
+test('applyRootResolutions() keeps the configured overrides over resolutions', () => {
+  const warnings: string[] = []
+  const overrides = { bar: '2.5.0' }
+  expect(applyRootResolutions({ resolutions: { bar: '2.0.0' } }, overrides, warnings)).toBe(overrides)
+  expect(warnings).toStrictEqual([
+    'The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json.',
+  ])
+})
+
+test.each([undefined, {}])('applyRootResolutions() does nothing for resolutions %p', (resolutions) => {
+  const warnings: string[] = []
+  expect(applyRootResolutions({ resolutions }, undefined, warnings)).toBeUndefined()
+  expect(warnings).toStrictEqual([])
+})
+
+test.each([
+  [[1, 2, 3], 'The resolutions field should be an object, but got array'],
+  ['bad', 'The resolutions field should be an object, but got string'],
+  [{ foo: null }, 'The value of resolutions.foo should be a string, but got null'],
+])('applyRootResolutions() rejects invalid resolutions %p', (resolutions, message) => {
+  expect(() => applyRootResolutions({ resolutions } as never, undefined, [])).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_RESOLUTIONS',
+    message,
+  }))
+})
+
+test('applyRootResolutions() resolves $ references and keeps ${VAR} placeholders literal', () => {
+  const warnings: string[] = []
+  expect(applyRootResolutions({
+    dependencies: { foo: '1.2.3' },
+    resolutions: { bar: '$foo', qar: '${VERSION}' },
+  }, undefined, warnings)).toStrictEqual({ bar: '1.2.3', qar: '${VERSION}' })
+  expect(warnings[0]).toContain('  bar: $foo -> 1.2.3\n  qar: ${VERSION}\n')
+})
+
+test('applyRootResolutions() throws on an unresolvable $ reference', () => {
+  expect(() => applyRootResolutions({ resolutions: { bar: '$nonexistent' } }, undefined, [])).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION',
+    message: 'Cannot resolve version $nonexistent in overrides. The direct dependencies don\'t have dependency "nonexistent".',
+  }))
+})
+
+test('applyRootResolutions() lists at most 10 resolutions in the warning', () => {
+  const warnings: string[] = []
+  const resolutions = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`pkg-${i}`, '1.0.0']))
+  applyRootResolutions({ resolutions }, undefined, warnings)
+  expect(warnings[0]).toContain('  pkg-9: 1.0.0\n  ...and 2 more\n')
+  expect(warnings[0]).not.toContain('pkg-10')
 })

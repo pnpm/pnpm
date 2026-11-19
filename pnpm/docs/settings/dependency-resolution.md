@@ -13,6 +13,8 @@ removing an unused dependency.
 
 The overrides field can only be set at the root of the project.
 
+The `resolutions` field of the root `package.json` is deprecated. If `overrides` is not set, pnpm uses `resolutions` as the overrides and prints a warning. If `overrides` is set, pnpm ignores `resolutions`.
+
 An example of the `overrides` field:
 
 ```yaml title="pnpm-workspace.yaml"

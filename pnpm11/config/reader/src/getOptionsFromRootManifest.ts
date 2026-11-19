@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type {
   AllowedDeprecatedVersions,
@@ -433,13 +433,14 @@ function isGetOptionsFromPnpmSettingsOptions (
   return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value || 'warnings' in value)
 }
 
-function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
+export function assertValidOverrides (overrides: unknown, fieldName: 'overrides' | 'resolutions' = 'overrides'): asserts overrides is Record<string, string> {
+  const errorCode = fieldName === 'resolutions' ? 'INVALID_RESOLUTIONS' : 'INVALID_OVERRIDES'
   if (overrides == null || typeof overrides !== 'object' || Array.isArray(overrides)) {
-    throw new PnpmError('INVALID_OVERRIDES', `The overrides field should be an object, but got ${renderReceivedType(overrides)}`)
+    throw new PnpmError(errorCode, `The ${fieldName} field should be an object, but got ${renderReceivedType(overrides)}`)
   }
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
-      throw new PnpmError('INVALID_OVERRIDES', `The value of overrides.${selector} should be a string, but got ${renderReceivedType(spec)}`)
+      throw new PnpmError(errorCode, `The value of ${fieldName}.${redactAndSanitize(selector)} should be a string, but got ${renderReceivedType(spec)}`)
     }
   }
 }
@@ -511,7 +512,7 @@ function warnAboutDeprecatedVersionReferences (overrides: Record<string, string>
   )
 }
 
-function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {
+export function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {
   const allDeps = {
     ...manifest.devDependencies,
     ...manifest.dependencies,
@@ -527,6 +528,6 @@ function replaceVersionReferences (dep: Record<string, string>, spec: string): s
   if (newSpec) return newSpec
   throw new PnpmError(
     'CANNOT_RESOLVE_OVERRIDE_VERSION',
-    `Cannot resolve version ${spec} in overrides. The direct dependencies don't have dependency "${dependencyName}".`
+    `Cannot resolve version ${redactAndSanitize(spec)} in overrides. The direct dependencies don't have dependency "${redactAndSanitize(dependencyName)}".`
   )
 }

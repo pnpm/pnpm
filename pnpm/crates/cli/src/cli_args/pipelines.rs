@@ -112,6 +112,7 @@ async fn prepare_root_config<Reporter>(
 where
     Reporter: self::Reporter,
 {
+    crate::state::resolutions::prepare_root_resolutions::<Reporter>(config, config_root)?;
     if matches!(runtime_policy, RuntimePolicy::Config(true)) {
         configuration::record_no_runtime_flag(config);
     }

@@ -4,6 +4,7 @@ import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-re
 import { readWorkspaceManifest, readWorkspaceManifestKeys, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 import { quoteAndJoin } from '../quoteAndJoin.js'
+import { applyRootResolutions } from '../rootResolutions.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from '../unknownSettings.js'
 import type { ConfigBuildState } from './configBuildState.js'
 import { getIgnoredPnpmFieldKeys } from './ignoredPnpmFieldKeys.js'
@@ -43,13 +44,26 @@ export async function applyLocalSettings (
 
   await readEnginePinManifest(state)
 
-  if (pnpmConfig.workspaceDir != null) {
-    return applyProjectWorkspaceManifestUnlessUnreadable(state, { forSelfUpdate, skipUnreadableSettings, workspaceDir: pnpmConfig.workspaceDir })
-  }
+  // A global command does not install the current directory's project, so
+  // that project's "resolutions" do not apply to it.
   if (cliOptions['global']) {
     return applyGlobalPackageDirWorkspaceManifest(state)
   }
-  return undefined
+  const workspaceManifestRegistries = pnpmConfig.workspaceDir != null
+    ? await applyProjectWorkspaceManifestUnlessUnreadable(state, { forSelfUpdate, skipUnreadableSettings, workspaceDir: pnpmConfig.workspaceDir })
+    : undefined
+  if (!forSelfUpdate && !skipUnreadableSettings) {
+    applyRootProjectResolutions(state)
+  }
+  return workspaceManifestRegistries
+}
+
+function applyRootProjectResolutions ({ explicitlySetKeys, pnpmConfig, warnings }: ConfigBuildState): void {
+  if (pnpmConfig.rootProjectManifest == null) return
+  const overrides = applyRootResolutions(pnpmConfig.rootProjectManifest, pnpmConfig.overrides, warnings)
+  if (overrides === pnpmConfig.overrides) return
+  pnpmConfig.overrides = overrides
+  explicitlySetKeys.add('overrides')
 }
 
 function warnAboutRootProjectManifestFields ({ pnpmConfig, warnings }: ConfigBuildState, rootProjectManifest: ProjectManifest): void {
