@@ -219,31 +219,43 @@ where
         tag_spec
     };
     let picked = pick_max(current, pick_one(&tag_spec("latest"))?);
-    let channel_tag = picker_opts.current_version.and_then(|current_version| {
-        find_prerelease_channel_tag(meta, current_version)
-    });
-    match channel_tag {
-        Some(tag) if tag != "latest" => Ok(pick_max(picked, pick_channel_tag(&tag_spec(tag))?)),
-        _ => Ok(picked),
+    let channel_tags = picker_opts.current_version
+        .map(|current_version| find_prerelease_channel_tags(meta, current_version))
+        .unwrap_or_default();
+    for tag in channel_tags {
+        // `latest` is already a candidate, and the tags after it point lower.
+        if tag == "latest" {
+            break;
+        }
+        if let Some(channel_pick) = pick_channel_tag(&tag_spec(tag))? {
+            return Ok(pick_max(picked, Some(channel_pick)));
+        }
     }
+    Ok(picked)
 }
 
-/// The dist-tag pointing at the highest published version on the same
-/// prerelease channel as `current_version`. `None` when `current_version` is
-/// not a prerelease or no dist-tag follows its channel.
-fn find_prerelease_channel_tag<'meta>(
+/// The dist-tags that point to published versions on the same prerelease
+/// channel as `current_version`, highest version first. Empty when
+/// `current_version` is not a prerelease.
+fn find_prerelease_channel_tags<'meta>(
     meta: &'meta Package,
     current_version: &Version,
-) -> Option<&'meta str> {
-    let channel = prerelease_channel(current_version)?;
-    meta.dist_tags()
+) -> Vec<&'meta str> {
+    let Some(channel) = prerelease_channel(current_version) else {
+        return Vec::new();
+    };
+    let mut tags = meta
+        .dist_tags()
         .filter(|(_, version)| meta.versions.contains_key(version))
         .filter_map(|(tag, version)| {
             let version = Version::parse(version).ok()?;
             (prerelease_channel(&version) == Some(channel)).then_some((tag, version))
         })
-        .max_by(|(_, version1), (_, version2)| version1.cmp(version2))
+        .collect::<Vec<_>>();
+    tags.sort_by(|(_, version1), (_, version2)| version2.cmp(version1));
+    tags.into_iter()
         .map(|(tag, _)| tag)
+        .collect()
 }
 
 /// The leading run of letters in the first prerelease identifier. Build

@@ -52,29 +52,27 @@ function runPicker ({ pickerOpts, meta, spec, pickOne, pickChannelTag = pickOne 
   const currentPkg = pickOne(spec)
   if (!pickerOpts.includeLatestTag) return currentPkg
   const picked = pickMax(pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' }), currentPkg)
-  const channelTag = findPrereleaseChannelTag(meta, pickerOpts.currentVersion)
-  if (channelTag == null || channelTag === 'latest') return picked
-  return pickMax(pickChannelTag({ ...spec, type: 'tag', fetchSpec: channelTag }), picked)
+  for (const channelTag of findPrereleaseChannelTags(meta, pickerOpts.currentVersion)) {
+    // `latest` is already a candidate, and the tags after it point lower.
+    if (channelTag === 'latest') break
+    const channelPkg = pickChannelTag({ ...spec, type: 'tag', fetchSpec: channelTag })
+    if (channelPkg) return pickMax(channelPkg, picked)
+  }
+  return picked
 }
 
 /**
- * Returns the dist-tag pointing at the highest published version on the same
- * prerelease channel as `currentVersion`, or `undefined` when
- * `currentVersion` is not a prerelease or no dist-tag follows its channel.
+ * Returns the dist-tags that point to published versions on the same
+ * prerelease channel as `currentVersion`, highest version first. Empty when
+ * `currentVersion` is not a prerelease.
  */
-function findPrereleaseChannelTag (meta: PackageMeta, currentVersion: string | undefined): string | undefined {
+function findPrereleaseChannelTags (meta: PackageMeta, currentVersion: string | undefined): string[] {
   const channel = currentVersion == null ? undefined : getPrereleaseChannel(currentVersion)
-  if (channel == null) return undefined
-  let bestTag: string | undefined
-  let bestVersion: string | undefined
-  for (const [tag, version] of Object.entries(meta['dist-tags'] ?? {})) {
-    if (meta.versions[version] == null || getPrereleaseChannel(version) !== channel) continue
-    if (bestVersion == null || semver.gt(version, bestVersion, true)) {
-      bestTag = tag
-      bestVersion = version
-    }
-  }
-  return bestTag
+  if (channel == null) return []
+  return Object.entries(meta['dist-tags'] ?? {})
+    .filter(([, version]) => meta.versions[version] != null && getPrereleaseChannel(version) === channel)
+    .sort(([, version1], [, version2]) => semver.rcompare(version1, version2, true))
+    .map(([tag]) => tag)
 }
 
 /**

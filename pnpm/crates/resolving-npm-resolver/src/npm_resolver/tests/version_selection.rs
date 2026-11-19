@@ -366,64 +366,81 @@ async fn resolve_latest_follows_the_prerelease_channel_of_the_current_version() 
 }
 
 #[tokio::test]
-async fn resolve_latest_ignores_an_immature_prerelease_channel_tag() {
-    let manifest = |version: &str| {
-        serde_json::json!({
+async fn resolve_latest_ignores_immature_prerelease_channel_tags() {
+    let cases = [
+        PrereleaseChannelCase {
+            dist_tags: &[("latest", "2.0.0"), ("next", "4.0.0-rc.0")],
+            current: "2.0.0-rc.0",
+            expected: "2.0.0",
+        },
+        PrereleaseChannelCase {
+            dist_tags: &[("latest", "2.0.0"), ("rc", "3.0.0-rc.1"), ("preview", "4.0.0-rc.0")],
+            current: "3.0.0-rc.0",
+            expected: "3.0.0-rc.1",
+        },
+    ];
+    let time = [
+        ("2.0.0-rc.0", "2026-01-01T00:00:00.000Z"),
+        ("2.0.0", "2026-01-02T00:00:00.000Z"),
+        ("3.0.0-rc.0", "2026-01-03T00:00:00.000Z"),
+        ("3.0.0-rc.1", "2026-01-04T00:00:00.000Z"),
+        ("4.0.0-rc.0", "2026-03-01T00:00:00.000Z"),
+    ];
+    for PrereleaseChannelCase { dist_tags, current, expected } in cases {
+        let versions = time
+            .iter()
+            .map(|(version, _)| {
+                let manifest = serde_json::json!({
+                    "name": "acme",
+                    "version": version,
+                    "dist": {
+                        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                        "tarball": format!("https://registry/acme-{version}.tgz"),
+                    },
+                });
+                ((*version).to_string(), manifest)
+            })
+            .collect::<serde_json::Map<_, _>>();
+        let body = serde_json::json!({
             "name": "acme",
-            "version": version,
-            "dist": {
-                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-                "tarball": format!("https://registry/acme-{version}.tgz"),
-            },
+            "dist-tags": dist_tags.iter().copied().collect::<std::collections::HashMap<_, _>>(),
+            "modified": "2026-03-01T00:00:00.000Z",
+            "time": time.iter().copied().collect::<std::collections::HashMap<_, _>>(),
+            "versions": versions,
         })
-    };
-    let body = serde_json::json!({
-        "name": "acme",
-        "dist-tags": { "latest": "2.0.0", "next": "3.0.0-beta.0" },
-        "modified": "2026-03-01T00:00:00.000Z",
-        "time": {
-            "2.0.0-beta.0": "2026-01-01T00:00:00.000Z",
-            "2.0.0": "2026-01-02T00:00:00.000Z",
-            "3.0.0-beta.0": "2026-03-01T00:00:00.000Z",
-        },
-        "versions": {
-            "2.0.0-beta.0": manifest("2.0.0-beta.0"),
-            "2.0.0": manifest("2.0.0"),
-            "3.0.0-beta.0": manifest("3.0.0-beta.0"),
-        },
-    })
-    .to_string();
-    let mut server = mockito::Server::new_async().await;
-    let _mock = server
-        .mock("GET", "/acme")
-        .with_status(200)
-        .with_body(body)
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let (resolver, _tempdir) = build_resolver(&registry);
+        .to_string();
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(body)
+            .create_async()
+            .await;
+        let registry = format!("{}/", server.url());
+        let (resolver, _tempdir) = build_resolver(&registry);
 
-    let query = LatestQuery {
-        wanted_dependency: WantedDependency {
-            alias: Some("acme".to_string()),
-            bare_specifier: Some("2.0.0-beta.0".to_string()),
-            ..WantedDependency::default()
-        },
-        compatible: false,
-        current_version: Some("2.0.0-beta.0".parse().expect("valid version")),
-    };
-    let opts = ResolveOptions {
-        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-            published_by: Some("2026-02-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap()),
-            ..Default::default()
-        },
-        ..ResolveOptions::default()
-    };
-    let info = resolver
-        .resolve_latest(&query, &opts)
-        .await
-        .unwrap()
-        .expect("latest info");
-    let manifest = info.latest_manifest.expect("manifest present");
-    assert_eq!(manifest["version"].as_str(), Some("2.0.0"));
+        let query = LatestQuery {
+            wanted_dependency: WantedDependency {
+                alias: Some("acme".to_string()),
+                bare_specifier: Some(current.to_string()),
+                ..WantedDependency::default()
+            },
+            compatible: false,
+            current_version: Some(current.parse().expect("valid version")),
+        };
+        let opts = ResolveOptions {
+            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                published_by: Some("2026-02-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap()),
+                ..Default::default()
+            },
+            ..ResolveOptions::default()
+        };
+        let info = resolver
+            .resolve_latest(&query, &opts)
+            .await
+            .unwrap()
+            .expect("latest info");
+        let manifest = info.latest_manifest.expect("manifest present");
+        assert_eq!(manifest["version"].as_str(), Some(expected), "current {current}");
+    }
 }
