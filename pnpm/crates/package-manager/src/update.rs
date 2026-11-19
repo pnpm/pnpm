@@ -392,6 +392,8 @@ pub struct UpdateExplicitGroups {
 
 /// The update's owned inputs, consumed by the install it runs.
 pub struct UpdateResources {
+    /// Override how the install handles release-age exclusions for this update.
+    pub policy_excludes: Option<crate::PolicyExcludes>,
     pub tarball_mem_cache: Arc<MemCache>,
     pub http_client_arc: Arc<ThrottledClient>,
     /// Dependency groups the update considers when choosing which direct

@@ -133,7 +133,7 @@ struct FixContext<'a> {
     publish_infos: &'a HashMap<String, Option<PackumentPublishInfo>>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(crate) enum ReleaseAgeExclusions {
     AddForPatches,
     SkipAdditions,

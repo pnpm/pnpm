@@ -1115,12 +1115,16 @@ fn audit_fix_update_respects_frozen_minimum_release_age_exclusions() {
     assert!(lockfile.contains("bravo-dep@1.0.0"), "{lockfile}");
     assert!(!lockfile.contains("bravo-dep@1.0.1"), "{lockfile}");
 
-    let output = pacquet_cmd(&workspace, ["audit", "--fix", "update"])
-        .output()
-        .expect("run audit with automatic exclusions");
+    let non_strict_manifest = format!("{manifest}\nminimumReleaseAgeStrict: false\n");
+    fs::write(&manifest_path, &non_strict_manifest).expect("disable strict release age");
+    let output = pacquet_cmd(
+        &workspace,
+        ["audit", "--fix", "update", "--frozen-minimum-release-age-exclude"],
+    )
+    .output()
+    .expect("run audit with frozen exclusions in non-strict mode");
     assert_success(&output);
-    let manifest = fs::read_to_string(&manifest_path).unwrap();
-    assert!(manifest.contains("bravo-dep@1.0.1"), "{manifest}");
+    assert_eq!(fs::read_to_string(&manifest_path).unwrap(), non_strict_manifest);
     let lockfile = fs::read_to_string(&lockfile_path).unwrap();
     assert!(lockfile.contains("bravo-dep@1.0.1"), "{lockfile}");
     mock.assert();

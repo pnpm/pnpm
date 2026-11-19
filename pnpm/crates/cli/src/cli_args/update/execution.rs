@@ -338,6 +338,7 @@ impl UpdateArgs {
                     state.config.supported_architectures.clone(),
                 ),
                 resolution_observer: None,
+                policy_excludes: None,
             },
         })
     }

@@ -113,25 +113,39 @@ pub(super) async fn fix_override(
         "{} overrides were added to pnpm-workspace.yaml to fix vulnerabilities.\nRun \"pnpm install\" to apply the fixes.\n\nThe added overrides:\n{json}",
         overrides.len(),
     );
-    if release_age_exclusions == ReleaseAgeExclusions::AddForPatches
-        && let Some(minimum_release_age) = config.resolved_minimum_release_age()
-    {
+    let minimum_release_age = match release_age_exclusions {
+        ReleaseAgeExclusions::AddForPatches => config.resolved_minimum_release_age(),
+        ReleaseAgeExclusions::SkipAdditions => None,
+    };
+    if let Some(minimum_release_age) = minimum_release_age {
         let added = resolve_minimum_release_age_excludes(
             &pruned_advisories,
             context.publish_infos,
             minimum_release_age,
         )?;
-        if !added.is_empty() {
-            write_age_excludes(context.settings_dir, &added)?;
-            let note = format!(
-                "\n\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}",
-                added.len(),
-                added.join("\n"),
-            );
-            output.push_str(&note);
-        }
+        append_override_age_excludes(&mut output, context.settings_dir, &added)?;
     }
     Ok(output)
+}
+
+fn append_override_age_excludes(
+    output: &mut String,
+    settings_dir: &std::path::Path,
+    added: &[String],
+) -> miette::Result<()> {
+    if !added.is_empty() {
+        use std::fmt::Write as _;
+
+        write_age_excludes(settings_dir, added)?;
+        write!(
+            output,
+            "\n\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}",
+            added.len(),
+            added.join("\n"),
+        )
+        .expect("writing to a string cannot fail");
+    }
+    Ok(())
 }
 
 /// The packument publish info of one package: the `time` map plus the set of
