@@ -257,33 +257,53 @@ fn installed_global_runtime_bin(config: &Config, name: &str, version: &str) -> O
         .into_iter()
         .filter(|group| group.has_alias(name))
     {
-        if !group.dependencies
-            .iter()
-            .any(|(alias, spec)| alias == name && spec.starts_with("runtime:"))
-        {
-            continue;
-        }
-        let Some(installed) = pnpm_global::get_global_package_details(&group)
-            .into_iter()
-            .find(|package| package.alias == name && package.version == version)
-        else {
-            continue;
-        };
-        let package_dir = group.install_dir.join("node_modules").join(&installed.alias);
-        let package_dir = dunce::canonicalize(package_dir).ok()?;
-        let is_trusted = [Some(global_dir), Some(config.global_virtual_store_dir.as_path())]
-            .into_iter()
-            .flatten()
-            .filter_map(|root| dunce::canonicalize(root).ok())
-            .any(|root| package_dir.starts_with(root));
-        if !is_trusted {
-            continue;
-        }
-        if let Some(bin) = runtime_bin_in_package(&package_dir, name) {
+        if let Some(bin) = global_group_runtime_bin(
+            &group,
+            name,
+            version,
+            global_dir,
+            &config.global_virtual_store_dir,
+        ) {
             return Some(bin);
         }
     }
     None
+}
+
+fn global_group_runtime_bin(
+    group: &pnpm_global::GlobalPackageInfo,
+    name: &str,
+    version: &str,
+    global_dir: &Path,
+    global_virtual_store_dir: &Path,
+) -> Option<PathBuf> {
+    let is_runtime = group.dependencies
+        .iter()
+        .any(|(alias, spec)| alias == name && spec.starts_with("runtime:"));
+    if !is_runtime {
+        return None;
+    }
+    let installed = pnpm_global::get_global_package_details(group)
+        .into_iter()
+        .find(|package| package.alias == name && package.version == version)?;
+    let package_dir = dunce::canonicalize(
+        group.install_dir.join("node_modules").join(&installed.alias),
+    ).ok()?;
+    if !is_within_global_runtime_roots(&package_dir, global_dir, global_virtual_store_dir) {
+        return None;
+    }
+    runtime_bin_in_package(&package_dir, name)
+}
+
+fn is_within_global_runtime_roots(
+    package_dir: &Path,
+    global_dir: &Path,
+    global_virtual_store_dir: &Path,
+) -> bool {
+    [global_dir, global_virtual_store_dir]
+        .into_iter()
+        .filter_map(|root| dunce::canonicalize(root).ok())
+        .any(|root| package_dir.starts_with(root))
 }
 
 fn runtime_bin_in_package(package_dir: &Path, name: &str) -> Option<PathBuf> {
