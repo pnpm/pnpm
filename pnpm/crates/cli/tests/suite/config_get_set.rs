@@ -578,7 +578,9 @@ fn global_tools_and_resolution_keys_round_trip_through_cli() {
 
 #[test]
 fn camel_case_dotted_state_dir_supports_values_and_empty_reset_on_cli() {
-    let CommandTempCwd { pacquet: _pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet: _pacquet, root, workspace, ..
+    } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("write pnpm-workspace.yaml");
 

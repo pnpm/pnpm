@@ -181,6 +181,25 @@ fn state_dir_accepts_an_explicit_empty_value_and_resets_from_config_override() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn state_dir_accepts_non_utf8_os_paths() {
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt as _};
+
+    let non_utf8 = OsString::from_vec(b"custom-\xff-state".to_vec());
+    let raw = [
+        OsString::from("pacquet"),
+        OsString::from("--state-dir"),
+        non_utf8.clone(),
+        OsString::from("config"),
+        OsString::from("get"),
+        OsString::from("state-dir"),
+    ];
+    let parsed = CliArgs::try_parse_from(raw).expect("parses non-UTF-8 state-dir");
+    let state_dir = parsed.paths.state_dir;
+    assert_eq!(state_dir.as_deref(), Some(Path::new(&non_utf8)));
+}
+
 #[test]
 fn repeated_state_dir_uses_the_last_value_on_either_side_of_the_subcommand() {
     for argv in [

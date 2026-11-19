@@ -227,7 +227,7 @@ pub struct CliPathArgs {
         value_hint = ValueHint::DirPath,
         global = true,
         overrides_with = "store_dir",
-        value_parser = parse_path_allowing_empty
+        value_parser = PathAllowingEmptyParser
     )]
     pub store_dir: Option<PathBuf>,
     /// Directory in which pnpm persists machine-local state.
@@ -237,7 +237,7 @@ pub struct CliPathArgs {
         value_hint = ValueHint::DirPath,
         global = true,
         overrides_with = "state_dir",
-        value_parser = parse_path_allowing_empty
+        value_parser = PathAllowingEmptyParser
     )]
     pub state_dir: Option<PathBuf>,
     /// Path to an `.npmrc` to read auth settings from, overriding the
@@ -432,8 +432,29 @@ pub struct LifecycleOutputArgs {
     pub no_hide_prefix: bool,
 }
 
-fn parse_path_allowing_empty(value: &str) -> Result<PathBuf, std::convert::Infallible> {
-    Ok(PathBuf::from(value))
+#[derive(Clone, Copy, Debug)]
+struct PathAllowingEmptyParser;
+
+impl clap::builder::TypedValueParser for PathAllowingEmptyParser {
+    type Value = PathBuf;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        Ok(PathBuf::from(value))
+    }
+
+    fn parse(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: std::ffi::OsString,
+    ) -> Result<Self::Value, clap::Error> {
+        Ok(PathBuf::from(value))
+    }
 }
 
 fn parse_color_mode(value: &str) -> Result<pnpm_config::ColorMode, &'static str> {
