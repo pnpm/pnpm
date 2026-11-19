@@ -136,6 +136,6 @@ pub struct UpdateDisplayArgs {
     #[clap(short = 'i', long)]
     pub interactive: bool,
     /// Show package homepage or repository URLs with --interactive.
-    #[clap(long)]
+    #[clap(long, conflicts_with = "global")]
     pub long: bool,
 }

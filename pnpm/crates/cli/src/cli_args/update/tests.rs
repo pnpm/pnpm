@@ -246,3 +246,10 @@ fn long_requests_details_only_when_enabled() {
         assert_eq!(options.details.shows_urls(), expected);
     }
 }
+
+#[test]
+fn long_rejects_global_package_group_selection() {
+    let error = UpdateArgsHarness::try_parse_from(["pnpm", "--global", "--interactive", "--long"])
+        .expect_err("global selection has no package URL column");
+    assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
+}

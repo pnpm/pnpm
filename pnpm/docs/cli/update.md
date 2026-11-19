@@ -245,7 +245,8 @@ pnpm update --interactive --long
 ```
 
 The URL column is hidden by default. This option fetches full package metadata
-and only affects `--interactive`.
+and only affects `--interactive`. It cannot be combined with `--global`, which
+selects package groups.
 
 ### --no-save
 
