@@ -257,7 +257,7 @@ fn engine_incompatible_skipped_packages_are_not_reported_as_reused() {
     .unwrap();
     let host = InstallabilityHost {
         node_version: "22.0.0".to_string(),
-        node_detected: true,
+        node_source: pnpm_deps_restorer::NodeVersionSource::Probed,
         os: "linux",
         cpu: "x64",
         libc: "glibc",

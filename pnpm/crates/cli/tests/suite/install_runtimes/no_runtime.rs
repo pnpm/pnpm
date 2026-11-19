@@ -430,6 +430,23 @@ fn explicit_node_version_takes_priority_over_the_locked_node_runtime() {
         .success();
 }
 
+#[test]
+fn explicit_node_version_is_checked_instead_of_the_locked_node_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\nnodeVersion: 20.0.0\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_range_runtime_project(&workspace, &fixture, "dependencies", ">=24.0.0");
+
+    let output = command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--no-runtime"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "{stderr}");
+}
+
 /// A project whose `devEngines.runtime` range is locked to `fixture` and
 /// that depends on a local `dependency` requiring `engines_node`.
 fn write_range_runtime_project(

@@ -7,19 +7,28 @@ use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 use std::{borrow::Cow, collections::HashMap};
 
+/// Where an [`InstallabilityHost`]'s `node_version` came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeVersionSource {
+    /// `node --version` reported it.
+    Probed,
+    /// A caller-supplied version, such as the `nodeVersion` setting. It
+    /// decides installability checks but does not key the store (see
+    /// [`execution_host_node`](crate::materialization_plan::execution_host_node)).
+    Override,
+    /// The `99999.0.0` stand-in used when `node --version` fails. It keys
+    /// neither the side-effects cache nor the global virtual store: later
+    /// installs would key on the real major and miss every entry.
+    Synthetic,
+}
+
 /// Host context for the installability check. Built once per install
 /// so the per-snapshot calls don't each re-spawn `node --version`
 /// or re-read `std::env::consts::OS`.
 #[derive(Clone)]
 pub struct InstallabilityHost {
     pub node_version: String,
-    /// `true` when `node_version` was discovered by spawning
-    /// `node --version`; `false` when the field carries the synthetic
-    /// fallback. The side-effects-cache key derives from this — a
-    /// fallback version must not seed the cache because subsequent
-    /// installs would key on the actual node major and miss every
-    /// row written under the fallback.
-    pub node_detected: bool,
+    pub node_source: NodeVersionSource,
     pub os: &'static str,
     pub cpu: &'static str,
     pub libc: &'static str,
@@ -36,18 +45,17 @@ impl InstallabilityHost {
     /// The alternative `0.0.0` would falsely-skip every optional
     /// dependency targeting any concrete node range, which is worse
     /// than the over-acceptance the very-high fallback produces.
-    /// `node_detected` records which path was taken so callers can
-    /// suppress side-effects-cache lookups when the version is
-    /// synthetic. [`Self::detect_with`] overrides both the version
+    /// `node_source` records which path was taken. [`Self::detect_with`] overrides both the version
     /// (the `nodeVersion` setting) and the engine-strict policy.
     #[must_use]
     pub fn detect() -> Self {
-        let detected = pnpm_graph_hasher::detect_node_version();
-        let node_detected = detected.is_some();
-        let node_version = detected.unwrap_or_else(|| "99999.0.0".to_string());
+        let (node_version, node_source) = match pnpm_graph_hasher::detect_node_version() {
+            Some(version) => (version, NodeVersionSource::Probed),
+            None => ("99999.0.0".to_string(), NodeVersionSource::Synthetic),
+        };
         Self {
             node_version,
-            node_detected,
+            node_source,
             os: pnpm_graph_hasher::host_platform(),
             cpu: pnpm_graph_hasher::host_arch(),
             libc: pnpm_graph_hasher::host_libc(),
@@ -60,10 +68,9 @@ impl InstallabilityHost {
     /// optional Node.js version override (the `engineStrict` / `nodeVersion`
     /// config settings).
     ///
-    /// An explicit `node_version` is authoritative: no `node --version` probe
-    /// runs and `node_detected` is `true`, so the side-effects cache keys off
-    /// the pinned major exactly as it would off a detected one. A leading `v`
-    /// (as in `process.version` / `node --version`, e.g. `v22.11.0`) is
+    /// An explicit `node_version` is authoritative for installability checks:
+    /// no `node --version` probe runs and `node_source` is
+    /// [`NodeVersionSource::Override`]. A leading `v` (as in `process.version` / `node --version`, e.g. `v22.11.0`) is
     /// stripped so the value parses as exact semver, matching the auto-detect
     /// path. `None` falls back to [`Self::detect`], then overrides
     /// `engine_strict`.
@@ -72,7 +79,7 @@ impl InstallabilityHost {
         match node_version.map(|version| normalize_node_version(&version)) {
             Some(node_version) => Self {
                 node_version,
-                node_detected: true,
+                node_source: NodeVersionSource::Override,
                 os: pnpm_graph_hasher::host_platform(),
                 cpu: pnpm_graph_hasher::host_arch(),
                 libc: pnpm_graph_hasher::host_libc(),

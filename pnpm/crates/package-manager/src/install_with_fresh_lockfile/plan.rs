@@ -92,7 +92,7 @@ async fn resolve_host_and_engine(
     )
     .await;
     let host_node =
-        installability_host.as_ref().map(pnpm_deps_restorer::materialization_plan::HostNode::from);
+        pnpm_deps_restorer::materialization_plan::execution_host_node(installability_host.as_ref());
     let (engine_name, deferred_engine_name) =
         pnpm_deps_restorer::materialization_plan::resolve_engine_name(
             install.drivers.config.enable_global_virtual_store,
