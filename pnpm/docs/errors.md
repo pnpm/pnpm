@@ -11,7 +11,7 @@ The codes are listed in alphabetical order. A code that is not listed here is ex
 
 A setting in `pnpm-workspace.yaml` or the [global configuration file](./cli/config.md) references an environment variable that isn't set or is empty, and the reference has no fallback. The error names the reference, for example `${MY_STORE_DIR}`.
 
-Set the variable, or give the reference a fallback, such as `${NAME:-fallback}`. `${NAME?}` expands to an empty string when `NAME` isn't set.
+Set the variable, or give the reference a fallback, such as `${NAME:-fallback}`, or `${NAME?}` for an empty string.
 
 ## ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE
 
