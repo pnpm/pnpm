@@ -117,12 +117,12 @@ test-pnpr:
 [unix]
 known-failures:
   cargo test --workspace --no-run --quiet
-  -@cargo test --workspace known_failures -- --list 2>/dev/null | rg '^known_failures::'
+  -@cargo test --workspace known_failures -- --list 2>/dev/null | rg '(^|::)known_failures::'
 
 [windows]
 known-failures:
   cargo test --workspace --no-run --quiet
-  -@cargo test --workspace known_failures -- --list 2>nul | rg '^known_failures::'
+  -@cargo test --workspace known_failures -- --list 2>nul | rg '(^|::)known_failures::'
 # Lint the whole project
 lint:
   cargo clippy --locked --workspace --all-targets -- --deny warnings
