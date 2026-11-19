@@ -12,7 +12,9 @@ fn write(dir: &Path, file: &str, contents: &str) {
 }
 
 fn read(dir: &Path, file: &str) -> String {
-    fs::read_to_string(dir.join(file)).unwrap_or_else(|_| panic!("read {file}"))
+    let contents = fs::read_to_string(dir.join(file)).unwrap_or_else(|_| panic!("read {file}"));
+    eprintln!("{file}:\n{contents}");
+    contents
 }
 
 #[test]
@@ -71,6 +73,7 @@ fn moves_agreed_specifiers_to_the_default_catalog() {
         .output()
         .expect("run pacquet");
     let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}");
     eprintln!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(output.status.success(), "pacquet catalog migrate failed");
     assert_eq!(
@@ -162,6 +165,7 @@ fn compares_against_the_catalog_an_update_config_hook_sets() {
         .output()
         .expect("run pacquet");
     let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}");
     eprintln!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(output.status.success(), "pacquet catalog migrate failed");
     assert_eq!(
