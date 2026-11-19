@@ -517,7 +517,7 @@ importers:
   }
 })
 
-test('a relative modulesDir cannot extend unsaved scans beyond the workspace', async () => {
+test('unsaved dependencies follow a relative modulesDir outside the workspace', async () => {
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
   try {
     const workspaceParent = path.join(fixtureDir, 'projects', 'group')
@@ -536,7 +536,7 @@ importers:
 
     const tree = await buildDependenciesTree([appDir], { depth: 0, lockfileDir, modulesDir, virtualStoreDirMaxLength })
 
-    expect(tree[appDir].unsavedDependencies).toBeUndefined()
+    expect(tree[appDir].unsavedDependencies?.map(({ alias }) => alias)).toEqual(['external-extra'])
   } finally {
     fs.rmSync(fixtureDir, { recursive: true, force: true })
   }

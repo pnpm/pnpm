@@ -151,10 +151,10 @@ fn recursive_list_sorts_projects_by_workspace_dependencies() {
 
 #[test]
 fn list_json_reads_unsaved_dependencies_from_each_project() {
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("app", json!({ "name": "app", "version": "1.0.0" }))]);
-    let app = workspace.join("packages/app");
     for modules_dir in ["node_modules", "vendor/modules"] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        write_workspace(&workspace, &[("app", json!({ "name": "app", "version": "1.0.0" }))]);
+        let app = workspace.join("packages/app");
         fs::write(
             workspace.join("pnpm-workspace.yaml"),
             format!("packages:\n  - packages/*\nmodulesDir: {modules_dir}\n"),
@@ -193,8 +193,8 @@ fn list_json_reads_unsaved_dependencies_from_each_project() {
                 );
             }
         }
+        drop(root);
     }
-    drop(root);
 }
 
 /// Scaffold a project whose lockfile records exactly one dependency
