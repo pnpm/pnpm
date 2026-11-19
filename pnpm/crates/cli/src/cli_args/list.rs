@@ -381,7 +381,7 @@ impl ListArgs {
                 only_projects: self.graph.only_projects,
                 search: searcher.as_ref(),
                 show_deduped_search_matches: searcher.is_some(),
-                modules_dir_opt: Some(config.modules_dir.as_path()),
+                unsaved_modules_dir_name: Some(Path::new(config.modules_dir_name())),
             },
         )?;
         if self.graph.only_projects {

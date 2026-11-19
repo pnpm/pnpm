@@ -17,6 +17,7 @@ import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type RegistriesByScope } from '@pnpm/types'
+import { importerModulesDir } from '@pnpm/workspace.state'
 import normalizePath from 'normalize-path'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
@@ -126,7 +127,7 @@ async function buildProjectsTrees (
   const pairs = await Promise.all(projectDirs.map(async (projectPath) => {
     return [
       projectPath,
-      await dependenciesHierarchyForPackage(ctx, projectPath),
+      await dependenciesHierarchyForPackage(ctx, projectPath, maybeOpts.modulesDir),
     ] as [string, DependenciesTree]
   }))
   storeIndex?.close()
@@ -354,17 +355,14 @@ interface HierarchyContext extends BaseTreeOpts {
 
 async function dependenciesHierarchyForPackage (
   opts: HierarchyContext,
-  projectPath: string
+  projectPath: string,
+  modulesDirOption: string | undefined
 ): Promise<DependenciesTree> {
   const { currentLockfile, wantedLockfile } = opts
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
   const projectSnapshot = currentLockfile.importers[importerId]
 
   if (!projectSnapshot) return {}
-
-  const modulesDir = opts.modulesDir && path.isAbsolute(opts.modulesDir)
-    ? opts.modulesDir
-    : path.join(projectPath, opts.modulesDir ?? 'node_modules')
 
   const { result, fieldMap } = initDependencyFields(projectSnapshot, opts.include)
 
@@ -377,7 +375,6 @@ async function dependenciesHierarchyForPackage (
     rewriteLinkVersionDir: projectPath,
     maxDepth: opts.depth + 1,
     wantedPackages: wantedLockfile?.packages ?? {},
-    modulesDir,
   }, { type: 'importer', importerId })
 
   for (const node of nodes) {
@@ -392,7 +389,14 @@ async function dependenciesHierarchyForPackage (
   // graph and can't have dependency subtrees showing paths to the search target.
   // They aren't workspace projects either, which is all onlyProjects lists.
   if (!opts.search && !opts.onlyProjects) {
-    await addUnsavedDependencies(result, { modulesDir, projectPath, projectSnapshot })
+    const modulesDir = opts.nodeLinker === 'hoisted'
+      ? importerModulesDir(projectPath, { lockfileDir: opts.lockfileDir, modulesDir: modulesDirOption })
+      : pathAbsolute(modulesDirOption ?? 'node_modules', projectPath)
+    await addUnsavedDependencies(result, {
+      modulesDir: importerId === '.' ? opts.modulesDir ?? modulesDir : modulesDir,
+      projectPath,
+      projectSnapshot,
+    })
   }
 
   return result

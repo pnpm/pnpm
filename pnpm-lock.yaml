@@ -2797,6 +2797,7 @@ snapshots:
 				"@pnpm/store.index": "workspace:*",
 				"@pnpm/text.ordinal-comparator": "workspace:*",
 				"@pnpm/types": "workspace:*",
+				"@pnpm/workspace.state": "workspace:*",
 				"load-json-file": "catalog:",
 				"normalize-path": "catalog:",
 				"p-limit": "catalog:",

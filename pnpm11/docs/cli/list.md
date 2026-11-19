@@ -24,7 +24,9 @@ Since v11.28.0, running `pnpm list` inside a workspace package without
 
 ### --json
 
-Log output in JSON format.
+Log output in JSON format. The `unsavedDependencies` field lists packages
+present in the project's own modules directory that its lockfile entry does
+not record.
 
 ### --long
 
