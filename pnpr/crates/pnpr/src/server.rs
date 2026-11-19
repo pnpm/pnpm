@@ -1,3 +1,5 @@
+pub(crate) mod ecosystem;
+
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub(crate) use grant_directory::validate_for as validate_grant;
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
@@ -125,7 +127,6 @@ mod cargo;
 mod client_ip;
 mod compiler_cache;
 mod documents;
-mod ecosystem;
 mod health;
 use health::shutdown_signal;
 mod keyed_semaphores;

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::server::{
     RegistrySource,
-    ecosystem::{addressed_registry, sha256_hex, sha256_integrity, upstream_for},
+    ecosystem::{UpstreamCacheSubtree, addressed_registry, sha256_integrity, upstream_for},
     resolve_ecosystem_source, tarball_response, tarball_stream_error,
 };
 use axum::{
@@ -58,7 +58,7 @@ impl Request {
             });
         }
         let (upstream, namespace) = upstream_for(&self.state, &self.identity, source, key)?;
-        let namespace = format!("{namespace}-oci-manifest-{}", sha256_hex(reference.as_bytes()));
+        let namespace = UpstreamCacheSubtree::OciManifest(reference.as_bytes()).within(&namespace);
         let storage = &self.state.inner.storage;
         let ttl = if Digest::parse(reference).is_ok() {
             Duration::MAX
@@ -122,8 +122,8 @@ impl Request {
             Ok(found) => found,
             Err(err) => return registry_error(err),
         };
-        let result =
-            self.proxied_blob(&upstream, &format!("{namespace}-oci-blobs"), key, digest).await;
+        let blob_namespace = UpstreamCacheSubtree::OciBlobs.within(&namespace);
+        let result = self.proxied_blob(&upstream, &blob_namespace, key, digest).await;
         let mut response = result.unwrap_or_else(IntoResponse::into_response);
         if response.status().is_success() {
             super::insert_header(&mut response, DOCKER_CONTENT_DIGEST, &digest.to_string());

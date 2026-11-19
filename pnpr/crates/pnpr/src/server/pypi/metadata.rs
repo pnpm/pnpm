@@ -1,4 +1,6 @@
-use super::{AppState, CanonicalPackageName, ProjectFile, RegistryError, not_found, sha256_hex};
+use super::{
+    AppState, CanonicalPackageName, ProjectFile, RegistryError, UpstreamCacheSubtree, not_found,
+};
 use axum::{
     http::header,
     response::{IntoResponse, Response},
@@ -22,7 +24,7 @@ pub(super) async fn serve(
     let url = metadata_url(distribution_url);
     let descriptor = serde_json::to_string(metadata).expect("metadata serializes");
     let namespace =
-        format!("{namespace}-metadata-{}", sha256_hex(format!("{url}\n{descriptor}").as_bytes()));
+        UpstreamCacheSubtree::Metadata(format!("{url}\n{descriptor}").as_bytes()).within(namespace);
     match load(state, upstream, &namespace, key, metadata, &url).await {
         Ok(Some(bytes)) => {
             ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], bytes).into_response()

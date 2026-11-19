@@ -29,7 +29,7 @@ use super::{
     authorize_package, authorize_with_ownership,
     documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{
-        UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
+        UpstreamCacheSubtree, UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
         is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
         serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
