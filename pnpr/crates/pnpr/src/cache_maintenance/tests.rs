@@ -277,6 +277,7 @@ async fn prune_orphaned_namespaces_keeps_active_ecosystem_subtrees_and_prunes_pr
     .unwrap();
     assert_eq!(dry.report.namespaces_removed, 5);
     assert_eq!(dry.report.files_evicted, removed_public.len() + removed_private.len() + 3);
+    eprintln!("DRY-RUN PRESERVED PATH: {}", prefix_without_dash.display());
     assert!(prefix_without_dash.exists());
 
     let applied = prune_orphaned_namespaces(
@@ -301,9 +302,15 @@ async fn prune_orphaned_namespaces_keeps_active_ecosystem_subtrees_and_prunes_pr
         eprintln!("ORPHAN PATH: {}", path.display());
         assert!(!path.exists());
     }
-    assert!(!cache_dir.join("~public/zzz").exists());
-    assert!(!cache_dir.join("~upstreams/old").exists());
-    assert!(!cache_dir.join("~public/abcdef").exists());
-    assert!(!cache_dir.join("~public/abc-stale").exists());
-    assert!(!cache_dir.join("~upstreams/privdef").exists());
+    for orphan_dir in [
+        "~public/zzz",
+        "~upstreams/old",
+        "~public/abcdef",
+        "~public/abc-stale",
+        "~upstreams/privdef",
+    ] {
+        let dir = cache_dir.join(orphan_dir);
+        eprintln!("ORPHAN DIR: {}", dir.display());
+        assert!(!dir.exists());
+    }
 }

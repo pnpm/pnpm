@@ -362,20 +362,14 @@ async fn ttl_and_lru_eviction_cover_nested_ecosystem_cache_subtrees() {
     .unwrap();
     assert_eq!(report.namespaces_removed, 0);
     assert_eq!(report.files_evicted, 2);
-    assert!(!expired_artifact.exists());
-    assert!(
-        !cache_dir
-            .join(&active_ns)
-            .join("artifacts")
-            .exists(),
-    );
-    assert!(!older_metadata.exists());
-    assert!(
-        !cache_dir
-            .join(&active_ns)
-            .join("metadata")
-            .exists(),
-    );
-    assert!(newer_oci_blob.exists());
-    assert!(fresh_manifest.exists());
+    let artifacts_dir = cache_dir.join(&active_ns).join("artifacts");
+    let metadata_dir = cache_dir.join(&active_ns).join("metadata");
+    for evicted_path in [&expired_artifact, &artifacts_dir, &older_metadata, &metadata_dir] {
+        eprintln!("EVICTED PATH: {}", evicted_path.display());
+        assert!(!evicted_path.exists());
+    }
+    for retained_path in [&newer_oci_blob, &fresh_manifest] {
+        eprintln!("RETAINED PATH: {}", retained_path.display());
+        assert!(retained_path.exists());
+    }
 }
