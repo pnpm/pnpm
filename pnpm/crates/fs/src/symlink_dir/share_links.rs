@@ -120,7 +120,7 @@ fn target_volume(target: &Path) -> TargetVolume {
 }
 
 /// The closest directory at or above `target` that exists, since a link can
-/// be written before its target.
+/// be written before its target. `target` itself when none does.
 fn nearest_existing_dir(target: &Path) -> PathBuf {
     let absolute = std::path::absolute(target).unwrap_or_else(|_| target.to_path_buf());
     absolute
@@ -131,8 +131,10 @@ fn nearest_existing_dir(target: &Path) -> PathBuf {
 }
 
 /// Find the kind of link that can be opened in `dir` by creating one of
-/// each in a scratch directory that is removed again. The links point at a
-/// scratch directory in `target_dir`, or beside them when it is `None`.
+/// each in a scratch directory that is removed again. The links point at
+/// `target_dir`, which the probe only reads, or at a scratch directory
+/// beside them when it is `None`. Only a missing `dir` fails with
+/// `NotFound`: a link to a missing `target_dir` is one that can't be opened.
 pub(super) fn probe(dir: &Path, target_dir: Option<&Path>) -> io::Result<ShareLinks> {
     let scratch = create_scratch_dir(dir)?;
     let result = match target_dir {
@@ -140,12 +142,7 @@ pub(super) fn probe(dir: &Path, target_dir: Option<&Path>) -> io::Result<ShareLi
             let target = scratch.join("target");
             fs::create_dir(&target).and_then(|()| probe_in(&scratch, &target, Path::new("target")))
         }
-        Some(target_dir) => create_scratch_dir(target_dir)
-            .and_then(|target| {
-                let result = probe_in(&scratch, &target, &target);
-                let _ = fs::remove_dir(&target);
-                result
-            }),
+        Some(target_dir) => probe_in(&scratch, target_dir, target_dir),
     };
     for entry in ["junction", "symlink", "target"] {
         let _ = fs::remove_dir(scratch.join(entry));
@@ -193,22 +190,31 @@ fn probe_in(scratch: &Path, target: &Path, symlink_contents: &Path) -> io::Resul
     }))
 }
 
-/// Create a link with `create` and open through it, retrying while another
-/// process, such as a virus scanner, holds the new entry open.
-fn try_link(link: &Path, create: impl Fn(&Path) -> io::Result<()>) -> io::Result<()> {
+/// Create a link with `create` in a scratch directory and open through it,
+/// retrying while another process, such as a virus scanner, holds the new
+/// entry open.
+pub(super) fn try_link(link: &Path, create: impl Fn(&Path) -> io::Result<()>) -> io::Result<()> {
     let mut created = false;
     retry_fs_operation(
         || {
             if !created {
                 // A failed `junction::create` can leave the plain directory
                 // it starts from, which would open like a working link.
-                create(link).inspect_err(|_| drop(fs::remove_dir(link)))?;
+                remove_leftover(link)?;
+                create(link)?;
                 created = true;
             }
             open_through(link)
         },
         is_file_lock,
     )
+}
+
+fn remove_leftover(link: &Path) -> io::Result<()> {
+    match fs::remove_dir(link) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
+    }
 }
 
 /// A file lock held by another process, which says nothing about the share.

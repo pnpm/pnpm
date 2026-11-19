@@ -139,13 +139,14 @@ pub(super) fn read_share_link(link: &Path, target: &Path) -> Option<io::Result<P
 pub(super) fn is_link_kind_usable(link: &Path, target: &Path) -> bool {
     match super::share_links::share_links(link, target) {
         Ok(None) => true,
-        Ok(Some(ShareLinks::Junction)) => reparse_tag(link) != Some(IO_REPARSE_TAG_SYMLINK),
+        Ok(Some(ShareLinks::Junction)) => reparse_tag(link) == Some(IO_REPARSE_TAG_MOUNT_POINT),
         Ok(Some(ShareLinks::Symlink)) => reparse_tag(link) == Some(IO_REPARSE_TAG_SYMLINK),
         Ok(Some(ShareLinks::Unusable(_))) => open_through(link).is_ok(),
         Err(_) => false,
     }
 }
 
+pub(super) const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
 pub(super) const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;
 
 /// [`fs::read_link`] for a junction only: it fails for a true symlink or

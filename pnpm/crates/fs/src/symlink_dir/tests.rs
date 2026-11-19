@@ -858,7 +858,7 @@ fn windows_junction_to_a_unc_path_holds_the_unc_target() {
 #[cfg(windows)]
 #[test]
 fn windows_reparse_tag_tells_a_symlink_from_a_junction() {
-    const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
+    use super::windows::IO_REPARSE_TAG_MOUNT_POINT;
     const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
     let root = tempdir().expect("create temp dir");
     let target = root.path().join("target");
@@ -936,7 +936,7 @@ fn windows_read_junction_target_reads_only_junctions() {
 fn windows_links_on_a_real_share_can_be_opened() {
     use super::share_links::{ShareLinks, probe};
 
-    const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
+    use super::windows::IO_REPARSE_TAG_MOUNT_POINT;
 
     let share = std::env::var_os("PNPM_TEST_NETWORK_SHARE_DIR")
         .expect("set PNPM_TEST_NETWORK_SHARE_DIR to a directory on a network share");
@@ -1032,6 +1032,53 @@ fn windows_share_link_probe_links_to_the_target_directory() {
             "the probe must leave nothing behind in {dir:?}",
         );
     }
+}
+
+/// The caller answers `NotFound` by creating the link's parent and trying
+/// again, so a missing target must not report it.
+#[cfg(windows)]
+#[test]
+fn windows_share_link_probe_to_a_missing_target_is_unusable() {
+    use super::share_links::{ShareLinks, probe};
+
+    let links = tempdir().expect("create temp dir for the links");
+    let missing = links.path().join("missing");
+
+    let kind = probe(links.path(), Some(&missing)).expect("probe a missing target");
+
+    assert!(matches!(kind, ShareLinks::Unusable(_)), "{kind:?}");
+    assert!(!missing.exists(), "the probe must not create the target");
+}
+
+/// `junction::create` can fail after creating the directory it turns into a
+/// junction, and that directory would open like a working link.
+#[cfg(windows)]
+#[test]
+fn windows_share_link_attempt_replaces_what_a_locked_attempt_left() {
+    use std::{cell::Cell, io};
+
+    const ERROR_SHARING_VIOLATION: i32 = 32;
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir(&target).expect("create target");
+    let link = root.path().join("link");
+    let attempts = Cell::new(0);
+
+    super::share_links::try_link(&link, |link| {
+        attempts.set(attempts.get() + 1);
+        if attempts.get() == 1 {
+            fs::create_dir(link)?;
+            return Err(io::Error::from_raw_os_error(ERROR_SHARING_VIOLATION));
+        }
+        super::windows::create_junction(&target, link)
+    })
+    .expect("the second attempt links");
+
+    assert_eq!(attempts.get(), 2);
+    assert_eq!(
+        super::windows::reparse_tag(&link),
+        Some(super::windows::IO_REPARSE_TAG_MOUNT_POINT),
+    );
 }
 
 /// The caller answers `NotFound` by creating the link's parent and trying
