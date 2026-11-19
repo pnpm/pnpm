@@ -342,18 +342,9 @@ fn outdated_target(
     {
         return None;
     }
-    let package_name = if candidate.is_engine {
-        candidate.alias.to_string()
-    } else {
-        target_manifest
-            .get("name")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or(resolved_package_name)
-            .to_string()
-    };
     Some(OutdatedPackage {
         alias: candidate.alias.to_string(),
-        package_name,
+        package_name: target_package_name(&candidate, target_manifest, resolved_package_name),
         belongs_to: candidate.group,
         wanted: candidate.current.clone(),
         current: candidate.current,
@@ -370,4 +361,19 @@ fn outdated_target(
             trust: None,
         },
     })
+}
+
+fn target_package_name(
+    candidate: &OutdatedCandidate<'_>,
+    target_manifest: &pnpm_resolving_resolver_base::SharedDependencyManifest,
+    resolved_package_name: &str,
+) -> String {
+    if candidate.is_engine {
+        return candidate.alias.to_string();
+    }
+    target_manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(resolved_package_name)
+        .to_string()
 }
