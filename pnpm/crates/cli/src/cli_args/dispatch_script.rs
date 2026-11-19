@@ -1,4 +1,5 @@
 use super::{
+    catalog::CatalogArgs,
     dispatch::{CommandFuture, RunCtx, apply_update_config},
     exec::{ExecArgs, ExecDirs},
     init::InitArgs,
@@ -75,6 +76,16 @@ pub(super) fn pkg<'a>(ctx: &RunCtx<'a>, args: PkgArgs) -> miette::Result<Command
     } else {
         args.run(ctx.locations.manifest_path)
     };
+    Ok(Box::pin(std::future::ready(result)))
+}
+
+// `catalog` only rewrites `pnpm-workspace.yaml` and the project manifests;
+// like `pkg`, it never touches the lockfile.
+pub(super) fn catalog<'a>(
+    ctx: &RunCtx<'a>,
+    args: CatalogArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let result = args.run((ctx.loaders.config)()?);
     Ok(Box::pin(std::future::ready(result)))
 }
 
