@@ -868,7 +868,10 @@ fn windows_reparse_tag_tells_a_symlink_from_a_junction() {
 
     assert_eq!(super::windows::reparse_tag(&junction), Some(IO_REPARSE_TAG_MOUNT_POINT));
     assert_eq!(super::windows::reparse_tag(&target), None, "a plain directory has no tag");
-    assert!(super::windows::is_link_kind_usable(&junction), "a local junction is reusable");
+    assert!(
+        super::windows::is_link_kind_usable(&junction, &target),
+        "a local junction is reusable",
+    );
 
     let symlink = root.path().join("symlink");
     match std::os::windows::fs::symlink_dir(&target, &symlink) {
@@ -946,7 +949,7 @@ fn windows_links_on_a_real_share_can_be_opened() {
     fs::create_dir_all(&target).expect("create target");
     fs::write(target.join("index.js"), "module.exports = 1").expect("write a package file");
     let link = root.path().join(r"node_modules\pkg");
-    let kind = probe(root.path()).expect("probe the share");
+    let kind = probe(root.path(), None).expect("probe the share");
     eprintln!("links on this share: {kind:?}");
     assert_eq!(
         fs::read_dir(root.path()).expect("list the probed directory").count(),
@@ -992,8 +995,6 @@ fn windows_links_on_a_real_share_can_be_opened() {
     assert!(outcome.reused, "the link that can be opened is reused");
 }
 
-/// On a local drive a junction can be opened, so the probe picks it and
-/// removes what it created (pnpm/tasks#304).
 #[cfg(windows)]
 #[test]
 fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
@@ -1001,7 +1002,7 @@ fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
 
     let root = tempdir().expect("create temp dir");
 
-    let kind = probe(root.path()).expect("probe a local directory");
+    let kind = probe(root.path(), None).expect("probe a local directory");
 
     assert!(matches!(kind, ShareLinks::Junction), "{kind:?}");
     assert_eq!(
@@ -1011,14 +1012,36 @@ fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
     );
 }
 
-/// A directory that doesn't exist yet reports `NotFound`, which the caller
-/// answers by creating the link's parent and trying again.
+/// A target on another drive or share is probed where it is, since a
+/// junction there is followed by the server and a symlink by the client.
+#[cfg(windows)]
+#[test]
+fn windows_share_link_probe_links_to_the_target_directory() {
+    use super::share_links::{ShareLinks, probe};
+
+    let links = tempdir().expect("create temp dir for the links");
+    let targets = tempdir().expect("create temp dir for the targets");
+
+    let kind = probe(links.path(), Some(targets.path())).expect("probe a local directory");
+
+    assert!(matches!(kind, ShareLinks::Junction), "{kind:?}");
+    for dir in [links.path(), targets.path()] {
+        assert_eq!(
+            fs::read_dir(dir).expect("list a probed directory").count(),
+            0,
+            "the probe must leave nothing behind in {dir:?}",
+        );
+    }
+}
+
+/// The caller answers `NotFound` by creating the link's parent and trying
+/// again.
 #[cfg(windows)]
 #[test]
 fn windows_share_link_probe_reports_a_missing_directory() {
     let root = tempdir().expect("create temp dir");
 
-    let error = super::share_links::probe(&root.path().join("missing"))
+    let error = super::share_links::probe(&root.path().join("missing"), None)
         .expect_err("the directory does not exist");
 
     assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
@@ -1043,11 +1066,11 @@ fn windows_unusable_share_links_error_is_not_explained_twice() {
     let message = error.to_string();
     assert!(
         message.starts_with("Links created on this network share cannot be opened"),
-        "{message}"
+        "{message}",
     );
     assert!(
         message.contains("junction failure") && message.contains("symlink failure"),
-        "{message}"
+        "{message}",
     );
     assert_eq!(message.matches("nodeLinker: hoisted").count(), 1, "{message}");
 }
@@ -1076,7 +1099,7 @@ fn windows_links_on_a_share_are_recognized() {
     assert_eq!(network_share_cached(Path::new(r"\\server\share\project\node_modules\pkg")), share);
     assert_eq!(
         network_share_cached(Path::new(r"\\?\UNC\SERVER\Share\project\node_modules")),
-        share
+        share,
     );
     assert_ne!(network_share_cached(Path::new(r"\\server\other\project")), share);
     let local = tempdir().expect("create temp dir");

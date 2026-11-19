@@ -1,4 +1,4 @@
-use super::share_links::{ShareLinks, UnusableShareLinksError};
+use super::share_links::{ShareLinks, UnusableShareLinksError, open_through};
 use derive_more::{Display, Error};
 use std::{
     borrow::Cow,
@@ -81,7 +81,7 @@ fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> 
     // On a network share the kind of link is the one that can be opened
     // there, see [`super::share_links`]. This doesn't touch `MODE`: links on
     // local drives keep preferring symlinks.
-    match super::share_links::share_links(link)? {
+    match super::share_links::share_links(link, original)? {
         Some(ShareLinks::Junction) => return create_junction(original, link),
         Some(ShareLinks::Symlink) => return std::os::windows::fs::symlink_dir(contents, link),
         Some(ShareLinks::Unusable(error)) => {
@@ -101,16 +101,17 @@ fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> 
     }
 }
 
-/// The contents of the link at `link` when it is of the kind that can be
-/// opened on its network share, and an error for any other entry. `None`
-/// when `link` isn't on a share. An earlier install may have left the other
-/// kind, which is replaced rather than reused even when it points at the
-/// right target. Where junctions are used, reading a junction as one fails
-/// for a symlink in the same open, so a warm install pays nothing extra per
-/// link. Where symlinks are used, telling them from junctions takes a second
-/// open per link.
-pub(super) fn read_share_link(link: &Path) -> Option<io::Result<PathBuf>> {
-    match super::share_links::share_links(link) {
+/// The contents of the link at `link` to `target` when it is of the kind
+/// that can be opened on its network share, and an error for any other
+/// entry. `None` when `link` isn't on a share. An earlier install may have
+/// left the other kind, which is replaced rather than reused even when it
+/// points at the right target. Where junctions are used, reading a junction
+/// as one fails for a symlink in the same open, so a warm install pays
+/// nothing extra per link. Where symlinks are used, telling them from
+/// junctions takes a second open per link. Where neither kind can be
+/// created, a link left by an earlier install is reused if it opens.
+pub(super) fn read_share_link(link: &Path, target: &Path) -> Option<io::Result<PathBuf>> {
+    match super::share_links::share_links(link, target) {
         Ok(None) => None,
         Ok(Some(ShareLinks::Junction)) => Some(read_junction_target(link)),
         Ok(Some(ShareLinks::Symlink)) => Some(
@@ -123,21 +124,25 @@ pub(super) fn read_share_link(link: &Path) -> Option<io::Result<PathBuf>> {
                     }
                 }),
         ),
-        Ok(Some(ShareLinks::Unusable(error))) => {
-            Some(Err(io::Error::new(io::ErrorKind::Unsupported, error)))
-        }
+        Ok(Some(ShareLinks::Unusable(error))) => Some(
+            fs::read_link(link)
+                .and_then(|contents| open_through(link).map(|()| contents))
+                .map_err(|_| io::Error::new(io::ErrorKind::Unsupported, error)),
+        ),
         Err(error) => Some(Err(error)),
     }
 }
 
-/// Whether the link at `link` is of the kind [`create_link`] writes there.
-/// Off a network share both kinds are fine.
-pub(super) fn is_link_kind_usable(link: &Path) -> bool {
-    match super::share_links::share_links(link) {
+/// Whether the link at `link` to `target` is of the kind [`create_link`]
+/// writes there, or, where no kind can be created, whether it opens. Off a
+/// network share both kinds are fine.
+pub(super) fn is_link_kind_usable(link: &Path, target: &Path) -> bool {
+    match super::share_links::share_links(link, target) {
         Ok(None) => true,
         Ok(Some(ShareLinks::Junction)) => reparse_tag(link) != Some(IO_REPARSE_TAG_SYMLINK),
         Ok(Some(ShareLinks::Symlink)) => reparse_tag(link) == Some(IO_REPARSE_TAG_SYMLINK),
-        Ok(Some(ShareLinks::Unusable(_))) | Err(_) => false,
+        Ok(Some(ShareLinks::Unusable(_))) => open_through(link).is_ok(),
+        Err(_) => false,
     }
 }
 

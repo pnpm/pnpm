@@ -47,20 +47,11 @@ pub(crate) enum NetworkShare {
 }
 
 /// The share [`is_on_network_drive`] finds `path` on, with whether each
-/// drive letter is mapped looked up once per process. An install asks this
-/// for every link it writes, and the drive mappings don't change during one.
-/// A lookup that fails says nothing about the drive, so it isn't cached.
+/// drive letter is mapped looked up once per process by
+/// [`is_mapped_drive_cached`].
 #[cfg(windows)]
 pub(crate) fn network_share_cached(path: &Path) -> Option<NetworkShare> {
-    use std::{
-        path::{Component, Prefix},
-        sync::atomic::{AtomicU8, Ordering},
-    };
-
-    const UNKNOWN: u8 = 0;
-    const LOCAL: u8 = 1;
-    const NETWORK: u8 = 2;
-    static DRIVES: [AtomicU8; 26] = [const { AtomicU8::new(UNKNOWN) }; 26];
+    use std::path::{Component, Prefix};
 
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
@@ -79,11 +70,27 @@ pub(crate) fn network_share_cached(path: &Path) -> Option<NetworkShare> {
         }
         _ => return None,
     };
+    is_mapped_drive_cached(drive).then_some(NetworkShare::Drive(drive))
+}
+
+/// [`is_mapped_drive`], looked up once per process for each drive letter.
+/// An install asks this for every link it writes, and the drive mappings
+/// don't change during one. A lookup that fails says nothing about the
+/// drive, so it isn't cached.
+#[cfg(windows)]
+fn is_mapped_drive_cached(drive: char) -> bool {
+    use std::sync::atomic::{AtomicU8, Ordering};
+
+    const UNKNOWN: u8 = 0;
+    const LOCAL: u8 = 1;
+    const NETWORK: u8 = 2;
+    static DRIVES: [AtomicU8; 26] = [const { AtomicU8::new(UNKNOWN) }; 26];
+
     if !drive.is_ascii_uppercase() {
-        return None;
+        return false;
     }
     let slot = &DRIVES[usize::from(drive as u8 - b'A')];
-    let network = match slot.load(Ordering::Relaxed) {
+    match slot.load(Ordering::Relaxed) {
         LOCAL => false,
         NETWORK => true,
         _ => match is_mapped_drive(drive) {
@@ -93,8 +100,7 @@ pub(crate) fn network_share_cached(path: &Path) -> Option<NetworkShare> {
             }
             None => false,
         },
-    };
-    network.then_some(NetworkShare::Drive(drive))
+    }
 }
 
 /// Whether drive `letter` is mapped to a network share, or `None` when
