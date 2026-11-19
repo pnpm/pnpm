@@ -38,10 +38,52 @@ impl Walker<'_> {
     ) -> FinalDepPaths {
         let (_, scc_of) = self.peer_sccs();
         let cyclic_peer_names = self.cyclic_peer_names();
-        let context = FinalPeerContext { scc_of: &scc_of, cyclic_peer_names: &cyclic_peer_names };
+        let context = FinalPeerContext {
+            scc_of: &scc_of,
+            cyclic_peer_names: &cyclic_peer_names,
+            ambiguous_peers: None,
+        };
+        self.propagate_cyclic_external_peers(context);
         if !self.opts.dedupe_peers {
-            self.propagate_cyclic_external_peers(context);
+            return self.calculate_final_paths(context, recording);
         }
+        // Compare full paths before flattening so variation through several
+        // levels of peers stays visible.
+        let ambiguous_peers = {
+            let full_paths = self.calculate_final_paths(context, PeerIdRecording::Skip);
+            self.find_ambiguous_peers(&full_paths.by_node_id)
+        };
+        self.calculate_final_paths(
+            FinalPeerContext { ambiguous_peers: Some(&ambiguous_peers), ..context },
+            recording,
+        )
+    }
+
+    fn find_ambiguous_peers(&self, full_paths: &HashMap<NodeId, DepPath>) -> HashSet<PeerId> {
+        let mut paths_by_peer = HashMap::default();
+        let mut ambiguous_peers = HashSet::default();
+        for peers in self.nodes.external_peers.values() {
+            for peer in peers.values() {
+                let owner = self.cache_owner_node_id(peer);
+                let Some(node) = self.tree.dependencies_tree.get(owner) else {
+                    continue;
+                };
+                let path = self.final_dep_path_of(owner, full_paths);
+                let pair = peer_id_pair(self.tree.packages[&node.resolved_package_id].result());
+                let previous = paths_by_peer.entry(pair.clone()).or_insert_with(|| path.clone());
+                if *previous != path {
+                    ambiguous_peers.insert(pair);
+                }
+            }
+        }
+        ambiguous_peers
+    }
+
+    fn calculate_final_paths(
+        &self,
+        context: FinalPeerContext<'_>,
+        recording: PeerIdRecording,
+    ) -> FinalDepPaths {
         let mut final_dep_paths = FinalDepPaths {
             recording,
             by_node_id: HashMap::default(),
@@ -146,11 +188,16 @@ impl Walker<'_> {
             let pkg = &self.tree.packages[&tree_node.resolved_package_id];
             peer_id_pair(pkg.result())
         };
-        if self.opts.dedupe_peers && self.tree.dependencies_tree.contains_key(peer_node_id) {
-            return pair();
-        }
         if Self::is_cyclic_peer(node_id, peer_alias, peer_node_id, context) {
             return pair();
+        }
+        if let Some(ambiguous_peers) = context.ambiguous_peers
+            && self.tree.dependencies_tree.contains_key(peer_node_id)
+        {
+            let flat_id = pair();
+            if !ambiguous_peers.contains(&flat_id) {
+                return flat_id;
+            }
         }
         PeerId::DepPath(self.final_dep_path_for_node(peer_node_id, context, final_dep_paths))
     }

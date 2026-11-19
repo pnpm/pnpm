@@ -132,7 +132,7 @@ Changing this setting changes the lockfile. pnpm records it in the lockfile's `s
 * Default: **false**
 * Type: **Boolean**
 
-When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This reduces the number of package instances in projects with many recursive peer dependencies.
+When enabled, peer dependency suffixes use version-only identifiers (`name@version`) where they identify a single peer instance. If the same peer version resolves to multiple instances, pnpm keeps the peer suffix needed to distinguish them.
 
 This is different from [`dedupePeerDependents`](#dedupepeerdependents), which deduplicates packages that have the same peer dependencies across different workspace projects. `dedupePeers` simplifies the peer dependency suffix format itself.
 
