@@ -39,16 +39,22 @@ impl Lockfile {
                 .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
         if !LockfileVersion::<9>::is_compatible(parsed.lockfile_version) {
             return Ok(match Lockfile::load_from_path(file_path)? {
-                Some(lockfile) => {
-                    ImporterLoad::Importer(
-                        lockfile.importers.get(importer_id).cloned().map(Box::new),
-                    )
-                }
+                Some(lockfile) => ImporterLoad::Importer(
+                    lockfile
+                        .importers
+                        .get(importer_id)
+                        .cloned()
+                        .map(Box::new),
+                ),
                 None => ImporterLoad::MissingLockfile,
             });
         }
         Ok(ImporterLoad::Importer(
-            parsed.importers.get(importer_id).cloned().map(Box::new),
+            parsed
+                .importers
+                .get(importer_id)
+                .cloned()
+                .map(Box::new),
         ))
     }
 }
