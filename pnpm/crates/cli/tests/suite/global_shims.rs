@@ -519,11 +519,7 @@ fn project_runtime_uses_the_current_branch_lockfile() {
         .to_string(),
     )
     .unwrap();
-    fs::write(
-        project.join("pnpm-workspace.yaml"),
-        "gitBranchLockfile: true\n",
-    )
-    .unwrap();
+    fs::write(project.join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
     fs::create_dir(project.join(".git")).unwrap();
     fs::write(project.join(".git/HEAD"), "ref: refs/heads/feature\n").unwrap();
     crate::install_runtimes::write_runtime_lockfile(
@@ -534,11 +530,7 @@ fn project_runtime_uses_the_current_branch_lockfile() {
         &project,
         std::slice::from_ref(&branch_fixture),
     );
-    fs::rename(
-        project.join("pnpm-lock.yaml"),
-        project.join("pnpm-lock.feature.yaml"),
-    )
-    .unwrap();
+    fs::rename(project.join("pnpm-lock.yaml"), project.join("pnpm-lock.feature.yaml")).unwrap();
     crate::install_runtimes::write_runtime_lockfile(
         &project,
         std::slice::from_ref(&shared_fixture),
@@ -604,8 +596,7 @@ fn prepare_global_runtime_in_store(root: &TempDir, version: &str, output: &str, 
 
     let global_dir = root.path().join("pnpm-home/global/v11");
     let install_dir = global_dir.join("node-runtime-install");
-    let package_dir = store_dir
-        .join("links/node-runtime/1/node_modules/node");
+    let package_dir = store_dir.join("links/node-runtime/1/node_modules/node");
     fs::create_dir_all(package_dir.join("bin")).unwrap();
     fs::create_dir_all(install_dir.join("node_modules")).unwrap();
     symlink(&package_dir, install_dir.join("node_modules/node")).unwrap();

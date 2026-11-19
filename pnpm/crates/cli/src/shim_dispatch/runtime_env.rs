@@ -80,7 +80,10 @@ fn trusted_global_runtime_config(environments_dir: &Path) -> miette::Result<Conf
     trusted_config(environments_dir, CommandTarget::GlobalPackages)
 }
 
-fn trusted_config(environments_dir: &Path, command_target: CommandTarget) -> miette::Result<Config> {
+fn trusted_config(
+    environments_dir: &Path,
+    command_target: CommandTarget,
+) -> miette::Result<Config> {
     fs::create_dir_all(environments_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("create {}", environments_dir.display()))?;

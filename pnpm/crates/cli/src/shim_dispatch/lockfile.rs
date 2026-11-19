@@ -20,8 +20,7 @@ pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<S
     if selection.merge_git_branch_lockfiles {
         let lockfile = Lockfile::load_wanted(lockfile_dir, &selection).ok()??;
         let importer_id = importer_id(project_dir, lockfile_dir)?;
-        return lockfile
-            .importers
+        return lockfile.importers
             .get(&importer_id)
             .and_then(|importer| importer_runtime_version(importer, &package_name))
             .flatten();

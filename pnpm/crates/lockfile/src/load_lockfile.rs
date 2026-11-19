@@ -370,11 +370,9 @@ impl Lockfile {
     ) -> Result<Option<ProjectSnapshot>, LoadLockfileError> {
         let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
         let main = extract_main_document(&content);
-        let parsed: ImporterOnlyLockfile = serde_saphyr::from_str_with_options(
-            &main,
-            yaml_parse_options(main.len()),
-        )
-        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
+        let parsed: ImporterOnlyLockfile =
+            serde_saphyr::from_str_with_options(&main, yaml_parse_options(main.len()))
+                .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
         if !LockfileVersion::<9>::is_compatible(parsed.lockfile_version) {
             return Ok(None);
         }

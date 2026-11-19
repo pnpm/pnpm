@@ -865,8 +865,7 @@ fn load_importer_from_path_skips_package_and_snapshot_maps() {
         .expect("root importer present");
     let node = PkgName::parse("node").expect("parse node name");
     assert_eq!(
-        importer
-            .dev_dependencies
+        importer.dev_dependencies
             .as_ref()
             .and_then(|dependencies| dependencies.get(&node))
             .map(|dependency| &dependency.version),
