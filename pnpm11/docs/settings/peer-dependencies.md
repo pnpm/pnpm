@@ -110,8 +110,6 @@ Added in: v10.33.0
 
 When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This reduces the number of package instances in projects with many recursive peer dependencies.
 
-If two projects use the same peer version with different peer bindings, this setting can make a package link to the other project's peer instance. Set `dedupePeers: false` and run `pnpm install --no-frozen-lockfile` to preserve both bindings.
-
 This is different from [`dedupePeerDependents`](#dedupepeerdependents), which deduplicates packages that have the same peer dependencies across different workspace projects. `dedupePeers` simplifies the peer dependency suffix format itself.
 
 ### strictPeerDependencies
