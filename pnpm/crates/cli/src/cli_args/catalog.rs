@@ -1,6 +1,10 @@
-use crate::cli_args::{
-    catalogs::{configured_catalogs, workspace_manifest_catalogs},
-    recursive::discover_workspace_projects,
+use crate::{
+    cli_args::{
+        catalogs::{configured_catalogs, workspace_manifest_catalogs},
+        recursive::discover_workspace_projects,
+        reporter::CliReporter,
+    },
+    config_deps::update_config_hook_catalogs,
 };
 use clap::{Args, Subcommand};
 use derive_more::{Display, Error};
@@ -17,6 +21,7 @@ use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
+    path::Path,
 };
 
 const MIGRATED_GROUPS: [DependencyGroup; 4] =
@@ -48,9 +53,11 @@ pub enum CatalogSubcommand {
 }
 
 impl CatalogArgs {
-    pub fn run(self, config: &Config) -> miette::Result<()> {
+    /// `dir` is the command's working directory; `config` has had the
+    /// `updateConfig` hooks applied.
+    pub async fn run(self, config: &Config, dir: &Path) -> miette::Result<()> {
         match self.command {
-            CatalogSubcommand::Migrate => migrate(config),
+            CatalogSubcommand::Migrate => migrate(config, dir).await,
         }
     }
 }
@@ -67,19 +74,9 @@ struct MigrationPlan {
     /// The entries to add to the default catalog.
     new_entries: Catalog,
     conflicts: Vec<Conflict>,
-    /// Dependencies the projects agree on that would need a new entry in
-    /// catalogs an `updateConfig` hook supplies.
+    /// Dependencies the projects agree on whose new catalog entry an
+    /// `updateConfig` hook would drop or change.
     missing_from_hook_catalogs: Vec<String>,
-}
-
-/// Where the catalogs that installs resolve through come from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CatalogSource {
-    WorkspaceManifest,
-    /// The hook's output replaces the workspace catalogs, so an entry
-    /// written to `pnpm-workspace.yaml` reaches installs only if the hook
-    /// keeps it.
-    UpdateConfigHook,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -89,19 +86,15 @@ struct Conflict {
     catalog_entry: Option<String>,
 }
 
-fn migrate(config: &Config) -> miette::Result<()> {
+async fn migrate(config: &Config, dir: &Path) -> miette::Result<()> {
     let workspace_dir = config.workspace_dir.as_deref().ok_or(CatalogError::NoWorkspace)?;
     let (mut projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
     let catalogs = configured_catalogs(config)?;
-    // Loading any pnpmfile fills `config.catalogs`, so only catalogs that
-    // differ from the workspace manifest's show that a hook replaced them.
-    let source = if catalogs == workspace_manifest_catalogs(config)? {
-        CatalogSource::WorkspaceManifest
-    } else {
-        CatalogSource::UpdateConfigHook
-    };
-    let plan =
-        plan_migration(&declared_specifiers(&projects), catalogs.get(DEFAULT_CATALOG_NAME), source);
+    let mut plan =
+        plan_migration(&declared_specifiers(&projects), catalogs.get(DEFAULT_CATALOG_NAME));
+    if !plan.new_entries.is_empty() {
+        keep_entries_the_hooks_keep(&mut plan, config, dir).await?;
+    }
 
     // The catalog is written before the manifests that reference it, so a
     // failed manifest write leaves an unused entry rather than a dangling
@@ -159,7 +152,6 @@ fn is_migratable(specifier: &str) -> bool {
 fn plan_migration(
     declared: &DeclaredSpecifiers,
     default_catalog: Option<&Catalog>,
-    source: CatalogSource,
 ) -> MigrationPlan {
     let mut plan = MigrationPlan::default();
     for (name, specifiers) in declared {
@@ -173,9 +165,6 @@ fn plan_migration(
             _ => None,
         };
         match (agreed, catalog_entry) {
-            (Some(_), None) if source == CatalogSource::UpdateConfigHook => {
-                plan.missing_from_hook_catalogs.push(name.clone());
-            }
             (Some(specifier), None) => {
                 plan.new_entries.insert(name.clone(), specifier.clone());
                 plan.migrated.insert(name.clone(), specifier.clone());
@@ -191,6 +180,46 @@ fn plan_migration(
         }
     }
     plan
+}
+
+/// An `updateConfig` hook's output replaces the workspace catalogs, so a new
+/// entry written to `pnpm-workspace.yaml` reaches installs only if the hooks
+/// pass it through. Rerun them with the entries added and hold back the ones
+/// that do not come back unchanged.
+async fn keep_entries_the_hooks_keep(
+    plan: &mut MigrationPlan,
+    config: &Config,
+    dir: &Path,
+) -> miette::Result<()> {
+    let mut seed = workspace_manifest_catalogs(config)?;
+    seed.entry(DEFAULT_CATALOG_NAME.to_string())
+        .or_default()
+        .extend(plan.new_entries.clone());
+    let root_dir = config.root_project_manifest_dir(dir);
+    let Some(hook_catalogs) =
+        update_config_hook_catalogs::<CliReporter>(config, root_dir, &seed).await?
+    else {
+        return Ok(());
+    };
+    plan.hold_back_entries_missing_from(hook_catalogs.get(DEFAULT_CATALOG_NAME));
+    Ok(())
+}
+
+impl MigrationPlan {
+    fn hold_back_entries_missing_from(&mut self, hook_catalog: Option<&Catalog>) {
+        let missing: Vec<String> = self.new_entries
+            .iter()
+            .filter(|(name, specifier)| {
+                hook_catalog.and_then(|catalog| catalog.get(*name)) != Some(*specifier)
+            })
+            .map(|(name, _)| name.clone())
+            .collect();
+        for name in &missing {
+            self.new_entries.remove(name);
+            self.migrated.remove(name);
+        }
+        self.missing_from_hook_catalogs = missing;
+    }
 }
 
 /// Replace each of `project`'s specifiers that `migrated` moved into the
@@ -243,7 +272,7 @@ fn render_missing_from_hook_catalogs(names: &[String]) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     format!(
-        "These dependencies were left unchanged because the catalogs come from an updateConfig hook that has no entry for them: {names}\n",
+        "These dependencies were left unchanged because an updateConfig hook would drop their new catalog entries: {names}\n",
     )
 }
 

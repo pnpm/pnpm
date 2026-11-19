@@ -1,6 +1,5 @@
 use super::{
-    CatalogSource, Conflict, DeclaredSpecifiers, MigrationPlan, is_migratable, plan_migration,
-    render_report,
+    Conflict, DeclaredSpecifiers, MigrationPlan, is_migratable, plan_migration, render_report,
 };
 use pnpm_catalogs_types::Catalog;
 use pretty_assertions::assert_eq;
@@ -58,7 +57,6 @@ fn moves_agreed_specifiers_and_lists_the_rest() {
             ("off-catalog", &["^4.0.0"]),
         ]),
         Some(&catalog(&[("cataloged", "^3.0.0"), ("off-catalog", "^4.1.0")])),
-        CatalogSource::WorkspaceManifest,
     );
     assert_eq!(
         plan,
@@ -94,7 +92,7 @@ Moved 2 dependencies to the default catalog. Run `pnpm install` to update the lo
 
 #[test]
 fn reports_when_nothing_moves() {
-    let plan = plan_migration(&DeclaredSpecifiers::new(), None, CatalogSource::WorkspaceManifest);
+    let plan = plan_migration(&DeclaredSpecifiers::new(), None);
     assert_eq!(render_report(&plan), "No dependencies were moved to the default catalog.");
 }
 
@@ -109,24 +107,27 @@ fn strips_control_characters_from_conflicts() {
 }
 
 #[test]
-fn adds_no_entries_to_catalogs_a_hook_supplies() {
-    let plan = plan_migration(
-        &declared(&[("cataloged", &["^1.0.0"]), ("uncataloged", &["^2.0.0"])]),
-        Some(&catalog(&[("cataloged", "^1.0.0")])),
-        CatalogSource::UpdateConfigHook,
+fn holds_back_entries_the_hooks_drop_or_change() {
+    let mut plan = plan_migration(
+        &declared(&[("kept", &["^1.0.0"]), ("dropped", &["^2.0.0"]), ("changed", &["^3.0.0"])]),
+        None,
     );
+    plan.hold_back_entries_missing_from(Some(&catalog(&[
+        ("kept", "^1.0.0"),
+        ("changed", "^3.1.0"),
+    ])));
     assert_eq!(
         plan,
         MigrationPlan {
-            migrated: BTreeMap::from([("cataloged".to_string(), "^1.0.0".to_string())]),
-            new_entries: Catalog::new(),
+            migrated: BTreeMap::from([("kept".to_string(), "^1.0.0".to_string())]),
+            new_entries: catalog(&[("kept", "^1.0.0")]),
             conflicts: Vec::new(),
-            missing_from_hook_catalogs: vec!["uncataloged".to_string()],
+            missing_from_hook_catalogs: vec!["changed".to_string(), "dropped".to_string()],
         },
     );
     assert_eq!(
         render_report(&plan),
-        "These dependencies were left unchanged because the catalogs come from an updateConfig hook that has no entry for them: uncataloged
+        "These dependencies were left unchanged because an updateConfig hook would drop their new catalog entries: changed, dropped
 Moved 1 dependency to the default catalog. Run `pnpm install` to update the lockfile.",
     );
 }
