@@ -7372,6 +7372,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "url",
  "zip",
 ]
 

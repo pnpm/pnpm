@@ -4,8 +4,8 @@ use sha2::{Digest, Sha256};
 
 use super::{
     Advisory, BulkAdvisory, Cow, Deserialize, HashMap, HashSet, MAX_ADVISORY_ID_BYTES,
-    MAX_EVENTS_PER_RANGE, MAX_RANGES_PER_AFFECTED, MAX_VERSIONS_PER_AFFECTED, RegistryError,
-    SemverRange, invalid_config,
+    MAX_EVENTS_PER_RANGE, MAX_EXPLICIT_RANGE_BYTES, MAX_RANGES_PER_AFFECTED,
+    MAX_VERSIONS_PER_AFFECTED, RegistryError, SemverRange, invalid_config,
     ranges::{OsvRange, build_vulnerable_versions_str, parse_npm_range},
     severity::{OsvSeverity, SeverityLevel},
 };
@@ -31,7 +31,7 @@ pub(super) struct OsvRecord {
 
 #[derive(Deserialize)]
 pub(super) struct OsvDatabaseSpecific {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
     pub(super) severity: Option<String>,
     #[serde(default)]
     pub(super) cwe_ids: Vec<String>,
@@ -64,14 +64,27 @@ pub(super) struct OsvAffected {
 pub(super) struct OsvAffectedDatabaseSpecific {
     #[serde(default)]
     pub(super) last_known_affected_version_range: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
     pub(super) severity: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub(super) struct OsvEcosystemSpecific {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
     pub(super) severity: Option<String>,
+}
+
+fn deserialize_optional_string<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<String>, Deser::Error>
+where
+    Deser: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::String(text)) => Some(text),
+        _ => None,
+    })
 }
 
 #[derive(Deserialize)]
@@ -126,7 +139,12 @@ pub(super) fn ingest_record_bytes(
 }
 
 pub(super) fn exceeds_affected_limits(affected: &OsvAffected) -> bool {
-    affected.versions.len() > MAX_VERSIONS_PER_AFFECTED
+    let explicit_len = affected.database_specific
+        .as_ref()
+        .and_then(|specific| specific.last_known_affected_version_range.as_deref())
+        .map_or(0, str::len);
+    explicit_len > MAX_EXPLICIT_RANGE_BYTES
+        || affected.versions.len() > MAX_VERSIONS_PER_AFFECTED
         || affected.ranges.len() > MAX_RANGES_PER_AFFECTED
         || affected.ranges
             .iter()
@@ -272,7 +290,7 @@ fn resolve_record_severity(record: &OsvRecord, affected_severity: Option<Severit
 
 fn advisory_url(record: &OsvRecord) -> String {
     if is_ghsa_id(&record.id) {
-        return format!("https://github.com/advisories/{}", record.id);
+        return format_ghsa_url(&record.id);
     }
     if let Some(ghsa) = record.aliases
         .as_deref()
@@ -280,7 +298,7 @@ fn advisory_url(record: &OsvRecord) -> String {
         .iter()
         .find(|alias| is_ghsa_id(alias))
     {
-        return format!("https://github.com/advisories/{ghsa}");
+        return format_ghsa_url(ghsa);
     }
     if let Some(reference) = record.references
         .iter()
@@ -293,21 +311,53 @@ fn advisory_url(record: &OsvRecord) -> String {
     format!("https://osv.dev/vulnerability/{encoded_id}")
 }
 
-fn is_ghsa_id(candidate: &str) -> bool {
-    candidate.len() > 5
-        && candidate.len() <= MAX_ADVISORY_ID_BYTES
-        && candidate
-            .as_bytes()
-            .get(..5)
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"GHSA-"))
-        && candidate
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+fn format_ghsa_url(ghsa: &str) -> String {
+    format!("https://github.com/advisories/GHSA-{}", ghsa[5..].to_ascii_lowercase())
 }
 
-fn is_http_url(url: &str) -> bool {
-    (url.starts_with("https://") || url.starts_with("http://"))
-        && !url.chars().any(char::is_control)
+fn is_ghsa_id(candidate: &str) -> bool {
+    let bytes = candidate.as_bytes();
+    if bytes.len() != 19 || !bytes[..5].eq_ignore_ascii_case(b"GHSA-") {
+        return false;
+    }
+    bytes[9] == b'-'
+        && bytes[14] == b'-'
+        && is_ghsa_segment(&bytes[5..9])
+        && is_ghsa_segment(&bytes[10..14])
+        && is_ghsa_segment(&bytes[15..19])
+}
+
+fn is_ghsa_segment(segment: &[u8]) -> bool {
+    segment
+        .iter()
+        .all(|byte| {
+            matches!(
+                byte.to_ascii_lowercase(),
+                b'2'..=b'9'
+                    | b'c'
+                    | b'f'
+                    | b'g'
+                    | b'h'
+                    | b'j'
+                    | b'm'
+                    | b'p'
+                    | b'q'
+                    | b'r'
+                    | b'v'
+                    | b'w'
+                    | b'x',
+            )
+        })
+}
+
+fn is_http_url(raw_url: &str) -> bool {
+    if raw_url.chars().any(char::is_control) {
+        return false;
+    }
+    let Ok(parsed) = url::Url::parse(raw_url) else {
+        return false;
+    };
+    matches!(parsed.scheme(), "http" | "https") && parsed.has_host()
 }
 
 fn encode_url_path_segment(segment: &str) -> String {

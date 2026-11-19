@@ -405,17 +405,28 @@ fn cvss_v4_scores_match_first_specification_vectors() {
     let cases = [
         ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H", Some(10.0)),
         ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", Some(9.3)),
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N/E:U", Some(9.3)),
         ("CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", Some(9.2)),
         ("CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:L/VA:N/SC:N/SI:N/SA:N", Some(7.1)),
         ("CVSS:4.0/AV:N/AC:H/AT:P/PR:L/UI:P/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N", Some(5.9)),
         ("CVSS:4.0/AV:L/AC:H/AT:P/PR:H/UI:A/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N", Some(1.0)),
         ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:N/SC:N/SI:N/SA:N", Some(0.0)),
-        ("CVSS:4.0/AV:L/AC:L/AT:N/PR:H/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N/MSI:S", Some(7.6)),
+        ("CVSS:4.0/AV:L/AC:L/AT:N/PR:H/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N", Some(4.6)),
+        ("CVSS:4.0/AV:L/AC:L/AT:N/PR:H/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N/MSI:S", Some(4.6)),
         ("CVSS:4.0/AV:Z/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", None),
+        ("CVSS:4.0/AV:Z/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N/MAV:N", None),
     ];
     for (vector, expected) in cases {
         let actual = cvss_v4_score(vector);
         assert_eq!(actual, expected, "vector: {vector}");
+    }
+
+    for vector in [
+        "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+        "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N/E:U",
+    ] {
+        let entry = OsvSeverity { kind: "CVSS_V4".to_string(), score: vector.to_string() };
+        assert_eq!(SeverityLevel::from_osv_severity(&entry), Some(SeverityLevel::Critical));
     }
 }
 
@@ -464,6 +475,54 @@ fn rejects_record_exceeding_version_range_comparison_budget() {
 
     let err = OsvIndex::load_from_path(dir.path()).expect_err("must reject quadratic work");
     let message = format!("{err}");
-    eprintln!("ERR:\n{message}");
-    assert!(message.contains("version-range comparison limit"));
+    assert!(message.contains("version-range comparison limit"), "{message}");
+}
+
+#[test]
+fn rejects_single_explicit_range_with_excessive_union_alternatives() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let versions: Vec<String> = (0..1000)
+        .map(|idx| format!("1.0.{idx}"))
+        .collect();
+    let explicit_range = (0..600)
+        .map(|idx| format!("2.{idx}.0"))
+        .collect::<Vec<_>>()
+        .join(" || ");
+    let record = serde_json::json!({
+        "id": "GHSA-union-budget",
+        "affected": [{
+            "package": { "ecosystem": "npm", "name": "union-pkg" },
+            "database_specific": {
+                "last_known_affected_version_range": explicit_range
+            },
+            "versions": versions
+        }]
+    });
+    fs::write(dir.path().join("GHSA-union-budget.json"), record.to_string()).expect("write record");
+
+    let err = OsvIndex::load_from_path(dir.path()).expect_err("must reject excessive alternatives");
+    let message = format!("{err}");
+    assert!(message.contains("version-range comparison limit"), "{message}");
+}
+
+#[test]
+fn ignores_non_string_severity_values_in_specific_objects() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        dir.path().join("OSV-non-string-sev.json"),
+        r#"{
+          "id": "OSV-non-string-sev",
+          "database_specific": { "severity": { "level": 8 } },
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "numeric-sev-pkg" },
+            "database_specific": { "severity": ["HIGH"] },
+            "ecosystem_specific": { "severity": 8 },
+            "versions": ["1.0.0"]
+          }]
+        }"#,
+    )
+    .expect("write record");
+
+    let index = OsvIndex::load_from_path(dir.path()).expect("load index");
+    assert!(index.is_vulnerable("numeric-sev-pkg", "1.0.0"));
 }

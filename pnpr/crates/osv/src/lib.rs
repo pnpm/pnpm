@@ -48,6 +48,7 @@ const MAX_ADVISORY_ID_BYTES: usize = 256;
 const MAX_VERSIONS_PER_AFFECTED: usize = 100_000;
 const MAX_RANGES_PER_AFFECTED: usize = 10_000;
 const MAX_EVENTS_PER_RANGE: usize = 10_000;
+const MAX_EXPLICIT_RANGE_BYTES: usize = 64 * 1024;
 const MAX_RANGE_COVERAGE_CHECKS: usize = 500_000;
 
 /// An advisory payload matching the npm/pnpm bulk advisories endpoint contract.
@@ -229,10 +230,17 @@ impl Advisory {
 #[derive(Debug)]
 struct SemverRange {
     events: Vec<SemverEvent>,
+    limit: Option<Version>,
 }
 
 impl SemverRange {
     fn affects(&self, version: &Version) -> bool {
+        if self.limit
+            .as_ref()
+            .is_some_and(|cap| version >= cap)
+        {
+            return false;
+        }
         let mut affected = false;
         for event in &self.events {
             if let Some(opens) = event.verdict_at(version) {
@@ -248,7 +256,6 @@ enum SemverEvent {
     Introduced(Version),
     Fixed(Version),
     LastAffected(Version),
-    Limit(Version),
 }
 
 impl SemverEvent {
@@ -256,8 +263,7 @@ impl SemverEvent {
         match self {
             SemverEvent::Introduced(version)
             | SemverEvent::Fixed(version)
-            | SemverEvent::LastAffected(version)
-            | SemverEvent::Limit(version) => version,
+            | SemverEvent::LastAffected(version) => version,
         }
     }
 
@@ -266,14 +272,13 @@ impl SemverEvent {
             SemverEvent::Introduced(bound) => (version >= bound).then_some(true),
             SemverEvent::Fixed(bound) => (version >= bound).then_some(false),
             SemverEvent::LastAffected(bound) => (version > bound).then_some(false),
-            SemverEvent::Limit(bound) => (version >= bound).then_some(false),
         }
     }
 
     fn sort_rank(&self) -> u8 {
         match self {
             SemverEvent::Introduced(_) => 0,
-            SemverEvent::Fixed(_) | SemverEvent::LastAffected(_) | SemverEvent::Limit(_) => 1,
+            SemverEvent::Fixed(_) | SemverEvent::LastAffected(_) => 1,
         }
     }
 

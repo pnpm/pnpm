@@ -336,7 +336,7 @@ async fn audit_endpoints_reject_malformed_json_with_bad_request_before_upstream(
 async fn bulk_advisories_endpoint_preserves_osv_versions_cvss_severity_and_urls() {
     let osv = TempDir::new().unwrap();
     let ghsa_mixed = json!({
-        "id": "GHSA-0000-0000-0001",
+        "id": "GHSA-2222-3333-4444",
         "summary": "Critical advisory in @acme/vuln",
         "database_specific": { "severity": "CRITICAL" },
         "affected": [{
@@ -363,7 +363,7 @@ async fn bulk_advisories_endpoint_preserves_osv_versions_cvss_severity_and_urls(
             ]
         }]
     });
-    fs::write(osv.path().join("GHSA-0000-0000-0001.json"), ghsa_mixed.to_string()).unwrap();
+    fs::write(osv.path().join("GHSA-2222-3333-4444.json"), ghsa_mixed.to_string()).unwrap();
     fs::write(osv.path().join("MAL-2026-0001.json"), mal_cvss.to_string()).unwrap();
 
     let tmp = TempDir::new().unwrap();
@@ -401,7 +401,7 @@ async fn bulk_advisories_endpoint_preserves_osv_versions_cvss_severity_and_urls(
         .find(|item| item["title"] == "Critical advisory in @acme/vuln")
         .expect("GHSA entry");
     assert_eq!(ghsa_entry["vulnerable_versions"], ">=1.0.0 <1.0.5 || 2.0.1");
-    assert_eq!(ghsa_entry["url"], "https://github.com/advisories/GHSA-0000-0000-0001");
+    assert_eq!(ghsa_entry["url"], "https://github.com/advisories/GHSA-2222-3333-4444");
 
     let mal_entry = advisories
         .iter()

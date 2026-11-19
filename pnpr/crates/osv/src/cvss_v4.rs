@@ -33,11 +33,6 @@ const IDX_VA: usize = 7;
 const IDX_SC: usize = 8;
 const IDX_SI: usize = 9;
 const IDX_SA: usize = 10;
-const IDX_E: usize = 11;
-const IDX_CR: usize = 12;
-const IDX_IR: usize = 13;
-const IDX_AR: usize = 14;
-const MODIFIED_OFFSET: usize = 15;
 
 struct ParsedVector<'a>([Option<&'a str>; METRIC_NAMES.len()]);
 
@@ -49,7 +44,7 @@ impl<'a> ParsedVector<'a> {
         let mut slots = [None; METRIC_NAMES.len()];
         for part in body.split('/') {
             let (name, val) = part.split_once(':')?;
-            if val.is_empty() {
+            if name.is_empty() || val.is_empty() {
                 return None;
             }
             if let Some(metric_idx) = METRIC_NAMES
@@ -66,52 +61,27 @@ impl<'a> ParsedVector<'a> {
         Some(Self(slots))
     }
 
-    fn raw(&self, idx: usize) -> Option<&'a str> {
+    fn base(&self, idx: usize) -> Option<&'a str> {
         self.0[idx]
-    }
-
-    fn effective(&self, base_idx: usize) -> Option<&'a str> {
-        self.raw(base_idx + MODIFIED_OFFSET)
-            .filter(|&val| val != "X")
-            .or_else(|| self.raw(base_idx))
-    }
-
-    fn optional_with_default(&self, idx: usize, default: &'static str) -> &'a str {
-        self.raw(idx)
-            .filter(|&val| val != "X")
-            .unwrap_or(default)
     }
 }
 
-struct EffectiveRanks {
+struct BaseRanks {
     exploit: [u8; 5],
     vuln: [u8; 3],
     sub: [u8; 3],
-    reqs: [u8; 3],
-    maturity: u8,
 }
 
-impl EffectiveRanks {
+impl BaseRanks {
     fn from_parsed(parsed: &ParsedVector<'_>) -> Option<Self> {
         let exploit = parse_exploit_ranks(parsed)?;
         let vuln = [
-            cia_rank(parsed.effective(IDX_VC)?)?,
-            cia_rank(parsed.effective(IDX_VI)?)?,
-            cia_rank(parsed.effective(IDX_VA)?)?,
+            cia_rank(parsed.base(IDX_VC)?)?,
+            cia_rank(parsed.base(IDX_VI)?)?,
+            cia_rank(parsed.base(IDX_VA)?)?,
         ];
         let sub = parse_subsequent_ranks(parsed)?;
-        let reqs = [
-            req_rank(parsed.optional_with_default(IDX_CR, "H"))?,
-            req_rank(parsed.optional_with_default(IDX_IR, "H"))?,
-            req_rank(parsed.optional_with_default(IDX_AR, "H"))?,
-        ];
-        let maturity = match parsed.optional_with_default(IDX_E, "A") {
-            "A" => 0,
-            "P" => 1,
-            "U" => 2,
-            _ => return None,
-        };
-        Some(Self { exploit, vuln, sub, reqs, maturity })
+        Some(Self { exploit, vuln, sub })
     }
 
     fn has_zero_impact(&self) -> bool {
@@ -124,9 +94,8 @@ impl EffectiveRanks {
         let eq2 = u8::from(!(ac == 0 && at == 0));
         let eq3 = eq3_level(self.vuln);
         let eq4 = eq4_level(self.sub);
-        let has_high_req_impact = (0..3).any(|idx| self.reqs[idx] == 0 && self.vuln[idx] == 0);
-        let eq6 = u8::from(!has_high_req_impact);
-        [eq1, eq2, eq3, eq4, self.maturity, eq6]
+        let eq6 = u8::from(!self.vuln.contains(&0));
+        [eq1, eq2, eq3, eq4, 0, eq6]
     }
 }
 
@@ -151,41 +120,35 @@ fn eq3_level(vuln: [u8; 3]) -> u8 {
 }
 
 fn eq4_level(sub: [u8; 3]) -> u8 {
-    if sub[1] == 0 || sub[2] == 0 {
-        0
-    } else if sub.contains(&1) {
-        1
-    } else {
-        2
-    }
+    if sub.contains(&1) { 1 } else { 2 }
 }
 
 fn parse_exploit_ranks(parsed: &ParsedVector<'_>) -> Option<[u8; 5]> {
-    let av = match parsed.effective(IDX_AV)? {
+    let av = match parsed.base(IDX_AV)? {
         "N" => 0,
         "A" => 1,
         "L" => 2,
         "P" => 3,
         _ => return None,
     };
-    let pr = match parsed.effective(IDX_PR)? {
+    let pr = match parsed.base(IDX_PR)? {
         "N" => 0,
         "L" => 1,
         "H" => 2,
         _ => return None,
     };
-    let ui = match parsed.effective(IDX_UI)? {
+    let ui = match parsed.base(IDX_UI)? {
         "N" => 0,
         "P" => 1,
         "A" => 2,
         _ => return None,
     };
-    let ac = match parsed.effective(IDX_AC)? {
+    let ac = match parsed.base(IDX_AC)? {
         "L" => 0,
         "H" => 1,
         _ => return None,
     };
-    let at = match parsed.effective(IDX_AT)? {
+    let at = match parsed.base(IDX_AT)? {
         "N" => 0,
         "P" => 1,
         _ => return None,
@@ -194,11 +157,9 @@ fn parse_exploit_ranks(parsed: &ParsedVector<'_>) -> Option<[u8; 5]> {
 }
 
 fn parse_subsequent_ranks(parsed: &ParsedVector<'_>) -> Option<[u8; 3]> {
-    let _ = cia_rank(parsed.raw(IDX_SI)?)?;
-    let _ = cia_rank(parsed.raw(IDX_SA)?)?;
-    let sc = cia_rank(parsed.effective(IDX_SC)?)? + 1;
-    let si = sub_safety_rank(parsed.effective(IDX_SI)?)?;
-    let sa = sub_safety_rank(parsed.effective(IDX_SA)?)?;
+    let sc = cia_rank(parsed.base(IDX_SC)?)? + 1;
+    let si = cia_rank(parsed.base(IDX_SI)?)? + 1;
+    let sa = cia_rank(parsed.base(IDX_SA)?)? + 1;
     Some([sc, si, sa])
 }
 
@@ -211,29 +172,10 @@ fn cia_rank(val: &str) -> Option<u8> {
     }
 }
 
-fn sub_safety_rank(val: &str) -> Option<u8> {
-    match val {
-        "S" => Some(0),
-        "H" => Some(1),
-        "L" => Some(2),
-        "N" => Some(3),
-        _ => None,
-    }
-}
-
-fn req_rank(val: &str) -> Option<u8> {
-    match val {
-        "H" => Some(0),
-        "M" => Some(1),
-        "L" => Some(2),
-        _ => None,
-    }
-}
-
 pub(super) fn cvss_v4_score(vector: &str) -> Option<f64> {
     let body = vector.strip_prefix("CVSS:4.0/")?;
     let parsed = ParsedVector::parse(body)?;
-    let ranks = EffectiveRanks::from_parsed(&parsed)?;
+    let ranks = BaseRanks::from_parsed(&parsed)?;
     if ranks.has_zero_impact() {
         return Some(0.0);
     }
@@ -262,7 +204,7 @@ fn lookup_macro_score(eq: [u8; 6]) -> Option<f64> {
     Some(f64::from(MACRO_VECTOR_TENTHS[idx]) / 10.0)
 }
 
-fn mean_proportional_distance(ranks: &EffectiveRanks, eq: [u8; 6], base: f64) -> f64 {
+fn mean_proportional_distance(ranks: &BaseRanks, eq: [u8; 6], base: f64) -> f64 {
     let lower_scores = [
         lookup_macro_score([eq[0] + 1, eq[1], eq[2], eq[3], eq[4], eq[5]]),
         lookup_macro_score([eq[0], eq[1] + 1, eq[2], eq[3], eq[4], eq[5]]),
@@ -273,7 +215,7 @@ fn mean_proportional_distance(ranks: &EffectiveRanks, eq: [u8; 6], base: f64) ->
     let proportions = [
         eq1_proportion(&ranks.exploit[..3], eq[0]),
         eq2_proportion(&ranks.exploit[3..], eq[1]),
-        eq3eq6_proportion(ranks.vuln, ranks.reqs, eq[2], eq[5]),
+        eq3eq6_proportion(ranks.vuln, [0, 0, 0], eq[2], eq[5]),
         eq4_proportion(ranks.sub, eq[3]),
         0.0,
     ];

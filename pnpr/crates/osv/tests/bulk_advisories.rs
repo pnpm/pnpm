@@ -7,9 +7,9 @@ use pnpr_osv::OsvIndex;
 fn bulk_advisories_matches_vulnerable_versions_and_shapes_payload() {
     let dir = tempfile::tempdir().expect("tempdir");
     fs::write(
-        dir.path().join("GHSA-test-1111.json"),
+        dir.path().join("GHSA-2222-3333-4444.json"),
         r#"{
-          "id": "GHSA-test-1111",
+          "id": "GHSA-2222-3333-4444",
           "summary": "Sample XSS in vulnerable package",
           "database_specific": {
             "severity": "HIGH",
@@ -41,9 +41,8 @@ fn bulk_advisories_matches_vulnerable_versions_and_shapes_payload() {
     assert_eq!(advisories.len(), 1);
 
     let adv = &advisories[0];
-    dbg!(adv);
     assert!(adv.id > 0);
-    assert_eq!(adv.url, "https://github.com/advisories/GHSA-test-1111");
+    assert_eq!(adv.url, "https://github.com/advisories/GHSA-2222-3333-4444");
     assert_eq!(adv.title, "Sample XSS in vulnerable package");
     assert_eq!(adv.severity, "high");
     assert_eq!(adv.vulnerable_versions, "<2.0.0");
@@ -169,7 +168,7 @@ fn bulk_advisories_unions_ranges_with_uncovered_versions_and_dedupes_covered() {
               "type": "SEMVER",
               "events": [{ "introduced": "1.0.0" }, { "fixed": "1.0.5" }]
             }],
-            "versions": ["1.0.2", "2.0.1"]
+            "versions": ["1.x", "1.0.2", "2.0.1"]
           }]
         }"#,
     )
@@ -267,18 +266,40 @@ fn bulk_advisories_skips_git_ranges_and_handles_limit_events() {
         }"#,
     )
     .expect("write fixed-then-limit record");
+    fs::write(
+        dir.path().join("GHSA-multi-limit.json"),
+        r#"{
+          "id": "GHSA-multi-limit",
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "multi-limit-pkg" },
+            "ranges": [{
+              "type": "SEMVER",
+              "events": [
+                { "introduced": "1.0.0" },
+                { "limit": "2.0.0" },
+                { "limit": "3.0.0" }
+              ]
+            }]
+          }]
+        }"#,
+    )
+    .expect("write multi-limit record");
 
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
+    assert!(index.is_vulnerable("multi-limit-pkg", "2.5.0"));
+    assert!(!index.is_vulnerable("multi-limit-pkg", "3.0.0"));
 
     let mut query = HashMap::new();
     query.insert("git-pkg".to_string(), vec!["1.2.3".to_string()]);
     query.insert("limit-pkg".to_string(), vec!["1.2.5".to_string()]);
     query.insert("fixed-limit-pkg".to_string(), vec!["1.5.0".to_string()]);
+    query.insert("multi-limit-pkg".to_string(), vec!["2.5.0".to_string()]);
 
     let result = index.bulk_advisories(&query);
     assert_eq!(result["git-pkg"][0].vulnerable_versions, "1.2.3");
     assert_eq!(result["limit-pkg"][0].vulnerable_versions, ">=1.2.0 <1.3.0");
     assert_eq!(result["fixed-limit-pkg"][0].vulnerable_versions, ">=1.0.0 <2.0.0");
+    assert_eq!(result["multi-limit-pkg"][0].vulnerable_versions, ">=1.0.0 <3.0.0");
 }
 
 #[test]
@@ -359,7 +380,7 @@ fn bulk_advisories_resolves_non_ghsa_and_aliased_advisory_urls() {
         dir.path().join("MAL-2026-0002.json"),
         r#"{
           "id": "MAL-2026-0002",
-          "aliases": ["CVE-2026-0002", "GHSA-aaaa-bbbb-cccc"],
+          "aliases": ["CVE-2026-0002", "GHSA-2345-6789-cfgh"],
           "affected": [{
             "package": { "ecosystem": "npm", "name": "mal-aliased" },
             "versions": ["1.0.0"]
@@ -368,13 +389,29 @@ fn bulk_advisories_resolves_non_ghsa_and_aliased_advisory_urls() {
     )
     .expect("write aliased mal record");
     fs::write(
+        dir.path().join("MAL-2026-0004.json"),
+        r#"{
+          "id": "MAL-2026-0004",
+          "aliases": ["GHSA-aaaa-bbbb-cccc"],
+          "references": [{
+            "type": "ADVISORY",
+            "url": "https://security.example.com/advisories/MAL-2026-0004"
+          }],
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "mal-invalid-alias" },
+            "versions": ["1.0.0"]
+          }]
+        }"#,
+    )
+    .expect("write invalid-alias mal record");
+    fs::write(
         dir.path().join("OSV-2026-0003.json"),
         r#"{
           "id": "OSV-2026-0003",
-          "references": [{
-            "type": "ADVISORY",
-            "url": "https://security.example.com/advisories/OSV-2026-0003"
-          }],
+          "references": [
+            { "type": "ADVISORY", "url": "https://" },
+            { "type": "ADVISORY", "url": "https://security.example.com/advisories/OSV-2026-0003" }
+          ],
           "affected": [{
             "package": { "ecosystem": "npm", "name": "osv-ref" },
             "versions": ["1.0.0"]
@@ -388,10 +425,15 @@ fn bulk_advisories_resolves_non_ghsa_and_aliased_advisory_urls() {
     let mut query = HashMap::new();
     query.insert("mal-plain".to_string(), vec!["1.0.0".to_string()]);
     query.insert("mal-aliased".to_string(), vec!["1.0.0".to_string()]);
+    query.insert("mal-invalid-alias".to_string(), vec!["1.0.0".to_string()]);
     query.insert("osv-ref".to_string(), vec!["1.0.0".to_string()]);
 
     let result = index.bulk_advisories(&query);
     assert_eq!(result["mal-plain"][0].url, "https://osv.dev/vulnerability/MAL-2026-0001");
-    assert_eq!(result["mal-aliased"][0].url, "https://github.com/advisories/GHSA-aaaa-bbbb-cccc");
+    assert_eq!(result["mal-aliased"][0].url, "https://github.com/advisories/GHSA-2345-6789-cfgh");
+    assert_eq!(
+        result["mal-invalid-alias"][0].url,
+        "https://security.example.com/advisories/MAL-2026-0004",
+    );
     assert_eq!(result["osv-ref"][0].url, "https://security.example.com/advisories/OSV-2026-0003");
 }
