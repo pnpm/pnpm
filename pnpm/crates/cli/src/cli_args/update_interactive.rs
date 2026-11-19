@@ -292,6 +292,7 @@ async fn collect_choices(
         ignore_names: ignored.as_ref(),
         include_deprecated: false,
         full_metadata: false,
+        apply_trust_policy: config.trust_policy == pnpm_config::TrustPolicy::NoDowngrade,
     };
     let run = OutdatedRun::new(config, Arc::clone(http_client), &query)?;
     let choices = futures_util::future::join_all(

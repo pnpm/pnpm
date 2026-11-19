@@ -80,7 +80,7 @@ pub use resolve_from_workspace::{
 };
 pub use trust_checks::{
     TrustCheckOptions, TrustEvidence, TrustHistory, TrustViolation, fail_if_trust_downgraded,
-    get_trust_evidence,
+    get_manifest_trust_evidence, get_trust_evidence,
 };
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
 pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};

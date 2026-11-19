@@ -6,10 +6,11 @@
 //! order, which packages sit in each, and that every column lines up.
 
 use super::{ChoiceGroup, column_widths, pad_row, update_choices};
-use crate::cli_args::outdated::OutdatedPackage;
+use crate::cli_args::outdated::{OutdatedPackage, TrustChange};
 use console::measure_text_width;
 use node_semver::Version;
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_resolving_npm_resolver::TrustEvidence;
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -476,4 +477,85 @@ fn rows_of_one_alias_key_the_notes_of_their_own_range() {
         ],
     );
     assert_ne!(keys[1], keys[2]);
+}
+
+fn with_trust(
+    mut package: OutdatedPackage,
+    current: Option<TrustEvidence>,
+    target: Option<TrustEvidence>,
+) -> OutdatedPackage {
+    package.metadata.trust = Some(TrustChange { current, target });
+    package.metadata.homepage = Some("https://example.test/".to_string());
+    package
+}
+
+#[test]
+fn trust_evidence_adds_a_trust_column_before_the_url() {
+    let packages = [
+        with_trust(
+            pkg("kept", "kept", "1.0.0", "1.1.0", DependencyGroup::Prod),
+            Some(TrustEvidence::Provenance),
+            Some(TrustEvidence::Provenance),
+        ),
+        with_trust(
+            pkg("gained", "gained", "1.0.0", "1.1.0", DependencyGroup::Prod),
+            None,
+            Some(TrustEvidence::TrustedPublisher),
+        ),
+        with_trust(
+            pkg("unsigned", "unsigned", "1.0.0", "1.1.0", DependencyGroup::Prod),
+            None,
+            None,
+        ),
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    let header = &groups[0].rows[0].label;
+    for (row, cell) in [(1, "provenance"), (2, "trusted publisher"), (3, "none")] {
+        let label = &groups[0].rows[row].label;
+        assert_eq!(column_of(header, "Trust"), column_of(label, cell), "{header}\n{label}");
+        assert_eq!(column_of(header, "URL"), column_of(label, "https://"), "{header}\n{label}");
+    }
+}
+
+#[test]
+fn a_trust_downgrade_names_the_evidence_it_loses() {
+    let packages = [with_trust(
+        pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        Some(TrustEvidence::TrustedPublisher),
+        Some(TrustEvidence::Provenance),
+    )];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    let label = &groups[0].rows[1].label;
+    assert!(label.contains("provenance (was trusted publisher)"), "{label}");
+}
+
+/// A GitHub Action has no registry trust evidence, so its cell is empty
+/// while the dependencies next to it still get the column.
+#[test]
+fn a_row_without_trust_evidence_leaves_its_cell_empty() {
+    let mut action =
+        pkg("actions/checkout", "actions/checkout", "4.0.0", "5.0.0", DependencyGroup::Dev);
+    action.github_action = true;
+    let packages = [
+        with_trust(pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod), None, None),
+        action,
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    assert!(groups[1].rows[0].label.contains("Trust"), "{}", groups[1].rows[0].label);
+    assert!(!groups[1].rows[1].label.contains("none"), "{}", groups[1].rows[1].label);
+}
+
+#[test]
+fn no_trust_column_without_trust_evidence() {
+    let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod)];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    assert!(!groups[0].rows[0].label.contains("Trust"), "{}", groups[0].rows[0].label);
 }

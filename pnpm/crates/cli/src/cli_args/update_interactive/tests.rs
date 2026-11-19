@@ -4,13 +4,17 @@ use super::{
     ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdatePrompt,
     collect_choices, dependencies_prompt_message,
 };
-use crate::{checkbox_prompt::KeyOutcome, cli_args::update::UpdateArgs};
+use crate::{
+    checkbox_prompt::KeyOutcome,
+    cli_args::{outdated::TrustChange, update::UpdateArgs},
+};
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_resolving_npm_resolver::TrustEvidence;
 use pnpm_testing_utils::registry::TestRegistry;
 use serde_json::{Value, json};
 use std::{
@@ -393,6 +397,227 @@ fn manifest_without_usable_name(
     }
     std::fs::write(&manifest_path, manifest.to_string()).expect("write project manifest");
     PackageManifest::from_path(manifest_path).expect("read project manifest")
+}
+
+/// A registry package `foo` publishing `versions` in order, a month apart,
+/// each with the given trust evidence. `latest` is the last one.
+fn package_body_with_trust(registry: &str, versions: &[(&str, Option<TrustEvidence>)]) -> String {
+    let provenance = json!({ "provenance": { "predicateType": "https://slsa.dev/provenance/v1" } });
+    let mut documents = serde_json::Map::new();
+    let mut times = serde_json::Map::new();
+    for (month, (version, evidence)) in versions.iter().enumerate() {
+        let mut document = json!({
+            "name": "foo",
+            "version": version,
+            "dist": {
+                "integrity": TEST_INTEGRITY,
+                "tarball": format!("{registry}foo/-/foo-{version}.tgz"),
+            },
+        });
+        if evidence.is_some() {
+            document["dist"]["attestations"] = provenance.clone();
+        }
+        match evidence {
+            Some(TrustEvidence::TrustedPublisher) => {
+                document["_npmUser"] = json!({ "trustedPublisher": { "id": "github" } });
+            }
+            Some(TrustEvidence::StagedPublish) => {
+                document["_npmUser"] = json!({ "approver": { "name": "maintainer" } });
+            }
+            Some(TrustEvidence::Provenance) | None => {}
+        }
+        documents.insert((*version).to_string(), document);
+        times.insert(
+            (*version).to_string(),
+            json!(format!("2020-{:02}-01T00:00:00.000Z", month + 1)),
+        );
+    }
+    let latest = versions.last().expect("at least one version").0;
+    json!({ "name": "foo", "dist-tags": { "latest": latest }, "versions": documents, "time": times })
+        .to_string()
+}
+
+/// One offered choice: its target version and the trust it recorded.
+type OfferedTrust = (String, Option<TrustChange>);
+
+/// What `update --interactive --latest` offers for one dependency on the
+/// mock registry's `foo`, declared as `(alias, specifier, locked version)`.
+/// `configure` receives the mock registry's URL.
+async fn trust_of_choices(
+    (alias, specifier, locked): (&str, &str, &str),
+    versions: &[(&str, Option<TrustEvidence>)],
+    configure: impl FnOnce(&mut Config, &str),
+) -> Vec<OfferedTrust> {
+    let temp = tempfile::tempdir().expect("create temporary workspace");
+    let manifest = manifest_with_dependency_spec(temp.path(), "packages/a", (alias, specifier));
+    let lockfile: Lockfile = serde_saphyr::from_str(&format!(
+        "
+lockfileVersion: '9.0'
+importers:
+  packages/a:
+    dependencies:
+      {alias}:
+        specifier: '{specifier}'
+        version: '{locked}'
+",
+    ))
+    .expect("parse workspace lockfile");
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let foo_mock = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(package_body_with_trust(&registry, versions))
+        .expect(1)
+        .create_async()
+        .await;
+    let mut config = Config::new();
+    config.registry = registry.clone();
+    config.cache_dir = temp.path().join("cache");
+    configure(&mut config, &registry);
+    let projects =
+        [InteractiveUpdateProject { manifest: &manifest, importer_id: "packages/a".to_string() }];
+
+    let choices = collect_choices(
+        &projects,
+        Some(&lockfile),
+        &config,
+        &Arc::new(ThrottledClient::default()),
+        TargetVersion::Latest,
+        &[DependencyGroup::Prod],
+    )
+    .await
+    .expect("collect interactive choices");
+
+    foo_mock.assert_async().await;
+    choices
+        .into_iter()
+        .map(|choice| (choice.target.to_string(), choice.metadata.trust))
+        .collect()
+}
+
+fn no_downgrade(config: &mut Config, _registry: &str) {
+    config.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
+}
+
+const TRUSTED_THEN_PROVENANCE: &[(&str, Option<TrustEvidence>)] =
+    &[("1.0.0", Some(TrustEvidence::TrustedPublisher)), ("1.1.0", Some(TrustEvidence::Provenance))];
+
+const PROVENANCE_THEN_TRUSTED: &[(&str, Option<TrustEvidence>)] =
+    &[("1.0.0", Some(TrustEvidence::Provenance)), ("1.1.0", Some(TrustEvidence::TrustedPublisher))];
+
+fn trust_offer(target: &str, current: TrustEvidence, offered: TrustEvidence) -> OfferedTrust {
+    (target.to_string(), Some(TrustChange { current: Some(current), target: Some(offered) }))
+}
+
+#[tokio::test]
+async fn no_downgrade_trust_policy_reports_the_trust_of_both_versions() {
+    let expected =
+        [trust_offer("1.1.0", TrustEvidence::Provenance, TrustEvidence::TrustedPublisher)];
+    assert_eq!(
+        trust_of_choices(("foo", "^1.0.0", "1.0.0"), PROVENANCE_THEN_TRUSTED, no_downgrade).await,
+        expected,
+    );
+    assert_eq!(
+        trust_of_choices(
+            ("bar", "npm:foo@^1.0.0", "foo@1.0.0"),
+            PROVENANCE_THEN_TRUSTED,
+            no_downgrade
+        )
+        .await,
+        expected,
+    );
+}
+
+/// The installed version's evidence is read from the registry the
+/// specifier names, not from the default registry.
+#[tokio::test]
+async fn trust_of_a_named_registry_dependency_comes_from_that_registry() {
+    let choices = trust_of_choices(
+        ("foo", "work:^1.0.0", "work:1.0.0"),
+        PROVENANCE_THEN_TRUSTED,
+        |config, registry| {
+            no_downgrade(config, registry);
+            config.registries_by_prefix.insert("work".to_string(), registry.to_string());
+            config.registry = format!("{registry}unused-default/");
+        },
+    )
+    .await;
+    assert_eq!(
+        choices,
+        [trust_offer("1.1.0", TrustEvidence::Provenance, TrustEvidence::TrustedPublisher)],
+    );
+}
+
+/// The list offers what `pnpm update` installs, which never moves to a
+/// version with weaker evidence than an earlier release.
+#[tokio::test]
+async fn a_trust_downgrade_is_not_offered() {
+    let choices =
+        trust_of_choices(("foo", "^1.0.0", "1.0.0"), TRUSTED_THEN_PROVENANCE, no_downgrade).await;
+    assert_eq!(choices, []);
+}
+
+#[tokio::test]
+async fn a_stronger_intermediate_release_blocks_a_weaker_later_one() {
+    let choices = trust_of_choices(
+        ("foo", "^1.0.0", "1.0.0"),
+        &[
+            ("1.0.0", Some(TrustEvidence::Provenance)),
+            ("1.0.5", Some(TrustEvidence::TrustedPublisher)),
+            ("1.1.0", Some(TrustEvidence::Provenance)),
+        ],
+        no_downgrade,
+    )
+    .await;
+    assert_eq!(
+        choices,
+        [trust_offer("1.0.5", TrustEvidence::Provenance, TrustEvidence::TrustedPublisher)],
+    );
+}
+
+#[tokio::test]
+async fn a_package_excluded_from_the_trust_policy_offers_its_downgrade() {
+    let choices = trust_of_choices(
+        ("foo", "^1.0.0", "1.0.0"),
+        TRUSTED_THEN_PROVENANCE,
+        |config, registry| {
+            no_downgrade(config, registry);
+            config.trust_policy_exclude = Some(vec!["foo".to_string()]);
+        },
+    )
+    .await;
+    assert_eq!(
+        choices,
+        [trust_offer("1.1.0", TrustEvidence::TrustedPublisher, TrustEvidence::Provenance)],
+    );
+}
+
+/// `trustPolicyIgnoreAfter` waives the check for a version published
+/// longer ago than the cutoff, so the downgrade is offered.
+#[tokio::test]
+async fn a_downgrade_older_than_the_ignore_after_cutoff_is_offered() {
+    let choices = trust_of_choices(
+        ("foo", "^1.0.0", "1.0.0"),
+        TRUSTED_THEN_PROVENANCE,
+        |config, registry| {
+            no_downgrade(config, registry);
+            config.trust_policy_ignore_after = Some(60);
+        },
+    )
+    .await;
+    assert_eq!(
+        choices,
+        [trust_offer("1.1.0", TrustEvidence::TrustedPublisher, TrustEvidence::Provenance)],
+    );
+}
+
+#[tokio::test]
+async fn trust_is_not_looked_up_without_the_no_downgrade_policy() {
+    let choices =
+        trust_of_choices(("foo", "^1.0.0", "1.0.0"), TRUSTED_THEN_PROVENANCE, |_, _| {}).await;
+    assert_eq!(choices, [("1.1.0".to_string(), None)]);
 }
 
 fn package_body(name: &str, registry: &str) -> String {

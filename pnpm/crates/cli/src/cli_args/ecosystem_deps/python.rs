@@ -245,6 +245,7 @@ fn into_outdated_package(
                 target: entry.target.to_string(),
                 wanted: entry.wanted.to_string(),
             })),
+            trust: None,
         },
     }
 }

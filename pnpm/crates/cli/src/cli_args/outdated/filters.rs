@@ -69,6 +69,7 @@ impl OutdatedFilters {
             ignore_names: self.ignore_names.as_ref(),
             include_deprecated: true,
             full_metadata: self.full_metadata,
+            apply_trust_policy: false,
         }
     }
 }

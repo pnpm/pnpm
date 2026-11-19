@@ -5,7 +5,7 @@
 //! as a column-aligned table under a header row.
 
 use crate::cli_args::{
-    outdated::{OutdatedPackage, colorize_target},
+    outdated::{OutdatedPackage, colorize_target, render_trust_change},
     sanitize::sanitize_inline,
 };
 use console::measure_text_width;
@@ -117,6 +117,7 @@ pub(crate) fn update_choices(
         }
     }
 
+    let columns = ChoiceColumns::of(outdated, workspaces_enabled);
     grouped
         .into_iter()
         .map(|(kind, indices)| ChoiceGroup {
@@ -126,7 +127,7 @@ pub(crate) fn update_choices(
                     .into_iter()
                     .map(|index| &choices[index])
                     .collect::<Vec<_>>(),
-                workspaces_enabled,
+                columns,
             ),
         })
         .collect()
@@ -155,18 +156,39 @@ struct Choice<'a> {
 
 type ChoiceKey<'a> = (&'a str, &'a str, &'a Version, &'a Version, bool);
 
+/// The optional columns every group of one prompt shows.
+#[derive(Clone, Copy)]
+struct ChoiceColumns {
+    workspace: bool,
+    /// Shown when the outdated set carries trust evidence, which it does
+    /// under `trustPolicy: no-downgrade`.
+    trust: bool,
+}
+
+impl ChoiceColumns {
+    fn of(outdated: &[&OutdatedPackage], workspaces_enabled: bool) -> Self {
+        Self {
+            workspace: workspaces_enabled,
+            trust: outdated.iter().any(|package| package.metadata.trust.is_some()),
+        }
+    }
+}
+
 /// The header row plus one row per offered dependency, padded so every
 /// column lines up within the group.
-fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceRow> {
+fn render_rows(choices: &[&Choice<'_>], columns: ChoiceColumns) -> Vec<ChoiceRow> {
     let mut header =
         vec!["Package".to_string(), "Current".to_string(), String::new(), "Target".to_string()];
-    if workspaces_enabled {
+    if columns.workspace {
         header.push("Workspace".to_string());
+    }
+    if columns.trust {
+        header.push("Trust".to_string());
     }
     header.push("URL".to_string());
 
     let mut cells = vec![header];
-    cells.extend(choices.iter().map(|choice| choice_cells(choice, workspaces_enabled)));
+    cells.extend(choices.iter().map(|choice| choice_cells(choice, columns)));
 
     let widths = column_widths(&cells);
     let mut rows = cells
@@ -258,7 +280,7 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
 #[cfg(test)]
 mod tests;
 
-fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
+fn choice_cells(choice: &Choice<'_>, columns: ChoiceColumns) -> Vec<String> {
     let package = choice.package;
     // The name, workspaces, and homepage are read out of manifests
     // and registry metadata, so they are stripped of control
@@ -271,13 +293,16 @@ fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
         "❯".to_string(),
         colorize_target(package),
     ];
-    if workspaces_enabled {
+    if columns.workspace {
         row.push(workspaces_cell(
             &choice.workspaces
                 .iter()
                 .map(|workspace| sanitize_inline(workspace))
                 .collect::<Vec<_>>(),
         ));
+    }
+    if columns.trust {
+        row.push(package.metadata.trust.map(render_trust_change).unwrap_or_default());
     }
     row.push(
         package.metadata.homepage

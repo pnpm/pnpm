@@ -5,10 +5,10 @@ pub(crate) mod query;
 
 pub use query::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated};
 pub(crate) use query::{
-    OutdatedRun, collect_outdated_for_importer, collect_outdated_for_importer_in_run,
+    OutdatedRun, TrustChange, collect_outdated_for_importer, collect_outdated_for_importer_in_run,
     ignored_dependencies_matcher,
 };
-pub(crate) use render::colorize_target;
+pub(crate) use render::{colorize_target, render_trust_change};
 
 use crate::{
     State,
