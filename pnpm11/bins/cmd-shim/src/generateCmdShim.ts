@@ -61,7 +61,7 @@ function buildCmdEnvBlock (opts: InternalOptions): string {
   const nodePath = cmdEscape(normalizePathEnvVar(opts.nodePath).win32)
   let block = ''
   if (prependToPath) {
-    block += `@SET "PATH=${prependToPath}:%PATH%"\r\n`
+    block += `@SET "PATH=${prependToPath};%PATH%"\r\n`
   }
   if (nodePath) {
     block += `\
