@@ -80,8 +80,11 @@ pub fn lockfile_engine_name(importers: &HashMap<String, ProjectSnapshot>) -> Opt
 /// [`resolve_engine_name`] to probe the real host.
 #[must_use]
 pub fn execution_host_node(host: Option<&InstallabilityHost>) -> Option<HostNode> {
-    host.filter(|host| host.node_source == NodeVersionSource::Probed)
-        .map(HostNode::from)
+    host.filter(|host| match host.node_source {
+        NodeVersionSource::Probed => true,
+        NodeVersionSource::Override | NodeVersionSource::Synthetic => false,
+    })
+    .map(HostNode::from)
 }
 
 /// The host Node, reduced to what the phases after the installability
@@ -99,7 +102,10 @@ impl From<&InstallabilityHost> for HostNode {
     fn from(host: &InstallabilityHost) -> Self {
         HostNode {
             version: host.node_version.clone(),
-            detected: host.node_source != NodeVersionSource::Synthetic,
+            detected: match host.node_source {
+                NodeVersionSource::Probed | NodeVersionSource::Override => true,
+                NodeVersionSource::Synthetic => false,
+            },
         }
     }
 }

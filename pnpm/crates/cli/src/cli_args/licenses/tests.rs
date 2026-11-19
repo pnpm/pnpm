@@ -31,8 +31,17 @@ fn license_store_slot_follows_the_lockfile_runtime_pin() {
     let slot_dir = |config: &Config, lockfile: &Lockfile| {
         super::lockfiles::lockfile_layout(config, dir.path(), lockfile).unwrap().slot_dir(&key)
     };
+    let pinned_18 = pnpm_deps_restorer::VirtualStoreLayout::new(
+        &config,
+        Some(&pnpm_graph_hasher::engine_name(18, None, None)),
+        pinned.snapshots.as_ref(),
+        pinned.packages.as_ref(),
+        Some(&pnpm_deps_restorer::AllowBuildPolicy::from_config(&config).unwrap()),
+        Some(dir.path()),
+    )
+    .slot_dir(&key);
+    assert_eq!(slot_dir(&config, &pinned), pinned_18);
     let host = slot_dir(&config, &unpinned);
-    let pinned_18 = slot_dir(&config, &pinned);
     config.node_version = Some("20.0.0".to_owned());
     assert_eq!(slot_dir(&config, &unpinned), host, "nodeVersion does not move the store slot");
     assert_eq!(slot_dir(&config, &pinned), pinned_18);
