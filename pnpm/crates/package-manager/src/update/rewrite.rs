@@ -12,9 +12,9 @@ use super::{
     selectors::{ParsedSelector, insert_update_target, matcher_one, update_target_name},
     tag_version,
 };
+use crate::manifest_spec_bumps::split_registry_alias;
 #[cfg(feature = "runtime-provisioning")]
 use crate::runtime_specifier::node_runtime_version_spec;
-use crate::manifest_spec_bumps::split_registry_alias;
 use node_semver::Version;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::{
@@ -384,13 +384,15 @@ async fn latest_direct_rewrite<Reporter: self::Reporter>(
     if !scope.version.save {
         return Ok(MatchedRewrite::Target(None));
     }
-    if let Some(overridden) = override_governed(scope, name, group) {
+    if let Some(entry) = override_governed(scope, name, group)
+        .and_then(|overridden| overridden.bare_override.as_ref())
+    {
         return override_owned_latest_rewrite::<Reporter>(
             plan,
             rewrite_ctx,
             latest_chain,
             name,
-            overridden,
+            entry,
         )
         .await;
     }

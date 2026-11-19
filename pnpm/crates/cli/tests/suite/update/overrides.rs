@@ -303,3 +303,63 @@ fn update_no_save_does_not_restore_dependency_removed_by_selector_override() {
 
     drop((root, anchor));
 }
+
+/// A range-scoped override stops matching once the declaration moves past
+/// its range, so `--latest` rewrites the declaration and leaves the
+/// override alone.
+#[test]
+fn update_latest_moves_the_declaration_past_a_range_scoped_override() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let override_key = format!("{DEP}@^100");
+    set_overrides(&workspace, &[(override_key.as_str(), "100.0.0")]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+
+    pacquet(&workspace, ["update", "--latest", DEP]).assert().success();
+
+    let manifest = fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+    assert!(manifest.contains(r#""^101.0.0""#), "declaration moved: {manifest}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        before_yaml,
+    );
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", DEP), "101.0.0");
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// A `catalog:` override points at a catalog entry other declarations may
+/// share, so `--latest` reports it rather than moving either.
+#[test]
+fn update_latest_warns_when_the_override_is_a_catalog_reference() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    yaml.push_str(&format!("\ncatalog:\n  \"{DEP}\": 100.0.0\n"));
+    fs::write(&yaml_path, yaml).expect("write yaml");
+    set_overrides(&workspace, &[(DEP, "catalog:")]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_manifest =
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+    let before_yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", DEP]).output().expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("is controlled by an override"), "warned: {stdout}");
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+        before_manifest,
+    );
+    assert_eq!(fs::read_to_string(&yaml_path).expect("read yaml"), before_yaml);
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", DEP), "100.0.0");
+
+    drop((root, anchor));
+}

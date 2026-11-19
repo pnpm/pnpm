@@ -223,9 +223,10 @@ fn collect_overridden_direct(
 }
 
 /// The override entry a targeted update may move for `name`: the one keyed
-/// by the package's bare name, with no parent scope, no range scope on the
-/// target, and no convergence form — anything else either governs only a
-/// transitive edge or would stop matching once its value moved.
+/// by the package's bare name, with no parent scope, no range or
+/// dependency-type scope on the target, and no convergence form. Anything
+/// else either governs only some edges or would stop matching once its value
+/// moved.
 fn bare_override_entry(
     name: &str,
     parsed: &[pnpm_config_parse_overrides::VersionOverride],
@@ -236,6 +237,7 @@ fn bare_override_entry(
         .find(|entry| {
             entry.parent_pkg.is_none()
                 && entry.target_pkg.bare_specifier.is_none()
+                && entry.target_pkg.dep_type.is_none()
                 && !entry.converge
                 && entry.target_pkg.name == name
         })

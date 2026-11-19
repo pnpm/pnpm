@@ -60,8 +60,9 @@ pub(super) struct OverriddenDirect {
     /// The override entry that governs the dependency when its selector is
     /// the package's bare name — the one entry an update can move, because
     /// moving it moves the resolution with no selector to reinterpret.
-    /// `None` when a range-scoped or parent-scoped selector governs, or the
-    /// matched dependency is not directly overridden at all.
+    /// `None` when a range-scoped, dependency-type-scoped, or parent-scoped
+    /// selector governs. `--latest` then rewrites the declaration, which a
+    /// range-scoped selector stops matching once it moves past the range.
     pub(super) bare_override: Option<BareOverrideEntry>,
 }
 
@@ -243,7 +244,13 @@ pub(super) async fn record_direct_update(
     // An override owns this dependency's resolution, and a selector-less
     // update is no request to move the override, so the pair is left alone
     // ("update --latest preserves override-owned dependency resolutions").
-    if override_governed(scope, name, group).is_some() {
+    // Under `--latest`, a range-scoped override stops matching once the
+    // declaration moves past its range, so only a bare-name one holds it.
+    if override_governed(scope, name, group)
+        .is_some_and(|overridden| {
+            overridden.bare_override.is_some() || !scope.version.latest
+        })
+    {
         plan.drop_targets.insert(name.clone(), None);
         return Ok(());
     }

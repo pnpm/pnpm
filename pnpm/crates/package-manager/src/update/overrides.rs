@@ -1,7 +1,7 @@
 use super::{
     LatestResolverChain, LatestRewriteCtx, UpdateError, latest_version_for_spec,
     rewrite::{KeptRangeVerdict, MatchedRewrite, judge_against_kept_range, kept_range_rewrite},
-    seed_policy::{OverriddenDirect, UpdatePlan, UpdateScope},
+    seed_policy::{BareOverrideEntry, OverriddenDirect, UpdatePlan, UpdateScope},
 };
 use crate::package_manifest_prefix;
 use node_semver::Version;
@@ -93,33 +93,30 @@ pub(super) fn override_owned_rewrite<Reporter: self::Reporter>(
     MatchedRewrite::Target(None)
 }
 
-/// What `--latest` does with a dependency an override governs: the override,
-/// not the declaration, owns the resolution, so the declaration never moves
-/// (writing the resolved range over it would leave the manifest and the
-/// lockfile disagreeing). When the override can follow the update it moves,
-/// keeping its own range shape; when it cannot, the user hears about it
-/// instead of a silent no-op (pnpm/pnpm#8701).
+/// What `--latest` does with a dependency a bare-name override governs: the
+/// override, not the declaration, owns the resolution, so the declaration
+/// never moves (writing the resolved range over it would leave the manifest
+/// and the lockfile disagreeing). When the override can follow the update it
+/// moves, keeping its own range shape; when it cannot, the user hears about
+/// it instead of a silent no-op (pnpm/pnpm#8701).
 pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
     plan: &mut UpdatePlan,
     rewrite_ctx: &LatestRewriteCtx<'_, '_>,
     latest_chain: &mut Option<LatestResolverChain>,
     name: &str,
-    overridden: &OverriddenDirect,
+    entry: &BareOverrideEntry,
 ) -> Result<MatchedRewrite, UpdateError> {
-    let Some(entry) = overridden.bare_override.as_ref() else {
-        // A range-scoped or parent-scoped selector governs this edge; it is
-        // not the update's to reinterpret, so the pair is left alone.
+    // The catalog entry a `catalog:` value points at may be shared with other
+    // declarations, so moving it is the user's call.
+    if entry.value.starts_with("catalog:") {
+        warn_unmovable_override::<Reporter>(rewrite_ctx, name, &entry.value);
         return Ok(MatchedRewrite::Target(None));
-    };
+    }
     let style = movable_override_style(&entry.value);
-    // A `catalog:`-valued override tracks the catalog entry it points at —
-    // the catalog update path owns that entry — and a bare value with no
-    // recoverable operator (a dist tag, a partial version) tracks a moving
-    // target the way a tag-tracking declaration does. Neither is the
-    // update's to rewrite.
-    if entry.value.starts_with("catalog:")
-        || (style.is_none() && !names_another_dependency(&entry.value))
-    {
+    // A bare value with no recoverable operator (a dist tag, a partial
+    // version) tracks a moving target the way a tag-tracking declaration
+    // does, so it is not the update's to rewrite.
+    if style.is_none() && !names_another_dependency(&entry.value) {
         return Ok(MatchedRewrite::Target(None));
     }
     let Some(latest) =
