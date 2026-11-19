@@ -49,7 +49,10 @@ pub(super) fn parse_bump(raw: &str) -> Result<Bump, VersionError> {
 pub(crate) fn parse_exact_version(raw: &str) -> Option<(&str, Version)> {
     let trimmed = raw.trim();
     let text = trimmed.strip_prefix('v').unwrap_or(trimmed);
-    let core = text.split_once('+').map_or(text, |(core, _build)| core);
+    let core = text
+        .split_once('+')
+        .map(|(core, _build)| core)
+        .unwrap_or(text);
     let version = Version::parse(text).ok()?;
     let printed_core = Version { build: Vec::new(), ..version.clone() }.to_string();
     (printed_core == core).then_some((text, version))
