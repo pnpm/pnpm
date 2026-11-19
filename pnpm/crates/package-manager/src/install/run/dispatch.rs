@@ -2,11 +2,11 @@ use super::{
     super::{
         ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions, Lockfile,
         LogEvent, LogLevel, PackageManifest, PrepareModulesStateInputs, PreparedModulesState,
-        Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
+        Reporter, Stage, StageLog, SummaryLog, await_or_verify_lockfile, check_lockfile_freshness,
         lockfile_freshness::{
             LockfileFreshnessInputs, UnresolvedOptionalDependency, check_importer_manifests_exist,
         },
-        map_frozen_lockfile_error, prepare_modules_state, verify_lockfile_eagerly,
+        prepare_modules_state,
     },
     Verification,
     manifests::{RootHooksScope, run_root_hooks},
@@ -111,20 +111,14 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
         ..
     } = settled;
     let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-    let pending_verification_record = match lockfile_verification_override {
-        Some(lockfile_verification_override) => {
-            lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?
-        }
-        None => {
-            verify_lockfile_eagerly::<Reporter>(
-                lockfile,
-                &verification.resolution_verifiers,
-                verification.derived_lockfile_path.as_deref(),
-                &install.context.config.cache_dir,
-            )
-            .await?
-        }
-    };
+    let pending_verification_record = await_or_verify_lockfile::<Reporter>(
+        lockfile_verification_override,
+        lockfile,
+        &verification.resolution_verifiers,
+        verification.derived_lockfile_path.as_deref(),
+        &install.context.config.cache_dir,
+    )
+    .await?;
     if let Some(pending_verification_record) = pending_verification_record {
         pending_verification_record.record();
     }

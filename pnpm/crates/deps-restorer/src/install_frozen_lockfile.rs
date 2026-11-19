@@ -67,6 +67,15 @@ pub type LockfileVerificationOverride<'a> = Pin<
     >,
 >;
 
+/// Record the verification once the build phase is over: a dependency's
+/// lifecycle script can append to the verification log, and the newest
+/// record for a lockfile is the one the next install reads.
+fn record_after_build_phase(pending_verification_record: Option<PendingVerificationRecord>) {
+    if let Some(pending_verification_record) = pending_verification_record {
+        pending_verification_record.record();
+    }
+}
+
 /// This subroutine installs dependencies from a frozen lockfile.
 ///
 /// **Brief overview:**
@@ -465,12 +474,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             "phase complete",
         );
 
-        // Only now that the build phase is over: a dependency's lifecycle
-        // script can append to the verification log, and the newest record
-        // for a lockfile is the one the next install reads.
-        if let Some(pending_verification_record) = pending_verification_record {
-            pending_verification_record.record();
-        }
+        record_after_build_phase(pending_verification_record);
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped

@@ -1,10 +1,10 @@
 use super::super::{
     Arc, Config, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
-    ResolutionVerifier, Stage, StageLog, SystemTime, frozen_tree_intact,
+    ResolutionVerifier, Stage, StageLog, SystemTime, await_or_verify_lockfile, frozen_tree_intact,
     has_newly_allowed_ignored_builds, hoisted_linker_workspace_links_intact,
-    hoisted_workspace_packages_present, map_frozen_lockfile_error, modules_consistent_with,
-    moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
-    update_workspace_state_or_warn, verify_lockfile_eagerly,
+    hoisted_workspace_packages_present, modules_consistent_with, moved_tree_is_reusable,
+    recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
+    update_workspace_state_or_warn,
 };
 use crate::install_state::{
     filesystem_now_ms_in_modules, materialized_shape_matches,
@@ -315,20 +315,14 @@ pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'stati
     paths: (Option<&Path>, &Path),
 ) -> Result<(), InstallError> {
     let (derived_lockfile_path, cache_dir) = paths;
-    let pending_verification_record = match lockfile_verification_override {
-        Some(lockfile_verification_override) => {
-            lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?
-        }
-        None => {
-            verify_lockfile_eagerly::<Reporter>(
-                wanted_lockfile,
-                resolution_verifiers,
-                derived_lockfile_path,
-                cache_dir,
-            )
-            .await?
-        }
-    };
+    let pending_verification_record = await_or_verify_lockfile::<Reporter>(
+        lockfile_verification_override,
+        wanted_lockfile,
+        resolution_verifiers,
+        derived_lockfile_path,
+        cache_dir,
+    )
+    .await?;
     // The up-to-date path materializes nothing, so no lifecycle script runs
     // between the verdict and this record.
     if let Some(pending_verification_record) = pending_verification_record {

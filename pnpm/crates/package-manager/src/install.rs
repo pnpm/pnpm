@@ -47,7 +47,9 @@ mod deploy_manifest;
 
 mod errors;
 
+mod eager_verification;
 mod verification_gate;
+use eager_verification::await_or_verify_lockfile;
 
 use errors::{map_fresh_lockfile_error, map_frozen_lockfile_error};
 
@@ -155,40 +157,6 @@ use workspace_state::{
     build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
-
-/// Run the lockfile verification fan-out to completion, blocking the
-/// caller on the verdict. Used by the install paths that have no fetch
-/// to overlap verification with (fresh resolve, the lockfile-only and
-/// up-to-date short-circuits); the frozen materialization path instead
-/// runs verification concurrently with the fetch inside
-/// [`InstallFrozenLockfile`]. A no-op when `verifiers` is empty.
-///
-/// The verdict is returned unrecorded: see [`PendingVerificationRecord`]
-/// for why a caller that goes on to run lifecycle scripts must persist it
-/// after them.
-async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
-    lockfile: &Lockfile,
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-    lockfile_path: Option<&Path>,
-    cache_dir: &Path,
-) -> Result<Option<PendingVerificationRecord>, InstallError> {
-    if verifiers.is_empty() {
-        return Ok(None);
-    }
-    verify_lockfile_resolutions::<Reporter>(
-        lockfile,
-        verifiers,
-        &VerifyLockfileResolutionsOptions {
-            concurrency: None,
-            lockfile_path,
-            cache_dir: Some(cache_dir),
-            replaced: None,
-            repairs_lockfile: false,
-        },
-    )
-    .await
-    .map_err(InstallError::LockfileVerification)
-}
 
 pub(crate) fn untracked_read_package_hook_may_have_changed(
     recorded: Option<bool>,

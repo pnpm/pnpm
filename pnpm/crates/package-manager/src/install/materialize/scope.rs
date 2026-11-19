@@ -1,7 +1,7 @@
 use super::super::{
     Arc, BTreeMap, Config, HashSet, InstallError, Lockfile, LogEvent, LogLevel, PackageManifest,
-    Path, PathBuf, PnpmLog, RebuildOptions, Reporter, ResolutionVerifier,
-    map_frozen_lockfile_error, record_lockfile_verified, verify_lockfile_eagerly,
+    Path, PathBuf, PnpmLog, RebuildOptions, Reporter, ResolutionVerifier, await_or_verify_lockfile,
+    record_lockfile_verified,
 };
 
 /// Whether `allowBuilds` moved since the previous install in a way the
@@ -141,20 +141,14 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
     if requested_importer_ids.is_none() {
         return Ok((verification_override, None));
     }
-    let pending_record = match verification_override {
-        Some(verification_override) => {
-            verification_override.await.map_err(map_frozen_lockfile_error)?
-        }
-        None => {
-            verify_lockfile_eagerly::<Reporter>(
-                lockfile,
-                resolution_verifiers,
-                derived_lockfile_path,
-                cache_dir,
-            )
-            .await?
-        }
-    };
+    let pending_record = await_or_verify_lockfile::<Reporter>(
+        verification_override,
+        lockfile,
+        resolution_verifiers,
+        derived_lockfile_path,
+        cache_dir,
+    )
+    .await?;
     Ok((None, pending_record))
 }
 /// The importers whose own project manifests the frozen install anchors on.
