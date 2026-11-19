@@ -79,14 +79,18 @@ pub(super) fn pkg<'a>(ctx: &RunCtx<'a>, args: PkgArgs) -> miette::Result<Command
     Ok(Box::pin(std::future::ready(result)))
 }
 
-// `catalog` only rewrites `pnpm-workspace.yaml` and the project manifests;
-// like `pkg`, it never touches the lockfile.
+// `catalog` compares against the catalogs an install resolves through, so
+// the `updateConfig` hooks apply first.
 pub(super) fn catalog<'a>(
     ctx: &RunCtx<'a>,
     args: CatalogArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let result = args.run((ctx.loaders.config)()?);
-    Ok(Box::pin(std::future::ready(result)))
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir).await?;
+        args.run(config)
+    }))
 }
 
 pub(super) fn test<'a>(

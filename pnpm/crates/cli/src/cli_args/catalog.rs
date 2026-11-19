@@ -7,6 +7,7 @@ use pnpm_catalogs_types::{Catalog, Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_config::Config;
 use pnpm_package_manager::stays_out_of_catalogs;
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_text_sanitize::sanitize_inline;
 use pnpm_workspace::Project;
 use pnpm_workspace_manifest_writer::{UpdateWorkspaceManifestOptions, update_workspace_manifest};
 use serde_json::Value;
@@ -218,14 +219,16 @@ fn render_summary(migrated: usize) -> String {
 
 impl fmt::Display for Conflict {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The names and specifiers come from the workspace manifests, so
+        // control characters are stripped before they reach the terminal.
         let declared = self.declared
             .iter()
-            .map(String::as_str)
+            .map(|specifier| sanitize_inline(specifier))
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "{}: {declared}", self.name)?;
+        write!(f, "{}: {declared}", sanitize_inline(&self.name))?;
         match &self.catalog_entry {
-            Some(entry) => write!(f, " (catalog: {entry})"),
+            Some(entry) => write!(f, " (catalog: {})", sanitize_inline(entry)),
             None => Ok(()),
         }
     }

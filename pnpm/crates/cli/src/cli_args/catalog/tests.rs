@@ -94,3 +94,13 @@ fn reports_when_nothing_moves() {
     let plan = plan_migration(&DeclaredSpecifiers::new(), None);
     assert_eq!(render_report(&plan), "No dependencies were moved to the default catalog.");
 }
+
+#[test]
+fn strips_control_characters_from_conflicts() {
+    let conflict = Conflict {
+        name: "evil\u{1b}[2J".to_string(),
+        declared: BTreeSet::from(["^1.0.0\u{1b}[31m".to_string(), "^2.0.0".to_string()]),
+        catalog_entry: Some("^3.0.0\u{7}".to_string()),
+    };
+    assert_eq!(conflict.to_string(), "evil[2J: ^1.0.0[31m, ^2.0.0 (catalog: ^3.0.0)");
+}

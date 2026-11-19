@@ -139,3 +139,36 @@ fn fails_outside_a_workspace() {
     assert!(!output.status.success());
     assert!(stderr.contains("ERR_PNPM_CATALOG_NO_WORKSPACE"));
 }
+
+#[test]
+fn compares_against_the_catalog_an_update_config_hook_sets() {
+    let CommandTempCwd { pacquet, root: _root, workspace, .. } = CommandTempCwd::init();
+    write(
+        &workspace,
+        "pnpm-workspace.yaml",
+        "packages:\n  - packages/*\ncatalog:\n  react: ^18.0.0\n",
+    );
+    write(&workspace, "package.json", r#"{ "name": "root", "private": true }"#);
+    let manifest = r#"{ "name": "foo", "dependencies": { "react": "^18.0.0" } }"#;
+    write(&workspace, "packages/foo/package.json", manifest);
+    write(
+        &workspace,
+        ".pnpmfile.cjs",
+        "module.exports = { hooks: { updateConfig (config) {\n  config.catalogs = { default: { react: '^19.0.0' } };\n  return config;\n} } }",
+    );
+
+    let output = pacquet
+        .with_args(["catalog", "migrate"])
+        .output()
+        .expect("run pacquet");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success(), "pacquet catalog migrate failed");
+    assert_eq!(
+        stdout.trim_end(),
+        "These dependencies were left unchanged because the projects or the default catalog disagree on their specifier:
+  react: ^18.0.0 (catalog: ^19.0.0)
+No dependencies were moved to the default catalog.",
+    );
+    assert_eq!(read(&workspace, "packages/foo/package.json"), manifest);
+}
