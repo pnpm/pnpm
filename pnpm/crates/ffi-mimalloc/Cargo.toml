@@ -1,0 +1,17 @@
+[package]
+name = "pnpm-ffi-mimalloc"
+description = "Safe abstractions over the mimalloc options pnpm reads and writes"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+libmimalloc-sys = { workspace = true }
+
+[lints]
+workspace = true

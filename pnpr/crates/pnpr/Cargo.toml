@@ -154,6 +154,7 @@ tokio = { workspace = true, features = ["net", "signal"] }
 # Keep in sync with the `cfg` on `mod allocator` in `src/main.rs`.
 [target.'cfg(all(any(target_os = "linux", target_os = "macos", target_os = "windows"), any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
 mimalloc = { workspace = true }
+pnpm-ffi-mimalloc = { workspace = true }
 
 [lints]
 workspace = true
