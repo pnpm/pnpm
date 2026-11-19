@@ -13,7 +13,6 @@ import {
   RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
   verifyLockfileFileOffline,
   verifyLockfileResolutions,
-  withOfflineCheckCacheIdentities,
 } from '../../src/install/verifyLockfileResolutions.js'
 import { recordVerification } from '../../src/install/verifyLockfileResolutionsCache.js'
 
@@ -61,7 +60,7 @@ test.each([
   expect(verifierCalls).toBe(0)
 })
 
-test('poisoned lockfile-verified.jsonl record cannot bypass resolution shape check', async () => {
+test('stale lockfile-verified.jsonl record lacking resolutionShapeCheck cannot bypass shape check', async () => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-shape-cache-'))
   try {
     const cacheDir = path.join(tmpDir, 'cache')
@@ -76,7 +75,7 @@ test('poisoned lockfile-verified.jsonl record cannot bypass resolution shape che
     }
     recordVerification(cacheDir, {
       lockfilePath,
-      verifiers: withOfflineCheckCacheIdentities([verifier]),
+      verifiers: [verifier],
       hashLockfile: () => hashObject(lockfile),
     })
 
@@ -91,40 +90,62 @@ test('poisoned lockfile-verified.jsonl record cannot bypass resolution shape che
   }
 })
 
-test('rejects a traversal package snapshot key even when importer alias is valid', async () => {
-  const lockfile = {
-    lockfileVersion: LOCKFILE_VERSION,
-    importers: {
-      '.': {
-        specifiers: { 'legit-alias': 'npm:../../../escape@1.0.0' },
-        dependencies: { 'legit-alias': '../../../escape@1.0.0' },
+test('poisoned lockfile-verified.jsonl record cannot bypass invalid dependency alias check', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-alias-cache-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, "lockfileVersion: '9.0'\n")
+    const lockfile = {
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: {
+        '.': {
+          specifiers: { '../../../escape': '1.0.0' },
+          dependencies: { '../../../escape': '1.0.0' },
+        },
       },
-    },
-    packages: {
-      '../../../escape@1.0.0': {
-        resolution: { integrity: 'sha512-deadbeef' },
+      packages: {
+        'safe-pkg@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
       },
-    },
-  } as unknown as LockfileObject
+    } as unknown as LockfileObject
+    const verifier: ResolutionVerifier = {
+      ...NOOP_SLOT,
+      verify: async () => ({ ok: true }),
+    }
+    recordVerification(cacheDir, {
+      lockfilePath,
+      verifiers: [verifier],
+      hashLockfile: () => hashObject(lockfile),
+    })
 
-  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
-    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
-  })
+    await expect(verifyLockfileResolutions(lockfile, [verifier], {
+      cacheDir,
+      lockfilePath,
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+    })
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
 
-  await expect(verifyLockfileResolutions({
+test('verifyLockfileFileOffline accepts legacy v6 leading-slash keys while rejecting shape-mismatched and traversal entries', () => {
+  expect(() => verifyLockfileFileOffline({
     lockfileVersion: LOCKFILE_VERSION,
     importers: { '.': {} },
     packages: {
-      '@../../../escape': {
+      '/js-tokens@4.0.0': {
+        resolution: { integrity: 'sha512-deadbeef' },
+      },
+      '/@scope/pkg@1.0.0': {
         resolution: { integrity: 'sha512-deadbeef' },
       },
     },
-  } as unknown as LockfileObject, [])).rejects.toMatchObject({
-    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
-  })
-})
+    snapshots: {
+      '/js-tokens@4.0.0': {},
+    },
+  })).not.toThrow()
 
-test('verifyLockfileFileOffline rejects unreferenced shape-mismatched and traversal packages entries', () => {
   expect(() => verifyLockfileFileOffline({
     lockfileVersion: LOCKFILE_VERSION,
     importers: { '.': {} },

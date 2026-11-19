@@ -16,7 +16,7 @@ import {
   collectInvalidAliases,
   collectLockfileFileOfflineViolations,
   collectShapeViolations,
-  hasOfflineLockfileViolations,
+  hasInvalidDependencyAliases,
   RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
 } from './verifyLockfileOfflineChecks.js'
 import {
@@ -25,7 +25,7 @@ import {
   type VerifierCacheIdentity,
 } from './verifyLockfileResolutionsCache.js'
 
-export { hasOfflineLockfileViolations, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE }
+export { hasInvalidDependencyAliases, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE }
 
 // Re-exported for back-compat with the existing import surface.
 // The interface itself lives in resolver-base so deps-resolver can
@@ -122,23 +122,23 @@ export interface VerifyLockfileResolutionsOptions {
  * rather than passing silently — otherwise a registry hiccup or an
  * unpublished version would re-open the bypass.
  *
- * Offline dependency-alias and resolution-shape checks always run first, even
- * when `verifiers` is empty or the verification cache holds a prior record.
+ * Offline dependency-alias checks run before the verification cache lookup,
+ * and resolution-shape checks run on every cache miss even when `verifiers`
+ * is empty.
  */
 export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
-  if (!lockfile.packages) {
-    verifyLockfileDependencyAliases(lockfile)
-    return
-  }
-  verifyOfflineLockfileChecks(lockfile)
-  if (verifiers.length === 0) return
+  if (!lockfile.packages) return
+  verifyLockfileDependencyAliases(lockfile)
 
   const cacheContext = createVerificationCacheContext(lockfile, verifiers, options)
   if (isVerifiedByCache(cacheContext, verifiers, options?.lockfilePath)) return
+
+  verifyLockfileResolutionShapes(lockfile)
+  if (verifiers.length === 0) return
 
   // Emit started/done around the actual verification pass — the
   // round-trip can be slow on a cold registry cache, and the cached
@@ -388,8 +388,7 @@ export function verifyLockfileFileOffline (lockfile: LockfileFile): void {
   }
 }
 
-function verifyOfflineLockfileChecks (lockfile: LockfileObject): void {
-  verifyLockfileDependencyAliases(lockfile)
+function verifyLockfileResolutionShapes (lockfile: LockfileObject): void {
   const shapeViolations = collectShapeViolations(lockfile)
   if (shapeViolations.length > 0) {
     throw buildVerificationError(shapeViolations)

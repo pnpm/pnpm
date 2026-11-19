@@ -213,12 +213,13 @@ test('records a cache entry that the next install hits on both the stat shortcut
   expect(hashResult.hit).toBe(true)
 })
 
-test('refuses to record a lockfile with a resolution shape mismatch', () => {
+test('refuses to record a lockfile with an invalid dependency alias', () => {
   const tampered = {
     ...makeLockfile(),
-    packages: {
-      'safe-pkg@1.0.0': {
-        resolution: { integrity: 'sha512-deadbeef', tarball: 'file:alt.tgz' },
+    importers: {
+      '.': {
+        specifiers: { '../../../escape': '1.0.0' },
+        dependencies: { '../../../escape': '1.0.0' },
       },
     },
   } as unknown as LockfileObject

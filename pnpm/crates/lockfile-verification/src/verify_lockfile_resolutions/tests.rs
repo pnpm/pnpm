@@ -19,7 +19,6 @@ use super::{
     candidates::{collect_candidates, run_fan_out},
     collect_resolution_policy_violations, lockfile_verification_is_cached,
     lockfile_verification_is_cached_by_content, verify_lockfile_resolutions,
-    with_offline_check_cache_identities,
 };
 use crate::VerifyError;
 

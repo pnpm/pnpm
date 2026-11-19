@@ -14,7 +14,7 @@ pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MIS
 pub(super) fn verify_offline_structural_checks(lockfile: &Lockfile) -> Result<(), VerifyError> {
     verify_lockfile_dependency_names(lockfile)?;
     verify_lockfile_importer_snapshot_links(lockfile)?;
-    verify_lockfile_resolution_shapes(lockfile)
+    Ok(())
 }
 
 pub(super) fn verify_structure_before_install(
@@ -22,8 +22,7 @@ pub(super) fn verify_structure_before_install(
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
     if opts.repairs_lockfile {
-        verify_lockfile_dependency_names(lockfile)?;
-        return verify_lockfile_resolution_shapes(lockfile);
+        return verify_lockfile_dependency_names(lockfile);
     }
     verify_offline_structural_checks(lockfile)
 }

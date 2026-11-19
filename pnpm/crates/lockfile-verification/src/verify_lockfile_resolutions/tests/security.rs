@@ -3,7 +3,6 @@ use super::{
     ResolutionVerifier, SilentReporter, TempDir, VerifyError, VerifyLockfileResolutionsOptions,
     collect_resolution_policy_violations, lockfile_verification_is_cached,
     lockfile_verification_is_cached_by_content, parse, verify_lockfile_resolutions,
-    with_offline_check_cache_identities,
 };
 
 #[tokio::test]
@@ -112,7 +111,7 @@ async fn collect_resolution_policy_violations_reports_shape_mismatches() {
 }
 
 #[tokio::test]
-async fn poisoned_cache_record_cannot_bypass_resolution_shape_mismatch() {
+async fn stale_cache_record_without_shape_flag_cannot_bypass_resolution_shape_mismatch() {
     let yaml = "lockfileVersion: '9.0'
 importers:
   .:
@@ -131,13 +130,13 @@ snapshots:
     std::fs::write(&lockfile_path, yaml).expect("write lockfile");
     let lockfile = parse(yaml);
     let cache_dir = dir.path().join("cache");
-    let verifiers = with_offline_check_cache_identities(&[]);
 
-    // Simulate a pre-existing poisoned cache entry written by an unpatched build.
+    // Simulate a cache entry recorded without `with_offline_check_cache_identities`
+    // (missing `resolutionShapeCheck: true`).
     crate::record_verification(
         &cache_dir,
         &lockfile_path,
-        &verifiers,
+        &[],
         || crate::hash_lockfile(&lockfile),
         crate::CachePrecomputed::default(),
     );
@@ -156,6 +155,6 @@ snapshots:
         },
     )
     .await
-    .expect_err("poisoned cache entry must not bypass resolution shape check");
+    .expect_err("cache entry lacking resolutionShapeCheck must not bypass shape check");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
 }

@@ -36,19 +36,25 @@ pub(super) async fn verify_settled_pnpr_lockfile<Reporter: self::Reporter + 'sta
     lockfile: &Lockfile,
 ) -> miette::Result<Option<Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>>>
 {
+    verify_lockfile_resolutions::<Reporter>(
+        lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .map_err(miette::Report::new)?;
     if !(link.lockfile.fix && partial_selection) {
-        verify_lockfile_resolutions::<Reporter>(
-            lockfile,
-            &[],
-            &VerifyLockfileResolutionsOptions::default(),
-        )
-        .await
-        .map_err(miette::Report::new)?;
         return Ok(None);
     }
     let verifiers =
         if link.lockfile.trust { Vec::new() } else { state_resolution_verifiers(state)? };
-    if !lockfile_verification_is_cached_by_content(&state.config.cache_dir, lockfile, &verifiers) {
+    if !verifiers.is_empty()
+        && !lockfile_verification_is_cached_by_content(
+            &state.config.cache_dir,
+            lockfile,
+            &verifiers,
+        )
+    {
         verify_lockfile_resolutions::<Reporter>(
             lockfile,
             &verifiers,

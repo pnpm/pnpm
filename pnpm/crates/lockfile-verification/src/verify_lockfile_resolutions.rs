@@ -91,8 +91,9 @@ impl std::fmt::Debug for ReplacedEntries<'_> {
 /// at `lockfile_path` under the policy `verifiers` currently demand —
 /// i.e. whether a [`verify_lockfile_resolutions`] call would
 /// short-circuit on the cache without running the fan-out. The offline
-/// structural and resolution-shape checks run here too, so a `true`
-/// return carries the same guarantee as the runner's cache hit.
+/// structural dependency-name gate runs here too (it is cheap and the
+/// cache never covers a lockfile that fails it), so a `true` return
+/// carries the same guarantee as the runner's cache hit.
 ///
 /// Lets the pnpr client decide locally whether the server-side
 /// `verify_lockfile` round trip can be skipped
@@ -147,13 +148,12 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
-    // Offline structural gate first: reject invalid dependency names,
-    // missing importer snapshot links, or resolution-shape mismatches
-    // before the `packages`-absent / empty-verifiers short-circuit and
-    // the cache lookup.
+    // Offline structural gate first: reject invalid dependency names
+    // or missing importer snapshot links before the `packages`-absent
+    // short-circuit and the cache lookup.
     verify_structure_before_install(lockfile, opts)?;
 
-    if lockfile.packages.is_none() || verifiers.is_empty() {
+    if lockfile.packages.is_none() {
         return Ok(());
     }
 
@@ -178,6 +178,16 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         CacheOutcome::Hit => return Ok(()),
         CacheOutcome::Miss(precomputed) => precomputed,
     };
+
+    // Checked after the verification cache so a lockfile freshly resolved on
+    // this machine by a local custom resolver (recorded via
+    // `record_lockfile_verified`) can reinstall cleanly, while any uncached
+    // lockfile or cacheless check rejects shape mismatches even with empty
+    // `verifiers`.
+    verify_lockfile_resolution_shapes(lockfile)?;
+    if verifiers.is_empty() {
+        return Ok(());
+    }
 
     let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced);
     let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);

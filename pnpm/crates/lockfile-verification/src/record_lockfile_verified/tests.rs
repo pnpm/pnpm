@@ -93,13 +93,13 @@ fn records_the_caller_supplied_lockfile_path() {
 }
 
 #[test]
-fn refuses_to_record_a_shape_mismatched_lockfile() {
+fn refuses_to_record_a_lockfile_with_invalid_dependency_names() {
     let yaml = "lockfileVersion: '9.0'
 
 packages:
 
-  safe-pkg@1.0.0:
-    resolution: {integrity: sha512-deadbeef, tarball: 'file:alt.tgz'}
+  ../../../escape@1.0.0:
+    resolution: {integrity: sha512-deadbeef}
 ";
     let dir = TempDir::new().expect("tempdir");
     let lockfile_path = dir.path().join("pnpm-lock.yaml");
@@ -112,6 +112,6 @@ packages:
         !dir.path()
             .join(CACHE_FILE_NAME)
             .exists(),
-        "shape-mismatched lockfile must never be recorded as verified",
+        "lockfile with invalid dependency names must never be recorded as verified",
     );
 }

@@ -10,8 +10,8 @@
 //!
 //! The function is a no-op when caching is disabled, when no
 //! verifiers are active, when the lockfile has no `packages:`
-//! section, or when the lockfile fails an offline dependency-name or
-//! resolution-shape check.
+//! section, or when the lockfile fails the offline dependency-name
+//! check.
 
 use std::{path::Path, sync::Arc};
 
@@ -22,8 +22,7 @@ use crate::{
     cache::record_verification,
     hash_lockfile,
     verify_lockfile_resolutions::{
-        verify_lockfile_dependency_names, verify_lockfile_resolution_shapes,
-        with_offline_check_cache_identities,
+        verify_lockfile_dependency_names, with_offline_check_cache_identities,
     },
 };
 
@@ -50,9 +49,7 @@ pub fn record_lockfile_verified(
     if lockfile.packages.is_none() {
         return;
     }
-    if verify_lockfile_dependency_names(lockfile).is_err()
-        || verify_lockfile_resolution_shapes(lockfile).is_err()
-    {
+    if verify_lockfile_dependency_names(lockfile).is_err() {
         return;
     }
     record_verification(

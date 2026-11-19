@@ -2,7 +2,7 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
-import { hasOfflineLockfileViolations, withOfflineCheckCacheIdentities } from './verifyLockfileResolutions.js'
+import { hasInvalidDependencyAliases, withOfflineCheckCacheIdentities } from './verifyLockfileResolutions.js'
 import { recordVerification } from './verifyLockfileResolutionsCache.js'
 
 export interface RecordLockfileVerifiedOptions {
@@ -29,7 +29,7 @@ export function recordLockfileVerified (opts: RecordLockfileVerifiedOptions): vo
   if (!opts.cacheDir) return
   if (!opts.resolutionVerifiers?.length) return
   if (!opts.lockfile.packages) return
-  if (hasOfflineLockfileViolations(opts.lockfile)) return
+  if (hasInvalidDependencyAliases(opts.lockfile)) return
   recordVerification(opts.cacheDir, {
     lockfilePath: opts.lockfilePath,
     verifiers: withOfflineCheckCacheIdentities(opts.resolutionVerifiers),
