@@ -14,15 +14,15 @@ use std::ffi::OsString;
 
 /// A `PublishArgs` with every flag at its default; a test overrides only the
 /// field it exercises.
-fn publish_args() -> PublishArgs {
+pub(super) fn publish_args() -> PublishArgs {
     PublishArgs { package: None, flags: publish_flags() }
 }
 
-fn publish_args_with(flags: PublishFlags) -> PublishArgs {
+pub(super) fn publish_args_with(flags: PublishFlags) -> PublishArgs {
     PublishArgs { package: None, flags }
 }
 
-fn publish_flags() -> PublishFlags {
+pub(super) fn publish_flags() -> PublishFlags {
     PublishFlags {
         dry_run: false,
         ignore_scripts: false,
@@ -37,6 +37,7 @@ fn publish_flags() -> PublishFlags {
             publish_wait_timeout: None,
         },
         manifest: crate::cli_args::publish::PublishManifestArgs {
+            new_version: None,
             embed_readme: false,
             no_embed_readme: false,
             skip_manifest_obfuscation: false,
@@ -162,7 +163,13 @@ async fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
 
     let args = publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() });
     let result = args
-        .pack_for_publish::<SilentReporter>(dir.path(), &Config::default(), dest.path(), &[], None)
+        .pack_for_publish::<SilentReporter>(
+            dir.path(),
+            &Config::default(),
+            dest.path(),
+            &[],
+            super::PublishScope::Single { summary: None, bumped: None },
+        )
         .await
         .expect("packing succeeds");
 
@@ -236,7 +243,7 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
             &opts,
             &network,
             &[],
-            super::PublishScope::Single { summary: None },
+            super::PublishScope::Single { summary: None, bumped: None },
         )
         .await
         .expect_err("an empty directory has no package.json")

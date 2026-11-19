@@ -50,6 +50,7 @@ struct RecursivePublishContext<'a> {
     project_dependencies: &'a indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
     workspace_packages:
         &'a Arc<std::collections::HashMap<String, pnpm_pack::WorkspacePackageManifest>>,
+    bumped: Option<&'a Arc<HashSet<String>>>,
 }
 
 fn order_publish_roots(
@@ -79,7 +80,10 @@ impl PublishArgs {
     ) -> Result<Vec<PublishSummary>, RecursivePublishError> {
         let mut packed = Vec::with_capacity(ctx.to_publish.len());
         for root in order_publish_roots(ctx.project_dependencies, ctx.to_publish) {
-            let scope = PublishScope::Recursive { workspace_packages: ctx.workspace_packages };
+            let scope = PublishScope::Recursive {
+                workspace_packages: ctx.workspace_packages,
+                bumped: ctx.bumped,
+            };
             let mut pkg =
                 self.pack_directory::<Reporter>(&root, ctx.config, ctx.before_packing_hooks, scope)
                     .await?;
@@ -139,6 +143,7 @@ impl PublishArgs {
         config: &Config,
         stage: bool,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        bumped: Option<&Arc<HashSet<String>>>,
     ) -> miette::Result<Vec<PublishSummary>> {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         // `publish` is not in pnpm's root-auto-exclusion command set
@@ -178,6 +183,7 @@ impl PublishArgs {
             to_publish: &to_publish,
             project_dependencies: &project_dependencies,
             workspace_packages: &workspace_packages,
+            bumped,
         };
         let published = self.publish_selected::<Reporter>(&ctx).await;
         self.finish_recursive_publish(workspace_root, &opts, published)
@@ -249,7 +255,10 @@ impl PublishArgs {
                     ctx.opts,
                     ctx.network,
                     ctx.before_packing_hooks,
-                    PublishScope::Recursive { workspace_packages: ctx.workspace_packages },
+                    PublishScope::Recursive {
+                        workspace_packages: ctx.workspace_packages,
+                        bumped: ctx.bumped,
+                    },
                 )
                 .await;
                 record_publish_outcome(published, first_error, result)

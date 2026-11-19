@@ -22,6 +22,7 @@ fn default_opts(catalogs: &Catalogs) -> CreateExportableManifestOptions<'_> {
         skip_manifest_obfuscation: false,
         embed_readme: false,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     }
 }
 
@@ -70,6 +71,7 @@ fn skip_obfuscation_keeps_scripts_and_package_manager() {
         skip_manifest_obfuscation: true,
         embed_readme: false,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     };
     let out = build(
         dir.path(),
@@ -108,6 +110,7 @@ fn pnpm_config_is_preserved_while_other_pnpm_fields_are_stripped() {
             skip_manifest_obfuscation,
             embed_readme: false,
             workspace_packages: None,
+            bumped_workspace_packages: None,
         };
         let out = build(dir.path(), &manifest, &opts);
         assert_eq!(out["pnpm"], json!({ "config": "./config.yaml" }));
@@ -331,6 +334,7 @@ fn readme_is_embedded_when_requested() {
             skip_manifest_obfuscation: false,
             embed_readme: true,
             workspace_packages: None,
+            bumped_workspace_packages: None,
         };
         let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
         assert_eq!(out["readme"], json!("# Hello"), "{readme_file_name}");
@@ -351,6 +355,7 @@ fn readme_md_is_preferred_over_other_readme_candidates() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
     assert_eq!(out["readme"], json!("# Preferred"));
@@ -369,6 +374,7 @@ fn readme_md_is_preferred_over_bare_readme() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
     assert_eq!(out["readme"], json!("# Preferred"));
@@ -388,6 +394,7 @@ fn lowest_markdown_readme_name_is_embedded() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
     assert_eq!(out["readme"], json!("# A"));
@@ -405,6 +412,7 @@ fn readme_with_invalid_utf8_is_embedded_lossily() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
     assert_eq!(out["readme"], json!("text\u{FFFD}"));
@@ -423,6 +431,7 @@ fn markdown_readme_is_preferred_over_bare_readme() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
     assert_eq!(out["readme"], json!("# Markdown"));
@@ -455,6 +464,7 @@ fn readme_symlink_is_not_embedded() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
     assert!(out.get("readme").is_none());
@@ -495,6 +505,7 @@ fn local_catalog_entry_is_reanchored_on_the_exported_package() {
         skip_manifest_obfuscation: false,
         embed_readme: false,
         workspace_packages: None,
+        bumped_workspace_packages: None,
     };
 
     let out = build(
