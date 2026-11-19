@@ -18,6 +18,8 @@ import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { ensureLockfileIsNotSymlink, extractEnvDocument, readLockfileToString, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
 
+export { lockfileYamlDump }
+
 /**
  * Returns the canonical post-write lockfile — structurally identical
  * to what `readWantedLockfile` would parse back. Lets callers like

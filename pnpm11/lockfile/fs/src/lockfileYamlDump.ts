@@ -1,7 +1,7 @@
 import { dump } from 'js-yaml'
 
 const OPTIONS = { lineWidth: -1, noCompatMode: true, noRefs: true }
-const FLOW_OPTIONS = { ...OPTIONS, flowLevel: 0 }
+const FLOW_OPTIONS = { ...OPTIONS, flowLevel: 1 }
 const INLINE_KEYS = new Set(['cpu', 'engines', 'os', 'libc'])
 const SPACED_SECTIONS = new Set(['importers', 'packages', 'snapshots'])
 const INDENT = '  '
@@ -11,22 +11,50 @@ export function lockfileYamlDump (lockfile: object): string {
 }
 
 function writeMapping (mapping: Record<string, unknown>, separator: string): string {
-  const entries = Object.entries(mapping)
-    .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => writeEntry(key, value))
-  return entries.length === 0 ? '{}' : entries.join(separator)
+  const chunks = writeMappingChunks(mapping, separator === '\n')
+  if (chunks.length === 0) return '{}'
+  return separator === '\n' ? chunks.join(separator) : joinWithBlankLines(chunks)
 }
 
-function writeEntry (key: string, value: unknown): string {
-  if (!hasCustomLayout(key, value)) {
-    return dump({ [key]: value }, OPTIONS).slice(0, -1)
+function writeMappingChunks (mapping: Record<string, unknown>, batchOrdinaryEntries: boolean): string[] {
+  const entries = Object.entries(mapping)
+    .filter(([, value]) => value !== undefined)
+  const chunks: string[] = []
+  let ordinaryEntries: Array<[string, unknown]> = []
+  for (const [key, value] of entries) {
+    const custom = hasCustomLayout(key, value)
+    if (!custom && batchOrdinaryEntries) {
+      ordinaryEntries.push([key, value])
+      continue
+    }
+    if (ordinaryEntries.length > 0) {
+      chunks.push(dump(Object.fromEntries(ordinaryEntries), OPTIONS).slice(0, -1))
+      ordinaryEntries = []
+    }
+    chunks.push(custom ? writeCustomEntry(key, value) : dump({ [key]: value }, OPTIONS).slice(0, -1))
+  }
+  if (ordinaryEntries.length > 0) {
+    chunks.push(dump(Object.fromEntries(ordinaryEntries), OPTIONS).slice(0, -1))
+  }
+  return chunks
+}
+
+function joinWithBlankLines (chunks: string[]): string {
+  let result = chunks[0]
+  for (let index = 1; index < chunks.length; index++) {
+    // A trailing newline belongs to a block scalar that keeps its blank lines.
+    const separator = chunks[index - 1].endsWith('\n') ? '\n' : '\n\n'
+    result += separator + chunks[index]
+  }
+  return result
+}
+
+function writeCustomEntry (key: string, value: Record<string, unknown> | unknown[]): string {
+  if (usesFlowStyle(key, value)) {
+    return dump({ [key]: value }, FLOW_OPTIONS).slice(0, -1)
   }
 
   const renderedKey = dump({ [key]: null }, OPTIONS).slice(0, -' null\n'.length)
-  if (usesFlowStyle(key, value)) {
-    return `${renderedKey} ${dump(value, FLOW_OPTIONS).slice(0, -1)}`
-  }
-
   return writeBlockEntry(key, renderedKey, value)
 }
 

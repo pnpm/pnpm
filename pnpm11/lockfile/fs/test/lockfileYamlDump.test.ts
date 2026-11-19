@@ -39,3 +39,15 @@ test('keeps inline fields and block resolutions under explicit package keys', ()
   ].join('\n'))
   expect(load(serialized)).toStrictEqual(lockfile)
 })
+
+test('keeps trailing newlines in block scalars between packages', () => {
+  const lockfile = {
+    packages: {
+      first: { deprecated: 'old\n\n' },
+      second: { deprecated: '\n' },
+    },
+    snapshots: {},
+  }
+
+  expect(load(lockfileYamlDump(lockfile))).toStrictEqual(lockfile)
+})
