@@ -454,5 +454,5 @@ fn allow_build_keeps_a_value_with_a_url_key_whole() {
 fn allow_build_rejects_an_empty_item_in_a_comma_separated_list() {
     let err = parse_allow_build_selectors(&["esbuild,".to_string()])
         .expect_err("an empty list item is rejected");
-    assert!(matches!(err, super::AllowBuildError::MissingPackage));
+    assert!(matches!(err, super::allow_build::AllowBuildError::MissingPackage));
 }

@@ -1,6 +1,6 @@
 use super::{DlxArgs, DlxError, get_bin_name, scopeless};
 use crate::cli_args::{
-    add::{AllowBuildError, AllowBuildSelector, parse_allow_build_selectors},
+    add::{AllowBuildSelector, allow_build::AllowBuildError, parse_allow_build_selectors},
     dlx::{
         cache::{
             apply_dlx_build_policy, create_cache_key, get_prepare_dir, get_valid_cache_dir,
