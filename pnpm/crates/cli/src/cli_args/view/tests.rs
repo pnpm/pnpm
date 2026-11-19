@@ -143,7 +143,7 @@ fn rich_info() -> Value {
 
 #[test]
 fn render_summary_includes_every_section() {
-    let out = render_summary(&rich_info());
+    let out = render_summary(&rich_info(), "https://registry.example/");
     for needle in [
         "is-negative@1.0.0",
         "deps: ",
@@ -162,14 +162,25 @@ fn render_summary_includes_every_section() {
         "dist-tags:",
         "latest:",
         "published ",
+        "registry: https://registry.example/",
     ] {
         assert!(out.contains(needle), "summary missing {needle:?}:\n{out}");
     }
 }
 
 #[test]
+fn render_summary_redacts_registry_credentials() {
+    let out = render_summary(
+        &json!({ "name": "x", "version": "1.0.0" }),
+        "https://user:secret@registry.example/",
+    );
+    assert!(out.contains("registry: https://registry.example/"), "{out}");
+    assert!(!out.contains("secret"), "registry credentials must not be printed: {out}");
+}
+
+#[test]
 fn render_summary_minimal_shows_deps_none() {
-    let out = render_summary(&json!({ "name": "x", "version": "1.0.0" }));
+    let out = render_summary(&json!({ "name": "x", "version": "1.0.0" }), "https://r.example/");
     assert!(out.contains("x@1.0.0"), "{out}");
     assert!(out.contains("deps: none"), "{out}");
 }
@@ -304,12 +315,12 @@ async fn fetch_package_metadata_honors_registry_override_for_scoped_package() {
     config.registries_by_scope.insert("@scope".to_string(), "https://other.registry/".to_string());
 
     let server_url = server.url();
-    let (pkg, version) =
-        super::fetch_package_metadata(&config, Some(&server_url), "@scope/acme", "view")
-            .await
-            .expect("fetch package metadata");
+    let fetched = super::fetch_package_metadata(&config, Some(&server_url), "@scope/acme", "view")
+        .await
+        .expect("fetch package metadata");
 
-    assert_eq!(pkg.name, "@scope/acme");
-    assert_eq!(version.version.to_string(), "1.0.0");
+    assert_eq!(fetched.meta.name, "@scope/acme");
+    assert_eq!(fetched.picked.version.to_string(), "1.0.0");
+    assert!(fetched.registry.starts_with(&server_url), "{}", fetched.registry);
     mock.assert_async().await;
 }

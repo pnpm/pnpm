@@ -20,6 +20,8 @@ Show all metadata for a package:
 pnpm view express
 ```
 
+The summary ends with the registry the metadata was read from. If a version is missing or a dist-tag points to an older version, check whether that registry is a mirror that has not synced yet.
+
 Show a specific field:
 
 ```sh

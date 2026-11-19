@@ -22,14 +22,14 @@ impl DocsArgs {
     }
 
     async fn documentation_url(&self, config: &Config) -> miette::Result<String> {
-        let (_, manifest) = super::view::fetch_package_metadata(
+        let fetched = super::view::fetch_package_metadata(
             config,
             self.registry.as_deref(),
             &self.package,
             "docs",
         )
         .await?;
-        Ok(documentation_url_from_manifest(&manifest))
+        Ok(documentation_url_from_manifest(&fetched.picked))
     }
 }
 

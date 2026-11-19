@@ -69,9 +69,9 @@ pub(super) fn format_field_value(value: Option<&Value>) -> String {
 
 /// Render the human-readable summary block: a `name@version | license |
 /// deps | versions` header followed by description, homepage, deprecation,
-/// keywords, bin, dist, dependencies, maintainers, dist-tags, and the
-/// published-by line.
-pub(super) fn render_summary(info: &Value) -> String {
+/// keywords, bin, dist, dependencies, maintainers, dist-tags, the
+/// published-by line, and the registry the metadata was read from.
+pub(super) fn render_summary(info: &Value, registry: &str) -> String {
     let mut lines: Vec<String> = vec![summary_header(info)];
 
     if let Some(description) = str_field(info, "description") {
@@ -104,6 +104,14 @@ pub(super) fn render_summary(info: &Value) -> String {
         lines.push(String::new());
         lines.push(published);
     }
+
+    // A mirror that lags behind its upstream shows stale versions and
+    // dist-tags, so name the registry the metadata came from.
+    lines.push(String::new());
+    lines.push(format!(
+        "registry: {}",
+        underline_blue(&pnpm_network::redact_url_credentials(registry)),
+    ));
 
     lines.join("\n")
 }
