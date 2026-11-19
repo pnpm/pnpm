@@ -11,10 +11,10 @@ pub(crate) use update::{
 use super::{
     Arc, AuditAdvisory, AuditError, AuditReport, BTreeMap, Config, ConfigAuditLevel,
     DependencyGroup, Deserialize, FixContext, HashMap, HashSet, IntoDiagnostic, Lockfile,
-    MultiSelect, PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State,
-    Timestamp, Update, Version, blue, color_severity, encode_package_name, green,
-    normalize_ghsa_id, parse_packument_timestamp, red, satisfies_including_prerelease,
-    send_with_retry, severity_name, severity_number,
+    MultiSelect, PackageVersionGuard, Range, RangeSpecStyle, ReleaseAgeExclusions, Reporter,
+    ResolutionObserver, State, Timestamp, Update, Version, blue, color_severity,
+    encode_package_name, green, normalize_ghsa_id, parse_packument_timestamp, red,
+    satisfies_including_prerelease, send_with_retry, severity_name, severity_number,
 };
 use pnpm_network::{normalize_registry_url, redact_url_credentials};
 use update::advisory_choices;
@@ -91,6 +91,7 @@ pub(super) async fn fix_override(
     advisories: &BTreeMap<String, AuditAdvisory>,
     config: &Config,
     context: &FixContext<'_>,
+    release_age_exclusions: ReleaseAgeExclusions,
 ) -> miette::Result<String> {
     let pruned_advisories = prune_subsumed_advisories(advisories);
     let overrides = create_overrides_from_pruned(
@@ -112,7 +113,7 @@ pub(super) async fn fix_override(
         "{} overrides were added to pnpm-workspace.yaml to fix vulnerabilities.\nRun \"pnpm install\" to apply the fixes.\n\nThe added overrides:\n{json}",
         overrides.len(),
     );
-    if !context.frozen_minimum_release_age_exclude
+    if release_age_exclusions == ReleaseAgeExclusions::AddForPatches
         && let Some(minimum_release_age) = config.resolved_minimum_release_age()
     {
         let added = resolve_minimum_release_age_excludes(

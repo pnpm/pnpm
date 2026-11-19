@@ -128,10 +128,21 @@ pub struct AdvisoryFilterArgs {
 /// What a fix flow needs beyond the report itself.
 struct FixContext<'a> {
     audit_level: ConfigAuditLevel,
-    frozen_minimum_release_age_exclude: bool,
     lockfile_dir: &'a std::path::Path,
     settings_dir: &'a std::path::Path,
     publish_infos: &'a HashMap<String, Option<PackumentPublishInfo>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReleaseAgeExclusions {
+    AddForPatches,
+    SkipAdditions,
+}
+
+impl ReleaseAgeExclusions {
+    fn from_frozen_flag(frozen: bool) -> Self {
+        if frozen { Self::SkipAdditions } else { Self::AddForPatches }
+    }
 }
 
 /// Which `--fix` strategy to apply. Mirrors pnpm's `'override' | 'update'`.
@@ -250,7 +261,6 @@ impl AuditArgs {
                 &report,
                 &FixContext {
                     audit_level,
-                    frozen_minimum_release_age_exclude: self.frozen_minimum_release_age_exclude,
                     lockfile_dir: &lockfile_dir,
                     settings_dir: &settings_dir,
                     publish_infos: &publish_infos,
