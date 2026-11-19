@@ -10,11 +10,11 @@ pub(crate) use update::{
 
 use super::{
     Arc, AuditAdvisory, AuditError, AuditReport, BTreeMap, Config, ConfigAuditLevel,
-    DependencyGroup, Deserialize, HashMap, HashSet, IntoDiagnostic, Lockfile, MultiSelect,
-    PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Timestamp,
-    Update, Version, blue, color_severity, encode_package_name, green, normalize_ghsa_id,
-    parse_packument_timestamp, red, satisfies_including_prerelease, send_with_retry, severity_name,
-    severity_number,
+    DependencyGroup, Deserialize, FixContext, HashMap, HashSet, IntoDiagnostic, Lockfile,
+    MultiSelect, PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State,
+    Timestamp, Update, Version, blue, color_severity, encode_package_name, green,
+    normalize_ghsa_id, parse_packument_timestamp, red, satisfies_including_prerelease,
+    send_with_retry, severity_name, severity_number,
 };
 use pnpm_network::{normalize_registry_url, redact_url_credentials};
 use update::advisory_choices;
@@ -87,11 +87,10 @@ pub(crate) fn prune_ignored_ghsas(
 /// user-facing summary. Mirrors the override branch of pnpm's audit handler.
 /// `publish_infos` reuses the packument data the report validation already
 /// fetched so the age-gate check doesn't request it again.
-pub(crate) async fn fix_override(
+pub(super) async fn fix_override(
     advisories: &BTreeMap<String, AuditAdvisory>,
-    settings_dir: &std::path::Path,
     config: &Config,
-    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    context: &FixContext<'_>,
 ) -> miette::Result<String> {
     let pruned_advisories = prune_subsumed_advisories(advisories);
     let overrides = create_overrides_from_pruned(
@@ -104,7 +103,7 @@ pub(crate) async fn fix_override(
     let entries = overrides
         .iter()
         .map(|(key, value)| (key.as_str(), value.as_str()));
-    pnpm_workspace_manifest_writer::set_overrides(settings_dir, entries)
+    pnpm_workspace_manifest_writer::set_overrides(context.settings_dir, entries)
         .map_err(|err| {
             miette::Report::new(err).wrap_err("write overrides to pnpm-workspace.yaml")
         })?;
@@ -113,14 +112,16 @@ pub(crate) async fn fix_override(
         "{} overrides were added to pnpm-workspace.yaml to fix vulnerabilities.\nRun \"pnpm install\" to apply the fixes.\n\nThe added overrides:\n{json}",
         overrides.len(),
     );
-    if let Some(minimum_release_age) = config.resolved_minimum_release_age() {
+    if !context.frozen_minimum_release_age_exclude
+        && let Some(minimum_release_age) = config.resolved_minimum_release_age()
+    {
         let added = resolve_minimum_release_age_excludes(
             &pruned_advisories,
-            publish_infos,
+            context.publish_infos,
             minimum_release_age,
         )?;
         if !added.is_empty() {
-            write_age_excludes(settings_dir, &added)?;
+            write_age_excludes(context.settings_dir, &added)?;
             let note = format!(
                 "\n\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}",
                 added.len(),

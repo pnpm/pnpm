@@ -1,6 +1,6 @@
 pub(crate) use fix::{
     AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
-    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
+    filter_advisories_for_fix, fix_with_update, format_fix_with_update_output,
     ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
 pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
@@ -98,6 +98,9 @@ pub struct AuditArgs {
     /// "override" when no method is given.
     #[clap(long, value_name = "METHOD", num_args = 0..=1, default_missing_value = "override")]
     pub fix: Option<String>,
+    /// Skip automatic additions to minimumReleaseAgeExclude during audit fixes.
+    #[clap(long)]
+    pub frozen_minimum_release_age_exclude: bool,
     /// Show vulnerabilities and select which ones to fix interactively.
     #[clap(short = 'i', long)]
     pub interactive: bool,
@@ -125,6 +128,7 @@ pub struct AdvisoryFilterArgs {
 /// What a fix flow needs beyond the report itself.
 struct FixContext<'a> {
     audit_level: ConfigAuditLevel,
+    frozen_minimum_release_age_exclude: bool,
     lockfile_dir: &'a std::path::Path,
     settings_dir: &'a std::path::Path,
     publish_infos: &'a HashMap<String, Option<PackumentPublishInfo>>,
@@ -246,6 +250,7 @@ impl AuditArgs {
                 &report,
                 &FixContext {
                     audit_level,
+                    frozen_minimum_release_age_exclude: self.frozen_minimum_release_age_exclude,
                     lockfile_dir: &lockfile_dir,
                     settings_dir: &settings_dir,
                     publish_infos: &publish_infos,

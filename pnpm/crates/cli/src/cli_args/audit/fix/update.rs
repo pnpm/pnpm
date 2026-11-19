@@ -66,10 +66,15 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     lockfile_dir: &std::path::Path,
     settings_dir: &std::path::Path,
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    frozen_minimum_release_age_exclude: bool,
 ) -> miette::Result<(Vec<AdvisoryId>, Vec<AdvisoryId>, Vec<String>)> {
     let classification = classify_for_update(advisories);
 
-    let age_excludes = persist_age_excludes(state, advisories, settings_dir, publish_infos)?;
+    let age_excludes = if frozen_minimum_release_age_exclude {
+        Vec::new()
+    } else {
+        persist_age_excludes(state, advisories, settings_dir, publish_infos)?
+    };
 
     update_non_vulnerable::<Reporter>(state, &classification, &age_excludes).await?;
 
