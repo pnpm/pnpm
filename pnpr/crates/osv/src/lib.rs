@@ -184,6 +184,23 @@ impl OsvIndex {
         result
     }
 
+    /// Query [`BulkAdvisory`] entries matching a single `(name, version)` pair.
+    #[must_use]
+    pub fn advisories_for_version(&self, name: &str, version: &str) -> Vec<BulkAdvisory> {
+        let Some(advisories) = self.advisories(name) else {
+            return Vec::new();
+        };
+        let parsed = Version::parse(version).ok();
+        let mut matched = Vec::new();
+        let mut seen_ids = HashSet::new();
+        for advisory in advisories {
+            if advisory.affects(version, parsed.as_ref()) && seen_ids.insert(advisory.bulk.id) {
+                matched.push(advisory.bulk.clone());
+            }
+        }
+        matched
+    }
+
     fn advisories(&self, name: &str) -> Option<&[Advisory]> {
         self.packages
             .get(normalized_name(name).as_ref())

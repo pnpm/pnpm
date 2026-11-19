@@ -151,6 +151,11 @@ fn bulk_advisories_sorts_out_of_order_events_when_formatting() {
     assert_eq!(result.len(), 1);
     let adv = &result["reversed"][0];
     assert_eq!(adv.vulnerable_versions, ">=1.0.0 <1.2.0");
+
+    let per_version = index.advisories_for_version("reversed", "1.1.0");
+    assert_eq!(per_version.len(), 1);
+    assert_eq!(per_version[0].vulnerable_versions, ">=1.0.0 <1.2.0");
+    assert!(index.advisories_for_version("reversed", "1.2.0").is_empty());
 }
 
 #[test]
