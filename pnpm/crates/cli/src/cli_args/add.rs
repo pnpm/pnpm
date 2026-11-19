@@ -407,7 +407,7 @@ pub enum AddError {
     AddingToRoot,
 
     #[display(
-        "Running this command in a workspace package directory without a package manifest will add the dependency to the workspace root, which might not be what you want. If this directory is meant to be a package, create a package manifest first, for example by running \"pnpm init\" to generate a package.json. If you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). If you don't want to see this warning anymore, you may set the ignore-workspace-root-check setting to true."
+        r#"Running this command in a workspace package directory without a package manifest will add the dependency to the workspace root, which might not be what you want. If this directory is meant to be a package, create a package manifest first, for example by running "pnpm init" to generate a package.json. If you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). If you don't want to see this warning anymore, you may set the ignore-workspace-root-check setting to true."#
     )]
     #[diagnostic(code(ERR_PNPM_ADDING_TO_ROOT))]
     AddingToRootFromUninitializedProject,
