@@ -456,6 +456,30 @@ test('adding a dependency from a directory excluded by the workspace patterns sh
   expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
 })
 
+test('adding a dependency from inside the modules directory should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('deps/foo', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '**'
+  - 'tools/*'
+modulesDir: deps
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('deps/foo') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
 test('adding a dependency from a workspace-matched directory without a manifest should suggest initializing the package in a single-pattern workspace', async () => {
   preparePackages([
     {

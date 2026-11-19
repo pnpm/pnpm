@@ -1,24 +1,20 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
 import { parseAllowBuildSelector } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
-import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
 import { linkedDirectoryPath } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
-import { isWorkspaceProjectDir } from '@pnpm/workspace.package-patterns'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
+import { assertNotAddingToWorkspaceRoot } from './assertNotAddingToWorkspaceRoot.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
@@ -230,18 +226,6 @@ export type AddCommandOptions = InstallCommandOptions & {
   config?: boolean
 }
 
-const ROOT_WORKSPACE_ADD_MESSAGE =
-  'Running this command will add the dependency to the workspace root, ' +
-  'which might not be what you want - if you really meant it, ' +
-  'make it explicit by running this command again with the -w flag (or --workspace-root). ' +
-  'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
-
-const WORKSPACE_PACKAGE_DIR_ADD_MESSAGE =
-  'Running this command in a workspace package directory without a package manifest will add the dependency to the workspace root, which might not be what you want. ' +
-  'If this directory is meant to be a package, create a package manifest first, for example by running "pnpm init" to generate a package.json. ' +
-  'If you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). ' +
-  'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
-
 export async function handler (
   opts: AddCommandOptions,
   params: string[],
@@ -306,21 +290,6 @@ async function addConfigDependencies (opts: AddCommandOptions, params: string[])
     storeDir: store.dir,
     rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
-}
-
-function assertNotAddingToWorkspaceRoot (opts: AddCommandOptions): void {
-  if (
-    opts.recursive ||
-    opts.workspaceDir !== opts.dir ||
-    opts.ignoreWorkspaceRootCheck ||
-    opts.workspaceRoot
-  ) return
-  if (isUninitializedWorkspaceProjectDir(opts)) {
-    throw new PnpmError('ADDING_TO_ROOT', WORKSPACE_PACKAGE_DIR_ADD_MESSAGE)
-  }
-  if (opts.workspacePackagePatterns && opts.workspacePackagePatterns.length > 1) {
-    throw new PnpmError('ADDING_TO_ROOT', ROOT_WORKSPACE_ADD_MESSAGE)
-  }
 }
 
 export { parseAllowBuildSelector }
@@ -421,21 +390,4 @@ export function applyAllowBuildSelectors (
     updated[name] = allowed
   }
   return updated
-}
-
-/**
- * `pnpm add` run from a directory that the workspace patterns select but that
- * has no manifest yet falls back to the workspace root. Such a directory is
- * most likely a package that was not initialized.
- */
-function isUninitializedWorkspaceProjectDir (opts: AddCommandOptions): boolean {
-  if (!opts.workspaceDir) return false
-  const invocationDir = (opts.cliOptions.dir as string | undefined) ?? fs.realpathSync(process.cwd())
-  if (invocationDir === opts.workspaceDir) return false
-  if (MANIFEST_BASE_NAMES.some((manifestFileName) => fs.existsSync(path.join(invocationDir, manifestFileName)))) return false
-  return isWorkspaceProjectDir({
-    workspaceDir: opts.workspaceDir,
-    dir: invocationDir,
-    patterns: opts.workspacePackagePatterns ?? ['.'],
-  })
 }

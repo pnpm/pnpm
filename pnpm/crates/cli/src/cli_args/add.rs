@@ -237,7 +237,7 @@ impl AddArgs {
         let patterns = pnpm_workspace::read_workspace_manifest(dir)
             .into_diagnostic()?
             .map(|manifest| pnpm_workspace::workspace_package_patterns(&manifest));
-        if is_uninitialized_workspace_project_dir(dir, cli_dir, patterns.as_deref())? {
+        if is_uninitialized_workspace_project_dir(config, dir, cli_dir, patterns.as_deref())? {
             return Err(AddError::AddingToRootFromUninitializedProject.into());
         }
         if patterns
@@ -379,6 +379,7 @@ fn workspace_selectors(
 /// that has no manifest yet falls back to the workspace root. Such a
 /// directory is most likely a package that was not initialized.
 fn is_uninitialized_workspace_project_dir(
+    config: &Config,
     workspace_dir: &Path,
     cli_dir: &Path,
     patterns: Option<&[String]>,
@@ -392,7 +393,7 @@ fn is_uninitialized_workspace_project_dir(
     }
     let opts = pnpm_workspace::FindWorkspaceProjectsOpts {
         patterns: Some(patterns.map_or_else(|| vec![".".to_string()], <[String]>::to_vec)),
-        ..Default::default()
+        ignored_directories: config.managed_directories(),
     };
     pnpm_workspace::is_workspace_project_dir(workspace_dir, cli_dir, &opts).into_diagnostic()
 }

@@ -101,6 +101,13 @@ fn add_from_a_directory_excluded_by_the_patterns_keeps_the_root_warning() {
 }
 
 #[test]
+fn add_from_inside_the_modules_dir_keeps_the_root_warning() {
+    let stderr =
+        add_from_workspace_subdir("  - '**'\n  - tools/*\nmodulesDir: deps\n", "deps/foo", &[]);
+    assert!(!stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
+#[test]
 fn add_with_dir_at_the_workspace_root_keeps_the_root_warning() {
     let stderr = add_from_workspace_subdir(
         "  - packages/*\n  - tools/*\n",
