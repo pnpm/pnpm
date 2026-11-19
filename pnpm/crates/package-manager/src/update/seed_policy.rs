@@ -5,9 +5,10 @@ use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, MatchedRewriteInputs, UpdateError,
     WorkspaceLinkTarget, emit_range_flag_ignored, latest_specifier,
     latest_subtree::widen_drop_targets_to_subtrees,
-    override_governed, record_matched_direct_update,
+    overrides::{OverriddenDirect, override_holds_declaration},
+    record_matched_direct_update,
     selectors::{ParsedSelector, expand_update_selectors, insert_update_target},
-    tag_rewrite, warn_pinned_override, workspace_specifier,
+    tag_rewrite, workspace_specifier,
 };
 use crate::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
 use pnpm_config::Config;
@@ -20,7 +21,7 @@ use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use pnpm_resolving_resolver_base::{PreferredVersions, WorkspacePackages};
 use std::collections::{BTreeMap, HashSet};
 
-use matching::{update_ignore_matcher, update_matcher_patterns};
+use matching::{name_matched_seed_policy, update_ignore_matcher, update_matcher_patterns};
 
 pub(super) fn selected_seed_policy(
     patches: bool,
@@ -53,25 +54,6 @@ pub(super) struct LockedImporter<'a> {
     pub(super) id: &'a str,
 }
 
-pub(super) struct OverriddenDirect {
-    pub(super) name: String,
-    pub(super) group: DependencyGroup,
-    pub(super) effective_specifier: Option<String>,
-    /// The override entry that governs the dependency when its selector is
-    /// the package's bare name — the one entry an update can move, because
-    /// moving it moves the resolution with no selector to reinterpret.
-    /// `None` when a range-scoped, dependency-type-scoped, or parent-scoped
-    /// selector governs. `--latest` then rewrites the declaration, which a
-    /// range-scoped selector stops matching once it moves past the range.
-    pub(super) bare_override: Option<BareOverrideEntry>,
-}
-
-/// A `pnpm.overrides` entry keyed by the bare package name, as written in
-/// `pnpm-workspace.yaml`.
-pub(super) struct BareOverrideEntry {
-    pub(super) key: String,
-    pub(super) value: String,
-}
 /// What the branches accumulate on the way to a seed policy.
 #[derive(Default)]
 pub(super) struct UpdatePlan {
@@ -241,16 +223,9 @@ pub(super) async fn record_direct_update(
     declared: (&String, DependencyGroup, &String),
 ) -> Result<(), UpdateError> {
     let (name, group, previous) = declared;
-    // An override owns this dependency's resolution, and a selector-less
-    // update is no request to move the override, so the pair is left alone
-    // ("update --latest preserves override-owned dependency resolutions").
-    // Under `--latest`, a range-scoped override stops matching once the
-    // declaration moves past its range, so only a bare-name one holds it.
-    if override_governed(scope, name, group)
-        .is_some_and(|overridden| {
-            overridden.bare_override.is_some() || !scope.version.latest
-        })
-    {
+    // A selector-less update is no request to move an override, so the
+    // pair it holds is left alone.
+    if override_holds_declaration(scope, name, group) {
         plan.drop_targets.insert(name.clone(), None);
         return Ok(());
     }
@@ -305,40 +280,6 @@ pub(super) fn widen_drop_targets_to_lockfile(
             plan.drop_targets.insert(name, None);
         }
     }
-}
-/// Bare-name selectors with a depth: every matching name updates, at any
-/// depth.
-pub(super) fn name_matched_seed_policy<Reporter: self::Reporter>(
-    scope: &UpdateScope<'_>,
-    plan: &mut UpdatePlan,
-    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
-) -> UpdateSeedPolicy {
-    let patterns = update_matcher_patterns(scope);
-    let matcher = create_matcher(&patterns);
-    let ignore_matcher = update_ignore_matcher(scope);
-    let ignored_resolved_names = ignored_resolved_names(scope, ignore_matcher.as_ref());
-    for (name, group, previous) in scope.direct {
-        if !matches_update_pattern(&matcher, ignore_matcher.as_ref(), name) {
-            continue;
-        }
-        // An override-governed declaration is not the bump's to move, and one
-        // pinned to a single version has no room to move at all, which the
-        // user should hear about.
-        if let Some(overridden) = override_governed(scope, name, *group) {
-            warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
-        } else if scope.version.save {
-            plan.bump_targets.push((name.clone(), *group, previous.clone()));
-        }
-        plan.drop_targets.insert(name.clone(), None);
-    }
-    widen_drop_targets_by_matcher(
-        scope.lockfile.document,
-        plan,
-        &matcher,
-        ignore_matcher.as_ref(),
-        &ignored_resolved_names,
-    );
-    plan.drop_only(scope.max_depth())
 }
 /// Lockfile names keep transitive-only matches in the update scope.
 pub(super) fn widen_drop_targets_by_matcher(

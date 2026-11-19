@@ -8,10 +8,8 @@ use super::{
         read_catalog_ctx_with_catalogs, reconcile_catalog_rewrites,
     },
     latest::{LatestResolverChain, LatestRewriteCtx},
-    seed_policy::{
-        BareOverrideEntry, LockedImporter, OverriddenDirect, UpdatePlan, UpdateScope,
-        select_seed_policy,
-    },
+    overrides::{BareOverrideEntry, OverriddenDirect},
+    seed_policy::{LockedImporter, UpdatePlan, UpdateScope, select_seed_policy},
     selectors::{
         ParsedSelector, parse_selectors, reject_versioned_selectors,
         reject_versions_of_indirect_update_specs,

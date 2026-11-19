@@ -1,7 +1,7 @@
 use super::{
     LatestResolverChain, LatestRewriteCtx, UpdateError, latest_version_for_spec,
     rewrite::{KeptRangeVerdict, MatchedRewrite, judge_against_kept_range, kept_range_rewrite},
-    seed_policy::{BareOverrideEntry, OverriddenDirect, UpdatePlan, UpdateScope},
+    seed_policy::{UpdatePlan, UpdateScope},
 };
 use crate::package_manifest_prefix;
 use node_semver::Version;
@@ -9,6 +9,26 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, range_of_specifier};
+
+pub(super) struct OverriddenDirect {
+    pub(super) name: String,
+    pub(super) group: DependencyGroup,
+    pub(super) effective_specifier: Option<String>,
+    /// The override entry that governs the dependency when its selector is
+    /// the package's bare name — the one entry an update can move, because
+    /// moving it moves the resolution with no selector to reinterpret.
+    /// `None` when a range-scoped, dependency-type-scoped, or parent-scoped
+    /// selector governs. `--latest` then rewrites the declaration, which a
+    /// range-scoped selector stops matching once it moves past the range.
+    pub(super) bare_override: Option<BareOverrideEntry>,
+}
+
+/// A `pnpm.overrides` entry keyed by the bare package name, as written in
+/// `pnpm-workspace.yaml`.
+pub(super) struct BareOverrideEntry {
+    pub(super) key: String,
+    pub(super) value: String,
+}
 
 /// Whether an override value fixes the dependency to a single version, so a
 /// compatible update — one that moves the resolution inside the override's
@@ -28,6 +48,21 @@ pub(super) fn override_governed<'scope>(
     scope.overridden_direct
         .iter()
         .find(|item| item.name == name && item.group == group)
+}
+
+/// Whether an override keeps the declaration of `name` from moving: every
+/// override that governs it does for a compatible update, while under
+/// `--latest` only a bare-name one does. A range-scoped override stops
+/// matching once the declaration moves past its range.
+pub(super) fn override_holds_declaration(
+    scope: &UpdateScope<'_>,
+    name: &str,
+    group: DependencyGroup,
+) -> bool {
+    override_governed(scope, name, group)
+        .is_some_and(|overridden| {
+            overridden.bare_override.is_some() || !scope.version.latest
+        })
 }
 
 /// Warn that a compatible update cannot move a dependency an override

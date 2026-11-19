@@ -339,7 +339,9 @@ fn update_latest_warns_when_the_override_is_a_catalog_reference() {
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
-    yaml.push_str(&format!("\ncatalog:\n  \"{DEP}\": 100.0.0\n"));
+    yaml.push_str("\ncatalog:\n  \"");
+    yaml.push_str(DEP);
+    yaml.push_str("\": 100.0.0\n");
     fs::write(&yaml_path, yaml).expect("write yaml");
     set_overrides(&workspace, &[(DEP, "catalog:")]);
     pacquet(&workspace, ["install"]).assert().success();
