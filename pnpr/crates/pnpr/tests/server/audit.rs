@@ -1,6 +1,10 @@
+#[path = "audit/routing_and_osv.rs"]
+mod routing_and_osv;
+
 use super::{
-    Body, Request, ServiceExt, StatusCode, TempDir, body_json, config_for, enable_osv, header,
-    json, router,
+    Body, Config, Ecosystem, PackagePattern, Registries, Registry, Request, ServiceExt, StatusCode,
+    TempDir, body_json, config_for, enable_osv, header, hosted_with_access, json, router,
+    router_config,
 };
 use std::fs;
 
@@ -244,11 +248,9 @@ async fn bulk_advisories_returns_empty_map_when_no_upstream_and_no_osv() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.upstreams.clear();
-    config.routing.hosted.insert("acme".to_string(), super::hosted_with_access("acme", "$all"));
-    config.routing.registries = super::Registries::new(
-        vec![("acme".to_string(), super::Registry::Hosted { patterns: vec![] })]
-            .into_iter()
-            .collect(),
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.routing.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     let app = router(config);
@@ -273,11 +275,9 @@ async fn legacy_audits_return_empty_report_when_no_upstream() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.upstreams.clear();
-    config.routing.hosted.insert("acme".to_string(), super::hosted_with_access("acme", "$all"));
-    config.routing.registries = super::Registries::new(
-        vec![("acme".to_string(), super::Registry::Hosted { patterns: vec![] })]
-            .into_iter()
-            .collect(),
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.routing.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     let app = router(config);
