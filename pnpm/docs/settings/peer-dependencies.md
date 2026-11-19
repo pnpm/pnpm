@@ -129,7 +129,7 @@ Changing this setting changes the lockfile. pnpm records it in the lockfile's `s
 
 ### dedupePeers
 
-Deprecated. Use [`lockfile.format: v13`](./store.md#lockfileformat) if you want lockfile references without peer suffixes.
+Deprecated. Remove this setting. For lockfile references without peer suffixes, use [`lockfile.format: v13`](./store.md#lockfileformat).
 
 * Default: **false**
 * Type: **Boolean**
