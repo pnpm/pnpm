@@ -227,7 +227,7 @@ pub struct CliPathArgs {
         value_hint = ValueHint::DirPath,
         global = true,
         overrides_with = "store_dir",
-        value_parser = parse_store_dir
+        value_parser = parse_path_allowing_empty
     )]
     pub store_dir: Option<PathBuf>,
     /// Directory in which pnpm persists machine-local state.
@@ -236,7 +236,8 @@ pub struct CliPathArgs {
         value_name = "DIR",
         value_hint = ValueHint::DirPath,
         global = true,
-        overrides_with = "state_dir"
+        overrides_with = "state_dir",
+        value_parser = parse_path_allowing_empty
     )]
     pub state_dir: Option<PathBuf>,
     /// Path to an `.npmrc` to read auth settings from, overriding the
@@ -431,7 +432,7 @@ pub struct LifecycleOutputArgs {
     pub no_hide_prefix: bool,
 }
 
-fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
+fn parse_path_allowing_empty(value: &str) -> Result<PathBuf, std::convert::Infallible> {
     Ok(PathBuf::from(value))
 }
 

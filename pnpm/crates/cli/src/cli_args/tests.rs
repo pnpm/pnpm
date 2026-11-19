@@ -153,6 +153,35 @@ fn store_dir_accepts_an_explicit_empty_value() {
 }
 
 #[test]
+fn state_dir_accepts_an_explicit_empty_value_and_resets_from_config_override() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "config", "get", "state-dir", "--state-dir="])
+        .expect("parses empty global --state-dir");
+    assert_eq!(parsed.paths.state_dir.as_deref(), Some(Path::new("")));
+
+    let raw = ["pacquet", "--config.stateDir=", "config", "get", "state-dir"];
+    let argv = raw.map(std::ffi::OsString::from);
+    let (_overrides, remaining) = crate::config_overrides::ConfigOverrides::extract(argv);
+    let parsed = CliArgs::try_parse_from(&remaining).expect("parses override");
+    let state_dir = parsed.paths.state_dir;
+    let state_dir = state_dir.expect("state_dir present");
+    assert_eq!(state_dir.as_path(), Path::new(""));
+
+    let mut config = pnpm_config::Config {
+        state_dir: std::path::PathBuf::from("custom-state"),
+        ..pnpm_config::Config::default()
+    };
+    crate::config_overrides::apply_state_dir_override::<pnpm_config::Host>(
+        &mut config,
+        &state_dir,
+        Path::new("/workspace"),
+    );
+    assert_eq!(
+        config.state_dir,
+        pnpm_config::default_state_dir::<pnpm_config::Host>().unwrap_or_default(),
+    );
+}
+
+#[test]
 fn repeated_state_dir_uses_the_last_value_on_either_side_of_the_subcommand() {
     for argv in [
         ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"].as_slice(
