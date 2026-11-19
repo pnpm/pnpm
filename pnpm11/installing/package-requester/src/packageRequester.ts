@@ -328,7 +328,7 @@ async function pickResolutionFetcher (
 function fetcherMustBePickedBeforeSkipFetch (resolution: Resolution, customFetchers: CustomFetcher[] | undefined): boolean {
   if (resolution.type === 'variations') return false
   if (customFetchers != null && customFetchers.length > 0) return true
-  return resolution.type == null && getExpectedIntegrity(resolution) == null
+  return resolution.type != null || getExpectedIntegrity(resolution) == null
 }
 
 // Fetching can be skipped only when the manifest is available, the package content

@@ -211,6 +211,32 @@ test('skipFetch does not pick a fetcher for registry tarballs with integrity', a
   expect(remoteTarballReads).toBe(0)
 })
 
+test('a custom resolution without a custom fetcher is rejected even when the optional package is skipped', async () => {
+  const storeDir = temporaryDirectory()
+  const requestPackage = createPackageRequester({
+    resolve: async () => ({
+      id: 'custom-pkg@1.0.0' as PkgResolutionId,
+      resolution: { type: 'custom:test' } as unknown as Resolution,
+      resolvedVia: 'custom-resolver',
+      manifest: { name: 'custom-pkg', version: '1.0.0', os: ['this-os-does-not-exist'] },
+    }),
+    fetchers,
+    cafs: createCafsStore(storeDir),
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  await expect(requestPackage({ alias: 'custom-pkg', optional: true, bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_RESOLUTION_TYPE' })
+})
+
 test('request package but skip fetching, when resolution is already available', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
