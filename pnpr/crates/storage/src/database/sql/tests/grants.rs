@@ -267,9 +267,59 @@ async fn a_graph_write_seeds_and_forgets_the_grants_of_its_registries(db: Db) {
     );
 }
 
+async fn a_restored_graph_revision_never_seeds_grants(db: Db) {
+    let storage = storage(&db);
+    let seed = |id: &str, name: &str| StoredGrant {
+        id: id.to_string(),
+        content: content(name, &[name], &[("$all", "read")]),
+    };
+    let initial = [seed("g-1", "local"), seed("g-2", "corp")];
+    assert_eq!(
+        storage
+            .write_registry_graph(None, revision(LOCAL_AND_CORP, &initial, &[]))
+            .await
+            .unwrap(),
+        RegistryGraphWrite::Written(1),
+    );
+    let removed = ["corp".to_string()];
+    let added = [seed("g-3", "shared")];
+    assert_eq!(
+        storage
+            .write_registry_graph(Some(1), revision(LOCAL_AND_SHARED, &added, &removed))
+            .await
+            .unwrap(),
+        RegistryGraphWrite::Written(2),
+    );
+
+    let unseeded = [seed("g-4", "corp")];
+    let forgotten = ["shared".to_string()];
+    let restored = NewRegistryGraph {
+        restored_from: Some(1),
+        ..revision(LOCAL_AND_CORP, &unseeded, &forgotten)
+    };
+    assert_eq!(
+        storage
+            .write_registry_graph(Some(2), restored)
+            .await
+            .unwrap(),
+        RegistryGraphWrite::Written(3),
+    );
+    let stored = storage
+        .read_grants(None)
+        .await
+        .unwrap()
+        .unwrap();
+    let names: Vec<String> = stored.grants
+        .into_iter()
+        .map(|grant| grant.content.name)
+        .collect();
+    assert_eq!(names, ["local"]);
+}
+
 conformance!(
     another_instance_reads_grants_only_after_they_change,
     a_grant_write_is_refused_on_a_stale_generation_or_a_taken_name,
     a_grant_and_the_teams_it_names_are_kept_together,
     a_graph_write_seeds_and_forgets_the_grants_of_its_registries,
+    a_restored_graph_revision_never_seeds_grants,
 );
