@@ -1,5 +1,6 @@
 use pnpm_deps_path::{
-    get_pkg_id_with_patch_hash, index_of_dep_path_suffix, version_separator_index,
+    get_pkg_id_with_patch_hash, index_of_dep_path_suffix, parse_registry_qualified_version,
+    version_separator_index,
 };
 use std::borrow::Cow;
 
@@ -8,7 +9,12 @@ use std::borrow::Cow;
 pub fn short_package_label(key: &str) -> String {
     let package_id = if is_link_dep_path(key) { key } else { get_pkg_id_with_patch_hash(key) };
     let (name, source) = match parse_dep_path_name_version(package_id) {
-        Some((name, version)) if node_semver::Version::parse(version).is_ok() => (name, None),
+        Some((name, version))
+            if node_semver::Version::parse(version).is_ok()
+                || parse_registry_qualified_version(version).is_some() =>
+        {
+            (name, None)
+        }
         Some((name, version)) => (name, Some(source_tag(version))),
         None => (package_id, None),
     };

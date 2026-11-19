@@ -3,6 +3,7 @@ use super::{is_git_hosted_dep_path, parse_dep_path_name_version, short_package_l
 #[test]
 fn labels_registry_and_source_dependencies() {
     assert_eq!(short_package_label("foo@1.0.0"), "foo");
+    assert_eq!(short_package_label("foo@work:1.0.0(peer@2.0.0)"), "foo");
     assert_eq!(short_package_label("foo@link:../foo"), "foo (local)");
     assert_eq!(short_package_label("foo@file:../foo"), "foo (local)");
     assert_eq!(short_package_label("foo@file:../foo.tgz"), "foo (tarball)");
