@@ -10,8 +10,9 @@
 //! [`SkipSetInputs::exclude_optional`].
 
 use crate::{
-    InstallabilityHost, SkippedSnapshots, add_direct_runtime_skips, compute_skipped_snapshots,
-    extend_skipped_with_dependency_closure, find_root_runtime_node_version,
+    InstallabilityHost, NodeVersionSource, SkippedSnapshots, add_direct_runtime_skips,
+    compute_skipped_snapshots, extend_skipped_with_dependency_closure,
+    find_root_runtime_node_version,
     install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
 };
 use pnpm_config::Config;
@@ -79,7 +80,8 @@ pub fn lockfile_engine_name(importers: &HashMap<String, ProjectSnapshot>) -> Opt
 /// [`resolve_engine_name`] to probe the real host.
 #[must_use]
 pub fn execution_host_node(host: Option<&InstallabilityHost>) -> Option<HostNode> {
-    host.filter(|host| host.node_probed).map(HostNode::from)
+    host.filter(|host| host.node_source == NodeVersionSource::Probed)
+        .map(HostNode::from)
 }
 
 /// The host Node, reduced to what the phases after the installability
@@ -95,7 +97,10 @@ pub struct HostNode {
 
 impl From<&InstallabilityHost> for HostNode {
     fn from(host: &InstallabilityHost) -> Self {
-        HostNode { version: host.node_version.clone(), detected: host.node_detected }
+        HostNode {
+            version: host.node_version.clone(),
+            detected: host.node_source != NodeVersionSource::Synthetic,
+        }
     }
 }
 
@@ -176,14 +181,13 @@ impl HostDetection {
 }
 
 /// The stand-in host used when `node --version` cannot be probed. Its
-/// `node_detected: false` keeps the bogus version out of the store keys
+/// [`NodeVersionSource::Synthetic`] keeps the bogus version out of the store keys
 /// (see [`engine_name_from_host`]) while the `os` / `cpu` / `libc`
 /// platform checks still run against the real host triple.
 fn synthetic_installability_host(engine_strict: bool) -> InstallabilityHost {
     InstallabilityHost {
         node_version: "99999.0.0".to_string(),
-        node_detected: false,
-        node_probed: false,
+        node_source: NodeVersionSource::Synthetic,
         os: pnpm_graph_hasher::host_platform(),
         cpu: pnpm_graph_hasher::host_arch(),
         libc: pnpm_graph_hasher::host_libc(),

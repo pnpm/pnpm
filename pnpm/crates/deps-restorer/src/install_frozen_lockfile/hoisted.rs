@@ -72,7 +72,7 @@ pub struct HoistedLinkerInputs<'a> {
     pub prior: crate::PriorHoistedState<'a>,
     pub projects: crate::HoistedProjects<'a>,
     pub config: &'a Config,
-    /// `(node_detected, node_version)` from the installability host
+    /// The Node.js version and whether it is real, from the installability host
     /// probe. `None` when no installability check ran (the fresh
     /// path, and constraint-free frozen lockfiles).
     pub host_node: Option<&'a crate::materialization_plan::HostNode>,

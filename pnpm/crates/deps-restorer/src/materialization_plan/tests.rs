@@ -2,7 +2,7 @@ use super::{
     HostNode, TargetNodeUse, execution_host_node, spawn_node_probe, target_node_major,
     target_node_version,
 };
-use crate::InstallabilityHost;
+use crate::{InstallabilityHost, NodeVersionSource};
 use std::{sync::mpsc, time::Duration};
 
 #[test]
@@ -55,7 +55,7 @@ fn execution_ignores_node_version() {
 fn execution_host_node_keeps_only_a_probed_host() {
     let overridden = InstallabilityHost::detect_with(false, Some("20.0.0".to_owned()));
     assert!(execution_host_node(Some(&overridden)).is_none());
-    let probed = InstallabilityHost { node_probed: true, ..overridden };
+    let probed = InstallabilityHost { node_source: NodeVersionSource::Probed, ..overridden };
     let HostNode { version, detected } =
         execution_host_node(Some(&probed)).expect("a probed host keys the store");
     assert_eq!((version.as_str(), detected), ("20.0.0", true));

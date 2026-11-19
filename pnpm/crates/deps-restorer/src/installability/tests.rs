@@ -154,8 +154,7 @@ fn snapshot_dep_map(entries: &[&str]) -> Option<HashMap<PkgName, SnapshotDepRef>
 fn host(node_version: &str, os: &'static str, cpu: &'static str) -> InstallabilityHost {
     InstallabilityHost {
         node_version: node_version.to_string(),
-        node_detected: true,
-        node_probed: true,
+        node_source: crate::NodeVersionSource::Probed,
         os,
         cpu,
         libc: "unknown",
