@@ -25,10 +25,13 @@ saveExact: true
 
 The global YAML config file (`config.yaml`) is located at one of the following paths:
 
-* If the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/config.yaml**
+* If **$PNPM_CONFIG_HOME** is non-empty, then **$PNPM_CONFIG_HOME/config.yaml**
+* Otherwise, if the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/config.yaml**
 * On Windows: **%LOCALAPPDATA%\pnpm\config\config.yaml**
 * On macOS: **~/Library/Preferences/pnpm/config.yaml**
 * On Linux: **~/.config/pnpm/config.yaml**
+
+`PNPM_CONFIG_HOME` selects the directory containing `config.yaml` and `auth.ini`. pnpm uses it directly, without appending `pnpm`. An empty value uses the default locations above. This also controls where global configuration commands, `pnpm login`, and `pnpm logout` write.
 
 Not every setting may be set in the global `config.yaml`. Settings that apply to the whole machine, such as `storeDir`, `cacheDir`, `packageImportMethod`, `minimumReleaseAge`, and network settings, may be set there. Settings that define the structure of a project's `node_modules` or workspace, such as `nodeLinker`, `hoistPattern`, `publicHoistPattern`, `shamefullyHoist`, or `linkWorkspacePackages`, are project-only: they have to be set in `pnpm-workspace.yaml`, so that the project installs the same way on every machine. Registry routes may be set globally, but the server descriptions `serverType` and `supportsTimeField` are read only from `pnpm-workspace.yaml` (see [Registries](./registries.md#where-the-setting-may-live)).
 

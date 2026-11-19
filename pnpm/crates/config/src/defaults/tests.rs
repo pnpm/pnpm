@@ -522,3 +522,46 @@ fn the_install_command_matches_the_host_shell() {
     );
     assert_eq!(install_command_for(false), "curl -fsSL https://get.pnpm.io/install.sh | sh -");
 }
+
+#[test]
+fn pnpm_config_home_overrides_platform_config_directories() {
+    struct CustomConfigHome;
+    impl EnvVar for CustomConfigHome {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_HOME" => Some("/custom/config".to_owned()),
+                "XDG_CONFIG_HOME" | "LOCALAPPDATA" => Some("/other/config".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    impl GetHomeDir for CustomConfigHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("PNPM_CONFIG_HOME bypasses home directory lookup")
+        }
+    }
+    assert_eq!(default_config_dir::<CustomConfigHome>(), Some(PathBuf::from("/custom/config")));
+}
+
+#[test]
+fn empty_pnpm_config_home_falls_back_to_xdg() {
+    struct EmptyConfigHome;
+    impl EnvVar for EmptyConfigHome {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_HOME" => Some(String::new()),
+                "XDG_CONFIG_HOME" => Some("/other/config".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    impl GetHomeDir for EmptyConfigHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("XDG_CONFIG_HOME bypasses home directory lookup")
+        }
+    }
+    assert_eq!(
+        default_config_dir::<EmptyConfigHome>(),
+        Some(PathBuf::from("/other/config").join("pnpm")),
+    );
+}

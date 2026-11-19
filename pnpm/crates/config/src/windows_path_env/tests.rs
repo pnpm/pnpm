@@ -157,3 +157,56 @@ fn home_dir_check_rejects_an_unexpanded_local_app_data_fallback() {
     let error = ensure_windows_home_dir_env_on::<BadLocalAppData>("windows").unwrap_err();
     assert_eq!(error.variable, "LOCALAPPDATA");
 }
+
+#[test]
+fn pnpm_config_home_rejects_unexpanded_windows_references() {
+    struct UnexpandedConfigHome;
+    impl EnvVar for UnexpandedConfigHome {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_HOME").then(|| r"%MISSING%\config".to_owned())
+        }
+    }
+    let error = ensure_windows_dir_envs_on::<UnexpandedConfigHome>("windows").unwrap_err();
+    assert_eq!(error.variable, "PNPM_CONFIG_HOME");
+    assert_eq!(error.reference, "%MISSING%");
+}
+
+#[test]
+fn pnpm_config_home_bypasses_unused_windows_config_fallbacks() {
+    struct ExpandedConfigHome;
+    impl EnvVar for ExpandedConfigHome {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_HOME" => Some(r"%ROOT%\config".to_owned()),
+                "ROOT" | "PNPM_HOME" | "XDG_CACHE_HOME" | "XDG_STATE_HOME" => {
+                    Some(r"C:\tools".to_owned())
+                }
+                "XDG_CONFIG_HOME" | "LOCALAPPDATA" => Some(r"%MISSING%\config".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    ensure_windows_dir_envs_on::<ExpandedConfigHome>("windows").unwrap();
+    assert_eq!(
+        expand_dir_env("windows", "PNPM_CONFIG_HOME", r"%ROOT%\config", ExpandedConfigHome::var)
+            .unwrap(),
+        r"C:\tools\config",
+    );
+}
+
+#[test]
+fn empty_expanded_pnpm_config_home_validates_the_xdg_fallback() {
+    struct EmptyConfigHome;
+    impl EnvVar for EmptyConfigHome {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_HOME" => Some("%EMPTY%".to_owned()),
+                "EMPTY" => Some(String::new()),
+                "XDG_CONFIG_HOME" => Some(r"%MISSING%\config".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    let error = ensure_windows_dir_envs_on::<EmptyConfigHome>("windows").unwrap_err();
+    assert_eq!(error.variable, "XDG_CONFIG_HOME");
+}

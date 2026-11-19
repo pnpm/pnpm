@@ -18,12 +18,15 @@ pnpm settings are split across two kinds of configuration files:
 
 The local workspace configuration file is located at the root of the project and is named `pnpm-workspace.yaml`. The global YAML configuration file (`config.yaml`) is located at:
 
-* If the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/config.yaml**
+* If **$PNPM_CONFIG_HOME** is non-empty, then **$PNPM_CONFIG_HOME/config.yaml**
+* Otherwise, if the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/config.yaml**
 * On Windows: **~/AppData/Local/pnpm/config/config.yaml**
 * On macOS: **~/Library/Preferences/pnpm/config.yaml**
 * On Linux: **~/.config/pnpm/config.yaml**
 
 The global `rc` file (registry/auth settings only) is at:
+
+* If **$PNPM_CONFIG_HOME** is non-empty, then **$PNPM_CONFIG_HOME/rc**
 
 * If the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/rc**
 * On Windows: **~/AppData/Local/pnpm/config/rc**
