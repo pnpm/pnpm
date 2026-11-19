@@ -12,8 +12,8 @@ pub(crate) struct AllowBuildSelector<'a> {
 }
 
 /// Parse and validate `--allow-build` selectors (`<pkg>` or `!<pkg>`),
-/// rejecting empty package names. A value may hold a comma-separated list,
-/// see [`split_allow_build_value`].
+/// rejecting empty package names. A value may hold a comma-separated list
+/// of package selectors.
 pub(crate) fn parse_allow_build_selectors(
     allow_build: &[String],
 ) -> Result<Vec<AllowBuildSelector<'_>>, AllowBuildError> {
