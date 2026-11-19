@@ -44,17 +44,16 @@ pub fn with_promoted_resolutions<'config>(
     config: &'config Config,
 ) -> Cow<'config, Config> {
     let root_dir = config.root_project_manifest_dir(dir);
-    let has_resolutions = safe_read_project_manifest_from_dir(root_dir)
-        .ok()
-        .flatten()
-        .is_some_and(|manifest| manifest.get("resolutions").is_some());
-    if !has_resolutions {
+    let Some(manifest) = safe_read_project_manifest_from_dir(root_dir).ok().flatten() else {
+        return Cow::Borrowed(config);
+    };
+    if manifest.get("resolutions").is_none() {
         return Cow::Borrowed(config);
     }
     let mut promoted = config.clone();
-    match apply_fast_path_resolutions(dir, &mut promoted) {
-        Some(_) => Cow::Owned(promoted),
-        None => Cow::Borrowed(config),
+    match apply_resolutions_to_config(&mut promoted, &manifest) {
+        Ok(_) => Cow::Owned(promoted),
+        Err(_) => Cow::Borrowed(config),
     }
 }
 
@@ -272,13 +271,20 @@ fn json_value_type_name(value: &serde_json::Value) -> String {
 
 /// Make manifest text safe to print on one line: strip control and
 /// formatting characters, then inline URL credentials, including those of a
-/// protocol-relative `//user:pass@host` value.
+/// protocol-relative `//user:pass@host` value. A URL loses its whitespace
+/// first, since whitespace would end the credential scan before the `@`.
 fn sanitize_for_log(text: &str) -> String {
     let inline = sanitize_inline(text);
-    let trimmed = inline.trim_start();
-    match trimmed.strip_prefix("//") {
-        Some(_) => redact_url_credentials(&format!("x:{trimmed}"))[2..].to_owned(),
-        None => redact_url_credentials(&inline),
+    if !inline.contains("//") {
+        return redact_url_credentials(&inline);
+    }
+    let url: String = inline
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect();
+    match url.strip_prefix("//") {
+        Some(_) => redact_url_credentials(&format!("x:{url}"))[2..].to_owned(),
+        None => redact_url_credentials(&url),
     }
 }
 

@@ -104,14 +104,14 @@ function splitPackagePath (path: string): string[] | undefined {
   const segments = path.split('/')
   const packages: string[] = []
   let index = 0
-  while (index < segments.length && packages.length < 3) {
+  while (index < segments.length) {
     const scoped = segments[index].startsWith('@')
     const pkg = readPackageName(segments, index, scoped)
-    if (pkg == null) return undefined
+    if (pkg == null || packages.length === 2) return undefined
     packages.push(pkg)
     index += scoped ? 2 : 1
   }
-  return index < segments.length ? undefined : packages
+  return packages
 }
 
 function readPackageName (segments: string[], index: number, scoped: boolean): string | undefined {

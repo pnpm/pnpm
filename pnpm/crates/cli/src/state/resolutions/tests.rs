@@ -388,3 +388,14 @@ fn test_apply_resolutions_to_config_redacts_protocol_relative_credentials() {
     assert!(warnings[0].contains("  foo: //example.com/foo.tgz\n"), "{}", warnings[0]);
     assert!(!warnings[0].contains("secret"), "{}", warnings[0]);
 }
+
+#[test]
+fn test_apply_resolutions_to_config_redacts_credentials_around_whitespace() {
+    let (_dir, manifest) = make_manifest(&json!({
+        "resolutions": { "foo": "https://user:sec\u{00A0}ret@example.com/foo.tgz" },
+    }));
+    let mut config = Config::new();
+    let warnings = apply(&mut config, &manifest).unwrap();
+    assert!(warnings[0].contains("  foo: https://example.com/foo.tgz\n"), "{}", warnings[0]);
+    assert!(!warnings[0].contains("sec"), "{}", warnings[0]);
+}

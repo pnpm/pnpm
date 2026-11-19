@@ -1182,3 +1182,10 @@ test('applyRootResolutions() skips a long slash-separated selector', () => {
   expect(applyRootResolutions({ resolutions: { [Array(10000).fill('a').join('/')]: '1.0.0' } }, undefined, warnings)).toBeUndefined()
 })
 
+test('applyRootResolutions() redacts URL credentials around whitespace', () => {
+  const warnings: string[] = []
+  applyRootResolutions({ resolutions: { foo: 'https://user:sec\u00A0ret@example.com/foo.tgz' } }, undefined, warnings)
+  expect(warnings[0]).toContain('  foo: https://example.com/foo.tgz\n')
+  expect(warnings[0]).not.toContain('sec')
+})
+
