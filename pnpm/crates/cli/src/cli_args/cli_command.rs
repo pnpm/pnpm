@@ -432,7 +432,7 @@ pub struct LifecycleOutputArgs {
     pub no_hide_prefix: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 struct PathAllowingEmptyParser;
 
 impl clap::builder::TypedValueParser for PathAllowingEmptyParser {
