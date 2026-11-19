@@ -55,12 +55,8 @@ pub(super) fn pending_approval_packages(
             .insert("build");
     }
     for package in pending_skills {
-        let build_label = packages
-            .keys()
-            .find(|label| *label == package)
-            .cloned();
         packages
-            .entry(build_label.unwrap_or_else(|| package.clone()))
+            .entry(package.clone())
             .or_default()
             .insert("skills");
     }

@@ -7,7 +7,7 @@ pub struct ReporterOptions {
     pub append_only: bool,
     /// Verbosity ceiling from pnpm's `--loglevel` setting.
     pub max_log_level: MaxLogLevel,
-    /// Replaces the instruction in a build-only approval notice. pnpm's
+    /// Replaces the build instruction in the approval notice. pnpm's
     /// `approveBuildsInstructionText`, for embedders whose users approve
     /// builds through the embedder's own configuration rather than pnpm.
     pub ignored_builds_instruction_text: Option<String>,

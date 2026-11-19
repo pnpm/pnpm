@@ -88,15 +88,14 @@ impl ReporterState {
             return;
         }
         let list = format_pending_approval_packages(&packages);
-        let instruction = if packages
-            .values()
-            .all(|capabilities| capabilities.len() == 1 && capabilities.contains("build"))
-        {
-            self.options.ignored_builds_instruction_text
-                .as_deref()
-                .unwrap_or(r#"Run "pnpm approve" to review the packages awaiting approval."#)
-        } else {
-            r#"Run "pnpm approve" to review the packages awaiting approval."#
+        let approve = r#"Run "pnpm approve" to review the packages awaiting approval."#;
+        let build_instruction = self.options.ignored_builds_instruction_text
+            .as_deref()
+            .filter(|_| !self.notices.approvals.builds.is_empty());
+        let instruction = match build_instruction {
+            Some(text) if self.notices.approvals.skills.is_empty() => text.to_string(),
+            Some(text) => format!("{text}\n{approve}"),
+            None => approve.to_string(),
         };
         self.display.frame.emit(
             &mut self.notices.approvals.slot,

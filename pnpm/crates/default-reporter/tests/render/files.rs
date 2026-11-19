@@ -29,6 +29,34 @@ fn the_ignored_builds_instruction_can_be_replaced() {
     assert!(!frame.contains("pnpm approve-builds"), "frame: {frame}");
 }
 
+/// The embedder's build instruction stays when skills are pending too;
+/// the skills still need the pnpm command.
+#[test]
+fn a_replaced_build_instruction_is_kept_beside_pending_skills() {
+    let mut reporter = state_with_options(ReporterOptions {
+        ignored_builds_instruction_text: Some("Set allowScripts in workspace.jsonc.".to_string()),
+        ..ReporterOptions::default()
+    });
+
+    let frame = render(
+        &mut reporter,
+        vec![
+            ignored_scripts(&["esbuild@1.0.0"]),
+            LogEvent::PendingSkills(PendingSkillsLog {
+                level: LogLevel::Debug,
+                package_names: vec!["agent-tool".to_string()],
+            }),
+        ],
+    );
+
+    assert!(
+        frame.contains(
+            "Set allowScripts in workspace.jsonc.\nRun \"pnpm approve\" to review the packages awaiting approval."
+        ),
+        "frame: {frame}",
+    );
+}
+
 #[test]
 fn the_pending_approval_notice_combines_builds_and_skills_by_package() {
     let mut reporter = state(false);

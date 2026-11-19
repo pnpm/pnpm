@@ -96,9 +96,13 @@ fn source_tag(version: &str) -> &'static str {
 }
 
 fn is_tarball_path(path: &str) -> bool {
-    [".tgz", ".tar.gz", ".tar"]
+    let bytes = path.as_bytes();
+    [b".tgz".as_slice(), b".tar.gz", b".tar"]
         .iter()
-        .any(|suffix| path.to_ascii_lowercase().ends_with(suffix))
+        .any(|suffix| {
+            bytes.len() >= suffix.len()
+                && bytes[bytes.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+        })
 }
 
 fn git_hosted_tarball_repo_key(dep_path: &str) -> Option<String> {
