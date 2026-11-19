@@ -484,7 +484,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        true,
+        TargetVersion::Latest,
         &[DependencyGroup::Prod],
     )
     .await

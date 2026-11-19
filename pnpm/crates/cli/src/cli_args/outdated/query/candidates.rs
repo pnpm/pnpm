@@ -6,7 +6,6 @@ use super::{
     resolve_from_catalog,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_resolving_resolver_base::VersionSelectorType;
 use pnpm_resolving_npm_resolver::{TrustEvidence, get_manifest_trust_evidence};
 use pnpm_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
