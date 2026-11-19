@@ -1,3 +1,5 @@
+mod persist_allowed_picks;
+
 use super::{
     Catalogs,
     Display,
@@ -39,6 +41,7 @@ use super::{
     wanted_lockfile_satisfies_workspace,
 };
 use miette::WrapErr;
+use persist_allowed_picks::persist_allowed_picks;
 
 /// Resolve the active project or selected workspace projects through a
 /// `pnpr` server, then link them.
@@ -440,6 +443,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     )
     .await?;
     check_pnpr_applied_settings(state.config, resolved.outcome.lockfile.settings.as_ref())?;
+    persist_allowed_picks(state, lockfile_dir, &link, &resolved.outcome.allowed_picks)?;
     let lockfile = merge_and_save_pnpr_lockfile::<Reporter>(
         state,
         selection,

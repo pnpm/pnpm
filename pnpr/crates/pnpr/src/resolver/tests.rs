@@ -57,7 +57,6 @@ use super::{
     cache::{
         MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY,
         cached_resolution,
-        store_resolution,
     },
     dispatch::reject_unusable_resolve,
     protocol::{
@@ -88,6 +87,25 @@ use pnpr_route::{
     PrivateAccessDescriptor,
     RouteContext,
 };
+
+fn store_resolution(
+    cache: &Mutex<HashMap<String, Vec<super::cache::CachedResolution>>>,
+    ttl: Duration,
+    key: String,
+    footprint: Footprint,
+    secret: &[u8],
+    lockfile: &Lockfile,
+) -> bool {
+    super::cache::store_resolution_with_allowed_picks(
+        cache,
+        ttl,
+        key,
+        footprint,
+        secret,
+        lockfile,
+        &[],
+    )
+}
 
 fn config_for_registry(registry: &str) -> PacquetConfig {
     let mut config = PacquetConfig::new();

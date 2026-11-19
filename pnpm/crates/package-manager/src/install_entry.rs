@@ -171,8 +171,7 @@ where
         .await
     }
 
-    #[cfg(test)]
-    pub(crate) async fn run_with_prompt_eligibility<Reporter: self::Reporter + 'static>(
+    pub async fn run_with_prompt_eligibility<Reporter: self::Reporter + 'static>(
         self,
         can_prompt: bool,
     ) -> Result<(), InstallError> {

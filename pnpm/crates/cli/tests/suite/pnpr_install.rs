@@ -797,6 +797,7 @@ fn pnpr_done_frame(request: &mockito::Request, mut frame: serde_json::Value) -> 
         "minimumReleaseAge": null,
         "minimumReleaseAgeExclude": [],
         "minimumReleaseAgeIgnoreMissingTime": true,
+        "minimumReleaseAgeStrict": false,
         "trustPolicy": null,
         "trustPolicyExclude": [],
         "trustPolicyIgnoreAfter": null,

@@ -358,6 +358,7 @@ fn options(
             minimum_release_age: None,
             minimum_release_age_exclude: None,
             minimum_release_age_ignore_missing_time: true,
+            minimum_release_age_strict: false,
             trust_policy: pnpm_pnpr_client::TrustPolicy::Off,
             trust_policy_exclude: None,
             trust_policy_ignore_after: None,

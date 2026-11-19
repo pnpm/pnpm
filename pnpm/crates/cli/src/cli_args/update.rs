@@ -434,6 +434,7 @@ impl UpdateArgs {
             skip_runtimes: state.config.skip_runtimes,
             lockfile_path: Some(lockfile_path),
             use_state_lockfile: true,
+            save_workspace_manifest: !self.save.no_save,
             lockfile: crate::cli_args::install::PnprLockfilePolicy {
                 frozen: false,
                 prefer_frozen: false,

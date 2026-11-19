@@ -193,6 +193,7 @@ export interface StrictInstallOptions extends RegistryContext {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeIgnoreMissingTime?: boolean
+  minimumReleaseAgeStrict?: boolean
   /**
    * Resolver-agnostic post-tree gate, invoked between
    * `resolveDependencyTree` and `resolvePeers` inside

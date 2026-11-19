@@ -7,7 +7,7 @@ import { logger } from '@pnpm/logger'
 import type { ResolveViaPnprServerOptions, ResolveViaPnprServerResult } from '@pnpm/pnpr.client'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -48,6 +48,7 @@ const resolveViaPnprServer = jest.fn(async (
       packages: {},
     },
     stats: { totalPackages: 0 },
+    allowedPicks: [],
   }
 })
 
@@ -262,6 +263,85 @@ test('pnpr returns the resolution policy violations the install command reacts t
   expect(result.resolutionPolicyViolations).toStrictEqual([])
 })
 
+test('pnpr rejects allowed picks when minimumReleaseAge is strict', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  resolveViaPnprServer.mockImplementationOnce(async (options) => {
+    const result = await resolveViaPnprServer.getMockImplementation()!(options)
+    return { ...result, allowedPicks: ['foo@1.0.0'] }
+  })
+
+  await expect(install(manifest, createOptions(workspaceRoot, rootDir, {
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeStrict: true,
+  }))).rejects.toThrow('allowed picks without an active loose minimumReleaseAge policy')
+})
+
+test('pnpr returns loose allowed picks as resolution policy violations', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  resolveViaPnprServer.mockResolvedValueOnce({
+    lockfile: {
+      lockfileVersion: '9.0',
+      importers: { ['.' as ProjectId]: { specifiers: {} } },
+      packages: { ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-YWJj' } } },
+    },
+    stats: { totalPackages: 1 },
+    allowedPicks: ['foo@1.0.0'],
+  })
+
+  const result = await install(manifest, createOptions(workspaceRoot, rootDir, {
+    minimumReleaseAge: 1440,
+  }))
+
+  expect(result.resolutionPolicyViolations).toContainEqual(expect.objectContaining({
+    name: 'foo',
+    version: '1.0.0',
+    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+  }))
+})
+
+test.each(['foo?', 'foo*', '!foo'])('pnpr rejects pattern package name %s in allowed picks', async (name) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+
+  resolveViaPnprServer.mockResolvedValueOnce({
+    lockfile: {
+      lockfileVersion: '9.0',
+      importers: { ['.' as ProjectId]: { specifiers: {} } },
+      packages: { ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-YWJj' } } },
+    },
+    stats: { totalPackages: 1 },
+    allowedPicks: [`${name}@1.0.0`],
+  })
+
+  await expect(install(manifest, createOptions(workspaceRoot, rootDir, {
+    minimumReleaseAge: 1440,
+  }))).rejects.toThrow('not an exact version in the resolved lockfile')
+})
+
+test('pnpr rejects pattern package names in resolved lockfiles', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  resolveViaPnprServer.mockResolvedValueOnce({
+    lockfile: {
+      lockfileVersion: '9.0',
+      importers: { ['.' as ProjectId]: { specifiers: {} } },
+      packages: { ['foo?@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-YWJj' } } },
+    },
+    stats: { totalPackages: 1 },
+    allowedPicks: ['foo?@1.0.0'],
+  })
+
+  await expect(install(manifest, createOptions(workspaceRoot, rootDir, {
+    minimumReleaseAge: 1440,
+  }))).rejects.toThrow('not an exact version in the resolved lockfile')
+})
+
 test("pnpr forwards the client's whole verification policy, not just the age cutoff", async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
@@ -435,6 +515,7 @@ test.each([false, true])('pnpr materialization keeps configured modules and bin 
       packages: {},
     },
     stats: { totalPackages: 0 },
+    allowedPicks: [],
   })
 
   if (mutation) {

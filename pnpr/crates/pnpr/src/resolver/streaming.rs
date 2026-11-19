@@ -36,7 +36,7 @@ use super::{
     progress_frame,
     resolve,
     store_resolution_candidate,
-    try_done_frame_until,
+    try_done_frame_with_allowed_picks_until,
     violations_frame,
     wire::{
         AbortOnDrop,
@@ -201,7 +201,7 @@ enum BoundedResolveOutcome {
     Disconnected,
     TimedOut,
     GraphTooLarge(String),
-    Completed(Box<Result<Lockfile, super::resolve::ResolveError>>),
+    Completed(Box<Result<super::resolve::ResolveResult, super::resolve::ResolveError>>),
 }
 
 async fn run_bounded_resolve(task: &StreamedResolve) -> BoundedResolveOutcome {
@@ -239,7 +239,7 @@ async fn run_bounded_resolve(task: &StreamedResolve) -> BoundedResolveOutcome {
 
 fn classify_completed_resolve(
     task: &StreamedResolve,
-    resolved: Result<Lockfile, super::resolve::ResolveError>,
+    resolved: Result<super::resolve::ResolveResult, super::resolve::ResolveError>,
 ) -> BoundedResolveOutcome {
     if task.terminal.is_closed() {
         return BoundedResolveOutcome::Disconnected;
@@ -293,7 +293,7 @@ impl StreamedResolve {
 
 pub(super) async fn finish_before_deadline(
     task: StreamedResolve,
-    resolved: Result<Lockfile, super::resolve::ResolveError>,
+    resolved: Result<super::resolve::ResolveResult, super::resolve::ResolveError>,
 ) {
     let (terminal, deadline, finalizer) = task.into_finalizer();
     let (cancel, _cancel_on_drop) = CancelToken::new(deadline);
@@ -348,22 +348,31 @@ pub(super) struct ResolutionFinalizer {
 impl ResolutionFinalizer {
     pub(super) fn finish(
         &self,
-        resolved: Result<Lockfile, super::resolve::ResolveError>,
+        resolved: Result<super::resolve::ResolveResult, super::resolve::ResolveError>,
         cancel: &CancelToken,
     ) -> Option<Vec<u8>> {
         if cancel.is_cancelled() {
             return None;
         }
-        let lockfile = match resolved {
-            Ok(lockfile) => lockfile,
+        match resolved {
+            Ok(resolved) => self.finish_resolved(resolved, cancel),
             Err(err) => {
                 let code = match &err {
                     super::resolve::ResolveError::Install { code, .. } => code.as_deref(),
                     _ => None,
                 };
-                return Some(error_frame_with_code(&err.to_string(), code));
+                Some(error_frame_with_code(&err.to_string(), code))
             }
-        };
+        }
+    }
+
+    fn finish_resolved(
+        &self,
+        resolved: super::resolve::ResolveResult,
+        cancel: &CancelToken,
+    ) -> Option<Vec<u8>> {
+        let lockfile = resolved.lockfile;
+        let allowed_picks = resolved.allowed_picks;
         if let Some(message) = lockfile_exceeds_graph_limit(&lockfile, self.max_npm_packages) {
             return Some(error_frame_with_code(&message, Some(GRAPH_TOO_LARGE_CODE)));
         }
@@ -378,14 +387,19 @@ impl ResolutionFinalizer {
             return Some(violations);
         }
         let applied_policies = super::protocol::AppliedPolicies::from_request(&self.inputs.request);
-        let done = match try_done_frame_until(&lockfile, &applied_policies, &check_cancel)? {
+        let done = match try_done_frame_with_allowed_picks_until(
+            &lockfile,
+            &applied_policies,
+            &allowed_picks,
+            &check_cancel,
+        )? {
             Ok(done) => done,
             Err(error_frame) => return Some(error_frame),
         };
         if !cancel.is_cancelled()
             && let Some(key) = self.inputs.cache_scope.key().cloned()
         {
-            self.store_candidate(key, &lockfile);
+            self.store_candidate(key, &lockfile, &allowed_picks);
         }
         Some(done)
     }
@@ -402,7 +416,7 @@ impl ResolutionFinalizer {
         Some((!violations.is_empty()).then(|| violations_frame(&violations)))
     }
 
-    fn store_candidate(&self, key: String, lockfile: &Lockfile) {
+    fn store_candidate(&self, key: String, lockfile: &Lockfile, allowed_picks: &[String]) {
         store_resolution_candidate(StoreCandidate {
             cache: &self.cache.entries,
             cache_ttl: self.cache.ttl,
@@ -410,6 +424,7 @@ impl ResolutionFinalizer {
             footprint: &self.inputs.footprint,
             cache_secret: &self.cache.secret,
             lockfile,
+            allowed_picks,
         });
     }
 }

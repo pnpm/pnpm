@@ -61,13 +61,15 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     let router = tarball_router(&registry, user("alice"));
     let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
 
-    assert!(store_resolution(
+    let allowed_picks = vec!["acme@1.0.0".to_string()];
+    assert!(super::super::cache::store_resolution_with_allowed_picks(
         &cache,
         Duration::from_mins(1),
         key.clone(),
         private_alias_footprint("corp"),
         b"secret",
         &routed,
+        &allowed_picks,
     ));
     let cached = cached_resolution(
         &cache,
@@ -77,10 +79,11 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
         &user("alice"),
     )
     .expect("authorized caller reuses private cached lockfile");
-    let tarball = lockfile_tarball_url(&cached, "acme@1.0.0");
+    let tarball = lockfile_tarball_url(&cached.lockfile, "acme@1.0.0");
 
     assert!(tarball.contains("/npm/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
+    assert_eq!(cached.allowed_picks, allowed_picks);
 }
 
 #[test]
@@ -411,6 +414,7 @@ fn npm_success_frames_echo_every_policy() {
         "minimumReleaseAge": 60,
         "minimumReleaseAgeExclude": ["example-*"],
         "minimumReleaseAgeIgnoreMissingTime": false,
+        "minimumReleaseAgeStrict": false,
         "trustPolicy": "no-downgrade",
         "trustPolicyExclude": ["legacy-*"],
         "trustPolicyIgnoreAfter": 1440,
@@ -430,6 +434,7 @@ fn npm_success_frames_echo_every_policy() {
         "minimumReleaseAge": 60,
         "minimumReleaseAgeExclude": ["example-*"],
         "minimumReleaseAgeIgnoreMissingTime": false,
+        "minimumReleaseAgeStrict": false,
         "trustPolicy": "no-downgrade",
         "trustPolicyExclude": ["legacy-*"],
         "trustPolicyIgnoreAfter": 1440,
@@ -448,6 +453,7 @@ fn npm_success_frames_echo_every_policy() {
     assert_eq!(defaults["minimumReleaseAge"], Value::Null);
     assert_eq!(defaults["minimumReleaseAgeExclude"], json!([]));
     assert_eq!(defaults["minimumReleaseAgeIgnoreMissingTime"], json!(true));
+    assert_eq!(defaults["minimumReleaseAgeStrict"], json!(false));
     assert_eq!(defaults["trustPolicy"], Value::Null);
     assert_eq!(defaults["trustPolicyExclude"], json!([]));
     assert_eq!(defaults["trustPolicyIgnoreAfter"], Value::Null);

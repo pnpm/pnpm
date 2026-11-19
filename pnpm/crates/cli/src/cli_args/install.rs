@@ -357,6 +357,7 @@ impl InstallArgs {
             skip_runtimes: config.skip_runtimes || self.materialization.no_runtime,
             lockfile_path: Some(lockfile_path),
             use_state_lockfile: true,
+            save_workspace_manifest: true,
             lockfile: PnprLockfilePolicy {
                 frozen: frozen_lockfile,
                 prefer_frozen: self
@@ -499,6 +500,7 @@ pub(crate) struct PnprLink<'a> {
     pub(crate) skip_runtimes: bool,
     pub(crate) lockfile_path: Option<&'a std::path::Path>,
     pub(crate) use_state_lockfile: bool,
+    pub(crate) save_workspace_manifest: bool,
     pub(crate) lockfile: PnprLockfilePolicy,
 }
 

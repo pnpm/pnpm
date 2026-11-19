@@ -421,6 +421,8 @@ The default depends on whether you configured `minimumReleaseAge` yourself: if y
 minimumReleaseAgeStrict: true
 ```
 
+When resolving through a pnpr server, strict mode fails the request if no mature version matches. In non-strict mode, pnpm adds fallback versions selected by the server to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`.
+
 ### trustPolicy
 
 * Default: **off**
