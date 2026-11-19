@@ -785,4 +785,5 @@ fn workspace_npmrc_registry_is_effective_for_package_publish() {
 }
 
 mod dir_flag;
+mod publish_directory;
 mod wait;

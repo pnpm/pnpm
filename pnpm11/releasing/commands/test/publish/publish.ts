@@ -1230,4 +1230,38 @@ test('publish rethrows unexpected filesystem errors when inspecting a folder tar
   }
 })
 
+test('publish rejects publishConfig.directory escaping the package root', async () => {
+  prepare({ private: true })
+  const rootDir = process.cwd()
+  const outsideDir = path.join(rootDir, 'outside')
+  const pkgDir = path.join(rootDir, 'pkg')
+  fs.mkdirSync(outsideDir, { recursive: true })
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(outsideDir, 'package.json'), JSON.stringify({
+    name: 'outside-publish-escape-target',
+    version: '1.0.0',
+  }))
+  fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'SENSITIVE_DATA=123\n')
+
+  for (const directory of [outsideDir, '../outside', '/dist']) {
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+      name: 'test-publish-escape-source',
+      version: '1.0.0',
+      publishConfig: { directory },
+    }))
+
+    // eslint-disable-next-line no-await-in-loop -- sequential checks over the same directory fixture
+    await expect(publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', '--no-git-checks', '--ignore-scripts'] },
+      configByUri: CONFIG_BY_URI,
+      dir: pkgDir,
+      gitChecks: false,
+      ignoreScripts: true,
+    }, [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_PUBLISH_DIRECTORY',
+    })
+  }
+})
+
 

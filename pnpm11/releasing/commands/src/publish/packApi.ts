@@ -15,7 +15,7 @@ import { glob } from 'tinyglobby'
 import validateNpmPackageName from 'validate-npm-package-name'
 
 import type { PackOptions, PackResultJson } from './pack.js'
-import { assertValidTarballVersion, resolvePackOutput, resolveRelativeTarget, stripBuildMetadata } from './packOutput.js'
+import { assertValidTarballVersion, resolvePackOutput, resolvePublishDirectory, resolveRelativeTarget, stripBuildMetadata } from './packOutput.js'
 import { checkPackedBinsForCrlf, isManifestEntry, packPkg } from './packTarball.js'
 import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
 import { bindRunScriptsIfPresent } from './publish.js'
@@ -36,6 +36,7 @@ export interface PackResult {
 export async function api (opts: PackOptions): Promise<PackResult> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
   preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, entryManifest)
+  const dir = resolvePublishDirectory(opts.dir, entryManifest.publishConfig?.directory)
   const _runScriptsIfPresent = await bindRunScriptsIfPresent(opts.dir, opts)
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
@@ -43,9 +44,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
       'prepare',
     ], entryManifest)
   }
-  const dir = entryManifest.publishConfig?.directory
-    ? path.join(opts.dir, entryManifest.publishConfig.directory)
-    : opts.dir
   // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
   const { manifest, fileName: selectedManifestFileName } = await readProjectManifest(dir, opts)
   preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, manifest)

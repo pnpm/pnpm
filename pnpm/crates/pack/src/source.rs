@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     fs::File,
     io::Read,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use indexmap::IndexMap;
@@ -36,6 +36,7 @@ where
 {
     let entry_manifest = read_manifest(&opts.dir)?;
     prevent_bundled_dependencies_with_pnp(opts.manifest.node_linker, &entry_manifest)?;
+    let dir = resolve_publish_directory(&opts.dir, &entry_manifest)?;
 
     if !opts.scripts.ignore {
         opts.scripts.run_if_present::<Reporter>(
@@ -44,13 +45,6 @@ where
             &entry_manifest,
         )?;
     }
-
-    // The publish directory may differ from the project root when
-    // `publishConfig.directory` redirects packing at a build output.
-    let dir = match publish_config_directory(&entry_manifest) {
-        Some(relative) => opts.dir.join(relative),
-        None => opts.dir.clone(),
-    };
 
     // Re-read the manifest from `dir`: a `prepack` / `prepare` script
     // may have rewritten it.
@@ -180,13 +174,66 @@ fn read_manifest(dir: &Path) -> Result<Value, PackError> {
     }
 }
 
-/// `publishConfig.directory`, when set to a non-empty string.
-fn publish_config_directory(manifest: &Value) -> Option<&str> {
-    manifest
+/// Resolve `publishConfig.directory` to a relative path inside `project_dir`.
+///
+/// Validation stays lexical so build outputs symlinked into the package keep
+/// packing (see [pnpm/pnpm#17390](https://github.com/pnpm/pnpm/issues/17390)).
+/// Root, prefix, and `..` segments are rejected so paths cannot escape
+/// `project_dir` or a symlink target.
+fn resolve_publish_directory(project_dir: &Path, manifest: &Value) -> Result<PathBuf, PackError> {
+    let Some(raw_value) = manifest
         .get("publishConfig")
         .and_then(|config| config.get("directory"))
-        .and_then(Value::as_str)
-        .filter(|directory| !directory.is_empty())
+        .filter(|value| !value.is_null())
+    else {
+        return Ok(project_dir.to_path_buf());
+    };
+    let Some(relative) = raw_value.as_str() else {
+        return Err(PackError::InvalidPublishDirectory { dir: raw_value.to_string() });
+    };
+    if relative.is_empty() {
+        return Ok(project_dir.to_path_buf());
+    }
+    if is_invalid_publish_directory(relative) {
+        return Err(PackError::InvalidPublishDirectory { dir: relative.to_string() });
+    }
+    let mut dir = project_dir.to_path_buf();
+    for component in Path::new(relative).components() {
+        if let Component::Normal(segment) = component {
+            dir.push(segment);
+        }
+    }
+    Ok(dir)
+}
+
+fn is_invalid_publish_directory(raw: &str) -> bool {
+    let path = Path::new(raw);
+    if raw.contains('\0')
+        || path.is_absolute()
+        || raw.starts_with(['/', '\\'])
+        || has_windows_drive_prefix(raw)
+    {
+        return true;
+    }
+    path.components()
+        .any(|component| {
+            matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_))
+        })
+        || raw
+            .split(['/', '\\'])
+            .any(is_dot_traversal_segment)
+}
+
+fn has_windows_drive_prefix(raw: &str) -> bool {
+    matches!(raw.as_bytes(), [drive, b':', ..] if drive.is_ascii_alphabetic())
+}
+
+fn is_dot_traversal_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment != "."
+        && segment
+            .bytes()
+            .all(|byte| byte == b'.' || byte == b' ')
 }
 
 /// Reject a packed executable whose shebang line ends with CRLF, which Unix
