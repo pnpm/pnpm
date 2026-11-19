@@ -480,12 +480,15 @@ fn completion_server_finds_scripts_from_project_subdirectories() {
     std::fs::create_dir_all(&nested).unwrap();
     std::fs::write(project.path().join("package.json"), r#"{"scripts":{"hello":"echo hi"}}"#)
         .unwrap();
-    let output = pacquet()
-        .current_dir(nested)
-        .args(["completion-server", "--", "pnpm", "run", ""])
-        .output()
-        .unwrap();
-    assert_eq!(stdout(output), "hello\n");
+    for words in [&["pnpm", "run", ""][..], &["pnpm", "hell"]] {
+        let output = pacquet()
+            .current_dir(&nested)
+            .args(["completion-server", "--"])
+            .args(words)
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "hello\n");
+    }
 }
 
 #[test]

@@ -1,5 +1,7 @@
 ---
 "@pnpm/cli.commands": patch
+"@pnpm/config.reader": patch
+"@pnpm/exec.commands": patch
 "pnpm": patch
 "pacquet": patch
 ---

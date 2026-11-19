@@ -10,9 +10,11 @@ import { execPnpmSync } from './utils/index.js'
 
 test('completion includes script shortcuts among built-in commands', () => {
   prepare({ scripts: { add: 'echo unused', 'build:watch': 'echo unused', hello: 'echo unused', '.hidden': 'echo unused', 'bad\nname': 'echo unused' } })
-  const complete = (word: string): string[] => {
+  fs.mkdirSync('src')
+  const complete = (word: string, cwd?: string): string[] => {
     const line = `pn ${word}`
     const { status, stdout, stderr } = execPnpmSync(['completion-server', '--', 'pn', word], {
+      cwd,
       env: { XDG_CONFIG_HOME: path.resolve('.config'), SHELL: 'bash', COMP_CWORD: '1', COMP_LINE: line, COMP_POINT: String(line.length) },
     })
     expect({ status, stderr: stderr.toString() }).toEqual({ status: 0, stderr: '' })
@@ -25,6 +27,7 @@ test('completion includes script shortcuts among built-in commands', () => {
   expect(names).not.toContain('.hidden')
   expect(names).not.toContain('bad')
   expect(names).not.toContain('name')
+  expect(complete('build', 'src')).toContain('build:watch')
 })
 
 test.each(['bash', 'fish', 'pwsh', 'zsh'])('completion omits unsafe package and script names for %s', (shell) => {
