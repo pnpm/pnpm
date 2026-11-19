@@ -17,7 +17,6 @@ import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type RegistriesByScope } from '@pnpm/types'
-import { importerModulesDir } from '@pnpm/workspace.state'
 import normalizePath from 'normalize-path'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
@@ -27,6 +26,7 @@ import { resolveLinkTarget } from 'resolve-link-target'
 import { buildDependencyGraph } from './buildDependencyGraph.js'
 import type { DependencyNode } from './DependencyNode.js'
 import { type BaseTreeOpts, getTree, type MaterializationCache } from './getTree.js'
+import { resolveProjectModulesDir } from './resolveProjectModulesDir.js'
 import type { TreeNodeId } from './TreeNodeId.js'
 
 const limitUnsavedReads = pLimit(4)
@@ -388,17 +388,12 @@ async function dependenciesHierarchyForPackage (
   // When searching, unsaved deps are irrelevant — they aren't in the lockfile
   // graph and can't have dependency subtrees showing paths to the search target.
   // They aren't workspace projects either, which is all onlyProjects lists.
-  if (!opts.search && !opts.onlyProjects) {
-    const modulesDir = opts.nodeLinker === 'hoisted'
-      ? importerModulesDir(projectPath, { lockfileDir: opts.lockfileDir, modulesDir: modulesDirOption })
-      : pathAbsolute(modulesDirOption ?? 'node_modules', projectPath)
-    await addUnsavedDependencies(result, {
-      modulesDir: importerId === '.' ? opts.modulesDir ?? modulesDir : modulesDir,
-      projectPath,
-      projectSnapshot,
-    })
-  }
+  if (opts.search || opts.onlyProjects) return result
 
+  const modulesDir = resolveProjectModulesDir(projectPath, modulesDirOption, opts)
+  if (modulesDir != null) {
+    await addUnsavedDependencies(result, { modulesDir, projectPath, projectSnapshot })
+  }
   return result
 }
 

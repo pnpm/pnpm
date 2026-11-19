@@ -517,6 +517,31 @@ importers:
   }
 })
 
+test('a relative modulesDir cannot extend unsaved scans beyond the workspace', async () => {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
+  try {
+    const workspaceParent = path.join(fixtureDir, 'projects', 'group')
+    const lockfileDir = path.join(workspaceParent, 'workspace')
+    const appDir = path.join(lockfileDir, 'packages/app')
+    fs.mkdirSync(appDir, { recursive: true })
+    fs.writeFileSync(path.join(lockfileDir, WANTED_LOCKFILE), `lockfileVersion: '9.0'
+importers:
+  .: {}
+  packages/app: {}
+`)
+    const modulesDir = '../../../external'
+    const pkgDir = path.join(workspaceParent, 'external', 'external-extra')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'external-extra', version: '1.0.0' }))
+
+    const tree = await buildDependenciesTree([appDir], { depth: 0, lockfileDir, modulesDir, virtualStoreDirMaxLength })
+
+    expect(tree[appDir].unsavedDependencies).toBeUndefined()
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true })
+  }
+})
+
 test('an unsaved dependency named like an Object.prototype property is listed', async () => {
   const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
   try {
