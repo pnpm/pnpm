@@ -10,7 +10,10 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_workspace::Project;
 use pnpm_workspace_manifest_writer::{UpdateWorkspaceManifestOptions, update_workspace_manifest};
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 const MIGRATED_GROUPS: [DependencyGroup; 4] =
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional, DependencyGroup::Peer];
@@ -191,28 +194,39 @@ fn render_report(plan: &MigrationPlan) -> String {
             "These dependencies were left unchanged because the projects or the default catalog disagree on their specifier:\n",
         );
         for conflict in &plan.conflicts {
-            let declared = conflict.declared
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>()
-                .join(", ");
-            report.push_str(&format!("  {}: {declared}", conflict.name));
-            if let Some(entry) = &conflict.catalog_entry {
-                report.push_str(&format!(" (catalog: {entry})"));
-            }
-            report.push('\n');
+            report.push_str(&format!("  {conflict}\n"));
         }
     }
-    if plan.migrated.is_empty() {
-        report.push_str("No dependencies were moved to the default catalog.");
-    } else {
-        let count = plan.migrated.len();
-        let noun = if count == 1 { "dependency" } else { "dependencies" };
-        report.push_str(&format!(
-            "Moved {count} {noun} to the default catalog. Run `pnpm install` to update the lockfile.",
-        ));
-    }
+    report.push_str(&render_summary(plan.migrated.len()));
     report
+}
+
+fn render_summary(migrated: usize) -> String {
+    match migrated {
+        0 => "No dependencies were moved to the default catalog.".to_string(),
+        1 => {
+            "Moved 1 dependency to the default catalog. Run `pnpm install` to update the lockfile."
+                .to_string()
+        }
+        count => format!(
+            "Moved {count} dependencies to the default catalog. Run `pnpm install` to update the lockfile.",
+        ),
+    }
+}
+
+impl fmt::Display for Conflict {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let declared = self.declared
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(f, "{}: {declared}", self.name)?;
+        match &self.catalog_entry {
+            Some(entry) => write!(f, " (catalog: {entry})"),
+            None => Ok(()),
+        }
+    }
 }
 
 #[cfg(test)]
