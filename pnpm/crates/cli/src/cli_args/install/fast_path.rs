@@ -260,6 +260,8 @@ impl InstallArgs {
             (self.lockfile.only, "--lockfile-only"),
             (self.lockfile.fix, "--fix-lockfile"),
             (self.materialization.force, "--force"),
+            (self.materialization.reinstall, "--reinstall"),
+            (self.materialization.ignore_platform_checks, "--ignore-platform-checks"),
             (
                 self.materialization.verify_deps_before_run_install,
                 "verifyDepsBeforeRun asked for the install",

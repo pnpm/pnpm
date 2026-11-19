@@ -15,7 +15,7 @@ async fn detect_host(
         };
     pnpm_deps_restorer::materialization_plan::detect_installability_host(
         needs_check,
-        settled.install.context.config.engine_strict,
+        settled.install.context.config.effective_engine_strict(),
         settled.mode.effective_node_version.clone(),
         settled.owned.projects.supported_architectures.as_ref(),
     )
@@ -23,7 +23,7 @@ async fn detect_host(
 }
 
 fn resolve_skipped_seed(config: &pnpm_config::Config) -> pnpm_deps_restorer::SkippedSnapshots {
-    if config.reinstall || config.ignore_platform_checks || config.force {
+    if config.reevaluates_every_snapshot() {
         return pnpm_deps_restorer::SkippedSnapshots::default();
     }
     pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&config.modules_dir)

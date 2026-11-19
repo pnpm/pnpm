@@ -126,18 +126,18 @@ pub struct InstallMaterializationArgs {
     /// Reinstall every package the lockfile names, relinking packages an
     /// earlier install already materialized. Optional dependencies whose
     /// `cpu` / `os` / `libc` don't match the host stay skipped unless
-    /// `forceIgnoresPlatform` is set. To install them for other
-    /// platforms, use `--os` / `--cpu` / `--libc`.
+    /// `forceIgnoresPlatform` is set. To install them anyway, use
+    /// `--ignore-platform-checks`; to install them for other platforms,
+    /// use `--os` / `--cpu` / `--libc`.
     #[clap(long)]
     pub force: bool,
-    /// Bypass per-snapshot installability checks (`cpu`, `os`, `libc`,
-    /// `engines`) so packages for foreign platforms are materialized instead
-    /// of skipped.
+    /// Install packages whose `cpu`, `os`, `libc`, or `engines` don't match
+    /// the host instead of skipping them.
     #[clap(long = "ignore-platform-checks")]
     pub ignore_platform_checks: bool,
-    /// Re-materialize every package slot, bypassing repeat-install fast
-    /// paths, up-to-date checks, and recorded skip sets.
-    #[clap(long = "reinstall")]
+    /// Relink every package the lockfile names, including packages an
+    /// earlier install already materialized.
+    #[clap(long)]
     pub reinstall: bool,
     /// Run the install already requested by `verifyDepsBeforeRun` without
     /// independently short-circuiting it as up to date.

@@ -160,21 +160,25 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
     /// The walker skips any depPath in this set without consulting
     /// the snapshot. Cloned + extended on the way out.
     pub skipped: BTreeSet<String>,
+    /// When true, no package is reused from the previous install:
+    /// every node is re-materialized whether or not its recorded
+    /// location still holds it.
+    pub force: bool,
     /// When true, suppress the installability check and emit every
     /// dep into the graph regardless of cpu / os / libc / engines.
-    /// Set for `--ignore-platform-checks`, `--force` under `forceIgnoresPlatform`, or by the
+    /// Set for `--force` under `forceIgnoresPlatform`, and by the
     /// `prev_graph` walk where the previous lockfile is replayed
-    /// wholesale to compute orphans.
+    /// wholesale to compute orphans — that walk starts from an empty
+    /// skip set so the diff catches packages that previously
+    /// installed but would now be filtered.
     pub include_incompatible_packages: bool,
-    /// When true, bypass the repeat-install fast path and re-materialize every slot.
-    pub reinstall: bool,
 
     /// `hoistedLocations` recorded by the previous install's
     /// `.modules.yaml`. A package the walker places at a directory
     /// listed here, which still holds a `package.json` of the expected
     /// version, is marked [`DependenciesGraphNode::present`] so the
     /// linker skips it. `None` on a first install, and ignored when
-    /// `reinstall` is set.
+    /// `force` is set.
     pub current_hoisted_locations: Option<&'a HoistedLocations>,
 }
 
@@ -198,7 +202,7 @@ impl Default for LockfileToHoistedDepGraphOptions<'_> {
             modules_dirs: ImporterModulesDirs::node_modules(Path::new("")),
 
             skipped: BTreeSet::new(),
-            reinstall: false,
+            force: false,
             include_incompatible_packages: false,
 
             // Match the hoister's default-on behavior so a
@@ -281,7 +285,7 @@ pub fn lockfile_to_hoisted_dep_graph(
                 .is_some_and(|packages| !packages.is_empty()) =>
         {
             let prev_opts = LockfileToHoistedDepGraphOptions {
-                reinstall: true,
+                force: true,
                 include_incompatible_packages: true,
                 skipped: BTreeSet::new(),
                 ..opts.clone()

@@ -826,6 +826,46 @@ fn force_defeats_the_up_to_date_fast_path() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn reinstall_relinks_a_package_an_earlier_install_materialized() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    let install = |args: &[&str]| {
+        pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(args)
+            .assert()
+            .success();
+    };
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    let installed = workspace.join("node_modules/is-positive/index.js");
+    fs::remove_file(&installed).expect("remove an installed file");
+
+    install(&["install", "--frozen-lockfile"]);
+    assert!(!installed.exists(), "a frozen install must reuse the materialized slot");
+
+    install(&["install", "--frozen-lockfile", "--reinstall"]);
+    assert!(installed.is_file(), "--reinstall must re-materialize the slot");
+
+    drop((root, mock_instance));
+}
+
 /// Covers <https://github.com/pnpm/pnpm/issues/3445> — repairing a store
 /// blob that was tampered with through a hard link must keep the blob's
 /// inode, so every other hard-linked copy (another project's

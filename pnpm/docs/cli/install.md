@@ -92,6 +92,18 @@ Force reinstall dependencies: refetch packages modified in store, recreate a loc
 
 Since v12.7.0, `--force` no longer installs optional dependencies whose `os`, `cpu`, or `libc` do not match the host. Set [`forceIgnoresPlatform`](../settings/dependency-resolution.md#forceignoresplatform) to `true` to install them anyway.
 
+### --reinstall
+
+Added in: v12.23.0
+
+Relink every package the lockfile names, including packages that an earlier install already linked. Unlike `--force`, it does not lift [`engineStrict`](../settings/cli.md#enginestrict).
+
+### --ignore-platform-checks
+
+Added in: v12.23.0
+
+Install packages whose `os`, `cpu`, `libc`, or `engines` do not match the host instead of skipping them. Also lifts [`engineStrict`](../settings/cli.md#enginestrict).
+
 ### --offline
 
 * Default: **false**

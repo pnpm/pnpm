@@ -209,7 +209,7 @@ impl InstallPipeline {
                 self.manifest_path.parent().expect("manifest path always has a parent dir");
             let lockfile_dir = self.cfg.lockfile_dir_for(manifest_dir);
             self.frozen_lockfile
-                || self.cfg.force
+                || self.cfg.reevaluates_every_snapshot()
                 || !pnpm_workspace_state::get_file_path(lockfile_dir).is_file()
         }
     }

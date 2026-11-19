@@ -58,19 +58,19 @@ fn apply_install_materialization_config(
     materialization: &crate::cli_args::install::InstallMaterializationArgs,
 ) {
     materialization.store.apply(cfg);
-    if materialization.force {
-        cfg.cli_settings.insert("force".to_string());
+    for (set, key) in [
+        (materialization.force, "force"),
+        (materialization.ignore_platform_checks, "ignorePlatformChecks"),
+        (materialization.reinstall, "reinstall"),
+    ] {
+        if set {
+            cfg.cli_settings.insert(key.to_string());
+        }
     }
-    if materialization.ignore_platform_checks {
-        cfg.cli_settings.insert("ignorePlatformChecks".to_string());
-    }
-    if materialization.reinstall {
-        cfg.cli_settings.insert("reinstall".to_string());
-    }
+    cfg.force = materialization.force || cfg.force;
     cfg.ignore_platform_checks =
         materialization.ignore_platform_checks || cfg.ignore_platform_checks;
-    cfg.reinstall = materialization.reinstall || materialization.force || cfg.reinstall;
-    cfg.force = materialization.force || (cfg.ignore_platform_checks && cfg.reinstall) || cfg.force;
+    cfg.reinstall = materialization.reinstall || cfg.reinstall;
 }
 
 fn apply_install_fetching_config(

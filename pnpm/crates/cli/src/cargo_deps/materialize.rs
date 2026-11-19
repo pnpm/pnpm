@@ -41,7 +41,7 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
 ) -> Result<Vec<(String, PathBuf)>> {
     let store_root = options.config.store_dir.root();
     let packages = std::mem::take(&mut options.packages);
-    let (mut slots, pending) = if options.config.force {
+    let (mut slots, pending) = if options.config.reinstalls_every_package() {
         (Vec::new(), packages)
     } else {
         tokio::task::spawn_blocking(move || partition_complete_slots(packages, store_root))

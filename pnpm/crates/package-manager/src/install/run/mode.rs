@@ -134,7 +134,7 @@ fn effective_lockfile_only(
 }
 
 fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> {
-    if config.frozen_store && (config.reinstall || config.force) {
+    if config.frozen_store && config.reinstalls_every_package() {
         return Err(InstallError::ConfigConflictFrozenStoreWithForce);
     }
     if config.virtual_store_only

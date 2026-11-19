@@ -107,7 +107,9 @@ fn candidates(
         .keys()
         .filter(|key| fetched.requires_build_by_snapshot.get(*key) == Some(&true))
     {
-        if !installer.ctx.config.force && placed(installer.ctx.linker.layout, key)? {
+        if !installer.ctx.config.reinstalls_every_package()
+            && placed(installer.ctx.linker.layout, key)?
+        {
             continue;
         }
         let mut closure = HashMap::new();

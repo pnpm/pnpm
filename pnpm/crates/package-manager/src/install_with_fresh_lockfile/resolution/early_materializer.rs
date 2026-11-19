@@ -51,8 +51,7 @@ pub(in super::super) fn early_materialization_eligible(fit: EarlyMaterialization
     !fit.lockfile_only
         && !fit.materializes_subset
         && !fit.is_hoisted
-        && !fit.config.reinstall
-        && !fit.config.force
+        && !fit.config.reinstalls_every_package()
         && !fit.config.enable_global_virtual_store
         && !pnpm_deps_restorer::DirCloneCache::eligible(fit.config, fit.node_linker)
         && !fit.has_custom_fetcher

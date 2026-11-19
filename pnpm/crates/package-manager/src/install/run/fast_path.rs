@@ -65,9 +65,7 @@ pub(super) fn repeat_install_verdict(
     }
     let eligible = check.mutation.is_full_install()
         && matches!(check.update_seed_policy, UpdateSeedPolicy::KeepAll)
-        && !check.workspace.config.reinstall
-        && !check.workspace.config.ignore_platform_checks
-        && !check.workspace.config.force
+        && !check.workspace.config.reevaluates_every_snapshot()
         && !check.disable_optimistic_repeat_install;
     if !eligible {
         return Ok(RepeatInstallVerdict::Changed);

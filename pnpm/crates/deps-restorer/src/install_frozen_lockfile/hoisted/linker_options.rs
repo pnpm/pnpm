@@ -34,7 +34,7 @@ pub(super) fn hoisted_walker_options<'a>(
         ),
 
         skipped: walker_skipped,
-        reinstall: config.reinstall,
+        force: config.reinstalls_every_package(),
         include_incompatible_packages: config.installs_incompatible_packages(),
         current_hoisted_locations: inputs.prior.current_hoisted_locations,
     }
@@ -49,7 +49,7 @@ pub(super) fn hoisted_dir_clone_cache<'a>(
         lockfile.packages.as_ref(),
         inputs.prior.current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
         inputs.materialization.requires_build_by_snapshot,
-        inputs.config.force,
+        inputs.config.reinstalls_every_package(),
     )
 }
 

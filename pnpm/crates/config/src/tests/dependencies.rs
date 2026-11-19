@@ -39,6 +39,37 @@ pub fn ignore_platform_checks_installs_incompatible_packages() {
     assert!(!config.installs_incompatible_packages());
     config.ignore_platform_checks = true;
     assert!(config.installs_incompatible_packages());
+    assert!(config.reevaluates_every_snapshot());
+    assert!(!config.reinstalls_every_package());
+}
+
+#[test]
+pub fn ignore_platform_checks_lifts_engine_strict() {
+    let tmp = tempdir().unwrap();
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    config.engine_strict = true;
+    assert!(config.effective_engine_strict());
+    config.ignore_platform_checks = true;
+    assert!(!config.effective_engine_strict());
+}
+
+#[test]
+pub fn reinstall_reinstalls_every_package_without_installing_incompatible_ones() {
+    let tmp = tempdir().unwrap();
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.reinstalls_every_package());
+    config.reinstall = true;
+    assert!(config.reinstalls_every_package());
+    assert!(config.reevaluates_every_snapshot());
+    assert!(!config.installs_incompatible_packages());
+}
+
+#[test]
+pub fn force_reinstalls_every_package() {
+    let tmp = tempdir().unwrap();
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    config.force = true;
+    assert!(config.reinstalls_every_package());
 }
 
 #[test]

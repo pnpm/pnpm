@@ -232,6 +232,18 @@ Update `package.json` and `pnpm-lock.yaml` without downloading dependencies or w
 
 Reinstall every package the lockfile names, relinking packages that an earlier install already linked.
 
+### --reinstall
+
+Added in: v12.23.0
+
+Relink every package the lockfile names, including packages that an earlier install already linked. See [`pnpm install --reinstall`](./install.md#--reinstall).
+
+### --ignore-platform-checks
+
+Added in: v12.23.0
+
+Install packages whose `os`, `cpu`, `libc`, or `engines` do not match the host instead of skipping them. See [`pnpm install --ignore-platform-checks`](./install.md#--ignore-platform-checks).
+
 ### --lockfile-dir &lt;dir\>
 
 The directory in which `pnpm-lock.yaml` is created. Same as the [`lockfileDir`](../settings/store.md#lockfiledir) setting.

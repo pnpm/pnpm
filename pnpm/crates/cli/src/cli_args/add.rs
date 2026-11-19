@@ -276,7 +276,8 @@ impl AddArgs {
             }
         }
         config.force = install.force || config.force;
-        config.ignore_platform_checks = install.ignore_platform_checks || config.ignore_platform_checks;
+        config.ignore_platform_checks =
+            install.ignore_platform_checks || config.ignore_platform_checks;
         config.reinstall = install.reinstall || config.reinstall;
     }
 

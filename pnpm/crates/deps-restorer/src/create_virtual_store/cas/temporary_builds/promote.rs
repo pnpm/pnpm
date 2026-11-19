@@ -11,8 +11,11 @@ pub(super) fn retain(
 ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
     let layout = installer.ctx.linker.layout;
     // `--force` builds a placed package again, and its build replaces it.
-    let when_placed =
-        if installer.ctx.config.force { WhenPlaced::Replace } else { WhenPlaced::Keep };
+    let when_placed = if installer.ctx.config.reinstalls_every_package() {
+        WhenPlaced::Replace
+    } else {
+        WhenPlaced::Keep
+    };
     let retained: HashSet<_> = candidates
         .keys()
         .filter(|key| selected.contains_key(*key))

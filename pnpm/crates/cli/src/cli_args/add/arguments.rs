@@ -157,8 +157,9 @@ pub struct AddInstallArgs {
     /// Reinstall every package the lockfile names, relinking packages an
     /// earlier install already materialized. Optional dependencies whose
     /// `cpu` / `os` / `libc` don't match the host stay skipped unless
-    /// `forceIgnoresPlatform` is set. To install them for other
-    /// platforms, use `--os` / `--cpu` / `--libc`.
+    /// `forceIgnoresPlatform` is set. To install them anyway, use
+    /// `--ignore-platform-checks`; to install them for other platforms,
+    /// use `--os` / `--cpu` / `--libc`.
     #[clap(long)]
     pub force: bool,
     /// Install packages whose `cpu`, `os`, `libc`, or `engines` don't match

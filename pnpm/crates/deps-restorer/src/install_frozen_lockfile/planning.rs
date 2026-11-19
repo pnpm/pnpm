@@ -302,7 +302,7 @@ pub(super) fn seed_skip_set(
     seed_skipped: Option<Vec<String>>,
 ) -> SkippedSnapshots {
     // Re-evaluating skipped snapshots or forcing re-materialization clears the recorded skip set.
-    if config.reinstall || config.ignore_platform_checks || config.force {
+    if config.reevaluates_every_snapshot() {
         return SkippedSnapshots::new();
     }
     if let Some(skipped) = seed_skipped {
