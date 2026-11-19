@@ -44,7 +44,10 @@ fn load_importer_snapshot(
         Err(_) => Lockfile::load_from_path(lockfile_path)
             .map(|lockfile| match lockfile {
                 Some(lockfile) => ImporterLoad::Importer(
-                    lockfile.importers.get(importer_id).cloned().map(Box::new),
+                    lockfile.importers
+                        .get(importer_id)
+                        .cloned()
+                        .map(Box::new),
                 ),
                 None => ImporterLoad::MissingLockfile,
             }),
