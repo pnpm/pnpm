@@ -333,6 +333,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 
 * [versioning.fixed](./settings/versioning.md#versioningfixed)
 * [versioning.ignore](./settings/versioning.md#versioningignore)
+* [versioning.includePrivatePackages](./settings/versioning.md#versioningincludeprivatepackages)
 * [versioning.maxBump](./settings/versioning.md#versioningmaxbump)
 * [versioning.lanes](./settings/versioning.md#versioninglanes)
 * [versioning.epics](./settings/versioning.md#versioningepics)

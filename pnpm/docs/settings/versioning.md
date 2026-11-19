@@ -36,6 +36,20 @@ versioning:
     - '@example/internal'
 ```
 
+### versioning.includePrivatePackages
+
+Added in: v12.23.0
+
+* Default: **true**
+* Type: **Boolean**
+
+When `false`, [`pnpm change`](../cli/change.md) leaves private packages (`"private": true`) out of the packages it offers, and naming one on the command line fails. A change intent that already names a private package still applies, a private package can still be bumped as a dependent, and [`pnpm lane`](../cli/lane.md) can still move one.
+
+```yaml title="pnpm-workspace.yaml"
+versioning:
+  includePrivatePackages: false
+```
+
 ### versioning.maxBump
 
 * Default: **undefined** (no cap)
