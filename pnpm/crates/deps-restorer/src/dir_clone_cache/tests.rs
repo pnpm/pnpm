@@ -183,21 +183,10 @@ mod macos {
             .filter(|path| path.ends_with("node_modules/foo/package.json"))
             .count();
         assert_eq!(canonical_manifests, 1, "one canonical slot for the one snapshot");
-        let expected_slot = crate::VirtualStoreLayout::global(
-            cache_root.clone(),
-            Config::default().virtual_store_dir_max_length as usize,
-            Some("node-22"),
-            Some(&snapshots),
-            None,
-            crate::BuildGating { policy: None, runs_builds: true },
-            None,
-            &crate::host_platform_selector(),
-        )
-        .hashed_slot_dir(&key)
-        .expect("hashed slot for the one snapshot");
+        let expected_slot = cache.content_slot_dir(&cas_paths);
         assert!(
             expected_slot.join("node_modules/foo/package.json").is_file(),
-            "the canonical slot must be the one the delivered engine name selects: {expected_slot:?}",
+            "the canonical slot must be the one the package's files key: {expected_slot:?}",
         );
 
         fs::remove_file(&lib_blob).expect("remove CAS blob");
@@ -267,6 +256,65 @@ mod macos {
             &target,
             &HashMap::new(),
         ));
+    }
+
+    /// Peer variants of one package version hold the same files, so the
+    /// second variant must clone the slot the first one populated rather
+    /// than materialize its own.
+    #[test]
+    fn peer_variants_share_one_canonical_slot() {
+        let dir = tempdir().expect("tempdir");
+        let store = dir.path().join("cas");
+        fs::create_dir_all(&store).expect("create fake CAS");
+        let manifest_blob = store.join("manifest-blob");
+        let lib_blob = store.join("lib-blob");
+        fs::write(&manifest_blob, br#"{"name":"foo"}"#).expect("write manifest blob");
+        fs::write(&lib_blob, b"module.exports = 1").expect("write lib blob");
+        let cas_paths: pnpm_fs::CasPaths = HashMap::from([
+            ("package.json".to_string(), manifest_blob.into()),
+            ("lib/index.js".to_string(), lib_blob.clone().into()),
+        ]);
+
+        let with_react_17: PackageKey = "foo@1.0.0(react@17.0.2)".parse().expect("valid key");
+        let with_react_18: PackageKey = "foo@1.0.0(react@18.3.1)".parse().expect("valid key");
+        let cache_root = pnpm_store_dir::StoreDir::new(dir.path()).dir_clone_cache();
+        let snapshots = HashMap::from([
+            (with_react_17.clone(), SnapshotEntry::default()),
+            (with_react_18.clone(), SnapshotEntry::default()),
+        ]);
+        let cache = cache_for_snapshots(&cache_root, &snapshots, EngineNameSource::Ready(None));
+        let logged = AtomicU8::new(0);
+
+        let first_target = dir.path().join("first/node_modules/foo");
+        fs::create_dir_all(first_target.parent().unwrap()).expect("create slot node_modules");
+        assert!(cache.try_import::<NullReporter>(
+            &logged,
+            PackageImportMethod::Clone,
+            &with_react_17,
+            &first_target,
+            &cas_paths,
+        ));
+        // Without its CAS blob, the second variant can only be served by a
+        // clone of the slot the first variant populated.
+        fs::remove_file(&lib_blob).expect("remove CAS blob");
+        let second_target = dir.path().join("second/node_modules/foo");
+        fs::create_dir_all(second_target.parent().unwrap()).expect("create slot node_modules");
+        assert!(cache.try_import::<NullReporter>(
+            &logged,
+            PackageImportMethod::Clone,
+            &with_react_18,
+            &second_target,
+            &cas_paths,
+        ));
+        assert_eq!(
+            fs::read(second_target.join("lib/index.js")).expect("cloned file"),
+            b"module.exports = 1",
+        );
+        let canonical_manifests = walk_files(&cache_root)
+            .into_iter()
+            .filter(|path| path.ends_with("node_modules/foo/package.json"))
+            .count();
+        assert_eq!(canonical_manifests, 1, "both variants share one canonical slot");
     }
 
     fn walk_files(root: &std::path::Path) -> Vec<PathBuf> {

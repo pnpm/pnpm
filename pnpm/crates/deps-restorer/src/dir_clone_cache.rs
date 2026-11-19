@@ -68,6 +68,7 @@ use pnpm_lockfile::{
     SnapshotEntry,
 };
 use pnpm_reporter::Reporter;
+use sha2::{Digest as _, Sha256};
 use std::{
     collections::HashMap,
     fs,
@@ -229,13 +230,12 @@ impl<'install> DirCloneCache<'install> {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Ok(_) | Err(_) => return false,
         }
-        // Only a hash-suffixed canonical slot is content-addressed;
-        // a snapshot the layout has no precomputed suffix for goes
+        // A snapshot the layout has no precomputed suffix for goes
         // through the per-file import.
-        let Some(slot_dir) = self.layout().hashed_slot_dir(package_key) else {
+        if self.layout().hashed_slot_dir(package_key).is_none() {
             return false;
-        };
-        let canonical_node_modules = slot_dir.join("node_modules");
+        }
+        let canonical_node_modules = self.content_slot_dir(cas_paths).join("node_modules");
         let Ok(canonical) =
             safe_join_modules_dir(&canonical_node_modules, &package_key.name.to_string())
         else {
@@ -264,6 +264,27 @@ impl<'install> DirCloneCache<'install> {
             return false;
         }
         self.clone_canonical_slot(package_key, &canonical, save_path)
+    }
+
+    /// The canonical slot for a package's files. The slot only holds
+    /// `node_modules/<name>`, materialized from `cas_paths`, and builds
+    /// never reach the cache, so its content is the file set alone. Keying
+    /// it by that set, rather than by the dependency-graph hash a global
+    /// virtual store slot carries, lets every peer variant of one package
+    /// version share it: variants after the first cost one directory
+    /// clone instead of a per-file import each.
+    fn content_slot_dir(&self, cas_paths: &pnpm_fs::CasPaths) -> PathBuf {
+        let mut files: Vec<_> = cas_paths.iter().collect();
+        files.sort_unstable_by_key(|(a, _)| *a);
+        let mut hasher = Sha256::new();
+        for (name, file) in files {
+            hasher.update(name.as_bytes());
+            hasher.update([0]);
+            hasher.update(file.path.as_os_str().as_encoded_bytes());
+            hasher.update([0]);
+        }
+        let hex = format!("{:x}", hasher.finalize());
+        self.layout_inputs.cache_dir.join("content").join(&hex[..2]).join(&hex[2..])
     }
 
     /// Whether the canonical slot holds the package's files. Outside a
