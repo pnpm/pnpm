@@ -13,6 +13,45 @@ use std::{fmt::Write as _, fs, path::Path, process::Command};
 const INSTALL_MARKER: &str = "node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0\
      /node_modules/@pnpm.e2e/install-script-example/generated-by-install.js";
 
+#[test]
+fn approve_builds_requires_an_exact_file_selector() {
+    let harness = CommandTempCwd::init();
+    let package = harness.root.path().join("fixture");
+    fs::create_dir(&package).expect("create file dependency");
+    fs::write(
+        package.join("package.json"),
+        r#"{"name":"fixture","version":"1.0.0","scripts":{"postinstall":"node build.cjs"}}"#,
+    )
+    .expect("write dependency manifest");
+    fs::write(package.join("build.cjs"), "require('node:fs').writeFileSync('built', '')")
+        .expect("write dependency build script");
+    fs::write(
+        harness.workspace.join("package.json"),
+        r#"{"dependencies":{"fixture":"file:../fixture"}}"#,
+    )
+    .expect("write project manifest");
+    let settings = harness.workspace.join("pnpm-workspace.yaml");
+    fs::write(&settings, "enableGlobalVirtualStore: false\n").expect("write settings");
+    pacquet(&harness.workspace)
+        .arg("install")
+        .assert()
+        .failure();
+    let original_settings = fs::read(&settings).expect("read settings after install");
+    let rejected = pacquet(&harness.workspace)
+        .args(["approve-builds", "fixture"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_FILE_SELECTOR_REQUIRED"), "{stderr}");
+    assert!(stderr.contains("fixture@file:../fixture"), "{stderr}");
+    assert_eq!(fs::read(&settings).expect("read settings after rejection"), original_settings);
+    pacquet(&harness.workspace)
+        .args(["approve-builds", "fixture@file:../fixture"])
+        .assert()
+        .success();
+    assert!(harness.workspace.join("node_modules/fixture/built").is_file());
+}
+
 #[cfg(unix)]
 #[test]
 fn rebuild_refreshes_the_interpreter_of_a_replaced_bin() {

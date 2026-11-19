@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import { checkbox, confirm } from '@inquirer/prompts'
-import { allowBuildKeyFromIgnoredBuild, parseAllowBuildSelector } from '@pnpm/building.policy'
+import { allowBuildKeyFromIgnoredBuild, packageNameFromAllowBuildKey, parseAllowBuildSelector } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
@@ -145,9 +145,6 @@ function parseSelectors (params: string[], automaticallyIgnoredBuilds: string[])
       denied.push(name)
     }
   }
-  if (unknown.length) {
-    globalWarn(`The following packages are not awaiting approval: ${unknown.join(', ')}`)
-  }
   const contradictions = approved.filter((name) => denied.includes(name))
   if (contradictions.length) {
     throw new PnpmError(
@@ -155,7 +152,26 @@ function parseSelectors (params: string[], automaticallyIgnoredBuilds: string[])
       `The following packages are both approved and denied: ${contradictions.join(', ')}`
     )
   }
+  if (unknown.length) {
+    requireExactFileSelectors(automaticallyIgnoredBuilds, { approved, denied, unknown })
+    globalWarn(`The following packages are not awaiting approval: ${unknown.join(', ')}`)
+  }
   return { approved, denied }
+}
+
+function requireExactFileSelectors (pending: string[], { approved, denied, unknown }: ParsedSelectors & { unknown: string[] }): void {
+  const fileSelectors = pending.filter((key) => {
+    const name = packageNameFromAllowBuildKey(key)
+    return name != null && key.startsWith(`${name}@file:`) &&
+      unknown.includes(name) && approved.includes(name) &&
+      !approved.includes(key) && !denied.includes(key)
+  })
+  if (fileSelectors.length) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_FILE_SELECTOR_REQUIRED',
+      `Use an exact selector to approve a file dependency: ${fileSelectors.join(', ')}`
+    )
+  }
 }
 
 interface ChooseBuildPackagesOptions {

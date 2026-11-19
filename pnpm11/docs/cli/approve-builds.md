@@ -19,6 +19,8 @@ You can run `pnpm approve-builds` without arguments to get an interactive prompt
 pnpm approve-builds esbuild fsevents !core-js
 ```
 
+Use the full selector shown by `pnpm ignored-builds` to approve a `file:` dependency. For example, run `pnpm approve-builds 'example@file:../example'`. A bare name only approves registry dependencies.
+
 Running `pnpm approve-builds` without package arguments or `--all` when packages are awaiting approval requires an interactive terminal outside CI (`ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE`).
 
 Prefix a package name with `!` to deny it. Only mentioned packages are affected; the rest are left untouched.
