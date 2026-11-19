@@ -116,9 +116,7 @@ fn env_workspace_override_validates_no_proxy() {
         }
     }
 
-    let error = Config::default()
-        .current::<EnvWorkspaceHost>(cwd_dir.path())
-        .unwrap_err();
+    let error = Config::default().current::<EnvWorkspaceHost>(cwd_dir.path()).unwrap_err();
     assert!(matches!(error, LoadWorkspaceYamlError::InvalidNoProxy { received_type: "array" }));
 
     let readable = Config { settings_read: crate::SettingsRead::Readable, ..Config::default() }
