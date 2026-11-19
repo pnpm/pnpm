@@ -621,7 +621,6 @@ snapshots:
 				"isexe": "4.0.0",
 				"jest": "30.4.2",
 				"jest-diff": "30.4.1",
-				"js-yaml": "npm:@zkochan/js-yaml@0.0.11",
 				"json5": {
 					"specifier": "^2.2.3",
 					"version": "2.2.3",
@@ -1025,7 +1024,7 @@ snapshots:
 			"hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
 			"istanbul-reports": "npm:@zkochan/istanbul-reports",
 			"js-yaml@<3.14.2": "^3.14.2",
-			"js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.11",
+			"js-yaml@^4.0.0": "^4.3.2",
 			"json5@<2.2.2": "^2.2.3",
 			"jsonwebtoken@<=8.5.1": ">=9.0.0",
 			"jws@<3.2.3": "^3.2.3",
@@ -1239,7 +1238,10 @@ snapshots:
 				"@pnpm/types": "workspace:*",
 				"is-windows": "catalog:",
 				"isexe": "catalog:",
-				"js-yaml": "catalog:",
+				"js-yaml": {
+					"specifier": "^4.3.2",
+					"version": "4.3.2",
+				},
 				"read-yaml-file": "catalog:",
 				"write-package": "catalog:",
 			},
@@ -3819,7 +3821,10 @@ snapshots:
 				"ci-info": "catalog:",
 				"detect-libc": "catalog:",
 				"is-subdir": "catalog:",
-				"js-yaml": "catalog:",
+				"js-yaml": {
+					"specifier": "^4.3.2",
+					"version": "4.3.2",
+				},
 				"load-json-file": "catalog:",
 				"normalize-path": "catalog:",
 				"ramda": "catalog:",
@@ -4500,7 +4505,10 @@ snapshots:
 				"@pnpm/types": "workspace:*",
 				"@zkochan/rimraf": "catalog:",
 				"comver-to-semver": "catalog:",
-				"js-yaml": "catalog:",
+				"js-yaml": {
+					"specifier": "^4.3.2",
+					"version": "4.3.2",
+				},
 				"ramda": "catalog:",
 				"semver": "catalog:",
 				"signal-exit": "catalog:",
@@ -12740,7 +12748,7 @@ snapshots:
 			"integrity": "sha512-WoxUM/Be4hfsX06FxsvpGgfYqwgivMV7/Ol7aFuSfSmY6rRaiju4QxOEe9RUS0iYcSHWl5i9AhB1cMoE0p+XiA==",
 			"engines": {"node": ">=18.12.0"},
 			"dependencies": {
-				"js-yaml": "@zkochan/js-yaml@0.0.11",
+				"js-yaml": "4.3.2",
 				"tslib": "2.9.1",
 			},
 		},
@@ -12838,14 +12846,6 @@ snapshots:
 			"dependencies": {
 				"html-escaper": "2.0.2",
 				"istanbul-lib-report": "3.0.1",
-			},
-		},
-
-		"@zkochan/js-yaml@0.0.11": {
-			"integrity": "sha512-SO+h5Jg079r2JvGle0jbdtk1EY7ppu6TGzmfWTp3Gy61IEb1OVKBocJ6ydTn4++nYFNfRKYenI2MniZQwsM9KQ==",
-			"hasBin": true,
-			"dependencies": {
-				"argparse": "2.0.1",
 			},
 		},
 
@@ -14086,7 +14086,7 @@ snapshots:
 			"dependencies": {
 				"env-paths": "2.2.1",
 				"import-fresh": "3.3.1",
-				"js-yaml": "@zkochan/js-yaml@0.0.11",
+				"js-yaml": "4.3.2",
 				"parse-json": "5.2.0",
 			},
 		},
@@ -17247,6 +17247,14 @@ snapshots:
 			},
 		},
 
+		"js-yaml@4.3.2": {
+			"integrity": "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==",
+			"hasBin": true,
+			"dependencies": {
+				"argparse": "2.0.1",
+			},
+		},
+
 		"js-yaml@5.5.0": {
 			"integrity": "sha512-paNr4LFIFPjeeSmwNYdrb8FafLLG/Cr2Af3GjbsHJ5CxIjH4r0c2emlmRdAtpPAieP1gRVzk6buBbVP5gBMGAg==",
 			"hasBin": true,
@@ -17431,7 +17439,7 @@ snapshots:
 			"engines": {"node": "^12.20.0 || ^14.13.1 || >=16.0.0"},
 			"dependencies": {
 				"graceful-fs": "4.2.12",
-				"js-yaml": "@zkochan/js-yaml@0.0.11",
+				"js-yaml": "4.3.2",
 				"strip-bom": "5.0.0",
 			},
 		},
@@ -19848,7 +19856,7 @@ snapshots:
 			"integrity": "sha512-UkRNRIwnhG+y7hpqnycCL/xbTk7+ia9VuVTC0S+zVbwd65DI9eUpRMfsWIGrCWxTU/mi+JW8cHQCrv+zfCbEPQ==",
 			"engines": {"node": ">=10.13"},
 			"dependencies": {
-				"js-yaml": "@zkochan/js-yaml@0.0.11",
+				"js-yaml": "4.3.2",
 				"strip-bom": "4.0.0",
 			},
 		},
@@ -19857,7 +19865,7 @@ snapshots:
 			"integrity": "sha512-7urDNDyx3oJt9NGkymzT3qudju76BoJhT6ICWclx6274zxMeSUOhyiceHscSBk4Lfbs0IYpjOjUwLkaOzrsJdQ==",
 			"engines": {"node": ">=22.13"},
 			"dependencies": {
-				"js-yaml": "@zkochan/js-yaml@0.0.11",
+				"js-yaml": "4.3.2",
 				"strip-bom": "5.0.0",
 			},
 		},
@@ -21880,7 +21888,7 @@ snapshots:
 			"integrity": "sha512-FdNA4RyH1L43TlvGG8qOMIfcEczwA5ij+zLXUy3Z83CjxhLvcV7/Q/8pk22wnCgYw7PJhtK+7lhO+qqyT4NdvQ==",
 			"engines": {"node": ">=16.14"},
 			"dependencies": {
-				"js-yaml": "@zkochan/js-yaml@0.0.11",
+				"js-yaml": "4.3.2",
 				"write-file-atomic": "5.0.1",
 			},
 		},
@@ -21889,7 +21897,7 @@ snapshots:
 			"integrity": "sha512-WG6oDbTuNkiDr0sjYiuV715ZBUYOZVf838wu+7M0WAbkCmv5z2P7OW9gCfgEclXPwP08r5CvBtEyqV7vht070A==",
 			"engines": {"node": ">=22.13"},
 			"dependencies": {
-				"js-yaml": "@zkochan/js-yaml@0.0.11",
+				"js-yaml": "4.3.2",
 				"write-file-atomic": "7.0.1",
 			},
 		},
