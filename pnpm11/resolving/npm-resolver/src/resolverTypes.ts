@@ -111,6 +111,7 @@ export type ResolveFromNpmOptions = {
   updateRequested?: boolean
   trustLockfile?: boolean
   updateChecksums?: boolean
+  currentVersion?: string
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   rangeSpecStyle?: RangeSpecStyle

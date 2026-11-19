@@ -16,6 +16,7 @@ export function createPickPackageOptions (
     preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
     registry,
     includeLatestTag: opts.update === 'latest',
+    currentVersion: opts.currentVersion,
     updateChecksums: opts.updateChecksums,
     refreshMetadata: opts.update === 'compatible' || opts.update === 'latest' || opts.updateRequested === true,
     optional: wantedDependency.optional,

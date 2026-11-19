@@ -90,6 +90,139 @@ test('resolveFromNpm()', async () => {
 
 test.each([
   {
+    name: 'follows the prerelease channel dist-tag above a lower latest',
+    distTags: { latest: '1.0.0', next: '2.0.0-next-2' },
+    currentVersion: '2.0.0-next-1',
+    expected: '2.0.0-next-2',
+  },
+  {
+    name: 'follows a dot-separated prerelease channel',
+    distTags: { latest: '1.0.0', beta: '2.0.0-rc.0', next: '2.0.0-rc.2' },
+    currentVersion: '2.0.0-rc.1',
+    expected: '2.0.0-rc.2',
+  },
+  {
+    name: 'prefers a stable latest above a channel dist-tag',
+    distTags: { latest: '2.0.0', next: '2.0.0-next-2' },
+    currentVersion: '2.0.0-next-1',
+    expected: '2.0.0',
+  },
+  {
+    name: 'follows a hash-stamped prerelease channel',
+    distTags: { latest: '1.0.0', canary: '2.0.0-canary-def456-20260102' },
+    currentVersion: '2.0.0-canary-abc123-20260101',
+    expected: '2.0.0-canary-def456-20260102',
+  },
+  {
+    name: 'skips a channel dist-tag that points to an unpublished version',
+    distTags: { latest: '1.0.0', next: '2.0.0-next-2', preview: '2.0.0-next-9' },
+    currentVersion: '2.0.0-next-1',
+    expected: '2.0.0-next-2',
+  },
+  {
+    name: 'ignores dist-tags of other prerelease channels',
+    distTags: { latest: '1.0.0', canary: '2.0.0-canary-2' },
+    currentVersion: '2.0.0-next-1',
+    expected: '2.0.0-next-1',
+  },
+])('resolveLatestFromNpm() $name', async ({ distTags, currentVersion, expected }) => {
+  const name = 'prerelease-channel'
+  const manifest = (version: string) => ({
+    name,
+    version,
+    dist: {
+      integrity: ssri.fromData(version).toString(),
+      tarball: `${registriesByScope.default}${name}/-/${name}-${version}.tgz`,
+    },
+  })
+  const versions = ['1.0.0', '2.0.0-canary-2', '2.0.0-canary-abc123-20260101', '2.0.0-canary-def456-20260102', '2.0.0-next-1', '2.0.0-next-2', '2.0.0-rc.0', '2.0.0-rc.1', '2.0.0-rc.2', '2.0.0']
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
+    .reply(200, {
+      name,
+      'dist-tags': distTags,
+      versions: Object.fromEntries(versions.map((version) => [version, manifest(version)])),
+    })
+
+  const { resolveLatestFromNpm } = createResolveFromNpm({
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const info = await resolveLatestFromNpm({
+    wantedDependency: { alias: name, bareSpecifier: currentVersion },
+    compatible: false,
+    currentVersion,
+  }, {
+    lockfileDir: temporaryDirectory(),
+    preferredVersions: {},
+    projectDir: temporaryDirectory(),
+  })
+
+  expect(info?.latestManifest?.version).toBe(expected)
+})
+
+test.each([
+  {
+    name: 'does not let an immature channel dist-tag hide a mature latest',
+    distTags: { latest: '2.0.0', next: '4.0.0-rc.0' },
+    currentVersion: '2.0.0-rc.0',
+    expected: '2.0.0',
+  },
+  {
+    name: 'falls back to a mature channel dist-tag below an immature one',
+    distTags: { latest: '2.0.0', rc: '3.0.0-rc.1', preview: '4.0.0-rc.0' },
+    currentVersion: '3.0.0-rc.0',
+    expected: '3.0.0-rc.1',
+  },
+])('resolveLatestFromNpm() $name', async ({ distTags, currentVersion, expected }) => {
+  const name = 'prerelease-channel-release-age'
+  const manifest = (version: string) => ({
+    name,
+    version,
+    dist: {
+      integrity: ssri.fromData(version).toString(),
+      tarball: `${registriesByScope.default}${name}/-/${name}-${version}.tgz`,
+    },
+  })
+  const time: Record<string, string> = {
+    '2.0.0-rc.0': '2026-01-01T00:00:00.000Z',
+    '2.0.0': '2026-01-02T00:00:00.000Z',
+    '3.0.0-rc.0': '2026-01-03T00:00:00.000Z',
+    '3.0.0-rc.1': '2026-01-04T00:00:00.000Z',
+    '4.0.0-alpha.1': '2026-01-05T00:00:00.000Z',
+    '4.0.0-rc.0': '2026-03-01T00:00:00.000Z',
+  }
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
+    .reply(200, {
+      name,
+      'dist-tags': distTags,
+      modified: '2026-03-01T00:00:00.000Z',
+      time,
+      versions: Object.fromEntries(Object.keys(time).map((version) => [version, manifest(version)])),
+    })
+
+  const { resolveLatestFromNpm } = createResolveFromNpm({
+    cacheDir: temporaryDirectory(),
+    fullMetadata: true,
+    registriesByScope,
+  })
+  const info = await resolveLatestFromNpm({
+    wantedDependency: { alias: name, bareSpecifier: currentVersion },
+    compatible: false,
+    currentVersion,
+  }, {
+    lockfileDir: temporaryDirectory(),
+    preferredVersions: {},
+    projectDir: temporaryDirectory(),
+    publishedBy: new Date('2026-02-01T00:00:00.000Z'),
+  })
+
+  expect(info?.latestManifest?.version).toBe(expected)
+})
+
+test.each([
+  {
     name: 'a revision number and history',
     revisionFields: {
       revision: 0,

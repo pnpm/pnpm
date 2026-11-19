@@ -192,6 +192,7 @@ async fn current_trust_evidence(
                     ..ResolverWantedDependency::default()
                 },
                 compatible: true,
+                current_version: None,
             },
             &options,
         )
@@ -275,6 +276,9 @@ async fn resolve_outdated_target(
                 ..ResolverWantedDependency::default()
             },
             compatible,
+            current_version: query.follow_prerelease_channels.then(|| {
+                candidate.current.clone()
+            }),
         },
         &run.resolve_options,
     )

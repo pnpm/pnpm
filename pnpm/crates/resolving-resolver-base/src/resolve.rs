@@ -254,6 +254,10 @@ pub struct VersionSelectionOptions {
     pub preferred_versions_overlay: Option<Arc<PreferredVersionsOverlay>>,
     pub default_tag: Option<String>,
     pub pick_lowest_version: bool,
+    /// The installed version [`Resolver::resolve_latest`] compares against.
+    /// With [`UpdateBehavior::Latest`], an installed prerelease adds the
+    /// dist-tag that follows its prerelease channel to the `latest` candidates.
+    pub latest_current_version: Option<node_semver::Version>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -469,6 +473,9 @@ pub struct NonDeprecatedAlternative {
 pub struct LatestQuery {
     pub wanted_dependency: WantedDependency,
     pub compatible: bool,
+    /// Lockfile-resolved version. An installed prerelease also follows the
+    /// dist-tag of its prerelease channel.
+    pub current_version: Option<node_semver::Version>,
 }
 
 /// Result of [`Resolver::resolve_latest`].
