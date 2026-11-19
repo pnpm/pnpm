@@ -6,6 +6,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import semver from 'semver'
 
 import { getStoreIntegrity } from './getIntegrity.js'
+import { hasVersionManifest } from './mirrorLayout.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   pickLowestVersionByVersionRange,
@@ -74,7 +75,7 @@ function findPrereleaseChannelTags (meta: PackageMeta, currentVersion: string | 
   const channel = currentVersion == null ? undefined : getPrereleaseChannel(currentVersion)
   if (channel == null) return []
   return Object.entries(meta['dist-tags'] ?? {})
-    .filter(([, version]) => meta.versions[version] != null && getPrereleaseChannel(version) === channel)
+    .filter(([, version]) => getPrereleaseChannel(version) === channel && hasVersionManifest(meta.versions, version))
     .sort(([, version1], [, version2]) => semver.rcompare(version1, version2, true))
     .map(([tag]) => tag)
 }
