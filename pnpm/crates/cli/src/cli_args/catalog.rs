@@ -194,7 +194,9 @@ fn render_report(plan: &MigrationPlan) -> String {
             "These dependencies were left unchanged because the projects or the default catalog disagree on their specifier:\n",
         );
         for conflict in &plan.conflicts {
-            report.push_str(&format!("  {conflict}\n"));
+            report.push_str("  ");
+            report.push_str(&conflict.to_string());
+            report.push('\n');
         }
     }
     report.push_str(&render_summary(plan.migrated.len()));
