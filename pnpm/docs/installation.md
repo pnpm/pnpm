@@ -15,7 +15,7 @@ pnpm 12 ships a prebuilt binary for each of these targets:
 
 | Operating system | Architectures |
 | --- | --- |
-| Linux (glibc) | x64, arm64, riscv64, ppc64le, s390x |
+| Linux (glibc) | x64, arm64, riscv64, ppc64le, s390x, loong64 |
 | Linux (musl) | x64, arm64 |
 | macOS | arm64, x64 |
 | Windows | x64, arm64 |

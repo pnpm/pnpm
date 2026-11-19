@@ -86,6 +86,7 @@ describe('platformPackageName', () => {
     assert.equal(platformPackageName(target({ major: 12, arch: 'ppc64' })), '@pnpm/exe.linux-ppc64')
     assert.equal(platformPackageName(target({ major: 12, arch: 'riscv64' })), '@pnpm/exe.linux-riscv64')
     assert.equal(platformPackageName(target({ major: 12, arch: 's390x' })), '@pnpm/exe.linux-s390x')
+    assert.equal(platformPackageName(target({ major: 12, arch: 'loong64' })), '@pnpm/exe.linux-loong64')
     assert.equal(platformPackageName(target({ major: 12, platform: 'android', arch: 'arm64' })), '@pnpm/exe.android-arm64')
     assert.equal(platformPackageName(target({ major: 12, platform: 'android' })), '@pnpm/exe.android-x64')
   })
@@ -94,6 +95,7 @@ describe('platformPackageName', () => {
     assert.throws(() => platformPackageName(target({ platform: 'freebsd' })), /pnpm v11 does not.*npx get-pnpm 12/s)
     assert.throws(() => platformPackageName(target({ platform: 'netbsd' })), /pnpm v11 does not.*npx get-pnpm 12/s)
     assert.throws(() => platformPackageName(target({ arch: 's390x' })), /npx get-pnpm 12/)
+    assert.throws(() => platformPackageName(target({ arch: 'loong64' })), /npx get-pnpm 12/)
   })
 
   test('a musl suffix is never added to them', () => {
