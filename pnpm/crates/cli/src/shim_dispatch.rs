@@ -21,7 +21,6 @@
 //! or replacement bin cannot inherit an earlier approval.
 //! Without a terminal the dispatcher falls back to the global target.
 
-mod lockfile;
 pub(crate) mod native_shim;
 pub(crate) mod runtime_env;
 pub(crate) mod rust_toolchain;
@@ -46,6 +45,8 @@ pub(crate) use settings::{
     apply_settings_above_global_config,
     global_shims_setting,
 };
+
+mod lockfile;
 
 use crate::{
     cli_args::{
