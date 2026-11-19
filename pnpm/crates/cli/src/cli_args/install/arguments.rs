@@ -141,7 +141,7 @@ pub struct InstallMaterializationArgs {
     pub store: crate::cli_args::install_options::FrozenStoreArgs,
     /// Package names allowed to run lifecycle (build) scripts during this
     /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
-    /// its scripts instead. May be repeated.
+    /// its scripts instead. Repeat or comma-separate for multiple.
     #[clap(long = "allow-build")]
     pub allow_build: Vec<String>,
     /// Distinguishes `pnpm ci` from a standard `pnpm install` so the
