@@ -127,59 +127,79 @@ fn format_migrated_entry(selector: &str, original: &str, resolved: &str) -> Stri
 /// Convert a Yarn `resolutions` selector to a pnpm override selector:
 /// `**/foo` becomes `foo` and `parent/foo` becomes `parent>foo`. `None` for a
 /// path pnpm overrides cannot express, such as `a/**/foo` or `a/b/foo`. A
-/// selector in pnpm's own `parent>child` syntax is kept.
+/// valid selector in pnpm's own `parent>child` syntax is kept.
 fn to_override_selector(yarn_selector: &str) -> Option<String> {
-    if yarn_selector.contains('>') {
-        return Some(yarn_selector.to_owned());
+    if let Some((parent, child)) = yarn_selector.split_once('>') {
+        let names_one_package =
+            |side: &str| split_packages(side.trim()).is_some_and(|packages| packages.len() == 1);
+        return (names_one_package(parent) && names_one_package(child)).then(|| {
+            yarn_selector.to_owned()
+        });
     }
     let mut path = yarn_selector.trim();
     while let Some(rest) = path.strip_prefix("**/") {
         path = rest;
     }
-    let mut packages: Vec<String> = Vec::new();
-    let mut segments = path.split('/');
-    while let Some(segment) = segments.next() {
-        let package = match segment.strip_prefix('@') {
-            Some(_) => format!("{segment}/{}", segments.next()?),
-            None => segment.to_owned(),
-        };
-        if package.is_empty() || package == "**" {
-            return None;
-        }
-        packages.push(package);
-    }
-    match packages.as_slice() {
+    match split_packages(path)?.as_slice() {
         [name] => Some(name.clone()),
         [parent, name] => Some(format!("{parent}>{name}")),
         _ => None,
     }
 }
 
+/// Split `a/@scope/b` into `a` and `@scope/b`. `None` for a `**`, an empty
+/// name, or more than the two packages an override can name.
+fn split_packages(path: &str) -> Option<Vec<String>> {
+    // Two scoped packages take four segments, so a fifth means too many.
+    let segments: Vec<&str> = path.splitn(6, '/').collect();
+    let mut packages = Vec::new();
+    let mut index = 0;
+    while index < segments.len() {
+        let segment = segments[index];
+        index += 1;
+        let (scope, name) = if segment.starts_with('@') {
+            index += 1;
+            (Some(segment), *segments.get(index - 1)?)
+        } else {
+            (None, segment)
+        };
+        if name.is_empty() || name == "**" || packages.len() == 2 {
+            return None;
+        }
+        packages.push(scope.map_or_else(|| name.to_owned(), |scope| format!("{scope}/{name}")));
+    }
+    Some(packages)
+}
+
 const MAX_DISPLAYED_ENTRIES: usize = 10;
 
 fn format_migration_warning(entries: &[String], skipped: &[String]) -> String {
-    let mut displayed: Vec<String> = entries
-        .iter()
-        .take(MAX_DISPLAYED_ENTRIES)
-        .cloned()
-        .collect();
-    if entries.len() > MAX_DISPLAYED_ENTRIES {
-        displayed.push(format!("  ...and {} more", entries.len() - MAX_DISPLAYED_ENTRIES));
-    }
     let skipped_note = if skipped.is_empty() {
         String::new()
     } else {
         format!(
             "\nThese resolutions have no pnpm override equivalent and were skipped: {}",
-            skipped.join(", "),
+            limit_displayed(skipped).join(", "),
         )
     };
     format!(
         r#"The "resolutions" field in package.json is deprecated. We attempted to migrate your resolutions to pnpm overrides. Please verify:
 {}{skipped_note}
 Use the "overrides" field in pnpm-workspace.yaml instead."#,
-        displayed.join("\n"),
+        limit_displayed(entries).join("\n"),
     )
+}
+
+fn limit_displayed(items: &[String]) -> Vec<String> {
+    let mut displayed: Vec<String> = items
+        .iter()
+        .take(MAX_DISPLAYED_ENTRIES)
+        .cloned()
+        .collect();
+    if items.len() > MAX_DISPLAYED_ENTRIES {
+        displayed.push(format!("  ...and {} more", items.len() - MAX_DISPLAYED_ENTRIES));
+    }
+    displayed
 }
 
 fn resolve_version_reference(
@@ -219,9 +239,14 @@ fn json_value_type_name(value: &serde_json::Value) -> String {
 }
 
 /// Make manifest text safe to print on one line: strip control and
-/// formatting characters, then inline URL credentials.
+/// formatting characters, then inline URL credentials, including those of a
+/// protocol-relative `//user:pass@host` value.
 fn sanitize_for_log(text: &str) -> String {
-    redact_url_credentials(&sanitize_inline(text))
+    let inline = sanitize_inline(text);
+    match inline.strip_prefix("//") {
+        Some(_) => redact_url_credentials(&format!("x:{inline}"))[2..].to_owned(),
+        None => redact_url_credentials(&inline),
+    }
 }
 
 #[cfg(test)]

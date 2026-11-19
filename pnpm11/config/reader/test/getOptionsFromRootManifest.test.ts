@@ -1132,6 +1132,10 @@ test('applyRootResolutions() converts Yarn selectors and skips the ones pnpm can
       'a/**/deep': '6.0.0',
       'a/b/c': '7.0.0',
       'foo>@scope/bar': '8.0.0',
+      '@scope/': '9.0.0',
+      'a/**': '10.0.0',
+      'foo>': '11.0.0',
+      'a/b>c': '12.0.0',
     },
   }, undefined, warnings)).toStrictEqual({
     foo: '1.0.0',
@@ -1141,7 +1145,7 @@ test('applyRootResolutions() converts Yarn selectors and skips the ones pnpm can
     '@esbuild/*': '5.0.0',
     'foo>@scope/bar': '8.0.0',
   })
-  expect(warnings[0]).toContain('These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c')
+  expect(warnings[0]).toContain('These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c, @scope/, a/**, foo>, a/b>c')
 })
 
 test('applyRootResolutions() strips formatting characters from the warning', () => {
@@ -1149,3 +1153,23 @@ test('applyRootResolutions() strips formatting characters from the warning', () 
   applyRootResolutions({ resolutions: { 'f‮oo': '1.0.0​' } }, undefined, warnings)
   expect(warnings[0]).toContain('  foo: 1.0.0\n')
 })
+
+test('applyRootResolutions() lists at most 10 skipped selectors in the warning', () => {
+  const warnings: string[] = []
+  const resolutions = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`a/b/c${i}`, '1.0.0']))
+  applyRootResolutions({ resolutions }, undefined, warnings)
+  expect(warnings[0]).toContain('a/b/c9,   ...and 2 more')
+  expect(warnings[0]).not.toContain('a/b/c10')
+})
+
+test('applyRootResolutions() redacts protocol-relative credentials in the warning', () => {
+  const warnings: string[] = []
+  applyRootResolutions({ resolutions: { foo: '//user:secret@example.com/foo.tgz' } }, undefined, warnings)
+  expect(warnings[0]).toContain('  foo: //example.com/foo.tgz\n')
+})
+
+test('applyRootResolutions() skips a long slash-separated selector', () => {
+  const warnings: string[] = []
+  expect(applyRootResolutions({ resolutions: { [Array(10000).fill('a').join('/')]: '1.0.0' } }, undefined, warnings)).toBeUndefined()
+})
+

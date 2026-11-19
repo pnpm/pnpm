@@ -318,6 +318,10 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
             "a/**/deep": "6.0.0",
             "a/b/c": "7.0.0",
             "foo>@scope/bar": "8.0.0",
+            "@scope/": "9.0.0",
+            "a/**": "10.0.0",
+            "foo>": "11.0.0",
+            "a/b>c": "12.0.0",
         },
     }));
     let mut config = Config::new();
@@ -336,7 +340,7 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
     assert_eq!(config.overrides.unwrap(), expected);
     assert!(
         warnings[0].contains(
-            "These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c"
+            "These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c, @scope/, a/**, foo>, a/b>c"
         ),
         "{}",
         warnings[0],
@@ -350,4 +354,25 @@ fn test_apply_resolutions_to_config_strips_formatting_characters() {
     let mut config = Config::new();
     let warnings = apply(&mut config, &manifest).unwrap();
     assert!(warnings[0].contains("  foo: 1.0.0\n"), "{}", warnings[0]);
+}
+
+#[test]
+fn test_apply_resolutions_to_config_limits_skipped_selectors() {
+    let resolutions: serde_json::Map<String, serde_json::Value> = (0..12)
+        .map(|index| (format!("a/b/c{index}"), json!("1.0.0")))
+        .collect();
+    let (_dir, manifest) = make_manifest(&json!({ "resolutions": resolutions }));
+    let mut config = Config::new();
+    let warnings = apply(&mut config, &manifest).unwrap();
+    assert!(warnings[0].contains("a/b/c9,   ...and 2 more"), "{}", warnings[0]);
+    assert!(!warnings[0].contains("a/b/c10"), "{}", warnings[0]);
+}
+
+#[test]
+fn test_apply_resolutions_to_config_redacts_protocol_relative_credentials() {
+    let (_dir, manifest) =
+        make_manifest(&json!({ "resolutions": { "foo": "//user:secret@example.com/foo.tgz" } }));
+    let mut config = Config::new();
+    let warnings = apply(&mut config, &manifest).unwrap();
+    assert!(warnings[0].contains("  foo: //example.com/foo.tgz\n"), "{}", warnings[0]);
 }
