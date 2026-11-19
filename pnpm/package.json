@@ -208,7 +208,7 @@
       "isexe@3": "3.1.1",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
       "js-yaml@<3.15.2": "^3.15.2",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.11",
+      "js-yaml@^4.0.0": "^4.3.2",
       "json5@<2.2.2": "^2.2.3",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "jws@<3.2.3": "^3.2.3",

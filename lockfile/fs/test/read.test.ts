@@ -1,3 +1,4 @@
+import { writeFile } from 'fs/promises'
 import path from 'path'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import {
@@ -47,6 +48,29 @@ test('readWantedLockfile()', async () => {
   } catch (err: any) { // eslint-disable-line
     expect(err.code).toEqual('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
   }
+})
+
+test('readWantedLockfile() reads dependency entries with YAML merge keys', async () => {
+  const projectPath = tempy.directory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), `
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo: &dependency
+        specifier: ^1.0.0
+        version: 1.0.0
+      bar:
+        <<: *dependency
+        version: 1.1.0
+`)
+
+  const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+
+  expect(lockfile?.importers['.' as ProjectId]).toMatchObject({
+    specifiers: { foo: '^1.0.0', bar: '^1.0.0' },
+    dependencies: { foo: '1.0.0', bar: '1.1.0' },
+  })
 })
 
 test('readWantedLockfile() when lockfileVersion is a string', async () => {

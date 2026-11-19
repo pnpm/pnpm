@@ -61,10 +61,6 @@ auditConfig:
     - GHSA-mh29-5h37-fv8m
     - GHSA-w5hq-g745-h8pq
     - GHSA-xxjr-mmjv-4gpg
-    # js-yaml merge-key DoS. Only patched in >=4.2.0, but the sole path is the
-    # dev-only @changesets/cli > @manypkg/get-packages > read-yaml-file@1 > js-yaml@3,
-    # which relies on the safeLoad API removed in js-yaml 4.
-    - GHSA-h67p-54hq-rp68
     # http-proxy-middleware. Only patched in >=3.0.6, but the sole path is the
     # dev-only https-proxy-server-express > http-proxy-middleware@2, and v3 is a
     # breaking change incompatible with that test helper.
@@ -241,7 +237,7 @@ catalog:
   isexe: 2.0.0
   jest: ^29.7.0
   jest-diff: ^29.7.0
-  js-yaml: npm:@zkochan/js-yaml@0.0.11
+  js-yaml: ^4.3.2
   json5: ^2.2.3
   keyv: 4.5.4
   lcov-result-merger: ^3.3.0
