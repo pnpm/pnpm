@@ -52,6 +52,16 @@ fn new_version_strips_a_leading_v() {
     assert_eq!(new_version.as_deref(), Some("1.2.3"));
 }
 
+/// Build metadata may keep leading zeros, which `Version` drops when it
+/// prints them.
+#[test]
+fn new_version_keeps_build_metadata_as_given() {
+    let new_version = args_with_new_version("1.2.3+01")
+        .new_version()
+        .expect("build metadata with a leading zero is valid");
+    assert_eq!(new_version.as_deref(), Some("1.2.3+01"));
+}
+
 /// `Version::parse` would publish `1.2.3foo` as `1.2.3-foo` and `01.2.3` as
 /// `1.2.3`.
 #[test]
@@ -174,7 +184,21 @@ fn bump_workspace(
     dir: &std::path::Path,
     new_version: &str,
 ) -> (Vec<pnpm_workspace::Project>, HashSet<String>) {
-    let config = Config::default();
+    bump_filtered_workspace(dir, &[], new_version)
+}
+
+fn bump_filtered_workspace(
+    dir: &std::path::Path,
+    filter: &[&str],
+    new_version: &str,
+) -> (Vec<pnpm_workspace::Project>, HashSet<String>) {
+    let config = Config {
+        filter: filter
+            .iter()
+            .map(|selector| (*selector).to_owned())
+            .collect(),
+        ..Config::default()
+    };
     let (mut projects, _) =
         discover_workspace_projects(dir, &config).expect("discover the workspace");
     let selected = select_recursive_projects(&projects, &config, dir, AutoExcludeRoot::Disabled)
@@ -216,19 +240,35 @@ fn set_projects_version_bumps_every_selected_package() {
     }
 }
 
-#[test]
-fn set_projects_version_leaves_out_a_shared_name() {
-    let dir = tempfile::tempdir().expect("a workspace dir");
+fn write_shared_name_workspace(dir: &std::path::Path) {
     write_workspace(
-        dir.path(),
+        dir,
         &[
             ("one", json!({ "name": "dup", "version": "1.0.0" })),
             ("two", json!({ "name": "dup", "version": "1.0.0" })),
             ("other", json!({ "name": "other", "version": "1.0.0" })),
         ],
     );
+}
+
+#[test]
+fn set_projects_version_leaves_out_a_partly_bumped_shared_name() {
+    let dir = tempfile::tempdir().expect("a workspace dir");
+    write_shared_name_workspace(dir.path());
+
+    let (_, bumped) = bump_filtered_workspace(dir.path(), &["./packages/one", "other"], "2.0.0");
+
+    assert_eq!(bumped, HashSet::from(["other".to_string()]));
+}
+
+/// Every project named `dup` carries the new version, so the name-keyed
+/// lookup cannot pick a stale one.
+#[test]
+fn set_projects_version_keeps_a_shared_name_bumped_everywhere() {
+    let dir = tempfile::tempdir().expect("a workspace dir");
+    write_shared_name_workspace(dir.path());
 
     let (_, bumped) = bump_workspace(dir.path(), "2.0.0");
 
-    assert_eq!(bumped, HashSet::from(["other".to_string()]));
+    assert_eq!(bumped, HashSet::from(["dup".to_string(), "other".to_string()]));
 }

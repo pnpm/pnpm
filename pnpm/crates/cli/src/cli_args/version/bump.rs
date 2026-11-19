@@ -22,7 +22,7 @@ pub(super) enum ReleaseType {
 /// Parse the version argument: a valid semver version wins, then the
 /// release-type keywords.
 pub(super) fn parse_bump(raw: &str) -> Result<Bump, VersionError> {
-    if let Some(version) = parse_exact_version(raw) {
+    if let Some((_, version)) = parse_exact_version(raw) {
         return Ok(Bump::Explicit(version));
     }
     let release = match raw {
@@ -39,15 +39,20 @@ pub(super) fn parse_bump(raw: &str) -> Result<Bump, VersionError> {
 }
 
 /// Parse `raw` as node-semver's strict `semver.valid` does: surrounding
-/// whitespace and one leading `v` are dropped, and the rest must already be
-/// in normal form. [`Version::parse`] alone also accepts loose input such as
-/// `1.2.3foo` or `01.2.3` and normalizes it into a different version.
-pub(crate) fn parse_exact_version(raw: &str) -> Option<Version> {
+/// whitespace and one leading `v` are dropped, and the version before any
+/// `+build` must already be in normal form. [`Version::parse`] alone also
+/// accepts loose input such as `1.2.3foo` or `01.2.3` and normalizes it into
+/// a different version. Build metadata is exempt because its numeric
+/// identifiers may keep leading zeros, which [`Version`] drops when it
+/// prints them. Returns the version text as given, without the `v`, and the
+/// parsed version.
+pub(crate) fn parse_exact_version(raw: &str) -> Option<(&str, Version)> {
     let trimmed = raw.trim();
-    let normal = trimmed.strip_prefix('v').unwrap_or(trimmed);
-    Version::parse(normal)
-        .ok()
-        .filter(|version| version.to_string() == normal)
+    let text = trimmed.strip_prefix('v').unwrap_or(trimmed);
+    let core = text.split_once('+').map_or(text, |(core, _build)| core);
+    let version = Version::parse(text).ok()?;
+    let printed_core = Version { build: Vec::new(), ..version.clone() }.to_string();
+    (printed_core == core).then_some((text, version))
 }
 
 /// Increment `version` by `release`, following node-semver's `inc()` with its

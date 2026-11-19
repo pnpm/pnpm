@@ -18,11 +18,7 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_publish::is_tarball_path;
 use pnpm_workspace::Project;
 use serde_json::Value;
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-    sync::Arc,
-};
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 enum NewVersionError {
@@ -57,7 +53,7 @@ impl PublishArgs {
     pub(super) fn new_version(&self) -> miette::Result<Option<String>> {
         let Some(raw) = &self.flags.manifest.new_version else { return Ok(None) };
         parse_exact_version(raw)
-            .map(|version| Some(version.to_string()))
+            .map(|(text, _)| Some(text.to_owned()))
             .ok_or_else(|| NewVersionError::InvalidVersion { raw: raw.to_owned() }.into())
     }
 
@@ -110,29 +106,24 @@ impl PublishArgs {
 
 /// Write `new_version` into every selected project, on disk and in
 /// `projects`, as `pnpm version -r` does. A name that several workspace
-/// projects share is left out of the result: the workspace lookup is keyed
-/// by name and cannot tell which of them was bumped.
+/// projects share is left out of the result unless all of them were bumped:
+/// the workspace lookup is keyed by name and cannot tell the bumped one from
+/// the others.
 pub(super) fn set_projects_version(
     projects: &mut [Project],
     selected: &SelectedProjectDirs,
     new_version: &str,
 ) -> miette::Result<BumpedPackages> {
-    let mut name_counts = HashMap::<String, usize>::new();
-    for project in projects.iter() {
-        if let Some(name) = package_name(&project.manifest) {
-            *name_counts.entry(name).or_default() += 1;
-        }
-    }
+    let mut unbumped = HashSet::new();
     let mut bumped = HashSet::new();
-    for project in projects
-        .iter_mut()
-        .filter(|project| selected.contains(&project.root_dir))
-    {
-        if let Some(name) = write_package_version(&mut project.manifest, new_version)? {
+    for project in projects.iter_mut() {
+        if !selected.contains(&project.root_dir) {
+            unbumped.extend(package_name(&project.manifest));
+        } else if let Some(name) = write_package_version(&mut project.manifest, new_version)? {
             bumped.insert(name);
         }
     }
-    bumped.retain(|name| name_counts.get(name) == Some(&1));
+    bumped.retain(|name| !unbumped.contains(name));
     Ok(Arc::new(bumped))
 }
 

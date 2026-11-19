@@ -65,6 +65,11 @@ fn parse_bump_strips_a_leading_v() {
     assert_eq!(explicit.to_string(), "1.2.3");
 }
 
+#[test]
+fn parse_bump_accepts_build_metadata_with_a_leading_zero() {
+    assert!(matches!(parse_bump("1.2.3+01"), Ok(Bump::Explicit(_))));
+}
+
 /// `semver.valid` is strict: loose input that `Version::parse` would
 /// normalize into another version is not a version argument.
 #[test]

@@ -17,6 +17,7 @@ use std::{
 /// so a selector that matched a project before the change keeps it.
 pub struct SelectedProjectDirs {
     selected: Vec<PathBuf>,
+    selected_set: HashSet<PathBuf>,
     prod_only_selected: HashSet<PathBuf>,
     narrowed: bool,
 }
@@ -25,6 +26,7 @@ impl RecursiveSelection<'_> {
     pub fn selected_dirs(&self) -> SelectedProjectDirs {
         SelectedProjectDirs {
             selected: self.selected.keys().cloned().collect(),
+            selected_set: self.selected.keys().cloned().collect(),
             prod_only_selected: self.prod_only_selected.clone(),
             narrowed: self.all.is_some(),
         }
@@ -33,9 +35,7 @@ impl RecursiveSelection<'_> {
 
 impl SelectedProjectDirs {
     pub fn contains(&self, dir: &Path) -> bool {
-        self.selected
-            .iter()
-            .any(|selected| selected == dir)
+        self.selected_set.contains(dir)
     }
 
     /// The selection over `projects`, with its graph edges taken from their
