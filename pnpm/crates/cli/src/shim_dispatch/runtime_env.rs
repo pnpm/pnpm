@@ -252,11 +252,9 @@ fn installed_global_runtime_bin(config: &Config, name: &str, version: &str) -> O
         return None;
     }
     let global_dir = config.global_pkg_dir.as_deref()?;
-    let groups = pnpm_global::scan_global_packages(global_dir).ok()?;
-    for group in groups
-        .into_iter()
-        .filter(|group| group.has_alias(name))
-    {
+    let mut groups = pnpm_global::scan_global_packages(global_dir).ok()?;
+    groups.sort_unstable_by(|left, right| left.hash.cmp(&right.hash));
+    for group in groups.into_iter().filter(|group| group.has_alias(name)) {
         if let Some(bin) = global_group_runtime_bin(
             &group,
             name,
