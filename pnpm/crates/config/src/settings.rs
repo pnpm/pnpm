@@ -1,4 +1,5 @@
 pub use filters::ordered_filter_entries;
+pub use hoist_patterns::HoistPatterns;
 
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
@@ -20,14 +21,6 @@ use super::{
     npmrc_auth, side_effects_cache_remote_env, source_date_epoch, workspace_yaml,
 };
 use crate::MacosBackupConfig;
-
-/// The two hoist patterns as one value, for
-/// [`Config::hoist_patterns_before_virtual_store_only`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HoistPatterns {
-    pub hoist_pattern: Option<Vec<String>>,
-    pub public_hoist_pattern: Option<Vec<String>>,
-}
 
 /// Resolved runtime config built from defaults, the auth subset of
 /// `.npmrc`, and `pnpm-workspace.yaml` (see [`Config::current`]).
@@ -247,7 +240,6 @@ pub struct Config {
     /// `preserveBinName`: on Unix, keep the shell shim in `node_modules/.bin`
     /// and execute a sibling alias symlink so Node sees the invoked command
     /// name in `process.argv[1]`.
-    #[default = false]
     pub preserve_bin_name: bool,
 
     /// By default, pnpm creates a semistrict `node_modules`, meaning dependencies have access to
@@ -1947,5 +1939,6 @@ impl Config {
 
 mod cache;
 mod filters;
+mod hoist_patterns;
 mod patches;
 mod tools;

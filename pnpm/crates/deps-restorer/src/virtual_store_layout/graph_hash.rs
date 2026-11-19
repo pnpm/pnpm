@@ -126,10 +126,8 @@ pub(super) struct GvsHasher<'h> {
     /// directory snapshot does, and so does a dependent, whose slot links
     /// to it.
     uncached_builds: HashSet<String>,
-    /// See [`BuildGating::runs_builds`].
-    runs_builds: bool,
+    contents: SlotContents<'h>,
     engine: Option<&'h str>,
-    preserve_bin_name: bool,
     packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
 }
 /// Which snapshots an install builds, for the slot hash.
@@ -142,18 +140,39 @@ pub struct BuildGating<'p> {
     pub runs_builds: bool,
 }
 
+/// The settings that change what an install writes into a slot, so each
+/// one is part of the slot hash.
+#[derive(Clone, Copy)]
+pub struct SlotContents<'p> {
+    pub gating: BuildGating<'p>,
+    /// `preserveBinName` adds a `.bin-symlinks` directory beside each bin
+    /// directory the slot links.
+    pub preserve_bin_name: bool,
+}
+
+impl<'p> SlotContents<'p> {
+    pub(crate) fn from_config(
+        config: &pnpm_config::Config,
+        allow_build_policy: Option<&'p AllowBuildPolicy>,
+    ) -> Self {
+        SlotContents {
+            gating: BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
+            preserve_bin_name: cfg!(unix) && config.preserve_bin_name,
+        }
+    }
+}
+
 impl<'h> GvsHasher<'h> {
     pub(super) fn new(
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
         packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
         engine: Option<&'h str>,
-        gating: BuildGating<'_>,
+        contents: SlotContents<'h>,
         lockfile_dir: Option<&'h Path>,
         platform: &PlatformSelector,
-        preserve_bin_name: bool,
     ) -> Self {
         let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir, platform);
-        let allow_build_policy = gating.policy;
+        let allow_build_policy = contents.gating.policy;
         let build_required_dep_paths =
             allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
         let uncached_builds = allow_build_policy
@@ -165,9 +184,8 @@ impl<'h> GvsHasher<'h> {
             cache: HashMap::new(),
             project_scope: lockfile_dir.map(|dir| dir.to_string_lossy()),
             uncached_builds,
-            runs_builds: gating.runs_builds,
+            contents,
             engine,
-            preserve_bin_name,
             packages,
         }
     }
@@ -216,10 +234,10 @@ impl<'h> GvsHasher<'h> {
             }
             None => hasher.update([0_u8]),
         }
-        hasher.update([u8::from(self.preserve_bin_name)]);
+        hasher.update([u8::from(self.contents.preserve_bin_name)]);
         write_field(&mut hasher, self.project_scope.as_deref().unwrap_or(""));
         self.write_gating_set(&mut hasher);
-        hasher.update([u8::from(self.runs_builds)]);
+        hasher.update([u8::from(self.contents.gating.runs_builds)]);
         write_sorted(&mut hasher, &self.uncached_builds);
         self.write_graph(&mut hasher);
         self.write_snapshot_extras(&mut hasher, snapshots);
@@ -300,10 +318,10 @@ impl<'h> GvsHasher<'h> {
             own_engine.as_deref().or(self.engine),
             pnpm_graph_hasher::BuildRequired {
                 dep_paths: self.build_required_dep_paths.as_ref(),
-                builds_run: self.runs_builds,
+                builds_run: self.contents.gating.runs_builds,
             },
             project_scope,
-            self.preserve_bin_name.then_some("preserve-bin-name"),
+            self.contents.preserve_bin_name.then_some("preserve-bin-name"),
         );
         format_global_virtual_store_path(
             &metadata_key.name.to_string(),

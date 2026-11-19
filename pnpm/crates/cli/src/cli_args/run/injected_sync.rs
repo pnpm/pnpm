@@ -83,11 +83,16 @@ fn injected_sync_opts<'a>(
         // Read before the script ran, so a bin it drops can still be named.
         manifest_before_scripts: Some(ctx.manifest.value()),
         project_modules_dirs,
-        bin_links: BinLinkSettings {
-            modules_dir_name: ctx.config.modules_dir_name(),
-            extend_node_path: ctx.config.extend_node_path,
-            ignored_directories: ctx.config.managed_directories(),
-            link_options: pnpm_deps_restorer::shim_link_options(ctx.config, ctx.config.node_linker),
-        },
+        bin_links: bin_link_settings(ctx.config),
+    }
+}
+
+/// How a sync after a script relinks bins: the way the install linked them.
+pub(crate) fn bin_link_settings(config: &Config) -> BinLinkSettings<'_> {
+    BinLinkSettings {
+        modules_dir_name: config.modules_dir_name(),
+        extend_node_path: config.extend_node_path,
+        ignored_directories: config.managed_directories(),
+        link_options: pnpm_deps_restorer::shim_link_options(config, config.node_linker),
     }
 }

@@ -32,10 +32,12 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
             snapshots,
             Some(packages),
             engine,
-            super::super::BuildGating { policy, runs_builds: true },
+            crate::SlotContents {
+                gating: crate::BuildGating { policy, runs_builds: true },
+                preserve_bin_name: false,
+            },
             dir,
             &crate::host_platform_selector(),
-            false,
         )
         .fingerprint(snapshots)
     };
@@ -45,10 +47,12 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
         &snapshots,
         Some(&packages),
         Some("linux;x64;22"),
-        super::super::BuildGating { policy: Some(&policy), runs_builds: true },
+        crate::SlotContents {
+            gating: crate::BuildGating { policy: Some(&policy), runs_builds: true },
+            preserve_bin_name: true,
+        },
         Some(&dir),
         &crate::host_platform_selector(),
-        true,
     )
     .fingerprint(&snapshots);
 

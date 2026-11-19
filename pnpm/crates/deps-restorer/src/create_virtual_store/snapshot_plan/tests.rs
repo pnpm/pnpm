@@ -152,16 +152,19 @@ impl PlanFixture {
         let snapshot_key: PackageKey = "foo@1.0.0".parse().expect("parse snapshot key");
         let snapshots = HashMap::from([(snapshot_key.clone(), SnapshotEntry::default())]);
         let packages = HashMap::from([(snapshot_key, metadata)]);
-        let layout = VirtualStoreLayout::global(
-            store_root.join("links"),
-            120,
-            None,
-            Some(&snapshots),
-            Some(&packages),
-            crate::BuildGating { policy: None, runs_builds: true },
-            None,
-            &crate::host_platform_selector(),
-        );
+        let layout = VirtualStoreLayout::global(crate::GlobalLayoutOptions {
+            package_store_dir: store_root.join("links"),
+            virtual_store_dir_max_length: 120,
+            engine: None,
+            snapshots: Some(&snapshots),
+            packages: Some(&packages),
+            contents: crate::SlotContents {
+                gating: crate::BuildGating { policy: None, runs_builds: true },
+                preserve_bin_name: false,
+            },
+            lockfile_dir: None,
+            platform: &crate::host_platform_selector(),
+        });
         PlanFixture { snapshots, packages, layout }
     }
 
@@ -311,16 +314,19 @@ fn gvs_slot_missing_a_regular_child_link_survives() {
         (parent_key.clone(), registry_metadata()),
         (child_key.clone(), registry_metadata()),
     ]);
-    let layout = VirtualStoreLayout::global(
-        temp_dir.path().join("links"),
-        120,
-        None,
-        Some(&snapshots),
-        Some(&packages),
-        crate::BuildGating { policy: None, runs_builds: true },
-        None,
-        &crate::host_platform_selector(),
-    );
+    let layout = VirtualStoreLayout::global(crate::GlobalLayoutOptions {
+        package_store_dir: temp_dir.path().join("links"),
+        virtual_store_dir_max_length: 120,
+        engine: None,
+        snapshots: Some(&snapshots),
+        packages: Some(&packages),
+        contents: crate::SlotContents {
+            gating: crate::BuildGating { policy: None, runs_builds: true },
+            preserve_bin_name: false,
+        },
+        lockfile_dir: None,
+        platform: &crate::host_platform_selector(),
+    });
     let fixture = PlanFixture { snapshots, packages, layout };
     let parent_dir = fixture.layout
         .slot_dir(&parent_key)

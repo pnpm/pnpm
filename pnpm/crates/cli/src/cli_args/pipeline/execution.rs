@@ -1,10 +1,10 @@
 use super::{
-    BinLinkSettings, CacheDisposition, Config, CopyFiles, ExecutionStatus, GraphPkg, HashMap,
-    Instant, IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog,
-    ProjectGraph, RunContext, RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskCachePlan,
-    TaskNode, Value, cache_tiers::CacheTiers, capture, cargo_cache, env,
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
-    pnp_path_for_execution, run_stages, sync_injected_deps,
+    CacheDisposition, Config, CopyFiles, ExecutionStatus, GraphPkg, HashMap, Instant,
+    IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph,
+    RunContext, RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskCachePlan, TaskNode, Value,
+    cache_tiers::CacheTiers, capture, cargo_cache, env, make_node_package_map_option,
+    make_node_require_option, package_map_path_for_execution, pnp_path_for_execution, run_stages,
+    sync_injected_deps,
 };
 use crate::cli_args::{reporter::script_output_colors, run::project_modules_dirs};
 
@@ -385,12 +385,7 @@ fn sync_injected_deps_if_configured(
         files: CopyFiles::from_deploy_all_files(config.deploy_all_files),
         manifest_before_scripts: Some(manifest),
         project_modules_dirs: &project_modules_dirs,
-        bin_links: BinLinkSettings {
-            modules_dir_name: config.modules_dir_name(),
-            extend_node_path: config.extend_node_path,
-            ignored_directories: config.managed_directories(),
-            link_options: pnpm_deps_restorer::shim_link_options(config, config.node_linker),
-        },
+        bin_links: crate::cli_args::run::bin_link_settings(config),
     })?;
     Ok(())
 }

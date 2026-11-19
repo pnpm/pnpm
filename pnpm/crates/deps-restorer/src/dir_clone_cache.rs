@@ -43,7 +43,7 @@
 //! `ENOTSUP`, ...) disable the cache for the rest of the process.
 
 use crate::{
-    AllowBuildPolicy, GlobalLayoutOptions, VirtualStoreLayout,
+    AllowBuildPolicy, GlobalLayoutOptions, SlotContents, VirtualStoreLayout,
     import_indexed_dir::{ImportIndexedDirOpts, marker_present},
     safe_join_modules_dir::safe_join_modules_dir,
 };
@@ -146,13 +146,9 @@ impl<'install> DirCloneCache<'install> {
                 cache_dir,
                 virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
                 engine,
-                preserve_bin_name: cfg!(unix) && config.preserve_bin_name,
                 snapshots,
                 packages,
-                gating: crate::BuildGating {
-                    policy: allow_build_policy,
-                    runs_builds: !config.ignore_scripts,
-                },
+                contents: SlotContents::from_config(config, allow_build_policy),
                 lockfile_dir,
                 platform: crate::virtual_store_layout::selected_platform(config),
             },
@@ -365,10 +361,9 @@ struct CanonicalLayoutInputs<'install> {
     cache_dir: PathBuf,
     virtual_store_dir_max_length: usize,
     engine: EngineNameSource,
-    preserve_bin_name: bool,
     snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
-    gating: crate::BuildGating<'install>,
+    contents: SlotContents<'install>,
     lockfile_dir: Option<&'install Path>,
     platform: PlatformSelector,
 }
@@ -379,16 +374,15 @@ impl CanonicalLayoutInputs<'_> {
             EngineNameSource::Ready(name) => name.clone(),
             EngineNameSource::Pending(slot) => slot.wait().clone(),
         };
-        VirtualStoreLayout::global_with_options(GlobalLayoutOptions {
+        VirtualStoreLayout::global(GlobalLayoutOptions {
             package_store_dir: self.cache_dir.clone(),
             virtual_store_dir_max_length: self.virtual_store_dir_max_length,
             engine: engine.as_deref(),
             snapshots: self.snapshots,
             packages: self.packages,
-            gating: self.gating,
+            contents: self.contents,
             lockfile_dir: self.lockfile_dir,
             platform: &self.platform,
-            preserve_bin_name: self.preserve_bin_name,
         })
     }
 }

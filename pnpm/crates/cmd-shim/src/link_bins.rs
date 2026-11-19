@@ -321,22 +321,7 @@ where
     to_link
         .par_iter()
         .try_for_each(|(command, pkg)| {
-            // On Unix the symlink branch never writes a shim, so no bin
-            // needs a NODE_PATH — skip `shim_node_path`'s per-package
-            // canonicalize entirely.
-            let node_path = if !options.preserve_bin_name
-                && options.prefer_symlinked_executables
-                && cfg!(any(unix, target_os = "wasi"))
-            {
-                Vec::new()
-            } else {
-                shim_node_path(
-                    pkg,
-                    paths.project_node_path.as_deref(),
-                    &paths.extra_node_paths,
-                    options.own_node_paths,
-                )
-            };
+            let node_path = linked_node_path(pkg, &paths, options);
             let alias_path = paths.alias_path(&command.name);
             let pkg_name = package_name(pkg);
             write_shim::<Sys>(
@@ -357,6 +342,28 @@ where
         })?;
 
     Ok(to_link.len() < chosen_count)
+}
+
+/// The `NODE_PATH` entries of a bin's shim. On Unix the symlink branch of
+/// `preferSymlinkedExecutables` never writes a shim, so no bin needs one there,
+/// and `shim_node_path`'s per-package canonicalize is skipped entirely.
+fn linked_node_path(
+    pkg: &PackageBinSource,
+    paths: &linking_paths::LinkingPaths<'_>,
+    options: &LinkBinsOptions,
+) -> Vec<String> {
+    if !options.preserve_bin_name
+        && options.prefer_symlinked_executables
+        && cfg!(any(unix, target_os = "wasi"))
+    {
+        return Vec::new();
+    }
+    shim_node_path(
+        pkg,
+        paths.project_node_path.as_deref(),
+        &paths.extra_node_paths,
+        options.own_node_paths,
+    )
 }
 
 #[cfg(test)]

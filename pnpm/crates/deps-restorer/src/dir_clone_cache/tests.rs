@@ -160,16 +160,19 @@ mod macos {
             .filter(|path| path.ends_with("node_modules/foo/package.json"))
             .count();
         assert_eq!(canonical_manifests, 1, "one canonical slot for the one snapshot");
-        let expected_slot = crate::VirtualStoreLayout::global(
-            cache_root.clone(),
-            Config::default().virtual_store_dir_max_length as usize,
-            Some("node-22"),
-            Some(&snapshots),
-            None,
-            crate::BuildGating { policy: None, runs_builds: true },
-            None,
-            &crate::host_platform_selector(),
-        )
+        let expected_slot = crate::VirtualStoreLayout::global(crate::GlobalLayoutOptions {
+            package_store_dir: cache_root.clone(),
+            virtual_store_dir_max_length: Config::default().virtual_store_dir_max_length as usize,
+            engine: Some("node-22"),
+            snapshots: Some(&snapshots),
+            packages: None,
+            contents: crate::SlotContents {
+                gating: crate::BuildGating { policy: None, runs_builds: true },
+                preserve_bin_name: false,
+            },
+            lockfile_dir: None,
+            platform: &crate::host_platform_selector(),
+        })
         .hashed_slot_dir(&key)
         .expect("hashed slot for the one snapshot");
         assert!(

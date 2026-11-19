@@ -19,7 +19,7 @@
 //! [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
 //! [`pnpm_graph_hasher::format_global_virtual_store_path`]: pnpm_graph_hasher::format_global_virtual_store_path
 
-pub use graph_hash::BuildGating;
+pub use graph_hash::{BuildGating, SlotContents};
 
 mod graph_hash;
 mod staging;
@@ -94,16 +94,16 @@ pub struct VirtualStoreLayout {
     staging_token: String,
 }
 
-pub(crate) struct GlobalLayoutOptions<'a> {
-    pub(crate) package_store_dir: PathBuf,
-    pub(crate) virtual_store_dir_max_length: usize,
-    pub(crate) engine: Option<&'a str>,
-    pub(crate) snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    pub(crate) packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    pub(crate) gating: BuildGating<'a>,
-    pub(crate) lockfile_dir: Option<&'a Path>,
-    pub(crate) platform: &'a PlatformSelector,
-    pub(crate) preserve_bin_name: bool,
+/// The inputs of [`VirtualStoreLayout::global`].
+pub struct GlobalLayoutOptions<'a> {
+    pub package_store_dir: PathBuf,
+    pub virtual_store_dir_max_length: usize,
+    pub engine: Option<&'a str>,
+    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub contents: SlotContents<'a>,
+    pub lockfile_dir: Option<&'a Path>,
+    pub platform: &'a PlatformSelector,
 }
 
 impl VirtualStoreLayout {
@@ -210,16 +210,15 @@ impl VirtualStoreLayout {
                 staging_token: new_staging_token(),
             };
         }
-        Self::global_with_options(GlobalLayoutOptions {
+        Self::global(GlobalLayoutOptions {
             package_store_dir,
             virtual_store_dir_max_length,
             engine,
             snapshots,
             packages,
-            gating: BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
+            contents: SlotContents::from_config(config, allow_build_policy),
             lockfile_dir,
             platform: &selected_platform(config),
-            preserve_bin_name: cfg!(unix) && config.preserve_bin_name,
         })
     }
 
@@ -255,10 +254,9 @@ impl VirtualStoreLayout {
             snapshots,
             packages,
             engine,
-            BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
+            SlotContents::from_config(config, allow_build_policy),
             lockfile_dir,
             &platform,
-            cfg!(unix) && config.preserve_bin_name,
         );
         let fingerprint = hasher.fingerprint(snapshots);
         let cache_file = lockfile_dir.map(|lockfile_dir| gvs_layout_cache::CacheFile {
@@ -305,44 +303,17 @@ impl VirtualStoreLayout {
     ///
     /// `platform` selects the archive of each `variations` resolution,
     /// whose integrity identifies its slot.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "each input changes the slot paths the layout computes"
-    )]
-    pub fn global(
-        package_store_dir: PathBuf,
-        virtual_store_dir_max_length: usize,
-        engine: Option<&str>,
-        snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-        packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-        gating: BuildGating<'_>,
-        lockfile_dir: Option<&Path>,
-        platform: &PlatformSelector,
-    ) -> Self {
-        Self::global_with_options(GlobalLayoutOptions {
-            package_store_dir,
-            virtual_store_dir_max_length,
-            engine,
-            snapshots,
-            packages,
-            gating,
-            lockfile_dir,
-            platform,
-            preserve_bin_name: false,
-        })
-    }
-
-    pub(crate) fn global_with_options(options: GlobalLayoutOptions<'_>) -> Self {
+    #[must_use]
+    pub fn global(options: GlobalLayoutOptions<'_>) -> Self {
         let GlobalLayoutOptions {
             package_store_dir,
             virtual_store_dir_max_length,
             engine,
             snapshots,
             packages,
-            gating,
+            contents,
             lockfile_dir,
             platform,
-            preserve_bin_name,
         } = options;
         let Some(snapshots) = snapshots else {
             return VirtualStoreLayout {
@@ -354,15 +325,8 @@ impl VirtualStoreLayout {
                 staging_token: new_staging_token(),
             };
         };
-        let mut hasher = GvsHasher::new(
-            snapshots,
-            packages,
-            engine,
-            gating,
-            lockfile_dir,
-            platform,
-            preserve_bin_name,
-        );
+        let mut hasher =
+            GvsHasher::new(snapshots, packages, engine, contents, lockfile_dir, platform);
         VirtualStoreLayout {
             engine_name: engine.map(str::to_owned),
             package_store_dir,
