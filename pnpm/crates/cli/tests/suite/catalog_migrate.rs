@@ -182,3 +182,37 @@ No dependencies were moved to the default catalog.",
         "packages:\n  - packages/*\ncatalog:\n  react: ^18.0.0\n",
     );
 }
+
+#[test]
+fn a_pnpmfile_that_leaves_the_catalogs_alone_does_not_block_new_entries() {
+    let CommandTempCwd { pacquet, root: _root, workspace, .. } = CommandTempCwd::init();
+    write(&workspace, "pnpm-workspace.yaml", "packages:\n  - packages/*\n");
+    write(&workspace, "package.json", r#"{ "name": "root", "private": true }"#);
+    write(
+        &workspace,
+        "packages/foo/package.json",
+        r#"{ "name": "foo", "dependencies": { "lodash": "^4.0.0" } }"#,
+    );
+    write(
+        &workspace,
+        ".pnpmfile.cjs",
+        "module.exports = { hooks: { readPackage (pkg) { return pkg } } }",
+    );
+
+    let output = pacquet
+        .with_args(["catalog", "migrate"])
+        .output()
+        .expect("run pacquet");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}");
+    eprintln!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success(), "pacquet catalog migrate failed");
+    assert_eq!(
+        stdout.trim_end(),
+        "Moved 1 dependency to the default catalog. Run `pnpm install` to update the lockfile.",
+    );
+    assert_eq!(
+        read(&workspace, "pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\ncatalog:\n  lodash: ^4.0.0\n",
+    );
+}

@@ -1,4 +1,7 @@
-use crate::cli_args::{catalogs::configured_catalogs, recursive::discover_workspace_projects};
+use crate::cli_args::{
+    catalogs::{configured_catalogs, workspace_manifest_catalogs},
+    recursive::discover_workspace_projects,
+};
 use clap::{Args, Subcommand};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -90,10 +93,12 @@ fn migrate(config: &Config) -> miette::Result<()> {
     let workspace_dir = config.workspace_dir.as_deref().ok_or(CatalogError::NoWorkspace)?;
     let (mut projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
     let catalogs = configured_catalogs(config)?;
-    let source = if config.catalogs.is_some() {
-        CatalogSource::UpdateConfigHook
-    } else {
+    // Loading any pnpmfile fills `config.catalogs`, so only catalogs that
+    // differ from the workspace manifest's show that a hook replaced them.
+    let source = if catalogs == workspace_manifest_catalogs(config)? {
         CatalogSource::WorkspaceManifest
+    } else {
+        CatalogSource::UpdateConfigHook
     };
     let plan =
         plan_migration(&declared_specifiers(&projects), catalogs.get(DEFAULT_CATALOG_NAME), source);
