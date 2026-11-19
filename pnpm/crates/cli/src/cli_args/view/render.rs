@@ -110,7 +110,7 @@ pub(super) fn render_summary(info: &Value, registry: &str) -> String {
     lines.push(String::new());
     lines.push(format!(
         "registry: {}",
-        underline_blue(&pnpm_network::redact_url_credentials(registry)),
+        underline_blue(&pnpm_network::redact_url_for_display(registry)),
     ));
 
     lines.join("\n")

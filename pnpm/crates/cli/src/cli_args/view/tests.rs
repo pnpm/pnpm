@@ -169,13 +169,15 @@ fn render_summary_includes_every_section() {
 }
 
 #[test]
-fn render_summary_redacts_registry_credentials() {
+fn render_summary_redacts_and_sanitizes_registry() {
     let out = render_summary(
         &json!({ "name": "x", "version": "1.0.0" }),
-        "https://user:secret@registry.example/",
+        "https://user:secret@registry.example/\u{1b}[2Knpm/?token=query-secret#fragment-secret",
     );
-    assert!(out.contains("registry: https://registry.example/"), "{out}");
-    assert!(!out.contains("secret"), "registry credentials must not be printed: {out}");
+    assert!(out.ends_with("\nregistry: https://registry.example/[2Knpm/"), "{out:?}");
+    for leaked in ["secret", "token", "fragment", "\u{1b}"] {
+        assert!(!out.contains(leaked), "registry line must not print {leaked:?}: {out:?}");
+    }
 }
 
 #[test]
