@@ -100,7 +100,7 @@ fn load_hierarchies(
         only_projects: false,
         search: None,
         show_deduped_search_matches: false,
-        modules_dir_opt: Some(config.modules_dir.as_path()),
+        unsaved_modules_dir_name: None,
     };
     build_unelided_trees(&state, &env, &graph, project_dirs, &options)
 }

@@ -48,7 +48,7 @@ pub struct BuildTreeOptions<'a> {
     pub only_projects: bool,
     pub search: Option<&'a Searcher>,
     pub show_deduped_search_matches: bool,
-    pub modules_dir_opt: Option<&'a Path>,
+    pub unsaved_modules_dir_name: Option<&'a Path>,
 }
 
 /// The importer root ids of `project_dirs` that exist in the lockfile.
@@ -103,12 +103,6 @@ fn hierarchy_for_project(
         return Ok(DependenciesHierarchy::default());
     };
 
-    let project_modules_dir = match opts.modules_dir_opt {
-        Some(dir) if dir.is_absolute() => dir.to_path_buf(),
-        Some(dir) => project_dir.join(dir),
-        None => project_dir.join("node_modules"),
-    };
-
     let mut hierarchy = DependenciesHierarchy::default();
 
     let get_tree_opts = GetTreeOptions {
@@ -142,12 +136,19 @@ fn hierarchy_for_project(
     // are irrelevant while searching — they are not in the lockfile
     // graph and cannot contain paths to the search target — and they
     // are not workspace projects, which is all `only_projects` lists.
-    if opts.search.is_none() && !opts.only_projects {
+    if opts.search.is_none()
+        && !opts.only_projects
+        && let Some(modules_dir_name) = opts.unsaved_modules_dir_name
+    {
+        let project_modules_dir = if importer_id.as_str() == "." {
+            state.modules_dir.clone()
+        } else {
+            project_dir.join(modules_dir_name)
+        };
         hierarchy.unsaved_dependencies =
             read_unsaved_dependencies(importer, project_dir, &project_modules_dir)?;
     }
 
-    let _ = state;
     Ok(hierarchy)
 }
 

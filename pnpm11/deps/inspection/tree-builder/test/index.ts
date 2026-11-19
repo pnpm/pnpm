@@ -488,6 +488,35 @@ test('unsaved dependencies are listed', async () => {
     })
 })
 
+test.each(['default', 'relative', 'absolute hoisted'] as const)('unsaved dependencies come from each project with %s layout', async (layout) => {
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
+  try {
+    const appDir = path.join(lockfileDir, 'packages/app')
+    const customModulesDir = 'vendor/modules'
+    const modulesDir = layout === 'absolute hoisted' ? path.join(lockfileDir, customModulesDir) : layout === 'relative' ? customModulesDir : undefined
+    const nodeLinker = layout === 'absolute hoisted' ? 'hoisted' : 'isolated'
+    fs.writeFileSync(path.join(lockfileDir, WANTED_LOCKFILE), `lockfileVersion: '9.0'
+importers:
+  .: {}
+  packages/app: {}
+`)
+    const rootModulesDir = path.join(lockfileDir, layout === 'default' ? 'node_modules' : customModulesDir)
+    const appModulesDir = path.join(appDir, layout === 'relative' ? customModulesDir : 'node_modules')
+    for (const [projectModulesDir, name] of [[rootModulesDir, 'root-extra'], [appModulesDir, 'app-extra']]) {
+      const pkgDir = path.join(projectModulesDir, name)
+      fs.mkdirSync(pkgDir, { recursive: true })
+      fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+    }
+
+    const tree = await buildDependenciesTree([lockfileDir, appDir], { depth: 0, lockfileDir, modulesDir, nodeLinker, virtualStoreDirMaxLength })
+
+    expect(tree[lockfileDir].unsavedDependencies?.map(({ alias }) => alias)).toEqual(['root-extra'])
+    expect(tree[appDir].unsavedDependencies?.map(({ alias }) => alias)).toEqual(['app-extra'])
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
+
 test('an unsaved dependency named like an Object.prototype property is listed', async () => {
   const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
   try {
