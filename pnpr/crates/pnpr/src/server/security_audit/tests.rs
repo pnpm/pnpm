@@ -323,6 +323,54 @@ fn legacy_sanitizer_rejects_trailing_spec_tokens_fake_integrity_and_scales_linea
         );
     }
 
+    let mut dependencies = Map::new();
+    let mut nested_private_deps = Map::new();
+    let mut destinations = HashMap::from([
+        ("lodash".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("ms".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("@acme/private-parent".to_string(), PackageDestination::Hosted),
+        (format!("pnpr-redacted-scope-{}", usize::MAX), PackageDestination::Hosted),
+    ]);
+    for reserved_idx in 1..=2_000usize {
+        destinations.insert(
+            format!("pnpr-redacted-scope-{reserved_idx}"),
+            PackageDestination::Hosted,
+        );
+    }
+    for idx in 0..2_000usize {
+        let pkg = format!("public-pkg-{idx}");
+        destinations.insert(pkg.clone(), PackageDestination::Upstream("npmjs".to_string()));
+        dependencies.insert(pkg.clone(), json!({ "version": "1.0.0" }));
+        nested_private_deps.insert(pkg.clone(), json!({ "version": "2.0.0" }));
+        packages.insert(format!("node_modules/{pkg}"), json!({ "version": "1.0.0" }));
+        packages.insert(
+            format!("node_modules/@acme/private-parent/node_modules/{pkg}"),
+            json!({ "version": "2.0.0" }),
+        );
+    }
+    dependencies.insert(
+        "lodash".to_string(),
+        json!({
+            "version": "4.17.21",
+            "integrity": valid_sri,
+            "requires": { "ms": "2.1.3 secret-package" },
+        }),
+    );
+    dependencies.insert(
+        "ms".to_string(),
+        json!({
+            "version": "2.1.3",
+            "integrity": "https://user:secret-token@corp.internal/ms.tgz",
+        }),
+    );
+    dependencies.insert(
+        "@acme/private-parent".to_string(),
+        json!({
+            "version": "1.0.0",
+            "dependencies": nested_private_deps,
+        }),
+    );
+
     let payload: Map<String, Value> = serde_json::from_value(json!({
         "name": "app",
         "lockfileVersion": "secret-lockfile-string",
@@ -330,17 +378,7 @@ fn legacy_sanitizer_rejects_trailing_spec_tokens_fake_integrity_and_scales_linea
             "lodash": "4.17.21 secret-package",
             "ms": "^2.1.3",
         },
-        "dependencies": {
-            "lodash": {
-                "version": "4.17.21",
-                "integrity": valid_sri,
-                "requires": { "ms": "2.1.3 secret-package" },
-            },
-            "ms": {
-                "version": "2.1.3",
-                "integrity": "https://user:secret-token@corp.internal/ms.tgz",
-            },
-        },
+        "dependencies": dependencies,
         "packages": packages,
         "install": [
             "lodash@4.17.21 secret-package",
@@ -348,11 +386,6 @@ fn legacy_sanitizer_rejects_trailing_spec_tokens_fake_integrity_and_scales_linea
         ],
     }))
     .unwrap();
-
-    let destinations = HashMap::from([
-        ("lodash".to_string(), PackageDestination::Upstream("npmjs".to_string())),
-        ("ms".to_string(), PackageDestination::Upstream("npmjs".to_string())),
-    ]);
 
     let sanitized = build_upstream_legacy_payload(&payload, "npmjs", &destinations);
     let serialized = serde_json::to_string(&sanitized).unwrap();
@@ -362,15 +395,23 @@ fn legacy_sanitizer_rejects_trailing_spec_tokens_fake_integrity_and_scales_linea
     assert!(!serialized.contains("corp.internal"));
     assert_eq!(sanitized["dependencies"]["lodash"]["integrity"], valid_sri);
     assert!(sanitized["dependencies"]["ms"].get("integrity").is_none());
+    assert_eq!(
+        sanitized["dependencies"]["pnpr-redacted-scope-2001"]["dependencies"]["public-pkg-0"]["version"],
+        "2.0.0",
+    );
     assert_eq!(sanitized["packages"]["node_modules/lodash"]["integrity"], valid_sri);
     assert!(sanitized["packages"]["node_modules/ms"].get("integrity").is_none());
+    assert_eq!(
+        sanitized["packages"]["node_modules/pnpr-redacted-scope-2001/node_modules/public-pkg-0"]["version"],
+        "2.0.0",
+    );
     assert_eq!(sanitized["install"], json!(["ms@^2.1.3"]));
     assert_eq!(
         sanitized["packages"]
             .as_object()
             .unwrap()
             .len(),
-        3_003,
+        7_003,
     );
 }
 

@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value};
 
 use super::{
-    MAX_DEPENDENCY_DEPTH, REDACTED_SCOPE_PREFIX, SanitizeCtx, copy_bool_fields, copy_sri_integrity,
-    is_safe_semver_version, parse_npm_alias,
+    MAX_DEPENDENCY_DEPTH, REDACTED_SCOPE_PREFIX, SanitizeCtx, ScopeIndexPool,
+    collect_reserved_scope_indices, copy_bool_fields, copy_sri_integrity, is_safe_semver_version,
+    parse_npm_alias,
 };
 
 enum DependencyPlacement {
@@ -105,7 +106,13 @@ impl SanitizeCtx<'_> {
         kept: &mut Map<String, Value>,
         deferred: Vec<(String, Value)>,
     ) {
-        let mut next_idx_by_pkg: HashMap<String, usize> = HashMap::new();
+        if deferred.is_empty() {
+            return;
+        }
+        let mut extra_reserved = HashSet::new();
+        collect_reserved_scope_indices(kept.keys().map(String::as_str), &mut extra_reserved);
+        let mut pool = self.build_scope_pool(extra_reserved);
+        let mut next_ordinal_by_pkg: HashMap<String, usize> = HashMap::new();
         for (child_name, child_val) in deferred {
             if !kept.contains_key(&child_name) {
                 kept.insert(child_name, child_val);
@@ -114,32 +121,8 @@ impl SanitizeCtx<'_> {
             if kept.get(&child_name) == Some(&child_val) {
                 continue;
             }
-            let next_idx = next_idx_by_pkg.entry(child_name.clone()).or_insert(1);
-            self.insert_into_redacted_scope(kept, child_name, child_val, next_idx);
-        }
-    }
-
-    fn insert_into_redacted_scope(
-        &self,
-        kept: &mut Map<String, Value>,
-        child_name: String,
-        child_val: Value,
-        next_idx: &mut usize,
-    ) {
-        loop {
-            let idx = *next_idx;
-            *next_idx += 1;
-            let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
-            if self.destinations.contains_key(&scope_name) {
-                continue;
-            }
-            if !kept.contains_key(&scope_name) {
-                kept.insert(scope_name, build_redacted_scope_node(child_name, child_val));
-                return;
-            }
-            if try_insert_into_existing_scope(kept.get_mut(&scope_name), &child_name, &child_val) {
-                return;
-            }
+            let ordinal = next_ordinal_by_pkg.entry(child_name.clone()).or_insert(0);
+            insert_into_pooled_scope(kept, &mut pool, child_name, child_val, ordinal);
         }
     }
 
@@ -160,6 +143,27 @@ impl SanitizeCtx<'_> {
             clean.insert("dependencies".to_string(), Value::Object(children));
         }
         clean
+    }
+}
+
+fn insert_into_pooled_scope(
+    kept: &mut Map<String, Value>,
+    pool: &mut ScopeIndexPool,
+    child_name: String,
+    child_val: Value,
+    ordinal: &mut usize,
+) {
+    loop {
+        let idx = pool.scope_index_at(*ordinal);
+        *ordinal += 1;
+        let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
+        if !kept.contains_key(&scope_name) {
+            kept.insert(scope_name, build_redacted_scope_node(child_name, child_val));
+            return;
+        }
+        if try_insert_into_existing_scope(kept.get_mut(&scope_name), &child_name, &child_val) {
+            return;
+        }
     }
 }
 

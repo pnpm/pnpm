@@ -1,7 +1,45 @@
+use std::collections::HashSet;
+
 use node_semver::{Range, Version};
 use serde_json::{Map, Value};
 
 pub(super) const REDACTED_SCOPE_PREFIX: &str = "pnpr-redacted-scope-";
+
+pub(super) struct ScopeIndexPool {
+    reserved: HashSet<usize>,
+    free: Vec<usize>,
+    probe: usize,
+}
+
+impl ScopeIndexPool {
+    pub(super) fn new(reserved: HashSet<usize>) -> Self {
+        Self { reserved, free: Vec::new(), probe: 1 }
+    }
+
+    pub(super) fn scope_index_at(&mut self, ordinal: usize) -> usize {
+        while self.free.len() <= ordinal {
+            let candidate = self.probe;
+            self.probe = self.probe.saturating_add(1);
+            if !self.reserved.contains(&candidate) {
+                self.free.push(candidate);
+            }
+        }
+        self.free[ordinal]
+    }
+}
+
+pub(super) fn collect_reserved_scope_indices<'a>(
+    names: impl IntoIterator<Item = &'a str>,
+    reserved: &mut HashSet<usize>,
+) {
+    for name in names {
+        if let Some(digits) = name.strip_prefix(REDACTED_SCOPE_PREFIX)
+            && let Ok(idx) = digits.parse::<usize>()
+        {
+            reserved.insert(idx);
+        }
+    }
+}
 
 const MAX_SEMVER_BYTES: usize = 128;
 const MAX_RANGE_BYTES: usize = 256;

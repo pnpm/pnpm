@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value};
 
 use super::{
-    PACKAGE_SPEC_FIELDS, REDACTED_SCOPE_PREFIX, SanitizeCtx, copy_bool_fields, copy_sri_integrity,
-    entry_bool, is_safe_semver_version, node_modules_segments, parse_npm_alias,
+    PACKAGE_SPEC_FIELDS, REDACTED_SCOPE_PREFIX, SanitizeCtx, ScopeIndexPool,
+    collect_reserved_scope_indices, copy_bool_fields, copy_sri_integrity, entry_bool,
+    is_safe_semver_version, node_modules_segments, parse_npm_alias,
 };
 
 struct ResolvedPackageCoordinate {
@@ -46,7 +47,16 @@ impl SanitizeCtx<'_> {
         kept: &mut Map<String, Value>,
         rewritten: Vec<(String, Value)>,
     ) {
-        let mut next_idx_by_key: HashMap<String, usize> = HashMap::new();
+        if rewritten.is_empty() {
+            return;
+        }
+        let mut extra_reserved = HashSet::new();
+        collect_reserved_scope_indices(
+            kept.keys().flat_map(|key| node_modules_segments(key)),
+            &mut extra_reserved,
+        );
+        let mut pool = self.build_scope_pool(extra_reserved);
+        let mut next_ordinal_by_key: HashMap<String, usize> = HashMap::new();
         for (sanitized_key, entry_val) in rewritten {
             if !kept.contains_key(&sanitized_key) {
                 kept.insert(sanitized_key, entry_val);
@@ -55,26 +65,10 @@ impl SanitizeCtx<'_> {
             if kept.get(&sanitized_key) == Some(&entry_val) {
                 continue;
             }
-            let next_idx = next_idx_by_key.entry(sanitized_key.clone()).or_insert(1);
-            let distinct_key = self.allocate_distinct_package_key(kept, &sanitized_key, next_idx);
+            let ordinal = next_ordinal_by_key.entry(sanitized_key.clone()).or_insert(0);
+            let distinct_key =
+                allocate_pooled_package_key(kept, &mut pool, &sanitized_key, ordinal);
             kept.insert(distinct_key, entry_val);
-        }
-    }
-
-    fn allocate_distinct_package_key(
-        &self,
-        kept: &Map<String, Value>,
-        sanitized_key: &str,
-        next_idx: &mut usize,
-    ) -> String {
-        loop {
-            let idx = *next_idx;
-            *next_idx += 1;
-            let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
-            let candidate = format!("node_modules/{scope_name}/{sanitized_key}");
-            if !self.destinations.contains_key(&scope_name) && !kept.contains_key(&candidate) {
-                return candidate;
-            }
         }
     }
 
@@ -188,5 +182,22 @@ impl SanitizeCtx<'_> {
         );
         self.copy_filtered_spec_fields(entry, &PACKAGE_SPEC_FIELDS, &mut clean);
         clean
+    }
+}
+
+fn allocate_pooled_package_key(
+    kept: &Map<String, Value>,
+    pool: &mut ScopeIndexPool,
+    sanitized_key: &str,
+    ordinal: &mut usize,
+) -> String {
+    loop {
+        let idx = pool.scope_index_at(*ordinal);
+        *ordinal += 1;
+        let scope_name = format!("{REDACTED_SCOPE_PREFIX}{idx}");
+        let candidate = format!("node_modules/{scope_name}/{sanitized_key}");
+        if !kept.contains_key(&candidate) {
+            return candidate;
+        }
     }
 }

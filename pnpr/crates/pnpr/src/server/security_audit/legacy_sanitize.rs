@@ -1,7 +1,7 @@
 mod dependencies;
 mod packages;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value};
 
@@ -9,8 +9,9 @@ use super::{
     PackageDestination,
     legacy_nodes::{MAX_DEPENDENCY_DEPTH, PACKAGE_SPEC_FIELDS},
     legacy_specs::{
-        REDACTED_SCOPE_PREFIX, entry_bool, is_safe_semver_range, is_safe_semver_version,
-        is_safe_sri_integrity, node_modules_segments, parse_name_and_spec, parse_npm_alias,
+        REDACTED_SCOPE_PREFIX, ScopeIndexPool, collect_reserved_scope_indices, entry_bool,
+        is_safe_semver_range, is_safe_semver_version, is_safe_sri_integrity, node_modules_segments,
+        parse_name_and_spec, parse_npm_alias,
     },
 };
 
@@ -77,6 +78,12 @@ fn backfill_promoted_requires(requires: &mut Map<String, Value>, deps: &Map<Stri
 }
 
 impl SanitizeCtx<'_> {
+    pub(super) fn build_scope_pool(&self, extra_reserved: HashSet<usize>) -> ScopeIndexPool {
+        let mut reserved = extra_reserved;
+        collect_reserved_scope_indices(self.destinations.keys().map(String::as_str), &mut reserved);
+        ScopeIndexPool::new(reserved)
+    }
+
     pub(super) fn routes(&self, package_name: &str) -> bool {
         match self.destinations.get(package_name) {
             Some(PackageDestination::Upstream(owner)) => owner == self.upstream_name,
