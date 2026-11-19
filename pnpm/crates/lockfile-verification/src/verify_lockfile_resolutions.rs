@@ -175,7 +175,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             lockfile_path: lockfile_path_str.as_ref(),
         },
     ) {
-        CacheOutcome::Hit => return Ok(None),
+        CacheOutcome::Hit(refresh) => return Ok(refresh),
         CacheOutcome::Miss(precomputed) => precomputed,
     };
 
@@ -246,7 +246,9 @@ async fn verify_candidates<Reporter: self::Reporter>(
 /// What the verification cache had to say about this lockfile.
 enum CacheOutcome {
     /// A previous run already verified it under the same identities.
-    Hit,
+    /// Carries the record that points the stat-only lookup at this path,
+    /// when the hit came by content hash.
+    Hit(Option<PendingVerificationRecord>),
     /// Nothing reusable; carries what the recorder need not recompute.
     Miss(CachePrecomputed),
 }
@@ -285,6 +287,7 @@ fn reuse_cached_verdict<Reporter: self::Reporter>(
     if !result.hit {
         return CacheOutcome::Miss(result.precomputed);
     }
+    let refresh = result.refresh.map(|record| PendingVerificationRecord::new(cache_dir, record));
     if verdict.has_policy_verifiers {
         emit::<Reporter>(
             LogLevel::Debug,
@@ -294,7 +297,7 @@ fn reuse_cached_verdict<Reporter: self::Reporter>(
             },
         );
     }
-    CacheOutcome::Hit
+    CacheOutcome::Hit(refresh)
 }
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that

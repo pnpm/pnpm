@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 
 import {
+  appendVerificationRecord,
   recordVerification,
   tryLockfileVerificationCache,
   type VerifierCacheIdentity,
@@ -234,12 +235,13 @@ describe('tryLockfileVerificationCache', () => {
     })
     expect(result.hit).toBe(true)
 
-    // The hit appended a refreshed record for the new path, so the next
+    // The hit carries a refreshed record for the new path, which the
+    // caller writes once its install is done. Once written, the next
     // install on the worktree path takes the stat shortcut (no rehash).
-    // We can't directly observe whether the shortcut fires, but we can
-    // confirm the cache file now has at least one record naming the
-    // worktree path.
     const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    const linesBeforeRefresh = (await fs.promises.readFile(cacheFile, 'utf8')).split('\n').filter(Boolean)
+    expect(linesBeforeRefresh).toHaveLength(1)
+    appendVerificationRecord(cacheDir, result.refresh!)
     const raw = await fs.promises.readFile(cacheFile, 'utf8')
     const paths = raw.split('\n').filter(Boolean)
       .map((line) => (JSON.parse(line) as { lockfile: { path: string } }).lockfile.path)

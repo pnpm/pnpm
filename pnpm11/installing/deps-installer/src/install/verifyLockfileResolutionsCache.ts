@@ -51,7 +51,7 @@ const MAX_CACHE_ENTRIES = 1000
 // conservative upper bound.
 const COMPACT_TRIGGER_BYTES = MAX_CACHE_ENTRIES * 1024 * 3 / 2
 
-interface CacheRecord {
+export interface CacheRecord {
   lockfile: {
     /**
      * sha256 hex of the lockfile content — primary cache key. Computed
@@ -109,6 +109,12 @@ export interface CacheLookupResult {
    * falls back to computing what's missing.
    */
   precomputed: { stat?: LockfileStat, hash?: string }
+  /**
+   * On a hit by content hash, the record that points the stat-only lookup
+   * at this path. The lookup does not write it: the caller persists it
+   * with {@link appendVerificationRecord} once its install is done.
+   */
+  refresh?: CacheRecord
 }
 
 interface LockfileStat {
@@ -264,7 +270,7 @@ export function tryLockfileVerificationCache (
   if (byPathRecord && statMatches(stat, byPathRecord.lockfile)) {
     return lookupByStat({ record: byPathRecord, stat, verifiers: key.verifiers })
   }
-  return lookupByContentHash({ cacheDir, indexes, key, stat })
+  return lookupByContentHash({ indexes, key, stat })
 }
 
 function lookupByStat (
@@ -282,13 +288,12 @@ function lookupByStat (
 }
 
 interface ContentHashLookupOptions {
-  cacheDir: string
   indexes: CacheIndexes
   key: LockfileVerificationCacheKey
   stat: LockfileStat
 }
 
-function lookupByContentHash ({ cacheDir, indexes, key, stat }: ContentHashLookupOptions): CacheLookupResult {
+function lookupByContentHash ({ indexes, key, stat }: ContentHashLookupOptions): CacheLookupResult {
   let hash: string
   try {
     hash = key.hashLockfile()
@@ -302,11 +307,15 @@ function lookupByContentHash ({ cacheDir, indexes, key, stat }: ContentHashLooku
     return { hit: false, precomputed: { stat, hash } }
   }
 
-  appendRecord(cacheDir, {
-    ...byHashRecord,
-    lockfile: { ...byHashRecord.lockfile, path: key.lockfilePath, size: stat.size, mtimeNs: stat.mtimeNs, inode: stat.inode },
-  })
-  return { hit: true, verifiedAt: byHashRecord.verifiedAt || undefined, precomputed: { stat, hash } }
+  return {
+    hit: true,
+    verifiedAt: byHashRecord.verifiedAt || undefined,
+    precomputed: { stat, hash },
+    refresh: {
+      ...byHashRecord,
+      lockfile: { ...byHashRecord.lockfile, path: key.lockfilePath, size: stat.size, mtimeNs: stat.mtimeNs, inode: stat.inode },
+    },
+  }
 }
 
 function everyVerifierTrustsCachedRun (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
@@ -361,10 +370,14 @@ export function recordVerification (
     verifiedAt: new Date().toISOString(),
     policy: mergePolicies(key.verifiers),
   }
-  appendRecord(cacheDir, record)
+  appendVerificationRecord(cacheDir, record)
 }
 
-function appendRecord (cacheDir: string, record: CacheRecord): void {
+/**
+ * Append `record` to the cache file, compacting it once it has grown past
+ * the trigger. A failure loses only the next install's shortcut.
+ */
+export function appendVerificationRecord (cacheDir: string, record: CacheRecord): void {
   const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
   const line = `${JSON.stringify(record)}\n`
   try {

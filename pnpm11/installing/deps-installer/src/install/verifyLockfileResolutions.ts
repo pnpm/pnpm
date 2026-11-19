@@ -14,6 +14,7 @@ import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import {
+  appendVerificationRecord,
   recordVerification,
   tryLockfileVerificationCache,
   type VerifierCacheIdentity,
@@ -159,7 +160,8 @@ export async function verifyLockfileResolutions (
   if (!lockfile.packages) return undefined
 
   const cacheContext = createVerificationCacheContext(lockfile, verifiers, options)
-  if (isVerifiedByCache(cacheContext, verifiers, options?.lockfilePath)) return undefined
+  const cachedVerdict = reuseCachedVerdict(cacheContext, verifiers, options?.lockfilePath)
+  if (cachedVerdict) return cachedVerdict.refresh
 
   // Emit started/done around the actual verification pass — the
   // round-trip can be slow on a cold registry cache, and the cached
@@ -221,14 +223,16 @@ function createVerificationCacheContext (
  * verified it under a policy that's at least as strict as today's.
  * The content key is hashed lazily from the in-memory lockfile (not
  * the file bytes) so we never read the file a second time.
+ * `undefined` when the cache holds no verdict to reuse.
  */
-function isVerifiedByCache (
+function reuseCachedVerdict (
   cacheContext: VerificationCacheContext,
   verifiers: ResolutionVerifier[],
   lockfilePath: string | undefined
-): boolean {
-  if (!cacheContext.cache) return false
-  const result = tryLockfileVerificationCache(cacheContext.cache.cacheDir, {
+): { refresh?: PendingVerificationRecord } | undefined {
+  if (!cacheContext.cache) return undefined
+  const { cacheDir } = cacheContext.cache
+  const result = tryLockfileVerificationCache(cacheDir, {
     lockfilePath: cacheContext.cache.lockfilePath,
     verifiers: cacheContext.cacheVerifiers,
     hashLockfile: cacheContext.hashLockfile,
@@ -241,7 +245,7 @@ function isVerifiedByCache (
       cacheContext.cache = undefined
     }
     cacheContext.precomputed = result.precomputed
-    return false
+    return undefined
   }
   // A silent short-circuit looks like the policy gate never ran
   // (pnpm/pnpm#12324), so surface the reused verdict — but only
@@ -254,7 +258,16 @@ function isVerifiedByCache (
       lockfilePath,
     })
   }
-  return true
+  const { refresh } = result
+  // A hit by content hash points the stat-only lookup at this path, and
+  // is written as late as a new verdict would be.
+  return {
+    refresh: refresh && {
+      record: () => {
+        appendVerificationRecord(cacheDir, refresh)
+      },
+    },
+  }
 }
 
 function pendingRecord (cacheContext: VerificationCacheContext): PendingVerificationRecord | undefined {

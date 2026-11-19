@@ -105,6 +105,10 @@ pub struct CacheLookupResult {
     /// non-empty timestamp.
     pub verified_at: Option<String>,
     pub precomputed: CachePrecomputed,
+    /// On a hit by content hash, the record that points the stat-only
+    /// lookup at this path. The lookup does not write it: the caller
+    /// persists it with [`persist_record`] once its install is done.
+    pub refresh: Option<CacheRecord>,
 }
 
 /// Precomputed lockfile fingerprint values shared between
@@ -168,6 +172,7 @@ pub fn try_lockfile_verification_cache(
                 stat: Some(stat),
                 hash: Some(record.lockfile.hash.clone()),
             },
+            refresh: None,
         };
     }
 
@@ -177,10 +182,11 @@ pub fn try_lockfile_verification_cache(
             hit: false,
             verified_at: None,
             precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
+            refresh: None,
         };
     };
 
-    let refreshed = refresh_record_path(cache_dir, record, path_key, &stat);
+    let refreshed = refresh_record_path(record, path_key, &stat);
 
     CacheLookupResult {
         hit: true,
@@ -188,18 +194,14 @@ pub fn try_lockfile_verification_cache(
             refreshed.verified_at.clone()
         }),
         precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
+        refresh: Some(refreshed),
     }
 }
 
-/// Refresh the path index for the next stat-only lookup. An append failure
-/// loses only the shortcut; the trusted content verdict remains valid.
-fn refresh_record_path(
-    cache_dir: &Path,
-    record: &CacheRecord,
-    path_key: String,
-    stat: &LockfileStat,
-) -> CacheRecord {
-    let refreshed = CacheRecord {
+/// The record that points the stat-only lookup at `path_key`, carrying the
+/// trusted content verdict over unchanged.
+fn refresh_record_path(record: &CacheRecord, path_key: String, stat: &LockfileStat) -> CacheRecord {
+    CacheRecord {
         lockfile: CacheLockfile {
             hash: record.lockfile.hash.clone(),
             path: path_key,
@@ -209,10 +211,7 @@ fn refresh_record_path(
         },
         verified_at: record.verified_at.clone(),
         policy: record.policy.clone(),
-    };
-    let _ = append_record(cache_dir, &refreshed);
-
-    refreshed
+    }
 }
 
 /// Look up a verification by content hash without consulting any
@@ -239,12 +238,32 @@ pub fn record_verification(
     cache_dir: &Path,
     lockfile_path: &Path,
     verifiers: &[Arc<dyn ResolutionVerifier>],
-    mut hash_lockfile: impl FnMut() -> String,
+    hash_lockfile: impl FnMut() -> String,
     precomputed: CachePrecomputed,
 ) {
-    let Some(stat) = precomputed.stat.or_else(|| stat_lockfile(lockfile_path)) else { return };
-    let hash = precomputed.hash.unwrap_or_else(&mut hash_lockfile);
-    let record = CacheRecord {
+    if let Some(record) = build_verification_record(
+        lockfile_path,
+        verifiers,
+        hash_lockfile,
+        precomputed.stat.or_else(|| stat_lockfile(lockfile_path)),
+        precomputed.hash,
+    ) {
+        persist_record(cache_dir, &record);
+    }
+}
+
+/// The record a passing verification of the lockfile at `lockfile_path`
+/// persists, or `None` when there is no `stat` of the file to key it by.
+pub(crate) fn build_verification_record(
+    lockfile_path: &Path,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    mut hash_lockfile: impl FnMut() -> String,
+    stat: Option<LockfileStat>,
+    hash: Option<String>,
+) -> Option<CacheRecord> {
+    let stat = stat?;
+    let hash = hash.unwrap_or_else(&mut hash_lockfile);
+    Some(CacheRecord {
         lockfile: CacheLockfile {
             hash,
             path: lockfile_path.to_string_lossy().to_string(),
@@ -254,8 +273,14 @@ pub fn record_verification(
         },
         verified_at: now_rfc3339(),
         policy: merge_policies(verifiers),
-    };
-    if append_record(cache_dir, &record).is_err() {
+    })
+}
+
+/// Append `record` to the cache file, compacting it when it has grown past
+/// [`COMPACT_TRIGGER_BYTES`]. An append failure loses only the next
+/// install's shortcut, never the install.
+pub fn persist_record(cache_dir: &Path, record: &CacheRecord) {
+    if append_record(cache_dir, record).is_err() {
         return;
     }
     maybe_compact_cache(cache_dir);
@@ -309,7 +334,7 @@ fn read_cache(cache_dir: &Path) -> io::Result<CacheIndexes> {
     Ok(CacheIndexes { by_hash, by_path })
 }
 
-fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
+pub(crate) fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
     let metadata = fs::metadata(lockfile_path).ok()?;
     let size = metadata.len();
     let mtime_ns = metadata

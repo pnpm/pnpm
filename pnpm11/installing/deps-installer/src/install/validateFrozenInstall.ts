@@ -93,9 +93,9 @@ async function validateFixLockfilePreflight (
   if (!rawCtx.existsWantedLockfile || rawCtx.lockfileHadConflicts) return
   await verifyLockfileStructureAndSettings(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   if (!opts.trustLockfile) {
-    // A --fix-lockfile install re-resolves and records the lockfile it
-    // writes once its dependencies are built, so this is not its last record.
-    ;(await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: false }))?.record()
+    // The --fix-lockfile install that follows verifies this lockfile again
+    // and records the verdict once its builds are done.
+    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: false })
   }
 }
 

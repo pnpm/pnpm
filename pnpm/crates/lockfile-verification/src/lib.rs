@@ -14,7 +14,7 @@
 
 pub use cache::{
     CACHE_FILE_NAME, COMPACT_TRIGGER_BYTES, CacheLockfile, CacheLookupResult, CachePrecomputed,
-    CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, record_verification,
+    CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, persist_record, record_verification,
     try_lockfile_verification_cache,
 };
 pub use errors::{RenderedViolation, VerifyError};

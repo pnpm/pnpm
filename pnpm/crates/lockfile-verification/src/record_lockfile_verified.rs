@@ -18,7 +18,9 @@ use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 use crate::{
-    PendingVerificationRecord, cache::CachePrecomputed, hash_lockfile,
+    PendingVerificationRecord,
+    cache::{build_verification_record, stat_lockfile},
+    hash_lockfile,
     verify_lockfile_resolutions::with_offline_check_cache_identities,
 };
 
@@ -56,11 +58,13 @@ pub fn pending_lockfile_verified(
     if verifiers.is_empty() || lockfile.packages.is_none() {
         return None;
     }
-    Some(PendingVerificationRecord {
-        cache_dir: cache_dir.to_path_buf(),
-        lockfile_path: lockfile_path.to_path_buf(),
-        verifiers: with_offline_check_cache_identities(verifiers),
-        hash: hash_lockfile(lockfile),
-        precomputed: CachePrecomputed::default(),
-    })
+    // Stat now, ahead of any script that might rewrite the file.
+    let record = build_verification_record(
+        lockfile_path,
+        &with_offline_check_cache_identities(verifiers),
+        || hash_lockfile(lockfile),
+        stat_lockfile(lockfile_path),
+        None,
+    )?;
+    Some(PendingVerificationRecord::new(cache_dir, record))
 }

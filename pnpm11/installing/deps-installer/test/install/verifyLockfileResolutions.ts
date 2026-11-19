@@ -929,3 +929,31 @@ test('a verification that could not stat the lockfile records nothing', async ()
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
   }
 })
+
+test('a cache hit by content hash writes its path refresh only when the caller records it', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const firstPath = path.join(tmpDir, 'first', 'pnpm-lock.yaml')
+    const secondPath = path.join(tmpDir, 'second', 'pnpm-lock.yaml')
+    for (const lockfilePath of [firstPath, secondPath]) {
+      fs.mkdirSync(path.dirname(lockfilePath), { recursive: true })
+      fs.writeFileSync(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    }
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+    const verifier = wrap(async () => ({ ok: true }), exampleSlot(60))
+    const logPath = path.join(cacheDir, 'lockfile-verified.jsonl')
+    const countRecords = (): number => fs.readFileSync(logPath, 'utf8').split('\n').filter(Boolean).length
+
+    ;(await verifyLockfileResolutions(lockfile, [verifier], { cacheDir, lockfilePath: firstPath }))!.record()
+    const refresh = await verifyLockfileResolutions(lockfile, [verifier], { cacheDir, lockfilePath: secondPath })
+    expect(countRecords()).toBe(1)
+
+    refresh!.record()
+    expect(countRecords()).toBe(2)
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
