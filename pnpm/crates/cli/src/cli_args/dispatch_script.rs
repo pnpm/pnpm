@@ -86,10 +86,11 @@ pub(super) fn catalog<'a>(
     args: CatalogArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
+    let pre_hook_config = config.clone();
     let dir = ctx.locations.dir;
     Ok(Box::pin(async move {
         apply_update_config(config, dir).await?;
-        args.run(config, dir).await
+        args.run(config, pre_hook_config, dir).await
     }))
 }
 

@@ -4,7 +4,7 @@ use crate::{
         recursive::discover_workspace_projects,
         reporter::CliReporter,
     },
-    config_deps::update_config_hook_catalogs,
+    config_deps::{apply_config_dependency_settings, update_config_hook_catalogs},
 };
 use clap::{Args, Subcommand};
 use derive_more::{Display, Error};
@@ -53,11 +53,17 @@ pub enum CatalogSubcommand {
 }
 
 impl CatalogArgs {
-    /// `dir` is the command's working directory; `config` has had the
-    /// `updateConfig` hooks applied.
-    pub async fn run(self, config: &Config, dir: &Path) -> miette::Result<()> {
+    /// `dir` is the command's working directory. `config` has had the
+    /// `updateConfig` hooks applied; `pre_hook_config` is the same
+    /// configuration before they ran, which an install starts from.
+    pub async fn run(
+        self,
+        config: &Config,
+        pre_hook_config: Config,
+        dir: &Path,
+    ) -> miette::Result<()> {
         match self.command {
-            CatalogSubcommand::Migrate => migrate(config, dir).await,
+            CatalogSubcommand::Migrate => migrate(config, pre_hook_config, dir).await,
         }
     }
 }
@@ -74,9 +80,9 @@ struct MigrationPlan {
     /// The entries to add to the default catalog.
     new_entries: Catalog,
     conflicts: Vec<Conflict>,
-    /// Dependencies the projects agree on whose new catalog entry an
-    /// `updateConfig` hook would drop or change.
-    missing_from_hook_catalogs: Vec<String>,
+    /// Dependencies the projects agree on whose catalog entry an
+    /// `updateConfig` hook would drop or change, in the order found.
+    changed_by_hooks: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -86,14 +92,14 @@ struct Conflict {
     catalog_entry: Option<String>,
 }
 
-async fn migrate(config: &Config, dir: &Path) -> miette::Result<()> {
+async fn migrate(config: &Config, pre_hook_config: Config, dir: &Path) -> miette::Result<()> {
     let workspace_dir = config.workspace_dir.as_deref().ok_or(CatalogError::NoWorkspace)?;
     let (mut projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
     let catalogs = configured_catalogs(config)?;
     let mut plan =
         plan_migration(&declared_specifiers(&projects), catalogs.get(DEFAULT_CATALOG_NAME));
     if !plan.new_entries.is_empty() {
-        keep_entries_the_hooks_keep(&mut plan, config, dir).await?;
+        keep_entries_the_hooks_keep(&mut plan, pre_hook_config, dir).await?;
     }
 
     // The catalog is written before the manifests that reference it, so a
@@ -184,41 +190,57 @@ fn plan_migration(
 
 /// An `updateConfig` hook's output replaces the workspace catalogs, so a new
 /// entry written to `pnpm-workspace.yaml` reaches installs only if the hooks
-/// pass it through. Rerun them with the entries added and hold back the ones
-/// that do not come back unchanged.
+/// pass it through, and the entries it brings can change what the hooks do
+/// with the existing ones. Run the hooks the way an install would, from the
+/// configuration before they applied, with the proposed entries added, and
+/// hold back every migrated dependency whose entry does not come back as
+/// declared. Holding one back changes the hooks' input, so repeat until a
+/// run holds back nothing.
 async fn keep_entries_the_hooks_keep(
     plan: &mut MigrationPlan,
-    config: &Config,
+    mut hook_config: Config,
     dir: &Path,
 ) -> miette::Result<()> {
-    let mut seed = workspace_manifest_catalogs(config)?;
-    seed.entry(DEFAULT_CATALOG_NAME.to_string())
-        .or_default()
-        .extend(plan.new_entries.clone());
-    let root_dir = config.root_project_manifest_dir(dir);
-    let Some(hook_catalogs) =
-        update_config_hook_catalogs::<CliReporter>(config, root_dir, &seed).await?
-    else {
-        return Ok(());
-    };
-    plan.hold_back_entries_missing_from(hook_catalogs.get(DEFAULT_CATALOG_NAME));
-    Ok(())
+    // The first pass installed the config dependencies; an install applies
+    // their settings before it runs the hooks.
+    apply_config_dependency_settings(&mut hook_config)?;
+    let root_dir = hook_config.root_project_manifest_dir(dir).to_path_buf();
+    let workspace_catalogs = workspace_manifest_catalogs(&hook_config)?;
+    loop {
+        let mut seed = workspace_catalogs.clone();
+        seed.entry(DEFAULT_CATALOG_NAME.to_string())
+            .or_default()
+            .extend(plan.new_entries.clone());
+        let Some(hook_catalogs) =
+            update_config_hook_catalogs::<CliReporter>(&hook_config, &root_dir, &seed).await?
+        else {
+            return Ok(());
+        };
+        if !plan.hold_back_entries_changed_by(hook_catalogs.get(DEFAULT_CATALOG_NAME)) {
+            return Ok(());
+        }
+    }
 }
 
 impl MigrationPlan {
-    fn hold_back_entries_missing_from(&mut self, hook_catalog: Option<&Catalog>) {
-        let missing: Vec<String> = self.new_entries
+    /// Hold back each migrated dependency whose entry in `hook_catalog` is
+    /// missing or differs from the agreed specifier. Returns whether any was
+    /// held back.
+    fn hold_back_entries_changed_by(&mut self, hook_catalog: Option<&Catalog>) -> bool {
+        let changed: Vec<String> = self.migrated
             .iter()
             .filter(|(name, specifier)| {
                 hook_catalog.and_then(|catalog| catalog.get(*name)) != Some(*specifier)
             })
             .map(|(name, _)| name.clone())
             .collect();
-        for name in &missing {
+        for name in &changed {
             self.new_entries.remove(name);
             self.migrated.remove(name);
         }
-        self.missing_from_hook_catalogs = missing;
+        let held_back = !changed.is_empty();
+        self.changed_by_hooks.extend(changed);
+        held_back
     }
 }
 
@@ -257,12 +279,12 @@ fn render_report(plan: &MigrationPlan) -> String {
             report.push('\n');
         }
     }
-    report.push_str(&render_missing_from_hook_catalogs(&plan.missing_from_hook_catalogs));
+    report.push_str(&render_changed_by_hooks(&plan.changed_by_hooks));
     report.push_str(&render_summary(plan.migrated.len()));
     report
 }
 
-fn render_missing_from_hook_catalogs(names: &[String]) -> String {
+fn render_changed_by_hooks(names: &[String]) -> String {
     if names.is_empty() {
         return String::new();
     }
@@ -272,7 +294,7 @@ fn render_missing_from_hook_catalogs(names: &[String]) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     format!(
-        "These dependencies were left unchanged because an updateConfig hook would drop their new catalog entries: {names}\n",
+        "These dependencies were left unchanged because an updateConfig hook would not keep their catalog entry as declared: {names}\n",
     )
 }
 

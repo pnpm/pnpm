@@ -78,7 +78,7 @@ fn moves_agreed_specifiers_and_lists_the_rest() {
                     catalog_entry: None,
                 },
             ],
-            missing_from_hook_catalogs: Vec::new(),
+            changed_by_hooks: Vec::new(),
         },
     );
     assert_eq!(
@@ -112,22 +112,23 @@ fn holds_back_entries_the_hooks_drop_or_change() {
         &declared(&[("kept", &["^1.0.0"]), ("dropped", &["^2.0.0"]), ("changed", &["^3.0.0"])]),
         None,
     );
-    plan.hold_back_entries_missing_from(Some(&catalog(&[
+    assert!(plan.hold_back_entries_changed_by(Some(&catalog(&[
         ("kept", "^1.0.0"),
         ("changed", "^3.1.0"),
-    ])));
+    ]))));
+    assert!(!plan.hold_back_entries_changed_by(Some(&catalog(&[("kept", "^1.0.0")]))));
     assert_eq!(
         plan,
         MigrationPlan {
             migrated: BTreeMap::from([("kept".to_string(), "^1.0.0".to_string())]),
             new_entries: catalog(&[("kept", "^1.0.0")]),
             conflicts: Vec::new(),
-            missing_from_hook_catalogs: vec!["changed".to_string(), "dropped".to_string()],
+            changed_by_hooks: vec!["changed".to_string(), "dropped".to_string()],
         },
     );
     assert_eq!(
         render_report(&plan),
-        "These dependencies were left unchanged because an updateConfig hook would drop their new catalog entries: changed, dropped
+        "These dependencies were left unchanged because an updateConfig hook would not keep their catalog entry as declared: changed, dropped
 Moved 1 dependency to the default catalog. Run `pnpm install` to update the lockfile.",
     );
 }
