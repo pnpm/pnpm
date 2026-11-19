@@ -55,15 +55,15 @@ fn global_no_proxy_is_validated_and_can_be_skipped() {
         "noProxy: [localhost]\nregistry: https://registry.example/\n",
     )
     .unwrap();
-    let error = WorkspaceSettings::load_global(dir.path()).unwrap_err();
+    let error = crate::TrustedSettings::load_global(dir.path()).unwrap_err();
     dbg!(&error);
     assert!(matches!(error, LoadWorkspaceYamlError::InvalidNoProxy { received_type: "array" }));
-    let settings =
-        WorkspaceSettings::load_global_reading(dir.path(), crate::SettingsRead::Readable)
+    let trusted =
+        crate::TrustedSettings::load_global_reading(dir.path(), crate::SettingsRead::Readable)
             .unwrap()
             .unwrap();
-    assert_eq!(settings.no_proxy, None);
-    assert_eq!(settings.registry.as_deref(), Some("https://registry.example/"));
+    assert_eq!(trusted.settings.no_proxy, None);
+    assert_eq!(trusted.settings.registry.as_deref(), Some("https://registry.example/"));
 }
 
 #[test]
