@@ -286,9 +286,8 @@ fn global_group_runtime_bin(
     let installed = pnpm_global::get_global_package_details(group)
         .into_iter()
         .find(|package| package.alias == name && package.version == version)?;
-    let package_dir = dunce::canonicalize(
-        group.install_dir.join("node_modules").join(&installed.alias),
-    ).ok()?;
+    let package_dir =
+        dunce::canonicalize(group.install_dir.join("node_modules").join(&installed.alias)).ok()?;
     if !is_within_global_runtime_roots(&package_dir, global_dir, global_virtual_store_dir) {
         return None;
     }

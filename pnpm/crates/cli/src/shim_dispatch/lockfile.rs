@@ -19,15 +19,11 @@ pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<S
 }
 
 fn importer_id(project_dir: &Path, lockfile_dir: &Path) -> Option<String> {
-    let relative = project_dir
-        .strip_prefix(lockfile_dir)
-        .ok()?;
+    let relative = project_dir.strip_prefix(lockfile_dir).ok()?;
     Some(if relative.as_os_str().is_empty() {
         ".".to_string()
     } else {
-        relative
-            .to_string_lossy()
-            .replace('\\', "/")
+        relative.to_string_lossy().replace('\\', "/")
     })
 }
 
@@ -35,22 +31,16 @@ fn importer_runtime_version(
     importer: &pnpm_lockfile::ProjectSnapshot,
     package_name: &PkgName,
 ) -> Option<String> {
-    let dependency = importer
-        .dev_dependencies
+    let dependency = importer.dev_dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(package_name))
         .or_else(|| {
-            importer
-                .dependencies
+            importer.dependencies
                 .as_ref()
                 .and_then(|dependencies| dependencies.get(package_name))
         })?;
     let ImporterDepVersion::Regular(version) = &dependency.version else { return None };
     (version.prefix() == Prefix::Runtime)
-        .then(|| {
-            version
-                .version_semver()
-                .map(ToString::to_string)
-        })
+        .then(|| version.version_semver().map(ToString::to_string))
         .flatten()
 }
