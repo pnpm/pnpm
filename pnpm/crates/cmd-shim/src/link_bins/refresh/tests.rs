@@ -243,8 +243,8 @@ fn prune_stale_bins_removes_unclaimed_shims_and_keeps_claimed_commands() {
     }
 }
 
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "bins are linked without aliases on Windows")]
 fn prune_stale_bins_removes_the_alias_of_a_pruned_bin() {
     let temp = tempfile::tempdir().unwrap();
     let modules = temp.path().join("node_modules");

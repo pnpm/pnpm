@@ -562,7 +562,7 @@ pub(super) fn remove_bin_alias(bin_path: &Path) -> io::Result<()> {
         return Ok(());
     };
     let alias_dir = bin_dir.with_file_name(".bin-symlinks");
-    let Some(directory) = AliasDirectory::open(&alias_dir, false)? else {
+    let Some(directory) = AliasDirectory::open_existing(&alias_dir)? else {
         return Ok(());
     };
     directory.remove_entry(name)

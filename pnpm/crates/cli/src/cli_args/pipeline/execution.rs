@@ -385,7 +385,7 @@ fn sync_injected_deps_if_configured(
         files: CopyFiles::from_deploy_all_files(config.deploy_all_files),
         manifest_before_scripts: Some(manifest),
         project_modules_dirs: &project_modules_dirs,
-        bin_links: crate::cli_args::run::bin_link_settings(config),
+        bin_links: crate::cli_args::run::bin_link_settings(config)?,
     })?;
     Ok(())
 }

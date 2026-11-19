@@ -644,8 +644,8 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "preserveBinName is off on Windows")]
 fn returns_skipped_when_preserve_bin_name_drifts() {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();

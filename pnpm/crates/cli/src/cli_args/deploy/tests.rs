@@ -46,8 +46,8 @@ fn split_local_payload_preserves_parentheses_in_path_before_patch_suffix() {
     );
 }
 
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "preserveBinName is off on Windows")]
 fn deploy_workspace_manifest_preserves_bin_name_setting() {
     let mut config = Config::new();
     config.preserve_bin_name = true;

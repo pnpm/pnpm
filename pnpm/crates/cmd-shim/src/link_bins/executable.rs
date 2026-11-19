@@ -62,12 +62,8 @@ pub(super) fn link_bin_alias(
 /// The `.bin-symlinks` directory of an alias link, created when absent.
 #[cfg(unix)]
 fn open_alias_directory(alias_dir: &Path) -> Result<AliasDirectory, LinkBinsError> {
-    AliasDirectory::open(alias_dir, true)
-        .map_err(|error| LinkBinsError::CreateAliasDir { dir: alias_dir.to_path_buf(), error })?
-        .ok_or_else(|| LinkBinsError::CreateAliasDir {
-            dir: alias_dir.to_path_buf(),
-            error: io::Error::other("bin alias directory was not created"),
-        })
+    AliasDirectory::open_or_create(alias_dir)
+        .map_err(|error| LinkBinsError::CreateAliasDir { dir: alias_dir.to_path_buf(), error })
 }
 
 #[cfg(unix)]

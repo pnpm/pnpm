@@ -2,11 +2,13 @@
 //! copies while it runs, then hardlink-sync them after it succeeds.
 
 use super::{RunContext, Value};
+use miette::IntoDiagnostic;
 use pnpm_config::Config;
 use pnpm_injected_deps_syncer::{
     BinLinkSettings, CopyFiles, InjectedEditWatch, ProjectModulesDir, SyncInjectedDeps,
     injected_edit_sources, sync_injected_deps, watch_injected_edits,
 };
+use pnpm_modules_yaml::{Host, read_modules_layout};
 use pnpm_workspace::{FindWorkspaceProjectsOpts, find_workspace_projects};
 
 pub(super) fn start_injected_edit_watch(
@@ -16,17 +18,19 @@ pub(super) fn start_injected_edit_watch(
     if !syncs_injected_deps_after(ctx, name) {
         return None;
     }
-    // The sync after the script reports a failure to list the projects, so
-    // it does not stop the script from starting.
+    // The sync after the script reports a failure to list the projects or to
+    // read the install's bin layout, so neither stops the script from starting.
     let project_modules_dirs = project_modules_dirs(ctx.config).unwrap_or_default();
-    let sources = injected_edit_sources(&injected_sync_opts(ctx, &project_modules_dirs));
+    let bin_links = bin_link_settings(ctx.config).ok()?;
+    let sources = injected_edit_sources(&injected_sync_opts(ctx, &project_modules_dirs, bin_links));
     (!sources.is_empty()).then(|| watch_injected_edits(sources))
 }
 
 pub(super) fn sync_injected_deps_after(ctx: &RunContext<'_>, name: &str) -> miette::Result<()> {
     if syncs_injected_deps_after(ctx, name) {
         let project_modules_dirs = project_modules_dirs(ctx.config)?;
-        sync_injected_deps(&injected_sync_opts(ctx, &project_modules_dirs))?;
+        let bin_links = bin_link_settings(ctx.config)?;
+        sync_injected_deps(&injected_sync_opts(ctx, &project_modules_dirs, bin_links))?;
     }
     Ok(())
 }
@@ -70,6 +74,7 @@ fn syncs_injected_deps_after(ctx: &RunContext<'_>, name: &str) -> bool {
 fn injected_sync_opts<'a>(
     ctx: &'a RunContext<'_>,
     project_modules_dirs: &'a [ProjectModulesDir],
+    bin_links: BinLinkSettings<'a>,
 ) -> SyncInjectedDeps<'a> {
     SyncInjectedDeps {
         pkg_name: ctx.manifest
@@ -83,16 +88,24 @@ fn injected_sync_opts<'a>(
         // Read before the script ran, so a bin it drops can still be named.
         manifest_before_scripts: Some(ctx.manifest.value()),
         project_modules_dirs,
-        bin_links: bin_link_settings(ctx.config),
+        bin_links,
     }
 }
 
 /// How a sync after a script relinks bins: the way the install linked them.
-pub(crate) fn bin_link_settings(config: &Config) -> BinLinkSettings<'_> {
-    BinLinkSettings {
+/// `preserveBinName` comes from `.modules.yaml` when the install recorded one,
+/// since the script's own command line may not repeat the install's flag.
+pub(crate) fn bin_link_settings(config: &Config) -> miette::Result<BinLinkSettings<'_>> {
+    let mut link_options = pnpm_deps_restorer::shim_link_options(config, config.node_linker);
+    let recorded = read_modules_layout::<Host>(&config.modules_dir).into_diagnostic()?;
+    if let Some(recorded) = recorded {
+        link_options.preserve_bin_name =
+            cfg!(unix) && recorded.preserve_bin_name.unwrap_or(false);
+    }
+    Ok(BinLinkSettings {
         modules_dir_name: config.modules_dir_name(),
         extend_node_path: config.extend_node_path,
         ignored_directories: config.managed_directories(),
-        link_options: pnpm_deps_restorer::shim_link_options(config, config.node_linker),
-    }
+        link_options,
+    })
 }

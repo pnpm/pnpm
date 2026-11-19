@@ -16,22 +16,42 @@ pub(super) struct AliasDirectory {
     directory: File,
 }
 
+/// What opening the alias directory does when it, or its parent, is absent.
+#[derive(Clone, Copy)]
+enum WhenMissing {
+    Create,
+    ReportAbsent,
+}
+
 impl AliasDirectory {
-    pub(super) fn open(path: &Path, create: bool) -> io::Result<Option<Self>> {
+    /// The alias directory at `path`, created when absent.
+    pub(super) fn open_or_create(path: &Path) -> io::Result<Self> {
+        Self::open(path, WhenMissing::Create)?
+            .ok_or_else(|| io::Error::other("bin alias directory was not created"))
+    }
+
+    /// The alias directory at `path`, or `None` when it or its parent is absent.
+    pub(super) fn open_existing(path: &Path) -> io::Result<Option<Self>> {
+        Self::open(path, WhenMissing::ReportAbsent)
+    }
+
+    fn open(path: &Path, when_missing: WhenMissing) -> io::Result<Option<Self>> {
         let name = c_name(
             path.file_name().ok_or_else(|| invalid_input("bin alias directory has no name"))?,
         )?;
-        let Some(parent) = open_parent(path, create)? else {
+        let Some(parent) = open_parent(path, when_missing)? else {
             return Ok(None);
         };
-        match open_child(&parent, &name) {
-            Ok(directory) => Ok(Some(Self { directory })),
-            Err(error) if create && error.kind() == io::ErrorKind::NotFound => {
+        match (open_child(&parent, &name), when_missing) {
+            (Ok(directory), _) => Ok(Some(Self { directory })),
+            (Err(error), WhenMissing::Create) if error.kind() == io::ErrorKind::NotFound => {
                 create_directory(&parent, &name)?;
                 open_child(&parent, &name).map(|directory| Some(Self { directory }))
             }
-            Err(error) if !create && error.kind() == io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(error),
+            (Err(error), WhenMissing::ReportAbsent) if error.kind() == io::ErrorKind::NotFound => {
+                Ok(None)
+            }
+            (Err(error), WhenMissing::Create | WhenMissing::ReportAbsent) => Err(error),
         }
     }
 
@@ -68,13 +88,15 @@ impl AliasDirectory {
 
 /// The directory that holds `path`, or `None` when it is absent and this
 /// lookup may report that rather than fail.
-fn open_parent(path: &Path, create: bool) -> io::Result<Option<File>> {
+fn open_parent(path: &Path, when_missing: WhenMissing) -> io::Result<Option<File>> {
     let parent_path =
         path.parent().ok_or_else(|| invalid_input("bin alias directory has no parent"))?;
-    match File::open(parent_path) {
-        Ok(parent) => Ok(Some(parent)),
-        Err(error) if !create && error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error),
+    match (File::open(parent_path), when_missing) {
+        (Ok(parent), _) => Ok(Some(parent)),
+        (Err(error), WhenMissing::ReportAbsent) if error.kind() == io::ErrorKind::NotFound => {
+            Ok(None)
+        }
+        (Err(error), WhenMissing::Create | WhenMissing::ReportAbsent) => Err(error),
     }
 }
 

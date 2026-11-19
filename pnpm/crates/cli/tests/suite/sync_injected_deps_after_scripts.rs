@@ -553,3 +553,54 @@ fn a_listed_script_syncs_the_copies_of_a_package_that_publishes_from_a_directory
 
     drop((root, mock_instance));
 }
+
+/// The sync relinks bins the way the install did, even when the install got
+/// `preserveBinName` from its command line and the script's command does not
+/// repeat it.
+#[test]
+#[cfg_attr(not(unix), ignore = "preserveBinName is off on Windows")]
+fn a_listed_script_keeps_the_aliases_of_a_preserve_bin_name_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - build\n");
+    fs::create_dir_all(workspace.join("project-1/bin")).expect("mkdir project-1/bin");
+    fs::write(workspace.join("project-1/bin/cli.js"), "#!/usr/bin/env node\n")
+        .expect("write the bin");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "bin": { "project-1-cli": "bin/cli.js" },
+            "scripts": { "build": "node build.cjs" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1 package.json");
+
+    pacquet
+        .with_args(["install", "--config.preserve-bin-name=true"])
+        .assert()
+        .success();
+    let alias = workspace.join("project-2/node_modules/.bin-symlinks/project-1-cli");
+    assert!(fs::symlink_metadata(&alias).is_ok(), "the install should have written {alias:?}");
+
+    pacquet_in(&workspace.join("project-1"))
+        .with_args(["--config.verify-deps-before-run=false", "run", "build"])
+        .assert()
+        .success();
+
+    assert!(fs::symlink_metadata(&alias).is_ok(), "the sync removed {alias:?}");
+    let shim = fs::read_to_string(workspace.join("project-2/node_modules/.bin/project-1-cli"))
+        .expect("read the relinked shim");
+    assert!(shim.contains(".bin-symlinks"), "the relinked shim no longer runs the alias:\n{shim}");
+
+    drop((mock_instance, root));
+}
