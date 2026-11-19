@@ -193,7 +193,7 @@ fn a_check_recorded_today_silences_the_next_install() {
         ..
     } = fixture();
     fs::create_dir_all(&state_dir).expect("create the state dir");
-    let today = chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+    let today = jiff::Timestamp::now().strftime("%a, %d %b %Y %H:%M:%S GMT").to_string();
     fs::write(state_file(&state_dir), serde_json::json!({ "lastUpdateCheck": today }).to_string())
         .expect("write pnpm-state.json");
 

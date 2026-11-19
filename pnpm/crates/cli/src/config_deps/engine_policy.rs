@@ -120,17 +120,18 @@ pub(super) fn engine_resolve_options(
 }
 
 /// Fail closed when the configured maturity cutoff cannot be represented.
-fn engine_release_cutoff(config: &Config) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
+fn engine_release_cutoff(config: &Config) -> Result<Option<jiff::Timestamp>> {
     Ok(match config.resolved_minimum_release_age() {
         Some(minutes) => {
             let minutes = i64::try_from(minutes)
                 .into_diagnostic()
                 .wrap_err("convert minimumReleaseAge to minutes")?;
-            let duration = chrono::Duration::try_minutes(minutes)
+            let duration = pnpm_time::duration_minutes(minutes)
                 .ok_or_else(|| miette::miette!("minimumReleaseAge is too large"))?;
             Some(
-                chrono::Utc::now()
-                    .checked_sub_signed(duration)
+                jiff::Timestamp::now()
+                    .checked_sub(duration)
+                    .ok()
                     .ok_or_else(|| miette::miette!("minimumReleaseAge cutoff is out of range"))?,
             )
         }

@@ -6,7 +6,6 @@
 //! lumped `FsApi` pattern at
 //! <https://github.com/KSXGitHub/parallel-disk-usage/blob/2aa39917f9/src/app/hdd.rs#L25-L35>.
 
-use chrono::{TimeZone, Utc};
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
     Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_layout,
@@ -243,7 +242,8 @@ fn read_fills_pruned_at_from_clock_when_missing() {
     }
     impl Clock for FakeClock {
         fn now() -> SystemTime {
-            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+            "2026-01-01T00:00:00Z"
+                .parse::<jiff::Timestamp>()
                 .unwrap()
                 .into()
         }

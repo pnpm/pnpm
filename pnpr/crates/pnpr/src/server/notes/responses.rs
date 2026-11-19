@@ -137,13 +137,8 @@ pub(in crate::server) fn with_cache_rules(mut response: Response, public: bool) 
 }
 
 fn http_date(iso: &str) -> Option<String> {
-    let parsed = chrono::DateTime::parse_from_rfc3339(iso).ok()?;
-    Some(
-        parsed
-            .with_timezone(&chrono::Utc)
-            .format("%a, %d %b %Y %H:%M:%S GMT")
-            .to_string(),
-    )
+    let parsed = pnpm_time::parse_rfc3339(iso).ok()?;
+    Some(parsed.strftime("%a, %d %b %Y %H:%M:%S GMT").to_string())
 }
 
 fn insert(headers: &mut axum::http::HeaderMap, name: &str, value: &str) {

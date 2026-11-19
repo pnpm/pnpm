@@ -17,7 +17,6 @@ backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", 
 backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql", "pnpr-sql/backend-mysql"]
 
 [dependencies]
-chrono = { workspace = true }
 pnpr-sql = { workspace = true }
 pnpm-network = { workspace = true }
 pnpr-config = { workspace = true }
@@ -27,6 +26,7 @@ pnpr-registry = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-release-record = { workspace = true }
+pnpm-time = { workspace = true }
 pnpm-transparency-log = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }

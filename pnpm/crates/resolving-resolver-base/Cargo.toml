@@ -15,9 +15,10 @@ pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-registry = { workspace = true }
 pnpm-semver-include-prerelease = { workspace = true }
+pnpm-time = { workspace = true }
 pnpm-version-policy = { workspace = true }
 
-chrono = { workspace = true }
+jiff = { workspace = true }
 derive_more = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }

@@ -356,16 +356,18 @@ fn metadata_headers(
 /// 1970 to 9999 that an HTTP date can carry, so it is dropped instead of
 /// sent — a recipient must ignore a malformed `If-Modified-Since` anyway.
 fn to_http_date(value: &str) -> Option<String> {
-    let time: chrono::DateTime<chrono::Utc> =
-        if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {
-            datetime.into()
-        } else if let Ok(date) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") {
-            date.and_time(chrono::NaiveTime::MIN).and_utc()
-        } else {
-            return httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date);
-        };
+    let time: jiff::Timestamp = if let Ok(datetime) = pnpm_time::parse_rfc3339(value) {
+        datetime
+    } else if let Ok(date) = jiff::civil::Date::strptime("%Y-%m-%d", value) {
+        date.at(0, 0, 0, 0)
+            .to_zoned(jiff::tz::TimeZone::UTC)
+            .ok()?
+            .timestamp()
+    } else {
+        return httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date);
+    };
     // `fmt_http_date` panics outside that range.
-    let in_range = time.timestamp() >= 0 && chrono::Datelike::year(&time) <= 9999;
+    let in_range = time >= jiff::Timestamp::UNIX_EPOCH;
     in_range.then(|| httpdate::fmt_http_date(time.into()))
 }
 

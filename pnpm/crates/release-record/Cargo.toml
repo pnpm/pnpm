@@ -11,10 +11,11 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-time = { workspace = true }
 pnpm-transparency-log = { workspace = true }
 
 base64 = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 derive_more = { workspace = true }
 ed25519-dalek = { workspace = true }
 percent-encoding = { workspace = true }

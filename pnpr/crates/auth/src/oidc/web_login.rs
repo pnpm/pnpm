@@ -1,6 +1,7 @@
+use jiff::Timestamp;
 use std::{collections::HashMap, time::Duration};
 
-use super::{MAX_ENTRIES, OidcState, Result, Utc, random_secret, rejected, unavailable};
+use super::{MAX_ENTRIES, OidcState, Result, random_secret, rejected, unavailable};
 
 #[cfg(test)]
 mod tests;
@@ -78,7 +79,7 @@ impl OidcState {
         let login_id = random_secret()?;
         let poll_token = random_secret()?;
         let letters = random_user_code_letters()?;
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
         logins.prune(now);
         if logins.entries.len() >= MAX_ENTRIES {
@@ -110,7 +111,7 @@ impl OidcState {
         let Some(letters) = normalize_user_code(user_code) else {
             return false;
         };
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
         logins.code_to_login
             .get(&super::super::sha256_hex(letters.as_bytes()))
@@ -125,7 +126,7 @@ impl OidcState {
     /// ignored. A code can be claimed once.
     pub fn claim_web_login(&self, user_code: &str) -> Option<String> {
         let letters = normalize_user_code(user_code)?;
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
         let login_id = logins.code_to_login.remove(&super::super::sha256_hex(letters.as_bytes()))?;
         let entry = logins.entries.get_mut(&login_id)?;
@@ -153,7 +154,7 @@ impl OidcState {
 
     /// Fulfills a claimed web login with the issued session token.
     pub fn fulfill_web_login(&self, login_id: &str, token: String) -> Result<()> {
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
         if let Some(entry) = logins.entries.get_mut(login_id)
             && entry.expires > now
@@ -167,7 +168,7 @@ impl OidcState {
 
     /// Polls a web login session using the poll token. Consumes the session when ready.
     pub fn poll_web_login(&self, poll_token: &str) -> WebLoginPoll {
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let poll_hash = super::super::sha256_hex(poll_token.as_bytes());
         let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
         let Some(login_id) = logins.poll_to_login.get(&poll_hash).cloned() else {

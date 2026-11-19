@@ -37,7 +37,7 @@ mod cache_keys;
 
 mod update_scopes;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveOptions, WorkspacePackages};

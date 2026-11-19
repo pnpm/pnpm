@@ -280,7 +280,7 @@ pub(super) fn verify_one(public_key_base64: &str, message: &str, signature_base6
 }
 
 fn parse_timestamp(value: &str) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(value).ok().map(|datetime| datetime.timestamp_millis())
+    pnpm_time::parse_rfc3339_millis(value).ok()
 }
 
 #[derive(Deserialize)]

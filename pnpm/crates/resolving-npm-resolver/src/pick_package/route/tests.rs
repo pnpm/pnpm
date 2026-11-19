@@ -5,7 +5,7 @@ use super::{
 use crate::{
     PackagePickPolicy, mirror::MetaHeaders, pick_package_from_meta::RegistryPackageSpecType,
 };
-use chrono::{DateTime, TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 use pnpm_resolving_resolver_base::{NetworkPolicy, TrustPolicy};
 use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
@@ -23,8 +23,8 @@ fn headers(etag: Option<&str>, uncacheable: bool) -> MetaHeaders {
     MetaHeaders { etag: etag.map(str::to_string), uncacheable, ..MetaHeaders::default() }
 }
 
-fn cutoff() -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339("2026-10-01T00:00:00Z").unwrap().into()
+fn cutoff() -> Timestamp {
+    pnpm_time::parse_rfc3339("2026-10-01T00:00:00Z").unwrap()
 }
 
 const UNDATED_MIRROR: PackumentSource = PackumentSource::Mirror { written_at: None };
@@ -232,7 +232,7 @@ fn an_uncacheable_mirror_offers_only_the_shortcuts_that_ignore_newer_versions_on
 #[test]
 fn an_unvalidated_mirror_is_fresh_within_its_max_age_either_way() {
     let now = cutoff();
-    let just_inside = UNVALIDATED_MIRROR_MAX_AGE - TimeDelta::milliseconds(1);
+    let just_inside = UNVALIDATED_MIRROR_MAX_AGE - SignedDuration::from_millis(1);
     let cases = [
         (now, true),
         (now - just_inside, true),
@@ -429,13 +429,19 @@ fn a_mirror_cache_hit_written_after_the_cutoff_serves_only_a_pick() {
     let excluded = create_package_version_policy([PKG_NAME]).unwrap();
     let excluded = PackagePickPolicy { published_by_exclude: Some(&excluded), ..release_age };
     let written_at =
-        |offset: TimeDelta| PackumentSource::Mirror { written_at: Some(cutoff() + offset) };
-    let at_cutoff = written_at(TimeDelta::zero());
-    let before_cutoff = written_at(-TimeDelta::seconds(1));
+        |offset: SignedDuration| PackumentSource::Mirror { written_at: Some(cutoff() + offset) };
+    let at_cutoff = written_at(SignedDuration::ZERO);
+    let before_cutoff = written_at(-SignedDuration::from_secs(1));
     let base = range_pick(&release_age, None);
     let cases = [
         ("at the cutoff", base, at_cutoff, true, CacheHitCheck::Serve),
-        ("after the cutoff", base, written_at(TimeDelta::days(1)), true, CacheHitCheck::Serve),
+        (
+            "after the cutoff",
+            base,
+            written_at(jiff::SignedDuration::from_hours(24)),
+            true,
+            CacheHitCheck::Serve,
+        ),
         ("no pick", base, at_cutoff, false, CacheHitCheck::Revalidate),
         ("before the cutoff", base, before_cutoff, true, CacheHitCheck::Revalidate),
         (

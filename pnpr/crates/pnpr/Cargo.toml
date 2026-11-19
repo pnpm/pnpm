@@ -89,13 +89,14 @@ pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
 pnpm-release-record = { workspace = true }
+pnpm-time = { workspace = true }
 pnpm-transparency-log = { workspace = true }
 pnpm-tarball = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true, features = ["query"] }
 base64 = { workspace = true }
 bcrypt = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 clap = { workspace = true, features = ["env"] }
 dashmap = { workspace = true }
 derive_more = { workspace = true }
@@ -136,7 +137,7 @@ zip = { workspace = true }
 zstd = { workspace = true }
 
 [dev-dependencies]
-chrono = { workspace = true }
+jiff = { workspace = true }
 mockito = { workspace = true }
 walkdir = { workspace = true }
 tar = { workspace = true }

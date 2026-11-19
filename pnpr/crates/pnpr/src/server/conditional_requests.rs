@@ -48,10 +48,12 @@ fn if_none_match_matches(header_val: &str, etag: &str) -> bool {
 }
 
 fn if_modified_since_matches(if_modified_since: &str, last_modified: &str) -> bool {
-    let Ok(ims_time) = chrono::DateTime::parse_from_rfc2822(if_modified_since) else {
+    let Ok(ims_time) = jiff::fmt::rfc2822::DateTimeParser::new().parse_timestamp(if_modified_since)
+    else {
         return false;
     };
-    let Ok(lm_time) = chrono::DateTime::parse_from_rfc2822(last_modified) else {
+    let Ok(lm_time) = jiff::fmt::rfc2822::DateTimeParser::new().parse_timestamp(last_modified)
+    else {
         return false;
     };
     lm_time <= ims_time

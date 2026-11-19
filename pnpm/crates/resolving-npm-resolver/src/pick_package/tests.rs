@@ -28,7 +28,7 @@ use pnpm_network::{
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
     VersionSelectorWithWeight, VersionSelectors,
@@ -196,8 +196,8 @@ const ABBREVIATED_BODY: &str = r#"{
     }
 }"#;
 
-fn parse_cutoff(rfc3339: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(rfc3339).expect("parse cutoff").with_timezone(&Utc)
+fn parse_cutoff(rfc3339: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(rfc3339).expect("parse cutoff")
 }
 
 /// A route hook that records every `(url, package)` it is asked to

@@ -15,8 +15,9 @@ pnpm-matcher = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-text-sanitize = { workspace = true }
+pnpm-time = { workspace = true }
 
-chrono = { workspace = true }
+jiff = { workspace = true }
 console = { workspace = true }
 node-semver = { workspace = true }
 owo-colors = { workspace = true }

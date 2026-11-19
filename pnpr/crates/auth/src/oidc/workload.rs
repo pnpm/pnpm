@@ -1,9 +1,10 @@
 use super::{
     BASE64_URL_SAFE_NO_PAD, ClientId, CoreIdToken, CoreIdTokenVerifier, CoreJsonWebKeySet,
     CoreJwsSigningAlgorithm, IssuerUrl, Nonce, OidcBinding, OidcProvider, OidcWorkload, Provider,
-    Result, SessionUser, Utc, Value, rejected,
+    Result, SessionUser, Value, rejected,
 };
 use base64::Engine as _;
+use jiff::Timestamp;
 
 pub(super) fn verify_workload(
     config: &OidcProvider,
@@ -96,7 +97,7 @@ pub(super) fn token_payload(raw: &str) -> Result<Value> {
 }
 
 pub(super) fn validate_times(payload: &Value) -> Result<()> {
-    let now = Utc::now().timestamp();
+    let now = Timestamp::now().as_second();
     let issued = payload
         .get("iat")
         .and_then(Value::as_i64)

@@ -14,6 +14,7 @@ repository = "https://github.com/pnpm/pnpm"
 
 [workspace.dependencies]
 # Crates
+pnpm-time = { path = "pnpm/crates/time" }
 pnpm-github-actions = { path = "pnpm/crates/github-actions" }
 pnpm-matcher = { path = "pnpm/crates/matcher" }
 pnpm-patching-config = { path = "pnpm/crates/patching-config" }
@@ -156,7 +157,7 @@ bytes = { version = "1.12.2" }
 cap-primitives = { version = "4.0.3" }
 cargo-lock = { version = "11.1.0" }
 cargo-util-schemas = { version = "0.15.0" }
-chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+jiff = { version = "0.2.46" }
 console = { version = "0.16.6" }
 core-foundation = { version = "0.10.1" }
 crossterm = { version = "0.29.0" }

@@ -17,7 +17,7 @@
 //! [`crate::FetchMetadataError::Network`] so the verifier can fold
 //! them into a violation reason instead of swallowing.
 
-use chrono::DateTime;
+use jiff::Timestamp;
 use pnpm_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
 
 use crate::FetchMetadataError;
@@ -99,11 +99,8 @@ fn extract_published_at(body: &serde_json::Value) -> Option<String> {
         earliest = Some(earliest.map_or(seconds, |current| current.min(seconds)));
     }
     let seconds = earliest?;
-    // `DateTime::from_timestamp` accepts an i64 of seconds-since-epoch.
-    // Any seconds value within the chrono-supported range survives the
-    // conversion; the registry isn't going to send pre-1970 timestamps.
-    let dt = DateTime::from_timestamp(seconds, 0)?;
-    Some(dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+    let dt = Timestamp::from_second(seconds).ok()?;
+    Some(pnpm_time::format_millis(dt))
 }
 
 fn read_earliest_integrated_time(attestation: &serde_json::Value) -> Option<i64> {
