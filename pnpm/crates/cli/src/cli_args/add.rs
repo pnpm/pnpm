@@ -371,12 +371,14 @@ pub(crate) struct AllowBuildSelector<'a> {
 }
 
 /// Parse and validate `--allow-build` selectors (`<pkg>` or `!<pkg>`),
-/// rejecting empty package names.
+/// rejecting empty package names. A value may hold a comma-separated list,
+/// see [`split_allow_build_value`].
 pub(crate) fn parse_allow_build_selectors(
     allow_build: &[String],
 ) -> Result<Vec<AllowBuildSelector<'_>>, AllowBuildError> {
     allow_build
         .iter()
+        .flat_map(|value| split_allow_build_value(value))
         .map(|selector| {
             let (name, allowed) = parse_allow_build_selector(selector);
             (!name.is_empty())
@@ -384,6 +386,27 @@ pub(crate) fn parse_allow_build_selectors(
                 .ok_or(AllowBuildError::MissingPackage)
         })
         .collect()
+}
+
+/// Split an `--allow-build` value at its commas when every part is a
+/// package selector (`[!]<name>[@<version>]`). Any other value is kept
+/// whole: git and tarball approval keys are URLs, and a URL may contain a
+/// comma.
+fn split_allow_build_value(value: &str) -> Vec<&str> {
+    let parts: Vec<&str> = value.split(',').collect();
+    if parts.iter().all(|part| is_package_selector(part)) { parts } else { vec![value] }
+}
+
+fn is_package_selector(selector: &str) -> bool {
+    let (spec, _) = parse_allow_build_selector(selector);
+    let version_at = spec
+        .char_indices()
+        .skip(1)
+        .find_map(|(index, ch)| (ch == '@').then_some(index));
+    let (name, version) = version_at.map_or((spec, ""), |index| spec.split_at(index));
+    let name_slashes = name.matches('/').count();
+    let name_is_plain = if name.starts_with('@') { name_slashes == 1 } else { name_slashes == 0 };
+    name_is_plain && !spec.contains([':', '#']) && !version.contains('/')
 }
 
 /// Honor `--allow-build`: reject any package the root project explicitly

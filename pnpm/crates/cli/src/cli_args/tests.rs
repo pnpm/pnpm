@@ -114,19 +114,6 @@ fn add_allow_build_collects_repeated_values() {
 }
 
 #[test]
-fn add_allow_build_splits_comma_separated_values() {
-    let args = add_args(&[
-        "pacquet",
-        "add",
-        "foo",
-        "--allow-build=esbuild,!sharp",
-        "--allow-build",
-        "bar",
-    ]);
-    assert_eq!(args.install.allow_build, ["esbuild", "!sharp", "bar"]);
-}
-
-#[test]
 fn store_is_an_alias_of_store_dir() {
     for argv in [
         ["pacquet", "--store", "custom-store", "install"].as_slice(),

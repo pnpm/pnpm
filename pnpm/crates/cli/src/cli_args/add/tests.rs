@@ -1,4 +1,7 @@
-use super::{AddArgs, AddDependencyOptions, AddError, apply_allow_build, workspace_selectors};
+use super::{
+    AddArgs, AddDependencyOptions, AddError, AllowBuildSelector, apply_allow_build,
+    parse_allow_build_selectors, workspace_selectors,
+};
 use crate::{
     boolean_negations::with_boolean_negations,
     cargo_manifest::CargoDependencyKind,
@@ -406,4 +409,50 @@ fn the_dependency_group_filter_honors_the_optional_setting() {
     args.apply_cli_config(&mut config);
 
     assert_eq!(args.included_groups(&config), [DependencyGroup::Prod, DependencyGroup::Dev]);
+}
+
+fn parsed_allow_build(values: &[&str]) -> Vec<(String, bool)> {
+    let values: Vec<String> = values
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    parse_allow_build_selectors(&values)
+        .expect("selectors parse")
+        .into_iter()
+        .map(|AllowBuildSelector { name, allowed }| (name.to_string(), allowed))
+        .collect()
+}
+
+#[test]
+fn allow_build_splits_a_comma_separated_list_of_packages() {
+    assert_eq!(
+        parsed_allow_build(&["esbuild,!@scope/core-js@1.0.0", "sharp"]),
+        [
+            ("esbuild".to_string(), true),
+            ("@scope/core-js@1.0.0".to_string(), false),
+            ("sharp".to_string(), true),
+        ],
+    );
+}
+
+#[test]
+fn allow_build_keeps_a_value_with_a_url_key_whole() {
+    for value in [
+        "!foo@git+https://example.com/org/repo,variant.git",
+        "foo@https://example.com/foo.tgz?a=1,2",
+        "esbuild,foo@git+ssh://git@example.com/org/foo.git",
+    ] {
+        let (name, _) = parsed_allow_build(&[value])
+            .into_iter()
+            .next()
+            .expect("one selector");
+        assert_eq!(name, value.trim_start_matches('!'), "{value} must stay one selector");
+    }
+}
+
+#[test]
+fn allow_build_rejects_an_empty_item_in_a_comma_separated_list() {
+    let err = parse_allow_build_selectors(&["esbuild,".to_string()])
+        .expect_err("an empty list item is rejected");
+    assert!(matches!(err, super::AllowBuildError::MissingPackage));
 }

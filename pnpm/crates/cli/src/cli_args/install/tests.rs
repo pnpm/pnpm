@@ -375,11 +375,6 @@ fn allow_build_flag_parses_single_and_multiple() {
     ])
     .expect("parses multiple --allow-build flags");
     assert_eq!(parsed.args.allow_build(), ["esbuild", "sharp", "!core-js"]);
-
-    let parsed =
-        InstallArgsHarness::try_parse_from(["pacquet-test", "--allow-build=esbuild,!core-js"])
-            .expect("parses a comma-separated --allow-build");
-    assert_eq!(parsed.args.allow_build(), ["esbuild", "!core-js"]);
 }
 
 #[test]
