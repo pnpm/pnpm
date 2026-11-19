@@ -4,6 +4,7 @@
 //! split into one group per dependency type, and each group is rendered
 //! as a column-aligned table under a header row.
 
+use super::UpdateDetails;
 use crate::cli_args::{
     outdated::{OutdatedPackage, colorize_target, render_trust_change},
     sanitize::sanitize_inline,
@@ -83,6 +84,7 @@ impl ChoiceGroupKind {
 pub(crate) fn update_choices(
     outdated: &[&OutdatedPackage],
     workspaces_enabled: bool,
+    details: UpdateDetails,
 ) -> Vec<ChoiceGroup> {
     let mut seen: HashMap<ChoiceKey<'_>, usize> = HashMap::new();
     let mut choices: Vec<Choice<'_>> = Vec::new();
@@ -117,7 +119,7 @@ pub(crate) fn update_choices(
         }
     }
 
-    let columns = ChoiceColumns::of(outdated, workspaces_enabled);
+    let columns = ChoiceColumns::of(outdated, workspaces_enabled, details);
     grouped
         .into_iter()
         .map(|(kind, indices)| ChoiceGroup {
@@ -160,15 +162,17 @@ type ChoiceKey<'a> = (&'a str, &'a str, &'a Version, &'a Version, bool);
 #[derive(Clone, Copy)]
 struct ChoiceColumns {
     workspace: bool,
+    details: UpdateDetails,
     /// Shown when the outdated set carries trust evidence, which it does
     /// under `trustPolicy: no-downgrade`.
     trust: bool,
 }
 
 impl ChoiceColumns {
-    fn of(outdated: &[&OutdatedPackage], workspaces_enabled: bool) -> Self {
+    fn of(outdated: &[&OutdatedPackage], workspaces_enabled: bool, details: UpdateDetails) -> Self {
         Self {
             workspace: workspaces_enabled,
+            details,
             trust: outdated.iter().any(|package| package.metadata.trust.is_some()),
         }
     }
@@ -185,7 +189,9 @@ fn render_rows(choices: &[&Choice<'_>], columns: ChoiceColumns) -> Vec<ChoiceRow
     if columns.trust {
         header.push("Trust".to_string());
     }
-    header.push("URL".to_string());
+    if columns.details.shows_urls() {
+        header.push("URL".to_string());
+    }
 
     let mut cells = vec![header];
     cells.extend(choices.iter().map(|choice| choice_cells(choice, columns)));
@@ -304,13 +310,17 @@ fn choice_cells(choice: &Choice<'_>, columns: ChoiceColumns) -> Vec<String> {
     if columns.trust {
         row.push(package.metadata.trust.map(render_trust_change).unwrap_or_default());
     }
-    row.push(
-        package.metadata.homepage
-            .as_deref()
-            .map(sanitize_inline)
-            .unwrap_or_default()
-            .into_owned(),
-    );
+    if columns.details.shows_urls() {
+        row.push(
+            package.metadata.homepage
+                .as_deref()
+                .filter(|url| !url.is_empty())
+                .or(package.metadata.repository.as_deref())
+                .map(sanitize_inline)
+                .unwrap_or_default()
+                .into_owned(),
+        );
+    }
     row
 }
 

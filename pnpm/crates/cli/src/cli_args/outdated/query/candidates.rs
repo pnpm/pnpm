@@ -356,11 +356,21 @@ fn outdated_target(
                 .get("homepage")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
+            repository: target_manifest
+                .get("repository")
+                .and_then(repository_url)
+                .map(str::to_string),
             workspace: Some(workspace.to_string()),
             display_versions: None,
             trust: None,
         },
     })
+}
+
+fn repository_url(repository: &serde_json::Value) -> Option<&str> {
+    repository
+        .as_str()
+        .or_else(|| repository.get("url").and_then(serde_json::Value::as_str))
 }
 
 fn target_package_name(

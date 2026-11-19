@@ -1,8 +1,9 @@
+mod long;
 mod named_registry;
 
 use super::{
-    ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdatePrompt,
-    collect_choices, dependencies_prompt_message,
+    ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdateDetails,
+    UpdatePrompt, collect_choices, dependencies_prompt_message,
 };
 use crate::{
     checkbox_prompt::KeyOutcome,
@@ -69,6 +70,7 @@ importers:
         &Arc::new(ThrottledClient::default()),
         TargetVersion::Latest,
         &[DependencyGroup::Prod],
+        UpdateDetails::Compact,
     )
     .await
     .expect("collect interactive choices");
@@ -133,6 +135,7 @@ importers:
         &Arc::new(ThrottledClient::default()),
         TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
+        UpdateDetails::Compact,
     )
     .await
     .expect("collect interactive choices");
@@ -205,6 +208,7 @@ importers:
         &Arc::new(ThrottledClient::default()),
         TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
+        UpdateDetails::Compact,
     )
     .await
     .expect("collect interactive choices");
@@ -269,6 +273,7 @@ importers:
         &Arc::new(ThrottledClient::default()),
         TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
+        UpdateDetails::Compact,
     )
     .await
     .expect("collect interactive choices");
@@ -281,7 +286,11 @@ importers:
         vec![Some("packages-a"), Some("packages-b")],
     );
     // And they render as one row naming both.
-    let groups = super::choices::update_choices(&choices.iter().collect::<Vec<_>>(), true);
+    let groups = super::choices::update_choices(
+        &choices.iter().collect::<Vec<_>>(),
+        true,
+        UpdateDetails::Long,
+    );
     assert!(
         groups[0].rows[1].label.contains("packages-a, packages-b"),
         "{}",
@@ -336,6 +345,7 @@ importers:
             &Arc::new(ThrottledClient::default()),
             TargetVersion::WithinRange,
             &[DependencyGroup::Prod],
+            UpdateDetails::Compact,
         )
         .await
         .expect("collect interactive choices");
@@ -486,6 +496,7 @@ importers:
         &Arc::new(ThrottledClient::default()),
         TargetVersion::Latest,
         &[DependencyGroup::Prod],
+        UpdateDetails::Compact,
     )
     .await
     .expect("collect interactive choices");
@@ -1341,6 +1352,7 @@ importers:
         &Arc::new(ThrottledClient::default()),
         TargetVersion::Latest,
         &[DependencyGroup::Prod],
+        UpdateDetails::Compact,
     )
     .await
     .expect("collect interactive choices");

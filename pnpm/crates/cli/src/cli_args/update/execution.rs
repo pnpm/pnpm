@@ -124,7 +124,7 @@ impl UpdateArgs {
         else {
             return Ok(());
         };
-        let action_matcher = if self.selection.interactive {
+        let action_matcher = if self.selection.display.interactive {
             github_actions::selector_matcher(&packages)
         } else {
             inputs.action_matcher(&self.packages)
@@ -267,7 +267,7 @@ impl UpdateArgs {
         inputs: &UpdateInputs,
     ) -> miette::Result<Option<Vec<String>>> {
         let packages = inputs.package_selectors(&self.packages);
-        if !self.selection.interactive
+        if !self.selection.display.interactive
             && inputs.update_actions
             && crate::github_actions::selects_actions_only(&self.packages, &packages)
         {
@@ -324,7 +324,7 @@ impl UpdateArgs {
                     packages,
                     depth: self.selection.depth.unwrap_or(usize::MAX),
                     workspace_packages: inputs.workspace_packages.as_ref(),
-                    interactive: self.selection.interactive,
+                    interactive: self.selection.display.interactive,
                     targets: None,
                 },
                 version: self.version_options(state.config),
@@ -366,7 +366,7 @@ impl UpdateArgs {
     /// Whether the package half of the update runs. An interactive run that
     /// ended with no package selected updates only workflow files.
     fn updates_packages(&self, package_selectors: &[String]) -> bool {
-        !self.selection.interactive || !package_selectors.is_empty()
+        !self.selection.display.interactive || !package_selectors.is_empty()
     }
 }
 

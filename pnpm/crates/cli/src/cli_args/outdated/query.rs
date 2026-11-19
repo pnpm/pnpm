@@ -278,6 +278,7 @@ pub(crate) struct OutdatedMetadata {
     /// `homepage` of the package, shown in the `--long` details column
     /// when the registry serves it.
     pub homepage: Option<String>,
+    pub repository: Option<String>,
     /// Name of the workspace project this dependency was found in, shown
     /// in the interactive update list's `Workspace` column. `None` for a
     /// project without a `name`, and for entries that belong to no
@@ -312,6 +313,7 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
             metadata: OutdatedMetadata {
                 deprecated: None,
                 homepage: Some(action.homepage),
+                repository: None,
                 workspace: None,
                 display_versions: None,
                 trust: None,

@@ -236,6 +236,18 @@ With [`trustPolicy: no-downgrade`](../settings/dependency-resolution.md#trustpol
 
 Combined with `--global`, each [isolated install group](../global-packages.md#isolated-installations) is presented as one selectable item: packages that share a global installation update together as a unit.
 
+### --long
+
+Show package homepage or repository URLs in the interactive update list:
+
+```sh
+pnpm update --interactive --long
+```
+
+The URL column is hidden by default. This option fetches full package metadata
+and only affects `--interactive`. It cannot be combined with `--global`, which
+selects package groups.
+
 ### --no-save
 
 Don't update the ranges in `package.json`.
