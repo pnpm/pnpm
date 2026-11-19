@@ -186,8 +186,18 @@ pub fn try_lockfile_verification_cache(
         };
     };
 
-    let refreshed = refresh_record_path(record, path_key, &stat);
+    content_hash_hit(record, path_key, stat, hash)
+}
 
+/// A hit by content hash, carrying the record that points the stat-only
+/// lookup at `path_key` with the trusted verdict unchanged.
+fn content_hash_hit(
+    record: &CacheRecord,
+    path_key: String,
+    stat: LockfileStat,
+    hash: String,
+) -> CacheLookupResult {
+    let refreshed = refresh_record_path(record, path_key, &stat);
     CacheLookupResult {
         hit: true,
         verified_at: (!refreshed.verified_at.is_empty()).then(|| {
@@ -198,8 +208,6 @@ pub fn try_lockfile_verification_cache(
     }
 }
 
-/// The record that points the stat-only lookup at `path_key`, carrying the
-/// trusted content verdict over unchanged.
 fn refresh_record_path(record: &CacheRecord, path_key: String, stat: &LockfileStat) -> CacheRecord {
     CacheRecord {
         lockfile: CacheLockfile {
