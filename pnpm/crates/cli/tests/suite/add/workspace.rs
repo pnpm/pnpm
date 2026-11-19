@@ -108,6 +108,13 @@ fn add_from_inside_the_modules_dir_keeps_the_root_warning() {
 }
 
 #[test]
+fn add_from_a_matched_directory_suggests_pnpm_init_when_the_modules_dir_is_the_root() {
+    let stderr =
+        add_from_workspace_subdir("  - packages/*\nmodulesDir: .\n", "packages/project", &[]);
+    assert!(stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
+#[test]
 fn add_with_dir_at_the_workspace_root_keeps_the_root_warning() {
     let stderr = add_from_workspace_subdir(
         "  - packages/*\n  - tools/*\n",

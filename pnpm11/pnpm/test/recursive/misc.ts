@@ -480,6 +480,28 @@ modulesDir: deps
   expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
 })
 
+test('adding a dependency from a workspace-matched directory without a manifest should suggest initializing the package when the modules directory is the workspace root', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/project', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - 'packages/*'
+modulesDir: .
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/project') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
 test('adding a dependency from a workspace-matched directory without a manifest should suggest initializing the package in a single-pattern workspace', async () => {
   preparePackages([
     {

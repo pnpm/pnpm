@@ -49,6 +49,7 @@ function isUninitializedWorkspaceProjectDir (opts: AddCommandOptions): boolean {
   const managedDirs = [opts.modulesDir, opts.storeDir, opts.cacheDir]
     .filter((dir): dir is string => dir != null)
     .map((dir) => path.resolve(workspaceDir, dir))
+    .filter((managedDir) => !isSubdir(managedDir, workspaceDir))
   if (managedDirs.some((managedDir) => isSubdir(managedDir, invocationDir))) return false
   return isWorkspaceProjectDir({
     workspaceDir,
