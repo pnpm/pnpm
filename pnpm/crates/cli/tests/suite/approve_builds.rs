@@ -797,6 +797,7 @@ fn approve_builds_works_after_removing_dependency_without_scripts() {
         .with_arg("install")
         .assert()
         .success();
+    assert!(!workspace.join(PREPOST_MARKER).exists(), "prepost build must be ignored initially");
 
     pacquet(&workspace)
         .with_args(["remove", "is-positive"])

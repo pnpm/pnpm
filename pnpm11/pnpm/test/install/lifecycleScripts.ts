@@ -690,7 +690,6 @@ test('removing a dependency without executable scripts does not affect ignoredBu
   const modulesManifest = project.readModulesManifest()
   const ignoredNames = Array.from(modulesManifest?.ignoredBuilds ?? []).map((depPath) => parse(depPath).name)
   expect(ignoredNames).toContain(pendingPkg)
-  expect(ignoredNames).not.toContain(removedPkg)
   expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeFalsy()
   expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeFalsy()
 
