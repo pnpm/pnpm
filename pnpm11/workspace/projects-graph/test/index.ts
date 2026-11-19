@@ -1059,7 +1059,7 @@ test('an override pointing a dependency at a workspace project adds the edge', (
   expect(withoutOverrides.graph[BAR1_PATH].dependencies).toStrictEqual([])
 })
 
-test('a file: override anchored at the lockfile directory adds the edge', () => {
+test.each(['file:./foo', 'link:./foo'])('a %s override anchored at the lockfile directory adds the edge', (override) => {
   const projects = [
     {
       rootDir: BAR1_PATH,
@@ -1081,7 +1081,7 @@ test('a file: override anchored at the lockfile directory adds the edge', () => 
   ]
   const result = createProjectsGraph(projects, {
     linkWorkspacePackages: false,
-    overrides: { overrides: { foo: 'file:./foo' }, lockfileDir: pathResolve('/zkochan/src') },
+    overrides: { overrides: { foo: override }, lockfileDir: pathResolve('/zkochan/src') },
   })
   expect(result.unmatched).toStrictEqual([])
   expect(result.graph[BAR1_PATH].dependencies).toStrictEqual([FOO1_PATH])

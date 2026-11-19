@@ -17,7 +17,6 @@ mod dependency_rewriter;
 mod meta_only_peers;
 mod selectors;
 
-
 use node_semver::{Range, Version};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};

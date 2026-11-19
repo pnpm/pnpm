@@ -969,11 +969,11 @@ fn rewrite_dependencies_applies_a_parent_scoped_override_to_its_parent_only() {
 
 #[test]
 fn rewrite_dependencies_applies_a_dependency_type_selector_to_its_group_only() {
-    let overrides = parsed(&[("lib:dev", "workspace:*")]);
+    let overrides = parsed(&[("lib:optional", "workspace:*")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
     let groups = DependencyGroups {
-        dev: Some(pairs(&[("lib", "^1.0.0")])),
+        optional: pairs(&[("lib", "^1.0.0")]),
         prod: pairs(&[("other", "^1.0.0")]),
         ..DependencyGroups::default()
     };
