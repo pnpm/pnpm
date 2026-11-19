@@ -5,4 +5,4 @@
 "pnpm": patch
 ---
 
-pnpm now reads lockfiles with upstream js-yaml 4.3.2, which includes fixes for parsing merge keys and ordered maps [#18246](https://github.com/pnpm/pnpm/issues/18246).
+pnpm can read lockfiles with large YAML merge mappings or ordered maps without the excessive parsing time seen in some cases [#18246](https://github.com/pnpm/pnpm/issues/18246).
