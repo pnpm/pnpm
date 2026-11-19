@@ -271,6 +271,24 @@ test('devEngines.runtime with onFail=error should fail on Node.js version mismat
   expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
 })
 
+test('help prints despite an unsatisfied devEngines.runtime with onFail=error', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  for (const args of [['help'], ['--help'], ['install', '--help']]) {
+    const { status, stdout } = execPnpmSync(args)
+    expect(status).toBe(0)
+    expect(stdout.toString()).toContain('Usage:')
+  }
+})
+
 test('devEngines.runtime is still checked when --lockfile-dir moves the root project directory', async () => {
   prepare({
     devEngines: {

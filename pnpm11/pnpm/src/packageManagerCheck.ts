@@ -41,11 +41,15 @@ export async function handlePackageManagerAndRuntimes (opts: PackageManagerHandl
   } else if (cmd === 'fetch' && !isExecutedByCorepack() && !rejectUnknownOptions) {
     await fetchLockedPackageManager(config, context)
   }
-  if (cmd != null && !cliOptions.global && !rejectUnknownOptions) {
+  if (cmd != null && !isHelpRequest(cmd, cliOptions) && !cliOptions.global && !rejectUnknownOptions) {
     for (const runtime of getWantedRuntimes(context)) {
       checkRuntime(runtime, config)
     }
   }
+}
+
+function isHelpRequest (cmd: string | null, cliOptions: PackageManagerHandlingOptions['cliOptions']): boolean {
+  return cmd === 'help' || cliOptions.help === true
 }
 
 async function handleWantedPackageManager (pm: EngineDependency, opts: PackageManagerHandlingOptions): Promise<void> {
@@ -53,7 +57,7 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
   const printingVersion = cmd == null && cliOptions.version === true
   // A pin naming another package manager has no pnpm to switch to, and
   // printing the version or help changes nothing in the project.
-  if (pm.name !== 'pnpm' && (printingVersion || cliOptions.help === true || cmd === 'help')) return
+  if (pm.name !== 'pnpm' && (printingVersion || isHelpRequest(cmd, cliOptions))) return
   const entryPoint: PinEntryPoint = opts.rejectUnknownOptions ? 'unknown-flag' : printingVersion ? 'version' : 'command'
   const invocation = {
     entryPoint,
