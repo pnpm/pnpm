@@ -732,11 +732,21 @@ const PREPOST_MARKER: &str = "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-s
 /// Install both build-script fixtures with their builds ignored (neither in
 /// `allowBuilds`).
 fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
+    let (harness, workspace) = install_prepost_with_ignored_build_and(INSTALL);
+    assert!(!workspace.join(INSTALL_MARKER).exists(), "install build must be ignored initially");
+    (harness, workspace)
+}
+
+/// Install the pre/postinstall fixture, with its build ignored, alongside
+/// `other_dependency`.
+fn install_prepost_with_ignored_build_and(
+    other_dependency: &str,
+) -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
     let harness = CommandTempCwd::init().add_mocked_registry();
     let workspace = harness.workspace.clone();
 
     let package_json = serde_json::json!({
-        "dependencies": { PREPOST: "1.0.0", INSTALL: "1.0.0" },
+        "dependencies": { PREPOST: "1.0.0", other_dependency: "1.0.0" },
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
@@ -748,76 +758,50 @@ fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std:
         .success();
 
     assert!(!workspace.join(PREPOST_MARKER).exists(), "prepost build must be ignored initially");
-    assert!(!workspace.join(INSTALL_MARKER).exists(), "install build must be ignored initially");
     (harness, workspace)
+}
+
+/// Remove `removed` and check that the pre/postinstall fixture's ignored
+/// build survives the removal: it is still listed as pending, and
+/// `approve-builds --all` builds it and records the approval.
+fn assert_prepost_approvable_after_removing(workspace: &Path, removed: &str) {
+    pacquet(workspace)
+        .with_args(["remove", removed])
+        .assert()
+        .success();
+
+    let output = stdout_of(pacquet(workspace).with_arg("ignored-builds").assert());
+    assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
+    assert!(!output.contains(removed), "the removed package must not stay pending: {output}");
+
+    pacquet(workspace)
+        .with_args(["approve-builds", "--all"])
+        .assert()
+        .success();
+
+    assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
+    assert_eq!(
+        allow_builds(workspace).get(PREPOST),
+        Some(&true),
+        "remaining package approval persisted",
+    );
 }
 
 #[test]
 fn approve_builds_works_after_removing_an_unrelated_dependency() {
     let (harness, workspace) = install_two_with_ignored_builds();
 
-    pacquet(&workspace)
-        .with_args(["remove", INSTALL])
-        .assert()
-        .success();
-
-    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
-    assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
-    assert!(!output.contains(INSTALL), "the removed package must not stay pending: {output}");
-
-    pacquet(&workspace)
-        .with_args(["approve-builds", "--all"])
-        .assert()
-        .success();
-
-    assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
+    assert_prepost_approvable_after_removing(&workspace, INSTALL);
     assert!(!workspace.join(INSTALL_MARKER).exists(), "removed package was not rebuilt");
-    assert_eq!(
-        allow_builds(&workspace).get(PREPOST),
-        Some(&true),
-        "remaining package approval persisted",
-    );
 
     drop(harness);
 }
 
 #[test]
 fn approve_builds_works_after_removing_dependency_without_scripts() {
-    let harness = CommandTempCwd::init().add_mocked_registry();
-    let workspace = harness.workspace.clone();
+    let (harness, workspace) = install_prepost_with_ignored_build_and("is-positive");
 
-    let package_json = serde_json::json!({
-        "dependencies": { PREPOST: "1.0.0", "is-positive": "1.0.0" },
-    });
-    fs::write(workspace.join("package.json"), package_json.to_string())
-        .expect("write package.json");
-    disable_strict_dep_builds(&workspace);
-
-    pacquet(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-    assert!(!workspace.join(PREPOST_MARKER).exists(), "prepost build must be ignored initially");
-
-    pacquet(&workspace)
-        .with_args(["remove", "is-positive"])
-        .assert()
-        .success();
-
-    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
-    assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
-
-    pacquet(&workspace)
-        .with_args(["approve-builds", "--all"])
-        .assert()
-        .success();
-
-    assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
-    assert_eq!(
-        allow_builds(&workspace).get(PREPOST),
-        Some(&true),
-        "remaining package approval persisted",
-    );
+    assert_prepost_approvable_after_removing(&workspace, "is-positive");
 
     drop(harness);
 }
