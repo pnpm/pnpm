@@ -150,11 +150,9 @@ pub async fn detect_installability_host(
         // An explicit `nodeVersion` needs no `node --version` probe, so
         // build the host directly off the reactor thread.
         node_version @ Some(_) => InstallabilityHost::detect_with(engine_strict, node_version),
-        None => tokio::task::spawn_blocking(move || {
-            InstallabilityHost::detect_with(engine_strict, None)
-        })
-        .await
-        .unwrap_or_else(|_| synthetic_installability_host(engine_strict)),
+        None => spawn_node_probe(move || InstallabilityHost::detect_with(engine_strict, None))
+            .await
+            .unwrap_or_else(|_| synthetic_installability_host(engine_strict)),
     };
     // Plant the CLI-merged `supportedArchitectures` (yaml +
     // `--cpu`/`--os`/`--libc`) onto the host so `check_platform`'s
@@ -286,7 +284,7 @@ pub fn with_locked_runtime_node(
 /// [`crate::DirCloneCache`]).
 pub enum DeferredEngineName {
     Running {
-        handle: tokio::task::JoinHandle<Option<String>>,
+        handle: tokio::sync::oneshot::Receiver<Option<String>>,
         shared: Arc<OnceLock<Option<String>>>,
     },
     /// The upfront `node --version` probe was skipped because planning
@@ -302,9 +300,8 @@ impl DeferredEngineName {
         /// consumer blocked in [`OnceLock::wait`] would otherwise sleep
         /// forever if the probe panicked — or never ran at all, which
         /// is why the guard is captured by the closure rather than
-        /// created inside it: a shutting-down runtime that discards the
-        /// still-queued closure drops its environment, and the guard
-        /// with it.
+        /// created inside it: a thread that fails to spawn drops the
+        /// closure, and the guard with it.
         struct FillOnDrop(Arc<OnceLock<Option<String>>>);
         impl Drop for FillOnDrop {
             fn drop(&mut self) {
@@ -313,7 +310,7 @@ impl DeferredEngineName {
         }
 
         let shared = Arc::new(OnceLock::new());
-        let handle = tokio::task::spawn_blocking({
+        let handle = spawn_node_probe({
             let guard = FillOnDrop(Arc::clone(&shared));
             let shared = Arc::clone(&shared);
             move || {
@@ -357,6 +354,30 @@ impl DeferredEngineName {
             DeferredEngineName::Skipped => None,
         }
     }
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn spawn_node_probe<Output: Send + 'static>(
+    work: impl FnOnce() -> Output + Send + 'static,
+) -> tokio::sync::oneshot::Receiver<Output> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let _ = std::thread::Builder::new()
+        .name("pnpm-node-probe".to_string())
+        .spawn(move || {
+            let _ = sender.send(work());
+        });
+    receiver
+}
+
+#[cfg(target_family = "wasm")]
+fn spawn_node_probe<Output: Send + 'static>(
+    work: impl FnOnce() -> Output + Send + 'static,
+) -> tokio::sync::oneshot::Receiver<Output> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    tokio::task::spawn_blocking(move || {
+        let _ = sender.send(work());
+    });
+    receiver
 }
 
 fn probe_engine_name() -> Option<String> {
@@ -457,3 +478,6 @@ pub fn needs_deferred_engine_probe(
                     && allow_build_policy.check(&key.without_peer().to_string()) == Some(true))
         })
 }
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests;

@@ -39,6 +39,7 @@ pnpm-cmd-shim = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-deps-restorer = { workspace = true }
+pnpm-time = { workspace = true }
 pnpm-tool-protocol = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 pnpm-directory-fetcher = { workspace = true }
@@ -90,7 +91,7 @@ pnpm-text-sanitize = { workspace = true }
 pnpm-text-section = { workspace = true }
 
 async-recursion = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 console = { workspace = true }
 dashmap = { workspace = true }
 derive_more = { workspace = true }

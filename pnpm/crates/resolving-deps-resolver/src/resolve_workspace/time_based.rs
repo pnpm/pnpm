@@ -5,7 +5,7 @@ use super::{
 use crate::{
     resolve_dependency_tree::importer_direct_wanted_specs, resolve_importer::ResolveImporterOptions,
 };
-use chrono::{DateTime, Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::{Resolver, parse_packument_timestamp};
 use std::collections::BTreeMap;
@@ -35,7 +35,7 @@ where
 pub(super) struct TimeBasedCutoff {
     /// The ceiling every transitive dependency's publish date must
     /// respect.
-    pub(super) published_by: Option<DateTime<Utc>>,
+    pub(super) published_by: Option<Timestamp>,
     /// Publish date per direct dependency, for the lockfile's `time:`
     /// section.
     pub(super) time: BTreeMap<String, String>,
@@ -59,7 +59,7 @@ pub(super) async fn compute_time_based_cutoff<Chain>(
     sorted: &SortedImporters<'_, '_>,
     dependency_groups: &[DependencyGroup],
     settings: &PassSettings,
-    maximum_published_by: Option<DateTime<Utc>>,
+    maximum_published_by: Option<Timestamp>,
 ) -> TimeBasedCutoff
 where
     Chain: Resolver + ?Sized,
@@ -81,7 +81,10 @@ where
         .values()
         .filter_map(|published_at| parse_packument_timestamp(published_at))
         .max();
-    let candidate = newest.and_then(|date| date.checked_add_signed(Duration::hours(1)));
+    let candidate = newest.and_then(|date| {
+        date.checked_add(SignedDuration::from_hours(1))
+            .ok()
+    });
     let published_by = match (candidate, maximum_published_by) {
         (Some(candidate), Some(maximum)) => Some(candidate.min(maximum)),
         (Some(candidate), None) => Some(candidate),

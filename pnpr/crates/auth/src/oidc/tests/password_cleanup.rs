@@ -54,7 +54,7 @@ async fn a_committed_password_error_revokes_browser_sessions_when_token_cleanup_
     let session = oidc
         .issue_session(
             SessionUser { user_id: id.clone(), teams: Vec::new() },
-            chrono::Utc::now().timestamp() + 60,
+            jiff::Timestamp::now().as_second() + 60,
             LoginReturn::Token,
         )
         .unwrap();

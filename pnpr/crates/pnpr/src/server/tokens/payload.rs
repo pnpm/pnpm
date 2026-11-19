@@ -332,11 +332,11 @@ fn parse_expires_string(raw: &str) -> Result<TokenExpiry, RegistryError> {
             })?;
         return expiry_from_days(days);
     }
-    let dt = chrono::DateTime::parse_from_rfc3339(raw)
+    let millis = pnpm_time::parse_rfc3339_millis(raw)
         .map_err(|_| RegistryError::BadRequest {
             reason: format!("unsupported expires format: {raw}"),
         })?;
-    let Ok(timestamp) = u64::try_from(dt.timestamp_millis()) else {
+    let Ok(timestamp) = u64::try_from(millis) else {
         return Err(RegistryError::BadRequest {
             reason: "expiry must be in the future".to_string(),
         });

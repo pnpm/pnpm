@@ -3,9 +3,9 @@ use super::{
     PkgNameVerPeer, ResolveOptions, Resolver, TreeCtx, WantedDependency, WantedKey,
     async_recursion, child_wanted, children_warmup_claimed, claim_children_warmup,
     declaring_manifest_dir, extract_children, future, is_update_target, landed_on_prior_entry,
-    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
-    peer_shadowed_dependencies, project_relative_cache_scope, resolve_wanted_cached,
-    resolves_children_through_catalogs, try_reuse_node, walk_child_specs, wanted_package_root_link,
+    node_depends_on_changed_direct_dep, opts_for_child_spec, peer_shadowed_dependencies,
+    project_relative_cache_scope, resolve_wanted_cached, resolves_children_through_catalogs,
+    try_reuse_node, walk_child_specs, wanted_package_root_link,
 };
 
 /// Speculatively warm a freshly-seeded node's whole subtree so its
@@ -126,8 +126,17 @@ pub(super) async fn warm_result_children<Chain>(
     let declaring_dir = declaring_manifest_dir(&ctx.importer.lockfile_dir, parent.result);
     warmed
         .into_iter()
+        // A link into the declaring package is never resolved; see
+        // `package_root_link_result`.
+        .filter(|(wanted, _)| wanted_package_root_link(wanted).is_none())
         .map(|(wanted, prior)| {
-            let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());
+            let mut wanted = wanted;
+            let opts = opts_for_child_spec(
+                opts,
+                &mut wanted,
+                declaring_dir.as_deref(),
+                Some(&ctx.importer.lockfile_dir),
+            );
             async move { warm_child(ctx, resolver, wanted, opts.as_ref(), depth, prior).await }
         })
         .pipe(future::join_all)
@@ -191,11 +200,6 @@ pub(super) async fn warm_child<Chain>(
 ) where
     Chain: Resolver + ?Sized,
 {
-    // A link into the declaring package is never resolved; see
-    // `package_root_link_result`.
-    if wanted_package_root_link(&wanted).is_some() {
-        return;
-    }
     let project_scope = project_relative_cache_scope(&wanted, opts);
     let cache_key = WantedKey::new((
         wanted.alias.clone(),

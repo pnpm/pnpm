@@ -714,3 +714,70 @@ test('pnpm ci in shared workspace preserves non-hidden virtualStoreDir inside ro
   expect(fs.existsSync('node_modules/custom-store/preserved-marker')).toBe(false)
   expect(readPreRes()).toStrictEqual([{ exists: false, hasPackages: false }])
 })
+
+test('pnpm -w ci with the default virtual store exposes the preserved currentLockfile to preResolution', () => {
+  tempDir()
+  fs.mkdirSync('packages/pkg-a', { recursive: true })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.', 'packages/*'] })
+  writePreResolutionRecorder()
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root-pkg',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+  fs.writeFileSync('packages/pkg-a/package.json', JSON.stringify({
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+  }))
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBe(true)
+  fs.unlinkSync('pre-res.jsonl')
+
+  expect(execPnpmSync(['-w', 'ci']).status).toBe(0)
+  expect(readPreResolutionRecords()).toStrictEqual([{ exists: true, hasPackages: true }])
+})
+
+test('pnpm ci with a virtualStoreDir outside the project hides the removed currentLockfile from preResolution', () => {
+  const root = tempDir()
+  const project = path.join(root, 'project')
+  fs.mkdirSync(project)
+  process.chdir(project)
+  writeYamlFileSync('pnpm-workspace.yaml', { virtualStoreDir: path.join(root, 'virtual-store') })
+  writePreResolutionRecorder()
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBe(true)
+  fs.unlinkSync('pre-res.jsonl')
+
+  expect(execPnpmSync(['ci']).status).toBe(0)
+  expect(readPreResolutionRecords()).toStrictEqual([{ exists: false, hasPackages: false }])
+})
+
+function writePreResolutionRecorder (): void {
+  fs.writeFileSync('.pnpmfile.cjs', [
+    'const fs = require("fs")',
+    'const path = require("path")',
+    'module.exports = {',
+    '  hooks: {',
+    '    preResolution (ctx) {',
+    '      const hasPackages = Boolean(ctx.currentLockfile?.packages && Object.keys(ctx.currentLockfile.packages).length > 0)',
+    '      fs.appendFileSync(path.join(__dirname, "pre-res.jsonl"), JSON.stringify({ exists: ctx.existsCurrentLockfile, hasPackages }) + "\\n")',
+    '    },',
+    '  },',
+    '}',
+  ].join('\n'))
+}
+
+function readPreResolutionRecords (): Array<{ exists: boolean, hasPackages: boolean }> {
+  return fs.readFileSync('pre-res.jsonl', 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as { exists: boolean, hasPackages: boolean })
+}

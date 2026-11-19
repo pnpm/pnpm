@@ -21,7 +21,7 @@ async fn publication_times_keep_milliseconds_and_normalize_offsets(db: Db) {
         .await
         .unwrap()
         .unwrap();
-    assert!(chrono::DateTime::parse_from_rfc3339(&publication.committed_at).is_ok());
+    assert!(pnpm_time::parse_rfc3339(&publication.committed_at).is_ok());
 }
 
 async fn metadata_timestamps_are_integer_milliseconds(db: Db) {
@@ -161,8 +161,8 @@ async fn unpublish_times_use_integer_milliseconds(db: Db) {
         .await
         .unwrap()
         .unwrap();
-    let unpublished = chrono::DateTime::parse_from_rfc3339(&tombstone.unpublished_at).unwrap();
-    assert!((before..=now_millis()).contains(&unpublished.timestamp_millis()));
+    let unpublished = pnpm_time::parse_rfc3339(&tombstone.unpublished_at).unwrap();
+    assert!((before..=now_millis()).contains(&pnpm_time::unix_millis(unpublished)));
     let adapter = db.adapter();
     tokio::task::spawn_blocking(move || {
         adapter.read(ReadSource::Primary, &mut |connection| {

@@ -21,7 +21,7 @@
 //!
 //! [`ResolutionVerifier::can_trust_past_check`]: pnpm_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
 
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -359,7 +359,7 @@ fn merge_policies(verifiers: &[Arc<dyn ResolutionVerifier>]) -> serde_json::Map<
 }
 
 fn now_rfc3339() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
+    pnpm_time::format_millis(Timestamp::now())
 }
 
 /// Append a record to the cache file. Single-line writes are atomic

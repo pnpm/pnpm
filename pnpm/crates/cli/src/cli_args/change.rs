@@ -90,7 +90,7 @@ impl ChangeArgs {
             return Ok(());
         }
 
-        let releasable = releasable_projects(&engine_projects, &workspace_dir, &config.versioning);
+        let releasable = recordable_projects(&engine_projects, &workspace_dir, &config.versioning);
         if releasable.is_empty() {
             return Err(ChangeError::NoPackages.into());
         }
@@ -415,6 +415,27 @@ pub fn releasable_projects(
         })
         .collect();
     releasable.sort_by(|left, right| left.reference.cmp(&right.reference));
+    releasable
+}
+
+/// The releasable projects `pnpm change` offers and accepts. Private
+/// packages are left out when `versioning.includePrivatePackages` is
+/// `false`. Lanes and release planning still include them, because an
+/// existing intent or a dependent bump can still release one.
+fn recordable_projects(
+    projects: &[WorkspaceProject],
+    workspace_dir: &Path,
+    versioning: &VersioningSettings,
+) -> Vec<ReleasableProject> {
+    let mut releasable = releasable_projects(projects, workspace_dir, versioning);
+    if versioning.include_private_packages == Some(false) {
+        let private_dirs: HashSet<String> = projects
+            .iter()
+            .filter(|project| project.private)
+            .map(|project| to_project_dir(workspace_dir, &project.root_dir))
+            .collect();
+        releasable.retain(|project| !private_dirs.contains(&project.dir));
+    }
     releasable
 }
 

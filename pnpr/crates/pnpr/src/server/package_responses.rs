@@ -4,7 +4,7 @@ use pnpr_config::PackageDocumentsConfig;
 
 use super::{
     ABBREVIATED_CONTENT_TYPE, AppState, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
-    Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
+    Integrity, RegistryError, Response, StatusCode, Value, abbreviate_packument,
     conditional_requests::is_not_modified, header, streaming, tarball_basename_for_package,
     version_route_tarball_version,
 };
@@ -240,7 +240,7 @@ impl Representation {
         self,
         mut doc: Value,
         documents: &PackageDocumentsConfig,
-        now: chrono::DateTime<Utc>,
+        now: jiff::Timestamp,
     ) -> Result<(Vec<u8>, &'static str), RegistryError> {
         if self == Representation::InstallV2 {
             let anchor = super::split_packuments::document_anchor(&doc).unwrap_or(now);
@@ -334,12 +334,11 @@ pub(super) fn packument_last_modified(doc: &Value) -> Option<String> {
         .get("time")?
         .get("modified")?
         .as_str()?;
-    let parsed = chrono::DateTime::parse_from_rfc3339(modified).ok()?;
-    let mut whole_seconds = parsed.with_timezone(&Utc);
-    if whole_seconds.timestamp_subsec_nanos() > 0 {
-        whole_seconds += chrono::Duration::seconds(1);
-    }
-    Some(whole_seconds.format("%a, %d %b %Y %H:%M:%S GMT").to_string())
+    let parsed = pnpm_time::parse_rfc3339(modified).ok()?;
+    let whole_seconds = parsed
+        .round(jiff::TimestampRound::new().smallest(jiff::Unit::Second).mode(jiff::RoundMode::Ceil))
+        .ok()?;
+    Some(whole_seconds.strftime("%a, %d %b %Y %H:%M:%S GMT").to_string())
 }
 
 pub(super) fn tarball_response(body: Body, content_length: Option<u64>) -> Response {

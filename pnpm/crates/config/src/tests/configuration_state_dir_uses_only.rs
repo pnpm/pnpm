@@ -233,6 +233,38 @@ pub fn readable_load_leaves_out_a_registry_with_env_placeholder() {
     assert_eq!(config.registries_by_scope.get("@other"), None);
 }
 
+/// A readable load leaves out a `storeDir` whose variable is unset, so the
+/// store is placed as if the setting were absent.
+#[test]
+pub fn readable_load_places_the_store_when_store_dir_is_left_out() {
+    let load = |workspace_yaml: &str| {
+        let project = tempdir().expect("project tempdir");
+        write_file(&project.path().join("pnpm-workspace.yaml"), workspace_yaml);
+        let config = Config { settings_read: crate::SettingsRead::Readable, ..Config::default() }
+            .current::<HostNoHome>(project.path())
+            .expect("load config");
+        (config.store_dir, config.store_dir_placement_skipped)
+    };
+
+    assert_eq!(load("storeDir: ${PNPM_TEST_UNSET_STORE_DIR}\n"), load("packages: []\n"));
+}
+
+#[test]
+pub fn unresolved_store_dir_placeholder_fails_the_load() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "storeDir: ${PNPM_TEST_UNSET_STORE_DIR}\n",
+    );
+
+    let error = Config::default().current::<HostNoHome>(project.path()).unwrap_err();
+
+    assert!(
+        error.to_string().contains("${PNPM_TEST_UNSET_STORE_DIR}"),
+        "unexpected error: {error}",
+    );
+}
+
 #[test]
 pub fn repository_proxy_with_env_placeholder_warns() {
     let project = tempdir().expect("project tempdir");

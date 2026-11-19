@@ -2763,3 +2763,59 @@ test('issue 4407: refreshes an injected copy on a repeat install after the sourc
 
   expect(fs.readFileSync('app/node_modules/shared/dist/out.js', 'utf8')).toBe('module.exports = "built"\n')
 })
+
+test('pnpm install --frozen-lockfile checks a plain-range workspace child of a directory dependency', async () => {
+  preparePackages([
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: {
+          lib: 'file:../../vendor/lib',
+        },
+      },
+    },
+    {
+      location: 'packages/workspace-child',
+      package: {
+        name: 'workspace-child',
+        version: '1.0.0',
+      },
+    },
+  ])
+  fs.mkdirSync('vendor/lib', { recursive: true })
+  const writeLib = (injected: boolean) => {
+    fs.writeFileSync('vendor/lib/package.json', JSON.stringify({
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: {
+        'workspace-child': '^1.0.0',
+      },
+      ...(injected ? { dependenciesMeta: { 'workspace-child': { injected: true } } } : {}),
+    }, null, 2))
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    linkWorkspacePackages: 'deep',
+  })
+
+  writeLib(false)
+  await execPnpm(['install'])
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toContain('workspace-child: link:packages/workspace-child')
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  writeLib(true)
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+
+  await execPnpm(['install'])
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toContain('workspace-child: file:packages/workspace-child')
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  writeLib(false)
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})

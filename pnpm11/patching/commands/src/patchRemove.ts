@@ -11,6 +11,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { isSubdirectory } from './isSubdirectory.js'
+import { deleteEditDirStates, readStateFile } from './stateFile.js'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -49,6 +50,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     }
   }
 
+  const editDirsContext = await getEditDirsContext(opts)
   const patchRemovalContext = await getPatchRemovalContext(opts)
   const patchesToRemoveTargets = await Promise.all(patchesToRemove.map(async (patch) => {
     const patchFile = patchedDependencies[patch]
@@ -64,6 +66,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
   }
 
   await removeEmptyPatchesDirs(patchesToRemoveTargets)
+  await removeEditDirs(patchesToRemove, editDirsContext)
   const resolvedPatchedDependencies: Record<string, string> = {}
   for (const [key, patchPath] of Object.entries(patchedDependencies)) {
     resolvedPatchedDependencies[key] = path.resolve(patchRemovalContext.lockfileDir, patchPath)
@@ -109,6 +112,76 @@ async function removeEmptyPatchesDirs (patchesToRemoveTargets: PatchRemovalTarge
       }
     } catch {}
   }))
+}
+
+interface EditDirsContext {
+  modulesDir: string
+  pnpmPatches: string
+}
+
+async function getEditDirsContext (opts: PatchRemoveCommandOptions): Promise<EditDirsContext> {
+  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
+  const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
+  await Promise.all([pnpmPatches, path.join(pnpmPatches, 'state.json')].map(rejectSymlink))
+  readStateFile(modulesDir)
+  return { modulesDir, pnpmPatches }
+}
+
+async function rejectSymlink (targetPath: string): Promise<void> {
+  if ((await lstatIfExists(targetPath))?.isSymbolicLink()) {
+    throw new PnpmError('PATCH_STATE_UNSAFE_PATH', `Unsafe patch state path ${targetPath}: must not be a symbolic link`)
+  }
+}
+
+/**
+ * Removes the state entries of the given patches and their edit directories.
+ * Only edit directories inside `.pnpm_patches` are deleted. Edit directories
+ * created elsewhere with `--edit-dir` belong to the user.
+ */
+async function removeEditDirs (patches: string[], ctx: EditDirsContext): Promise<void> {
+  const defaultEditDirs = patches.map((patch) => path.join(ctx.pnpmPatches, patch))
+  const recordedEditDirs = deleteEditDirStates({
+    modulesDir: ctx.modulesDir,
+    patchedPkgs: patches,
+    editDirs: defaultEditDirs,
+  })
+  const realPnpmPatches = await realpathIfExists(ctx.pnpmPatches)
+  if (realPnpmPatches == null) return
+  await Promise.all(Array.from(new Set([...defaultEditDirs, ...recordedEditDirs])).map(async (editDir) => {
+    if (!isStrictSubdirectory(ctx.pnpmPatches, editDir) || !(await lstatIfExists(editDir))?.isDirectory()) return
+    // A link anywhere below .pnpm_patches could point the removal at another edit directory.
+    const linkFreeRealPath = path.join(realPnpmPatches, path.relative(ctx.pnpmPatches, editDir))
+    if (await realpathIfExists(editDir) !== linkFreeRealPath) return
+    await fs.rm(editDir, { recursive: true, force: true })
+    await removeEmptyAncestors(ctx.pnpmPatches, editDir)
+  }))
+  await removeDirIfEmpty(ctx.pnpmPatches)
+}
+
+/**
+ * Removes the directories between `pnpmPatches` and a removed edit directory,
+ * such as the scope directory of `@scope/pkg@1.0.0`, while they are empty.
+ */
+async function removeEmptyAncestors (pnpmPatches: string, removedDir: string): Promise<void> {
+  for (let dir = path.dirname(removedDir); isStrictSubdirectory(pnpmPatches, dir); dir = path.dirname(dir)) {
+    // eslint-disable-next-line no-await-in-loop -- each parent can only be removed after its child
+    if (!await removeDirIfEmpty(dir)) return
+  }
+}
+
+async function removeDirIfEmpty (dir: string): Promise<boolean> {
+  try {
+    await fs.rmdir(dir)
+    return true
+  } catch (err: unknown) {
+    if (isErrorWithCode(err, 'ENOENT') || isErrorWithCode(err, 'ENOTEMPTY')) return false
+    throw err
+  }
+}
+
+function isStrictSubdirectory (parentDir: string, childPath: string): boolean {
+  return path.resolve(parentDir) !== path.resolve(childPath) && isSubdirectory(parentDir, childPath)
 }
 
 interface PatchRemovalContext {

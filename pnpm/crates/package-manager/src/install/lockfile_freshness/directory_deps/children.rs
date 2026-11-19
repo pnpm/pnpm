@@ -13,6 +13,7 @@ use pnpm_resolving_deps_resolver::{
     ChildCatalogs, DependencySpec, ResolveDependencyTreeError, declared_peer_dependencies,
     directory_package_dir, local_directory_child_specs,
 };
+use pnpm_resolving_resolver_base::is_valid_semver_range;
 use std::collections::{HashMap, HashSet};
 /// Compares the children the resolver walks for the package (see
 /// [`local_directory_child_specs`]) with the ones its snapshot records.
@@ -140,8 +141,19 @@ fn peer_replaces_child(
             .ok()
             .and_then(|name| recorded.resolve(&name))
             .is_some_and(|provider| bound.binds(&provider)))
-        || implicit_workspace_target_satisfies(dep, child, recorded)
-            .unwrap_or_else(|| recorded_child_satisfies_spec(check, dep, child, recorded))
+        || recorded_child_satisfies_spec(
+            check,
+            dep,
+            &DependencySpec {
+                injected: recorded
+                    .ver_peer()
+                    .is_some_and(|version| {
+                        matches!(version.version(), pnpm_lockfile::VersionPart::File(_))
+                    }),
+                ..child.clone()
+            },
+            recorded,
+        )
 }
 
 fn recorded_catalog_spec_matches(
@@ -168,9 +180,7 @@ pub(super) fn catalog_child_is_fresh(
     snapshot: &pnpm_lockfile::SnapshotEntry,
     child: &DependencySpec,
 ) -> bool {
-    recorded_child(snapshot, &child.alias, RecordedDeps::of(child))
-        .and_then(|recorded| implicit_workspace_target_satisfies(dep, child, recorded))
-        .unwrap_or_else(|| child_is_fresh(check, dep, snapshot, child))
+    child_is_fresh(check, dep, snapshot, child)
 }
 
 fn recorded_local_target_is_fresh(
@@ -180,9 +190,9 @@ fn recorded_local_target_is_fresh(
     child: &DependencySpec,
 ) -> bool {
     let recorded = recorded_child(snapshot, &child.alias, RecordedDeps::of(child));
-    if let Some(satisfied) =
-        recorded.and_then(|recorded| implicit_workspace_target_satisfies(dep, child, recorded))
-    {
+    if let Some(satisfied) = recorded.and_then(|recorded| {
+        implicit_workspace_target_satisfies(check, dep, child, recorded)
+    }) {
         return satisfied;
     }
     let local = child.bare_specifier.starts_with("workspace:")
@@ -193,43 +203,72 @@ fn recorded_local_target_is_fresh(
         return true;
     }
     child_is_fresh(check, dep, snapshot, child)
-        && recorded
-            .and_then(|recorded| recorded.as_link_target())
-            .is_none_or(|target| {
-                super::spec::importer_range_link_satisfies(
-                    &dep.dirs,
-                    check.lockfile_dir,
-                    &child.alias,
-                    &child.bare_specifier,
-                    target,
-                )
-            })
 }
 
+/// Whether a plain or `npm:` range or tag child that the resolver linked to a
+/// workspace project still selects it with the recorded injection mode. A
+/// recorded link to a target missing from the checkout is accepted, as for an
+/// importer. `None` for any other child.
 fn implicit_workspace_target_satisfies(
+    check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     child: &DependencySpec,
     recorded: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
-    if recorded
-        .ver_peer()
-        .is_some_and(|version| matches!(version.version(), pnpm_lockfile::VersionPart::File(_)))
-        && !child.bare_specifier.starts_with("workspace:")
-        && !super::is_declared_by_path(&child.bare_specifier)
-    {
-        let spec = child.bare_specifier.strip_prefix("npm:").unwrap_or(&child.bare_specifier);
-        return Some(
-            super::spec::spec_satisfies_snapshot_dep(
-                &dep.dirs,
-                dep.dir,
-                &child.alias,
-                &format!("workspace:{spec}"),
-                recorded,
-            )
-            .unwrap_or(false),
-        );
+    let (expected_name, range) = implicit_workspace_range(child, recorded)?;
+    let link = recorded.as_link_target();
+    if link.is_none() != (child.injected || workspace_packages_injected(check)) {
+        return Some(false);
     }
-    None
+    if let Some(link) = link {
+        return Some(super::spec::range_link_target_satisfies(
+            &dep.dirs,
+            check.lockfile_dir,
+            link,
+            expected_name,
+            range,
+        ));
+    }
+    let workspace_spec = format!("workspace:{expected_name}@{range}");
+    let recorded_as_file = true;
+    Some(
+        super::spec::spec_satisfies_snapshot_dep(
+            &dep.dirs,
+            dep.dir,
+            &child.alias,
+            &workspace_spec,
+            recorded_as_file,
+            recorded,
+        )
+        .unwrap_or(false),
+    )
+}
+
+/// The package name and workspace range of a plain or `npm:` range or tag
+/// child recorded as a `link:` or `file:` reference. A tag selects the
+/// highest workspace version, as in the resolver.
+fn implicit_workspace_range<'a>(
+    child: &'a DependencySpec,
+    recorded: &pnpm_lockfile::SnapshotDepRef,
+) -> Option<(&'a str, &'a str)> {
+    let spec = child.bare_specifier.as_str();
+    let recorded_local = recorded.as_link_target().is_some()
+        || recorded
+            .ver_peer()
+            .is_some_and(|version| {
+                matches!(version.version(), pnpm_lockfile::VersionPart::File(_))
+            });
+    if !recorded_local
+        || spec.starts_with("workspace:")
+        || spec.starts_with("link:")
+        || super::is_declared_by_path(spec)
+    {
+        return None;
+    }
+    let (target, range) = super::spec::parse_npm_spec(spec);
+    let range =
+        if crate::manifest_agreement::spec_is_distribution_tag(range) { "*" } else { range };
+    is_valid_semver_range(range).then_some((target.unwrap_or(&child.alias), range))
 }
 
 fn check_child_directory_dep_freshness(
@@ -305,8 +344,30 @@ fn recorded_child_satisfies_spec(
     child: &DependencySpec,
     recorded: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, &child.alias, &child.bare_specifier, recorded)
-        .unwrap_or(check.optional_exclusions.frozen_lockfile)
+    implicit_workspace_target_satisfies(check, dep, child, recorded)
+        .unwrap_or_else(|| {
+            spec_satisfies_snapshot_dep(
+                &dep.dirs,
+                dep.dir,
+                &child.alias,
+                &child.bare_specifier,
+                child_is_injected(check, child),
+                recorded,
+            )
+            .unwrap_or(check.optional_exclusions.frozen_lockfile)
+        })
+}
+
+fn child_is_injected(check: &ImporterSatisfactionCheck<'_>, child: &DependencySpec) -> bool {
+    child.injected
+        || (child.bare_specifier.starts_with("workspace:") && workspace_packages_injected(check))
+}
+
+fn workspace_packages_injected(check: &ImporterSatisfactionCheck<'_>) -> bool {
+    check.config.inject_workspace_packages
+        || check.lockfile.settings
+            .as_ref()
+            .is_some_and(|settings| settings.inject_workspace_packages)
 }
 
 /// Which of a snapshot's two dependency maps a child is recorded in.

@@ -4,7 +4,10 @@
 //! `workspace:` path specifiers resolved against their declaring
 //! manifest's directory.
 
-use chrono::{DateTime, Utc};
+pub(super) use child_spec::opts_for_child_spec;
+mod child_spec;
+
+use jiff::Timestamp;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_patching::PatchGroupRecord;
@@ -13,7 +16,6 @@ use pnpm_resolving_resolver_base::{
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
-    borrow::Cow,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
@@ -31,9 +33,9 @@ use super::{
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being
 /// importer-independent. True for the `link:` / `file:` / `workspace:`
-/// protocols, whose resolved path `resolve_from_local_package` derives
-/// from `project_dir`. Such resolutions must not be shared across
-/// importers in [`WantedKey`].
+/// protocols and for a bare local path, whose resolved path
+/// `resolve_from_local_package` derives from `project_dir`. Such
+/// resolutions must not be shared across importers in [`WantedKey`].
 ///
 /// [`WantedKey`]: super::workspace_ctx::WantedKey
 pub(super) fn project_relative_cache_scope(
@@ -43,7 +45,10 @@ pub(super) fn project_relative_cache_scope(
     (wanted.bare_specifier
         .as_deref()
         .is_some_and(|spec| {
-            spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
+            spec.starts_with("link:")
+                || spec.starts_with("file:")
+                || spec.starts_with("workspace:")
+                || pnpm_local_spec::bare_path_is_unambiguous(spec)
         })
         || (opts.project.link_workspace_packages.enabled_at_depth(0)
             && opts.project.workspace_packages.is_some()))
@@ -89,30 +94,6 @@ pub fn directory_package_dir(lockfile_dir: &Path, directory: &str) -> PathBuf {
 /// ([`declaring_manifest_dir`]) instead of the consuming importer's.
 pub(crate) fn resolves_from_declaring_manifest(spec: &str) -> bool {
     spec.starts_with("file:") || pnpm_workspace_spec::is_workspace_path_specifier(spec)
-}
-
-/// Point a specifier matching [`resolves_from_declaring_manifest`] at
-/// its declaring manifest's directory. Every other specifier keeps the
-/// caller's options.
-pub(super) fn opts_relative_to_declaring_manifest<'a>(
-    opts: &'a ResolveOptions,
-    wanted: &WantedDependency,
-    parent_dir: Option<&Path>,
-) -> Cow<'a, ResolveOptions> {
-    match parent_dir {
-        Some(parent_dir)
-            if wanted.bare_specifier.as_deref().is_some_and(resolves_from_declaring_manifest) =>
-        {
-            Cow::Owned(ResolveOptions {
-                project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-                    project_dir: parent_dir.to_path_buf(),
-                    ..opts.project.clone()
-                },
-                ..opts.clone()
-            })
-        }
-        _ => Cow::Borrowed(opts),
-    }
 }
 
 /// Mutable workspace for an in-flight tree walk. The orchestrator
@@ -301,7 +282,7 @@ impl TreeCtx {
     pub fn with_resolution_mode(
         mut self,
         pick_lowest_direct: bool,
-        subdep_published_by: Option<DateTime<Utc>>,
+        subdep_published_by: Option<Timestamp>,
     ) -> Self {
         self.options.direct.version.pick_lowest_version = pick_lowest_direct;
         self.options.subdep.version.pick_lowest_version = false;

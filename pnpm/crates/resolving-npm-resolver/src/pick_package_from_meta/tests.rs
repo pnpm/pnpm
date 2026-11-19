@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use node_semver::Version;
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pnpm_resolving_resolver_base::{
@@ -19,8 +19,8 @@ use super::{
 
 mod stable_cached_range;
 
-fn parse_iso(input: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
+fn parse_iso(input: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(input).expect("rfc3339")
 }
 
 #[test]
@@ -1026,7 +1026,7 @@ fn filter_is_memoized_per_packument_and_stays_bounded() {
     // Distinct cutoffs past the cap evict the oldest entry, so the
     // original policy is derived again instead of growing the memo.
     for minutes in 1..=4 {
-        let other = cutoff + chrono::Duration::minutes(minutes);
+        let other = cutoff + jiff::SignedDuration::from_mins(minutes);
         let _ = filter_pkg_metadata_by_publish_date(&pkg, other, None);
     }
     let after_eviction = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);

@@ -31,7 +31,7 @@ pub(crate) struct PublishedByView {
 #[must_use]
 pub(crate) fn apply_published_by_policy(
     meta: &Package,
-    cutoff: chrono::DateTime<chrono::Utc>,
+    cutoff: jiff::Timestamp,
     exclude: Option<&PackageVersionPolicy>,
 ) -> PublishedByView {
     let exclude_result = exclude.map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
@@ -69,7 +69,7 @@ pub(crate) fn apply_published_by_policy(
 #[must_use]
 pub fn filter_pkg_metadata_by_publish_date(
     meta: &Package,
-    cutoff: chrono::DateTime<chrono::Utc>,
+    cutoff: jiff::Timestamp,
     trusted_versions: Option<&[String]>,
 ) -> Arc<Package> {
     let policy_key = publish_date_policy_key(cutoff, trusted_versions);
@@ -83,14 +83,14 @@ pub fn filter_pkg_metadata_by_publish_date(
 /// differ, and they must not read each other's view.
 ///
 /// The cutoff goes in at the precision it is compared at: it comes from
-/// `Utc::now()` and packument timestamps parse to the same resolution,
+/// `Timestamp::now()` and packument timestamps parse to the same resolution,
 /// so a key rounded to the millisecond would let two cutoffs that keep
 /// different versions share one derived packument.
 pub(super) fn publish_date_policy_key(
-    cutoff: chrono::DateTime<chrono::Utc>,
+    cutoff: jiff::Timestamp,
     trusted_versions: Option<&[String]>,
 ) -> String {
-    let mut key = format!("{}.{}", cutoff.timestamp(), cutoff.timestamp_subsec_nanos());
+    let mut key = format!("{}.{}", cutoff.as_second(), cutoff.subsec_nanosecond());
     for trusted in trusted_versions.unwrap_or_default() {
         key.push('\0');
         key.push_str(trusted);
@@ -100,7 +100,7 @@ pub(super) fn publish_date_policy_key(
 
 pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
     meta: &Package,
-    cutoff: chrono::DateTime<chrono::Utc>,
+    cutoff: jiff::Timestamp,
     trusted_versions: Option<&[String]>,
 ) -> Package {
     let time = meta.time

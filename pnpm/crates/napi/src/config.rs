@@ -99,6 +99,8 @@ pub struct ConfigOverlay {
     pub offline: Option<bool>,
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
+    /// `lockfile.format` — the format the wanted lockfile is written in.
+    pub lockfile_format: Option<pnpm_lockfile::LockfileFormat>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
     pub add_missing_peer_types: Option<bool>,

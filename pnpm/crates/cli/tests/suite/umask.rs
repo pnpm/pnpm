@@ -8,10 +8,10 @@
 use crate::_utils::{ManifestDeps, write_project_manifest};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_fs::file_mode::Umask;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
-    spawn::Umask,
 };
 use pnpm_workspace_state::WORKSPACE_STATE_FILENAME;
 use std::{
@@ -36,16 +36,18 @@ const PLAIN_FILE_REL: &str = concat!(
 );
 
 fn pnpm_with_umask(dir: &Path, umask: Umask, args: &[&str]) {
-    let mut command = Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(dir)
-        .without_ambient_pnpm_config();
-    pnpm_testing_utils::spawn::with_umask(&mut command, umask);
-    let output = command
-        .args(args)
-        .output()
-        .expect("run pnpm");
+    let pnpm = Command::cargo_bin("pnpm").expect("find the pnpm binary");
     let mask = umask.mask();
+    // Set the mask before exec without a `pre_exec` hook.
+    let mut command = Command::new("/bin/sh").with_current_dir(dir).without_ambient_pnpm_config();
+    command
+        .arg("-c")
+        .arg(r#"umask "$1" || exit; shift; exec "$@""#)
+        .arg("sh")
+        .arg(format!("{mask:o}"))
+        .arg(pnpm.get_program())
+        .args(args);
+    let output = command.output().expect("run pnpm");
     assert!(
         output.status.success(),
         "{args:?} under umask {mask:#o} failed: {} (signal: {:?})\nstdout:\n{}\nstderr:\n{}",

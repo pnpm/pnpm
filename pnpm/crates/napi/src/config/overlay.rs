@@ -128,6 +128,9 @@ pub(super) fn apply_install_flags(config: &mut Config, overlay: &ConfigOverlay) 
     if let Some(value) = overlay.prefer_frozen_lockfile {
         config.prefer_frozen_lockfile = value;
     }
+    if let Some(value) = overlay.lockfile_format {
+        config.lockfile_format = value;
+    }
 }
 
 /// Deduplication and peer-resolution settings.

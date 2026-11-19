@@ -168,11 +168,20 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             workspace_packages: self.setup.workspace_packages.clone(),
             update_checksums: self.install.update_checksums,
             update_behavior: resolver_update_behavior(&self.owned.resolution.update_seed_policy),
-            refresh_metadata: matches!(
-                self.owned.resolution.update_seed_policy,
-                super::UpdateSeedPolicy::KeepAllResolveAll,
-            ),
+            refresh_metadata: self.refreshes_metadata(),
         }
+    }
+
+    /// Whether the resolve revalidates the cached metadata of locked
+    /// versions: a deduplication that writes a lockfile recording
+    /// `deprecated` notices. A check run writes none, and its caller ignores
+    /// a difference in registry metadata.
+    fn refreshes_metadata(&self) -> bool {
+        matches!(
+            self.owned.resolution.update_seed_policy,
+            super::UpdateSeedPolicy::KeepAllResolveAll,
+        ) && self.owned.lockfile.check_sink.is_none()
+            && self.install.drivers.config.lockfile_format.records_deprecations()
     }
 
     /// The `pnpmfileChecksum` this install would record, for the reuse

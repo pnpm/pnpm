@@ -2,7 +2,6 @@ use super::{
     HashMap, JSR_PACKAGE_BODY, ResolveOptions, WantedDependency, assert_eq,
     build_resolver_with_registries,
 };
-use chrono::TimeZone;
 use pnpm_resolving_resolver_base::Resolver;
 
 #[tokio::test]
@@ -27,7 +26,7 @@ async fn jsr_specifier_suppresses_latest_when_published_by_holds_back_raw_latest
     };
     let opts = ResolveOptions {
         policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-            published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap()),
+            published_by: Some("2024-06-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap()),
             ..Default::default()
         },
         ..ResolveOptions::default()

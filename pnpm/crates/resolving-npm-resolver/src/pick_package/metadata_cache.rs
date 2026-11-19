@@ -1,4 +1,4 @@
-use super::{Arc, DashMap, DateTime, Package, Semaphore, Utc};
+use super::{Arc, DashMap, Package, Semaphore, Timestamp};
 
 /// A cached packument together with its source.
 /// The two travel as one value so a reader can never pair a packument
@@ -19,7 +19,7 @@ pub enum PackumentSource {
     /// registry round-trip (see [`PackageMetaCache::set_unverified`]).
     Mirror {
         /// The mirror's mtime, when the pick that read the mirror checked it.
-        written_at: Option<DateTime<Utc>>,
+        written_at: Option<Timestamp>,
     },
 }
 
@@ -73,7 +73,7 @@ pub trait PackageMetaCache: Send + Sync {
     /// Required (no default) on purpose: an implementation that stored
     /// these entries as verified would silently turn a recoverable
     /// stale-mirror miss into a terminal "no matching version".
-    fn set_unverified(&self, key: String, meta: Arc<Package>, written_at: Option<DateTime<Utc>>);
+    fn set_unverified(&self, key: String, meta: Arc<Package>, written_at: Option<Timestamp>);
 }
 
 /// The packument-fetching state one install owns, shared across every
@@ -185,7 +185,7 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
         self.inner.insert(key, CachedPackument { meta, source: PackumentSource::Registry });
     }
 
-    fn set_unverified(&self, key: String, meta: Arc<Package>, written_at: Option<DateTime<Utc>>) {
+    fn set_unverified(&self, key: String, meta: Arc<Package>, written_at: Option<Timestamp>) {
         self.inner.insert(
             key,
             CachedPackument { meta, source: PackumentSource::Mirror { written_at } },

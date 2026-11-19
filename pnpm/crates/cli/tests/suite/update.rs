@@ -1417,6 +1417,8 @@ mod cargo_features;
 
 mod cargo_pinned_lines;
 
+mod tag;
+
 /// A changed specifier re-resolves its dependency, and that dependency's
 /// own dependencies keep the versions the lockfile pins while nothing else
 /// in the graph prefers another (pnpm/pnpm#2191).

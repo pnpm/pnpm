@@ -501,10 +501,7 @@ fn cache_registry_name(file_path: &str) -> String {
 /// The metadata file's modification time as an RFC 3339 timestamp.
 fn cached_at(full_path: &Path) -> Option<String> {
     let mtime = fs::metadata(full_path).and_then(|meta| meta.modified()).ok()?;
-    Some(
-        chrono::DateTime::<chrono::Utc>::from(mtime)
-            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-    )
+    Some(pnpm_time::format_millis(jiff::Timestamp::try_from(mtime).ok()?))
 }
 
 /// Every cache file matching `pattern`, as `(cache-relative path with

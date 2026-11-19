@@ -11,6 +11,7 @@ import semver from 'semver'
 
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { hasAlias, type WantedDependency } from './getWantedDependencies.js'
+import { readLockedGitPackage } from './lockedGitPackage.js'
 import { getRangeOfLockedPackage, isNamedRegistrySpecifier } from './lockedRegistryKey.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
 import type { ParentPkg, ResolutionContext, ResolveDependencyOptions, ResolvedPkgsById } from './resolutionTypes.js'
@@ -61,6 +62,8 @@ export function getPkgsInfoFromIds (
  * may be skipped.
  */
 export async function requestDependencyPackage (request: DependencyRequest): Promise<PackageResponse | null> {
+  const lockedGitPackage = readLockedGitPackage(request)
+  if (lockedGitPackage != null) return lockedGitPackage
   const { ctx, options, wantedDependency } = request
   // Normalize the `preferredVersion` (singular) and `preferredVersions`
   // (plural) options. If the singular option is passed through, it'll be used

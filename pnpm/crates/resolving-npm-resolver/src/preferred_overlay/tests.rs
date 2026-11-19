@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use node_semver::Version;
 use pnpm_lockfile::{LockfileResolution, RegistryResolution};
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
@@ -21,8 +21,8 @@ use crate::pick_package_from_meta::{
     apply_published_by_policy, pick_version_by_version_range,
 };
 
-fn parse_iso(input: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
+fn parse_iso(input: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(input).expect("rfc3339")
 }
 
 fn make_pkg_version(name: &str, version: &str) -> PackageVersion {

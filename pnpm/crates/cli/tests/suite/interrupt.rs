@@ -372,17 +372,20 @@ fn assert_ctrl_c_ends_recursive_run(selection: &[&str], started: &[&str]) {
 #[test]
 fn a_shell_that_stays_the_scripts_parent_passes_the_interrupt_on() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
+    write_project_running(&workspace, "test", "node dev.js && echo > after.txt", SIGNAL_SCRIPT);
 
     let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
     wait_for_file(&workspace.join("started.txt"), &mut process);
     interrupt(&process);
-    wait_for_shutdown(&mut process);
+    let status = wait_for_shutdown(&mut process);
 
     assert!(
         workspace.join("shut-down.txt").exists(),
         "the script must have finished shutting down before pnpm exited",
     );
+
+    assert!(workspace.join("after.txt").exists(), "the shell must continue after clean shutdown");
+    assert_eq!(status.code(), Some(0));
 
     drop(root);
 }

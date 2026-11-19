@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
@@ -1703,12 +1703,42 @@ describe('local file dependency', () => {
           ...options.wantedLockfile,
           packages: {
             'local@file:./local-dir': { ...localDirSnapshot, dependencies: { other: ref } },
+            'other@file:other-dir': { resolution: { directory: 'other-dir', type: 'directory' } },
           } as LockfileObject['packages'],
         },
       })
     }
     expect(await check('../other-dir', 'link:other-dir')).toBeTruthy()
     expect(await check('../other.tgz', 'link:other.tgz')).toBeFalsy()
+  })
+
+  test.each([
+    [true, 'file:other-dir', 'link:other-dir'],
+    [false, 'link:other-dir', 'file:other-dir'],
+  ])('allProjectsAreUpToDate(): detects a changed injected setting for a local child', async (injected, initialRef, changedRef) => {
+    await mkdir('other-dir')
+    await writeFile('./other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    const check = async (metaInjected: boolean, ref: string) => {
+      await writeLocalDirManifest({
+        dependencies: { other: '../other-dir' },
+        dependenciesMeta: { other: { injected: metaInjected } },
+      })
+      return allProjectsAreUpToDate(projects, {
+        ...options,
+        lockfileDir: process.cwd(),
+        wantedLockfile: {
+          ...options.wantedLockfile,
+          packages: {
+            'local@file:./local-dir': { ...localDirSnapshot, dependencies: { other: ref } },
+            'other@file:other-dir': { resolution: { directory: 'other-dir', type: 'directory' } },
+          } as LockfileObject['packages'],
+        },
+      })
+    }
+    expect(await check(injected, initialRef)).toBeTruthy()
+    expect(await check(!injected, initialRef)).toBeFalsy()
+    expect(await check(!injected, changedRef)).toBeTruthy()
   })
 
   // Windows forbids a colon in a directory name.
@@ -2760,6 +2790,9 @@ test('allProjectsAreUpToDate(): works with injected workspace dependency with a 
     dependencies: {
       'pkg-b': 'workspace:*',
     },
+    dependenciesMeta: {
+      'pkg-b': { injected: true },
+    },
   }))
   await writeFile('./packages/pkg-b/package.json', JSON.stringify({
     name: 'pkg-b',
@@ -2890,6 +2923,132 @@ test('allProjectsAreUpToDate(): returns true for an injected workspace dependenc
     lockfileDir: process.cwd(),
   }
   expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
+})
+
+test('allProjectsAreUpToDate(): checks a plain-range workspace child of a directory dependency against its target and injection mode', async () => {
+  prepareEmpty()
+  await mkdir('vendor/lib', { recursive: true })
+  await mkdir('packages/workspace-child', { recursive: true })
+  await writeFile('./packages/workspace-child/package.json', JSON.stringify({
+    name: 'workspace-child',
+    version: '1.0.0',
+  }))
+  const projects = [
+    {
+      id: 'app' as ProjectId,
+      manifest: {
+        dependencies: {
+          lib: 'file:vendor/lib',
+        },
+      },
+      rootDir: 'app' as ProjectRootDir,
+    },
+  ]
+  const check = async ({
+    range = '^1.0.0',
+    ref,
+    depInjected = false,
+    injectWorkspacePackages = false,
+    includeChildSnapshot = true,
+  }: {
+    range?: string
+    ref: string
+    depInjected?: boolean
+    injectWorkspacePackages?: boolean
+    includeChildSnapshot?: boolean
+  }) => {
+    await writeFile('./vendor/lib/package.json', JSON.stringify({
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: { 'workspace-child': range },
+      ...(depInjected ? { dependenciesMeta: { 'workspace-child': { injected: true } } } : {}),
+    }))
+    const childDirectory = ref.startsWith('file:') ? ref.slice(5) : 'packages/workspace-child'
+    return allProjectsAreUpToDate(projects, {
+      autoInstallPeers: false,
+      catalogs: {},
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      wantedLockfile: {
+        settings: {
+          autoInstallPeers: false,
+          excludeLinksFromLockfile: false,
+          injectWorkspacePackages,
+        },
+        importers: {
+          app: {
+            dependencies: { lib: 'file:vendor/lib' },
+            specifiers: { lib: 'file:vendor/lib' },
+          },
+        },
+        packages: {
+          'lib@file:vendor/lib': {
+            resolution: { directory: 'vendor/lib', type: 'directory' },
+            version: '1.0.0',
+            dependencies: { 'workspace-child': ref },
+          },
+          ...(includeChildSnapshot
+            ? {
+              [`workspace-child@file:${childDirectory}`]: {
+                resolution: { directory: childDirectory, type: 'directory' },
+                version: '1.0.0',
+              },
+            }
+            : {}),
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+      } as LockfileObject,
+      workspacePackages: new Map(),
+      lockfileDir: process.cwd(),
+    })
+  }
+
+  expect(await check({ ref: 'link:packages/workspace-child' })).toBe(true)
+  expect(await check({ ref: 'link:packages/workspace-child', range: '^2.0.0' })).toBe(false)
+  expect(await check({ ref: 'link:packages/workspace-child', depInjected: true })).toBe(false)
+  expect(await check({ ref: 'link:packages/workspace-child', injectWorkspacePackages: true })).toBe(false)
+  expect(await check({ ref: 'file:packages/workspace-child', depInjected: true })).toBe(true)
+  expect(await check({ ref: 'file:packages/workspace-child', depInjected: true, includeChildSnapshot: false })).toBe(false)
+  expect(await check({ ref: 'file:packages/workspace-child', injectWorkspacePackages: true })).toBe(true)
+  expect(await check({ ref: 'file:packages/workspace-child' })).toBe(false)
+  expect(await check({ ref: 'file:packages/workspace-child', depInjected: true, range: '^2.0.0' })).toBe(false)
+  expect(await check({ ref: 'link:packages/workspace-child', range: 'latest' })).toBe(true)
+  expect(await check({ ref: 'link:packages/workspace-child', range: 'npm:workspace-child@next' })).toBe(true)
+  expect(await check({ ref: 'link:packages/workspace-child', range: 'npm:other@next' })).toBe(false)
+
+  await writeFile('./packages/workspace-child/package.json', JSON.stringify({
+    name: 'workspace-child',
+    version: '1.0.0',
+    publishConfig: { directory: 'dist' },
+  }))
+  expect(await check({ ref: 'link:packages/workspace-child/dist' })).toBe(true)
+  expect(await check({ ref: 'link:packages/workspace-child/dist', range: '^2.0.0' })).toBe(false)
+  expect(await check({ ref: 'file:packages/workspace-child/dist', depInjected: true })).toBe(true)
+
+  await mkdir('packages/workspace-child/dist')
+  await writeFile('./packages/workspace-child/dist/package.json', JSON.stringify({
+    name: 'workspace-child',
+    version: '2.0.0',
+  }))
+  expect(await check({ ref: 'link:packages/workspace-child/dist' })).toBe(true)
+  expect(await check({ ref: 'link:packages/workspace-child/dist', range: '^2.0.0' })).toBe(false)
+  await rm('packages/workspace-child/dist', { recursive: true })
+
+  const outsideDir = path.resolve('..', `outside-${path.basename(process.cwd())}`)
+  await mkdir(outsideDir, { recursive: true })
+  await writeFile(path.join(outsideDir, 'package.json'), JSON.stringify({ name: 'workspace-child', version: '1.0.0' }))
+  await symlink(outsideDir, 'packages/workspace-child/dist', 'junction')
+  expect(await check({ ref: 'link:packages/workspace-child/dist' })).toBe(false)
+  await rm('packages/workspace-child/dist')
+  await rm(outsideDir, { recursive: true })
+
+  await writeFile('./packages/workspace-child/package.json', JSON.stringify({
+    name: 'workspace-child',
+    version: '1.0.0',
+    publishConfig: { directory: 'dist', linkDirectory: false },
+  }))
+  expect(await check({ ref: 'link:packages/workspace-child/dist' })).toBe(false)
+  expect(await check({ ref: 'link:packages/workspace-child' })).toBe(true)
 })
 
 test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry even when skipping local directory dependencies', async () => {

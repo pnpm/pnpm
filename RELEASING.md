@@ -91,6 +91,11 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    so CI can stage a release but cannot approve or publish it directly.
 
 7. Publish the draft GitHub release the workflow created for each product.
+   For a pnpm release, first check that the "Add the RPM to the pnpm draft
+   release" job succeeded and that the draft carries both
+   `pnpm-<version>-1.el8.x86_64.rpm` and `pnpm-<version>-el8-x86_64-repo.tar.gz`.
+   If the job failed, rerun it while the release is still a draft. A published
+   release is immutable, so assets cannot be added afterwards.
    Publishing it starts Sync documentation for that version, and the sync fails
    while the version is still staged on npm. So publish a draft only after its
    packages are approved.

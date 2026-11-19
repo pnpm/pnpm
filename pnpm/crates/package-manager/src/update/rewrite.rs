@@ -73,9 +73,13 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     declared: (&String, DependencyGroup, &String),
 ) -> Result<MatchedRewrite, UpdateError> {
     let (name, group, previous) = declared;
-    // The two sources are exclusive: `--latest` rejects versioned selectors.
+    // The two sources are exclusive with `requested`: `--latest` and `--tag`
+    // each reject versioned selectors.
     if scope.version.latest {
         return latest_direct_rewrite(scope, plan, inputs, (name, group, previous)).await;
+    }
+    if let Some(tag) = scope.version.tag {
+        return tag_direct_rewrite(scope, plan, inputs, (name, previous), tag).await;
     }
     let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
     let requested = scope.selectors
@@ -99,16 +103,8 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
         .filter(|_| !is_tool_specifier(previous))
         .filter(|specifier| get_version_selector_type(specifier) == Some(VersionSelectorType::Tag));
     if let Some(tag) = tag {
-        let rewritten = tag_rewrite(
-            rewrite_ctx,
-            latest_chain,
-            &mut plan.preferred_versions_override,
-            scope.range_spec_style(),
-            (name, previous, tag),
-            requested.clone(),
-        )
-        .await?;
-        return Ok(MatchedRewrite::Target(rewritten));
+        let inputs = (rewrite_ctx, latest_chain);
+        return tag_target(scope, plan, inputs, (name, previous, tag), requested.clone()).await;
     }
     Ok(requested_direct_rewrite(scope, plan, declared, requested))
 }
@@ -338,7 +334,13 @@ pub(super) async fn tag_rewrite(
                 None => requested,
             }
         }
-        Some(VersionSelectorType::Tag) => requested,
+        // The declaration keeps tracking a tag, so it takes the requested
+        // tag as written. Resolving it first reports a tag the registry
+        // does not publish before the manifest takes it.
+        Some(VersionSelectorType::Tag) => {
+            tag_version(rewrite_ctx, latest_chain, name, tag).await?;
+            requested
+        }
         None => None,
     };
     // A declaration that already says what the selector settles on is not a
@@ -405,4 +407,42 @@ async fn latest_direct_rewrite(
     Ok(MatchedRewrite::Target(Some(apply_channel_bump_target(
         plan, name, group, previous, specifier,
     ))))
+}
+
+/// One matched direct dependency under `--tag`: what a `<name>@<tag>`
+/// selector writes for it, without the selector.
+async fn tag_direct_rewrite(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    inputs: MatchedRewriteInputs<'_, '_, '_>,
+    declared: (&str, &str),
+    tag: &str,
+) -> Result<MatchedRewrite, UpdateError> {
+    let (name, previous) = declared;
+    let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
+    if !scope.version.save {
+        return Ok(MatchedRewrite::Target(None));
+    }
+    let inputs = (rewrite_ctx, latest_chain);
+    tag_target(scope, plan, inputs, (name, previous, tag), Some(tag.to_string())).await
+}
+
+/// The [`tag_rewrite`] of one matched direct dependency as its target.
+async fn tag_target(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    (rewrite_ctx, latest_chain): (&LatestRewriteCtx<'_, '_>, &mut Option<LatestResolverChain>),
+    declared: (&str, &str, &str),
+    requested: Option<String>,
+) -> Result<MatchedRewrite, UpdateError> {
+    let rewritten = tag_rewrite(
+        rewrite_ctx,
+        latest_chain,
+        &mut plan.preferred_versions_override,
+        scope.range_spec_style(),
+        declared,
+        requested,
+    )
+    .await?;
+    Ok(MatchedRewrite::Target(rewritten))
 }

@@ -32,7 +32,7 @@ pub(super) fn serialize_spdx(result: &SbomResult, compact: bool) -> String {
     }
     let spdx_relationships = spdx_relationships(result, root_spdx_id, &spdx_id_map);
 
-    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let timestamp = pnpm_time::format_seconds(jiff::Timestamp::now());
     let doc_namespace = spdx_document_namespace(result);
 
     let doc = serde_json::json!({

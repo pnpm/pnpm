@@ -1,6 +1,6 @@
 use super::{
-    DateTime, HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path,
-    TrustPolicy, Utc, VersionSelectors,
+    HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path, Timestamp,
+    TrustPolicy, VersionSelectors,
 };
 
 /// Process-shared context every [`super::pick_package`] call reads from.
@@ -114,10 +114,10 @@ pub struct PickPackageOptions<'a> {
 pub struct PackagePickPolicy<'a> {
     /// `minimumReleaseAge` cutoff. `None` disables the maturity
     /// filter for this call.
-    pub published_by: Option<DateTime<Utc>>,
+    pub published_by: Option<Timestamp>,
     /// Release-age cutoff to try before the unrestricted fallback.
     /// Only used when later than `published_by`.
-    pub fallback_published_by: Option<DateTime<Utc>>,
+    pub fallback_published_by: Option<Timestamp>,
     /// `minimumReleaseAgeExclude` policy. `None` skips exclusion.
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     /// Trust-policy validation requires current registry metadata.

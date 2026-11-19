@@ -116,6 +116,7 @@ async fn resolve_outdated_cargo_dep(
     .unwrap_or_else(|| current.clone());
     let target = match query.target_version {
         TargetVersion::WithinRange => wanted.clone(),
+        TargetVersion::Tag(_) => return Ok(None),
         TargetVersion::Latest => {
             let Some(latest) =
                 resolve_target_version(config, auth_headers, &dep.package_name, None, http_client)

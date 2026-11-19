@@ -28,21 +28,33 @@ pub(super) fn parse_selectors(packages: &[String]) -> Vec<ParsedSelector> {
         .map(|input| parse_update_param(input))
         .collect()
 }
-/// `--latest` forbids versioned selectors.
-pub(super) fn reject_versioned_latest_selectors(
+/// `--latest` and `--tag` forbid versioned selectors: the flag's target and
+/// the selector's version would each name a different one.
+///
+/// # Errors
+///
+/// [`UpdateError::LatestWithSpec`] or [`UpdateError::TagWithSpec`] when a
+/// selector in `packages` carries a version under the matching flag.
+pub fn reject_versioned_selectors(
+    version: &super::UpdateVersionOptions<'_>,
     packages: &[String],
-    selectors: &[ParsedSelector],
 ) -> Result<(), UpdateError> {
     let with_spec = packages
         .iter()
-        .zip(selectors)
-        .filter(|(_, selector)| selector.version.is_some())
-        .map(|(raw, _)| raw.as_str())
+        .filter(|raw| parse_update_param(raw).version.is_some())
+        .map(String::as_str)
         .collect::<Vec<_>>();
     if with_spec.is_empty() {
         return Ok(());
     }
-    Err(UpdateError::LatestWithSpec(with_spec.join(", ")))
+    let specs = with_spec.join(", ");
+    if version.latest {
+        return Err(UpdateError::LatestWithSpec(specs));
+    }
+    if version.tag.is_some() {
+        return Err(UpdateError::TagWithSpec(specs));
+    }
+    Ok(())
 }
 /// The selectors an update selector stands for. An `npm:` selector
 /// contributes a second one for the aliased package, because that -- not

@@ -36,3 +36,13 @@ async fn reads_the_tagger_date_of_annotated_tags_and_the_commit_date_of_lightwei
     assert_eq!(dates["v1.1.0"], 1_650_000_000);
     assert_eq!(dates["v2.0.0"], 1_700_000_000);
 }
+
+#[test]
+fn release_age_cutoff_preserves_fractional_seconds_before_the_epoch() {
+    let policy = super::ReleaseAge {
+        published_by: "1969-12-31T23:59:59.999Z".parse().unwrap(),
+        exclude: None,
+    };
+    assert!(policy.admits(Some(-1)));
+    assert!(!policy.admits(Some(0)));
+}

@@ -30,7 +30,7 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-arm64/pnpm',
       musl: '@pnpm/exe.linux-arm64-musl/pnpm',
     },
-    // Only a glibc build is released for these three.
+    // Only a glibc build is released for these architectures.
     riscv64: {
       glibc: '@pnpm/exe.linux-riscv64/pnpm',
     },
@@ -39,6 +39,9 @@ const PLATFORMS = {
     },
     s390x: {
       glibc: '@pnpm/exe.linux-s390x/pnpm',
+    },
+    loong64: {
+      glibc: '@pnpm/exe.linux-loong64/pnpm',
     },
   },
   freebsd: {

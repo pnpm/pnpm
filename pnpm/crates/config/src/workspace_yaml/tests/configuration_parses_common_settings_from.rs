@@ -286,7 +286,7 @@ namedRegistries:
   work: https://${WORK_HOST}/work/
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_trusted::<EnvWithHost>();
+    settings.substitute_env_trusted::<EnvWithHost>().unwrap();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server.as_deref(), Some("https://internal.example.com/pnpr/"));

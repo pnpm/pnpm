@@ -20,8 +20,8 @@ use crate::{
     identity::Authority,
     tuf::{TrustedRepository, TufError},
 };
-use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
+use jiff::Timestamp;
 use pnpm_transparency_log::{
     CheckpointPolicy, KeyAlgorithm, KeyError, KeySet, PolicyError, VerifierKey,
 };
@@ -93,7 +93,7 @@ impl LogPolicy {
     pub fn from_repository(
         repository: &TrustedRepository,
         bytes: &[u8],
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Result<Self, LogPolicyError> {
         repository.verify_target(LOG_POLICY_TARGET, bytes, now).map_err(LogPolicyError::Tuf)?;
         LogPolicy::parse(bytes, *repository.first_root_digest())

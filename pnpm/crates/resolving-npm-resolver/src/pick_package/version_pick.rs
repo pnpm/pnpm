@@ -1,7 +1,7 @@
 use super::{
-    Arc, DateTime, HashSet, Package, PackageVersion, PackageVersionPolicy, PickPackageError,
+    Arc, HashSet, Package, PackageVersion, PackageVersionPolicy, PickPackageError,
     PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck,
-    Utc, VersionSelectors, filter_pkg_metadata_versions, offline_store::tarball_key,
+    Timestamp, VersionSelectors, filter_pkg_metadata_versions, offline_store::tarball_key,
     pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
     warn_missing_time_once,
 };
@@ -12,8 +12,8 @@ use crate::{OfflineStoreView, PickPackageFromMetaError};
 /// pull-up from the context.
 pub(super) struct PickerOpts<'a> {
     pub(super) preferred_version_selectors: Option<&'a VersionSelectors>,
-    pub(super) published_by: Option<DateTime<Utc>>,
-    pub(super) fallback_published_by: Option<DateTime<Utc>>,
+    pub(super) published_by: Option<Timestamp>,
+    pub(super) fallback_published_by: Option<Timestamp>,
     pub(super) published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub(super) pick_lowest_version: bool,
     pub(super) include_latest_tag: bool,

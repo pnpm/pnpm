@@ -133,8 +133,7 @@ pub(super) fn decompose(bytes: &[u8]) -> Result<PackumentRows> {
 }
 
 fn publication_time(version: &str, value: &str) -> Result<i64> {
-    chrono::DateTime::parse_from_rfc3339(value)
-        .map(|time| time.timestamp_millis())
+    pnpm_time::parse_rfc3339_millis(value)
         .map_err(|_| {
             bad_request(&format!("publication time of version {version:?} must be RFC 3339"))
         })

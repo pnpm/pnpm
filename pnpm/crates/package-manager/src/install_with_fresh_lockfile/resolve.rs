@@ -98,7 +98,7 @@ pub(super) async fn warn_stale_convergence_overrides<Reporter: pnpm_reporter::Re
     parsed_overrides: &[pnpm_config_parse_overrides::VersionOverride],
     versions_overrider: &VersionsOverrider,
     lockfile_dir: &Path,
-    published_by: Option<chrono::DateTime<chrono::Utc>>,
+    published_by: Option<jiff::Timestamp>,
     published_by_exclude: Option<&pnpm_config::version_policy::PackageVersionPolicy>,
 ) {
     use crate::warn_on_stale_convergence_overrides as stale;

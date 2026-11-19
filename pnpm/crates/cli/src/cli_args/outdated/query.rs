@@ -162,13 +162,27 @@ impl OutdatedRun {
 /// Which registry version a dependency is compared against to decide
 /// whether it is outdated.
 #[derive(Debug, Clone, Copy)]
-pub enum TargetVersion {
+pub enum TargetVersion<'a> {
     /// The `latest` dist-tag — the absolute newest published version.
     Latest,
+    /// The version behind the given dist-tag. `update --tag <tag>`'s target.
+    Tag(&'a str),
     /// The highest version satisfying the manifest range. pnpm's
     /// `outdated --compatible`, and the version an in-range `update`
     /// would move to.
     WithinRange,
+}
+
+impl<'a> TargetVersion<'a> {
+    /// The target `update --latest` / `update --tag <tag>` selects. clap
+    /// rejects the two flags together, so at most one is set.
+    pub(crate) const fn from_update_flags(latest: bool, tag: Option<&'a str>) -> Self {
+        match tag {
+            Some(tag) => Self::Tag(tag),
+            None if latest => Self::Latest,
+            None => Self::WithinRange,
+        }
+    }
 }
 
 /// A direct dependency with a newer (or deprecated) registry version.
@@ -273,7 +287,7 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
 /// What counts as outdated for a [`collect_outdated`] run.
 pub struct OutdatedQuery<'a> {
     /// The registry version each dependency is compared against.
-    pub target_version: TargetVersion,
+    pub target_version: TargetVersion<'a>,
     /// Dependency groups to inspect.
     pub include_direct: &'a [DependencyGroup],
     /// When present, restricts the walk to dependency keys the matcher

@@ -1,14 +1,18 @@
 use std::collections::{HashMap, HashSet};
 
 use node_semver::{Range, Version};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
+    LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_resolving_resolver_base::get_peer_version_range;
 
 use crate::{
     ParentPkg, PeerIssues,
-    linked::{LinkRoots, record_bad_peer, record_missing_peer, resolve_link_version},
+    linked::{
+        LinkRoots, record_bad_peer, record_missing_peer, resolve_link_version, resolve_peer_range,
+    },
     ranges::{parse_range_to_intervals, preprocess_hyphen_ranges},
 };
 
@@ -17,6 +21,7 @@ pub(super) fn walk_snapshot(
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
     roots: &LinkRoots<'_>,
+    catalogs: Option<&Catalogs>,
     visited: &mut HashSet<PkgNameVerPeer>,
     issues: &mut PeerIssues,
 ) {
@@ -41,6 +46,7 @@ pub(super) fn walk_snapshot(
             snapshot,
             packages,
             roots,
+            catalogs,
             parents: &current_parents,
             issues,
         });
@@ -56,6 +62,7 @@ struct SnapshotPeers<'a> {
     snapshot: Option<&'a SnapshotEntry>,
     packages: &'a HashMap<PkgNameVerPeer, PackageMetadata>,
     roots: &'a LinkRoots<'a>,
+    catalogs: Option<&'a Catalogs>,
     parents: &'a [ParentPkg],
     issues: &'a mut PeerIssues,
 }
@@ -68,7 +75,7 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
     let Some(peers) = &meta.peer_dependencies else { return };
 
     for (peer_name, peer_range) in peers {
-        let peer_range = get_peer_version_range(peer_range);
+        let peer_range = wanted_peer_range(meta, peer_name, peer_range, inputs.catalogs);
         let optional = meta.peer_dependencies_meta
             .as_ref()
             .and_then(|meta_map| meta_map.get(peer_name))
@@ -88,6 +95,22 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
         };
         record_bad_peer(issues, peer_name, inputs.parents, optional, &peer_range, found_version);
     }
+}
+
+fn wanted_peer_range(
+    meta: &PackageMetadata,
+    peer_name: &str,
+    peer_range: &str,
+    catalogs: Option<&Catalogs>,
+) -> String {
+    // The lockfile records a directory package's peers as written. A range
+    // the catalogs cannot resolve is kept, and so reported as unmet.
+    if !matches!(meta.resolution, LockfileResolution::Directory(_)) {
+        return get_peer_version_range(peer_range);
+    }
+    let resolved = resolve_peer_range(peer_name, peer_range, catalogs)
+        .unwrap_or_else(|_| peer_range.to_string());
+    get_peer_version_range(&resolved)
 }
 
 pub(super) fn snapshot_dependency<'a>(

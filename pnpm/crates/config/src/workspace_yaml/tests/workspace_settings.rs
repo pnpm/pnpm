@@ -233,7 +233,7 @@ fn drops_a_workspace_user_agent_with_an_env_placeholder() {
     assert_eq!(settings.user_agent, None);
 
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_trusted::<EnvWithToken>();
+    settings.substitute_env_trusted::<EnvWithToken>().unwrap();
     assert_eq!(settings.user_agent.as_deref(), Some("agent/super-secret-token"));
 
     let mut settings: WorkspaceSettings =

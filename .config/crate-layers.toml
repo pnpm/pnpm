@@ -39,6 +39,7 @@ crates = [
   "pnpm-signal-registry",
   "pnpm-text-sanitize",
   "pnpm-text-section",
+  "pnpm-time",
   "pnpm-transparency-log",
   "pnpm-wasm-host",
   "pnpm-webcontainer-sys",
@@ -89,7 +90,7 @@ crates = [
 [[layer]]
 name = "service"
 description = "One capability each: resolve, fetch, link, patch, run scripts, talk to a registry. Takes its settings as values and never reads the configuration."
-max_transitive_dependencies = 43
+max_transitive_dependencies = 36
 crates = [
   "pnpm-cargo-resolver",
   "pnpm-cmd-shim",
@@ -226,6 +227,7 @@ crates = [
   "pnpm-store-dir",
   "pnpm-tarball",
   "pnpm-testing-utils",
+  "pnpm-time",
   "pnpm-transparency-log",
   # pnpr crates that pnpm depends on.
   "pnpr",
@@ -284,12 +286,12 @@ pnpm-auth-commands = 9
 pnpm-catalogs-config = 2
 pnpm-catalogs-protocol-parser = 1
 pnpm-catalogs-resolver = 3
-pnpm-cli = 82
+pnpm-cli = 79
 pnpm-cmd-shim = 2
 pnpm-config = 21
 pnpm-config-parse-overrides = 3
 pnpm-crypto-shasums-file = 4
-pnpm-default-reporter = 4
+pnpm-default-reporter = 5
 pnpm-deps-inspection = 11
 pnpm-deps-inspection-peers = 10
 pnpm-deps-path = 2
@@ -322,7 +324,7 @@ pnpm-local-spec = 2
 pnpm-lockfile = 11
 pnpm-lockfile-import = 1
 pnpm-lockfile-preferred-versions = 6
-pnpm-lockfile-verification = 6
+pnpm-lockfile-verification = 7
 pnpm-micro-benchmark = 13
 pnpm-modules-yaml = 2
 pnpm-napi = 30
@@ -343,7 +345,7 @@ pnpm-real-hoist = 2
 pnpm-registry = 4
 pnpm-registry-mock = 2
 pnpm-release-notes = 1
-pnpm-release-record = 1
+pnpm-release-record = 2
 pnpm-reporter = 1
 pnpm-resolving-default-resolver = 12
 pnpm-resolving-deps-resolver = 18
@@ -352,7 +354,7 @@ pnpm-resolving-jsr-specifier-parser = 1
 pnpm-resolving-local-resolver = 7
 pnpm-resolving-npm-resolver = 14
 pnpm-resolving-parse-wanted-dependency = 1
-pnpm-resolving-resolver-base = 5
+pnpm-resolving-resolver-base = 6
 pnpm-resolving-tarball-resolver = 9
 pnpm-rust-toolchain = 9
 pnpm-store-dir = 9
@@ -369,7 +371,7 @@ pnpm-workspace-projects-graph = 7
 pnpm-workspace-range-resolver = 1
 pnpm-workspace-state = 2
 pnpm-workspace-task-scheduler = 2
-pnpr = 39
+pnpr = 40
 pnpr-auth = 6
 pnpr-cargo = 2
 pnpr-config = 8
@@ -385,8 +387,8 @@ pnpr-route = 4
 pnpr-search = 3
 pnpr-shared-artifacts = 3
 pnpr-sql = 3
-pnpr-storage = 10
-pnpr-upstream = 6
+pnpr-storage = 11
+pnpr-upstream = 7
 
 # The accepted number of workspace crates whose items each crate names in its
 # public signatures without re-exporting them. A caller that uses such an item

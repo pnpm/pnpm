@@ -278,7 +278,7 @@ async fn a_ui_sign_in_hands_the_token_only_to_the_browser_and_flow_that_signed_i
     let sign_in = |flow: &str, token: &str| {
         let session = LoginSession {
             token: token.to_string(),
-            expires: chrono::Utc::now().timestamp() + 60,
+            expires: jiff::Timestamp::now().as_second() + 60,
             returns_to: LoginReturn::Ui,
         };
         let landed = signed_in(&oidc, flow, session);

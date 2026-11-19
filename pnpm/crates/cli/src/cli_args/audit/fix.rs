@@ -9,10 +9,10 @@ pub(crate) use update::{
 };
 
 use super::{
-    Arc, AuditAdvisory, AuditError, AuditReport, BTreeMap, Config, ConfigAuditLevel, DateTime,
+    Arc, AuditAdvisory, AuditError, AuditReport, BTreeMap, Config, ConfigAuditLevel,
     DependencyGroup, Deserialize, HashMap, HashSet, IntoDiagnostic, Lockfile, MultiSelect,
-    PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Update, Utc,
-    Version, blue, color_severity, encode_package_name, green, normalize_ghsa_id,
+    PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Timestamp,
+    Update, Version, blue, color_severity, encode_package_name, green, normalize_ghsa_id,
     parse_packument_timestamp, red, satisfies_including_prerelease, send_with_retry, severity_name,
     severity_number,
 };
@@ -185,7 +185,7 @@ pub(crate) async fn fetch_publish_times(
 ) -> Option<PackumentPublishInfo> {
     #[derive(Deserialize)]
     struct PackumentTimes {
-        time: Option<HashMap<String, String>>,
+        time: Option<HashMap<String, serde_json::Value>>,
         versions: Option<HashMap<String, PackumentVersion>>,
     }
 
@@ -224,11 +224,28 @@ pub(crate) async fn fetch_publish_times(
     }
 
     let body = response.json::<PackumentTimes>().await.ok()?;
-    let time = body.time?;
     Some(PackumentPublishInfo {
-        time,
+        time: publish_timestamps(body.time?)?,
         deprecated: deprecated_versions(body.versions.unwrap_or_default()),
     })
+}
+
+/// The publish timestamps of a packument `time` map. Non-version entries
+/// that are not strings, such as an `unpublished` marker that is `null` or an
+/// object, are dropped. `None` when a version's timestamp is not a string, so
+/// a malformed map is not mistaken for the complete list of releases.
+fn publish_timestamps(time: HashMap<String, serde_json::Value>) -> Option<HashMap<String, String>> {
+    let mut timestamps = HashMap::with_capacity(time.len());
+    for (key, value) in time {
+        match value {
+            serde_json::Value::String(published_at) => {
+                timestamps.insert(key, published_at);
+            }
+            _ if key.parse::<Version>().is_ok() => return None,
+            _ => {}
+        }
+    }
+    Some(timestamps)
 }
 
 /// Compute the age-gate exclusions for `advisories` using the publish-time
@@ -244,8 +261,8 @@ fn resolve_minimum_release_age_excludes(
     // does; with no effective gate no bypass entries are needed.
     let Some(cutoff) = i64::try_from(minimum_release_age)
         .ok()
-        .and_then(chrono::Duration::try_minutes)
-        .and_then(|age| Utc::now().checked_sub_signed(age))
+        .and_then(pnpm_time::duration_minutes)
+        .and_then(|age| Timestamp::now().checked_sub(age).ok())
     else {
         return Ok(Vec::new());
     };
@@ -264,7 +281,7 @@ fn resolve_minimum_release_age_excludes(
 pub(crate) fn minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
-    cutoff: DateTime<Utc>,
+    cutoff: Timestamp,
 ) -> miette::Result<Vec<String>> {
     let specs: Vec<String> = advisories
         .values()

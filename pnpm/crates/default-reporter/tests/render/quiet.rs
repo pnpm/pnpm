@@ -217,9 +217,16 @@ fn quiet_verification_prints_only_failures() {
         let events = [
             LockfileVerificationMessage::Started { entries: 2, lockfile_path: None },
             LockfileVerificationMessage::Cached { verified_at: None, lockfile_path: None },
-            LockfileVerificationMessage::Done { entries: 2, elapsed_ms: 100, lockfile_path: None },
+            LockfileVerificationMessage::Progress { entries: 2, checked: 1, lockfile_path: None },
+            LockfileVerificationMessage::Done {
+                entries: 2,
+                checked: 2,
+                elapsed_ms: 100,
+                lockfile_path: None,
+            },
             LockfileVerificationMessage::Failed {
                 entries: 2,
+                checked: 1,
                 elapsed_ms: 100,
                 lockfile_path: None,
             },

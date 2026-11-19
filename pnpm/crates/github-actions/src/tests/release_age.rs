@@ -4,7 +4,7 @@ use crate::{
     release_age::{TagDateReader, TagDates},
     update_with_runner,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use node_semver::Version;
 use pnpm_config::version_policy::create_package_version_policy;
 use std::{fs, future::Future, path::Path, pin::Pin, sync::Mutex};
@@ -59,7 +59,7 @@ impl TagDateReader for FailingTagDates {
 
 fn policy(exclude: &[&str]) -> ReleaseAge {
     ReleaseAge {
-        published_by: DateTime::<Utc>::from_timestamp(CUTOFF, 0).expect("cutoff"),
+        published_by: Timestamp::from_second(CUTOFF).expect("cutoff"),
         exclude: (!exclude.is_empty()).then(|| {
             create_package_version_policy(exclude).expect("exclude policy")
         }),

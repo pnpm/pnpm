@@ -31,7 +31,7 @@ use provider_metadata::{MetadataCache, MetadataFreshness};
 mod transport;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
-use chrono::Utc;
+use jiff::Timestamp;
 use openidconnect::{
     AccessTokenHash, AuthType, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
     EndpointMaybeSet, EndpointNotSet, EndpointSet, HttpRequest, HttpResponse, IssuerUrl,
@@ -137,7 +137,7 @@ impl OidcState {
             nonce: nonce.secret().clone(),
             verifier: verifier.secret().clone(),
             state_hash: super::sha256_hex(state.secret().as_bytes()),
-            expires: Utc::now().timestamp() + LOGIN_TTL.as_secs() as i64,
+            expires: Timestamp::now().as_second() + LOGIN_TTL.as_secs() as i64,
             returns_to,
         };
         let browser_secret = self.seal_login(&pending)?;
@@ -177,7 +177,7 @@ impl OidcState {
         .await?;
         // Keep the binding locked until the session exists, so revocation cannot miss it.
         let (user, _subject_binding) = bound_user(&provider.config, token, resolve_subject)?;
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         if login.expires <= now {
             return Err(rejected());
         }

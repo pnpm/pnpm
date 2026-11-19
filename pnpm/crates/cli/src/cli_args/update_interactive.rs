@@ -49,10 +49,22 @@ struct InteractiveUpdateProject<'a> {
 }
 
 pub(crate) struct InteractiveUpdateOptions<'a> {
-    pub latest: bool,
+    /// The version each package dependency is compared against.
+    pub target_version: TargetVersion<'a>,
     pub include_direct: &'a [DependencyGroup],
     pub include_github_actions: bool,
+    /// `--latest` for the GitHub Actions choices, which `--no-save` does not
+    /// narrow: it only keeps `package.json` ranges.
+    pub latest_github_actions: bool,
     pub prompt: UpdatePrompt,
+}
+
+impl InteractiveUpdateOptions<'_> {
+    /// Whether the up-to-date message may point at ranges the manifest
+    /// declares: only an in-range update has that excuse.
+    fn reaches_past_declared_range(&self) -> bool {
+        !matches!(self.target_version, TargetVersion::WithinRange)
+    }
 }
 
 /// One row of the checkbox prompt.
@@ -175,17 +187,23 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
         lockfile,
         config,
         http_client,
-        options.latest,
+        options.target_version,
         options.include_direct,
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
+        append_github_actions::<Reporter>(
+            &mut choices,
+            root,
+            options.latest_github_actions,
+            config,
+        )
+        .await?;
     }
     let notes = choice_notes(config, &choices).await;
     prompt_for_packages::<Reporter>(
         &choices,
-        options.latest,
+        options.reaches_past_declared_range(),
         config.workspace_dir.is_some(),
         (options.prompt, &notes),
     )
@@ -215,15 +233,26 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         lockfile,
         config,
         http_client,
-        options.latest,
+        options.target_version,
         options.include_direct,
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
+        append_github_actions::<Reporter>(
+            &mut choices,
+            root,
+            options.latest_github_actions,
+            config,
+        )
+        .await?;
     }
     let notes = choice_notes(config, &choices).await;
-    prompt_for_packages::<Reporter>(&choices, options.latest, true, (options.prompt, &notes))
+    prompt_for_packages::<Reporter>(
+        &choices,
+        options.reaches_past_declared_range(),
+        true,
+        (options.prompt, &notes),
+    )
 }
 
 async fn append_github_actions<Reporter: self::Reporter>(
@@ -252,10 +281,9 @@ async fn collect_choices(
     lockfile: Option<&Lockfile>,
     config: &Config,
     http_client: &Arc<ThrottledClient>,
-    latest: bool,
+    target_version: TargetVersion<'_>,
     include_direct: &[DependencyGroup],
 ) -> miette::Result<Vec<OutdatedPackage>> {
-    let target_version = if latest { TargetVersion::Latest } else { TargetVersion::WithinRange };
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
         target_version,
@@ -308,8 +336,8 @@ fn unique_choices(
     Ok(collected)
 }
 
-fn print_up_to_date(latest: bool) {
-    let message = if latest {
+fn print_up_to_date(past_declared_range: bool) {
+    let message = if past_declared_range {
         "All of your dependencies are already up to date"
     } else {
         "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
@@ -319,12 +347,12 @@ fn print_up_to_date(latest: bool) {
 
 fn prompt_for_packages<Reporter: self::Reporter>(
     choices: &[OutdatedPackage],
-    latest: bool,
+    past_declared_range: bool,
     workspaces_enabled: bool,
     (prompt, notes): (UpdatePrompt, &ChoiceNotes),
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
-        print_up_to_date(latest);
+        print_up_to_date(past_declared_range);
         return Ok(None);
     }
 

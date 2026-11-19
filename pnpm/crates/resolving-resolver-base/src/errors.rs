@@ -10,8 +10,8 @@
 
 use std::fmt::{self, Write as _};
 
-use chrono::{Local, TimeDelta, Utc};
 use derive_more::{Display, Error};
+use jiff::Timestamp;
 use miette::Diagnostic;
 use pnpm_network::{hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline};
 use pnpm_registry::Package;
@@ -88,11 +88,11 @@ fn describe_published_versions(meta: &Package) -> String {
 /// day old. `None` when the registry served a timestamp that doesn't parse.
 fn stringify_date(timestamp: &str) -> Option<String> {
     let parsed = crate::parse_packument_timestamp(timestamp)?;
-    let local = parsed.with_timezone(&Local);
-    if Utc::now() - parsed < TimeDelta::days(1) {
-        return Some(local.format("%-m/%-d/%Y %-I:%M:%S %p").to_string());
+    let local = parsed.to_zoned(jiff::tz::TimeZone::system());
+    if Timestamp::now().duration_since(parsed) < jiff::SignedDuration::from_hours(24) {
+        return Some(local.strftime("%-m/%-d/%Y %-I:%M:%S %p").to_string());
     }
-    Some(local.format("%-m/%-d/%Y").to_string())
+    Some(local.strftime("%-m/%-d/%Y").to_string())
 }
 
 /// `ERR_PNPM_FETCH_<status>`: the registry answered a request with a non-2xx

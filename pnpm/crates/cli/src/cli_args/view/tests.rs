@@ -3,7 +3,7 @@ use crate::cli_args::view::render::{
     bin_summary, format_bytes, format_field_value, format_person, format_time_ago_since,
     get_nested_property, parse_date, published_info, publisher,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use miette::Diagnostic;
 use serde_json::{Value, json};
 
@@ -50,8 +50,8 @@ fn nearest_project_name_uses_alternative_manifests_and_precedence() {
     assert!(error.to_string().contains("package.json"));
 }
 
-fn utc(rfc3339: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(rfc3339).expect("valid timestamp").with_timezone(&Utc)
+fn utc(rfc3339: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(rfc3339).expect("valid timestamp")
 }
 
 #[test]

@@ -98,9 +98,9 @@ fn put_json_with_bearer(path: &str, token: &str, body: &Value) -> Request<Body> 
 }
 
 fn rfc3339_unix_seconds(raw: &str) -> i64 {
-    chrono::DateTime::parse_from_rfc3339(raw)
+    pnpm_time::parse_rfc3339(raw)
         .unwrap_or_else(|err| panic!("expected RFC 3339 timestamp, got {raw:?}: {err}"))
-        .timestamp()
+        .as_second()
 }
 
 #[tokio::test]
@@ -625,7 +625,7 @@ async fn passwordless_token_creation_stays_within_the_calling_token() {
     let auth = AuthState::in_memory();
     let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth.clone());
     let id = auth.users.provision_user("alice").await.unwrap();
-    let caller_expires = chrono::Utc::now().timestamp() + 3600;
+    let caller_expires = jiff::Timestamp::now().as_second() + 3600;
     let (caller, _) = auth.tokens
         .issue_token(
             &id,
@@ -674,9 +674,9 @@ async fn assert_token_lifetimes(
         );
     };
 
-    let before = chrono::Utc::now().timestamp();
+    let before = jiff::Timestamp::now().as_second();
     let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
-    let login_issued = (before, chrono::Utc::now().timestamp());
+    let login_issued = (before, jiff::Timestamp::now().as_second());
     let listed = app
         .clone()
         .oneshot(get_with_bearer("/-/npm/v1/tokens", &login_token))
@@ -691,13 +691,13 @@ async fn assert_token_lifetimes(
     for (requested, lifetime) in created {
         let mut payload = requested.clone();
         payload["password"] = json!("secret123");
-        let before = chrono::Utc::now().timestamp();
+        let before = jiff::Timestamp::now().as_second();
         let response = app
             .clone()
             .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
             .await
             .unwrap();
-        let issued = (before, chrono::Utc::now().timestamp());
+        let issued = (before, jiff::Timestamp::now().as_second());
         assert_eq!(response.status(), StatusCode::OK, "{requested}");
         assert_expires_after(&body_json(response.into_body()).await, issued, *lifetime);
     }

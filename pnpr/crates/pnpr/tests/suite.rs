@@ -20,6 +20,12 @@ mod tokens;
 mod access_log;
 mod account_identity;
 mod admin_audit_log;
+// Keep in sync with the `cfg` on `mod allocator` in `src/main.rs`.
+#[cfg(all(
+    any(target_os = "linux", target_os = "macos", target_os = "windows"),
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+))]
+mod allocator;
 mod atomic_publication;
 mod auth_persistence;
 mod auth_publish;

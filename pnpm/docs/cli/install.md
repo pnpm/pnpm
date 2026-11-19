@@ -127,6 +127,8 @@ Don't read or generate a `pnpm-lock.yaml` file.
 
 When used, only updates `pnpm-lock.yaml` and `package.json`. Nothing gets written to the `node_modules` directory.
 
+When resolving an unrelated change, pnpm can reuse Git commits already recorded in the lockfile for unchanged direct and transitive dependencies.
+
 ### --lockfile-dir &lt;dir\>
 
 The directory in which `pnpm-lock.yaml` is created. Several projects can share one lockfile. It cannot be combined with `--global`.

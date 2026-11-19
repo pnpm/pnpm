@@ -1264,12 +1264,17 @@ fn lockfile_update_keeps_the_aliased_git_child_of_a_git_dependency_with_peers() 
     let log = GitCommandLog::new(root.path());
 
     pnpm_at(&workspace)
-        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile", "--ignore-scripts"])
+        .arg("--store-dir")
+        .arg(root.path().join("empty-store"))
+        .arg("--cache-dir")
+        .arg(root.path().join("empty-cache"))
         .env("PATH", prepend_to_path(log.bin.parent().unwrap()))
         .assert()
         .success();
 
     assert_eq!(log.ls_remote_calls(), Vec::<String>::new());
+    assert_eq!(log.acquisitions(), Vec::<std::path::PathBuf>::new());
     let after = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let git_snapshots = |lockfile: &Lockfile| {
         lockfile.snapshots
@@ -1283,6 +1288,24 @@ fn lockfile_update_keeps_the_aliased_git_child_of_a_git_dependency_with_peers() 
     let locked = git_snapshots(&before);
     assert_eq!(locked.len(), 2, "{locked:?}");
     assert_eq!(git_snapshots(&after), locked);
+
+    let config_path = workspace.join("pnpm-workspace.yaml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    fs::write(
+        &config_path,
+        config.replace("blockExoticSubdeps: false", "blockExoticSubdeps: true"),
+    )
+    .unwrap();
+    write_dependencies(
+        &workspace,
+        &[("with-peer", &spec), ("@pnpm.e2e/peer-a", "1.0.0"), ("@pnpm.e2e/bar", "100.0.0")],
+    );
+    let blocked = pnpm_at(&workspace)
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&blocked.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_EXOTIC_SUBDEP"), "stderr:\n{stderr}");
 
     drop((root, npmrc_info));
 }

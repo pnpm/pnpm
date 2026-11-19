@@ -42,6 +42,7 @@ fn test_update(
             },
             version: crate::UpdateVersionOptions {
                 latest,
+                tag: None,
                 patches: false,
                 range_spec_style: pnpm_registry::RangeSpecStyle::Major,
                 save,

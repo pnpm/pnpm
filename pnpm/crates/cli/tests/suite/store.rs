@@ -466,6 +466,77 @@ fn store_add_fetches_a_package_without_touching_the_project() {
 }
 
 #[test]
+fn store_add_indexes_a_direct_tarball_url_without_integrity() {
+    let CommandTempCwd {
+        pacquet, root: _root, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    // `localhost` keeps the URL outside the registry prefix, so it resolves
+    // as a direct tarball without an integrity value.
+    let tarball_url = format!("{}@pnpm.e2e/foo/-/foo-100.0.0.tgz", npmrc_info.mock_instance.url())
+        .replace("127.0.0.1", "localhost");
+
+    pacquet
+        .with_args(["store", "add", &tarball_url])
+        .assert()
+        .success();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let store_index = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index store add just wrote");
+    let keys = store_index.keys().expect("read the store index keys");
+    assert_eq!(keys.len(), 1, "store add must index the downloaded tarball: {keys:?}");
+    let row = store_index
+        .get(&keys[0])
+        .expect("read the downloaded tarball's index row")
+        .expect("store add must write the downloaded tarball's index row");
+    assert_eq!(
+        row.manifest
+            .as_ref()
+            .and_then(|manifest| manifest.get("name"))
+            .and_then(serde_json::Value::as_str),
+        Some("@pnpm.e2e/foo"),
+    );
+}
+
+#[test]
+fn store_add_reports_no_added_package_when_the_index_write_fails() {
+    let CommandTempCwd {
+        pacquet,
+        root: _root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["store", "add", "is-odd@3.0.1"])
+        .assert()
+        .success();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    rusqlite::Connection::open(store_dir.root().join("index.db"))
+        .expect("open the seeded store index")
+        .execute_batch(
+            "CREATE TRIGGER fail_write BEFORE INSERT ON package_index
+             BEGIN SELECT RAISE(FAIL, 'injected write failure'); END",
+        )
+        .expect("install the failing trigger");
+    let tarball_url = format!("{}@pnpm.e2e/foo/-/foo-100.0.0.tgz", npmrc_info.mock_instance.url());
+
+    let output = pacquet
+        .with_args(["store", "add", &tarball_url])
+        .output()
+        .expect("run store add");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_STORE_DIR_STORE_INDEX_WRITE"));
+    assert!(
+        !stdout.contains("+ ") && !stderr.contains("+ "),
+        "no package may be reported as added",
+    );
+}
+
+#[test]
 fn store_add_fails_without_touching_a_frozen_store() {
     let CommandTempCwd {
         pacquet, root: _root, npmrc_info, ..

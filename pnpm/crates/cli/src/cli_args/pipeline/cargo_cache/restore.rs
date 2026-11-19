@@ -46,29 +46,47 @@ pub(super) fn invalidate_fingerprints(
     root: &Path,
     local_packages: Option<&[String]>,
 ) -> io::Result<()> {
-    for entry in fs::read_dir(root)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            invalidate_directory(&entry.path(), local_packages)?;
-        }
-    }
-    Ok(())
+    Walk { root, local_packages }.invalidate_below(root)
 }
 
-fn invalidate_directory(path: &Path, local_packages: Option<&[String]>) -> io::Result<()> {
-    if path.file_name() == Some(OsStr::new(".fingerprint")) {
-        return match local_packages {
-            None => fs::remove_dir_all(path),
-            Some(packages) => invalidate_local_fingerprints(path, packages),
+/// Classifies each directory by its path below `root`, so the names of the
+/// directories that contain the root never decide what is invalidated.
+struct Walk<'a> {
+    root: &'a Path,
+    local_packages: Option<&'a [String]>,
+}
+
+impl Walk<'_> {
+    fn invalidate_below(&self, dir: &Path) -> io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                self.invalidate_directory(&entry.path())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn invalidate_directory(&self, path: &Path) -> io::Result<()> {
+        let relative = path.strip_prefix(self.root).map_err(io::Error::other)?;
+        if relative.file_name() == Some(OsStr::new(".fingerprint")) {
+            return match self.local_packages {
+                None => fs::remove_dir_all(path),
+                Some(packages) => invalidate_local_fingerprints(path, packages),
+            };
+        }
+        // New inputs invalidate a nested Cargo build's records too.
+        if self.local_packages.is_some() && is_build_script_output(relative) {
+            return Ok(());
+        }
+        let Some(package) = unit_fingerprint_package(relative) else {
+            return self.invalidate_below(path);
         };
+        if is_stale_unit(path, package, self.local_packages)? {
+            fs::remove_dir_all(path)?;
+        }
+        Ok(())
     }
-    let Some(package) = unit_fingerprint_package(path) else {
-        return invalidate_fingerprints(path, local_packages);
-    };
-    if is_stale_unit(path, package, local_packages)? {
-        fs::remove_dir_all(path)?;
-    }
-    Ok(())
 }
 
 fn is_stale_unit(
@@ -106,16 +124,40 @@ fn invalidate_local_fingerprints(fingerprint_dir: &Path, packages: &[String]) ->
     Ok(())
 }
 
+/// A build script's `OUT_DIR`: `build/<package>-<hash>/out` or
+/// `build/<package>/<hash>/out`. It holds no Cargo units, only what the
+/// script wrote, which can include a nested Cargo build.
+fn is_build_script_output(path: &Path) -> bool {
+    let Some(unit_dir) = path.parent() else { return false };
+    let build_dir = match dir_name(unit_dir) {
+        Some(name) if is_unit_hash(name) => unit_dir.parent().and_then(Path::parent),
+        Some(name) if name.rsplit_once('-').is_some_and(|(_, hash)| is_unit_hash(hash)) => {
+            unit_dir.parent()
+        }
+        _ => None,
+    };
+    dir_name(path) == Some("out") && build_dir.and_then(dir_name) == Some("build")
+}
+
 /// The package of a `build/<package>/<hash>/fingerprint` directory.
 fn unit_fingerprint_package(path: &Path) -> Option<&str> {
-    if path.file_name()? != "fingerprint" {
+    if dir_name(path)? != "fingerprint" || !is_unit_hash(dir_name(path.parent()?)?) {
         return None;
     }
     let package_dir = path.parent()?.parent()?;
-    if package_dir.parent()?.file_name()? != "build" {
+    if dir_name(package_dir.parent()?)? != "build" {
         return None;
     }
-    package_dir.file_name()?.to_str()
+    dir_name(package_dir)
+}
+
+fn dir_name(path: &Path) -> Option<&str> {
+    path.file_name()?.to_str()
+}
+
+/// Cargo names a unit's directory after a hexadecimal hash of its inputs.
+fn is_unit_hash(name: &str) -> bool {
+    !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn runs_build_script(fingerprint: &Path) -> io::Result<bool> {
