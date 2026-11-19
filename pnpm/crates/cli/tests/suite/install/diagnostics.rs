@@ -239,7 +239,7 @@ fn an_override_to_a_missing_version_is_reported_on_the_override() {
             assert!(
                 error["message"]
                     .as_str()
-                    .is_some_and(|text| text.ends_with(message))
+                    .is_some_and(|text| text.ends_with(message)),
             );
             assert!(error["pkgsStack"].as_array().is_none_or(Vec::is_empty));
         } else {
