@@ -4,6 +4,7 @@ mod legacy_merge;
 mod legacy_nodes;
 mod legacy_report;
 mod legacy_sanitize;
+mod legacy_specs;
 
 #[cfg(test)]
 mod tests;
@@ -225,20 +226,15 @@ async fn forward_partitioned_bulk(
 
 fn merge_bulk_upstream_outcomes(outcomes: Vec<BulkUpstreamOutcome>) -> Response {
     let mut merged = Map::new();
-    let mut any_ok = false;
     for entry in outcomes {
         let FetchOutcome::Ok(bytes) = entry.outcome else {
-            continue;
+            return not_found();
         };
-        any_ok = true;
         let parsed: Map<String, Value> = match serde_json::from_slice(&bytes) {
             Ok(map) => map,
             Err(err) => return RegistryError::Json(err).into_response(),
         };
         insert_provenance_filtered_bulk(parsed, &entry.subset, &mut merged);
-    }
-    if !any_ok {
-        return not_found();
     }
     json_response(&merged)
 }

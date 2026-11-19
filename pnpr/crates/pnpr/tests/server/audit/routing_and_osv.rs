@@ -488,3 +488,141 @@ async fn legacy_audits_evaluate_local_osv_for_hosted_and_router_registries() {
 
     npmjs_never_called.assert_async().await;
 }
+
+#[tokio::test]
+async fn router_bulk_returns_not_found_when_any_queried_upstream_returns_404() {
+    let mut npmjs = mockito::Server::new_async().await;
+    let mut corp = mockito::Server::new_async().await;
+
+    let corp_404 = corp
+        .mock("POST", "/-/npm/v1/security/advisories/bulk")
+        .match_body(r#"{"@corp/sdk":["2.0.0"]}"#)
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let npmjs_ok = npmjs
+        .mock("POST", "/-/npm/v1/security/advisories/bulk")
+        .match_body(r#"{"lodash":["4.17.21"]}"#)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("{}")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(three_tier_router_config(&npmjs.url(), &corp.url(), tmp.path().to_path_buf()));
+
+    let query = json!({
+        "@corp/sdk": ["2.0.0"],
+        "lodash": ["4.17.21"],
+    });
+    let response = app
+        .oneshot(
+            Request::post("/npm/-/npm/v1/security/advisories/bulk")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(query.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    corp_404.assert_async().await;
+    npmjs_ok.assert_async().await;
+}
+
+#[tokio::test]
+async fn router_legacy_audit_preserves_colliding_ms_versions_and_rewrites_hosted_aliases() {
+    let mut npmjs = mockito::Server::new_async().await;
+    let mut corp = mockito::Server::new_async().await;
+
+    let corp_never = corp
+        .mock("POST", mockito::Matcher::Any)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let expected_npmjs_body = json!({
+        "name": "pnpr-audit",
+        "lockfileVersion": 3,
+        "requires": true,
+        "packages": {
+            "": { "name": "pnpr-audit" },
+            "node_modules/ms": { "version": "2.1.3" },
+            "node_modules/pnpr-redacted-scope-1/node_modules/ms": { "version": "2.0.0" },
+            "node_modules/lodash": { "version": "4.17.20" },
+        },
+        "install": ["lodash@4.17.20"],
+        "metadata": { "npm_version": "10.8.0" },
+    });
+    let npmjs_audit = npmjs
+        .mock("POST", "/-/npm/v1/security/audits/quick")
+        .match_body(mockito::Matcher::Json(expected_npmjs_body))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "actions": [],
+                "advisories": {
+                    "700": { "module_name": "ms", "severity": "moderate" },
+                    "701": { "module_name": "lodash", "severity": "high" },
+                },
+                "muted": [],
+                "metadata": {
+                    "vulnerabilities": { "moderate": 1, "high": 1, "total": 2 },
+                    "dependencies": 3,
+                    "totalDependencies": 3,
+                },
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(three_tier_router_config(&npmjs.url(), &corp.url(), tmp.path().to_path_buf()));
+
+    let request_payload = json!({
+        "name": "@acme/app",
+        "lockfileVersion": 3,
+        "requires": true,
+        "packages": {
+            "": { "name": "@acme/app" },
+            "node_modules/@acme/private-pkg/node_modules/ms": { "version": "2.0.0" },
+            "node_modules/ms": { "version": "2.1.3" },
+            "node_modules/@acme/lodash-alias": { "version": "npm:lodash@4.17.20" },
+            "node_modules/public-alias": { "version": "npm:@acme/private-pkg@1.0.0" },
+            "node_modules/git-dep": {
+                "version": "git+https://token@git.corp.internal/acme/secret.git",
+            },
+        },
+        "install": [
+            "public-alias@npm:@acme/private-pkg@1.0.0",
+            "@acme/lodash-alias@npm:lodash@4.17.20",
+        ],
+        "metadata": {
+            "npm_version": "10.8.0",
+            "secret_workspace": "@acme/private-pkg",
+        },
+    });
+
+    let response = app
+        .oneshot(
+            Request::post("/npm/-/npm/v1/security/audits/quick")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(request_payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["metadata"]["vulnerabilities"]["total"], 2);
+    corp_never.assert_async().await;
+    npmjs_audit.assert_async().await;
+}

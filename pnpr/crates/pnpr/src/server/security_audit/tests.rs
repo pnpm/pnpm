@@ -15,9 +15,10 @@ use super::{
     PackageDestination,
     encoding::{decode_request_body, decompress_gzip_bounded},
     legacy_merge::{merge_upstream_legacy_responses, sanitize_upstream_legacy_response},
-    legacy_nodes::{collect_installed_nodes, parse_name_and_spec, parse_npm_alias},
+    legacy_nodes::collect_installed_nodes,
     legacy_report::{build_osv_legacy_report, derive_ghsa_id, infer_patched_versions},
     legacy_sanitize::build_upstream_legacy_payload,
+    legacy_specs::{parse_name_and_spec, parse_npm_alias},
 };
 
 fn gzip_bytes(payload: &[u8]) -> Vec<u8> {
@@ -153,7 +154,6 @@ fn build_upstream_legacy_payload_strips_private_packages_and_promotes_public_chi
 
     let sanitized = build_upstream_legacy_payload(&payload, "npmjs", &destinations);
     let serialized = serde_json::to_string(&sanitized).unwrap();
-    eprintln!("SANITIZED:\n{serialized}\n");
     assert!(!serialized.contains("@acme"));
     assert!(!serialized.contains("secret"));
     assert!(!serialized.contains("pnpr.internal"));
@@ -166,10 +166,131 @@ fn build_upstream_legacy_payload_strips_private_packages_and_promotes_public_chi
 }
 
 #[test]
+fn legacy_sanitizer_preserves_colliding_versions_rewrites_aliases_and_blocks_url_and_metadata_leaks()
+ {
+    let payload: Map<String, Value> = serde_json::from_value(json!({
+        "name": "@acme/app",
+        "requires": {
+            "ms": "^2.1.3",
+            "@acme/lodash-alias": "npm:lodash@^4.17.20",
+            "public-alias": "npm:@acme/private-pkg@9.9.9",
+            "git-fork": "acme-org/private-repo",
+        },
+        "dependencies": {
+            "ms": { "version": "2.1.3" },
+            "@acme/private-pkg": {
+                "version": "1.0.0",
+                "dependencies": {
+                    "ms": { "version": "2.0.0" },
+                },
+            },
+            "@acme/lodash-alias": {
+                "version": "npm:lodash@4.17.20",
+            },
+            "public-alias": {
+                "version": "npm:@acme/private-pkg@9.9.9",
+            },
+            "minimist": {
+                "version": "git+https://user:secret-token@git.corp.internal/org/minimist.git",
+            },
+            "tarball-dep": {
+                "version": "https://corp.internal/tarball-dep-1.0.0.tgz",
+            },
+            "file-dep": {
+                "version": "file:../private-local",
+            },
+        },
+        "packages": {
+            "": { "name": "@acme/app" },
+            "node_modules/@acme/private-pkg/node_modules/ms": { "version": "2.0.0" },
+            "node_modules/ms": { "version": "2.1.3" },
+            "node_modules/@acme/lodash-alias": { "version": "npm:lodash@4.17.20" },
+            "node_modules/public-alias": { "version": "npm:@acme/private-pkg@9.9.9" },
+            "node_modules/minimist": {
+                "version": "git+https://user:secret-token@git.corp.internal/org/minimist.git",
+            },
+            "node_modules/file-dep": { "version": "file:../private-local" },
+        },
+        "install": [
+            "public-alias@npm:@acme/private-pkg@9.9.9",
+            "@acme/lodash-alias@npm:lodash@4.17.20",
+            "minimist@git+https://user:secret-token@git.corp.internal/org/minimist.git",
+            "ms@2.1.3",
+        ],
+        "remove": [
+            "public-alias@npm:@acme/private-pkg@9.9.9",
+        ],
+        "metadata": {
+            "npm_version": "10.8.0",
+            "node_version": "v22.0.0",
+            "private_project": "@acme/private-pkg",
+            "repo_url": "https://git.corp.internal/acme/secret",
+            "nested": { "secret": "@acme/private-pkg" },
+        },
+    }))
+    .unwrap();
+
+    let destinations = HashMap::from([
+        ("@acme/app".to_string(), PackageDestination::Hosted),
+        ("@acme/private-pkg".to_string(), PackageDestination::Hosted),
+        ("@acme/lodash-alias".to_string(), PackageDestination::Hosted),
+        ("ms".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("lodash".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("public-alias".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("git-fork".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("minimist".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("tarball-dep".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+        ("file-dep".to_string(), PackageDestination::Upstream("npmjs".to_string())),
+    ]);
+
+    let sanitized = build_upstream_legacy_payload(&payload, "npmjs", &destinations);
+    let serialized = serde_json::to_string(&sanitized).unwrap();
+    assert!(!serialized.contains("@acme"));
+    assert!(!serialized.contains("secret-token"));
+    assert!(!serialized.contains("corp.internal"));
+    assert!(!serialized.contains("private-local"));
+    assert!(!serialized.contains("private-repo"));
+    assert!(!serialized.contains("public-alias"));
+
+    assert_eq!(sanitized["dependencies"]["ms"]["version"], "2.1.3");
+    assert_eq!(
+        sanitized["dependencies"]["pnpr-redacted-scope-1"]["dependencies"]["ms"]["version"],
+        "2.0.0",
+    );
+    assert_eq!(sanitized["dependencies"]["lodash"]["version"], "4.17.20");
+    assert!(sanitized["dependencies"].get("minimist").is_none());
+    assert!(sanitized["dependencies"].get("tarball-dep").is_none());
+    assert!(sanitized["dependencies"].get("file-dep").is_none());
+
+    assert_eq!(sanitized["packages"]["node_modules/ms"]["version"], "2.1.3");
+    assert_eq!(
+        sanitized["packages"]["node_modules/pnpr-redacted-scope-1/node_modules/ms"]["version"],
+        "2.0.0",
+    );
+    assert_eq!(sanitized["packages"]["node_modules/lodash"]["version"], "4.17.20");
+    assert!(sanitized["packages"].get("node_modules/minimist").is_none());
+    assert!(sanitized["packages"].get("node_modules/file-dep").is_none());
+
+    assert_eq!(sanitized["requires"]["lodash"], "^4.17.20");
+    assert_eq!(sanitized["install"], json!(["lodash@4.17.20", "ms@2.1.3"]));
+    assert_eq!(sanitized["remove"], json!([]));
+    assert_eq!(
+        sanitized["metadata"],
+        json!({
+            "npm_version": "10.8.0",
+            "node_version": "v22.0.0",
+        }),
+    );
+}
+
+#[test]
 fn infer_patched_versions_and_ghsa_extraction_cover_common_ranges() {
     assert_eq!(infer_patched_versions("<2.0.0"), ">=2.0.0");
     assert_eq!(infer_patched_versions(">=1.0.0 <=1.2.3"), ">=1.2.4");
     assert_eq!(infer_patched_versions("<1.0.0 || >=2.0.0 <2.4.1"), ">=2.4.1");
+    assert_eq!(infer_patched_versions(">=2.0.0 <2.1.0 || >=1.0.0 <1.5.0"), ">=2.1.0");
+    assert_eq!(infer_patched_versions(">=1.0.0 <1.5.0 || >=2.0.0"), "<0.0.0");
+    assert_eq!(infer_patched_versions("1.0.2 || 1.0.0"), ">=1.0.3");
     assert_eq!(infer_patched_versions("*"), "<0.0.0");
     assert_eq!(infer_patched_versions(">=1.0.0"), "<0.0.0");
     assert_eq!(

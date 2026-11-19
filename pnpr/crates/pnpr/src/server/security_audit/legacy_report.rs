@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use indexmap::IndexMap;
-use node_semver::Version;
+use node_semver::{Range, Version};
 use pnpr_osv::{BulkAdvisory, OsvIndex};
 use serde::Serialize;
 use serde_json::Value;
@@ -233,23 +233,49 @@ fn into_legacy_advisory(
 }
 
 pub(super) fn infer_patched_versions(vulnerable_versions: &str) -> String {
-    let last_clause = vulnerable_versions
-        .rsplit("||")
-        .next()
-        .unwrap_or(vulnerable_versions)
-        .trim();
-    let Some((operator, raw_version)) = parse_trailing_upper_bound(last_clause) else {
+    let trimmed = vulnerable_versions.trim();
+    if trimmed.is_empty() {
+        return NO_PATCHED_VERSIONS.to_string();
+    }
+    let Ok(vulnerable_range) = Range::parse(trimmed) else {
         return NO_PATCHED_VERSIONS.to_string();
     };
-    let Ok(version) = Version::parse(raw_version) else {
+    let Some(max_patched) = max_patched_bound_across_clauses(trimmed) else {
         return NO_PATCHED_VERSIONS.to_string();
     };
-    match operator {
-        "<" => format!(">={version}"),
-        "<=" if version.pre_release.is_empty() => {
-            format!(">={}.{}.{}", version.major, version.minor, version.patch.saturating_add(1))
+    if vulnerable_range.satisfies(&max_patched) {
+        return NO_PATCHED_VERSIONS.to_string();
+    }
+    format!(">={max_patched}")
+}
+
+fn max_patched_bound_across_clauses(vulnerable_versions: &str) -> Option<Version> {
+    let mut highest: Option<Version> = None;
+    for clause in vulnerable_versions.split("||") {
+        let candidate = clause_min_patched_version(clause.trim())?;
+        if highest
+            .as_ref()
+            .is_none_or(|current| candidate > *current)
+        {
+            highest = Some(candidate);
         }
-        _ => NO_PATCHED_VERSIONS.to_string(),
+    }
+    highest
+}
+
+fn clause_min_patched_version(clause: &str) -> Option<Version> {
+    let (operator, raw_version) = parse_trailing_upper_bound(clause)?;
+    let version = Version::parse(raw_version).ok()?;
+    match operator {
+        "<" => Some(version),
+        "<=" | "=" if version.pre_release.is_empty() => Version::parse(format!(
+            "{}.{}.{}",
+            version.major,
+            version.minor,
+            version.patch.saturating_add(1),
+        ))
+        .ok(),
+        _ => None,
     }
 }
 
@@ -261,6 +287,13 @@ fn parse_trailing_upper_bound(clause: &str) -> Option<(&str, &str)> {
     }
     if let Some(version) = last.strip_prefix('<') {
         return Some(("<", version.trim()));
+    }
+    if parts.is_empty() {
+        let exact = last
+            .strip_prefix('=')
+            .unwrap_or(last)
+            .trim();
+        return (!exact.is_empty()).then_some(("=", exact));
     }
     let operator = parts.pop()?;
     if operator == "<=" || operator == "<" {

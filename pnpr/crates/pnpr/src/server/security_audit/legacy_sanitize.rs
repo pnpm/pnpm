@@ -1,34 +1,46 @@
+mod dependencies;
+mod packages;
+
 use std::collections::HashMap;
 
 use serde_json::{Map, Value};
 
 use super::{
     PackageDestination,
-    legacy_nodes::{
-        MAX_DEPENDENCY_DEPTH, PACKAGE_SPEC_FIELDS, entry_bool, node_modules_segments,
-        parse_name_and_spec, parse_npm_alias,
+    legacy_nodes::{MAX_DEPENDENCY_DEPTH, PACKAGE_SPEC_FIELDS},
+    legacy_specs::{
+        REDACTED_SCOPE_PREFIX, entry_bool, is_safe_semver_range, is_safe_semver_version,
+        node_modules_segments, parse_name_and_spec, parse_npm_alias,
     },
 };
 
 const REDACTED_ROOT_NAME: &str = "pnpr-audit";
+const SAFE_CLIENT_METADATA_KEYS: [&str; 4] =
+    ["npm_version", "node_version", "platform", "node_env"];
+
+pub(super) struct SanitizeCtx<'a> {
+    pub(super) upstream_name: &'a str,
+    pub(super) destinations: &'a HashMap<String, PackageDestination>,
+}
 
 pub(super) fn build_upstream_legacy_payload(
     payload: &Map<String, Value>,
     upstream_name: &str,
     destinations: &HashMap<String, PackageDestination>,
 ) -> Map<String, Value> {
+    let ctx = SanitizeCtx { upstream_name, destinations };
     let mut sanitized = Map::new();
-    copy_sanitized_root_identity(payload, upstream_name, destinations, &mut sanitized);
+    ctx.copy_sanitized_root_identity(payload, &mut sanitized);
     if let Some(lockfile_version) = payload.get("lockfileVersion") {
         sanitized.insert("lockfileVersion".to_string(), lockfile_version.clone());
     }
     let mut filtered_requires = payload
         .get("requires")
         .and_then(Value::as_object)
-        .map(|req| filter_spec_map(req, upstream_name, destinations));
+        .map(|req| ctx.filter_spec_map(req));
 
     if let Some(deps) = payload.get("dependencies").and_then(Value::as_object) {
-        let filtered_deps = filter_dependencies_map(deps, upstream_name, destinations, 0);
+        let filtered_deps = ctx.filter_dependencies_map(deps, 0);
         if let Some(req_map) = filtered_requires.as_mut() {
             backfill_promoted_requires(req_map, &filtered_deps);
         }
@@ -40,55 +52,10 @@ pub(super) fn build_upstream_legacy_payload(
         sanitized.insert("requires".to_string(), Value::Object(req_map));
     }
     if let Some(packages) = payload.get("packages").and_then(Value::as_object) {
-        let filtered_pkgs = filter_packages_map(packages, upstream_name, destinations);
-        sanitized.insert("packages".to_string(), Value::Object(filtered_pkgs));
+        sanitized.insert("packages".to_string(), Value::Object(ctx.filter_packages_map(packages)));
     }
-    copy_sanitized_arrays_and_metadata(payload, upstream_name, destinations, &mut sanitized);
+    ctx.copy_sanitized_arrays_and_metadata(payload, &mut sanitized);
     sanitized
-}
-
-fn copy_sanitized_root_identity(
-    payload: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-    sanitized: &mut Map<String, Value>,
-) {
-    let Some(root_name) = payload.get("name").and_then(Value::as_str) else {
-        if let Some(version) = payload.get("version").and_then(Value::as_str) {
-            sanitized.insert("version".to_string(), Value::String(version.to_string()));
-        }
-        return;
-    };
-    if routes_to_upstream(root_name, upstream_name, destinations) {
-        sanitized.insert("name".to_string(), Value::String(root_name.to_string()));
-        if let Some(version) = payload.get("version").and_then(Value::as_str) {
-            sanitized.insert("version".to_string(), Value::String(version.to_string()));
-        }
-    } else {
-        sanitized.insert("name".to_string(), Value::String(REDACTED_ROOT_NAME.to_string()));
-        if payload.contains_key("version") {
-            sanitized.insert("version".to_string(), Value::String("0.0.0".to_string()));
-        }
-    }
-}
-
-fn copy_sanitized_arrays_and_metadata(
-    payload: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-    sanitized: &mut Map<String, Value>,
-) {
-    for array_key in ["install", "remove"] {
-        if let Some(items) = payload.get(array_key).and_then(Value::as_array) {
-            sanitized.insert(
-                array_key.to_string(),
-                Value::Array(filter_spec_array(items, upstream_name, destinations)),
-            );
-        }
-    }
-    if let Some(metadata @ Value::Object(_)) = payload.get("metadata") {
-        sanitized.insert("metadata".to_string(), metadata.clone());
-    }
 }
 
 fn backfill_promoted_requires(requires: &mut Map<String, Value>, deps: &Map<String, Value>) {
@@ -99,176 +66,203 @@ fn backfill_promoted_requires(requires: &mut Map<String, Value>, deps: &Map<Stri
     }
 }
 
-fn filter_dependencies_map(
-    deps: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-    depth: usize,
-) -> Map<String, Value> {
-    if depth > MAX_DEPENDENCY_DEPTH {
-        return Map::new();
-    }
-    let mut kept = Map::new();
-    let mut promoted = Map::new();
-    for (package_name, value) in deps {
-        let Some(entry) = value.as_object() else { continue };
-        let nested_filtered = entry
-            .get("dependencies")
-            .and_then(Value::as_object)
-            .map(|nested| filter_dependencies_map(nested, upstream_name, destinations, depth + 1));
-
-        if dependency_node_routes_to(package_name, entry, upstream_name, destinations) {
-            kept.insert(
-                package_name.clone(),
-                Value::Object(sanitize_dependency_node(
-                    entry,
-                    nested_filtered,
-                    upstream_name,
-                    destinations,
-                )),
-            );
-        } else {
-            promote_nested_children(nested_filtered, &mut promoted);
+impl SanitizeCtx<'_> {
+    pub(super) fn routes(&self, package_name: &str) -> bool {
+        match self.destinations.get(package_name) {
+            Some(PackageDestination::Upstream(owner)) => owner == self.upstream_name,
+            Some(PackageDestination::Hosted | PackageDestination::Skip) | None => false,
         }
     }
-    promote_nested_children(Some(promoted), &mut kept);
-    kept
-}
 
-fn promote_nested_children(children: Option<Map<String, Value>>, target: &mut Map<String, Value>) {
-    let Some(children) = children else { return };
-    for (child_name, child_val) in children {
-        target.entry(child_name).or_insert(child_val);
-    }
-}
-
-fn dependency_node_routes_to(
-    package_name: &str,
-    entry: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> bool {
-    if !routes_to_upstream(package_name, upstream_name, destinations) {
-        return false;
-    }
-    if let Some(raw_version) = entry.get("version").and_then(Value::as_str)
-        && let Some((alias_pkg, _)) = parse_npm_alias(raw_version)
-    {
-        return routes_to_upstream(alias_pkg, upstream_name, destinations);
-    }
-    true
-}
-
-fn sanitize_dependency_node(
-    entry: &Map<String, Value>,
-    nested_filtered: Option<Map<String, Value>>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> Map<String, Value> {
-    let mut clean = Map::new();
-    copy_string_fields(entry, &["version", "integrity"], &mut clean);
-    copy_bool_fields(entry, &["dev", "optional", "bundled"], &mut clean);
-    copy_filtered_spec_fields(entry, &["requires"], upstream_name, destinations, &mut clean);
-    if let Some(children) = nested_filtered
-        && !children.is_empty()
-    {
-        clean.insert("dependencies".to_string(), Value::Object(children));
-    }
-    clean
-}
-
-fn filter_packages_map(
-    packages: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> Map<String, Value> {
-    let mut kept = Map::new();
-    if let Some(root_entry) = packages.get("").and_then(Value::as_object) {
-        kept.insert(
-            String::new(),
-            Value::Object(sanitize_root_package_entry(root_entry, upstream_name, destinations)),
-        );
-    }
-    for (key, value) in packages {
-        if key.is_empty() {
-            continue;
-        }
-        let Some(entry) = value.as_object() else { continue };
-        let Some((sanitized_key, sanitized_entry)) =
-            sanitize_installed_package_entry(key, entry, upstream_name, destinations)
-        else {
-            continue;
+    pub(super) fn copy_sanitized_root_identity(
+        &self,
+        payload: &Map<String, Value>,
+        sanitized: &mut Map<String, Value>,
+    ) {
+        let Some(root_name) = payload.get("name").and_then(Value::as_str) else {
+            if let Some(version) = payload
+                .get("version")
+                .and_then(Value::as_str)
+                .filter(|ver| is_safe_semver_version(ver))
+            {
+                sanitized.insert("version".to_string(), Value::String(version.to_string()));
+            }
+            return;
         };
-        kept.entry(sanitized_key)
-            .or_insert(Value::Object(sanitized_entry));
+        if self.routes(root_name) {
+            sanitized.insert("name".to_string(), Value::String(root_name.to_string()));
+            if let Some(version) = payload
+                .get("version")
+                .and_then(Value::as_str)
+                .filter(|ver| is_safe_semver_version(ver))
+            {
+                sanitized.insert("version".to_string(), Value::String(version.to_string()));
+            }
+        } else {
+            sanitized.insert("name".to_string(), Value::String(REDACTED_ROOT_NAME.to_string()));
+            if payload.contains_key("version") {
+                sanitized.insert("version".to_string(), Value::String("0.0.0".to_string()));
+            }
+        }
     }
-    kept
+
+    fn copy_sanitized_arrays_and_metadata(
+        &self,
+        payload: &Map<String, Value>,
+        sanitized: &mut Map<String, Value>,
+    ) {
+        for array_key in ["install", "remove"] {
+            if let Some(items) = payload.get(array_key).and_then(Value::as_array) {
+                sanitized.insert(
+                    array_key.to_string(),
+                    Value::Array(self.filter_spec_array(items)),
+                );
+            }
+        }
+        if let Some(raw_meta) = payload.get("metadata").and_then(Value::as_object)
+            && let Some(clean_meta) = sanitize_client_metadata(raw_meta)
+        {
+            sanitized.insert("metadata".to_string(), Value::Object(clean_meta));
+        }
+    }
+
+    pub(super) fn copy_filtered_spec_fields(
+        &self,
+        entry: &Map<String, Value>,
+        keys: &[&str],
+        out: &mut Map<String, Value>,
+    ) {
+        for &field in keys {
+            if let Some(spec_map) = entry.get(field).and_then(Value::as_object) {
+                let filtered = self.filter_spec_map(spec_map);
+                if !filtered.is_empty() {
+                    out.insert(field.to_string(), Value::Object(filtered));
+                }
+            }
+        }
+    }
+
+    pub(super) fn filter_spec_map(&self, spec_map: &Map<String, Value>) -> Map<String, Value> {
+        let mut clean = Map::new();
+        let mut aliased = Vec::new();
+        for (package_name, spec_val) in spec_map {
+            let Some(spec_str) = spec_val.as_str() else { continue };
+            let Some((key, val, is_direct)) = self.sanitize_spec_map_entry(package_name, spec_str)
+            else {
+                continue;
+            };
+            if is_direct {
+                clean.insert(key, val);
+            } else {
+                aliased.push((key, val));
+            }
+        }
+        for (alias_pkg, range_val) in aliased {
+            clean.entry(alias_pkg).or_insert(range_val);
+        }
+        clean
+    }
+
+    fn sanitize_spec_map_entry(
+        &self,
+        package_name: &str,
+        spec_str: &str,
+    ) -> Option<(String, Value, bool)> {
+        if let Some((alias_pkg, alias_range)) = parse_npm_alias(spec_str) {
+            let range_str = alias_range
+                .filter(|range| !range.is_empty())
+                .unwrap_or("*");
+            if !self.routes(alias_pkg) || !is_safe_semver_range(range_str) {
+                return None;
+            }
+            if self.routes(package_name) {
+                return Some((package_name.to_string(), Value::String(spec_str.to_string()), true));
+            }
+            return Some((alias_pkg.to_string(), Value::String(range_str.to_string()), false));
+        }
+        if !self.routes(package_name) || !is_safe_semver_range(spec_str) {
+            return None;
+        }
+        Some((package_name.to_string(), Value::String(spec_str.to_string()), true))
+    }
+
+    fn filter_spec_array(&self, items: &[Value]) -> Vec<Value> {
+        items
+            .iter()
+            .filter_map(Value::as_str)
+            .filter_map(|raw| self.sanitize_spec_array_item(raw))
+            .map(Value::String)
+            .collect()
+    }
+
+    fn sanitize_spec_array_item(&self, raw: &str) -> Option<String> {
+        let (package_name, spec_opt) = parse_name_and_spec(raw)?;
+        let Some(spec_str) = spec_opt else {
+            return self.routes(package_name).then(|| raw.to_string());
+        };
+        if let Some((alias_pkg, alias_ver_opt)) = parse_npm_alias(spec_str) {
+            return self.sanitize_aliased_array_item(raw, package_name, alias_pkg, alias_ver_opt);
+        }
+        if !self.routes(package_name) {
+            return None;
+        }
+        if !spec_str.is_empty() && !is_safe_semver_range(spec_str) {
+            return None;
+        }
+        Some(raw.to_string())
+    }
+
+    fn sanitize_aliased_array_item(
+        &self,
+        raw: &str,
+        package_name: &str,
+        alias_pkg: &str,
+        alias_ver_opt: Option<&str>,
+    ) -> Option<String> {
+        if !self.routes(alias_pkg) {
+            return None;
+        }
+        let clean_ver = alias_ver_opt.filter(|ver| !ver.is_empty());
+        if clean_ver.is_some_and(|ver| !is_safe_semver_range(ver)) {
+            return None;
+        }
+        if self.routes(package_name) {
+            return Some(raw.to_string());
+        }
+        Some(match clean_ver {
+            Some(ver) => format!("{alias_pkg}@{ver}"),
+            None => alias_pkg.to_string(),
+        })
+    }
 }
 
-fn sanitize_root_package_entry(
-    entry: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> Map<String, Value> {
+fn sanitize_client_metadata(raw: &Map<String, Value>) -> Option<Map<String, Value>> {
     let mut clean = Map::new();
-    copy_sanitized_root_identity(entry, upstream_name, destinations, &mut clean);
-    copy_filtered_spec_fields(entry, &PACKAGE_SPEC_FIELDS, upstream_name, destinations, &mut clean);
-    clean
+    for key in SAFE_CLIENT_METADATA_KEYS {
+        if let Some(val) = raw
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|scalar| is_safe_metadata_scalar(scalar))
+        {
+            clean.insert(key.to_string(), Value::String(val.to_string()));
+        }
+    }
+    (!clean.is_empty()).then_some(clean)
 }
 
-fn sanitize_installed_package_entry(
-    key: &str,
+fn is_safe_metadata_scalar(val: &str) -> bool {
+    !val.is_empty()
+        && val.len() <= 128
+        && !val.contains('/')
+        && !val.contains(':')
+        && !val.contains('@')
+}
+
+pub(super) fn copy_string_fields(
     entry: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> Option<(String, Map<String, Value>)> {
-    if entry_bool(entry, "link") {
-        return None;
-    }
-    let segments = node_modules_segments(key);
-    let last_segment = *segments.last()?;
-    if !routes_to_upstream(last_segment, upstream_name, destinations) {
-        return None;
-    }
-    if let Some(explicit_name) = entry.get("name").and_then(Value::as_str)
-        && !routes_to_upstream(explicit_name, upstream_name, destinations)
-    {
-        return None;
-    }
-    if let Some(raw_version) = entry.get("version").and_then(Value::as_str)
-        && let Some((alias_pkg, _)) = parse_npm_alias(raw_version)
-        && !routes_to_upstream(alias_pkg, upstream_name, destinations)
-    {
-        return None;
-    }
-    let kept_segments: Vec<&str> = segments
-        .into_iter()
-        .filter(|segment| routes_to_upstream(segment, upstream_name, destinations))
-        .collect();
-    if kept_segments.is_empty() {
-        return None;
-    }
-    let sanitized_key = format!("node_modules/{}", kept_segments.join("/node_modules/"));
-    Some((sanitized_key, build_clean_package_node(entry, upstream_name, destinations)))
-}
-
-fn build_clean_package_node(
-    entry: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> Map<String, Value> {
-    let mut clean = Map::new();
-    copy_string_fields(entry, &["name", "version", "integrity"], &mut clean);
-    copy_bool_fields(
-        entry,
-        &["dev", "optional", "devOptional", "inBundle", "hasInstallScript", "peer"],
-        &mut clean,
-    );
-    copy_filtered_spec_fields(entry, &PACKAGE_SPEC_FIELDS, upstream_name, destinations, &mut clean);
-    clean
-}
-
-fn copy_string_fields(entry: &Map<String, Value>, keys: &[&str], out: &mut Map<String, Value>) {
+    keys: &[&str],
+    out: &mut Map<String, Value>,
+) {
     for &key in keys {
         if let Some(val @ Value::String(_)) = entry.get(key) {
             out.insert(key.to_string(), val.clone());
@@ -276,91 +270,14 @@ fn copy_string_fields(entry: &Map<String, Value>, keys: &[&str], out: &mut Map<S
     }
 }
 
-fn copy_bool_fields(entry: &Map<String, Value>, keys: &[&str], out: &mut Map<String, Value>) {
+pub(super) fn copy_bool_fields(
+    entry: &Map<String, Value>,
+    keys: &[&str],
+    out: &mut Map<String, Value>,
+) {
     for &key in keys {
         if let Some(val @ Value::Bool(_)) = entry.get(key) {
             out.insert(key.to_string(), val.clone());
         }
-    }
-}
-
-fn copy_filtered_spec_fields(
-    entry: &Map<String, Value>,
-    keys: &[&str],
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-    out: &mut Map<String, Value>,
-) {
-    for &field in keys {
-        if let Some(spec_map) = entry.get(field).and_then(Value::as_object) {
-            let filtered = filter_spec_map(spec_map, upstream_name, destinations);
-            if !filtered.is_empty() {
-                out.insert(field.to_string(), Value::Object(filtered));
-            }
-        }
-    }
-}
-
-fn filter_spec_map(
-    spec_map: &Map<String, Value>,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> Map<String, Value> {
-    let mut clean = Map::new();
-    for (package_name, spec_val) in spec_map {
-        if !routes_to_upstream(package_name, upstream_name, destinations) {
-            continue;
-        }
-        let Some(spec_str) = spec_val.as_str() else { continue };
-        if is_non_registry_spec(spec_str) {
-            continue;
-        }
-        if let Some((alias_pkg, _)) = parse_npm_alias(spec_str)
-            && !routes_to_upstream(alias_pkg, upstream_name, destinations)
-        {
-            continue;
-        }
-        clean.insert(package_name.clone(), Value::String(spec_str.to_string()));
-    }
-    clean
-}
-
-fn filter_spec_array(
-    items: &[Value],
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> Vec<Value> {
-    items
-        .iter()
-        .filter_map(Value::as_str)
-        .filter(|raw| !is_non_registry_spec(raw))
-        .filter(|raw| {
-            parse_name_and_spec(raw)
-                .is_some_and(|(package_name, _)| {
-                    routes_to_upstream(package_name, upstream_name, destinations)
-                })
-        })
-        .map(|raw| Value::String(raw.to_string()))
-        .collect()
-}
-
-fn is_non_registry_spec(spec: &str) -> bool {
-    let trimmed = spec.trim();
-    trimmed.contains("://")
-        || trimmed.starts_with("file:")
-        || trimmed.starts_with("link:")
-        || trimmed.starts_with("workspace:")
-        || trimmed.starts_with("git+")
-        || trimmed.starts_with("github:")
-}
-
-fn routes_to_upstream(
-    package_name: &str,
-    upstream_name: &str,
-    destinations: &HashMap<String, PackageDestination>,
-) -> bool {
-    match destinations.get(package_name) {
-        Some(PackageDestination::Upstream(owner)) => owner == upstream_name,
-        Some(PackageDestination::Hosted | PackageDestination::Skip) | None => false,
     }
 }

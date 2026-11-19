@@ -186,7 +186,15 @@ fn payload_has_any_dependency_entries(payload: &Map<String, Value>) -> bool {
         .get("packages")
         .and_then(Value::as_object)
         .is_some_and(|map| map.keys().any(|key| !key.is_empty()));
-    has_requires || has_deps || has_packages
+    let has_arrays = ["install", "remove"]
+        .iter()
+        .any(|key| {
+            payload
+                .get(*key)
+                .and_then(Value::as_array)
+                .is_some_and(|items| !items.is_empty())
+        });
+    has_requires || has_deps || has_packages || has_arrays
 }
 
 fn allowed_packages_for_upstream(
