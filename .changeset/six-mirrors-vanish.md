@@ -1,6 +1,4 @@
 ---
-"@pnpm/cli.parse-cli-args": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

@@ -30,7 +30,7 @@ pnpm create vite my-app
 
 ### --allow-build
 
-A list of package names that are allowed to run postinstall scripts during installation.
+A list of package names that are allowed to run postinstall scripts during installation. Repeat the option or, since v12.23.0, separate names with commas.
 
 ### --shell-mode, -c
 

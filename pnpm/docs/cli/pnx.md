@@ -89,7 +89,7 @@ pnx --package=yo --package=generator-webapp yo webapp --skip-install
 
 ### --allow-build
 
-A list of package names that are allowed to run build scripts during installation.
+A list of package names that are allowed to run build scripts during installation. Repeat the option or, since v12.23.0, separate names with commas.
 
 Example:
 

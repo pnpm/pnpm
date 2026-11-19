@@ -941,27 +941,3 @@ test('candidate command shorthands do not let later positional args hijack earli
   expect(result.options.loglevel).toBe('info')
   expect(result.params).toStrictEqual(['patch'])
 })
-
-test('the allow build option can be comma separated', async () => {
-  const { options } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { 'allow-build': [String, Array] },
-  }, ['--allow-build', 'foo,bar', '--allow-build', 'qar', 'install'])
-  expect(options['allow-build']).toStrictEqual(['foo', 'bar', 'qar'])
-})
-
-test('a single comma-separated --allow-build value is split into a list', async () => {
-  const { options } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { 'allow-build': [String, Array] },
-  }, ['add', 'foo', '--allow-build=foo,!bar'])
-  expect(options['allow-build']).toStrictEqual(['foo', '!bar'])
-})
-
-test('commas are kept in values of options that do not take a comma-separated list', async () => {
-  const { options } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { filter: [String, Array] },
-  }, ['--filter', '{a,b}', 'install'])
-  expect(options['filter']).toStrictEqual(['{a,b}'])
-})

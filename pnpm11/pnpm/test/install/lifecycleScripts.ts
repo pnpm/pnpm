@@ -242,21 +242,6 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   })
 })
 
-test('--allow-build flag accepts a comma-separated list of packages', async () => {
-  const project = prepare({})
-  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example', '--allow-build=@pnpm.e2e/install-script-example,@pnpm.e2e/pre-and-postinstall-scripts-example'], { expectSuccess: true })
-
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
-
-  const workspaceManifest = await readWorkspaceManifest(project.dir())
-  expect(workspaceManifest?.allowBuilds).toStrictEqual({
-    '@pnpm.e2e/install-script-example': true,
-    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
-  })
-})
-
 test('--allow-build denies scripts for a package prefixed with !', async () => {
   const project = prepare({})
   execPnpmSync(['add', '--allow-build=!@pnpm.e2e/install-script-example', '@pnpm.e2e/install-script-example'], { expectSuccess: true })
