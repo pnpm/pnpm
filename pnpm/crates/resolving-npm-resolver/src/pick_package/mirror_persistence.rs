@@ -1,6 +1,6 @@
 use super::{
-    DateTime, Diagnostic, Display, Error, MetadataCacheScope, Mutex, Package, Path,
-    PickPackageError, Utc, get_pkg_mirror_path, save_meta_indexed,
+    Diagnostic, Display, Error, MetadataCacheScope, Mutex, Package, Path, PickPackageError,
+    Timestamp, get_pkg_mirror_path, save_meta_indexed,
 };
 
 /// The in-memory cache + fetch-lock key for a `(registry, package)` pick,
@@ -46,9 +46,13 @@ pub(super) fn validate_package_name(pkg_name: &str) -> Result<(), PickPackageErr
     Ok(())
 }
 
-pub(super) fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
+pub(super) fn get_file_mtime(path: &Path) -> Option<Timestamp> {
     let metadata = std::fs::metadata(path).ok()?;
-    let mtime: chrono::DateTime<Utc> = metadata.modified().ok()?.into();
+    let mtime: jiff::Timestamp = metadata
+        .modified()
+        .ok()?
+        .try_into()
+        .ok()?;
     Some(mtime)
 }
 

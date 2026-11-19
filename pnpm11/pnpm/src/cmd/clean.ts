@@ -147,9 +147,7 @@ export async function prepareCiCleanPlan (opts: CleanOptions): Promise<CiCleanPl
   return {
     cleansModulesDir: async (anchorDir: string, modulesDir = 'node_modules') => planRemovesInstallState({
       externalVirtualStoreDir,
-      installStateDir: opts.virtualStoreDir && !opts.enableGlobalVirtualStore
-        ? path.resolve(anchorDir, opts.virtualStoreDir)
-        : path.resolve(anchorDir, modulesDir, '.pnpm'),
+      installStateDir: path.resolve(anchorDir, modulesDir, '.pnpm'),
       modulesTargets,
       realRootDir: scope.realRootDir,
     }),

@@ -1,4 +1,4 @@
-use super::{CargoCache, prepend_path};
+use super::{CargoCache, prepend_path, restore::invalidate_fingerprints};
 use Fingerprint::{Invalidated, Kept};
 use std::{collections::BTreeMap, env, fs, path::PathBuf, process::Command};
 
@@ -85,7 +85,7 @@ fn existing_target_is_never_replaced_and_changed_inputs_invalidate_freshness() {
     fs::write(cache.target.join("debug/.fingerprint/stale"), "stale").unwrap();
     fs::write(cache.target.join("debug/incremental/state"), "keep").unwrap();
     fs::create_dir_all(cache.target.join("debug/build/probe/1/fingerprint")).unwrap();
-    fs::create_dir_all(cache.target.join("debug/build/probe/1/out")).unwrap();
+    fs::create_dir_all(cache.target.join("debug/build/probe/1/out/.fingerprint/nested-2")).unwrap();
     assert!(
         !cache
             .restore(&root.path().join("missing"), "inputs")
@@ -95,6 +95,7 @@ fn existing_target_is_never_replaced_and_changed_inputs_invalidate_freshness() {
     assert!(!cache.target.join("debug/.fingerprint").exists());
     assert!(!cache.target.join("debug/build/probe/1/fingerprint").exists());
     assert!(cache.target.join("debug/build/probe/1/out").exists());
+    assert!(!cache.target.join("debug/build/probe/1/out/.fingerprint").exists());
     assert_eq!(fs::read_to_string(cache.target.join("debug/incremental/state")).unwrap(), "keep");
 }
 
@@ -119,6 +120,18 @@ fn restore_invalidates_local_units_and_build_script_runs_in_both_layouts() {
         },
         Unit { file: "debug/build/dep/6/fingerprint/lib-dep", after_restore: Kept },
         Unit { file: "debug/build/my-probe/7/out/fingerprint/data", after_restore: Kept },
+        Unit {
+            file: "debug/build/dep-8/out/fingerprint/run-build-script-data",
+            after_restore: Kept,
+        },
+        Unit {
+            file: "debug/build/dep/9/out/build/nested/a/fingerprint/run-build-script-build",
+            after_restore: Kept,
+        },
+        Unit {
+            file: "debug/build/dep-b/out/.fingerprint/nested-c/run-build-script-build",
+            after_restore: Kept,
+        },
     ];
     for unit in &units {
         let path = publisher.target.join(unit.file);
@@ -131,17 +144,23 @@ fn restore_invalidates_local_units_and_build_script_runs_in_both_layouts() {
     let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
     assert!(consumer.restore(&entry, "inputs").unwrap());
     for unit in &units {
-        let fingerprint_dir = consumer.target.join(unit.file);
-        let kept = fingerprint_dir
-            .parent()
-            .unwrap()
-            .exists();
-        let expected_kept = match unit.after_restore {
-            Invalidated => false,
-            Kept => true,
-        };
-        assert_eq!(kept, expected_kept, "{}", unit.file);
+        let file = consumer.target.join(unit.file);
+        match unit.after_restore {
+            Invalidated => assert!(!file.parent().unwrap().exists(), "{}", unit.file),
+            Kept => assert!(file.is_file(), "{}", unit.file),
+        }
     }
+}
+
+#[test]
+fn the_names_above_the_build_directory_do_not_classify_it() {
+    let parent = tempfile::tempdir().unwrap();
+    let root = parent.path().join("build/cache-abc");
+    let fingerprint = root.join("out/.fingerprint/dep-1");
+    fs::create_dir_all(&fingerprint).unwrap();
+    fs::write(fingerprint.join("lib-dep"), "").unwrap();
+    invalidate_fingerprints(&root, Some(&["dep".to_string()])).unwrap();
+    assert!(!fingerprint.exists());
 }
 
 struct Unit {

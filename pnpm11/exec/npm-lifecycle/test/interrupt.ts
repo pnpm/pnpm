@@ -72,9 +72,11 @@ skipOnWindows('a SIGINT sent to a process without a terminal is relayed to the c
 // A sh that stays the script's parent holds a relayed SIGINT until its child
 // exits. pnpm signals the script's process group instead, and waits for it.
 skipOnWindows('a SIGINT reaches a script behind a shell that stays its parent', async () => {
-  const { shutDownBeforeExit } = await runWithoutTerminal('dev-behind-shell', 'SIGINT')
+  const { shutDownBeforeExit, code } = await runWithoutTerminal('dev-then-more', 'SIGINT')
   expect(fs.existsSync(markers[2])).toBe(false)
   expect(shutDownBeforeExit).toBe(true)
+  expect(fs.existsSync(markers[3])).toBe(true)
+  expect(code).toBe(0)
 })
 
 // A sh that stays the script's parent dies from SIGTERM at once, which is how

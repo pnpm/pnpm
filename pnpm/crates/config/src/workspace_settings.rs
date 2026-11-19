@@ -4,7 +4,7 @@ use super::{
     collect_explicit_settings, collect_explicit_trusted_settings, default_pnpm_home_dir,
     naming_cases::to_camel_case,
     note_declared_registries, resolve_configured_state_dir,
-    workspace_yaml::{parse_settings, read_workspace_document},
+    workspace_yaml::{parse_settings_file, read_workspace_document},
 };
 
 impl Config {
@@ -94,17 +94,16 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        let ignored_settings = if self.settings_read.skips_unreadable() {
+            settings.substitute_env_untrusted_readable::<Sys>()
+        } else {
+            settings.substitute_env_untrusted::<Sys>()?
+        };
         // Noted rather than assigned, so an `enableGlobalVirtualStore` /
         // `virtualStoreDir` set in the global `config.yaml` still counts as
-        // "explicitly set" when the workspace yaml leaves it unset.
+        // "explicitly set" when the workspace yaml leaves it unset. Noted
+        // after substitution, which may leave a setting out.
         explicit.note(&settings);
-        let ignored_settings = match settings.substitute_env_untrusted::<Sys>() {
-            Err(_) if self.settings_read.skips_unreadable() => {
-                settings.drop_unexpanded_registries();
-                settings.substitute_env_untrusted::<Sys>()?
-            }
-            result => result?,
-        };
         self.npmrc_warnings.extend(ignored_settings);
         if for_self_update {
             settings.clear_self_update_policy();
@@ -248,11 +247,7 @@ fn read_env_workspace_yaml<Sys: EnvVar>(
         return Ok((env_dir, None));
     };
     let settings = WorkspaceSettings::read_document(document, settings_read, |text, path| {
-        parse_settings::<Sys, WorkspaceSettings>(text)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                path: path.to_path_buf(),
-                source,
-            })
+        parse_settings_file::<Sys, WorkspaceSettings>(text, path)
     })?;
     Ok((env_dir, Some(settings)))
 }

@@ -13,6 +13,7 @@ const V12_ONLY_TARGETS = new Set([
   'android-arm64',
   'android-x64',
   'freebsd-x64',
+  'linux-loong64',
   'linux-ppc64',
   'linux-riscv64',
   'linux-s390x',

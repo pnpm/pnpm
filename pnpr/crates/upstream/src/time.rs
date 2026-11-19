@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use chrono::{DateTime, Timelike, Utc};
+use jiff::Timestamp;
 use serde_json::Value;
 
 pub const TIME_PRECISION_HORIZON_DAYS: i64 = 7;
@@ -23,14 +23,14 @@ pub const TIME_PRECISION_HORIZON_DAYS: i64 = 7;
 /// RFC 3339 pass through untouched.
 pub fn coarsen_time_map(
     time: &serde_json::Map<String, Value>,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> serde_json::Map<String, Value> {
-    let horizon = now - chrono::Duration::days(TIME_PRECISION_HORIZON_DAYS);
-    let parsed_entries: Vec<Option<(DateTime<Utc>, DateTime<Utc>)>> = time
+    let horizon = now - jiff::SignedDuration::from_hours(24 * TIME_PRECISION_HORIZON_DAYS);
+    let parsed_entries: Vec<Option<(Timestamp, Timestamp)>> = time
         .values()
         .map(|value| {
             let raw = value.as_str()?;
-            let parsed = DateTime::parse_from_rfc3339(raw).ok()?.with_timezone(&Utc);
+            let parsed = pnpm_time::parse_rfc3339(raw).ok()?;
             let rounded = coarsen_timestamp_dt(parsed, horizon)?;
             Some((parsed, rounded))
         })
@@ -55,9 +55,9 @@ fn is_reserved_time_key(key: &str) -> bool {
 
 fn exact_version_timestamps(
     time: &serde_json::Map<String, Value>,
-    parsed_entries: &[Option<(DateTime<Utc>, DateTime<Utc>)>],
-) -> HashSet<DateTime<Utc>> {
-    let mut distinct: Vec<(DateTime<Utc>, DateTime<Utc>)> = time
+    parsed_entries: &[Option<(Timestamp, Timestamp)>],
+) -> HashSet<Timestamp> {
+    let mut distinct: Vec<(Timestamp, Timestamp)> = time
         .keys()
         .zip(parsed_entries.iter().copied())
         .filter(|(key, _)| !is_reserved_time_key(key))
@@ -84,34 +84,23 @@ fn exact_version_timestamps(
 /// time, so `minimumReleaseAge` and trust checks can only ever read a
 /// version as *newer* than it is — the fail-safe direction (a too-new
 /// version is never coarsened into looking mature).
-fn coarsen_timestamp_dt(parsed: DateTime<Utc>, horizon: DateTime<Utc>) -> Option<DateTime<Utc>> {
-    if parsed < horizon {
-        let date = parsed.date_naive();
-        let midnight = date.and_hms_opt(0, 0, 0)?.and_utc();
-        if parsed == midnight {
-            Some(midnight)
-        } else {
-            date.succ_opt()?
-                .and_hms_opt(0, 0, 0)
-                .map(|dt| dt.and_utc())
-        }
-    } else {
-        let minute = parsed.with_second(0)?.with_nanosecond(0)?;
-        Some(if parsed == minute { minute } else { minute + chrono::Duration::minutes(1) })
-    }
+fn coarsen_timestamp_dt(parsed: Timestamp, horizon: Timestamp) -> Option<Timestamp> {
+    let (unit, increment) =
+        if parsed < horizon { (jiff::Unit::Hour, 24) } else { (jiff::Unit::Minute, 1) };
+    parsed
+        .round(
+            jiff::TimestampRound::new()
+                .smallest(unit)
+                .increment(increment)
+                .mode(jiff::RoundMode::Ceil),
+        )
+        .ok()
 }
 
-fn format_coarsened_timestamp(
-    parsed: DateTime<Utc>,
-    rounded: DateTime<Utc>,
-    horizon: DateTime<Utc>,
-) -> String {
+fn format_coarsened_timestamp(parsed: Timestamp, rounded: Timestamp, horizon: Timestamp) -> String {
     if parsed < horizon {
-        rounded
-            .date_naive()
-            .format("%Y-%m-%d")
-            .to_string()
+        rounded.strftime("%Y-%m-%d").to_string()
     } else {
-        rounded.format("%Y-%m-%dT%H:%MZ").to_string()
+        rounded.strftime("%Y-%m-%dT%H:%MZ").to_string()
     }
 }

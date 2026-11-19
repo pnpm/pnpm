@@ -92,9 +92,9 @@ use crate::{
         pick_stable_cached_range_version, pick_version_by_version_range,
     },
 };
-use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use derive_more::{Display, Error};
+use jiff::Timestamp;
 use miette::Diagnostic;
 use pnpm_network::MetadataCacheScope;
 use pnpm_registry::{Package, PackageVersion};

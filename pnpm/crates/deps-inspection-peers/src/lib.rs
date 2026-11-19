@@ -259,6 +259,7 @@ fn check_peer_dependencies_with_context(
             snapshots,
             packages,
             context.roots,
+            context.catalogs,
             &mut visited_packages,
             &mut issues,
         );

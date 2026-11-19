@@ -89,13 +89,14 @@ pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
 pnpm-release-record = { workspace = true }
+pnpm-time = { workspace = true }
 pnpm-transparency-log = { workspace = true }
 pnpm-tarball = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true, features = ["query"] }
 base64 = { workspace = true }
 bcrypt = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 clap = { workspace = true, features = ["env"] }
 dashmap = { workspace = true }
 derive_more = { workspace = true }
@@ -136,7 +137,7 @@ zip = { workspace = true }
 zstd = { workspace = true }
 
 [dev-dependencies]
-chrono = { workspace = true }
+jiff = { workspace = true }
 mockito = { workspace = true }
 walkdir = { workspace = true }
 tar = { workspace = true }
@@ -149,6 +150,11 @@ tokio = { workspace = true, features = ["test-util"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "signal"] }
+
+# Keep in sync with the `cfg` on `mod allocator` in `src/main.rs`.
+[target.'cfg(all(any(target_os = "linux", target_os = "macos", target_os = "windows"), any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
+mimalloc = { workspace = true }
+pnpm-ffi-mimalloc = { workspace = true }
 
 [lints]
 workspace = true

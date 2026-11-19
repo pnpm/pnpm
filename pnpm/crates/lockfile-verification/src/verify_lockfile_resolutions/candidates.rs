@@ -101,17 +101,22 @@ fn has_registry_shape_mismatch(
 /// Run every active verifier against every candidate with a
 /// concurrency cap. Each candidate stops at the first verifier that
 /// rejects it.
+///
+/// `on_entry_checked` is called once per candidate as its check
+/// completes, and no more once a transport failure aborts the pass.
 pub(super) async fn run_fan_out(
     candidates: Vec<Candidate>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
+    on_entry_checked: &mut (dyn FnMut() + Send),
 ) -> Result<Vec<ResolutionPolicyViolation>, String> {
     let limit = concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
     let semaphore = Arc::new(Semaphore::new(limit));
-    let mut futures = FuturesUnordered::new();
+    let futures = FuturesUnordered::new();
     for candidate in candidates {
         let verifiers = candidate_verifiers(&candidate, verifiers);
         if verifiers.is_empty() {
+            on_entry_checked();
             continue;
         }
 
@@ -125,8 +130,17 @@ pub(super) async fn run_fan_out(
             evaluate_candidate(candidate, &verifiers).await
         });
     }
-    // Drain the rest of the fan-out so no in-flight task is dropped mid-await,
-    // but keep only the first abort.
+    drain_fan_out(futures, on_entry_checked).await
+}
+
+/// Drain the whole fan-out so no in-flight task is dropped mid-await,
+/// keeping only the first abort.
+async fn drain_fan_out(
+    mut futures: FuturesUnordered<
+        impl Future<Output = Result<Option<ResolutionPolicyViolation>, String>>,
+    >,
+    on_entry_checked: &mut (dyn FnMut() + Send),
+) -> Result<Vec<ResolutionPolicyViolation>, String> {
     let mut violations = Vec::new();
     let mut fetch_error: Option<String> = None;
     while let Some(result) = futures.next().await {
@@ -138,6 +152,9 @@ pub(super) async fn run_fan_out(
                     fetch_error = Some(message);
                 }
             }
+        }
+        if fetch_error.is_none() {
+            on_entry_checked();
         }
     }
     // A registry that couldn't be reached takes precedence over collected

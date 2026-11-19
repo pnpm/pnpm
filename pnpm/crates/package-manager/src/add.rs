@@ -337,7 +337,7 @@ fn begin<Reporter: self::Reporter>(add: AddOptions<'_>, owned: &AddOwned) {
 /// the packument cache, the fetch locker and the offline store view (opened
 /// on first use as well).
 struct AddResolution<'a> {
-    started_at: chrono::DateTime<chrono::Utc>,
+    started_at: jiff::Timestamp,
     latest_picker: tokio::sync::OnceCell<LatestPicker<'a>>,
     meta_cache: std::sync::Arc<InMemoryPackageMetaCache>,
     fetch_locker: PackumentFetchLocker,
@@ -347,7 +347,7 @@ struct AddResolution<'a> {
 impl AddResolution<'_> {
     fn new() -> Self {
         Self {
-            started_at: chrono::Utc::now(),
+            started_at: jiff::Timestamp::now(),
             latest_picker: tokio::sync::OnceCell::new(),
             meta_cache: std::sync::Arc::new(InMemoryPackageMetaCache::default()),
             fetch_locker: shared_packument_fetch_locker(),

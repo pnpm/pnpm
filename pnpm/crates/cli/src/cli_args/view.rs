@@ -13,9 +13,9 @@ use crate::cli_args::{
     },
     release_notes::{NotesReader, render_upgrade_notes, stores_notes, upgrade_notes_json},
 };
-use chrono::{DateTime, Utc};
 use clap::Args;
 use derive_more::{Display, Error};
+use jiff::Timestamp;
 use miette::Diagnostic;
 use owo_colors::{OwoColorize, Stream, Style};
 use pnpm_config::Config;

@@ -7,6 +7,12 @@ An error pnpm raises carries a code that starts with `ERR_PNPM_`. The code is pr
 
 The codes are listed in alphabetical order. A code that is not listed here is explained by its own message.
 
+## ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR
+
+A setting in `pnpm-workspace.yaml` or the [global configuration file](./cli/config.md) references an environment variable that isn't set, and the reference has no fallback. The error names the reference, for example `${MY_STORE_DIR}`.
+
+Set the variable, or give the reference a fallback, such as `${NAME:-fallback}`.
+
 ## ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE
 
 A frozen install (`pnpm install --frozen-lockfile`, the default in CI) cannot proceed from the lockfile as it is. There are two causes:

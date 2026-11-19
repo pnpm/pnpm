@@ -84,10 +84,26 @@ pub(in super::super) fn patch_remove<'a>(
     let config = ctx.prepared_config();
     Ok(Box::pin(async move {
         let config = config.await?;
-        let state = State::init(manifest_path.to_path_buf(), config, false)
-            .wrap_err("initialize the state")?;
+        let state = State::init(
+            manifest_path.to_path_buf(),
+            patch_state_config(config, manifest_path),
+            false,
+        )
+        .wrap_err("initialize the state")?;
         let patched_dependencies = Box::pin(args.run(dir, state)).await?;
         Box::pin(run_reresolving_install(dir, manifest_path, config, patched_dependencies)).await?;
         Ok(())
     }))
+}
+
+/// The workspace config with the modules directory of the active project,
+/// where `pnpm patch` records its edit directories.
+fn patch_state_config(config: &'static Config, manifest_path: &Path) -> &'static Config {
+    let modules_dir = &installed_project_config(config, manifest_path).modules_dir;
+    if *modules_dir == config.modules_dir {
+        return config;
+    }
+    let mut config = config.clone();
+    config.modules_dir.clone_from(modules_dir);
+    Config::leak(config)
 }

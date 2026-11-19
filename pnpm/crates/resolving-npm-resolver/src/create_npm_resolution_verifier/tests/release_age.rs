@@ -134,6 +134,38 @@ async fn min_age_fail_when_published_within_cutoff() {
 }
 
 #[tokio::test]
+async fn min_age_beyond_the_representable_range_rejects_every_version() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _attestation_mock = server
+        .mock("GET", "/-/npm/v1/attestations/acme@1.0.0")
+        .with_status(404)
+        .create_async()
+        .await;
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(min_age_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string())
+        .create_async()
+        .await;
+    for minimum_minutes in [10_000_000_000, u64::MAX] {
+        let mut opts = default_opts(&registry);
+        opts.release_age.minimum_minutes = Some(minimum_minutes);
+        opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+        let verifier = create_npm_resolution_verifier(opts);
+        let result = verifier.verify(
+            &registry_resolution(),
+            ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"),
+        )
+        .await;
+        let ResolutionVerification::Err { code, .. } = result else {
+            panic!("expected Err for {minimum_minutes} minutes, got {result:?}");
+        };
+        assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
+    }
+}
+
+#[tokio::test]
 async fn min_age_missing_time_fails_closed_by_default() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());

@@ -57,6 +57,11 @@ const EXEMPT: &[Exemption] = &[
         reason: "the filesystem foreign calls pnpm makes",
     },
     Exemption {
+        crate_name: "pnpm-ffi-mimalloc",
+        tier: Tier::Abstraction,
+        reason: "the mimalloc option calls pnpm makes",
+    },
+    Exemption {
         crate_name: "pnpm-ffi-process",
         tier: Tier::Abstraction,
         reason: "the process-control foreign calls pnpm makes",

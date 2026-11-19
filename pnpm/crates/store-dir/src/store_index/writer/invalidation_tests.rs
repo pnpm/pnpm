@@ -272,7 +272,7 @@ fn run_upload(
         StoreIndexWriter { tx, disabled: false, warn_on_send_failure: AtomicBool::new(true) };
     let task = std::thread::spawn(move || {
         while let Some(message) = rx.blocking_recv() {
-            flush_batch(&mut index, &mut vec![message]);
+            flush_batch(&mut index, &mut vec![message], super::WriteErrorPolicy::Continue).unwrap();
         }
         index
     });

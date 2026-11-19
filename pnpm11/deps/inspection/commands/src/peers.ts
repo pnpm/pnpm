@@ -64,6 +64,7 @@ Exits with a non-zero exit code when issues are found.',
 }
 
 export type PeersCommandOptions = Pick<Config,
+| 'catalogs'
 | 'dir'
 | 'modulesDir'
 | 'packageConfigs'
@@ -126,6 +127,7 @@ async function collectPeerIssues (
 ): Promise<PeerDependencyIssuesByProjects> {
   if (opts.lockfileDir || opts.sharedWorkspaceLockfile !== false || !opts.workspaceDir) {
     return checkPeerDependencies(projectPaths, {
+      catalogs: opts.catalogs,
       lockfileDir: opts.lockfileDir ?? opts.dir,
       checkWantedLockfileOnly: opts.lockfileOnly,
       modulesDir: opts.modulesDir,
@@ -146,6 +148,7 @@ async function collectDedicatedPeerIssues (
     const projectName = opts.selectedProjectsGraph?.[projectPath]?.package.manifest.name
     // eslint-disable-next-line no-await-in-loop -- reading per-project lockfiles one at a time bounds open file descriptors in large workspaces
     const projectIssues = await checkPeerDependencies([projectPath], {
+      catalogs: opts.catalogs,
       lockfileDir: projectPath,
       checkWantedLockfileOnly: opts.lockfileOnly,
       modulesDir: resolveModulesDir(projectName),

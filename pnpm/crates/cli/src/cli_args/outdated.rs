@@ -286,7 +286,7 @@ impl OutdatedArgs {
         write_output(&notes::with_notes(output, format, &packages, &notes))
     }
 
-    pub(super) fn target_version(&self) -> TargetVersion {
+    pub(super) fn target_version(&self) -> TargetVersion<'static> {
         if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest }
     }
 

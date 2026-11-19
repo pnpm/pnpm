@@ -153,6 +153,193 @@ test('patch-remove keeps missing patch files as no-ops', async () => {
   }))
 })
 
+testOnNonWindows('patch-remove rejects a symlinked .pnpm_patches directory', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  const outsideDir = path.join(tempRoot, 'outside')
+  const goodPatch = path.join(projectDir, 'patches/good.patch')
+  fs.mkdirSync(path.dirname(goodPatch), { recursive: true })
+  fs.writeFileSync(goodPatch, 'good patch', 'utf8')
+  fs.mkdirSync(modulesDir, { recursive: true })
+  fs.mkdirSync(path.join(outsideDir, 'good'), { recursive: true })
+  fs.symlinkSync(outsideDir, path.join(modulesDir, '.pnpm_patches'), 'dir')
+
+  await expect(patchRemove.handler(createOptions(projectDir, {
+    good: 'patches/good.patch',
+  }), ['good'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATCH_STATE_UNSAFE_PATH',
+  })
+
+  expect(fs.existsSync(goodPatch)).toBe(true)
+  expect(updatePatchedDependenciesMock).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(outsideDir, 'good'))).toBe(true)
+})
+
+testOnNonWindows('patch-remove rejects a symlinked state.json', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const outsideState = path.join(tempRoot, 'outside.json')
+  const outsideStateContent = JSON.stringify({ '/other': { patchedPkg: 'other', applyToAll: false } })
+  const goodPatch = path.join(projectDir, 'patches/good.patch')
+  fs.mkdirSync(path.dirname(goodPatch), { recursive: true })
+  fs.writeFileSync(goodPatch, 'good patch', 'utf8')
+  fs.mkdirSync(pnpmPatches, { recursive: true })
+  fs.writeFileSync(outsideState, outsideStateContent, 'utf8')
+  fs.symlinkSync(outsideState, path.join(pnpmPatches, 'state.json'))
+
+  await expect(patchRemove.handler(createOptions(projectDir, {
+    good: 'patches/good.patch',
+  }), ['good'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATCH_STATE_UNSAFE_PATH',
+  })
+
+  expect(fs.existsSync(goodPatch)).toBe(true)
+  expect(fs.readFileSync(outsideState, 'utf8')).toBe(outsideStateContent)
+})
+
+test('patch-remove rejects a malformed state.json before deleting any patch', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const goodPatch = path.join(projectDir, 'patches/good.patch')
+  fs.mkdirSync(path.dirname(goodPatch), { recursive: true })
+  fs.writeFileSync(goodPatch, 'good patch', 'utf8')
+  fs.mkdirSync(pnpmPatches, { recursive: true })
+  fs.writeFileSync(path.join(pnpmPatches, 'state.json'), '{', 'utf8')
+
+  await expect(patchRemove.handler(createOptions(projectDir, {
+    good: 'patches/good.patch',
+  }), ['good'])).rejects.toMatchObject({ name: 'SyntaxError' })
+
+  expect(fs.existsSync(goodPatch)).toBe(true)
+  expect(updatePatchedDependenciesMock).not.toHaveBeenCalled()
+})
+
+testOnNonWindows('patch-remove does not remove an edit directory reached through a symlinked parent', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const barEditDir = path.join(pnpmPatches, 'bar@1.0.0')
+  const patchFile = path.join(projectDir, 'patches/lib.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(path.join(barEditDir, 'lib'), { recursive: true })
+  fs.writeFileSync(path.join(barEditDir, 'lib/index.js'), 'edited', 'utf8')
+  fs.symlinkSync(barEditDir, path.join(pnpmPatches, '@scope'), 'dir')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    '@scope/lib': 'patches/lib.patch',
+  }), ['@scope/lib'])
+
+  expect(fs.readFileSync(path.join(barEditDir, 'lib/index.js'), 'utf8')).toBe('edited')
+})
+
+test('patch-remove keeps state.json when a patch key names it', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const otherEditDir = path.join(pnpmPatches, 'other@1.0.0')
+  const patchFile = path.join(projectDir, 'patches/state.json.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(otherEditDir, { recursive: true })
+  fs.writeFileSync(path.join(pnpmPatches, 'state.json'), JSON.stringify({
+    [otherEditDir]: { patchedPkg: 'other@1.0.0', applyToAll: false },
+  }), 'utf8')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    'state.json': 'patches/state.json.patch',
+  }), ['state.json'])
+
+  expect(JSON.parse(fs.readFileSync(path.join(pnpmPatches, 'state.json'), 'utf8'))).toStrictEqual({
+    [otherEditDir]: { patchedPkg: 'other@1.0.0', applyToAll: false },
+  })
+})
+
+test('patch-remove removes the empty scope directory of a scoped edit directory', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const editDir = path.join(pnpmPatches, '@scope/pkg@1.0.0')
+  const patchFile = path.join(projectDir, 'patches/@scope__pkg@1.0.0.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(editDir, { recursive: true })
+  fs.writeFileSync(path.join(pnpmPatches, 'state.json'), JSON.stringify({
+    [editDir]: { patchedPkg: '@scope/pkg@1.0.0', applyToAll: false },
+  }), 'utf8')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    '@scope/pkg@1.0.0': 'patches/@scope__pkg@1.0.0.patch',
+  }), ['@scope/pkg@1.0.0'])
+
+  expect(fs.existsSync(pnpmPatches)).toBe(false)
+})
+
+test('patch-remove keeps other edit directories when a patch key names .pnpm_patches itself', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const otherEditDir = path.join(pnpmPatches, 'other@1.0.0')
+  const patchFile = path.join(projectDir, 'patches/dot.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(otherEditDir, { recursive: true })
+  fs.writeFileSync(path.join(otherEditDir, 'index.js'), 'edited', 'utf8')
+  fs.writeFileSync(path.join(pnpmPatches, 'state.json'), JSON.stringify({
+    [otherEditDir]: { patchedPkg: 'other@1.0.0', applyToAll: false },
+  }), 'utf8')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    '.': 'patches/dot.patch',
+  }), ['.'])
+
+  expect(fs.readFileSync(path.join(otherEditDir, 'index.js'), 'utf8')).toBe('edited')
+  expect(JSON.parse(fs.readFileSync(path.join(pnpmPatches, 'state.json'), 'utf8'))).toStrictEqual({
+    [otherEditDir]: { patchedPkg: 'other@1.0.0', applyToAll: false },
+  })
+})
+
+test('patch-remove removes recorded edit directories of the patch and keeps the others', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const pnpmPatches = path.join(projectDir, 'node_modules/.pnpm_patches')
+  const recordedEditDir = path.join(pnpmPatches, 'custom-edit')
+  const otherEditDir = path.join(pnpmPatches, 'other@1.0.0')
+  const patchFile = path.join(projectDir, 'patches/foo@1.0.0.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(recordedEditDir, { recursive: true })
+  fs.mkdirSync(otherEditDir, { recursive: true })
+  fs.writeFileSync(path.join(pnpmPatches, 'state.json'), JSON.stringify({
+    [recordedEditDir]: { patchedPkg: 'foo@1.0.0', applyToAll: false },
+    [otherEditDir]: { patchedPkg: 'other@1.0.0', applyToAll: false },
+  }), 'utf8')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    'foo@1.0.0': 'patches/foo@1.0.0.patch',
+  }), ['foo@1.0.0'])
+
+  expect(fs.existsSync(recordedEditDir)).toBe(false)
+  expect(fs.existsSync(otherEditDir)).toBe(true)
+  expect(JSON.parse(fs.readFileSync(path.join(pnpmPatches, 'state.json'), 'utf8'))).toStrictEqual({
+    [otherEditDir]: { patchedPkg: 'other@1.0.0', applyToAll: false },
+  })
+})
+
+testOnNonWindows('patch-remove does not delete directories outside .pnpm_patches when patch key contains path traversal', async () => {
+  const projectDir = path.join(tempRoot, 'project-traversal')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
+  const outsideVictim = path.join(projectDir, 'victim')
+  const patchFile = path.join(projectDir, 'patches/traversal.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(pnpmPatches, { recursive: true })
+  fs.mkdirSync(outsideVictim, { recursive: true })
+  fs.writeFileSync(path.join(outsideVictim, 'important.txt'), 'data', 'utf8')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    '../../victim': 'patches/traversal.patch',
+  }), ['../../victim'])
+
+  expect(fs.existsSync(path.join(outsideVictim, 'important.txt'))).toBe(true)
+})
+
 function createOptions (
   projectDir: string,
   patchedDependencies: Record<string, string>

@@ -1,8 +1,7 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, RecordingResolver, Utc, WorkspaceImporter, assert_eq,
+    DependencyGroup, HashMap, Mutex, RecordingResolver, WorkspaceImporter, assert_eq,
     fake_manifest, fake_result, importer_opts, recorded_time, resolve_workspace, workspace_opts,
 };
-use chrono::TimeZone;
 
 #[tokio::test]
 async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
@@ -43,7 +42,7 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     .await
     .unwrap();
 
-    let expected_cutoff = Utc.with_ymd_and_hms(2024, 5, 20, 9, 0, 0).unwrap();
+    let expected_cutoff = "2024-05-20T09:00:00Z".parse::<jiff::Timestamp>().unwrap();
     assert_eq!(
         resolver.opts_for("a"),
         (true, None),
@@ -67,7 +66,7 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
 
 #[tokio::test]
 async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
-    let maximum = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+    let maximum = "2024-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
     let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "^1.0.0".to_string()),

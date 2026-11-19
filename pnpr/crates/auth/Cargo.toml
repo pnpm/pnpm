@@ -27,7 +27,7 @@ pnpr-libsql = { workspace = true, optional = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
 bcrypt = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 getrandom = { workspace = true }
 icu_normalizer = { workspace = true }
 libsql = { workspace = true, optional = true }

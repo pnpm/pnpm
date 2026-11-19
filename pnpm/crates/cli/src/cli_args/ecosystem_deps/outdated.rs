@@ -8,7 +8,7 @@ use super::{
         has_python_lockfile, python_project_name,
     },
 };
-use crate::cli_args::outdated::{OutdatedPackage, OutdatedQuery, OutdatedRun};
+use crate::cli_args::outdated::{OutdatedPackage, OutdatedQuery, OutdatedRun, TargetVersion};
 use miette::Result;
 use pnpm_config::Config;
 use pnpm_matcher::{Matcher, create_matcher};
@@ -106,6 +106,10 @@ pub(crate) async fn collect_ecosystem_outdated(
     run: &OutdatedRun,
 ) -> Result<Vec<OutdatedPackage>> {
     let mut out = Vec::new();
+    // Cargo and Python registries publish no dist-tags.
+    if matches!(query.target_version, TargetVersion::Tag(_)) {
+        return Ok(out);
+    }
     if run.config.cargo.enabled
         && let Some(cargo_matcher) = ecosystem_matcher(raw_packages, EcosystemFilterKind::Cargo)?
     {

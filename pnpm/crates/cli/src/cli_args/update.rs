@@ -1,8 +1,13 @@
+pub(crate) mod options;
+
+pub use options::{
+    UpdateDependencyOptions, UpdateInstallArgs, UpdateSaveArgs, UpdateSelectionArgs,
+};
+
 use crate::{
     State,
     cli_args::{
-        lockfile_dir::LockfileDirArg,
-        parse_depth_limit,
+        outdated::TargetVersion,
         pipelines::InstallFamilySelection,
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
@@ -15,74 +20,14 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_github_actions as github_actions;
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_matcher::Matcher;
 use pnpm_package_manager::{Update, build_workspace_packages_map};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 use std::{collections::HashSet, path::Path};
-
-/// The `--prod`, `--dev`, and `--no-optional` flags that select which
-/// dependency groups to update.
-#[derive(Debug, Clone, Args)]
-pub struct UpdateDependencyOptions {
-    /// Update packages only in "dependencies" and "optionalDependencies".
-    #[clap(short = 'P', long, visible_alias = "production")]
-    prod: bool,
-    /// Update packages only in "devDependencies".
-    #[clap(short = 'D', long)]
-    dev: bool,
-    /// Update packages only in "optionalDependencies".
-    #[clap(long, overrides_with = "no_optional")]
-    optional: bool,
-    /// Don't update packages in "optionalDependencies".
-    #[clap(long, overrides_with = "optional")]
-    no_optional: bool,
-    /// Also update packages in "peerDependencies".
-    #[clap(long)]
-    peer: bool,
-}
-
-impl UpdateDependencyOptions {
-    /// The dependency groups whose direct dependencies the update may
-    /// match. Returns the groups for which the corresponding inclusion bit
-    /// is set.
-    ///
-    /// This narrows what the update *matches*, not what the install that
-    /// follows it materializes: pnpm leaves the `included` set recorded in
-    /// `.modules.yaml` untouched for an update, so these flags never reach
-    /// [`Config::optional`] and friends.
-    fn include_direct(&self) -> Vec<DependencyGroup> {
-        // `Some(true)` only when the flag was explicitly passed: the raw
-        // CLI flags are read rather than the merged config.
-        let production = self.prod.then_some(true);
-        let dev = self.dev.then_some(true);
-        let optional = self.optional
-            .then_some(true)
-            .or_else(|| self.no_optional.then_some(false));
-
-        let ne_true = |flag: Option<bool>| flag != Some(true);
-        let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
-        let dev_dependencies = dev == Some(true) || (ne_true(production) && ne_true(optional));
-        let optional_dependencies = optional == Some(true) || (ne_true(production) && ne_true(dev));
-
-        std::iter::empty()
-            .chain(dependencies.then_some(DependencyGroup::Prod))
-            .chain(dev_dependencies.then_some(DependencyGroup::Dev))
-            .chain(optional_dependencies.then_some(DependencyGroup::Optional))
-            .chain(self.peer.then_some(DependencyGroup::Peer))
-            .collect()
-    }
-
-    pub(crate) fn explicit_groups(&self) -> pnpm_package_manager::UpdateExplicitGroups {
-        pnpm_package_manager::UpdateExplicitGroups {
-            prod: self.prod,
-            dev: self.dev,
-            optional: self.optional,
-            no_optional: self.no_optional,
-        }
-    }
-}
 
 /// Update package and GitHub Actions dependencies to newer compatible versions.
 #[derive(Debug, Clone, Args)]
@@ -112,71 +57,9 @@ pub struct UpdateArgs {
     pub install: UpdateInstallArgs,
 }
 
-#[derive(Debug, Clone, clap::Args)]
-pub struct UpdateSelectionArgs {
-    /// Ignore version ranges in package.json: bump the matched packages
-    /// to their latest version and rewrite the manifest ranges.
-    #[clap(short = 'L', long)]
-    pub latest: bool,
-    /// Refresh registry revisions without changing package versions.
-    #[clap(long)]
-    pub patches: bool,
-    /// How deep to inspect dependencies. `0` means top-level
-    /// dependencies only. Defaults to unlimited, which `Infinity` also
-    /// selects.
-    #[clap(long, value_parser = parse_depth_limit)]
-    pub depth: Option<usize>,
-    /// Show outdated dependencies and select which ones to update.
-    #[clap(short = 'i', long)]
-    pub interactive: bool,
-    /// Also update GitHub Actions dependencies in workflow and action files.
-    #[clap(long = "include-github-actions")]
-    pub include_github_actions: bool,
-    /// Update globally installed packages.
-    #[clap(short = 'g', long)]
-    pub global: bool,
-    /// Tries to link all packages from the workspace, updating versions
-    /// to match the workspace packages.
-    #[clap(long)]
-    pub workspace: bool,
-}
-
-#[derive(Debug, Clone, clap::Args)]
-pub struct UpdateSaveArgs {
-    /// Write the resolved version without a range operator when
-    /// rewriting the manifest under `--latest`.
-    #[clap(short = 'E', long = "save-exact")]
-    #[clap(id = "save_exact")]
-    pub exact: bool,
-    /// Do not write the updated ranges back to package.json. The
-    /// lockfile is still updated (the `--no-save` flag).
-    #[clap(long = "no-save")]
-    pub no_save: bool,
-    /// Generate a changeset file declaring a patch bump for every workspace
-    /// package whose production dependencies the update changed.
-    #[clap(long, overrides_with = "no_changeset")]
-    pub changeset: bool,
-    /// Do not generate a changeset, even when `updateConfig.changeset` enables
-    /// changeset generation by default.
-    #[clap(long = "no-changeset", overrides_with = "changeset")]
-    pub no_changeset: bool,
-}
-
-#[derive(Debug, Clone, clap::Args)]
-pub struct UpdateInstallArgs {
-    /// Dependencies are not downloaded; only `pnpm-lock.yaml` is updated.
-    #[clap(long = "lockfile-only")]
-    pub lockfile_only: bool,
-    #[clap(flatten)]
-    pub lockfile_dir: LockfileDirArg,
-    /// URL of a pnpr server to offload revision refresh resolution to.
-    #[clap(long = "pnpr-server")]
-    pub pnpr_server: Option<String>,
-}
-
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
-    "--patches cannot be combined with package selectors, --latest, --interactive, or --global"
+    "--patches cannot be combined with package selectors, --latest, --tag, --interactive, or --global"
 )]
 #[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
 struct PatchesWithSelectorError;
@@ -185,6 +68,16 @@ struct PatchesWithSelectorError;
 #[display("--peer cannot be combined with --interactive")]
 #[diagnostic(code(ERR_PNPM_INTERACTIVE_PEER_UNSUPPORTED))]
 struct InteractivePeerUnsupportedError;
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Invalid dist-tag: {raw}. A dist-tag is a name that is not a version or a range, made of URI-safe characters (letters, digits, and -_.!~*'())"
+)]
+#[diagnostic(code(ERR_PNPM_UPDATE_INVALID_TAG))]
+struct InvalidTagError {
+    #[error(not(source))]
+    raw: String,
+}
 
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
@@ -208,14 +101,22 @@ impl UpdateArgs {
     }
 
     fn interactive_options<'a>(
-        &self,
+        &'a self,
         include_direct: &'a [DependencyGroup],
         update_actions: bool,
     ) -> InteractiveUpdateOptions<'a> {
+        // `--no-save` keeps the manifest ranges, so the update stays inside
+        // them whatever `--latest` or `--tag` asks for.
+        let target_version = if self.save.no_save {
+            TargetVersion::WithinRange
+        } else {
+            TargetVersion::from_update_flags(self.selection.latest, self.selection.tag.as_deref())
+        };
         InteractiveUpdateOptions {
-            latest: self.selection.latest,
+            target_version,
             include_direct,
             include_github_actions: update_actions,
+            latest_github_actions: self.selection.latest,
             prompt: self.prompt,
         }
     }
@@ -235,6 +136,10 @@ impl UpdateArgs {
         if !self.selection.interactive {
             return Ok(Some(given));
         }
+        pnpm_package_manager::reject_versioned_selectors(
+            &self.version_options(state.config),
+            &given,
+        )?;
         crate::cli_args::update_interactive::select_packages::<Reporter>(
             actions_root,
             &state.manifest,
@@ -260,6 +165,10 @@ impl UpdateArgs {
         if !self.selection.interactive {
             return Ok(Some(given));
         }
+        pnpm_package_manager::reject_versioned_selectors(
+            &self.version_options(state.config),
+            &given,
+        )?;
         crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
             actions_root,
             selection,
@@ -269,6 +178,16 @@ impl UpdateArgs {
             prompt,
         )
         .await
+    }
+
+    fn version_options(&self, config: &Config) -> pnpm_package_manager::UpdateVersionOptions<'_> {
+        pnpm_package_manager::UpdateVersionOptions {
+            latest: self.selection.latest,
+            tag: self.selection.tag.as_deref(),
+            patches: self.selection.patches,
+            range_spec_style: self.range_spec_style(config),
+            save: !self.save.no_save,
+        }
     }
 
     /// The style a rewritten specifier falls back to: `--save-exact` layered
@@ -281,13 +200,21 @@ impl UpdateArgs {
     }
 
     /// `pnpm update -g`: reinstall each matching global package group,
-    /// within its existing range or (with `--latest`) to the newest
-    /// version. Delegates to [`crate::cli_args::global::handle_global_update`].
+    /// within its existing range or to the version `--latest` / `--tag`
+    /// names. Delegates to [`crate::cli_args::global::handle_global_update`].
     pub async fn run_global<Reporter: self::Reporter + 'static>(
         self,
         config: &'static Config,
     ) -> miette::Result<()> {
         self.check_global_options()?;
+        pnpm_package_manager::reject_versioned_selectors(
+            &self.version_options(config),
+            &self.packages,
+        )?;
+        let mode = crate::cli_args::global::GlobalUpdateMode::from_flags(
+            self.selection.latest,
+            self.selection.tag.as_deref(),
+        );
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = self.range_spec_style(config);
@@ -300,7 +227,9 @@ impl UpdateArgs {
         ))
         .await?;
         let selected_hashes = if self.selection.interactive {
-            let Some(selected) = self.select_global_groups::<Reporter>(config).await? else {
+            let Some(selected) =
+                self.select_global_groups::<Reporter>(config, mode.target_version()).await?
+            else {
                 return Ok(());
             };
             Some(selected)
@@ -311,7 +240,7 @@ impl UpdateArgs {
             config,
             &self.packages,
             selected_hashes.as_ref(),
-            self.selection.latest,
+            mode,
             range_spec_style,
             supported_architectures,
         ))
@@ -323,19 +252,19 @@ impl UpdateArgs {
     async fn select_global_groups<Reporter: self::Reporter + 'static>(
         &self,
         config: &'static Config,
+        target_version: crate::cli_args::outdated::TargetVersion<'_>,
     ) -> miette::Result<Option<HashSet<String>>> {
         crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
             config,
             &self.packages,
-            self.selection.latest,
+            target_version,
             self.prompt,
         )
         .await
     }
 
     fn check_global_options(&self) -> miette::Result<()> {
-        self.check_patches_options()?;
-        self.check_interactive_peer_options()?;
+        self.check_flag_combinations()?;
         self.check_workspace_option(None)?;
         if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
@@ -353,7 +282,10 @@ impl UpdateArgs {
         workspace_root: Option<&'root Path>,
     ) -> miette::Result<Option<&'root Path>> {
         if self.selection.workspace && self.selection.latest {
-            return Err(WorkspaceOptionError::LatestWithWorkspace.into());
+            return Err(WorkspaceOptionError::WithLatest.into());
+        }
+        if self.selection.workspace && self.selection.tag.is_some() {
+            return Err(WorkspaceOptionError::WithTag.into());
         }
         workspace_link_root(self.selection.workspace, workspace_root)
     }
@@ -362,6 +294,7 @@ impl UpdateArgs {
         if self.selection.patches
             && (!self.packages.is_empty()
                 || self.selection.latest
+                || self.selection.tag.is_some()
                 || self.selection.interactive
                 || self.selection.global)
         {
@@ -374,6 +307,33 @@ impl UpdateArgs {
         if self.selection.interactive && self.dependency_options.peer {
             return Err(InteractivePeerUnsupportedError.into());
         }
+        Ok(())
+    }
+
+    /// `--tag` names a dist-tag, so the value must be one the resolver reads
+    /// as a tag. A protocol-like value (`file:../x`, a URL) resolves through
+    /// no resolver in the tag chain, and the rewrite would then write the raw
+    /// string into the manifest as the dependency's new specifier. A version
+    /// or range (`1.2.3`, `*`) would resolve as one, so a dependency would
+    /// move without the registry publishing a tag of that name.
+    fn check_tag_value(&self) -> miette::Result<()> {
+        let Some(tag) = self.selection.tag.as_deref() else {
+            return Ok(());
+        };
+        if !pnpm_resolving_npm_resolver::is_valid_dist_tag(tag)
+            || get_version_selector_type(tag) != Some(VersionSelectorType::Tag)
+        {
+            return Err(InvalidTagError { raw: tag.to_string() }.into());
+        }
+        Ok(())
+    }
+
+    /// The flag-combination checks every dispatch path runs before any
+    /// resolution happens.
+    fn check_flag_combinations(&self) -> miette::Result<()> {
+        self.check_patches_options()?;
+        self.check_interactive_peer_options()?;
+        self.check_tag_value()?;
         Ok(())
     }
 

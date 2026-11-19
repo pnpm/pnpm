@@ -50,8 +50,8 @@ use std::{
     sync::Arc,
 };
 
-use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use jiff::Timestamp;
 use miette::Diagnostic as _;
 use pipe_trait::Pipe;
 use pnpm_lockfile::{
@@ -128,10 +128,10 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// Per-registry options (`serverType`, `supportsTimeField`) keyed by URL.
     pub registry_options_by_url:
         Option<std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
-    /// Override for `Utc::now()` when computing the age cutoff and
+    /// Override for `Timestamp::now()` when computing the age cutoff and
     /// the `trustPolicyIgnoreAfter` window. `None` falls back to
     /// wall-clock at construction time.
-    pub now: Option<DateTime<Utc>>,
+    pub now: Option<Timestamp>,
     pub release_age: VerificationReleaseAgeOptions,
     pub trust: VerificationTrustOptions,
     pub metadata: VerificationMetadataClient,
@@ -226,7 +226,7 @@ pub struct VerificationArtifacts {
 /// caches, and the pre-built policy snapshot the cache reads via
 /// [`ResolutionVerifier::policy`].
 pub struct NpmResolutionVerifier {
-    now: Option<DateTime<Utc>>,
+    now: Option<Timestamp>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: Arc<PublishedAtLookupContext>,
     release_age: ReleaseAgeCheck,
@@ -238,7 +238,7 @@ pub struct NpmResolutionVerifier {
 
 struct ReleaseAgeCheck {
     minimum_minutes: Option<u64>,
-    cutoff: Option<DateTime<Utc>>,
+    cutoff: Option<Timestamp>,
     exclude: Option<PackageVersionPolicy>,
     /// Saved copy of the trust-exclude patterns so [`TrustCheckOptions`]
     /// can borrow them per-call without reconstructing the policy.

@@ -1,10 +1,11 @@
+use jiff::Timestamp;
 use std::{collections::HashMap, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
 
 use super::{
-    MAX_ENTRIES, OidcState, RegistryError, Result, SESSION_PREFIX, SessionUser, Utc,
-    handoffs::Handoff, random_secret, rejected, unavailable, web_login::WebLogins,
+    MAX_ENTRIES, OidcState, RegistryError, Result, SESSION_PREFIX, SessionUser, handoffs::Handoff,
+    random_secret, rejected, unavailable, web_login::WebLogins,
 };
 
 /// Browser sign-ins on this process: the sessions pnpr issued, the
@@ -48,7 +49,7 @@ impl OidcState {
         if !raw.starts_with(SESSION_PREFIX) {
             return Ok(None);
         }
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let mut sessions = self.browser.sessions.lock().expect("OIDC session mutex poisoned");
         let hash = super::super::sha256_hex(raw.as_bytes());
         if let Some(session) = sessions.get(&hash)
@@ -62,7 +63,7 @@ impl OidcState {
 
     /// When the unexpired browser session `raw` expires, in Unix seconds.
     pub fn session_expires(&self, raw: &str) -> Option<i64> {
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let sessions = self.browser.sessions.lock().expect("OIDC session mutex poisoned");
         sessions
             .get(&super::super::sha256_hex(raw.as_bytes()))
@@ -101,7 +102,7 @@ impl OidcState {
         expiration: i64,
         returns_to: LoginReturn,
     ) -> Result<LoginSession> {
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let expires = expiration.min(now + 3600);
         if expires <= now {
             return Err(rejected());

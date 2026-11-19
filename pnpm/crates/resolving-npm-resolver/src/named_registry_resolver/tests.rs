@@ -3,7 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use chrono::TimeZone;
 use pnpm_lockfile::LockfileResolution;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
@@ -594,7 +593,7 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
     };
     let opts = ResolveOptions {
         policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-            published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 7, 1, 0, 0, 0).unwrap()),
+            published_by: Some("2024-07-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap()),
             ..Default::default()
         },
         ..ResolveOptions::default()

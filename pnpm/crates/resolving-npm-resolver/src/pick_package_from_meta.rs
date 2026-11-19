@@ -115,7 +115,7 @@ pub struct PickPackageFromMetaOptions<'a> {
     /// out any version published after this point (or fails closed
     /// with [`PickPackageFromMetaError::MissingTime`] if the
     /// packument can't be checked).
-    pub published_by: Option<chrono::DateTime<chrono::Utc>>,
+    pub published_by: Option<jiff::Timestamp>,
     /// Per-package exclude policy. A match against the package name
     /// either skips the maturity filter entirely (`AnyVersion`) or
     /// restricts it to a trusted-versions allowlist
@@ -277,7 +277,7 @@ fn manifest_under_requested_name(
 fn mature_view<'a>(
     view: &'a PublishedByView,
     meta: &'a Package,
-    cutoff: chrono::DateTime<chrono::Utc>,
+    cutoff: jiff::Timestamp,
 ) -> Result<&'a Package, PickPackageFromMetaError> {
     if !view.needs_full_metadata {
         return Ok(view.filtered.as_deref().unwrap_or(meta));
@@ -348,7 +348,7 @@ pub struct PickVersionByVersionRangeOptions<'a> {
     /// filtering already happened in [`pick_package_from_meta`] —
     /// but the field stays on the options so a custom picker (e.g.
     /// the min-release-age picker) can branch on it.
-    pub published_by: Option<chrono::DateTime<chrono::Utc>>,
+    pub published_by: Option<jiff::Timestamp>,
 }
 
 /// Pick the **highest** version in `meta.versions` satisfying

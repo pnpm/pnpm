@@ -434,9 +434,10 @@ pub struct LockfileLog {
 }
 
 /// `pnpm:lockfile-verification` discriminated payload. `Started`
-/// fires once before the per-candidate fan-out begins; exactly one
-/// terminal `Done` or `Failed` fires after, with `elapsed_ms`
-/// measured against the matching `Started`. `Cached` fires instead
+/// fires once before the per-candidate fan-out begins; throttled
+/// `Progress` events may fire while it runs; exactly one terminal
+/// `Done` or `Failed` fires after, with `elapsed_ms` measured
+/// against the matching `Started`. `Cached` fires instead
 /// of the pair when the verification cache short-circuits the gate;
 /// it carries no `entries` count because the short-circuit happens
 /// before candidates are collected.
@@ -453,8 +454,17 @@ pub enum LockfileVerificationMessage {
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
         lockfile_path: Option<String>,
     },
+    Progress {
+        entries: u64,
+        /// Number of entries that have completed verification so far.
+        checked: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
     Done {
         entries: u64,
+        /// Number of entries that were checked, which on success is all of them.
+        checked: u64,
         #[serde(rename = "elapsedMs")]
         elapsed_ms: u64,
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
@@ -462,6 +472,10 @@ pub enum LockfileVerificationMessage {
     },
     Failed {
         entries: u64,
+        /// Number of entries that were checked before the failure. It
+        /// equals `entries` when the run finished and found violations,
+        /// and is lower when the run was aborted.
+        checked: u64,
         #[serde(rename = "elapsedMs")]
         elapsed_ms: u64,
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]

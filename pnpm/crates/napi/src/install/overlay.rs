@@ -77,6 +77,7 @@ fn build_layout_overlay(
         virtual_store_dir_max_length: options.virtual_store_dir_max_length.map(u64::from),
         enable_global_virtual_store: options.enable_global_virtual_store,
         global_virtual_store_dir: options.global_virtual_store_dir.as_ref().map(PathBuf::from),
+        lockfile_format: parse_lockfile_format(options.lockfile_format.as_deref())?,
         ..overlay
     })
 }
@@ -330,6 +331,20 @@ fn parse_link_workspace_packages(
                     ))
                 },
             )
+        })
+        .transpose()
+}
+
+fn parse_lockfile_format(
+    value: Option<&str>,
+) -> napi::Result<Option<pnpm_lockfile::LockfileFormat>> {
+    value
+        .map(|value| match value {
+            "v9" => Ok(pnpm_lockfile::LockfileFormat::V9),
+            "v13" => Ok(pnpm_lockfile::LockfileFormat::V13),
+            _ => Err(napi::Error::from_reason(format!(
+                r#"invalid lockfileFormat {value:?} (expected "v9" or "v13")"#,
+            ))),
         })
         .transpose()
 }

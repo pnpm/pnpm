@@ -9,8 +9,8 @@
 //! signal — and the verifier rejects the entry with
 //! [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`].
 
-use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
+use jiff::Timestamp;
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_registry::{
@@ -93,8 +93,8 @@ pub struct TrustCheckOptions<'a> {
 
     /// Override for "now" when the check evaluates
     /// `trust_policy_ignore_after_minutes`. Defaults to wall-clock
-    /// `Utc::now`; tests pin it for determinism.
-    pub now: Option<DateTime<Utc>>,
+    /// `Timestamp::now`; tests pin it for determinism.
+    pub now: Option<Timestamp>,
 
     /// The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares
     /// that the registry cannot date its releases. The downgrade check
@@ -176,9 +176,8 @@ pub fn fail_if_trust_downgraded(
 
     // Ignore-after cutoff: a version old enough to be "settled" gets a pass.
     if let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes {
-        let now = opts.now.unwrap_or_else(Utc::now);
-        let minutes_since_publish = (now - version_date).num_seconds().max(0) as u64 / 60;
-        if minutes_since_publish > ignore_after_minutes {
+        let now = opts.now.unwrap_or_else(Timestamp::now);
+        if minutes_since_publish(now, version_date) > ignore_after_minutes {
             return Ok(());
         }
     }
@@ -210,6 +209,13 @@ pub fn fail_if_trust_downgraded(
         });
     }
     Ok(())
+}
+
+fn minutes_since_publish(now: Timestamp, published: Timestamp) -> u64 {
+    now.duration_since(published)
+        .as_secs()
+        .max(0) as u64
+        / 60
 }
 
 /// Whether `trustPolicyExclude` waives the check for this version.
@@ -261,7 +267,7 @@ fn pretty_print_trust_evidence(evidence: Option<TrustEvidence>) -> &'static str 
 /// downgrade pass undetected. Other manifest fields are not hydrated.
 fn detect_strongest_trust_evidence_before(
     meta: &impl TrustHistory,
-    (current, before_date): (&str, DateTime<Utc>),
+    (current, before_date): (&str, Timestamp),
     exclude_prerelease: bool,
 ) -> Result<Option<TrustEvidence>, TrustViolation> {
     let current = Version::parse(current).ok();
@@ -310,7 +316,7 @@ fn detect_strongest_trust_evidence_before(
 fn published_before(
     meta: &impl TrustHistory,
     version: &str,
-    (current, current_date): (Option<&Version>, DateTime<Utc>),
+    (current, current_date): (Option<&Version>, Timestamp),
 ) -> bool {
     let Some(published) = meta.published_at(version).and_then(parse_packument_timestamp) else {
         return false;
@@ -393,7 +399,7 @@ mod tests;
 fn trust_version_date(
     meta: &impl TrustHistory,
     version: &str,
-) -> Result<DateTime<Utc>, TrustViolation> {
+) -> Result<Timestamp, TrustViolation> {
     let published_at = meta
         .published_at(version)
         .ok_or_else(|| TrustViolation::TrustCheckFailed {

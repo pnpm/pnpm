@@ -1,5 +1,5 @@
 use super::{
-    LoadWorkspaceYamlError, WorkspaceSettings, parse_settings, read_readable_settings,
+    LoadWorkspaceYamlError, WorkspaceSettings, parse_settings_file, read_readable_settings,
     select_settings,
 };
 use crate::{
@@ -104,11 +104,7 @@ impl WorkspaceSettings {
         text: &str,
         path: &Path,
     ) -> Result<Self, LoadWorkspaceYamlError> {
-        let mut settings = parse_settings::<Sys, Self>(text)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                path: path.to_path_buf(),
-                source,
-            })?;
+        let mut settings = parse_settings_file::<Sys, Self>(text, path)?;
         settings.validate_registries()?;
         settings.reject_repo_controlled_trust_material(path)?;
         settings

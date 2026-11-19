@@ -61,7 +61,7 @@ impl OutdatedFilters {
         })
     }
 
-    pub(super) fn query(&self, target_version: TargetVersion) -> OutdatedQuery<'_> {
+    pub(super) fn query<'a>(&'a self, target_version: TargetVersion<'a>) -> OutdatedQuery<'a> {
         OutdatedQuery {
             target_version,
             include_direct: &self.include,

@@ -2,8 +2,8 @@ use crate::{
     DependencyOverrider, ResolveDependencyTreeError, ResolvePeersResult, ResolvedTree,
     resolve_dependency_tree::{TreeCtx, WorkspaceTreeCtx},
 };
-use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
+use jiff::Timestamp;
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::PackageManifestError;
@@ -108,7 +108,7 @@ pub struct ImporterResolutionInputs {
     /// `base_opts.published_by` (the `minimumReleaseAge` cutoff) so
     /// subdep resolution is unchanged. Direct deps always use
     /// `base_opts.published_by`, never this value.
-    pub subdep_published_by: Option<DateTime<Utc>>,
+    pub subdep_published_by: Option<Timestamp>,
     /// Catalogs parsed from `pnpm-workspace.yaml`. Applied to importer
     /// dependencies and to children of injected workspace packages.
     pub catalogs: Catalogs,

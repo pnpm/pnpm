@@ -6,7 +6,7 @@ use crate::{
     package_manifest_prefix,
     resolution_policy::{PickPolicy, create_configured_registry_resolver},
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use node_semver::Version;
 use pnpm_config::{Config, version_policy::PackageVersionPolicy};
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
@@ -20,13 +20,25 @@ use pnpm_resolving_resolver_base::{
 };
 use std::sync::Arc;
 
-/// `--latest` reaches past the declared range by design, which a manifest that
-/// keeps its specifiers can't record, so the update stays inside the range and
-/// says so once per project.
-pub(super) fn emit_latest_ignored<Reporter: self::Reporter>(manifest: &PackageManifest) {
+/// `--latest` and `--tag` reach past the declared range by design, which a
+/// manifest that keeps its specifiers can't record, so the update stays
+/// inside the range and says so once per project, naming the flag as the
+/// user passed it (`--latest`, `--tag next`). Emits nothing when neither
+/// flag is set.
+pub(super) fn emit_range_flag_ignored<Reporter: self::Reporter>(
+    version: super::UpdateVersionOptions<'_>,
+    manifest: &PackageManifest,
+) {
+    let flag = match version.tag {
+        _ if version.latest => "--latest".to_string(),
+        Some(tag) => format!("--tag {tag}"),
+        None => return,
+    };
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
-        message: r#"Ignoring "--latest": the manifest keeps its version ranges when updating without saving, so dependencies were updated within them instead."#.to_string(),
+        message: format!(
+            r#"Ignoring "{flag}": the manifest keeps its version ranges when updating without saving, so dependencies were updated within them instead."#,
+        ),
         prefix: package_manifest_prefix(manifest),
     }));
 }
@@ -153,7 +165,7 @@ pub(super) async fn tag_version(
 /// specifier stands.
 pub(super) struct LatestResolverChain {
     resolver: DefaultResolver,
-    published_by: Option<DateTime<Utc>>,
+    published_by: Option<Timestamp>,
     published_by_exclude: Option<PackageVersionPolicy>,
 }
 pub(super) fn ensure_latest_resolver_chain<'chain>(

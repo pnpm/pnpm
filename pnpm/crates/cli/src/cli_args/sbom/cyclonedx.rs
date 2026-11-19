@@ -64,7 +64,7 @@ fn cyclonedx_metadata(
     opts: &CycloneDxOpts<'_>,
     root_component: &serde_json::Value,
 ) -> serde_json::Value {
-    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let timestamp = pnpm_time::format_millis(jiff::Timestamp::now());
     let phase = if opts.lockfile_only { "pre-build" } else { "build" };
 
     let mut metadata = serde_json::json!({

@@ -1,5 +1,5 @@
 use super::{
-    Arc, DateTime, Hash, Hasher, PathBuf, PkgNameVerPeer, PkgResolutionId, ResolveOptions, Utc,
+    Arc, Hash, Hasher, PathBuf, PkgNameVerPeer, PkgResolutionId, ResolveOptions, Timestamp,
     WorkspacePackages,
 };
 
@@ -69,7 +69,7 @@ pub(in super::super) type WantedKeyFields = (
     Option<bool>,
     Option<bool>,
     bool,
-    (Option<DateTime<Utc>>, Option<DateTime<Utc>>),
+    (Option<Timestamp>, Option<Timestamp>),
     Option<PathKey>,
     Option<PkgNameVerPeer>,
     Vec<(String, Vec<(String, u32)>)>,

@@ -2,9 +2,11 @@ use super::{
     AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
     GlobalPackageInfo, GlobalUpdateMode, HashMap, HashSet, Lockfile, PackageBinSource, Path,
     PathBuf, RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
-    add_packages, apply_allow_build, apply_global_build_policy, apply_runtime_range_bumps,
-    can_update_to_latest, global_approval_store, infer_local_package_alias, installed_versions,
-    needs_runtime_range_bump, prompt_approve_install_builds, update_selectors,
+    add_packages, apply_allow_build, apply_global_build_policy, apply_pins,
+    apply_runtime_range_bumps, global_approval_store, infer_local_package_alias,
+    installed_versions, is_registry_version_spec, moves_past_declared_range,
+    needs_runtime_range_bump, prompt_approve_install_builds, tag_checked_selectors,
+    update_selectors,
 };
 use pnpm_config::Host;
 
@@ -25,21 +27,22 @@ impl GlobalInstallTarget<'_> {
         &self,
         pkg: &GlobalPackageInfo,
         install_dir: &Path,
-        mode: GlobalUpdateMode,
+        mode: GlobalUpdateMode<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<Vec<String>> {
+        let target_selectors = self.target_selectors::<Reporter>(pkg, mode).await?;
         let downgrade_check = Box::pin(pins_for_downgrades::<Reporter>(
             self.base_config,
             self.global_pkg_dir,
             install_dir,
             pkg,
-            mode,
+            (mode, &target_selectors),
             range_spec_style,
             supported_architectures.clone(),
         ))
         .await?;
-        let mut selectors = update_selectors(&pkg.dependencies, mode, &downgrade_check.pins);
+        let mut selectors = apply_pins(&pkg.dependencies, target_selectors, &downgrade_check.pins);
         if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
             self.run_lockfile_only_install::<Reporter>(
                 install_dir,
@@ -50,7 +53,7 @@ impl GlobalInstallTarget<'_> {
             .await?;
         }
         match mode {
-            GlobalUpdateMode::DeclaredRange => {}
+            GlobalUpdateMode::DeclaredRange | GlobalUpdateMode::Tag(_) => {}
             GlobalUpdateMode::Latest => {
                 selectors = self.finalize_latest_runtime_selectors::<Reporter>(
                     pkg,
@@ -64,6 +67,25 @@ impl GlobalInstallTarget<'_> {
             }
         }
         Ok(selectors)
+    }
+
+    /// The selectors `mode` resolves the group's dependencies with, before
+    /// any downgrade pin. Under `--tag` a dependency that does not publish
+    /// the tag keeps its recorded spec, so it cannot abort the whole group's
+    /// update.
+    async fn target_selectors<Reporter: self::Reporter>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        mode: GlobalUpdateMode<'_>,
+    ) -> miette::Result<Vec<String>> {
+        match mode {
+            GlobalUpdateMode::Tag(tag)
+                if pkg.dependencies.iter().any(|(_, spec)| is_registry_version_spec(spec)) =>
+            {
+                tag_checked_selectors::<Reporter>(self.base_config, &pkg.dependencies, tag).await
+            }
+            _ => Ok(update_selectors(&pkg.dependencies, mode, &HashMap::new())),
+        }
     }
 
     async fn finalize_latest_runtime_selectors<Reporter: self::Reporter + 'static>(
@@ -137,6 +159,7 @@ pub(super) struct GroupActivation<'a> {
 /// otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
 /// points at an older release than the one installed whenever that came from
 /// another tag, or from a major that has not been promoted to `latest` yet.
+/// `--tag` resolves a tag that may likewise point at an older release.
 ///
 /// The versions are resolved into `install_dir` without installing anything, so
 /// a release that is about to be rejected never gets the chance to run its
@@ -152,22 +175,19 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     global_pkg_dir: &Path,
     install_dir: &Path,
     pkg: &GlobalPackageInfo,
-    mode: GlobalUpdateMode,
+    (mode, target_selectors): (GlobalUpdateMode<'_>, &[String]),
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<DowngradeCheck> {
-    match mode {
-        GlobalUpdateMode::DeclaredRange => {
-            return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
-        }
-        GlobalUpdateMode::Latest => {}
+    if mode == GlobalUpdateMode::DeclaredRange {
+        return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
     }
     let versions_before = installed_versions(&pkg.install_dir);
     // Nothing to compare a resolution against, so nothing to resolve.
     if !pkg.dependencies
         .iter()
         .any(|(alias, spec)| {
-            can_update_to_latest(alias, spec) && versions_before.contains_key(alias)
+            moves_past_declared_range(mode, alias, spec) && versions_before.contains_key(alias)
         })
     {
         return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
@@ -176,7 +196,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
         base_config,
         global_pkg_dir,
         install_dir,
-        selectors: &update_selectors(&pkg.dependencies, mode, &HashMap::new()),
+        selectors: target_selectors,
         range_spec_style,
         supported_architectures,
         allow_build: &[],
@@ -187,7 +207,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
 
     let pins = pkg.dependencies
         .iter()
-        .filter(|(alias, spec)| can_update_to_latest(alias, spec))
+        .filter(|(alias, spec)| moves_past_declared_range(mode, alias, spec))
         .filter_map(|(alias, _)| {
             let before = Version::parse(versions_before.get(alias)?).ok()?;
             let now = resolved.get(alias)?;

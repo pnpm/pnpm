@@ -29,7 +29,11 @@ fn scrubbed_env() -> EnvGuard {
 #[test]
 fn every_flag_is_bound_to_the_env_var_named_after_it() {
     let mut bound = Vec::new();
-    for arg in Args::command().get_arguments() {
+    // A hidden flag is not configuration, so it has no variable.
+    for arg in Args::command()
+        .get_arguments()
+        .filter(|arg| !arg.is_hide_set())
+    {
         let long = arg.get_long().expect("every pnpr option has a long flag");
         let expected = format!("PNPR_{}", long.to_uppercase().replace('-', "_"));
         assert_eq!(arg.get_env(), Some(OsStr::new(&expected)), "--{long}");

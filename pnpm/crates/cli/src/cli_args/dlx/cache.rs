@@ -236,7 +236,7 @@ pub(super) fn read_json(path: &Path) -> Result<Value, DlxError> {
 fn isolate_dlx_caller_settings(config: &mut Config) -> miette::Result<()> {
     let mut env_settings =
         pnpm_config::TrustedSettings::from_pnpm_config_env::<pnpm_config::Host>();
-    env_settings.substitute_env_trusted::<pnpm_config::Host>();
+    env_settings.substitute_env_trusted_lossy::<pnpm_config::Host>();
     let cli = &config.cli.setting_values;
     let cli_overrides = cli
         .get("overrides")

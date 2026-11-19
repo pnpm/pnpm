@@ -124,13 +124,16 @@ impl LocalSpec {
         // disagrees on Windows about a rooted path carrying no drive
         // prefix and would re-anchor one the resolver resolves from the
         // filesystem root.
+        let home_relative_path = pkg_path.strip_prefix("~/");
         let specified_via_relative_path =
-            !names_its_own_location(pkg_path) && !pkg_path.starts_with("~/");
-        let absolute_path = lexical_normalize(&if specified_via_relative_path {
-            base_dir.join(candidate)
-        } else {
-            candidate.to_path_buf()
-        });
+            !names_its_own_location(pkg_path) && home_relative_path.is_none();
+        let absolute_path = match home_relative_path {
+            // Normalized below the `~`, which `..` must not cancel: the
+            // resolver expands it to the home directory first.
+            Some(below_home) => Path::new("~").join(lexical_normalize(Path::new(below_home))),
+            None if specified_via_relative_path => lexical_normalize(&base_dir.join(candidate)),
+            None => lexical_normalize(candidate),
+        };
         LocalSpec { protocol, absolute_path, specified_via_relative_path }
     }
 

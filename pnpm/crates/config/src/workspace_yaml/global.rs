@@ -3,8 +3,8 @@
 use super::{
     DroppedKeys, ErrorKind, GLOBAL_CONFIG_YAML_FILENAME, IgnoredAny, IndexMap,
     LoadWorkspaceYamlError, MachineSettings, Path, SCHEMA_DIRECTIVE_KEY, SystemEnv,
-    TrustedSettings, fs, parse_settings, read_readable_settings, redact_and_sanitize,
-    select_settings,
+    TrustedSettings, fs, parse_settings, parse_settings_file, read_readable_settings,
+    redact_and_sanitize, select_settings,
 };
 use crate::SettingsRead;
 use serde::de::DeserializeOwned;
@@ -110,7 +110,9 @@ fn read_global<Settings: DeserializeOwned + Default>(
     path: &Path,
     settings_read: SettingsRead,
 ) -> Result<Settings, LoadWorkspaceYamlError> {
-    let read = parse_settings::<SystemEnv, Settings>;
-    if settings_read.skips_unreadable() { read_readable_settings(text, read) } else { read(text) }
+    if !settings_read.skips_unreadable() {
+        return parse_settings_file::<SystemEnv, Settings>(text, path);
+    }
+    read_readable_settings(text, parse_settings::<SystemEnv, Settings>)
         .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.to_path_buf(), source })
 }

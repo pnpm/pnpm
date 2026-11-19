@@ -1,6 +1,6 @@
 use super::{
-    Arc, DateTime, MetadataCacheScope, Package, PackageMetaCache, PickPackageContext,
-    PickPackageError, PickPackageOptions, PickPackageResult, PickState, RegistryPackageSpec, Utc,
+    Arc, MetadataCacheScope, Package, PackageMetaCache, PickPackageContext, PickPackageError,
+    PickPackageOptions, PickPackageResult, PickState, RegistryPackageSpec, Timestamp,
     cached_meta_misses_preferred_version, dominant_lockfile_version, get_file_mtime,
     load_meta_async, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline,
     pick_stable_cached_range_version,
@@ -161,7 +161,7 @@ impl PickState<'_> {
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
         let mtime = self.pkg_mirror.as_deref().and_then(get_file_mtime)?;
-        if !unvalidated_mirror_is_fresh(mtime, Utc::now()) {
+        if !unvalidated_mirror_is_fresh(mtime, Timestamp::now()) {
             return None;
         }
         let meta = self.mirror_meta(disk_meta).await?;
@@ -196,7 +196,7 @@ impl PickState<'_> {
         ctx: &PickPackageContext<'_, Cache>,
         spec: &RegistryPackageSpec,
         opts: &PickPackageOptions<'_>,
-        cutoff: DateTime<Utc>,
+        cutoff: Timestamp,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
         let mtime = self.pkg_mirror.as_deref().and_then(get_file_mtime)?;
@@ -239,7 +239,7 @@ impl PickState<'_> {
         ctx: &PickPackageContext<'_, Cache>,
         opts: &PickPackageOptions<'_>,
         meta: &Arc<Package>,
-        written_at: Option<DateTime<Utc>>,
+        written_at: Option<Timestamp>,
     ) {
         if !opts.request.dry_run {
             ctx.metadata.meta_cache.set_unverified(

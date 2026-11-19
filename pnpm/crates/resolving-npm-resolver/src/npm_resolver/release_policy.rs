@@ -6,8 +6,8 @@
 //! version was chosen, or point a user at a version pnpm would then refuse.
 
 use super::{
-    DateTime, LockfileResolution, MINIMUM_RELEASE_AGE_VIOLATION_CODE, Package,
-    PackageVersionPolicy, PkgName, ResolutionPolicyViolation, Utc, parse_packument_timestamp,
+    LockfileResolution, MINIMUM_RELEASE_AGE_VIOLATION_CODE, Package, PackageVersionPolicy, PkgName,
+    ResolutionPolicyViolation, Timestamp, parse_packument_timestamp,
 };
 
 /// The raw `dist-tags.latest` when the active `minimumReleaseAge`
@@ -21,7 +21,7 @@ use super::{
 /// version it can date.
 pub(super) fn latest_allowed_by_policy<'a>(
     meta: &'a Package,
-    published_by: Option<DateTime<Utc>>,
+    published_by: Option<Timestamp>,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> Option<&'a str> {
     let latest = meta.dist_tag("latest")?;
@@ -56,7 +56,7 @@ fn policy_trusts(
 fn known_immature(
     meta: &Package,
     version: &str,
-    cutoff: DateTime<Utc>,
+    cutoff: Timestamp,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
     if policy_trusts(meta, version, published_by_exclude) {
@@ -82,7 +82,7 @@ fn known_immature(
 pub(super) fn installable_under_policy(
     meta: &Package,
     version: &str,
-    published_by: Option<DateTime<Utc>>,
+    published_by: Option<Timestamp>,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
     let Some(cutoff) = published_by else { return true };
@@ -110,7 +110,7 @@ pub fn detect_min_release_age_violation(
     version: &str,
     published_at: Option<&str>,
     resolution: &LockfileResolution,
-    published_by: Option<DateTime<Utc>>,
+    published_by: Option<Timestamp>,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> Option<ResolutionPolicyViolation> {
     let cutoff = published_by?;
@@ -140,7 +140,7 @@ pub fn detect_min_release_age_violation(
         code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
         reason: format!(
             "was published at {timestamp}, within the minimumReleaseAge cutoff ({cutoff})",
-            cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            cutoff = pnpm_time::format_millis(cutoff),
         ),
     })
 }

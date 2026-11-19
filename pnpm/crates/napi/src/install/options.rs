@@ -52,6 +52,9 @@ pub struct InstallOptions {
     pub lockfile_only: Option<bool>,
     pub frozen_lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
+    /// `lockfileFormat` — the format the wanted lockfile is written in:
+    /// `"v9"` or the experimental `"v13"`. The `lockfile.format` setting.
+    pub lockfile_format: Option<String>,
     pub prefer_offline: Option<bool>,
     pub offline: Option<bool>,
     pub virtual_store_dir_max_length: Option<u32>,

@@ -374,6 +374,7 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
             },
             version: pnpm_package_manager::UpdateVersionOptions {
                 latest: false,
+                tag: None,
                 patches: false,
                 range_spec_style: RangeSpecStyle::from_save_options(
                     state.config.save_exact,

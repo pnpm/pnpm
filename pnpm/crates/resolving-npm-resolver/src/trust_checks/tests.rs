@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pnpm_registry::Package;
 use pnpm_version_policy::create_package_version_policy;
 
@@ -66,8 +66,8 @@ fn make_package(name: &str, versions: &[(&str, &str, Evidence)]) -> Package {
     serde_json::from_value(body).expect("deserialize fixture Package")
 }
 
-fn now_at(date: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(date).expect("parse RFC3339").with_timezone(&Utc)
+fn now_at(date: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(date).expect("parse RFC3339")
 }
 
 #[test]

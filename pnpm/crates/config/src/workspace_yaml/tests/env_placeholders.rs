@@ -2,7 +2,10 @@ use super::{
     AuditLevel, ColorMode, Config, EnvVar, LoadWorkspaceYamlError, NodeLinker, Path,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq,
 };
-use crate::{SettingsRead, workspace_yaml::parse_settings};
+use crate::{
+    SettingsRead,
+    workspace_yaml::{TrustedSettings, parse_settings, parse_settings_file},
+};
 use std::fmt::Write as _;
 
 struct Env;
@@ -116,6 +119,116 @@ fn a_placeholder_with_no_value_and_no_fallback_is_reported_as_written() {
         parse_settings::<Env, WorkspaceSettings>("nodeLinker: ${PNPM_TEST_UNSET}\n").unwrap_err();
 
     assert!(error.to_string().contains("${PNPM_TEST_UNSET}"), "unexpected error: {error}");
+}
+
+fn parse_error_of(document: &str) -> String {
+    parse_settings_file::<Env, WorkspaceSettings>(document, Path::new(WORKSPACE_MANIFEST_FILENAME))
+        .unwrap_err()
+        .to_string()
+}
+
+#[test]
+fn an_unresolved_placeholder_in_a_typed_setting_names_the_variable() {
+    for document in [
+        "nodeLinker: ${PNPM_TEST_UNSET}\n",
+        "nodeLinker: \"${PNPM_TEST_UNSET}\"\n",
+        "nodeLinker: '${PNPM_TEST_UNSET}'\n",
+        "{nodeLinker: ${PNPM_TEST_UNSET}}\n",
+    ] {
+        assert_eq!(
+            parse_error_of(document),
+            "Failed to replace env in config: ${PNPM_TEST_UNSET}",
+            "{document}",
+        );
+    }
+}
+
+#[test]
+fn unresolved_placeholders_sharing_a_quote_keep_the_yaml_error() {
+    let message =
+        parse_error_of("nodeLinker: ${PNPM_TEST_UNSET}\n# '${PNPM_TEST_A}'${PNPM_TEST_B}'\n");
+
+    assert_eq!(message, "Failed to replace env in config: ${PNPM_TEST_UNSET}");
+    let message = parse_error_of("nodeLinker: \"${PNPM_TEST_A}\"${PNPM_TEST_B}\"\n");
+    assert!(message.starts_with("Failed to parse"), "unexpected error: {message}");
+}
+
+/// Dropping the placeholder would leave the tag `!null`, which reads.
+#[test]
+fn an_unresolved_placeholder_in_a_tag_keeps_the_yaml_error() {
+    let message = parse_error_of("nodeLinker: !${PNPM_TEST_UNSET} isolated\n");
+
+    assert!(message.starts_with("Failed to parse"), "unexpected error: {message}");
+}
+
+/// The placeholder at fault is found by halving, so it is reported however
+/// many unresolved placeholders the file carries ahead of it.
+#[test]
+fn an_unresolved_placeholder_behind_many_others_is_still_reported() {
+    let padding = (0..2000).fold(String::new(), |mut padding, index| {
+        let _ = writeln!(padding, "# ${{PNPM_TEST_UNSET_{index}}}");
+        padding
+    });
+
+    assert_eq!(
+        parse_error_of(&format!("{padding}nodeLinker: ${{PNPM_TEST_UNSET}}\n")),
+        "Failed to replace env in config: ${PNPM_TEST_UNSET}",
+    );
+}
+
+#[test]
+fn an_unrelated_error_beside_an_unresolved_placeholder_keeps_the_yaml_error() {
+    let message = parse_error_of("hoist: notabool\nnodeLinker: ${PNPM_TEST_UNSET}\n");
+
+    assert!(message.starts_with("Failed to parse"), "unexpected error: {message}");
+}
+
+#[test]
+fn an_unresolved_placeholder_in_a_string_setting_fails_on_substitution() {
+    let mut settings =
+        parse_settings::<Env, WorkspaceSettings>("storeDir: ${PNPM_TEST_UNSET}\n").unwrap();
+
+    let error = settings.substitute_env_untrusted::<Env>().unwrap_err();
+
+    assert_eq!(error.to_string(), "Failed to replace env in config: ${PNPM_TEST_UNSET}");
+    let mut settings =
+        parse_settings::<Env, WorkspaceSettings>("storeDir: ${PNPM_TEST_UNSET}\n").unwrap();
+    let error = settings.substitute_env_trusted::<Env>().unwrap_err();
+    assert_eq!(error.to_string(), "Failed to replace env in config: ${PNPM_TEST_UNSET}");
+}
+
+#[test]
+fn a_readable_load_leaves_out_a_setting_with_an_unresolved_placeholder() {
+    let document = "storeDir: ${PNPM_TEST_UNSET}\ncacheDir: ${PNPM_TEST_HOST}\n";
+    let mut untrusted = parse_settings::<Env, WorkspaceSettings>(document).unwrap();
+    let warnings = untrusted.substitute_env_untrusted_readable::<Env>();
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(untrusted.store_dir, None);
+    assert_eq!(untrusted.cache_dir.as_deref(), Some("internal.example.com"));
+
+    let mut trusted = TrustedSettings {
+        settings: parse_settings::<Env, WorkspaceSettings>(document).unwrap(),
+        ..TrustedSettings::default()
+    };
+    trusted.substitute_env_trusted_readable::<Env>();
+    assert_eq!(trusted.settings.store_dir, None);
+    assert_eq!(trusted.settings.cache_dir.as_deref(), Some("internal.example.com"));
+}
+
+#[test]
+fn a_lossy_substitution_expands_the_settings_after_an_unresolved_one() {
+    let mut settings = TrustedSettings {
+        settings: parse_settings::<Env, WorkspaceSettings>(
+            "storeDir: ${PNPM_TEST_UNSET}\nregistry: ${PNPM_TEST_REGISTRY}\n",
+        )
+        .unwrap(),
+        ..TrustedSettings::default()
+    };
+
+    settings.substitute_env_trusted_lossy::<Env>();
+
+    assert_eq!(settings.settings.store_dir.as_deref(), Some(""));
+    assert_eq!(settings.settings.registry.as_deref(), Some("https://registry.example.com/"));
 }
 
 /// A mistyped variable name puts whatever the environment holds under that
@@ -384,7 +497,7 @@ fn flow_placeholders_expand_in_trusted_settings_and_allowed_workspace_fields() {
         "{registry: https://${PNPM_TEST_HOST}/npm/, httpsProxy: http://${PNPM_TEST_HOST}:8080/, shamefullyHoist: ${PNPM_TEST_IGNORE_SCRIPTS}}\n",
     )
     .unwrap();
-    trusted.substitute_env_trusted::<Env>();
+    trusted.substitute_env_trusted::<Env>().unwrap();
     assert_eq!(trusted.registry.as_deref(), Some("https://internal.example.com/npm/"));
     assert_eq!(trusted.https_proxy.as_deref(), Some("http://internal.example.com:8080/"));
     assert_eq!(trusted.shamefully_hoist, Some(true));

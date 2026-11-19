@@ -1,5 +1,5 @@
 use super::{OidcState, USER_CODE_ALPHABET, WEB_LOGIN_TTL, WebLoginPoll, WebLoginState};
-use chrono::Utc;
+use jiff::Timestamp;
 
 fn oidc() -> OidcState {
     OidcState::new(&[], "https://registry.example").unwrap()
@@ -83,7 +83,7 @@ async fn an_expired_login_cannot_be_claimed_fulfilled_or_polled() {
     let expire = || {
         let mut logins = state.browser.web_logins.lock().unwrap();
         for entry in logins.entries.values_mut() {
-            entry.expires = Utc::now().timestamp() - 1;
+            entry.expires = Timestamp::now().as_second() - 1;
         }
     };
     let claimed = state.create_web_login().expect("session created");
@@ -98,7 +98,7 @@ async fn an_expired_login_cannot_be_claimed_fulfilled_or_polled() {
 #[tokio::test]
 async fn max_entries_enforced() {
     let state = oidc();
-    let now = Utc::now().timestamp();
+    let now = Timestamp::now().as_second();
     {
         let mut logins = state.browser.web_logins.lock().unwrap();
         for index in 0..1024 {

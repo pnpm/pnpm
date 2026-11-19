@@ -571,19 +571,36 @@ fn prior_child_key_applies_the_satisfies_gate() {
         serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "1.2.0" } }))
             .expect("parse snapshot entry");
 
-    let key =
-        super::prior_child_key(&snapshot, "bar", "^1.0.0", &registry_context(default_registry()))
-            .expect("recorded ref satisfies");
+    let key = super::prior_child_key(
+        None,
+        &snapshot,
+        "bar",
+        "^1.0.0",
+        &registry_context(default_registry()),
+    )
+    .expect("recorded ref satisfies");
     assert_eq!(key.to_string(), "bar@1.2.0");
 
     assert!(
-        super::prior_child_key(&snapshot, "bar", "^2.0.0", &registry_context(default_registry()))
-            .is_none(),
+        super::prior_child_key(
+            None,
+            &snapshot,
+            "bar",
+            "^2.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
         "an edited range the recorded version no longer satisfies yields no prior key",
     );
     assert!(
-        super::prior_child_key(&snapshot, "baz", "^1.0.0", &registry_context(default_registry()))
-            .is_none(),
+        super::prior_child_key(
+            None,
+            &snapshot,
+            "baz",
+            "^1.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
         "unrecorded alias",
     );
 
@@ -592,6 +609,7 @@ fn prior_child_key_applies_the_satisfies_gate() {
             .expect("parse snapshot entry");
     assert!(
         super::prior_child_key(
+            None,
             &prerelease_snapshot,
             "bar",
             "21.0.0",
@@ -601,6 +619,7 @@ fn prior_child_key_applies_the_satisfies_gate() {
     );
     assert!(
         super::prior_child_key(
+            None,
             &prerelease_snapshot,
             "bar",
             "^21.0.0",
@@ -611,12 +630,44 @@ fn prior_child_key_applies_the_satisfies_gate() {
 }
 
 #[test]
+fn prior_child_key_admits_only_the_recorded_git_locator() {
+    let commit = "0123456789012345678901234567890123456789";
+    let locator = format!("git+file:///repo#{commit}");
+    let package = format!("git-pkg@{locator}");
+    let key: PkgNameVerPeer = package.parse().expect("parse git key");
+    let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
+        "optionalDependencies": { "git-alias": package },
+    }))
+    .expect("parse snapshot entry");
+    let mut lockfile = empty_lockfile();
+    let registries = registry_context(default_registry());
+    let prior_key = |lockfile: &Lockfile, specifier: &str| {
+        super::prior_child_key(Some(lockfile), &snapshot, "git-alias", specifier, &registries)
+    };
+
+    assert_eq!(prior_key(&lockfile, &locator), None);
+    let metadata = PackageMetadata {
+        resolution: LockfileResolution::Git(GitResolution {
+            repo: "file:///repo".to_string(),
+            commit: commit.to_string(),
+            integrity: None,
+            path: None,
+        }),
+        ..registry_metadata()
+    };
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+    assert_eq!(prior_key(&lockfile, &locator), Some(key));
+    assert_eq!(prior_key(&lockfile, "git+file:///repo#main"), None);
+}
+
+#[test]
 fn prior_child_key_admits_a_locked_runtime_its_range_still_admits() {
     let snapshot: pnpm_lockfile::SnapshotEntry =
         serde_json::from_value(serde_json::json!({ "dependencies": { "node": "runtime:24.0.0" } }))
             .expect("parse snapshot entry");
     let prior_key = |bare_specifier| {
         super::prior_child_key(
+            None,
             &snapshot,
             "node",
             bare_specifier,
@@ -639,10 +690,12 @@ fn a_locked_nightly_runtime_is_reused_while_its_range_admits_it() {
             .expect("parse snapshot entry");
     let registries = registry_context(default_registry());
     assert!(
-        super::prior_child_key(&snapshot, "node", "runtime:nightly/^25", &registries).is_some(),
+        super::prior_child_key(None, &snapshot, "node", "runtime:nightly/^25", &registries)
+            .is_some(),
     );
     assert!(
-        super::prior_child_key(&snapshot, "node", "runtime:nightly/^26", &registries).is_none(),
+        super::prior_child_key(None, &snapshot, "node", "runtime:nightly/^26", &registries)
+            .is_none(),
     );
 
     let lockfile = single_dep_lockfile("node", "runtime:nightly/^25", nightly);
@@ -660,8 +713,14 @@ fn prior_child_key_rejects_an_alias_ref_for_a_bare_range() {
     .expect("parse snapshot entry");
 
     assert!(
-        super::prior_child_key(&snapshot, "bar", "^1.0.0", &registry_context(default_registry()))
-            .is_none(),
+        super::prior_child_key(
+            None,
+            &snapshot,
+            "bar",
+            "^1.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
     );
 }
 
@@ -795,7 +854,7 @@ fn prior_child_key_keeps_the_pin_of_a_key_the_registries_setting_rekeys() {
         ("@work/baz", "zeta:^1.0.0"),
     ] {
         assert!(
-            super::prior_child_key(&snapshot, alias, specifier, &context).is_some(),
+            super::prior_child_key(None, &snapshot, alias, specifier, &context).is_some(),
             "{alias} {specifier}",
         );
     }

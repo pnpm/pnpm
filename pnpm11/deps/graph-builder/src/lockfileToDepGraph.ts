@@ -3,7 +3,7 @@ import path from 'node:path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.fs'
 import type {
   PkgRequestFetchResult,
   StoreController,
@@ -133,6 +133,7 @@ export async function lockfileToDepGraph (
     graph,
     locationByDepPath,
     injectionTargetsByDepPath,
+    skippedLocalDepPaths,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
   const childrenContext: GetChildrenPathsContext = {
@@ -151,6 +152,11 @@ export async function lockfileToDepGraph (
 
   populateNodeChildren(graph, lockfile, opts.include, childrenContext)
   const directDependenciesByImporterId = resolveDirectDependencies(lockfile, opts, childrenContext)
+  promoteChildrenOfSkippedLocalDeps(lockfile, opts, {
+    ctx: childrenContext,
+    directDependenciesByImporterId,
+    skippedLocalDepPaths,
+  })
 
   return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
 }
@@ -188,6 +194,53 @@ function resolveDirectDependencies (
     directDependenciesByImporterId[importerId] = getChildrenPaths(ctx, rootDeps, null, { importerId })
   }
   return directDependenciesByImporterId
+}
+
+/**
+ * Packages behind a skipped local dependency are in the graph but no importer
+ * reaches them, so the build and patch traversal would never visit them. They
+ * are added to the root importer under their dep path, which never collides
+ * with an alias. Only `pnpm fetch` skips local dependencies, and it links
+ * nothing into the projects, so these extra roots are never symlinked.
+ */
+function promoteChildrenOfSkippedLocalDeps (
+  lockfile: LockfileObject,
+  opts: Pick<LockfileToDepGraphOptions, 'include'>,
+  { ctx, directDependenciesByImporterId, skippedLocalDepPaths }: {
+    ctx: GetChildrenPathsContext
+    directDependenciesByImporterId: DirectDependenciesByImporterId
+    skippedLocalDepPaths: Set<DepPath>
+  }
+): void {
+  if (skippedLocalDepPaths.size === 0) return
+  const targetImporterId = directDependenciesByImporterId['.'] ? '.' : Object.keys(directDependenciesByImporterId)[0]
+  if (targetImporterId == null) return
+  for (const depPath of skippedLocalDepPaths) {
+    Object.assign(
+      directDependenciesByImporterId[targetImporterId],
+      locateChildrenByDepPath(ctx, lockfile.packages![depPath], { include: opts.include, skippedLocalDepPaths })
+    )
+  }
+}
+
+function locateChildrenByDepPath (
+  ctx: GetChildrenPathsContext,
+  pkgSnapshot: PackageSnapshot,
+  opts: { include: IncludedDependencies, skippedLocalDepPaths: Set<DepPath> }
+): Record<string, string> {
+  const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
+  const childDeps = {
+    ...pkgSnapshot.dependencies,
+    ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+  }
+  const locations: Record<string, string> = {}
+  for (const [alias, ref] of Object.entries(childDeps)) {
+    const childDepPath = dp.refToRelative(ref, alias)
+    if (childDepPath == null || opts.skippedLocalDepPaths.has(childDepPath)) continue
+    const dir = resolveDepPathLocation(ctx, childDepPath, ref, alias, peerDeps)
+    if (dir != null) locations[childDepPath] = dir
+  }
+  return locations
 }
 
 interface GetChildrenPathsContext {

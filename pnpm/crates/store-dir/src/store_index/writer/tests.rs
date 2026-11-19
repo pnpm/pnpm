@@ -1,8 +1,57 @@
-use super::{WriteMsg, apply_write_msg, invalidate_side_effects};
-use crate::store_index::{SideEffectsDiff, StoreIndex, tests::sample_index};
+use super::{WriteMsg, apply_write_msg, pending::invalidate_side_effects};
+use crate::store_index::{SideEffectsDiff, StoreIndex, StoreIndexError, tests::sample_index};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use tempfile::tempdir;
+
+#[tokio::test]
+async fn checked_writer_propagates_a_failed_index_batch() {
+    let dir = tempdir().unwrap();
+    let store_dir = crate::StoreDir::new(dir.path());
+    let (writer, task) = super::StoreIndexWriter::spawn_checked(
+        &store_dir,
+        crate::store_index::StoreIndexFormat::Sqlite,
+    );
+    let index = StoreIndex::open(store_dir.root()).unwrap();
+    index
+        .sqlite_conn()
+        .execute_batch(
+            "CREATE TRIGGER fail_write BEFORE INSERT ON package_index
+             BEGIN SELECT RAISE(FAIL, 'injected write failure'); END",
+        )
+        .unwrap();
+    writer.queue("key".to_string(), sample_index());
+    drop(writer);
+    let error = task.await.unwrap().unwrap_err();
+    assert!(matches!(error, StoreIndexError::Write { .. }), "{error:?}");
+}
+
+#[tokio::test]
+async fn checked_writer_propagates_an_index_encoding_failure() {
+    let dir = tempdir().unwrap();
+    let store_dir = crate::StoreDir::new(dir.path());
+    let (writer, task) = super::StoreIndexWriter::spawn_checked(
+        &store_dir,
+        crate::store_index::StoreIndexFormat::Sqlite,
+    );
+    let mut index = sample_index();
+    let mut manifest = serde_json::Map::new();
+    for shape in 0..64 {
+        manifest.insert(
+            format!("field-{shape}"),
+            serde_json::Value::Object(serde_json::Map::from_iter([(
+                format!("shape-{shape}"),
+                serde_json::Value::from(shape),
+            )])),
+        );
+    }
+    index.manifest = Some(serde_json::Value::Object(manifest));
+    writer.queue("key".to_string(), index);
+    drop(writer);
+
+    let error = task.await.unwrap().unwrap_err();
+    assert!(matches!(error, StoreIndexError::Encode { .. }), "{error:?}");
+}
 
 #[test]
 fn side_effects_invalidation_does_not_queue_unchanged_rows() {

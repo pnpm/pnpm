@@ -40,6 +40,10 @@ pub(super) struct Manifest {
     pub(super) metadata_wheel: Option<std::sync::Arc<super::build::FallbackWheel>>,
     #[serde(skip)]
     pub(super) metadata_output: Option<std::sync::Arc<tempfile::TempDir>>,
+    /// Whether the `requirements.txt` beside the manifest was left unread
+    /// because the directory's `.venv` is unmanaged.
+    #[serde(skip)]
+    pub(super) has_unmanaged_requirements: bool,
     #[serde(default, rename = "dependency-groups")]
     groups: BTreeMap<String, Vec<toml::Value>>,
     #[serde(default, rename = "build-system")]

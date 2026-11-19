@@ -38,7 +38,7 @@ pub(crate) struct ImporterVersionSeeds<'a> {
     pub own_manifest_specifiers: Option<&'a OwnManifestSpecifiers>,
     /// See [`crate::resolution_policy::PickPolicy`].
     pub pick_lowest: bool,
-    pub published_by: Option<chrono::DateTime<chrono::Utc>>,
+    pub published_by: Option<jiff::Timestamp>,
 }
 
 pub(crate) struct ResolverStoreContext<'a> {

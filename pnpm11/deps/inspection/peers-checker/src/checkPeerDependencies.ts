@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { parse as parseDependencyPath, refToRelative } from '@pnpm/deps.path'
@@ -30,6 +32,7 @@ export async function checkPeerDependencies (
   projectPaths: string[],
   opts: {
     lockfileDir: string
+    catalogs?: Catalogs
     checkWantedLockfileOnly?: boolean
     modulesDir?: string
     peerDependencyRules?: PeerDependencyRules
@@ -42,7 +45,7 @@ export async function checkPeerDependencies (
       ?? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
   if (!lockfile) return {}
 
-  const issues = checkPeerDependenciesFromLockfile(projectPaths, lockfile, opts.lockfileDir)
+  const issues = checkPeerDependenciesFromLockfile(projectPaths, lockfile, opts)
   if (opts.peerDependencyRules) {
     return filterPeerDependencyIssues(issues, opts.peerDependencyRules)
   }
@@ -52,10 +55,10 @@ export async function checkPeerDependencies (
 function checkPeerDependenciesFromLockfile (
   projectPaths: string[],
   lockfile: LockfileObject,
-  lockfileDir: string
+  opts: { lockfileDir: string, catalogs?: Catalogs }
 ): PeerDependencyIssuesByProjects {
   const packages = lockfile.packages ?? {}
-  const importerIds = projectPaths.map((projectPath) => getLockfileImporterId(lockfileDir, projectPath))
+  const importerIds = projectPaths.map((projectPath) => getLockfileImporterId(opts.lockfileDir, projectPath))
   const walkerSteps = lockfileWalkerGroupImporterSteps(lockfile, importerIds as ProjectId[])
   const result: PeerDependencyIssuesByProjects = {}
 
@@ -67,7 +70,7 @@ function checkPeerDependenciesFromLockfile (
       intersections: {},
     }
 
-    walkStep(step, packages, [], projectIssues)
+    walkStep(step, { packages, catalogs: opts.catalogs }, [], projectIssues)
 
     const merged = mergePeers(projectIssues.missing)
     projectIssues.conflicts = merged.conflicts
@@ -79,9 +82,14 @@ function checkPeerDependenciesFromLockfile (
   return result
 }
 
+interface WalkContext {
+  packages: PackageSnapshots
+  catalogs?: Catalogs
+}
+
 function walkStep (
   step: LockfileWalkerStep,
-  packages: PackageSnapshots,
+  ctx: WalkContext,
   parents: ParentPackages,
   issues: PeerDependencyIssues
 ): void {
@@ -92,21 +100,24 @@ function walkStep (
     const currentParents: ParentPackages = [...parents, { name: pkgName, version: pkgVersion }]
 
     if (pkgSnapshot.peerDependencies) {
-      checkDependencyPeers(pkgSnapshot, currentParents, packages, issues)
+      checkDependencyPeers(pkgSnapshot, currentParents, ctx, issues)
     }
 
-    walkStep(next(), packages, currentParents, issues)
+    walkStep(next(), ctx, currentParents, issues)
   }
 }
 
 function checkDependencyPeers (
   pkgSnapshot: PackageSnapshot,
   currentParents: ParentPackages,
-  packages: PackageSnapshots,
+  { packages, catalogs }: WalkContext,
   issues: PeerDependencyIssues
 ): void {
+  const isDirectoryPackage = 'type' in pkgSnapshot.resolution && pkgSnapshot.resolution.type === 'directory'
   for (const [peerName, rawPeerRange] of Object.entries(pkgSnapshot.peerDependencies ?? {})) {
-    const peerRange = getPeerVersionRange(rawPeerRange)
+    const peerRange = getPeerVersionRange(
+      isDirectoryPackage ? resolveCatalogPeerRange(peerName, rawPeerRange, catalogs) : rawPeerRange
+    )
     const isOptional = pkgSnapshot.peerDependenciesMeta?.[peerName]?.optional === true
     const resolvedPeerRef = pkgSnapshot.dependencies?.[peerName] ?? pkgSnapshot.optionalDependencies?.[peerName]
 
@@ -120,6 +131,14 @@ function checkDependencyPeers (
       issues,
     })
   }
+}
+
+// The lockfile records a directory package's peers as written. A range the
+// catalogs cannot resolve is kept, and so reported as unmet.
+function resolveCatalogPeerRange (peerName: string, peerRange: string, catalogs: Catalogs | undefined): string {
+  if (catalogs == null) return peerRange
+  const result = resolveFromCatalog(catalogs, { alias: peerName, bareSpecifier: peerRange })
+  return result.type === 'found' ? result.resolution.specifier : peerRange
 }
 
 interface PeerCheckContext {

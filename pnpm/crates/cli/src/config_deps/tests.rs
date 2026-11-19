@@ -1425,7 +1425,7 @@ async fn resolve_pnpm_version_keeps_a_dist_tag_on_the_running_version() {
         }}
     }}
 }}"#,
-        fresh = chrono::Utc::now().to_rfc3339(),
+        fresh = pnpm_time::format_rfc3339(jiff::Timestamp::now()),
     );
     let mut server = mockito::Server::new_async().await;
     let _packument = server

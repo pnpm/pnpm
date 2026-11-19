@@ -42,6 +42,8 @@ pnpm sets the following environment variables during lifecycle script execution:
 - `TMPDIR`: `node_modules/.tmp` in the package, unless
   [`unsafePerm`](./settings/build.md#unsafeperm) is `true`
 
+The pnpm npm package provides bundled `node-gyp` to lifecycle scripts even when pnpm's own install scripts were skipped.
+
 :::note
 
 Apart from the variables above, pnpm does not set `npm_config_*` variables from

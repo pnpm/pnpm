@@ -196,6 +196,8 @@ fn patch_commands_in_a_workspace_project_with_its_own_lockfile() {
 
     let installed = fs::read_to_string(&installed_path).unwrap();
     assert!(!installed.contains("patched dedicated"), "installed: {installed}");
+    assert!(!edit_dir.exists(), "the project's edit directory should be removed");
+    assert!(!app_dir.join("node_modules/.pnpm_patches").exists());
     assert!(
         !workspace.join("node_modules/.pnpm").exists(),
         "the reinstalls should stay in the project's own modules directory",

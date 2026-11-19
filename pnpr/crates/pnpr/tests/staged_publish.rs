@@ -567,10 +567,9 @@ async fn an_approval_that_loses_its_version_leaves_the_stage_to_reject() {
 
 /// Rewrite the stored record of `stage_id` as if another replica had claimed
 /// it for approval `age` ago.
-async fn claim_stage(storage: &std::path::Path, stage_id: &str, age: chrono::Duration) {
-    let since = chrono::Utc::now() - age;
-    write_claim(storage, stage_id, &since.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
-        .await;
+async fn claim_stage(storage: &std::path::Path, stage_id: &str, age: jiff::SignedDuration) {
+    let since = jiff::Timestamp::now() - age;
+    write_claim(storage, stage_id, &pnpm_time::format_millis(since)).await;
 }
 
 /// Stamp `approvingSince` verbatim, for the values a well-behaved replica
@@ -602,7 +601,7 @@ async fn a_claim_from_a_replica_whose_clock_runs_ahead_holds() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    claim_stage(tmp.path(), &stage_id, -chrono::Duration::minutes(2)).await;
+    claim_stage(tmp.path(), &stage_id, -jiff::SignedDuration::from_mins(2)).await;
 
     let approve = app
         .oneshot(request(
@@ -648,7 +647,7 @@ async fn an_approval_is_refused_while_another_holds_the_record() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    claim_stage(tmp.path(), &stage_id, chrono::Duration::seconds(3)).await;
+    claim_stage(tmp.path(), &stage_id, jiff::SignedDuration::from_secs(3)).await;
 
     let approve = app
         .clone()
@@ -688,7 +687,7 @@ async fn a_claim_left_behind_by_a_dead_replica_expires() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    claim_stage(tmp.path(), &stage_id, chrono::Duration::hours(1)).await;
+    claim_stage(tmp.path(), &stage_id, jiff::SignedDuration::from_hours(1)).await;
 
     let approve = app
         .clone()

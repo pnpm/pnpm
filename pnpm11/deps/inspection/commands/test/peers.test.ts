@@ -206,3 +206,65 @@ test('peers honors packageConfigs modulesDir overrides and safely serializes __p
   }, [])
   expect(wantedResult).toMatchObject({ exitCode: 1 })
 })
+
+function writeInjectedCatalogPeerLockfile (lockfileDir: string, importerId: string, libDir: string): void {
+  writeYamlFileSync(path.join(lockfileDir, 'pnpm-lock.yaml'), {
+    lockfileVersion: '9.0',
+    importers: {
+      [importerId]: {
+        dependencies: {
+          'is-odd': { specifier: 'catalog:', version: '3.0.1' },
+          lib: { specifier: 'workspace:*', version: `file:${libDir}(is-odd@3.0.1)` },
+        },
+      },
+    },
+    packages: {
+      'is-odd@3.0.1': {
+        resolution: { integrity: 'sha512-AAAA' },
+      },
+      [`lib@file:${libDir}`]: {
+        resolution: { directory: libDir, type: 'directory' },
+        peerDependencies: { 'is-odd': 'catalog:' },
+      },
+    },
+    snapshots: {
+      'is-odd@3.0.1': {},
+      [`lib@file:${libDir}(is-odd@3.0.1)`]: {
+        dependencies: { 'is-odd': '3.0.1' },
+      },
+    },
+  })
+}
+
+test('peers resolves the catalog peer ranges of injected workspace packages', async () => {
+  const workspaceDir = tempDir()
+  const appDir = path.join(workspaceDir, 'packages/app') as ProjectRootDir
+  fs.mkdirSync(appDir, { recursive: true })
+  const selectedProjectsGraph = {
+    [appDir]: {
+      dependencies: [],
+      package: {
+        rootDir: appDir,
+        rootDirRealPath: appDir,
+        manifest: { name: 'app', version: '1.0.0' },
+        writeProjectManifest: async () => {},
+      },
+    },
+  } as unknown as ProjectsGraph
+  const opts = {
+    catalogs: { default: { 'is-odd': '3.0.1' } },
+    dir: workspaceDir,
+    lockfileOnly: true,
+    modulesDir: 'node_modules',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir,
+  }
+  const noIssues = { output: 'No peer dependency issues found', exitCode: 0 }
+
+  writeInjectedCatalogPeerLockfile(workspaceDir, 'packages/app', 'packages/lib')
+  expect(await peers.handler({ ...opts, sharedWorkspaceLockfile: true }, ['check'])).toEqual(noIssues)
+
+  writeInjectedCatalogPeerLockfile(appDir, '.', '../lib')
+  expect(await peers.handler({ ...opts, sharedWorkspaceLockfile: false }, ['check'])).toEqual(noIssues)
+})
