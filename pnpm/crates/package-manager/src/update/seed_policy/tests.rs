@@ -61,6 +61,7 @@ fn ignored_aliases_keep_their_resolved_packages_out_of_lockfile_targets() {
         config: &config,
         version: UpdateVersionOptions {
             latest: false,
+            tag: None,
             patches: false,
             range_spec_style: RangeSpecStyle::Major,
             save: false,

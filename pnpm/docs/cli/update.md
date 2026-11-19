@@ -16,6 +16,7 @@ When used without arguments, updates all dependencies.
 |----------------------|--------------------------------------------------------------------------|
 |`pnpm up`             | Updates all dependencies, adhering to ranges specified in `package.json` |
 |`pnpm up --latest`    | Updates all dependencies to their latest versions                        |
+|`pnpm up --tag next`  | Updates all dependencies to the versions behind their `next` tags        |
 |`pnpm up foo@2`       | Updates `foo` to the latest version on v2                                |
 |`pnpm up "@babel/*"` | Updates all dependencies under the `@babel` scope                        |
 
@@ -131,6 +132,30 @@ name, such as `1.4rc1` for `==1.*`, adds a clause that names it, as in
 `==1.*,>=1.4rc1`. `savePrefix` and `saveExact` do not apply to Python
 requirements.
 
+### --tag &lt;tag\>
+
+Added in: v12.23.0
+
+Update the dependencies to the version behind the given dist-tag, and write
+that version to `package.json` with the range operator the dependency already
+declares. The tag's version is used even when it is lower than the installed
+version. `pnpm up --tag next foo` does the same as `pnpm up foo@next`.
+
+A dependency that tracks a dist-tag, such as `"foo": "latest"`, is switched to
+the given tag. A dependency declared through the `catalog:`, `workspace:`, or
+`npm:` protocol, through a named registry, or as a path or git URL, is not
+rewritten. Config dependencies are not updated. A package that does not publish
+the tag fails the update.
+
+With `--global`, a package that does not publish the tag keeps its range, and
+the other packages are updated. A global package also keeps its installed
+version when the tag's version is lower.
+
+The value must be a dist-tag name. A version or a range, such as `1.2.3` or
+`*`, is rejected (`ERR_PNPM_UPDATE_INVALID_TAG`). `--tag` cannot be combined
+with `--latest`, `--workspace`, `--patches`, or a selector that names a
+version, such as `foo@2` (`ERR_PNPM_TAG_WITH_SPEC`).
+
 ### --patches
 
 Added in: v12.0.0
@@ -142,8 +167,8 @@ selects now if that changed. Versions and declared ranges are left alone, but th
 lockfile entry is rewritten as a whole (`integrity`, `revision`, and the package
 snapshot around them), since revisions may declare different dependencies.
 
-Cannot be combined with package selectors, `--latest`, `--interactive`, or
-`--global` (`ERR_PNPM_PATCHES_WITH_SELECTOR`).
+Cannot be combined with package selectors, `--latest`, `--tag`, `--interactive`,
+or `--global` (`ERR_PNPM_PATCHES_WITH_SELECTOR`).
 
 ### --pnpr-server &lt;url\>
 
@@ -191,7 +216,7 @@ Also update packages in `peerDependencies`. It cannot be combined with `--intera
 
 ### --save-exact, -E
 
-With `--latest`, write the resolved version to `package.json` without a range operator.
+With `--latest` or `--tag`, write the resolved version to `package.json` without a range operator. A dependency that already declares a `^`, `~`, or exact range keeps that operator.
 
 ### --lockfile-only
 

@@ -251,6 +251,38 @@ fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencie
 }
 
 #[test]
+fn tag_update_uses_the_tag_only_for_plain_version_dependencies() {
+    let dependencies = vec![
+        ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
+        ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
+        ("node".to_string(), "runtime:^20.0.0".to_string()),
+        ("git-shorthand-pkg".to_string(), "user/repo".to_string()),
+        ("relative-path-pkg".to_string(), "../local-pkg".to_string()),
+        ("foo".to_string(), "^1.0.0".to_string()),
+        ("bar".to_string(), "latest".to_string()),
+    ];
+    assert_eq!(
+        update_selectors(&dependencies, GlobalUpdateMode::Tag("next"), &HashMap::new()),
+        vec![
+            "private-linked-pkg@link:/home/user/private-linked-pkg",
+            "aliased-pkg@npm:other-pkg@^2.0.0",
+            "named-registry-pkg@gh:^3.0.0",
+            "node@runtime:^20.0.0",
+            "git-shorthand-pkg@user/repo",
+            "relative-path-pkg@../local-pkg",
+            "foo@next",
+            "bar@next",
+        ],
+    );
+    let pins = HashMap::from([("foo".to_string(), "1.5.0".to_string())]);
+    assert_eq!(
+        update_selectors(&dependencies[6..], GlobalUpdateMode::Tag("next"), &pins),
+        vec!["foo@1.5.0", "bar@next"],
+    );
+}
+
+#[test]
 fn latest_update_preserves_node_prerelease_channels() {
     let dependencies = vec![("node".to_string(), "runtime:22.0.0-rc.1".to_string())];
     assert_eq!(

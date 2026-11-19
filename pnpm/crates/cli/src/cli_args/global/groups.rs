@@ -93,7 +93,7 @@ impl GlobalInstallTarget<'_> {
     pub(super) async fn update_groups<Reporter: self::Reporter + 'static>(
         &self,
         groups: &[GlobalPackageInfo],
-        mode: super::GlobalUpdateMode,
+        mode: super::GlobalUpdateMode<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
@@ -121,7 +121,7 @@ impl GlobalInstallTarget<'_> {
     async fn update_group<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        mode: super::GlobalUpdateMode,
+        mode: super::GlobalUpdateMode<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
@@ -157,7 +157,7 @@ impl GlobalInstallTarget<'_> {
     async fn prepare_update_candidate<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        mode: super::GlobalUpdateMode,
+        mode: super::GlobalUpdateMode<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<(PathBuf, Vec<String>)> {
@@ -183,7 +183,7 @@ impl GlobalInstallTarget<'_> {
         &self,
         pkg: &GlobalPackageInfo,
         install_dir: &Path,
-        mode: super::GlobalUpdateMode,
+        mode: super::GlobalUpdateMode<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<Vec<String>> {

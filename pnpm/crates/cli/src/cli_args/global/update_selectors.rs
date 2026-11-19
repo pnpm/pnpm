@@ -2,37 +2,71 @@ use super::{
     GlobalPackageInfo, GlobalUpdateMode, HashMap, RangeSpecStyle, Version, local_file_path,
     parse_npm_spec_body,
 };
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_semver_include_prerelease::is_valid_semver_range;
 
-/// Whether `--latest` rewrites `(alias, spec)` to a latest selector.
-pub(super) fn can_update_to_latest(alias: &str, spec: &str) -> bool {
-    latest_selector(alias, spec).is_some()
+/// Whether `mode` rewrites `(alias, spec)` to a selector outside the range
+/// the group records.
+pub(super) fn moves_past_declared_range(
+    mode: GlobalUpdateMode<'_>,
+    alias: &str,
+    spec: &str,
+) -> bool {
+    match mode {
+        GlobalUpdateMode::DeclaredRange => false,
+        GlobalUpdateMode::Latest => latest_selector(alias, spec).is_some(),
+        GlobalUpdateMode::Tag(_) => is_registry_version_spec(spec),
+    }
 }
 
 /// The selectors that reinstall a group. With `--latest`, plain version specs,
 /// `npm:` aliases, and `runtime:` dependencies use `latest` so the seeded
-/// manifest range cannot hold them back; `pins` holds back aliases that would
-/// otherwise move backwards.
+/// manifest range cannot hold them back. With `--tag`, only version, range,
+/// and dist-tag specs use the tag (see [`is_registry_version_spec`]). `pins`
+/// holds back aliases that would otherwise move backwards.
 pub(super) fn update_selectors(
     dependencies: &[(String, String)],
-    mode: GlobalUpdateMode,
+    mode: GlobalUpdateMode<'_>,
+    pins: &HashMap<String, String>,
+) -> Vec<String> {
+    let selectors = dependencies
+        .iter()
+        .map(|(alias, spec)| match mode {
+            GlobalUpdateMode::DeclaredRange => format!("{alias}@{spec}"),
+            GlobalUpdateMode::Latest => {
+                latest_selector(alias, spec).unwrap_or_else(|| format!("{alias}@{spec}"))
+            }
+            GlobalUpdateMode::Tag(tag) if is_registry_version_spec(spec) => {
+                format!("{alias}@{tag}")
+            }
+            GlobalUpdateMode::Tag(_) => format!("{alias}@{spec}"),
+        })
+        .collect();
+    apply_pins(dependencies, selectors, pins)
+}
+
+/// `selectors` with every pinned alias held at its pin instead.
+pub(super) fn apply_pins(
+    dependencies: &[(String, String)],
+    selectors: Vec<String>,
     pins: &HashMap<String, String>,
 ) -> Vec<String> {
     dependencies
         .iter()
-        .map(|(alias, spec)| {
-            if let Some(pin) = pins.get(alias) {
-                return pinned_selector(alias, spec, pin);
-            }
-            match mode {
-                GlobalUpdateMode::DeclaredRange => format!("{alias}@{spec}"),
-                GlobalUpdateMode::Latest => {
-                    latest_selector(alias, spec).unwrap_or_else(|| format!("{alias}@{spec}"))
-                }
-            }
+        .zip(selectors)
+        .map(|((alias, spec), selector)| match pins.get(alias) {
+            Some(pin) => pinned_selector(alias, spec, pin),
+            None => selector,
         })
         .collect()
+}
+
+/// A version, range, or dist-tag: the only specs `--tag` replaces. Every
+/// other form, including a git shorthand (`user/repo`) or a relative path,
+/// names a source the tag may not exist on.
+pub(super) fn is_registry_version_spec(spec: &str) -> bool {
+    get_version_selector_type(spec).is_some()
 }
 
 pub(super) fn needs_runtime_range_bump(
