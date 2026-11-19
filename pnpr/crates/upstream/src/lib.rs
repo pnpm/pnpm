@@ -8,6 +8,7 @@ pub use packument::{
 pub use time::TIME_PRECISION_HORIZON_DAYS;
 
 pub use oci::oci_download_allowed;
+pub use request::UpstreamTarballRoute;
 
 mod http;
 mod request;
@@ -318,18 +319,23 @@ impl Upstream {
         self.fetch_tarball_url(&url).await
     }
 
-    /// Fetch a tarball by its version route (`{base}/{name}@{version}`) when
-    /// the upstream advertised one, or by its archive route
-    /// (`{base}/{name}/-/{filename}`) otherwise.
-    pub async fn fetch_tarball_or_version_response(
+    /// Fetch a tarball by the route its packument `dist.tarball` declared:
+    /// `{base}/{name}@{version}` when the upstream advertised a `pnpr` version
+    /// route, the declared HTTP(S) `dist.tarball` URL (same-origin or
+    /// split-domain CDN), or `{base}/{name}/-/{filename}` for relative/missing
+    /// URLs.
+    pub async fn fetch_declared_tarball_response(
         &self,
         name: &CanonicalPackageName,
         filename: &str,
-        version_route: Option<&str>,
+        route: &UpstreamTarballRoute,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        match version_route {
-            Some(version) => self.fetch_version_tarball_response(name, version).await,
-            None => self.fetch_tarball_response(name, filename).await,
+        match route {
+            UpstreamTarballRoute::Version(version) => {
+                self.fetch_version_tarball_response(name, version).await
+            }
+            UpstreamTarballRoute::Url(url) => self.fetch_tarball_url(url).await,
+            UpstreamTarballRoute::Archive => self.fetch_tarball_response(name, filename).await,
         }
     }
 

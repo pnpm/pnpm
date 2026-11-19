@@ -7,7 +7,10 @@ pub(super) use tarball_router::TarballRouter;
 mod frozen_frames;
 mod tarball_router;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use axum::{
     body::Body,
@@ -21,6 +24,7 @@ use pnpm_lockfile::{
     is_git_hosted_tarball_url, pick_registry_for_package,
 };
 use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
+use pnpm_resolving_npm_resolver::{BUILTIN_REGISTRIES_BY_PREFIX, PublishedTarballUrlMapper};
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
@@ -100,7 +104,12 @@ pub(super) fn package_frame(
     // — route it by the registry, not the tarball host, so a private package
     // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
     let tarball_url = if hint.from_registry {
-        router.route_registry_url(hint.identity.name, hint.identity.version, hint.tarball_url)
+        router.route_registry_hint(
+            hint.identity.name,
+            hint.identity.version,
+            hint.identity.id,
+            hint.tarball_url,
+        )
     } else {
         router.route_url(hint.identity.name, hint.identity.version, hint.tarball_url)
     };

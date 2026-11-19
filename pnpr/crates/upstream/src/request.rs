@@ -1,9 +1,46 @@
 //! Sending a request to an upstream and checking its response status.
 
 use super::{
-    HeadError, HeaderMap, Instant, RegistryError, Result, ThrottledClientGuard, Upstream,
-    http::read_upstream_error_body,
+    CanonicalPackageName, HeadError, HeaderMap, Instant, RegistryError, Result,
+    ThrottledClientGuard, Upstream, http::read_upstream_error_body, version_route_tarball_version,
 };
+
+/// Where an upstream packument's `dist.tarball` points for a version.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpstreamTarballRoute {
+    /// A `pnpr` `{pkg}@{version}` route on the upstream's base URL.
+    Version(String),
+    /// An absolute HTTP(S) `dist.tarball` URL (same-origin or split-domain CDN).
+    Url(String),
+    /// A relative or missing `dist.tarball`, fetched at `{base}/{pkg}/-/{filename}`.
+    Archive,
+}
+
+impl UpstreamTarballRoute {
+    #[must_use]
+    pub fn from_dist_tarball(url: Option<&str>, pkg: &CanonicalPackageName) -> Self {
+        let Some(url) = url else {
+            return Self::Archive;
+        };
+        if let Some(version) = version_route_tarball_version(url, pkg) {
+            return Self::Version(version.to_string());
+        }
+        if is_http_tarball_url(url) {
+            return Self::Url(url.to_string());
+        }
+        Self::Archive
+    }
+}
+
+fn is_http_tarball_url(url: &str) -> bool {
+    let bytes = url.as_bytes();
+    bytes
+        .get(..8)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"https://"))
+        || bytes
+            .get(..7)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"http://"))
+}
 
 impl Upstream {
     /// Send a built request, mapping a transport error to

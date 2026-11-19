@@ -85,16 +85,19 @@ fn frozen_package_frame(
     else {
         return None;
     };
-    let name = inputs.package_key.name.to_string();
-    let version = inputs.package_key.suffix.version().to_string();
-    let tarball_url = inputs.router.route_url(&name, &version, &upstream_tarball_url);
+    let (name, id, bare_version) = frozen_package_coordinates(inputs.package_key);
+    let tarball_url = inputs.router.route_lockfile_tarball(
+        inputs.config,
+        inputs.package_key,
+        &inputs.snapshot.resolution,
+        &upstream_tarball_url,
+    );
     if !seen_urls.insert(tarball_url.clone()) {
         return None;
     }
-    let id = format!("{name}@{version}");
     let revision =
         pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
-    let stats = frozen_dist_stats(inputs.dist_stats, &name, &version);
+    let stats = frozen_dist_stats(inputs.dist_stats, &name, &bare_version);
     let frame = package_frame(
         inputs.router,
         &ResolvedPackageHint {
@@ -104,14 +107,21 @@ fn frozen_package_frame(
             file_count: stats.file_count,
             revision,
             requires_build: stats.requires_build,
-            // The URL is already routed (canonical → endpoint above), so
-            // re-routing by registry would be redundant; route_url is a
-            // no-op on an already-routed URL.
             from_registry: false,
-            identity: ResolvedPackageIdentity { id: &id, name: &name, version: &version },
+            identity: ResolvedPackageIdentity { id: &id, name: &name, version: &bare_version },
         },
     );
     ndjson_line(&frame).ok()
+}
+
+fn frozen_package_coordinates(package_key: &PackageKey) -> (String, String, String) {
+    let name = package_key.name.to_string();
+    let suffix_version = package_key.suffix.version().to_string();
+    let bare_version = package_key.suffix
+        .registry_version()
+        .map_or_else(|| suffix_version.clone(), ToString::to_string);
+    let id = format!("{name}@{suffix_version}");
+    (name, id, bare_version)
 }
 
 fn frozen_dist_stats(stats: &ObservedDistStats, name: &str, version: &str) -> DistStats {

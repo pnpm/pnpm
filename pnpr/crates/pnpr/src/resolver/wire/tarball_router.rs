@@ -1,9 +1,10 @@
 use super::{
-    Arc, CanonicalPackageName, HashMap, Identity, Lockfile, LockfileResolution, PackageKey,
-    PackageMetadata, PacquetConfig, RouteClass, RouteContext, TarballResolution,
-    is_git_hosted_tarball_url, is_http_tarball_url, pick_registry_for_package,
-    sanitize_registry_tarball_url, strip_url_credentials, tarball_basename,
-    tarball_basename_for_package, tarball_url_and_integrity, version_route_tarball_version,
+    Arc, BTreeMap, BUILTIN_REGISTRIES_BY_PREFIX, CanonicalPackageName, HashMap, Identity, Lockfile,
+    LockfileResolution, PackageKey, PackageMetadata, PacquetConfig, PublishedTarballUrlMapper,
+    RouteClass, RouteContext, TarballResolution, is_git_hosted_tarball_url, is_http_tarball_url,
+    pick_registry_for_package, sanitize_registry_tarball_url, strip_url_credentials,
+    tarball_basename, tarball_basename_for_package, tarball_url_and_integrity,
+    version_route_tarball_version,
 };
 
 #[derive(Clone)]
@@ -13,8 +14,11 @@ pub(in super::super) struct TarballRouter {
     pub(super) public_url: String,
     /// Per-scope registry map (`scope -> registry URL`, plus the default) used
     /// to classify a registry-resolved package by its *registry* route rather
-    /// than its `dist.tarball` host. See [`Self::route_registry_url`].
+    /// than its `dist.tarball` host. See [`Self::route_registry_hint`].
     pub(super) registries: HashMap<String, String>,
+    /// Named-registry prefix map (`alias -> registry URL`) for `<alias>:<version>`
+    /// resolutions.
+    pub(super) registries_by_prefix: BTreeMap<String, String>,
 }
 
 impl TarballRouter {
@@ -24,7 +28,15 @@ impl TarballRouter {
         public_url: String,
         registries: HashMap<String, String>,
     ) -> Self {
-        Self { context, identity, public_url, registries }
+        Self { context, identity, public_url, registries, registries_by_prefix: BTreeMap::new() }
+    }
+
+    pub(in super::super) fn with_registries_by_prefix(
+        mut self,
+        registries_by_prefix: BTreeMap<String, String>,
+    ) -> Self {
+        self.registries_by_prefix = registries_by_prefix;
+        self
     }
 
     /// Route a registry-resolved package's tarball by the **registry** it came
@@ -34,14 +46,31 @@ impl TarballRouter {
     /// upstream URL. Classifying by the registry origin keeps a private
     /// package on its `/~<name>/` endpoint; a public one still emits its real
     /// (anonymously fetchable) tarball URL for a direct CDN download.
-    pub(super) fn route_registry_url(
+    pub(super) fn route_registry_hint(
         &self,
+        package: &str,
+        version: &str,
+        id: &str,
+        tarball_url: &str,
+    ) -> String {
+        if let Some(prefix) = hint_registry_prefix(id, package) {
+            let Some(registry) = self.named_registry_url(None, prefix) else {
+                return sanitize_registry_tarball_url(tarball_url);
+            };
+            return self.route_for_registry(registry, package, version, tarball_url);
+        }
+        let registry = pick_registry_for_package(&self.registries, package, None);
+        self.route_for_registry(&registry, package, version, tarball_url)
+    }
+
+    fn route_for_registry(
+        &self,
+        registry: &str,
         package: &str,
         version: &str,
         tarball_url: &str,
     ) -> String {
-        let registry = pick_registry_for_package(&self.registries, package, None);
-        match self.context.classify(&self.identity, &registry, Some(package)) {
+        match self.context.classify(&self.identity, registry, Some(package)) {
             // The `dist.tarball` is untrusted upstream metadata, so sanitize it
             // before emitting/caching: drop inline `user:pass@host` userinfo and
             // any query/fragment a registry could use to carry a signed-URL
@@ -58,6 +87,101 @@ impl TarballRouter {
                 version,
                 tarball_url,
             ),
+        }
+    }
+
+    /// Route one lockfile entry's tarball URL: registry-resolved packages are
+    /// classified by their registry origin (preserving split-domain routing and
+    /// stripping presigned query tokens), while direct URL tarball dependencies
+    /// are classified by their own URL.
+    pub(super) fn route_lockfile_tarball(
+        &self,
+        config: &PacquetConfig,
+        package_key: &PackageKey,
+        resolution: &LockfileResolution,
+        tarball_url: &str,
+    ) -> String {
+        let name = package_key.name.to_string();
+        if !is_registry_package_resolution(package_key, resolution) {
+            let version = package_key.suffix.version().to_string();
+            return self.route_url(&name, &version, tarball_url);
+        }
+        let version = package_key.suffix
+            .registry_version()
+            .expect("checked in is_registry_package_resolution")
+            .to_string();
+        if let Some((registry_name, _)) = package_key.suffix.registry_qualified() {
+            let Some(registry) = self.named_registry_url(Some(config), registry_name) else {
+                return sanitize_registry_tarball_url(tarball_url);
+            };
+            return self.route_for_registry(registry, &name, &version, tarball_url);
+        }
+        let registry = self.scope_registry_for_package(config, &name);
+        self.route_for_registry(&registry, &name, &version, tarball_url)
+    }
+
+    fn scope_registry_for_package(&self, config: &PacquetConfig, package: &str) -> String {
+        if !self.registries.is_empty() {
+            return pick_registry_for_package(&self.registries, package, None);
+        }
+        let registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
+        pick_registry_for_package(&registries, package, None)
+    }
+
+    fn named_registry_url<'a>(
+        &'a self,
+        config: Option<&'a PacquetConfig>,
+        registry_name: &str,
+    ) -> Option<&'a str> {
+        config
+            .and_then(|cfg| cfg.registries_by_prefix.get(registry_name).map(String::as_str))
+            .or_else(|| self.registries_by_prefix.get(registry_name).map(String::as_str))
+            .or_else(|| {
+                BUILTIN_REGISTRIES_BY_PREFIX
+                    .iter()
+                    .find_map(|(name, url)| (*name == registry_name).then_some(*url))
+            })
+    }
+
+    /// Mapper for [`pnpm_resolving_npm_resolver::VerificationArtifacts`] so
+    /// input-lockfile verification compares a split-domain upstream's published
+    /// `dist.tarball` against the verification URL [`Self::verification_lockfile`]
+    /// produces from a routed `/~<name>/` lockfile entry, without exposing raw
+    /// CDN hosts or presigned query credentials on mismatch.
+    pub(in super::super) fn published_tarball_mapper(&self) -> PublishedTarballUrlMapper {
+        let router = self.clone();
+        Arc::new(move |registry, package, version, published_tarball| {
+            router.expected_verification_tarball(registry, package, version, published_tarball)
+        })
+    }
+
+    fn expected_verification_tarball(
+        &self,
+        registry: &str,
+        package: &str,
+        version: &str,
+        published_tarball: &str,
+    ) -> String {
+        match self.context.classify(&self.identity, registry, Some(package)) {
+            RouteClass::Public => sanitize_registry_tarball_url(published_tarball),
+            RouteClass::Hosted { .. } => {
+                pnpr_tarball_url(&self.public_url, package, version, published_tarball)
+            }
+            RouteClass::Proxied { alias, .. } => self.context
+                .upstream_registry(&self.identity, &alias, Some(package))
+                .map_or_else(
+                    || sanitize_registry_tarball_url(published_tarball),
+                    |upstream| {
+                        format!(
+                            "{}/{}",
+                            upstream.trim_end_matches('/'),
+                            tarball_route_tail(package, version, published_tarball),
+                        )
+                    },
+                ),
         }
     }
 
@@ -119,9 +243,8 @@ impl TarballRouter {
         if !is_http_tarball_url(&tarball_url) || is_git_hosted_tarball_url(&tarball_url) {
             return;
         }
-        let name = package_key.name.to_string();
-        let version = package_key.suffix.version().to_string();
-        let routed_url = self.route_url(&name, &version, &tarball_url);
+        let routed_url =
+            self.route_lockfile_tarball(config, package_key, &metadata.resolution, &tarball_url);
         if routed_url == tarball_url.as_ref() {
             return;
         }
@@ -139,11 +262,14 @@ impl TarballRouter {
         let Some(packages) = upstream.packages.as_mut() else {
             return upstream;
         };
-        for metadata in packages.values_mut() {
+        for (package_key, metadata) in packages {
             let LockfileResolution::Tarball(resolution) = &mut metadata.resolution else {
                 continue;
             };
-            if let Some(tarball_url) = self.upstream_endpoint_tarball_url(&resolution.tarball) {
+            let name = package_key.name.to_string();
+            if let Some(tarball_url) =
+                self.upstream_endpoint_tarball_url(&resolution.tarball, Some(&name))
+            {
                 resolution.tarball = tarball_url;
             }
         }
@@ -176,13 +302,42 @@ impl TarballRouter {
     /// against the real registry. Returns `None` for any other URL, and for an
     /// endpoint the caller is not authorized for (so verification cannot be
     /// used as an oracle for an upstream the caller cannot reach).
-    pub(super) fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
+    pub(super) fn upstream_endpoint_tarball_url(
+        &self,
+        tarball_url: &str,
+        package: Option<&str>,
+    ) -> Option<String> {
         let prefix = format!("{}/~", npm_endpoint(&self.public_url));
         let route = tarball_url.strip_prefix(&prefix)?;
         let (upstream, rest) = route.split_once('/')?;
-        let registry = self.context.upstream_registry(&self.identity, upstream)?;
+        let registry = self.context.upstream_registry(&self.identity, upstream, package)?;
         Some(format!("{}/{rest}", registry.trim_end_matches('/')))
     }
+}
+
+fn is_registry_package_resolution(
+    package_key: &PackageKey,
+    resolution: &LockfileResolution,
+) -> bool {
+    package_key.suffix.prefix() == pnpm_lockfile::Prefix::None
+        && package_key.suffix.registry_version().is_some()
+        && match resolution {
+            LockfileResolution::Registry(_) => true,
+            LockfileResolution::Tarball(tarball) => {
+                is_http_tarball_url(&tarball.tarball)
+                    && !is_git_hosted_tarball_url(&tarball.tarball)
+            }
+            _ => false,
+        }
+}
+
+fn hint_registry_prefix<'a>(id: &'a str, package: &str) -> Option<&'a str> {
+    let suffix = id.strip_prefix(package)?.strip_prefix('@')?;
+    let version_part = suffix
+        .split('(')
+        .next()
+        .unwrap_or(suffix);
+    version_part.split_once(':').map(|(prefix, _)| prefix)
 }
 
 pub(super) fn tarball_route_tail(package: &str, version: &str, tarball_url: &str) -> String {

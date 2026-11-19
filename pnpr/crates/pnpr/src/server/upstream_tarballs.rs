@@ -4,7 +4,7 @@ use self::background_scan::{
 };
 use super::{
     AppState, CanonicalPackageName, Duration, FetchOutcome, Identity, Integrity, RegistryError,
-    Response, TarballDist, Upstream, authorized_upstream, ensure_osv_allowed,
+    Response, TarballDist, Upstream, UpstreamTarballRoute, authorized_upstream, ensure_osv_allowed,
     expected_tarball_dist, load_upstream_packument, not_found,
     reload_upstream_packument_lacking_version, streaming, tarball_response, tarball_stream_error,
     timed, upstream_cache_namespace,
@@ -69,7 +69,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
     let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
     let TarballDist {
         version,
-        version_route,
+        route,
         integrity,
         unpacked_size,
     } = match dist {
@@ -84,7 +84,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
         namespace,
         name,
         filename,
-        version_route: version_route.as_deref(),
+        route: &route,
         integrity: &integrity,
         unpacked_size,
         manifest_generation: None,
@@ -238,7 +238,7 @@ pub(super) struct UpstreamTarball<'a> {
     pub(super) namespace: &'a str,
     pub(super) name: &'a CanonicalPackageName,
     pub(super) filename: &'a str,
-    pub(super) version_route: Option<&'a str>,
+    pub(super) route: &'a UpstreamTarballRoute,
     pub(super) integrity: &'a Integrity,
     pub(super) unpacked_size: Option<u64>,
     pub(super) manifest_generation: Option<u64>,
@@ -255,7 +255,7 @@ pub(super) async fn fetch_upstream_tarball(
         namespace,
         name,
         filename,
-        version_route,
+        route,
         integrity: _,
         unpacked_size: _,
         manifest_generation: _,
@@ -263,7 +263,7 @@ pub(super) async fn fetch_upstream_tarball(
     let fetched = timed(
         "tarball:upstream_fetch",
         name.as_str(),
-        upstream.fetch_tarball_or_version_response(name, filename, version_route),
+        upstream.fetch_declared_tarball_response(name, filename, route),
     )
     .await;
     let response = match fetched {

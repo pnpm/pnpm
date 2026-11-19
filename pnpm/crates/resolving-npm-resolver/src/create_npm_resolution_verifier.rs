@@ -38,7 +38,8 @@ mod age_check;
 mod artifact_binding;
 use artifact_binding::{
     current_history_violation, current_revision_number, lockfile_revision,
-    missing_artifact_violation, select_revision, tarball_url_violation,
+    mapped_tarball_url_violation, missing_artifact_violation, select_revision,
+    tarball_url_violation,
 };
 
 mod metadata_projection;
@@ -201,6 +202,10 @@ pub struct VerificationMetadataClient {
     pub retry_opts: RetryOpts,
 }
 
+/// Maps `(registry, package_name, version, published_tarball_url)` to the
+/// verification tarball URL expected in the lockfile.
+pub type PublishedTarballUrlMapper = Arc<dyn Fn(&str, &str, &str, &str) -> String + Send + Sync>;
+
 pub struct VerificationArtifacts {
     /// Optional sink the verifier fills with each verified entry's
     /// `dist` work statistics (see [`ObservedDistStats`]). `None`
@@ -219,6 +224,9 @@ pub struct VerificationArtifacts {
     /// Lookups to share with the verifiers of other installs. `None`
     /// gives the verifier lookups of its own.
     pub lookups: Option<crate::VerifierLookups>,
+    /// Optional mapper that translates a registry's published `dist.tarball`
+    /// URL into the routed/sanitized URL expected in the verified lockfile.
+    pub published_tarball_mapper: Option<PublishedTarballUrlMapper>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores

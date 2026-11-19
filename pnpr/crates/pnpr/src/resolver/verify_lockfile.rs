@@ -1,9 +1,9 @@
 use super::{
     Arc, AuthHeaders, Bytes, Footprint, Identity, InMemoryPackageMetaCache, Lockfile, Mutex,
     ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
-    ResolveRequest, Resolver, Response, StatusCode, StreamedResolveInputs,
-    build_resolution_verifiers, collect_resolution_policy_violations, extract_admitted_body,
-    hash_lockfile, json_error,
+    ResolveRequest, Resolver, Response, StatusCode, StreamedResolveInputs, TarballRouter,
+    VerificationArtifacts, build_resolution_verifiers_with_artifacts,
+    collect_resolution_policy_violations, extract_admitted_body, hash_lockfile, json_error,
     limits::{
         AdmittedResolve, CancelToken, ResolvePermit, reject_oversized_graph,
         request_timeout_response,
@@ -193,20 +193,19 @@ async fn verify_with_permit(
     let permit = Arc::new(permit);
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
-    let input_lockfile = Arc::new(
-        request_tarball_router(runtime, &identity, config).verification_lockfile(raw_lockfile),
-    );
+    let tarball_router = request_tarball_router(runtime, &identity, config);
     let outcome = verify_input_lockfile(
         runtime,
         &LockfileVerifyContext {
             config,
             identity: &identity,
             auth_headers: &request_auth,
+            tarball_router: &tarball_router,
             footprint: &footprint,
             permit: &permit,
             deadline,
         },
-        input_lockfile,
+        raw_lockfile,
     )
     .await;
     finish_verified_lockfile(&request, deadline, outcome)
@@ -216,6 +215,7 @@ struct LockfileVerifyContext<'a> {
     config: &'a PacquetConfig,
     identity: &'a Identity,
     auth_headers: &'a Arc<AuthHeaders>,
+    tarball_router: &'a TarballRouter,
     footprint: &'a Mutex<Footprint>,
     permit: &'a Arc<ResolvePermit>,
     deadline: tokio::time::Instant,
@@ -255,13 +255,13 @@ pub(super) async fn verify_request_lockfile(
     let Some(input_lockfile) = inputs.request.lockfile.as_ref() else {
         return Ok(None);
     };
-    let input_lockfile = Arc::new(inputs.tarball_router.verification_lockfile(input_lockfile));
     match verify_input_lockfile(
         runtime,
         &LockfileVerifyContext {
             config: &inputs.config,
             identity,
             auth_headers: &inputs.request_auth,
+            tarball_router: &inputs.tarball_router,
             footprint: &inputs.footprint,
             permit: &inputs.permit,
             deadline: inputs.deadline,
@@ -307,29 +307,28 @@ async fn collect_policy_violations_until(
     result.map_err(|message| VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)))
 }
 
-/// Verify the client's input lockfile under the client's policy. On a
-/// clean pass returns the [`ObservedDistStats`] the verifier
-/// collected — `None` when the whole-lockfile verdict cache satisfied
-/// the check without a fan-out (no metadata was fetched, so no sizes
-/// exist). On a policy violation returns the rendered violations so
-/// the caller can deliver them to the client. A build-verifiers
-/// failure (e.g. an invalid exclude pattern) returns a ready-made 500.
+/// Verify the client's input lockfile under the client's policy.
 async fn verify_input_lockfile(
     runtime: &Resolver,
     context: &LockfileVerifyContext<'_>,
-    lockfile: Arc<Lockfile>,
+    raw_lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {
     let epoch = runtime.local_registry.verdict_epoch();
+    let lockfile = Arc::new(context.tarball_router.verification_lockfile(raw_lockfile));
     let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
     let dist_stats = observed_dist_stats_sink();
-    let verifiers = build_resolution_verifiers(
+    let artifacts = VerificationArtifacts {
+        observed_stats: Some(Arc::clone(&dist_stats)),
+        canonical_fetches: None,
+        lookups: None,
+        published_tarball_mapper: Some(context.tarball_router.published_tarball_mapper()),
+    };
+    let verifiers = build_resolution_verifiers_with_artifacts(
         context.config,
         Arc::clone(&runtime.client),
         Some(meta_cache as Arc<dyn PackageMetaCache>),
         Some(Arc::clone(context.auth_headers)),
-        Some(Arc::clone(&dist_stats)),
-        None,
-        None,
+        artifacts,
     )
     .map_err(|err| {
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))

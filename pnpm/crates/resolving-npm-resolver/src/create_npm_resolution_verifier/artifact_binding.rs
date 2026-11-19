@@ -1,8 +1,8 @@
 use super::{
-    JsonValue, LockfileResolution, RegistryArtifact, RegistryArtifactHistory,
-    ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+    JsonValue, LockfileResolution, PublishedTarballUrlMapper, RegistryArtifact,
+    RegistryArtifactHistory, ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
     TARBALL_URL_MISMATCH_VIOLATION_CODE, TarballRevision, has_complete_sha512_digest,
-    is_revision_registry_tarball_url,
+    is_revision_registry_tarball_url, redact_url_credentials,
 };
 
 pub(super) fn same_tarball_url(left: &str, right: &str) -> bool {
@@ -28,6 +28,31 @@ pub(super) fn missing_artifact_violation(
     })
 }
 
+/// Bind `lockfile_tarball` against `registry_tarball`, honoring an optional
+/// [`PublishedTarballUrlMapper`] when a registry server rewrites split-domain
+/// upstream tarballs onto its own endpoint routes. Any mismatch error formats
+/// the mapped URL rather than the raw upstream URL.
+pub(super) fn mapped_tarball_url_violation(
+    lockfile_tarball: Option<&str>,
+    registry_tarball: Option<&str>,
+    (registry, name, version): (&str, &str, &str),
+    mapper: Option<&PublishedTarballUrlMapper>,
+) -> Option<ResolutionVerification> {
+    let Some(mapper) = mapper else {
+        return tarball_url_violation(lockfile_tarball, registry_tarball);
+    };
+    let Some(published) = registry_tarball else {
+        return tarball_url_violation(lockfile_tarball, None);
+    };
+    let expected = mapper(registry, name, version, published);
+    if let Some(lockfile) = lockfile_tarball
+        && (same_tarball_url(lockfile, &expected) || same_tarball_url(lockfile, published))
+    {
+        return None;
+    }
+    tarball_url_violation(lockfile_tarball, Some(&expected))
+}
+
 /// A recorded tarball URL must be the one the registry publishes.
 pub(super) fn tarball_url_violation(
     lockfile_tarball: Option<&str>,
@@ -39,7 +64,9 @@ pub(super) fn tarball_url_violation(
         (Some(lockfile), Some(registry)) => Some(ResolutionVerification::Err {
             code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
             reason: format!(
-                "has a tarball URL ({lockfile}) that does not match the registry's published metadata ({registry})",
+                "has a tarball URL ({}) that does not match the registry's published metadata ({})",
+                redact_url_credentials(lockfile),
+                redact_url_credentials(registry),
             ),
         }),
         (Some(_), None) => Some(ResolutionVerification::Err {

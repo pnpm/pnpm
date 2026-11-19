@@ -100,6 +100,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
             observed_stats: None,
             canonical_fetches: None,
             lookups: None,
+            published_tarball_mapper: None,
         },
     }
 }

@@ -8,7 +8,7 @@ mod refresh;
 
 use super::{
     AppState, CanonicalPackageName, FetchOutcome, Integrity, RegistryError, Upstream,
-    is_osv_vulnerable_packument_version, streaming, tarball_integrity_error,
+    UpstreamTarballRoute, is_osv_vulnerable_packument_version, streaming, tarball_integrity_error,
     tarball_stream_error_for_package, timed, upstream_packuments::lock_upstream_package,
     upstream_tarballs::tarball_cache_name,
 };
@@ -21,7 +21,7 @@ struct MissingIntegrityTarball {
     version: String,
     filename: String,
     url: String,
-    version_route: Option<String>,
+    route: UpstreamTarballRoute,
     needs_integrity: bool,
     expected_shasum: Option<Integrity>,
 }
@@ -212,10 +212,10 @@ impl PackumentIntegrityResolver<'_> {
         let fetched = timed(
             "tarball:integrity_fetch",
             self.name.as_str(),
-            self.upstream.fetch_tarball_or_version_response(
+            self.upstream.fetch_declared_tarball_response(
                 self.name,
                 &candidate.filename,
-                candidate.version_route.as_deref(),
+                &candidate.route,
             ),
         )
         .await?;
@@ -280,7 +280,7 @@ fn pin_still_applies(
         packument_tarball(manifest, name, &pinned.version),
         Ok(Some(current)) if current.needs_integrity
             && current.url == pinned.url
-            && current.version_route == pinned.version_route
+            && current.route == pinned.route
             && current.filename == pinned.filename
             && current.expected_shasum == pinned.expected_shasum,
     )
@@ -357,8 +357,7 @@ fn packument_tarball(
         return Ok(None);
     };
     let filename = packument_tarball_filename(tarball, name, version)?;
-    let version_route =
-        pnpr_upstream::version_route_tarball_version(tarball, name).map(str::to_string);
+    let route = UpstreamTarballRoute::from_dist_tarball(Some(tarball), name);
     let needs_integrity = needs_integrity(dist, name, &filename, version)?;
     let expected_shasum = if needs_integrity {
         legacy_shasum_integrity(dist, name, &filename, version)?
@@ -369,7 +368,7 @@ fn packument_tarball(
         version: version.to_string(),
         filename,
         url: tarball.to_string(),
-        version_route,
+        route,
         needs_integrity,
         expected_shasum,
     }))

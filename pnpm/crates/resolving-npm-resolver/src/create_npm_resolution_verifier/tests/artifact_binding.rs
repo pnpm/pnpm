@@ -550,3 +550,54 @@ async fn rejects_variations_resolution_with_missing_integrity() {
     };
     assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
 }
+
+#[tokio::test]
+async fn published_tarball_mapper_accepts_routed_split_domain_url_and_redacts_mismatch() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let packument = serde_json::json!({
+        "name": "@corp/split",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "@corp/split",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "tarball": "https://cdn.split.example/@corp/split/split-1.0.0.tgz?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN",
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/@corp%2Fsplit")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.artifacts.published_tarball_mapper = Some(std::sync::Arc::new(|reg, pkg, ver, _| {
+        format!("{}/{pkg}/-/split-{ver}.tgz", reg.trim_end_matches('/'))
+    }));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "@corp/split".parse().expect("parse");
+    let ok = tarball_resolution(
+        &format!("{}/@corp/split/-/split-1.0.0.tgz", server.url()),
+        Some(fake_integrity()),
+    );
+    assert_eq!(verifier.verify(&ok, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+
+    let bad = tarball_resolution(
+        &format!("{}/@corp/split/-/wrong-1.0.0.tgz", server.url()),
+        Some(fake_integrity()),
+    );
+    let ResolutionVerification::Err { code, reason } =
+        verifier.verify(&bad, ctx(&name, "1.0.0")).await
+    else {
+        panic!("expected mismatch");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+    assert!(
+        !reason.contains("cdn.split.example") && !reason.contains("X-Amz-Signature"),
+        "{reason}",
+    );
+}

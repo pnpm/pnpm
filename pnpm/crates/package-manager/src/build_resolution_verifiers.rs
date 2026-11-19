@@ -20,7 +20,8 @@ use pnpm_config::{
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_npm_resolver::{
     CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
-    PackageMetaCache, VerifierLookups, create_npm_resolution_verifier, merge_named_registries,
+    PackageMetaCache, VerificationArtifacts, VerifierLookups, create_npm_resolution_verifier,
+    merge_named_registries,
 };
 use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
 
@@ -84,11 +85,29 @@ pub fn build_resolution_verifiers(
     planned_canonical_fetches: Option<PlannedCanonicalFetches>,
     lookups: Option<VerifierLookups>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
-    let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
+    build_resolution_verifiers_with_artifacts(
+        config,
+        http_client,
+        meta_cache,
+        auth_override,
+        VerificationArtifacts {
+            observed_stats: observed_dist_stats,
+            canonical_fetches: planned_canonical_fetches,
+            lookups,
+            published_tarball_mapper: None,
+        },
+    )
+}
 
+pub fn build_resolution_verifiers_with_artifacts(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+    meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    auth_override: Option<Arc<AuthHeaders>>,
+    artifacts: VerificationArtifacts,
+) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
     let (min_age_exclude, trust_exclude, registries, registries_by_prefix) =
         verifier_policies(config)?;
-
     let opts = CreateNpmResolutionVerifierOptions {
         registries,
         registries_by_prefix,
@@ -117,16 +136,9 @@ pub fn build_resolution_verifiers(
             offline: config.offline,
             retry_opts: config.retry_opts(),
         },
-        artifacts: pnpm_resolving_npm_resolver::VerificationArtifacts {
-            observed_stats: observed_dist_stats,
-            canonical_fetches: planned_canonical_fetches,
-            lookups,
-        },
+        artifacts,
     };
-
-    verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));
-
-    Ok(verifiers)
+    Ok(vec![Arc::new(create_npm_resolution_verifier(opts))])
 }
 
 type VerifierPolicies = (

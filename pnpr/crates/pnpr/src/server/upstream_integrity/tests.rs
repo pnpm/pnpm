@@ -10,11 +10,12 @@ fn digest(algorithm: Algorithm, bytes: &[u8]) -> Integrity {
 }
 
 fn pinned(version: &str, shasum_of: Option<&[u8]>) -> MissingIntegrityTarball {
+    let url = format!("https://registry.test/foo/-/foo-{version}.tgz");
     MissingIntegrityTarball {
         version: version.to_string(),
         filename: format!("foo-{version}.tgz"),
-        url: format!("https://registry.test/foo/-/foo-{version}.tgz"),
-        version_route: None,
+        route: pnpr_upstream::UpstreamTarballRoute::Url(url.clone()),
+        url,
         needs_integrity: true,
         expected_shasum: shasum_of.map(|bytes| digest(Algorithm::Sha1, bytes)),
     }

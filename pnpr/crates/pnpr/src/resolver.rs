@@ -92,9 +92,10 @@ use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
 use pnpm_network::{AuthHeaders, GuardedDnsResolver, ThrottledClient, native_dns_resolver};
-use pnpm_package_manager::build_resolution_verifiers;
+use pnpm_package_manager::build_resolution_verifiers_with_artifacts;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
+    InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, VerificationArtifacts,
+    observed_dist_stats_sink,
 };
 use pnpm_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
 use pnpm_store_dir::StoreDir;
@@ -445,4 +446,5 @@ fn request_tarball_router(
             .into_iter()
             .collect(),
     )
+    .with_registries_by_prefix(config.registries_by_prefix.clone())
 }

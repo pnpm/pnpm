@@ -1,5 +1,6 @@
 use super::super::{
-    AppInner, Upstream, compute_upstream_cache_namespace, ecosystem::upstream_fetch_guard,
+    AppInner, Ecosystem, Upstream, compute_upstream_cache_namespace,
+    ecosystem::{is_fetchable_artifact_url, upstream_fetch_guard},
 };
 use indexmap::IndexMap;
 use pnpm_network::{AddressGuard, RedirectGuard};
@@ -130,17 +131,30 @@ fn upstream_clients(
     routing.upstreams
         .iter()
         .map(|(name, upstream)| {
+            let ecosystem = upstream_ecosystem(routing, name);
             let reused = previous.and_then(|previous| {
-                let unchanged = previous.client_keys.get(name) == client_keys.get(name);
+                let unchanged = previous.client_keys.get(name) == client_keys.get(name)
+                    && upstream_ecosystem(&previous.routing, name) == ecosystem;
                 previous.upstream_clients
                     .get(name)
                     .filter(|_| unchanged)
                     .cloned()
             });
-            let client = reused.unwrap_or_else(|| stored_upstream(name, upstream, guard_context));
+            let client =
+                reused.unwrap_or_else(|| stored_upstream(name, ecosystem, upstream, guard_context));
             (name.clone(), client)
         })
         .collect()
+}
+
+fn upstream_ecosystem(routing: &RoutingConfig, name: &str) -> Ecosystem {
+    routing.registries
+        .ecosystem(name)
+        .unwrap_or_else(|| {
+            name.split_once('/')
+                .and_then(|(prefix, _)| Ecosystem::all().find(|eco| eco.as_str() == prefix))
+                .unwrap_or_default()
+        })
 }
 
 /// The client of an upstream the database stores. An API-written URL must not
@@ -150,15 +164,27 @@ fn upstream_clients(
 /// this server's own `public_url` origin.
 fn stored_upstream(
     name: &str,
+    ecosystem: Ecosystem,
     upstream: &UpstreamConfig,
     guard_context: &UpstreamGuardContext,
 ) -> Upstream {
-    let fetch_guard = upstream_fetch_guard(guard_context, upstream);
     let literal_context = Arc::clone(guard_context);
-    let guard: RedirectGuard = Arc::new(move |url| {
-        fetch_guard(url)
-            && current_context(&literal_context).allows_stored_upstream_url(url.as_str())
-    });
+    let guard: RedirectGuard = if ecosystem == Ecosystem::Npm {
+        // An npm packument's `dist.tarball` may live on a separate blob/CDN
+        // host (for example presigned object-storage URLs). Credentials stay
+        // origin-scoped in `Upstream::request_headers`, while every hop is
+        // checked against the stored-upstream URL and address guards.
+        Arc::new(move |url| {
+            is_fetchable_artifact_url(url)
+                && current_context(&literal_context).allows_stored_upstream_url(url.as_str())
+        })
+    } else {
+        let fetch_guard = upstream_fetch_guard(guard_context, upstream);
+        Arc::new(move |url| {
+            fetch_guard(url)
+                && current_context(&literal_context).allows_stored_upstream_url(url.as_str())
+        })
+    };
     let connect_context = Arc::clone(guard_context);
     let connect_guard: AddressGuard = Arc::new(move |_host, address| {
         current_context(&connect_context).allows_stored_upstream_address(address)

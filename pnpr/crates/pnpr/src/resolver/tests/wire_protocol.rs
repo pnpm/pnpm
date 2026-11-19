@@ -442,3 +442,133 @@ fn a_cargo_done_frame_names_its_lockfile_format() {
     assert_eq!(cargo["lockfileFormat"], "cargo-lock");
     assert_eq!(cargo["lockfile"], "version = 4\n");
 }
+
+fn split_domain_lockfile(key: &str, dep_version: &str, tarball: &str) -> pnpm_lockfile::Lockfile {
+    serde_json::from_value(serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": {
+            ".": { "dependencies": { "@corp/split": { "specifier": "1.0.0", "version": dep_version } } }
+        },
+        "packages": {
+            (key): {
+                "resolution": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": tarball,
+                }
+            }
+        }
+    }))
+    .expect("split-domain lockfile parses")
+}
+
+#[test]
+fn lockfile_and_frozen_frames_route_split_domain_private_upstream_tarballs_to_alias() {
+    use pnpm_resolving_npm_resolver::observed_dist_stats_sink;
+
+    let mut pnpm_config = config_for_registry("https://registry.npmjs.org/");
+    pnpm_config.registries_by_scope.insert(
+        "@corp".to_string(),
+        "https://npm.corp.example/".to_string(),
+    );
+    let mut registry = registry_config();
+    registry.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
+    let router = tarball_router(&registry, user("alice"));
+    let cdn_url = "https://cdn.split-domain.example/@corp/split/split-1.0.0.tgz?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN";
+    let raw = split_domain_lockfile("@corp/split@1.0.0", "1.0.0", cdn_url);
+
+    let routed = router.route_lockfile(&pnpm_config, &raw);
+    let lockfile_url = lockfile_tarball_url(&routed, "@corp/split@1.0.0");
+    assert_eq!(lockfile_url, "http://127.0.0.1:7677/npm/~corp/@corp/split/-/split-1.0.0.tgz");
+
+    let frames = super::super::wire::frozen_package_frames_until(
+        &pnpm_config,
+        &router,
+        &raw,
+        &observed_dist_stats_sink(),
+        &|| false,
+    )
+    .unwrap();
+    let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
+    assert_eq!(frame["tarball"], lockfile_url);
+}
+
+#[test]
+fn lockfile_and_frozen_frames_route_named_registry_split_domain_tarballs_to_alias() {
+    use pnpm_resolving_npm_resolver::observed_dist_stats_sink;
+
+    let mut pnpm_config = config_for_registry("https://registry.npmjs.org/");
+    pnpm_config.registries_by_prefix.insert(
+        "corp".to_string(),
+        "https://npm.corp.example/".to_string(),
+    );
+    let mut registry = registry_config();
+    registry.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
+    let router = tarball_router(&registry, user("alice"))
+        .with_registries_by_prefix(pnpm_config.registries_by_prefix.clone());
+    let cdn_url = "https://cdn.split-domain.example/@corp/split/split-1.0.0.tgz?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN";
+    let raw = split_domain_lockfile("@corp/split@corp:1.0.0", "corp:1.0.0", cdn_url);
+
+    let routed = router.route_lockfile(&pnpm_config, &raw);
+    let lockfile_url = lockfile_tarball_url(&routed, "@corp/split@corp:1.0.0");
+    assert_eq!(lockfile_url, "http://127.0.0.1:7677/npm/~corp/@corp/split/-/split-1.0.0.tgz");
+
+    let frames = super::super::wire::frozen_package_frames_until(
+        &pnpm_config,
+        &router,
+        &raw,
+        &observed_dist_stats_sink(),
+        &|| false,
+    )
+    .unwrap();
+    let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
+    assert_eq!(frame["tarball"], lockfile_url);
+    assert_eq!(frame["version"], "1.0.0");
+}
+
+#[test]
+fn public_registry_lockfile_strips_query_tokens_and_never_routes_spoofed_tarball_to_private_alias()
+{
+    use pnpm_resolving_npm_resolver::observed_dist_stats_sink;
+
+    let pnpm_config = config_for_registry("https://registry.npmjs.org/");
+    let mut registry = registry_config();
+    registry.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
+    let router = tarball_router(&registry, user("alice"));
+
+    let signed_public = lockfile_with_tarball(
+        "https://cdn.public.example/acme/-/acme-1.0.0.tgz?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN",
+    );
+    let routed_public = router.route_lockfile(&pnpm_config, &signed_public);
+    assert_eq!(
+        lockfile_tarball_url(&routed_public, "acme@1.0.0"),
+        "https://cdn.public.example/acme/-/acme-1.0.0.tgz",
+    );
+    let frames = super::super::wire::frozen_package_frames_until(
+        &pnpm_config,
+        &router,
+        &signed_public,
+        &observed_dist_stats_sink(),
+        &|| false,
+    )
+    .unwrap();
+    let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
+    assert_eq!(frame["tarball"], "https://cdn.public.example/acme/-/acme-1.0.0.tgz");
+
+    // A public package whose untrusted `dist.tarball` points at `corp`'s origin
+    // must still be classified as public (by its registry), never minted as `/~corp/`.
+    let spoofed = lockfile_with_tarball("https://npm.corp.example/acme/-/acme-1.0.0.tgz");
+    let routed_spoofed = router.route_lockfile(&pnpm_config, &spoofed);
+    assert_eq!(
+        lockfile_tarball_url(&routed_spoofed, "acme@1.0.0"),
+        "https://npm.corp.example/acme/-/acme-1.0.0.tgz",
+    );
+}
