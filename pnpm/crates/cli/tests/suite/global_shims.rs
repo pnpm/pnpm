@@ -559,6 +559,7 @@ fn project_runtime_falls_back_from_an_empty_branch_lockfile() {
         pnpm_graph_hasher::host_arch(),
     );
     let (project, global_target) = runtime_pin_project(&root, &server, shared_version, ".nvmrc");
+    fs::write(project.join(".nvmrc"), "v22.10.0\n").unwrap();
     fs::write(project.join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
     fs::create_dir(project.join(".git")).unwrap();
     fs::write(project.join(".git/HEAD"), "ref: refs/heads/feature\n").unwrap();
