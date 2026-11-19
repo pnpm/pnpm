@@ -67,17 +67,9 @@ fn match_cargo_dep<'a>(
 }
 
 fn is_excluded_cargo_dep(dep: &DeclaredCargoDep, exclusions: &[WildcardMatcher]) -> bool {
-    if exclusions.is_empty() {
-        return false;
-    }
-    let identities = dep.identities();
     exclusions
         .iter()
-        .any(|matcher| {
-            identities
-                .iter()
-                .any(|identity| matcher.matches(identity))
-        })
+        .any(|matcher| dep.matches_wildcard(matcher))
 }
 
 pub(super) struct SelectedCargoTarget<'a> {

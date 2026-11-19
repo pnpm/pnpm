@@ -112,7 +112,7 @@ const MAX_MERGE_DEPTH = 8
 interface MapLookupContext {
   document: Document
   key: string
-  visited: Set<YAMLMap>
+  visitedDepth: Map<YAMLMap, number>
 }
 
 function findUsesScalars (document: Document, root: Node | null | undefined): Array<Scalar<string>> {
@@ -167,12 +167,14 @@ function findStringScalar (document: Document, node: Node, key: string): Scalar<
 }
 
 function findMapValue (document: Document, node: Node, key: string): Node | null {
-  return lookupMapValue({ document, key, visited: new Set<YAMLMap>() }, node, 0)
+  return lookupMapValue({ document, key, visitedDepth: new Map<YAMLMap, number>() }, node, 0)
 }
 
 function lookupMapValue (context: MapLookupContext, node: Node, depth: number): Node | null {
-  if (!isMap(node) || context.visited.has(node)) return null
-  context.visited.add(node)
+  if (!isMap(node)) return null
+  const previousDepth = context.visitedDepth.get(node)
+  if (previousDepth !== undefined && previousDepth <= depth) return null
+  context.visitedDepth.set(node, depth)
   const directPair = node.items.find((pair) => isScalar(pair.key) && pair.key.value === context.key)
   if (directPair !== undefined) return derefNode(context.document, directPair.value)
   if (depth >= MAX_MERGE_DEPTH) return null

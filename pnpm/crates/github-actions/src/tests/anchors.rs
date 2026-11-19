@@ -174,6 +174,133 @@ async fn updates_anchored_step_mappings_scalar_anchors_and_merge_keys_once() {
 }
 
 #[test]
+fn does_not_rewalk_shared_yaml_merge_key_dags_exponentially() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    let mut dag_lines = vec!["m0: &m0 { runs-on: ubuntu-latest }".to_string()];
+    for level in 1..=8 {
+        let refs =
+            std::iter::repeat_n(format!("*m{}", level - 1), 20).collect::<Vec<_>>().join(", ");
+        dag_lines.push(format!("m{level}: &m{level} {{ <<: [{refs}] }}"));
+    }
+    fs::write(
+        workflows.join("ci.yml"),
+        format!("{}\njobs:\n  build:\n    <<: *m8\n", dag_lines.join("\n")),
+    )
+    .expect("write workflow");
+
+    let root_path = root.path().to_path_buf();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build current-thread runtime");
+        let result = runtime.block_on(update_with_runner::<SilentReporter, _>(
+            &root_path,
+            false,
+            None,
+            "https://github.com",
+            &FakeGitRunner,
+            None,
+        ));
+        let _ = sender.send(result);
+    });
+
+    let updated = receiver
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("shared merge DAG scan must not hang")
+        .expect("scan shared merge DAG")
+        .into_iter()
+        .map(|action| action.name)
+        .collect::<Vec<_>>();
+    dbg!(&updated);
+    assert!(updated.is_empty());
+}
+
+#[tokio::test]
+async fn discovers_actions_on_shallower_merge_branch_after_deep_branch_hits_cap() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    let workflow = workflows.join("ci.yml");
+    let source = format!(
+        concat!(
+            "base: &base\n",
+            "  uses: actions/checkout@{0} # v4.1.0\n",
+            "shared: &shared\n",
+            "  <<: *base\n",
+            "d7: &d7 {{ <<: *shared }}\n",
+            "d6: &d6 {{ <<: *d7 }}\n",
+            "d5: &d5 {{ <<: *d6 }}\n",
+            "d4: &d4 {{ <<: *d5 }}\n",
+            "d3: &d3 {{ <<: *d4 }}\n",
+            "d2: &d2 {{ <<: *d3 }}\n",
+            "d1: &d1 {{ <<: *d2 }}\n",
+            "jobs:\n",
+            "  build:\n",
+            "    runs-on: ubuntu-latest\n",
+            "    steps:\n",
+            "      - <<: [*d1, *shared]\n",
+            "        name: Checkout\n",
+        ),
+        SHA_V4_1_0,
+    );
+    fs::write(&workflow, &source).expect("write workflow");
+
+    let updated_actions = update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+        None,
+    )
+    .await
+    .expect("update shallow shared merge workflow");
+    assert_eq!(updated_actions.len(), 1);
+    let updated_source = fs::read_to_string(&workflow).expect("read updated workflow");
+    eprintln!("{updated_source}");
+    assert!(updated_source.contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")));
+}
+
+#[tokio::test]
+async fn updates_action_in_large_step_sequence() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    let workflow = workflows.join("ci.yml");
+    let mut lines = vec![
+        "jobs:".to_string(),
+        "  build:".to_string(),
+        "    runs-on: ubuntu-latest".to_string(),
+        "    steps:".to_string(),
+    ];
+    for step_idx in 0..200 {
+        lines.push(format!("      - name: Run {step_idx}"));
+        lines.push(format!("        run: echo {step_idx}"));
+    }
+    lines.push(format!("      - uses: actions/checkout@{SHA_V4_1_0} # v4.1.0"));
+    fs::write(&workflow, format!("{}\n", lines.join("\n"))).expect("write workflow");
+
+    let updated_actions = update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+        None,
+    )
+    .await
+    .expect("update large step workflow");
+    assert_eq!(updated_actions.len(), 1);
+    let updated_source = fs::read_to_string(&workflow).expect("read updated workflow");
+    eprintln!("{updated_source}");
+    assert!(updated_source.contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")));
+}
+
+#[test]
 fn apply_replacements_deduplicates_identical_edits_and_rejects_overlapping_ones() {
     let text = "uses: 'actions/checkout@old' # v4.1.1000\n# café: éééé\n";
     let duplicate_edits = vec![

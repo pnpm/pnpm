@@ -1,7 +1,10 @@
 use super::{
-    ActionReference, Component, Document, HashSet, Path, PathBuf, QueryError, Range, Route, Value,
+    ActionReference, Component, Document, HashSet, Path, PathBuf, QueryError, Range, Route,
     VecDeque, fs, parse_comment_version,
 };
+
+mod root;
+mod routes;
 
 pub(super) async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
     let root_display = root.display();
@@ -209,11 +212,10 @@ struct UsesValue<'a> {
 }
 
 fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
-    let value = parse_workflow(text)?;
     let document = Document::new(text)?;
     let mut seen_ranges = HashSet::new();
     let mut values = Vec::new();
-    for route in uses_routes(&value) {
+    for route in routes::uses_routes(text, &document)? {
         if let Some(uses) = uses_value_at(text, &document, &route)?
             && seen_ranges.insert(uses.range.clone())
         {
@@ -221,17 +223,6 @@ fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
         }
     }
     Ok(values)
-}
-
-fn parse_workflow(text: &str) -> Result<Value, QueryError> {
-    yaml_serde::from_str::<Value>(text)
-        .map_err(|err| {
-            let (line, column) = match err.location() {
-                Some(loc) => (loc.line(), loc.column()),
-                None => (0, 0),
-            };
-            QueryError::InvalidInput(line, column)
-        })
 }
 
 /// The `uses:` scalar at `route` with its byte range in `text`, or `None`
@@ -340,91 +331,4 @@ fn uses_scalar_end(text: &str, scalar_end: usize) -> Option<UsesScalarEnd> {
         scalar_end
     };
     Some(UsesScalarEnd { end, flow_style })
-}
-
-const MAX_MERGE_DEPTH: usize = 8;
-
-fn uses_routes(value: &Value) -> Vec<Route<'static>> {
-    let mut routes = Vec::new();
-    if let Some(jobs) = value.get("jobs").and_then(Value::as_mapping) {
-        add_job_routes(&mut routes, jobs);
-    }
-    if let Some(runs) = value.get("runs")
-        && let Some((steps, step_prefix)) = find_key_in_mapping(runs, "steps", &["runs".into()], 0)
-    {
-        add_step_routes(&mut routes, steps, &step_prefix);
-    }
-    routes
-}
-
-fn add_job_routes(routes: &mut Vec<Route<'static>>, jobs: &yaml_serde::Mapping) {
-    for (name, job) in jobs {
-        let Some(name) = name.as_str() else { continue };
-        let prefix = ["jobs".into(), name.to_string().into()];
-        if let Some(route) = find_uses_route(job, &prefix) {
-            routes.push(route);
-        }
-        if let Some((steps, step_prefix)) = find_key_in_mapping(job, "steps", &prefix, 0) {
-            add_step_routes(routes, steps, &step_prefix);
-        }
-    }
-}
-
-fn find_uses_route(mapping: &Value, prefix: &[Component<'static>]) -> Option<Route<'static>> {
-    find_key_in_mapping(mapping, "uses", prefix, 0)
-        .filter(|(val, _)| val.is_string())
-        .map(|(_, path)| Route::from(path))
-}
-
-fn find_key_in_mapping<'value>(
-    mapping: &'value Value,
-    key: &'static str,
-    prefix: &[Component<'static>],
-    depth: usize,
-) -> Option<(&'value Value, Vec<Component<'static>>)> {
-    if let Some(found) = mapping.get(key) {
-        let mut path = prefix.to_owned();
-        path.push(key.into());
-        return Some((found, path));
-    }
-    if depth >= MAX_MERGE_DEPTH {
-        return None;
-    }
-    find_in_merged_mappings(mapping, prefix, |merged, merged_prefix| {
-        find_key_in_mapping(merged, key, &merged_prefix, depth + 1)
-    })
-}
-
-fn find_in_merged_mappings<'value, Found>(
-    mapping: &'value Value,
-    prefix: &[Component<'static>],
-    mut lookup: impl FnMut(&'value Value, Vec<Component<'static>>) -> Option<Found>,
-) -> Option<Found> {
-    let merged = mapping.get("<<")?;
-    if merged.is_mapping() {
-        let mut merged_prefix = prefix.to_owned();
-        merged_prefix.push("<<".into());
-        return lookup(merged, merged_prefix);
-    }
-    merged
-        .as_sequence()?
-        .iter()
-        .enumerate()
-        .filter(|(_, item)| item.is_mapping())
-        .find_map(|(index, item)| {
-            let mut item_prefix = prefix.to_owned();
-            item_prefix.extend(["<<".into(), index.into()]);
-            lookup(item, item_prefix)
-        })
-}
-
-fn add_step_routes(routes: &mut Vec<Route<'static>>, steps: &Value, prefix: &[Component<'static>]) {
-    let Some(steps) = steps.as_sequence() else { return };
-    for (index, step) in steps.iter().enumerate() {
-        let mut step_prefix = prefix.to_owned();
-        step_prefix.push(index.into());
-        if let Some(route) = find_uses_route(step, &step_prefix) {
-            routes.push(route);
-        }
-    }
 }

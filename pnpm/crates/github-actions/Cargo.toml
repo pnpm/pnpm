@@ -24,6 +24,7 @@ jiff = { workspace = true }
 futures-util = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
+serde = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }

@@ -21,7 +21,6 @@ use std::{
 use tokio::fs;
 use versions::{find_current, parse_comment_version, replaces_comment_version, repo_versions};
 use workflow::discover;
-use yaml_serde::Value;
 use yamlpath::{Component, Document, QueryError, Route};
 
 #[derive(Clone)]

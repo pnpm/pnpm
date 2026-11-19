@@ -9,7 +9,8 @@ pub(crate) use outdated::{
     requires_ecosystem_lockfile,
 };
 pub(crate) use selectors::{
-    EcosystemFilterKind, excludes_only, patterns_for_ecosystem, validate_ecosystem_selectors,
+    EcosystemFilterKind, excludes_only, is_ecosystem_prefixed, patterns_for_ecosystem,
+    validate_ecosystem_selectors,
 };
 pub(crate) use standalone::{
     select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,

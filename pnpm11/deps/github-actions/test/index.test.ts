@@ -133,6 +133,39 @@ jobs:
     })).resolves.toEqual([])
   })
 
+  test('discovers actions on a shallower merge branch after a deep branch hits the depth cap', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `base: &base
+  uses: actions/checkout@${'a'.repeat(40)} # v4.1.0
+shared: &shared
+  <<: *base
+d7: &d7 { <<: *shared }
+d6: &d6 { <<: *d7 }
+d5: &d5 { <<: *d6 }
+d4: &d4 { <<: *d5 }
+d3: &d3 { <<: *d4 }
+d2: &d2 { <<: *d3 }
+d1: &d1 { <<: *d2 }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - <<: [*d1, *shared]
+        name: Checkout
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(
+      `uses: actions/checkout@${'b'.repeat(40)} # v4.2.0`
+    )
+  })
+
   test('finds actions in workflows and referenced local composite actions', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `jobs:

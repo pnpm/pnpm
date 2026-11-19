@@ -86,6 +86,10 @@ fn is_purl(selector: &str) -> bool {
         .is_some_and(|prefix| prefix.eq_ignore_ascii_case("pkg:"))
 }
 
+pub(crate) fn is_ecosystem_prefixed(selector: &str) -> bool {
+    is_cargo_prefixed(selector) || is_python_prefixed(selector) || is_purl(selector)
+}
+
 pub(crate) fn patterns_for_ecosystem(
     packages: &[String],
     kind: EcosystemFilterKind,

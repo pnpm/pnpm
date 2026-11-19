@@ -72,6 +72,14 @@ impl DeclaredCargoDep {
         self.package_name == name || self.manifest_key == name || self.has_alias(name)
     }
 
+    pub(crate) fn matches_wildcard(&self, matcher: &pnpm_matcher::WildcardMatcher) -> bool {
+        matcher.matches(&self.package_name)
+            || matcher.matches(&self.manifest_key)
+            || self.aliases
+                .iter()
+                .any(|alias| matcher.matches(alias))
+    }
+
     pub(crate) fn is_ignored(&self, matcher: &Matcher) -> bool {
         matcher.matches_any(&self.identities())
     }

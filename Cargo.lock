@@ -5622,6 +5622,7 @@ dependencies = [
  "pnpm-process",
  "pnpm-reporter",
  "pnpm-resolving-git-resolver",
+ "serde",
  "tempfile",
  "tokio",
  "url",

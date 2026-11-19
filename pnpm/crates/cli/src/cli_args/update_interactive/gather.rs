@@ -97,7 +97,7 @@ pub(super) async fn collect_filtered_choices(
         follow_prerelease_channels: false,
     };
     let run = OutdatedRun::new(config, Arc::clone(http_client), &query)?
-        .with_raw_packages(filter.package_selectors.to_vec());
+        .with_raw_packages(normalize_choice_selectors(filter.package_selectors));
     let choices = futures_util::future::join_all(
         projects
             .iter()
@@ -113,6 +113,19 @@ pub(super) async fn collect_filtered_choices(
     )
     .await;
     unique_choices(choices)
+}
+
+fn normalize_choice_selectors(selectors: &[String]) -> Vec<String> {
+    selectors
+        .iter()
+        .map(|selector| {
+            if crate::cli_args::ecosystem_deps::is_ecosystem_prefixed(selector) {
+                selector.clone()
+            } else {
+                pnpm_package_manager::parse_update_param(selector).pattern
+            }
+        })
+        .collect()
 }
 
 fn unique_choices(
