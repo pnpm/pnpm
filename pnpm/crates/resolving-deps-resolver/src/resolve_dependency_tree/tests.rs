@@ -224,3 +224,17 @@ fn override_reframe_omits_help_when_the_override_aliases_another_package() {
     assert!(matches!(reframed, ResolveDependencyTreeError::OverrideNoMatchingVersion(_)));
     assert!(miette::Diagnostic::help(&reframed).is_none());
 }
+
+#[test]
+fn override_reframe_omits_help_for_a_convergence_selector() {
+    let overrides = [override_entry("acme@", Some(""), "1.9.0")];
+
+    let reframed = override_reframe::attribute_to_override(
+        acme_no_match_error("1.9.0", &["1.0.0", "1.1.0"]),
+        &wanted_acme("1.9.0"),
+        Some(&overrides),
+    );
+
+    assert!(matches!(reframed, ResolveDependencyTreeError::OverrideNoMatchingVersion(_)));
+    assert!(miette::Diagnostic::help(&reframed).is_none());
+}

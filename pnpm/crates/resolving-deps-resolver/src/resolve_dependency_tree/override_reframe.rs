@@ -95,9 +95,11 @@ fn overriding_error(
     let selector_range = matched.selector_range.clone();
     // The registry metadata belongs to the package the forced specifier
     // names, so it describes the target only for a plain range, not for an
-    // alias such as `npm:other@1`.
+    // alias such as `npm:other@1`. A convergence selector (`pkg@`) carries an
+    // empty range, which is not a range to report on.
     let latest_matching = selector_range
         .as_deref()
+        .filter(|range| !range.is_empty())
         .filter(|_| is_valid_semver_range(&matched.new_bare_specifier))
         .and_then(|range| max_satisfying(&no_matching_version.versions, range));
     Some(OverrideNoMatchingVersionError {
