@@ -441,6 +441,11 @@ fn allow_build_keeps_a_value_with_a_url_key_whole() {
         "!foo@git+https://example.com/org/repo,variant.git",
         "foo@https://example.com/foo.tgz?a=1,2",
         "esbuild,foo@git+ssh://git@example.com/org/foo.git",
+        "foo@git+ssh://git@example.com/org/foo.git#a,b",
+        "foo@file:./dir,with,comma",
+        "foo@link:../a,b",
+        "foo@npm:other@1,sharp",
+        "esbuild,local@file:./packages/local",
     ] {
         let (name, _) = parsed_allow_build(&[value])
             .into_iter()
