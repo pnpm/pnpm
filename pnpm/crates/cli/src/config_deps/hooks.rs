@@ -1,4 +1,6 @@
-pub use self::package_settings::apply_config_dependency_settings;
+pub use self::{
+    catalogs::update_config_hook_catalogs, package_settings::apply_config_dependency_settings,
+};
 
 use self::apply::apply_hook_delta;
 use super::{
@@ -137,41 +139,6 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     apply_hook_delta(config, &input, &current, &base_dir)?;
     warn_legacy_registries_for_config::<Reporter>(&input, &current, config);
     Ok(hooks)
-}
-
-/// The catalogs the `updateConfig` hooks for `root_dir` produce when handed
-/// `seed` as the workspace catalogs, or `None` when no pnpmfile runs.
-/// Nothing else the hooks change is applied to `config`.
-pub async fn update_config_hook_catalogs<Reporter: self::Reporter>(
-    config: &Config,
-    root_dir: &Path,
-    seed: &pnpm_catalogs_types::Catalogs,
-) -> Result<Option<pnpm_catalogs_types::Catalogs>> {
-    let pnpmfiles = resolve_pnpmfile_paths(config, root_dir)
-        .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?;
-    if pnpmfiles.is_empty() {
-        return Ok(None);
-    }
-    let hooks: Vec<Arc<dyn PnpmfileHooks>> = pnpmfiles
-        .iter()
-        .cloned()
-        .map(finder::load_pnpmfile_at)
-        .collect();
-    let mut input = TrustedSettings::from_resolved(config)
-        .to_json()
-        .into_diagnostic()
-        .wrap_err("serialize the resolved settings for updateConfig hooks")?;
-    let seed = serde_json::to_value(seed).into_diagnostic()?;
-    seed_hook_input(&mut input, config, root_dir, &pnpmfiles, seed)?;
-    let current = execute_update_config_hooks::<Reporter>(
-        &pnpmfiles,
-        &hooks,
-        input,
-        root_dir,
-        IgnoredHookWarnings::Skip,
-    )
-    .await?;
-    hook_output_catalogs(&current).map(Some)
 }
 
 /// Whether a hook run reports the hooks a pnpmfile defines but pnpm ignores.
@@ -544,20 +511,10 @@ fn hook_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn
 
 /// Hook output replaces the seeded catalogs, including removed entries.
 fn adopt_hook_catalogs(config: &mut Config, current: &Value) -> Result<()> {
-    config.catalogs = Some(hook_output_catalogs(current)?);
+    config.catalogs = Some(catalogs::hook_output_catalogs(current)?);
     Ok(())
 }
 
-fn hook_output_catalogs(current: &Value) -> Result<pnpm_catalogs_types::Catalogs> {
-    Ok(current
-        .get("catalogs")
-        .cloned()
-        .map(serde_json::from_value)
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("the updateConfig hook produced an invalid catalogs value")?
-        .unwrap_or_default())
-}
-
 mod apply;
+mod catalogs;
 mod package_settings;
