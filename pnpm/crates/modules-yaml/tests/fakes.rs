@@ -245,7 +245,8 @@ fn read_fills_pruned_at_from_clock_when_missing() {
             "2026-01-01T00:00:00Z"
                 .parse::<jiff::Timestamp>()
                 .unwrap()
-                .into()
+                .try_into()
+                .unwrap()
         }
     }
 

@@ -651,7 +651,8 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
     let mirror_path =
         get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
             .expect("path");
-    let forced_mtime: std::time::SystemTime = parse_cutoff("2024-01-01T00:00:00Z").into();
+    let forced_mtime: std::time::SystemTime =
+        std::time::SystemTime::try_from(parse_cutoff("2024-01-01T00:00:00Z")).unwrap();
     std::fs::OpenOptions::new()
         .write(true)
         .open(&mirror_path)
@@ -727,7 +728,8 @@ async fn published_by_upgrade_of_a_lowest_version_mirror_pick_is_remembered_acro
     let mirror_path =
         get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
             .expect("path");
-    let forced_mtime: std::time::SystemTime = parse_cutoff("2022-01-01T00:00:00Z").into();
+    let forced_mtime: std::time::SystemTime =
+        std::time::SystemTime::try_from(parse_cutoff("2022-01-01T00:00:00Z")).unwrap();
     std::fs::OpenOptions::new()
         .write(true)
         .open(&mirror_path)
