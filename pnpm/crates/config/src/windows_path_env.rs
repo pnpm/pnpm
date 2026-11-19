@@ -22,8 +22,6 @@ pub struct UnexpandedWindowsEnvVar {
     pub(crate) reference: String,
 }
 
-const DIR_ENV_WITH_FALLBACK: &[&str] = &["XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_STATE_HOME"];
-
 /// Reject directory environment variables that still contain `%VAR%` on Windows.
 ///
 /// Precedence matches the directory resolvers: `XDG_DATA_HOME` is ignored
@@ -46,10 +44,18 @@ pub(crate) fn ensure_windows_dir_envs_on<Sys: EnvVar>(
     if os != "windows" {
         return Ok(());
     }
-    for name in DIR_ENV_WITH_FALLBACK {
+    let pnpm_config_home = Sys::var("PNPM_CONFIG_HOME").unwrap_or_default();
+    let config_home =
+        if expand_dir_env("windows", "PNPM_CONFIG_HOME", &pnpm_config_home, Sys::var)?.is_empty() {
+            "XDG_CONFIG_HOME"
+        } else {
+            "PNPM_CONFIG_HOME"
+        };
+    let dirs_with_fallback = ["XDG_CACHE_HOME", config_home, "XDG_STATE_HOME"];
+    for name in dirs_with_fallback {
         expand_if_set::<Sys>(name)?;
     }
-    if DIR_ENV_WITH_FALLBACK
+    if dirs_with_fallback
         .iter()
         .any(|name| Sys::var(name).is_none())
     {
