@@ -2,7 +2,7 @@ use super::{InstallScope, RunExecution};
 #[cfg(target_os = "macos")]
 use pnpm_config::LinkWorkspacePackages;
 #[cfg(target_os = "macos")]
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::PackageManifest;
 #[cfg(target_os = "macos")]
 use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, DependencyGroups, GraphProject, ProjectGraph,
@@ -151,18 +151,7 @@ impl GraphProject for CaptureProject<'_> {
     }
 
     fn dependency_groups(&self, ignore_dev_deps: bool) -> DependencyGroups {
-        let declared = |group: DependencyGroup| {
-            self.manifest
-                .dependencies([group])
-                .map(|(name, spec)| (name.to_string(), spec.to_string()))
-                .collect()
-        };
-        DependencyGroups {
-            peer: declared(DependencyGroup::Peer),
-            dev: (!ignore_dev_deps).then(|| declared(DependencyGroup::Dev)),
-            optional: declared(DependencyGroup::Optional),
-            prod: declared(DependencyGroup::Prod),
-        }
+        pnpm_workspace::manifest_dependency_groups(self.manifest, ignore_dev_deps)
     }
 }
 

@@ -109,16 +109,6 @@ function plainDependencyMap (value: unknown): Record<string, unknown> | undefine
   return isPlainObject(value) ? value : undefined
 }
 
-function withPlainDependencyMaps (manifest: BaseManifest): BaseManifest {
-  return {
-    ...manifest,
-    dependencies: plainDependencyMap(manifest.dependencies) as BaseManifest['dependencies'],
-    devDependencies: plainDependencyMap(manifest.devDependencies) as BaseManifest['devDependencies'],
-    optionalDependencies: plainDependencyMap(manifest.optionalDependencies) as BaseManifest['optionalDependencies'],
-    peerDependencies: plainDependencyMap(manifest.peerDependencies) as BaseManifest['peerDependencies'],
-  }
-}
-
 function resolveDepToProject (
   project: BaseProject,
   depName: string,
@@ -276,6 +266,16 @@ function createOverridesApplier (overrides: ProjectsGraphOverrides | undefined):
   const overrideManifest = createVersionsOverrider(versionOverrides, overrides.lockfileDir, { catalogs: overrides.catalogs }) as
     (manifest: BaseManifest, dir: string) => BaseManifest
   return (manifest, dir) => overrideManifest(withPlainDependencyMaps(manifest), dir)
+}
+
+function withPlainDependencyMaps (manifest: BaseManifest): BaseManifest {
+  return {
+    ...manifest,
+    dependencies: plainDependencyMap(manifest.dependencies) as BaseManifest['dependencies'],
+    devDependencies: plainDependencyMap(manifest.devDependencies) as BaseManifest['devDependencies'],
+    optionalDependencies: plainDependencyMap(manifest.optionalDependencies) as BaseManifest['optionalDependencies'],
+    peerDependencies: plainDependencyMap(manifest.peerDependencies) as BaseManifest['peerDependencies'],
+  }
 }
 
 function isRelativePathSpec (spec: string): boolean {
