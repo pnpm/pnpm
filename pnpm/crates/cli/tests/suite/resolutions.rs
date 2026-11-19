@@ -231,3 +231,44 @@ fn repeat_install_promotes_resolutions_once() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn run_gate_accepts_promoted_resolutions() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "resolutions-run-host",
+            "version": "1.0.0",
+            "scripts": { "hello": "echo hello" },
+            "resolutions": { "@pnpm.e2e/foo": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json with resolutions");
+    let mut yaml = OpenOptions::new()
+        .append(true)
+        .open(workspace.join("pnpm-workspace.yaml"))
+        .expect("open pnpm-workspace.yaml for append");
+    writeln!(yaml, "verifyDepsBeforeRun: error").expect("append verifyDepsBeforeRun");
+
+    let install = pnpm_at(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("spawn pnpm install");
+    assert!(install.status.success(), "{}", String::from_utf8_lossy(&install.stderr));
+
+    let run = pnpm_at(&workspace)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("spawn pnpm run");
+    let printed =
+        format!("{}{}", String::from_utf8_lossy(&run.stdout), String::from_utf8_lossy(&run.stderr));
+    assert!(run.status.success(), "{printed}");
+    assert!(!printed.contains("resolutions"), "the gate must not repeat the warning\n{printed}");
+
+    drop((root, mock_instance));
+}

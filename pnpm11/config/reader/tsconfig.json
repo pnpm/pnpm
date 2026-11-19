@@ -64,6 +64,9 @@
       "path": "../matcher"
     },
     {
+      "path": "../parse-overrides"
+    },
+    {
       "path": "../registry-auth-key"
     }
   ]

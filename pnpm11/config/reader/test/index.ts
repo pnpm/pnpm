@@ -7504,7 +7504,8 @@ describe('resolutions in root package.json', () => {
     fs.writeFileSync('package.json', JSON.stringify({
       name: 'test-pkg',
       resolutions: {
-        'name\n[ERROR] injected': '1.0.0\n[ERROR] spec',
+        'name\n[ERROR] injected': '1.0.0',
+        foo: '1.0.0\n[ERROR] spec',
       },
     }))
 
@@ -7517,7 +7518,8 @@ describe('resolutions in root package.json', () => {
     })
 
     expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('name[ERROR] injected: 1.0.0[ERROR] spec')
+    expect(warnings[0]).toContain('  foo: 1.0.0[ERROR] spec\n')
+    expect(warnings[0]).toContain('were skipped: name[ERROR] injected\n')
   })
 
   test('redacts URL credentials in the migration warning', async () => {

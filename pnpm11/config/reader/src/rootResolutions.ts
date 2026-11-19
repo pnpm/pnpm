@@ -1,3 +1,4 @@
+import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
 import type { ProjectManifest } from '@pnpm/types'
 
 import { assertValidOverrides, createVersionReferencesReplacer } from './getOptionsFromRootManifest.js'
@@ -62,9 +63,24 @@ function formatMigratedEntry (selector: string, original: string, resolved: stri
  * `**\/foo` becomes `foo` and `parent/foo` becomes `parent>foo`. Returns
  * `undefined` for a path pnpm overrides cannot express, such as `a/**\/foo`
  * or `a/b/foo`. A valid selector in pnpm's own `parent>child` syntax is kept.
+ * A selector the override parser rejects is skipped too.
  */
 function toOverrideSelector (yarnSelector: string): string | undefined {
-  if (yarnSelector.includes('>')) return isOverrideSelector(yarnSelector) ? yarnSelector : undefined
+  const selector = yarnSelector.includes('>') ? yarnSelector : convertYarnPath(yarnSelector)
+  if (selector == null) return undefined
+  let parsed: ReturnType<typeof parsePkgAndParentSelector>
+  try {
+    parsed = parsePkgAndParentSelector(selector)
+  } catch {
+    return undefined
+  }
+  const namesOnePackage = (name: string): boolean => splitPackagePath(name)?.length === 1
+  return (parsed.parentPkg == null || namesOnePackage(parsed.parentPkg.name)) && namesOnePackage(parsed.targetPkg.name)
+    ? selector
+    : undefined
+}
+
+function convertYarnPath (yarnSelector: string): string | undefined {
   const path = yarnSelector.trim()
   let start = 0
   while (path.startsWith('**/', start)) start += 3
@@ -74,28 +90,29 @@ function toOverrideSelector (yarnSelector: string): string | undefined {
   return undefined
 }
 
-/** Whether a selector in pnpm's own `parent>child` syntax names one package on each side. */
-function isOverrideSelector (selector: string): boolean {
-  const delimiter = selector.indexOf('>')
-  return [selector.slice(0, delimiter), selector.slice(delimiter + 1)]
-    .every((side) => splitPackagePath(side.trim())?.length === 1)
-}
-
 /**
- * Splits `a/@scope/b` into `['a', '@scope/b']`. `undefined` for a `**`, an
- * empty name, or more than the two packages an override can name.
+ * Splits `a/@scope/b` into `['a', '@scope/b']`. `undefined` for a `**` path
+ * segment, an empty name, or more than the two packages an override can name.
+ * A scoped wildcard such as `@scope/**` is a package name.
  */
 function splitPackagePath (path: string): string[] | undefined {
   const segments = path.split('/')
   const packages: string[] = []
   let index = 0
   while (index < segments.length && packages.length < 3) {
-    const segment = segments[index++]
-    const name = segment.startsWith('@') ? segments[index++] : segment
-    if (!name || name === '**') return undefined
-    packages.push(segment.startsWith('@') ? `${segment}/${name}` : name)
+    const scoped = segments[index].startsWith('@')
+    const pkg = readPackageName(segments, index, scoped)
+    if (pkg == null) return undefined
+    packages.push(pkg)
+    index += scoped ? 2 : 1
   }
   return index < segments.length ? undefined : packages
+}
+
+function readPackageName (segments: string[], index: number, scoped: boolean): string | undefined {
+  const name = scoped ? segments[index + 1] : segments[index]
+  if (!name || (!scoped && name === '**')) return undefined
+  return scoped ? `${segments[index]}/${name}` : name
 }
 
 function formatMigrationWarning (entries: string[], skipped: string[]): string {

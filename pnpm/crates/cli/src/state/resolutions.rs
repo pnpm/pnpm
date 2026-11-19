@@ -1,11 +1,12 @@
 use crate::state::InitStateError;
 use indexmap::IndexMap;
 use pnpm_config::Config;
+use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_network::redact_url_credentials;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_text_sanitize::sanitize_inline;
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
 /// Validate and promote root resolutions for `prepare_root_config`.
 /// `config_root` is the root project's directory.
@@ -32,6 +33,29 @@ pub fn apply_fast_path_resolutions(dir: &Path, config: &mut Config) -> Option<Ve
         return Some(Vec::new());
     };
     apply_resolutions_to_config(config, &manifest).ok()
+}
+
+/// `config` with the root project's resolutions promoted as an install
+/// started in `dir` promotes them, for comparing against what that install
+/// recorded. The install reports the warnings, so they are dropped here, as
+/// are invalid resolutions.
+pub fn with_promoted_resolutions<'config>(
+    dir: &Path,
+    config: &'config Config,
+) -> Cow<'config, Config> {
+    let root_dir = config.root_project_manifest_dir(dir);
+    let has_resolutions = safe_read_project_manifest_from_dir(root_dir)
+        .ok()
+        .flatten()
+        .is_some_and(|manifest| manifest.get("resolutions").is_some());
+    if !has_resolutions {
+        return Cow::Borrowed(config);
+    }
+    let mut promoted = config.clone();
+    match apply_fast_path_resolutions(dir, &mut promoted) {
+        Some(_) => Cow::Owned(promoted),
+        None => Cow::Borrowed(config),
+    }
 }
 
 pub fn emit_resolutions_warnings(emit: fn(&LogEvent), dir: &Path, warnings: Vec<String>) {
@@ -127,15 +151,22 @@ fn format_migrated_entry(selector: &str, original: &str, resolved: &str) -> Stri
 /// Convert a Yarn `resolutions` selector to a pnpm override selector:
 /// `**/foo` becomes `foo` and `parent/foo` becomes `parent>foo`. `None` for a
 /// path pnpm overrides cannot express, such as `a/**/foo` or `a/b/foo`. A
-/// valid selector in pnpm's own `parent>child` syntax is kept.
+/// valid selector in pnpm's own `parent>child` syntax is kept. A selector the
+/// override parser rejects is skipped too.
 fn to_override_selector(yarn_selector: &str) -> Option<String> {
-    if let Some((parent, child)) = yarn_selector.split_once('>') {
-        let names_one_package =
-            |side: &str| split_packages(side.trim()).is_some_and(|packages| packages.len() == 1);
-        return (names_one_package(parent) && names_one_package(child)).then(|| {
-            yarn_selector.to_owned()
-        });
-    }
+    let selector = if yarn_selector.contains('>') {
+        yarn_selector.to_owned()
+    } else {
+        convert_yarn_path(yarn_selector)?
+    };
+    let (parent, target) = parse_pkg_and_parent_selector(&selector).ok()?;
+    let names_one_package =
+        |name: &str| split_packages(name).is_some_and(|packages| packages.len() == 1);
+    (parent.is_none_or(|parent| names_one_package(&parent.name)) && names_one_package(&target.name))
+        .then_some(selector)
+}
+
+fn convert_yarn_path(yarn_selector: &str) -> Option<String> {
     let mut path = yarn_selector.trim();
     while let Some(rest) = path.strip_prefix("**/") {
         path = rest;
@@ -147,8 +178,9 @@ fn to_override_selector(yarn_selector: &str) -> Option<String> {
     }
 }
 
-/// Split `a/@scope/b` into `a` and `@scope/b`. `None` for a `**`, an empty
-/// name, or more than the two packages an override can name.
+/// Split `a/@scope/b` into `a` and `@scope/b`. `None` for a `**` path segment,
+/// an empty name, or more than the two packages an override can name. A
+/// scoped wildcard such as `@scope/**` is a package name.
 fn split_packages(path: &str) -> Option<Vec<String>> {
     // Two scoped packages take four segments, so a fifth means too many.
     let segments: Vec<&str> = path.splitn(6, '/').collect();
@@ -163,7 +195,7 @@ fn split_packages(path: &str) -> Option<Vec<String>> {
         } else {
             (None, segment)
         };
-        if name.is_empty() || name == "**" || packages.len() == 2 {
+        if name.is_empty() || (scope.is_none() && name == "**") || packages.len() == 2 {
             return None;
         }
         packages.push(scope.map_or_else(|| name.to_owned(), |scope| format!("{scope}/{name}")));
@@ -243,8 +275,9 @@ fn json_value_type_name(value: &serde_json::Value) -> String {
 /// protocol-relative `//user:pass@host` value.
 fn sanitize_for_log(text: &str) -> String {
     let inline = sanitize_inline(text);
-    match inline.strip_prefix("//") {
-        Some(_) => redact_url_credentials(&format!("x:{inline}"))[2..].to_owned(),
+    let trimmed = inline.trim_start();
+    match trimmed.strip_prefix("//") {
+        Some(_) => redact_url_credentials(&format!("x:{trimmed}"))[2..].to_owned(),
         None => redact_url_credentials(&inline),
     }
 }

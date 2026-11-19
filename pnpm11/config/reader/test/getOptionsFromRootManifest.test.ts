@@ -1136,6 +1136,9 @@ test('applyRootResolutions() converts Yarn selectors and skips the ones pnpm can
       'a/**': '10.0.0',
       'foo>': '11.0.0',
       'a/b>c': '12.0.0',
+      '@scope/**': '13.0.0',
+      'parent@>=1>@scope/child': '14.0.0',
+      '%': '15.0.0',
     },
   }, undefined, warnings)).toStrictEqual({
     foo: '1.0.0',
@@ -1144,14 +1147,17 @@ test('applyRootResolutions() converts Yarn selectors and skips the ones pnpm can
     '@scope/parent>@scope/child': '4.0.0',
     '@esbuild/*': '5.0.0',
     'foo>@scope/bar': '8.0.0',
+    '@scope/**': '13.0.0',
+    'parent@>=1>@scope/child': '14.0.0',
   })
-  expect(warnings[0]).toContain('These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c, @scope/, a/**, foo>, a/b>c')
+  expect(warnings[0]).toContain('These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c, @scope/, a/**, foo>, a/b>c, %')
 })
 
 test('applyRootResolutions() strips formatting characters from the warning', () => {
   const warnings: string[] = []
-  applyRootResolutions({ resolutions: { 'f‮oo': '1.0.0​' } }, undefined, warnings)
-  expect(warnings[0]).toContain('  foo: 1.0.0\n')
+  applyRootResolutions({ resolutions: { 'f\u202Eoo': '1.0.0', bar: '1.0.0\u200B' } }, undefined, warnings)
+  expect(warnings[0]).toContain('  bar: 1.0.0\n')
+  expect(warnings[0]).toContain('were skipped: foo\n')
 })
 
 test('applyRootResolutions() lists at most 10 skipped selectors in the warning', () => {
@@ -1164,8 +1170,9 @@ test('applyRootResolutions() lists at most 10 skipped selectors in the warning',
 
 test('applyRootResolutions() redacts protocol-relative credentials in the warning', () => {
   const warnings: string[] = []
-  applyRootResolutions({ resolutions: { foo: '//user:secret@example.com/foo.tgz' } }, undefined, warnings)
+  applyRootResolutions({ resolutions: { foo: ' //user:secret@example.com/foo.tgz' } }, undefined, warnings)
   expect(warnings[0]).toContain('  foo: //example.com/foo.tgz\n')
+  expect(warnings[0]).not.toContain('secret')
 })
 
 test('applyRootResolutions() skips a long slash-separated selector', () => {

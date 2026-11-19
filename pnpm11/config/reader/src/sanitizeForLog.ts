@@ -7,7 +7,8 @@ import { sanitizeInline } from '@pnpm/text.sanitize'
  */
 export function sanitizeForLog (text: string): string {
   const inline = sanitizeInline(text)
-  return inline.startsWith('//')
-    ? redactUrlCredentials(`x:${inline}`).slice(2)
+  const trimmed = inline.trimStart()
+  return trimmed.startsWith('//')
+    ? redactUrlCredentials(`x:${trimmed}`).slice(2)
     : redactUrlCredentials(inline)
 }

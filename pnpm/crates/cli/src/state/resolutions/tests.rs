@@ -243,13 +243,15 @@ fn test_apply_resolutions_to_config_sanitizes_control_chars() {
         "name": "test",
         "version": "1.0.0",
         "resolutions": {
-            "name\n[ERROR] injected\u{0080}": "1.0.0\n[ERROR] spec\u{009F}",
+            "name\n[ERROR] injected\u{0080}": "1.0.0",
+            "foo": "1.0.0\n[ERROR] spec\u{009F}",
         },
     }));
     let mut config = Config::new();
     let warnings = apply(&mut config, &manifest).unwrap();
     assert_eq!(warnings.len(), 1);
-    assert!(warnings[0].contains("name[ERROR] injected: 1.0.0[ERROR] spec"));
+    assert!(warnings[0].contains("  foo: 1.0.0[ERROR] spec\n"), "{}", warnings[0]);
+    assert!(warnings[0].contains("were skipped: name[ERROR] injected\n"), "{}", warnings[0]);
 }
 
 #[test]
@@ -322,6 +324,9 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
             "a/**": "10.0.0",
             "foo>": "11.0.0",
             "a/b>c": "12.0.0",
+            "@scope/**": "13.0.0",
+            "parent@>=1>@scope/child": "14.0.0",
+            "%": "15.0.0",
         },
     }));
     let mut config = Config::new();
@@ -333,6 +338,8 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
         ("@scope/parent>@scope/child", "4.0.0"),
         ("@esbuild/*", "5.0.0"),
         ("foo>@scope/bar", "8.0.0"),
+        ("@scope/**", "13.0.0"),
+        ("parent@>=1>@scope/child", "14.0.0"),
     ]
     .into_iter()
     .map(|(selector, spec)| (selector.to_owned(), spec.to_owned()))
@@ -340,7 +347,7 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
     assert_eq!(config.overrides.unwrap(), expected);
     assert!(
         warnings[0].contains(
-            "These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c, @scope/, a/**, foo>, a/b>c"
+            "These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c, @scope/, a/**, foo>, a/b>c, %"
         ),
         "{}",
         warnings[0],
@@ -349,11 +356,13 @@ fn test_apply_resolutions_to_config_converts_yarn_selectors() {
 
 #[test]
 fn test_apply_resolutions_to_config_strips_formatting_characters() {
-    let (_dir, manifest) =
-        make_manifest(&json!({ "resolutions": { "f\u{202E}oo": "1.0.0\u{200B}" } }));
+    let (_dir, manifest) = make_manifest(
+        &json!({ "resolutions": { "f\u{202E}oo": "1.0.0", "bar": "1.0.0\u{200B}" } }),
+    );
     let mut config = Config::new();
     let warnings = apply(&mut config, &manifest).unwrap();
-    assert!(warnings[0].contains("  foo: 1.0.0\n"), "{}", warnings[0]);
+    assert!(warnings[0].contains("  bar: 1.0.0\n"), "{}", warnings[0]);
+    assert!(warnings[0].contains("were skipped: foo\n"), "{}", warnings[0]);
 }
 
 #[test]
@@ -371,8 +380,9 @@ fn test_apply_resolutions_to_config_limits_skipped_selectors() {
 #[test]
 fn test_apply_resolutions_to_config_redacts_protocol_relative_credentials() {
     let (_dir, manifest) =
-        make_manifest(&json!({ "resolutions": { "foo": "//user:secret@example.com/foo.tgz" } }));
+        make_manifest(&json!({ "resolutions": { "foo": " //user:secret@example.com/foo.tgz" } }));
     let mut config = Config::new();
     let warnings = apply(&mut config, &manifest).unwrap();
     assert!(warnings[0].contains("  foo: //example.com/foo.tgz\n"), "{}", warnings[0]);
+    assert!(!warnings[0].contains("secret"), "{}", warnings[0]);
 }

@@ -2124,6 +2124,7 @@ snapshots:
 				"@pnpm/catalogs.types": "workspace:*",
 				"@pnpm/config.env-replace": "workspace:*",
 				"@pnpm/config.matcher": "workspace:*",
+				"@pnpm/config.parse-overrides": "workspace:*",
 				"@pnpm/config.registry-auth-key": "workspace:*",
 				"@pnpm/constants": "workspace:*",
 				"@pnpm/error": "workspace:*",

@@ -57,7 +57,7 @@ test('resolutions in root package.json are used as overrides when no overrides i
   expect(stderr).toContain('We attempted to migrate your resolutions to pnpm overrides')
   expect(stderr).toContain('is-positive: 3.1.0')
 
-  const lockfile = readYamlFileSync(WANTED_LOCKFILE) as any // eslint-disable-line
+  const lockfile = readYamlFileSync<{ overrides?: Record<string, string> }>(WANTED_LOCKFILE)
   expect(lockfile.overrides).toStrictEqual({
     'is-positive': '3.1.0',
   })
@@ -84,7 +84,7 @@ test('resolutions in root package.json, with Yarn selectors, are used as overrid
   expect(stderr).toContain('We attempted to migrate your resolutions to pnpm overrides')
   expect(stderr).toContain('is-positive: 3.1.0')
 
-  const lockfile = readYamlFileSync(WANTED_LOCKFILE) as any // eslint-disable-line
+  const lockfile = readYamlFileSync<{ overrides?: Record<string, string> }>(WANTED_LOCKFILE)
   expect(lockfile.overrides).toStrictEqual({
     'is-positive': '3.1.0',
   })
@@ -122,7 +122,7 @@ test('warns and drops resolutions when both resolutions and overrides exist', as
   expect(stderr).toContain('"resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence')
   expect(stderr).not.toContain('We attempted to migrate your resolutions to pnpm overrides')
 
-  const lockfile = readYamlFileSync(WANTED_LOCKFILE) as any // eslint-disable-line
+  const lockfile = readYamlFileSync<{ overrides?: Record<string, string> }>(WANTED_LOCKFILE)
   expect(lockfile.overrides).toStrictEqual({
     'is-negative': '1.0.0',
   })
