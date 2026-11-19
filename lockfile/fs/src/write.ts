@@ -3,13 +3,13 @@ import path from 'path'
 import { type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
-import yaml from 'js-yaml'
 import isEmpty from 'ramda/src/isEmpty'
 import writeFileAtomicCB from 'write-file-atomic'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { getWantedLockfileName } from './lockfileName.js'
 import { convertToLockfileFile } from './lockfileFormatConverters.js'
+import { lockfileYamlDump } from './lockfileYamlDump.js'
 
 async function writeFileAtomic (filename: string, data: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -17,14 +17,6 @@ async function writeFileAtomic (filename: string, data: string): Promise<void> {
       (err != null) ? reject(err) : resolve()
     })
   })
-}
-
-const LOCKFILE_YAML_FORMAT = {
-  blankLines: true,
-  lineWidth: -1, // This is setting line width to never wrap
-  noCompatMode: true,
-  noRefs: true,
-  sortKeys: false,
 }
 
 export async function writeWantedLockfile (
@@ -73,7 +65,7 @@ export function writeLockfileFile (
 
 function yamlStringify (lockfile: LockfileFile) {
   const sortedLockfile = sortLockfileKeys(lockfile as LockfileFile)
-  return yaml.dump(sortedLockfile, LOCKFILE_YAML_FORMAT)
+  return lockfileYamlDump(sortedLockfile)
 }
 
 export function isEmptyLockfile (lockfile: LockfileObject): boolean {
