@@ -87,6 +87,7 @@
     "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.injected-deps-syncer": "workspace:*",
+    "@pnpm/workspace.package-patterns": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
@@ -113,7 +114,6 @@
     "render-help": "catalog:",
     "semver": "catalog:",
     "string-width": "catalog:",
-    "tinyglobby": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {

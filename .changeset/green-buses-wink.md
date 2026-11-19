@@ -1,6 +1,7 @@
 ---
 "@pnpm/installing.commands": patch
 "pnpm": patch
+"pacquet": patch
 ---
 
-`pnpm add` now suggests initializing the package when run from a workspace-matched directory without a package manifest. Running the command from a directory outside workspace package patterns still prints the root warning [pnpm/pnpm#11345](https://github.com/pnpm/pnpm/issues/11345).
+`pnpm add` run from a workspace package directory that has no `package.json` yet now suggests creating one with `pnpm init` [#11345](https://github.com/pnpm/pnpm/issues/11345).

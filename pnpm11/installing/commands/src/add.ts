@@ -7,17 +7,17 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-opti
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
+import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
 import { linkedDirectoryPath } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
+import { isWorkspaceProjectDir } from '@pnpm/workspace.package-patterns'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import normalizePath from 'normalize-path'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
-import { globSync } from 'tinyglobby'
 
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
@@ -310,16 +310,16 @@ async function addConfigDependencies (opts: AddCommandOptions, params: string[])
 
 function assertNotAddingToWorkspaceRoot (opts: AddCommandOptions): void {
   if (
-    !opts.recursive &&
-    opts.workspaceDir === opts.dir &&
-    !opts.ignoreWorkspaceRootCheck &&
-    !opts.workspaceRoot &&
-    opts.workspacePackagePatterns &&
-    opts.workspacePackagePatterns.length > 1
-  ) {
-    throw new PnpmError('ADDING_TO_ROOT',
-      getWorkspaceRootCheckMessage(opts)
-    )
+    opts.recursive ||
+    opts.workspaceDir !== opts.dir ||
+    opts.ignoreWorkspaceRootCheck ||
+    opts.workspaceRoot
+  ) return
+  if (isUninitializedWorkspaceProjectDir(opts)) {
+    throw new PnpmError('ADDING_TO_ROOT', WORKSPACE_PACKAGE_DIR_ADD_MESSAGE)
+  }
+  if (opts.workspacePackagePatterns && opts.workspacePackagePatterns.length > 1) {
+    throw new PnpmError('ADDING_TO_ROOT', ROOT_WORKSPACE_ADD_MESSAGE)
   }
 }
 
@@ -423,31 +423,19 @@ export function applyAllowBuildSelectors (
   return updated
 }
 
-function getWorkspaceRootCheckMessage (opts: AddCommandOptions): string {
-  if (isWorkspacePackageDirWithoutManifest(opts)) {
-    return WORKSPACE_PACKAGE_DIR_ADD_MESSAGE
-  }
-  return ROOT_WORKSPACE_ADD_MESSAGE
-}
-
-function isWorkspacePackageDirWithoutManifest (opts: AddCommandOptions): boolean {
-  if (!opts.workspaceDir || !opts.workspacePackagePatterns) return false
-
-  const currentDir = process.cwd()
-  if (currentDir === opts.workspaceDir) return false
-  if (hasProjectManifest(currentDir)) return false
-
-  const relativeDir = normalizePath(path.relative(opts.workspaceDir, currentDir)) || '.'
-  if (relativeDir === '.' || relativeDir.startsWith('../')) return false
-
-  return globSync(opts.workspacePackagePatterns, {
-    cwd: opts.workspaceDir,
-    deep: relativeDir.split('/').length,
-    expandDirectories: false,
-    onlyDirectories: true,
-  }).some((matchedDir) => normalizePath(matchedDir) === relativeDir)
-}
-
-function hasProjectManifest (dir: string): boolean {
-  return ['package.json', 'package.json5', 'package.yaml'].some((manifestFileName) => fs.existsSync(path.join(dir, manifestFileName)))
+/**
+ * `pnpm add` run from a directory that the workspace patterns select but that
+ * has no manifest yet falls back to the workspace root. Such a directory is
+ * most likely a package that was not initialized.
+ */
+function isUninitializedWorkspaceProjectDir (opts: AddCommandOptions): boolean {
+  if (!opts.workspaceDir) return false
+  const invocationDir = (opts.cliOptions.dir as string | undefined) ?? fs.realpathSync(process.cwd())
+  if (invocationDir === opts.workspaceDir) return false
+  if (MANIFEST_BASE_NAMES.some((manifestFileName) => fs.existsSync(path.join(invocationDir, manifestFileName)))) return false
+  return isWorkspaceProjectDir({
+    workspaceDir: opts.workspaceDir,
+    dir: invocationDir,
+    patterns: opts.workspacePackagePatterns ?? ['.'],
+  })
 }

@@ -432,7 +432,7 @@ test('adding a dependency from a directory outside the workspace package pattern
   expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
 })
 
-test('adding a dependency from a directory ignored by anchored workspace patterns should keep the workspace root warning', async () => {
+test('adding a dependency from a directory excluded by the workspace patterns should keep the workspace root warning', async () => {
   preparePackages([
     {
       location: '.',
@@ -444,12 +444,56 @@ test('adding a dependency from a directory ignored by anchored workspace pattern
 
   fs.mkdirSync('packages/ignored', { recursive: true })
   fs.writeFileSync('pnpm-workspace.yaml', `packages:
-  - '.'
-  - '/packages/*'
-  - '!/packages/ignored'
+  - 'packages/*'
+  - 'tools/*'
+  - '!packages/ignored'
 `, 'utf8')
 
   const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/ignored') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency from a workspace-matched directory without a manifest should suggest initializing the package in a single-pattern workspace', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/project', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - 'packages/*'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/project') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency with --dir pointing at the workspace root should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/project', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - 'packages/*'
+  - 'tools/*'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive', '--dir', process.cwd()], { cwd: path.resolve('packages/project') })
 
   expect(status).toBe(1)
   expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
