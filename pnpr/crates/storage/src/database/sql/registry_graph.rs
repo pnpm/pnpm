@@ -74,7 +74,8 @@ pub struct NewRegistryGraph<'a> {
     /// Every hosted namespace the revision serves.
     pub bound: &'a [HostedNamespace],
     /// The grants of the registries the revision adds. Each is created
-    /// unless a grant already has its name.
+    /// unless a grant already has its name. Ignored when [`Self::restored_from`]
+    /// is `Some`, so restoring a revision never seeds grants.
     pub seeded: &'a [super::StoredGrant],
     /// The keys of the registries the revision removes. They leave every
     /// grant, and a grant left without a registry is removed.
@@ -186,7 +187,7 @@ impl Storage {
         let restored_from = revision.restored_from.map(to_column);
         let vacated = revision.vacated.to_vec();
         let bound = revision.bound.to_vec();
-        let grants = (revision.removed.to_vec(), revision.seeded.to_vec());
+        let grants = (revision.removed.to_vec(), seeded_grants(&revision));
         self.database.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             let current = current_generation(&*transaction)?;
@@ -233,6 +234,13 @@ impl Storage {
                 .is_some())
         })
         .await
+    }
+}
+
+fn seeded_grants(revision: &NewRegistryGraph<'_>) -> Vec<super::StoredGrant> {
+    match revision.restored_from {
+        Some(_) => Vec::new(),
+        None => revision.seeded.to_vec(),
     }
 }
 

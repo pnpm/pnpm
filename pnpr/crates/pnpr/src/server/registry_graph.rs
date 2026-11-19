@@ -10,8 +10,8 @@ pub(crate) use reload::{GraphState, publish_routing, reload_graph};
 pub(crate) use seed::seed_default_graph;
 pub(crate) use snapshot::{RoutingSnapshot, UpstreamGuardContext, build_snapshot};
 pub(crate) use stored::{
-    Credentials, FileReferences, HostedChange, check_revision, graph_version, load_stored_routing,
-    occupied_namespace_error, stored_document, with_stored_routing,
+    Credentials, DefaultGrants, FileReferences, HostedChange, check_revision, graph_version,
+    load_stored_routing, occupied_namespace_error, stored_document, with_stored_routing,
 };
 
 mod admin;
