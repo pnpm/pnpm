@@ -330,6 +330,7 @@ async function redirectToOverridingScript (
   const typedCommandName = parsedCliArgs.argv.remain[0]
   if (
     cmd == null ||
+    cmd === 'help' ||
     parsedCliArgs.builtInCommandForced ||
     !overridableByScriptCommands.has(typedCommandName) ||
     parsedCliArgs.options.global

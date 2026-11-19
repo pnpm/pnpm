@@ -41,16 +41,23 @@ export async function handlePackageManagerAndRuntimes (opts: PackageManagerHandl
   } else if (cmd === 'fetch' && !isExecutedByCorepack() && !rejectUnknownOptions) {
     await fetchLockedPackageManager(config, context)
   }
-  if (cmd != null && !cliOptions.global && !rejectUnknownOptions) {
+  if (cmd != null && !isHelpRequest(cmd, cliOptions) && !cliOptions.global && !rejectUnknownOptions) {
     for (const runtime of getWantedRuntimes(context)) {
       checkRuntime(runtime, config)
     }
   }
 }
 
+function isHelpRequest (cmd: string | null, cliOptions: PackageManagerHandlingOptions['cliOptions']): boolean {
+  return cmd === 'help' || cliOptions.help === true
+}
+
 async function handleWantedPackageManager (pm: EngineDependency, opts: PackageManagerHandlingOptions): Promise<void> {
   const { cmd, cliOptions, config, context } = opts
   const printingVersion = cmd == null && cliOptions.version === true
+  // A pin naming another package manager has no pnpm to switch to, and
+  // printing the version or help changes nothing in the project.
+  if (pm.name !== 'pnpm' && (printingVersion || isHelpRequest(cmd, cliOptions))) return
   const entryPoint: PinEntryPoint = opts.rejectUnknownOptions ? 'unknown-flag' : printingVersion ? 'version' : 'command'
   const invocation = {
     entryPoint,
@@ -167,8 +174,8 @@ export function shouldSkipPmHandling (cmd: string | null, cliParams: string[], l
  * `pnpm --version` must answer even where the pinned pnpm cannot be installed
  * or recorded: a sandbox with a read-only filesystem leaves pnpm nowhere to
  * write. The failure is reported and the running pnpm's version is printed
- * instead of the pinned one. Checks that reject the project outright, like a
- * pin naming another package manager, still fail the command.
+ * instead of the pinned one. Checks that reject the running pnpm outright,
+ * like a version mismatch pnpm cannot switch past, still fail the command.
  */
 async function tolerateWhenPrintingVersion (printingVersion: boolean, work: () => Promise<void>): Promise<void> {
   try {
