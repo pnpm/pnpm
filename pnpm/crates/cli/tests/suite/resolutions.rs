@@ -191,7 +191,7 @@ fn repeat_install_promotes_resolutions_once() {
                 "@pnpm.e2e/hello-world-js-bin": "1.0.0",
             },
             "resolutions": {
-                "@pnpm.e2e/foo": "1.0.0",
+                "**/@pnpm.e2e/foo": "1.0.0",
             },
         })
         .to_string(),

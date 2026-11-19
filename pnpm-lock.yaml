@@ -2134,6 +2134,7 @@ snapshots:
 				"@pnpm/os.available-parallelism": "workspace:*",
 				"@pnpm/pkg-manifest.utils": "workspace:*",
 				"@pnpm/text.naming-cases": "workspace:*",
+				"@pnpm/text.sanitize": "workspace:*",
 				"@pnpm/types": "workspace:*",
 				"@pnpm/workspace.project-manifest-reader": "workspace:*",
 				"@pnpm/workspace.workspace-manifest-reader": "workspace:*",

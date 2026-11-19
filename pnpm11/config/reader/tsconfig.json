@@ -49,6 +49,9 @@
       "path": "../../text/naming-cases"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../../workspace/project-manifest-reader"
     },
     {

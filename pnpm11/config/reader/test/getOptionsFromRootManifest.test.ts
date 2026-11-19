@@ -1119,3 +1119,31 @@ test('applyRootResolutions() lists at most 10 resolutions in the warning', () =>
   expect(warnings[0]).toContain('  pkg-9: 1.0.0\n  ...and 2 more\n')
   expect(warnings[0]).not.toContain('pkg-10')
 })
+
+test('applyRootResolutions() converts Yarn selectors and skips the ones pnpm cannot express', () => {
+  const warnings: string[] = []
+  expect(applyRootResolutions({
+    resolutions: {
+      '**/foo': '1.0.0',
+      '**/@scope/bar': '2.0.0',
+      'parent/child': '3.0.0',
+      '@scope/parent/@scope/child': '4.0.0',
+      '@esbuild/*': '5.0.0',
+      'a/**/deep': '6.0.0',
+      'a/b/c': '7.0.0',
+    },
+  }, undefined, warnings)).toStrictEqual({
+    foo: '1.0.0',
+    '@scope/bar': '2.0.0',
+    'parent>child': '3.0.0',
+    '@scope/parent>@scope/child': '4.0.0',
+    '@esbuild/*': '5.0.0',
+  })
+  expect(warnings[0]).toContain('These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c')
+})
+
+test('applyRootResolutions() strips formatting characters from the warning', () => {
+  const warnings: string[] = []
+  applyRootResolutions({ resolutions: { 'f‮oo': '1.0.0​' } }, undefined, warnings)
+  expect(warnings[0]).toContain('  foo: 1.0.0\n')
+})

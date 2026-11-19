@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type {
   AllowedDeprecatedVersions,
@@ -20,6 +20,7 @@ import { map as mapValues } from 'ramda'
 
 import { translateRegistrySettings } from './registrySettings.js'
 import { replaceEnvInSettings } from './replaceEnvInSettings.js'
+import { sanitizeForLog } from './sanitizeForLog.js'
 import {
   assertBoolean,
   assertObjectSetting,
@@ -440,7 +441,7 @@ export function assertValidOverrides (overrides: unknown, fieldName: 'overrides'
   }
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
-      throw new PnpmError(errorCode, `The value of ${fieldName}.${redactAndSanitize(selector)} should be a string, but got ${renderReceivedType(spec)}`)
+      throw new PnpmError(errorCode, `The value of ${fieldName}.${sanitizeForLog(selector)} should be a string, but got ${renderReceivedType(spec)}`)
     }
   }
 }
@@ -528,6 +529,6 @@ function replaceVersionReferences (dep: Record<string, string>, spec: string): s
   if (newSpec) return newSpec
   throw new PnpmError(
     'CANNOT_RESOLVE_OVERRIDE_VERSION',
-    `Cannot resolve version ${redactAndSanitize(spec)} in overrides. The direct dependencies don't have dependency "${redactAndSanitize(dependencyName)}".`
+    `Cannot resolve version ${sanitizeForLog(spec)} in overrides. The direct dependencies don't have dependency "${sanitizeForLog(dependencyName)}".`
   )
 }

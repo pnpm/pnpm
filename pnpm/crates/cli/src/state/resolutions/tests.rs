@@ -1,4 +1,4 @@
-use super::{InitStateError, apply_resolutions_to_config, apply_root_resolutions_to_config};
+use super::{InitStateError, apply_fast_path_resolutions, apply_resolutions_to_config};
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
@@ -270,88 +270,82 @@ fn test_apply_resolutions_to_config_truncates_large_resolutions() {
 }
 
 #[test]
-fn test_apply_root_resolutions_to_config_non_workspace_project_is_root() {
-    let (_dir, manifest) = make_manifest(&json!({
-        "name": "standalone",
-        "version": "1.0.0",
-        "resolutions": {
-            "foo": "^1.0.0",
-            "bar": "^2.0.0",
-        },
-    }));
-    let mut config = Config::new();
-    assert!(config.workspace_dir.is_none());
-    let warnings = apply_root_resolutions_to_config(&mut config, &manifest).unwrap();
-    assert_eq!(warnings.len(), 1);
-    let overrides = config.overrides.unwrap();
-    let expected: IndexMap<String, String> =
-        [("foo".to_owned(), "^1.0.0".to_owned()), ("bar".to_owned(), "^2.0.0".to_owned())]
-            .into_iter()
-            .collect();
-    assert_eq!(overrides, expected);
-}
-
-#[test]
-fn test_apply_root_resolutions_to_config_non_workspace_warns_when_overrides_exist() {
-    let (_dir, manifest) = make_manifest(&json!({
-        "name": "standalone",
-        "version": "1.0.0",
-        "resolutions": {
-            "foo": "^1.0.0",
-            "bar": "^2.0.0",
-        },
-    }));
-    let mut config = Config::new();
-    let mut existing: IndexMap<String, String> = IndexMap::new();
-    existing.insert("bar".to_owned(), "^3.0.0".to_owned());
-    config.overrides = Some(existing);
-    assert!(config.workspace_dir.is_none());
-    let warnings = apply_root_resolutions_to_config(&mut config, &manifest).unwrap();
-    assert_eq!(warnings.len(), 1);
-    assert!(warnings[0].contains(r#""resolutions" field in package.json is ignored"#));
-    let overrides = config.overrides.unwrap();
-    assert_eq!(overrides.len(), 1);
-    assert_eq!(overrides.get("bar").unwrap(), "^3.0.0");
-}
-
-#[test]
-fn test_apply_root_resolutions_to_config_workspace_root_differs() {
+fn test_apply_fast_path_resolutions_reads_the_root_project_manifest() {
     let root_dir = TempDir::new().unwrap();
-    let root_path = root_dir.path().join("package.json");
     std::fs::write(
-        &root_path,
-        serde_json::to_string(&json!({
-            "name": "workspace-root",
-            "version": "1.0.0",
-            "resolutions": {
-                "root-pkg": "^1.0.0",
-            },
-        }))
-        .unwrap(),
+        root_dir.path().join("package.yaml"),
+        "name: workspace-root\nresolutions:\n  root-pkg: ^1.0.0\n",
     )
     .unwrap();
-
-    let project_dir = TempDir::new().unwrap();
-    let project_path = project_dir.path().join("package.json");
+    let project_dir = root_dir.path().join("project");
+    std::fs::create_dir(&project_dir).unwrap();
     std::fs::write(
-        &project_path,
+        project_dir.join("package.json"),
         serde_json::to_string(&json!({
             "name": "project-pkg",
-            "version": "1.0.0",
-            "resolutions": {
-                "project-pkg": "^2.0.0",
-            },
+            "resolutions": { "project-pkg": "^2.0.0" },
         }))
         .unwrap(),
     )
     .unwrap();
-    let project_manifest = PackageManifest::from_path(project_path).unwrap();
 
     let mut config = Config::new();
     config.workspace_dir = Some(root_dir.path().to_path_buf());
-    let warnings = apply_root_resolutions_to_config(&mut config, &project_manifest).unwrap();
+    let warnings = apply_fast_path_resolutions(&project_dir, &mut config).unwrap();
     assert_eq!(warnings.len(), 1);
-    let overrides = config.overrides.unwrap();
-    assert_eq!(overrides.len(), 1);
-    assert_eq!(overrides.get("root-pkg").unwrap(), "^1.0.0");
+    let expected: IndexMap<String, String> =
+        std::iter::once(("root-pkg".to_owned(), "^1.0.0".to_owned())).collect();
+    assert_eq!(config.overrides.unwrap(), expected);
+}
+
+#[test]
+fn test_apply_fast_path_resolutions_rejects_invalid_resolutions() {
+    let (dir, _manifest) = make_manifest(&json!({ "resolutions": { "foo": 1 } }));
+    let mut config = Config::new();
+    assert!(apply_fast_path_resolutions(dir.path(), &mut config).is_none());
+    assert!(config.overrides.is_none());
+}
+
+#[test]
+fn test_apply_resolutions_to_config_converts_yarn_selectors() {
+    let (_dir, manifest) = make_manifest(&json!({
+        "resolutions": {
+            "**/foo": "1.0.0",
+            "**/@scope/bar": "2.0.0",
+            "parent/child": "3.0.0",
+            "@scope/parent/@scope/child": "4.0.0",
+            "@esbuild/*": "5.0.0",
+            "a/**/deep": "6.0.0",
+            "a/b/c": "7.0.0",
+        },
+    }));
+    let mut config = Config::new();
+    let warnings = apply(&mut config, &manifest).unwrap();
+    let expected: IndexMap<String, String> = [
+        ("foo", "1.0.0"),
+        ("@scope/bar", "2.0.0"),
+        ("parent>child", "3.0.0"),
+        ("@scope/parent>@scope/child", "4.0.0"),
+        ("@esbuild/*", "5.0.0"),
+    ]
+    .into_iter()
+    .map(|(selector, spec)| (selector.to_owned(), spec.to_owned()))
+    .collect();
+    assert_eq!(config.overrides.unwrap(), expected);
+    assert!(
+        warnings[0].contains(
+            "These resolutions have no pnpm override equivalent and were skipped: a/**/deep, a/b/c"
+        ),
+        "{}",
+        warnings[0],
+    );
+}
+
+#[test]
+fn test_apply_resolutions_to_config_strips_formatting_characters() {
+    let (_dir, manifest) =
+        make_manifest(&json!({ "resolutions": { "f\u{202E}oo": "1.0.0\u{200B}" } }));
+    let mut config = Config::new();
+    let warnings = apply(&mut config, &manifest).unwrap();
+    assert!(warnings[0].contains("  foo: 1.0.0\n"), "{}", warnings[0]);
 }

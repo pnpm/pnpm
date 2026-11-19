@@ -63,7 +63,7 @@ test('resolutions in root package.json are used as overrides when no overrides i
   })
 })
 
-test('resolutions in root package.json are used as overrides without a pnpm-workspace.yaml', async () => {
+test('resolutions in root package.json, with Yarn selectors, are used as overrides without a pnpm-workspace.yaml', async () => {
   prepare()
 
   fs.writeFileSync('package.json', JSON.stringify({
@@ -73,7 +73,7 @@ test('resolutions in root package.json are used as overrides without a pnpm-work
       'is-positive': '1.0.0',
     },
     resolutions: {
-      'is-positive': '3.1.0',
+      '**/is-positive': '3.1.0',
     },
   }), 'utf8')
 
