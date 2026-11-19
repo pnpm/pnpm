@@ -203,3 +203,52 @@ fn ndjson_reports_early_directory_errors() {
             .contains("missing-directory"),
     );
 }
+
+#[test]
+fn an_override_to_a_missing_version_is_reported_on_the_override() {
+    for reporter in ["--reporter=append-only", "--reporter=ndjson"] {
+        let fixture = CommandTempCwd::init().add_mocked_registry();
+        fs::write(
+            fixture.workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+        let workspace_yaml = fixture.workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&workspace_yaml).unwrap_or_default();
+        yaml.push_str(
+            "\noverrides:\n  \"@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0\": \"999.0.0\"\n",
+        );
+        fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+        let output = fixture.pacquet
+            .with_args(["install", "--lockfile-only", reporter])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        eprintln!("stderr={stderr}");
+        let message = r#"Override "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0": "999.0.0" targets a version of @pnpm.e2e/dep-of-pkg-with-1-dep that does not exist on the registry."#;
+        if reporter == "--reporter=ndjson" {
+            let records = ndjson_records(output.get_output());
+            let error = records
+                .iter()
+                .find(|record| record["level"] == "error")
+                .expect("fatal error");
+            assert_eq!(error["code"], "ERR_PNPM_NO_MATCHING_VERSION");
+            assert!(
+                error["message"]
+                    .as_str()
+                    .is_some_and(|text| text.ends_with(message))
+            );
+            assert!(error["pkgsStack"].as_array().is_none_or(Vec::is_empty));
+        } else {
+            let flattened = flatten_report(&stderr);
+            assert!(flattened.contains(&flatten_report(message)));
+            assert!(flattened.contains(&flatten_report(
+                r#"The latest release of @pnpm.e2e/dep-of-pkg-with-1-dep matching "^100.0.0" is "100.1.0"."#,
+            )));
+            assert!(!flattened.contains("Thiserrorhappenedwhileinstallingthedependenciesof"));
+        }
+    }
+}
