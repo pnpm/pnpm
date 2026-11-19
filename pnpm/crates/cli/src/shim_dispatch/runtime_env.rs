@@ -158,6 +158,9 @@ pub(crate) async fn materialize_runtime(
     }
     let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
     let config = trusted_runtime_config(&environments_dir)?;
+    if let Some(bin) = installed_global_runtime_bin(&config, &name, &version_spec) {
+        return Ok(MaterializedRuntime::shared(bin));
+    }
     let global_virtual_store_dir = config.store_dir.links();
     let key = create_hex_hash(&format!(
         "runtime\0{name}\0{version_spec}\0{}",
@@ -237,6 +240,53 @@ pub(super) fn managed_runtime_bin(
     if !package_dir.starts_with(&trusted_root) {
         return None;
     }
+    runtime_bin_in_package(&package_dir, name)
+}
+
+/// Reuse a globally installed runtime only when its installed package version
+/// is exactly the version resolved for the project. The lockfile-derived
+/// selector passed by the shim dispatcher is exact; ranges and dist tags can
+/// never authorize a global package by themselves.
+fn installed_global_runtime_bin(config: &Config, name: &str, version: &str) -> Option<PathBuf> {
+    if name != "node" {
+        return None;
+    }
+    let global_dir = config.global_pkg_dir.as_deref()?;
+    let groups = pnpm_global::scan_global_packages(global_dir).ok()?;
+    for group in groups
+        .into_iter()
+        .filter(|group| group.has_alias(name))
+    {
+        if !group.dependencies
+            .iter()
+            .any(|(alias, spec)| alias == name && spec.starts_with("runtime:"))
+        {
+            continue;
+        }
+        let Some(installed) = pnpm_global::get_global_package_details(&group)
+            .into_iter()
+            .find(|package| package.alias == name && package.version == version)
+        else {
+            continue;
+        };
+        let package_dir = group.install_dir.join("node_modules").join(&installed.alias);
+        let package_dir = dunce::canonicalize(package_dir).ok()?;
+        let is_trusted = [Some(global_dir), Some(config.global_virtual_store_dir.as_path())]
+            .into_iter()
+            .flatten()
+            .filter_map(|root| dunce::canonicalize(root).ok())
+            .any(|root| package_dir.starts_with(root));
+        if !is_trusted {
+            continue;
+        }
+        if let Some(bin) = runtime_bin_in_package(&package_dir, name) {
+            return Some(bin);
+        }
+    }
+    None
+}
+
+fn runtime_bin_in_package(package_dir: &Path, name: &str) -> Option<PathBuf> {
     let manifest: Value =
         serde_json::from_slice(&fs::read(package_dir.join("package.json")).ok()?).ok()?;
     if manifest.get("name").and_then(Value::as_str) != Some(name) {

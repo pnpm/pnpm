@@ -486,6 +486,10 @@ fn candidate_in(
     package_manager: Option<PackageManager>,
 ) -> Option<Candidate> {
     if runtime && let Some((version_spec, source_hash)) = runtime_pin(dir, name) {
+        // The manifest chooses the runtime declaration; the lockfile
+        // chooses its concrete version. This also lets global runtime reuse
+        // compare against the same version an install would materialize.
+        let version_spec = locked_runtime_version(dir, name).unwrap_or(version_spec);
         return Some(Candidate::RuntimePin {
             project_dir: dir.to_path_buf(),
             version_spec,
@@ -510,6 +514,47 @@ fn candidate_in(
             bin,
             identity: String::new(),
         });
+    }
+    None
+}
+
+/// The exact runtime version resolved for this project in its nearest
+/// ancestor lockfile. Missing, unreadable, or unsupported lockfiles leave
+/// the manifest selector in force, as they do for runtime dispatch today.
+fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<String> {
+    use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, Prefix};
+
+    let package_name = PkgName::parse(name).ok()?;
+    for lockfile_dir in project_dir.ancestors() {
+        let lockfile_path = lockfile_dir.join(Lockfile::FILE_NAME);
+        let Ok(Some(lockfile)) = Lockfile::load_from_path(&lockfile_path) else { continue };
+        let importer_id = project_dir
+            .strip_prefix(lockfile_dir)
+            .ok()
+            .map(|relative| {
+                if relative.as_os_str().is_empty() {
+                    ".".to_string()
+                } else {
+                    relative.to_string_lossy().replace('\\', "/")
+                }
+            })?;
+        let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
+        let Some(dependency) = importer.dev_dependencies
+            .as_ref()
+            .and_then(|dependencies| dependencies.get(&package_name))
+            .or_else(|| {
+                importer.dependencies
+                    .as_ref()
+                    .and_then(|dependencies| dependencies.get(&package_name))
+            })
+        else {
+            continue;
+        };
+        let ImporterDepVersion::Regular(version) = &dependency.version else { return None };
+        if version.prefix() != Prefix::Runtime {
+            return None;
+        }
+        return version.version_semver().map(ToString::to_string);
     }
     None
 }

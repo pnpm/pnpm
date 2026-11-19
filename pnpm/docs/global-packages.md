@@ -177,7 +177,7 @@ No shell hooks, `.bashrc` edits, or `use`-style commands are involved. The shims
 
 pnpm walks up from the current working directory to the nearest project that provides the command, then:
 
-* For the **runtimes** (`node`, `deno`, `bun`), only a runtime pin counts: [`devEngines.runtime`](./package_json.md#devenginesruntime), then `engines.runtime`. For `node`, since v12.7.0, a `.node-version` or `.nvmrc` file also counts (see [below](#nvmrc-and-node-version)). The pinned version is downloaded into the [global virtual store](./global-virtual-store.md) on demand and executed directly. The project's `node_modules/.bin` is never consulted for a runtime, so a dependency cannot supply the `node` you run.
+* For the **runtimes** (`node`, `deno`, `bun`), only a runtime pin counts: [`devEngines.runtime`](./package_json.md#devenginesruntime), then `engines.runtime`. For `node`, since v12.7.0, a `.node-version` or `.nvmrc` file also counts (see [below](#nvmrc-and-node-version)). When a lockfile resolves the pin, pnpm uses that exact version. If that version is already installed globally with `pnpm runtime set node -g`, the shim runs the global copy; otherwise, it downloads the resolved version into the [global virtual store](./global-virtual-store.md) on demand. The project's `node_modules/.bin` is never consulted for a runtime, so a dependency cannot supply the `node` you run.
 * For the **[package managers](./package-managers.md)** (`npm`, `yarn`, `bun`), added in v12.0.0-rc.6, the project's `packageManager` or [`devEngines.packageManager`](./package_json.md#devenginespackagemanager) pin counts, and pnpm provisions that version on demand. The pin outranks a copy of that package manager installed globally, because it is the project's own statement of what installs it.
 * For **any other package**, the project's `node_modules/.bin/<name>` is used.
 
@@ -187,7 +187,7 @@ If the project provides nothing, or the lookup is declined, the globally install
 
 ### Runtime download mirrors
 
-Project-aware global runtime commands download their pinned versions using the [global configuration file](./cli/config.md) and environment settings. They do not automatically load the project's `pnpm-workspace.yaml`. A project's mirror settings still apply to runtime dependencies installed by `pnpm install`.
+Project-aware global runtime commands use the global Node.js installation when its exact version matches the project lockfile. If there is no match, they download the lockfile's version using the [global configuration file](./cli/config.md) and environment settings. They do not automatically load the project's `pnpm-workspace.yaml`. A project's mirror settings still apply to runtime dependencies installed by `pnpm install`. Removing or changing the global runtime can therefore cause pnpm to download the lockfile's version the next time the shim runs.
 
 An explicit `PNPM_CONFIG_WORKSPACE_DIR` or `NPM_CONFIG_WORKSPACE_DIR` environment setting selects a workspace whose `pnpm-workspace.yaml` can supply settings, including `nodeDownloadMirrors`. Lowercase spellings of these variables also work.
 

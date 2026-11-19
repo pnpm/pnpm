@@ -436,6 +436,116 @@ fn version_file_runtime_pin_downloads_node_on_demand(file_name: &str) {
 
 #[cfg(unix)]
 #[test]
+fn project_runtime_reuses_an_exact_global_install() {
+    let root = tempfile::tempdir().unwrap();
+    let version = "22.11.0";
+    let mut server = mockito::Server::new();
+    let fixture = crate::install_runtimes::runtime_fixture(
+        &mut server,
+        "node",
+        version,
+        pnpm_graph_hasher::host_platform(),
+        pnpm_graph_hasher::host_arch(),
+    );
+    let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": version } }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    crate::install_runtimes::write_runtime_lockfile(&project, std::slice::from_ref(&fixture));
+    prepare_global_runtime(&root, version, "reused-global-node");
+    let global_dir = root.path().join("pnpm-home/global/v11");
+    let groups = pnpm_global::scan_global_packages(&global_dir).unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(
+        pnpm_global::installed_versions(&groups[0].install_dir).get("node").map(String::as_str),
+        Some(version),
+    );
+
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node": true}"#)
+        .assert()
+        .success()
+        .stdout("reused-global-node\n");
+    let environments = root.path().join("state/pnpm/global-shim-runtimes");
+    assert!(environments.join("pnpm-workspace.yaml").is_file());
+    assert_eq!(
+        fs::read_dir(environments).unwrap().count(),
+        1,
+        "an exact global runtime match must not create a managed runtime environment",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn project_runtime_ignores_a_different_global_version_and_uses_the_lockfile() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let locked_version = "24.0.0-rc.4";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, locked_version);
+    let fixture = crate::install_runtimes::runtime_fixture(
+        &mut server,
+        "node",
+        locked_version,
+        pnpm_graph_hasher::host_platform(),
+        pnpm_graph_hasher::host_arch(),
+    );
+    let (project, global_target) = runtime_pin_project(&root, &server, locked_version, ".nvmrc");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "24.0.0-rc.2" } }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    crate::install_runtimes::write_runtime_lockfile(&project, std::slice::from_ref(&fixture));
+    prepare_global_runtime(&root, "24.0.0-rc.2", "wrong-global-node");
+
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node": true}"#)
+        .assert()
+        .success()
+        .stdout("");
+    let environment = managed_runtime_environment(&root);
+    let package: serde_json::Value = serde_json::from_slice(
+        &fs::read(environment.join("node_modules/node/package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(package["version"], locked_version);
+}
+
+#[cfg(unix)]
+fn prepare_global_runtime(root: &TempDir, version: &str, output: &str) {
+    use std::os::unix::fs::symlink;
+
+    let global_dir = root.path().join("pnpm-home/global/v11");
+    let install_dir = global_dir.join("node-runtime-install");
+    fs::create_dir_all(install_dir.join("node_modules/node/bin")).unwrap();
+    fs::write(
+        install_dir.join("package.json"),
+        serde_json::json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
+    )
+    .unwrap();
+    fs::write(
+        install_dir.join("node_modules/node/package.json"),
+        serde_json::json!({ "name": "node", "version": version, "bin": { "node": "bin/node" } })
+            .to_string(),
+    )
+    .unwrap();
+    write_script(&install_dir.join("node_modules/node/bin/node"), output);
+    fs::create_dir_all(&global_dir).unwrap();
+    symlink(&install_dir, global_dir.join("node-runtime-link")).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
 fn an_inherited_lockfile_dir_does_not_move_the_runtime_install() {
     runtime_pin_survives_inherited_setting("PNPM_CONFIG_LOCKFILE_DIR", None);
 }
