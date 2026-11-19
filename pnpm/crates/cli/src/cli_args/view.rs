@@ -96,7 +96,7 @@ impl ViewArgs {
         };
         let fields = self.params.get(1..).unwrap_or(&[]);
 
-        let (meta, picked) =
+        let FetchedPackage { meta, picked, registry } =
             fetch_package_metadata(config, self.registry.as_deref(), &package_spec, "view").await?;
         let mut info = assemble_info(&meta, &picked);
         if fields
@@ -115,7 +115,7 @@ impl ViewArgs {
         if self.json {
             return Ok(to_pretty(&info));
         }
-        Ok(render_summary(&info))
+        Ok(render_summary(&info, &registry))
     }
 }
 
@@ -200,6 +200,13 @@ fn invalid_manifest(dir: &Path) -> ViewError {
     }
 }
 
+/// A packument, the version picked from it, and the registry it was read from.
+pub(super) struct FetchedPackage {
+    pub meta: pnpm_registry::Package,
+    pub picked: Arc<pnpm_registry::PackageVersion>,
+    pub registry: String,
+}
+
 /// Fetch the registry packument for `package_spec` and select the version that
 /// satisfies the spec. The caller decides how much of the result to assemble.
 pub(super) async fn fetch_package_metadata(
@@ -207,7 +214,7 @@ pub(super) async fn fetch_package_metadata(
     registry_override: Option<&str>,
     package_spec: &str,
     _command_name: &str,
-) -> miette::Result<(pnpm_registry::Package, Arc<pnpm_registry::PackageVersion>)> {
+) -> miette::Result<FetchedPackage> {
     let parsed = parse_wanted_dependency(package_spec);
     let alias = parsed.alias.as_deref();
     let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
@@ -223,7 +230,7 @@ pub(super) async fn fetch_package_metadata(
     let meta = fetch_metadata_outcome(config, &registry, &spec.name).await?;
     let picked = pick_view_version(&meta, &spec)?;
 
-    Ok((meta, picked))
+    Ok(FetchedPackage { meta, picked, registry })
 }
 
 async fn fetch_metadata_outcome(
