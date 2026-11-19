@@ -222,12 +222,16 @@ where
     let channel_tags = picker_opts.current_version
         .map(|current_version| find_prerelease_channel_tags(meta, current_version))
         .unwrap_or_default();
-    for tag in channel_tags {
+    for (tag, target) in channel_tags {
         // `latest` is already a candidate, and the tags after it point lower.
         if tag == "latest" {
             break;
         }
-        if let Some(channel_pick) = pick_channel_tag(&tag_spec(tag))? {
+        // The maturity filter moves an immature tag to an older version,
+        // which may be on another channel. Only the tag's own target counts.
+        if let Some(channel_pick) = pick_channel_tag(&tag_spec(tag))?
+            && channel_pick.version == target
+        {
             return Ok(pick_max(picked, Some(channel_pick)));
         }
     }
@@ -235,12 +239,12 @@ where
 }
 
 /// The dist-tags that point to published versions on the same prerelease
-/// channel as `current_version`, highest version first. Empty when
-/// `current_version` is not a prerelease.
+/// channel as `current_version`, with their targets, highest version first.
+/// Empty when `current_version` is not a prerelease.
 fn find_prerelease_channel_tags<'meta>(
     meta: &'meta Package,
     current_version: &Version,
-) -> Vec<&'meta str> {
+) -> Vec<(&'meta str, Version)> {
     let Some(channel) = prerelease_channel(current_version) else {
         return Vec::new();
     };
@@ -253,9 +257,7 @@ fn find_prerelease_channel_tags<'meta>(
         })
         .collect::<Vec<_>>();
     tags.sort_by(|(_, version1), (_, version2)| version2.cmp(version1));
-    tags.into_iter()
-        .map(|(tag, _)| tag)
-        .collect()
+    tags
 }
 
 /// The leading run of letters in the first prerelease identifier. Build

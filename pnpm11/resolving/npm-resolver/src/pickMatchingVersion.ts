@@ -56,7 +56,11 @@ function runPicker ({ pickerOpts, meta, spec, pickOne, pickChannelTag = pickOne 
     // `latest` is already a candidate, and the tags after it point lower.
     if (channelTag === 'latest') break
     const channelPkg = pickChannelTag({ ...spec, type: 'tag', fetchSpec: channelTag })
-    if (channelPkg) return pickMax(channelPkg, picked)
+    // The maturity filter moves an immature tag to an older version, which
+    // may be on another channel. Only the tag's own target counts.
+    if (channelPkg && semver.eq(channelPkg.version, meta['dist-tags'][channelTag], true)) {
+      return pickMax(channelPkg, picked)
+    }
   }
   return picked
 }

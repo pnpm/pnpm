@@ -384,6 +384,7 @@ async fn resolve_latest_ignores_immature_prerelease_channel_tags() {
         ("2.0.0", "2026-01-02T00:00:00.000Z"),
         ("3.0.0-rc.0", "2026-01-03T00:00:00.000Z"),
         ("3.0.0-rc.1", "2026-01-04T00:00:00.000Z"),
+        ("4.0.0-alpha.1", "2026-01-05T00:00:00.000Z"),
         ("4.0.0-rc.0", "2026-03-01T00:00:00.000Z"),
     ];
     for PrereleaseChannelCase { dist_tags, current, expected } in cases {
