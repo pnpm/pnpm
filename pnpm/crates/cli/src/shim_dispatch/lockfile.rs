@@ -1,13 +1,7 @@
 use std::path::Path;
 
 use pnpm_config::{Config, Host};
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, Prefix};
-
-enum LockfileRuntimeVersion {
-    NoResolution,
-    NotRuntime,
-    Runtime(String),
-}
+use pnpm_lockfile::{ImporterDepVersion, ImporterLoad, Lockfile, PkgName, Prefix};
 
 /// The exact runtime version resolved for this project in the wanted lockfile.
 /// Missing, unreadable, or unsupported lockfiles leave the manifest selector
@@ -27,53 +21,33 @@ pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<S
     }
     for file_name in selection.read_order() {
         let lockfile_path = lockfile_dir.join(file_name);
-        if !lockfile_path.exists() {
-            continue;
-        }
-        return match runtime_version_in_lockfile(
-            project_dir,
-            lockfile_dir,
-            &lockfile_path,
-            &package_name,
-        ) {
-            LockfileRuntimeVersion::Runtime(version) => Some(version),
-            LockfileRuntimeVersion::NotRuntime | LockfileRuntimeVersion::NoResolution => None,
+        let Some(importer_id) = importer_id(project_dir, lockfile_dir) else {
+            return None;
         };
+        match load_importer_snapshot(&lockfile_path, &importer_id) {
+            Ok(ImporterLoad::MissingLockfile) => continue,
+            Ok(ImporterLoad::Importer(Some(importer))) => {
+                return importer_runtime_version(&importer, &package_name).flatten();
+            }
+            Ok(ImporterLoad::Importer(None)) | Err(_) => return None,
+        }
     }
     None
-}
-
-fn runtime_version_in_lockfile(
-    project_dir: &Path,
-    lockfile_dir: &Path,
-    lockfile_path: &Path,
-    package_name: &PkgName,
-) -> LockfileRuntimeVersion {
-    let Some(importer_id) = importer_id(project_dir, lockfile_dir) else {
-        return LockfileRuntimeVersion::NoResolution;
-    };
-    let Some(importer) = load_importer_snapshot(lockfile_path, &importer_id) else {
-        return LockfileRuntimeVersion::NoResolution;
-    };
-    match importer_runtime_version(&importer, package_name) {
-        Some(Some(version)) => LockfileRuntimeVersion::Runtime(version),
-        Some(None) => LockfileRuntimeVersion::NotRuntime,
-        None => LockfileRuntimeVersion::NotRuntime,
-    }
 }
 
 fn load_importer_snapshot(
     lockfile_path: &Path,
     importer_id: &str,
-) -> Option<pnpm_lockfile::ProjectSnapshot> {
+) -> Result<ImporterLoad, pnpm_lockfile::LoadLockfileError> {
     match Lockfile::load_importer_from_path(lockfile_path, importer_id) {
-        Ok(importer) => importer,
+        Ok(importer) => Ok(importer),
         Err(_) => Lockfile::load_from_path(lockfile_path)
-            .ok()
-            .flatten()?
-            .importers
-            .get(importer_id)
-            .cloned(),
+            .map(|lockfile| match lockfile {
+                Some(lockfile) => {
+                    ImporterLoad::Importer(lockfile.importers.get(importer_id).cloned())
+                }
+                None => ImporterLoad::MissingLockfile,
+            }),
     }
 }
 

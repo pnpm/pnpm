@@ -1,6 +1,7 @@
 use crate::{
     DirectoryResolution,
     ImporterDepVersion,
+    ImporterLoad,
     LazyLockfile,
     LoadLockfileError,
     Lockfile,
@@ -860,9 +861,11 @@ fn load_importer_from_path_skips_package_and_snapshot_maps() {
     )
     .expect("write lockfile");
 
-    let importer = Lockfile::load_importer_from_path(&path, ".")
+    let ImporterLoad::Importer(Some(importer)) = Lockfile::load_importer_from_path(&path, ".")
         .expect("read importer")
-        .expect("root importer present");
+    else {
+        panic!("root importer present");
+    };
     let node = PkgName::parse("node").expect("parse node name");
     assert_eq!(
         importer.dev_dependencies

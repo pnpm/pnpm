@@ -547,6 +547,35 @@ fn project_runtime_uses_the_current_branch_lockfile() {
 
 #[cfg(unix)]
 #[test]
+fn project_runtime_falls_back_from_an_empty_branch_lockfile() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let shared_version = "22.11.0";
+    let fixture = crate::install_runtimes::runtime_fixture(
+        &mut server,
+        "node",
+        shared_version,
+        pnpm_graph_hasher::host_platform(),
+        pnpm_graph_hasher::host_arch(),
+    );
+    let (project, global_target) = runtime_pin_project(&root, &server, shared_version, ".nvmrc");
+    fs::write(project.join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
+    fs::create_dir(project.join(".git")).unwrap();
+    fs::write(project.join(".git/HEAD"), "ref: refs/heads/feature\n").unwrap();
+    crate::install_runtimes::write_runtime_lockfile(&project, std::slice::from_ref(&fixture));
+    fs::write(project.join("pnpm-lock.feature.yaml"), "").unwrap();
+    prepare_global_runtime(&root, shared_version, "shared-lockfile-node");
+
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node": true}"#)
+        .assert()
+        .success()
+        .stdout("shared-lockfile-node\n");
+}
+
+#[cfg(unix)]
+#[test]
 fn project_runtime_ignores_a_different_global_version_and_uses_the_lockfile() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();

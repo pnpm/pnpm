@@ -4,6 +4,14 @@ use std::{collections::HashMap, path::Path};
 
 use super::{LoadLockfileError, read_lockfile_text, yaml_parse_options};
 
+/// Whether a wanted-lockfile candidate contains a main document.
+pub enum ImporterLoad {
+    /// The file or its main document is absent.
+    MissingLockfile,
+    /// The main document is present, with the requested importer if found.
+    Importer(Option<ProjectSnapshot>),
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ImporterOnlyLockfile {
@@ -18,15 +26,25 @@ impl Lockfile {
     pub fn load_importer_from_path(
         file_path: &Path,
         importer_id: &str,
-    ) -> Result<Option<ProjectSnapshot>, LoadLockfileError> {
-        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
+    ) -> Result<ImporterLoad, LoadLockfileError> {
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(ImporterLoad::MissingLockfile);
+        };
         let main = extract_main_document(&content);
+        if main.trim().is_empty() {
+            return Ok(ImporterLoad::MissingLockfile);
+        }
         let parsed: ImporterOnlyLockfile =
             serde_saphyr::from_str_with_options(&main, yaml_parse_options(main.len()))
                 .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
         if !LockfileVersion::<9>::is_compatible(parsed.lockfile_version) {
-            return Ok(None);
+            return Ok(match Lockfile::load_from_path(file_path)? {
+                Some(lockfile) => {
+                    ImporterLoad::Importer(lockfile.importers.get(importer_id).cloned())
+                }
+                None => ImporterLoad::MissingLockfile,
+            });
         }
-        Ok(parsed.importers.get(importer_id).cloned())
+        Ok(ImporterLoad::Importer(parsed.importers.get(importer_id).cloned()))
     }
 }

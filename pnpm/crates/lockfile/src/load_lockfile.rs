@@ -1,4 +1,5 @@
 pub use error::LoadLockfileError;
+pub use importer::ImporterLoad;
 
 use crate::{
     ComVer,
