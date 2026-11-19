@@ -174,8 +174,12 @@ fn render_summary_redacts_and_sanitizes_registry() {
         &json!({ "name": "x", "version": "1.0.0" }),
         "https://user:secret@registry.example/\u{1b}[2Knpm/?token=query-secret#fragment-secret",
     );
+    // Stripping the renderer's color also strips an unsanitized `ESC[2K`, so
+    // the `[2K` left in the expected suffix proves the URL's own escape was
+    // removed before printing.
+    let out = console::strip_ansi_codes(&out);
     assert!(out.ends_with("\nregistry: https://registry.example/[2Knpm/"), "{out:?}");
-    for leaked in ["secret", "token", "fragment", "\u{1b}"] {
+    for leaked in ["secret", "token", "fragment"] {
         assert!(!out.contains(leaked), "registry line must not print {leaked:?}: {out:?}");
     }
 }
