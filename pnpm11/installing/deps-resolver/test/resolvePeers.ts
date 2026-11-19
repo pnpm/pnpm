@@ -1211,48 +1211,6 @@ describe('locked peer provider preferences', () => {
 })
 
 describe('dedupePeers', () => {
-  test.each<{ context: string, providerPeers: PeerDependencies }>([
-    { context: 'acyclic peers', providerPeers: {} },
-    { context: 'cyclic peers', providerPeers: { consumer: { version: '*' } } },
-  ])('keeps the peer provider used by each project with $context', async ({ providerPeers }) => {
-    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>()
-    const projects = ['1.0.0', '2.0.0'].map((version) => {
-      const directNodeIdsByAlias = new Map<string, NodeId>()
-      for (const [name, packageVersion, peers] of [
-        ['consumer', '1.0.0', { provider: { version: '*' } }],
-        ['provider', '1.0.0', { optional: { version: '*', optional: true }, ...providerPeers }],
-        ['optional', version, {}],
-      ] as const) {
-        const id = `${name}@${packageVersion}` as PkgIdWithPatchHash
-        const nodeId = `>${version}>${id}>` as NodeId
-        directNodeIdsByAlias.set(name, nodeId)
-        dependenciesTree.set(nodeId, {
-          children: {},
-          depth: 0,
-          installable: true,
-          resolvedPackage: { name, version: packageVersion, pkgIdWithPatchHash: id, id: '' as PkgResolutionId, peers: peerSetOf(peers) },
-        })
-      }
-      return { id: version, rootDir: '' as ProjectRootDir, directNodeIdsByAlias, topParents: [] }
-    })
-    const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
-      allPeerDepNames: new Set(['consumer', 'provider', 'optional']),
-      dedupePeers: true,
-      projects,
-      resolvedImporters: {},
-      dependenciesTree,
-      virtualStoreDir: '',
-      virtualStoreDirMaxLength: 120,
-      lockfileDir: '',
-      peersSuffixMaxLength: 1000,
-      workspaceProjectIds: new Set(),
-    })
-    for (const { id } of projects) {
-      const direct = dependenciesByProjectId[id]
-      expect(dependenciesGraph[direct.get('consumer')!].children.provider).toBe(direct.get('provider'))
-    }
-  })
-
   test('uses version-only peer suffixes without nested dep paths', async () => {
     // Simulates: react@18, @emotion/react@11(peer: react), @emotion/styled@11(peer: react, @emotion/react)
     // Without dedupePeers: @emotion/styled gets suffix (@emotion/react@11(react@18))(react@18) — nested dep paths

@@ -129,10 +129,20 @@ Changing this setting changes the lockfile. pnpm records it in the lockfile's `s
 
 ### dedupePeers
 
+Deprecated. Use [`lockfile.format: v13`](./store.md#lockfileformat) if you want lockfile references without peer suffixes.
+
 * Default: **false**
 * Type: **Boolean**
 
-When enabled, peer dependency suffixes use version-only identifiers (`name@version`) where they identify a single peer instance. If the same peer version resolves to multiple instances, pnpm keeps the peer suffix needed to distinguish them.
+When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This reduces the number of package instances in projects with many recursive peer dependencies.
+
+If two projects use the same peer version with different peer bindings, this setting can make a package link to the other project's peer instance. Set `dedupePeers: false` to preserve both bindings. To keep peer suffixes out of the lockfile, use these settings together and run `pnpm install --no-frozen-lockfile`:
+
+```yaml title="pnpm-workspace.yaml"
+dedupePeers: false
+lockfile:
+  format: v13
+```
 
 This is different from [`dedupePeerDependents`](#dedupepeerdependents), which deduplicates packages that have the same peer dependencies across different workspace projects. `dedupePeers` simplifies the peer dependency suffix format itself.
 

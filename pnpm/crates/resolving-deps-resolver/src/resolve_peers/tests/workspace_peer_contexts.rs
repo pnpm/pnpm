@@ -93,66 +93,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
 }
 
 #[test]
-fn dedupe_peers_keeps_each_importers_peer_provider_variant() {
-    let mut tree = ResolvedTree {
-        packages: HashMap::from_iter([
-            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[("provider", "*")], false)),
-            ("provider@1.0.0".into(), package("provider", "1.0.0", &[("adapter", "*")], false)),
-            ("adapter@1.0.0".into(), package("adapter", "1.0.0", &[], true)),
-            ("adapter@2.0.0".into(), package("adapter", "2.0.0", &[], true)),
-        ]),
-        all_peer_dep_names: HashSet::from_iter(["provider".into(), "adapter".into()]),
-        ..Default::default()
-    };
-    let importers = ["1.0.0", "2.0.0"].map(|version| {
-        let direct = [("consumer", "1.0.0"), ("provider", "1.0.0"), ("adapter", version)]
-            .into_iter()
-            .map(|(alias, version)| {
-                let id = format!("{alias}@{version}");
-                let node_id = NodeId::next();
-                tree.dependencies_tree.insert(node_id.clone(), tree_node(&id, BTreeMap::new(), 0));
-                DirectDep { alias: alias.to_owned(), node_id, id: id.into() }
-            })
-            .collect();
-        ImporterPeerInput {
-            id: version.to_owned(),
-            direct,
-            root_dir: std::path::Path::new("/repo").join(version),
-            modules_dir: None,
-            declared_direct_dependencies: HashSet::default(),
-            explicitly_requested_direct_dependencies: HashSet::default(),
-            rejected_optional_peers: HashSet::default(),
-            hoisted_peer_provider_node_ids: HashSet::default(),
-        }
-    });
-    let result = resolve_peers_workspace(
-        &mut tree,
-        &importers,
-        std::path::Path::new("/repo"),
-        WorkspacePeerSettings::default(),
-        ResolvePeersOptions { dedupe_peers: true, ..Default::default() },
-    );
-    for importer in importers {
-        let direct = &result.direct_dependencies_by_importer[&importer.id];
-        let consumer = &result.graph[&direct["consumer"]];
-        assert_eq!(consumer.edges.children["provider"], direct["provider"]);
-    }
-}
-
-#[test]
 fn a_shared_consumer_keeps_each_importers_peer_provider_variant() {
-    assert_cyclic_importers_keep_peer_provider_variants(ResolvePeersOptions::default());
-}
-
-#[test]
-fn dedupe_peers_keeps_each_importers_cyclic_peer_provider_variant() {
-    assert_cyclic_importers_keep_peer_provider_variants(ResolvePeersOptions {
-        dedupe_peers: true,
-        ..Default::default()
-    });
-}
-
-fn assert_cyclic_importers_keep_peer_provider_variants(options: ResolvePeersOptions) {
     let plugin_v1 = NodeId::next();
     let plugin_v2 = NodeId::next();
     let utils_root = NodeId::next();
@@ -261,7 +202,7 @@ fn assert_cyclic_importers_keep_peer_provider_variants(options: ResolvePeersOpti
         &importers,
         std::path::Path::new("/repo"),
         WorkspacePeerSettings { resolve_peers_from_workspace_root: true, ..Default::default() },
-        options,
+        ResolvePeersOptions::default(),
     );
 
     for importer in [".", "app"] {

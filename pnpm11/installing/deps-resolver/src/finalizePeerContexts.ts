@@ -25,53 +25,12 @@ Omit<AddDepPathContext<Pkg>, 'parentNodeIds' | 'parentDepPathsChain'> & {
 
 export function finalizePeerContexts<Pkg extends PartialResolvedPackage> (ctx: FinalizeContext<Pkg>): void {
   if (ctx.peerNodes.size === 0) return
-  const cyclicPeer = getCyclicPeerPredicate(ctx)
-  if (ctx.dedupePeers || cyclicPeer != null) {
-    const isCyclic = cyclicPeer ?? (() => false)
-    if (cyclicPeer != null) propagateCyclicPeerContexts(ctx, cyclicPeer)
-    const fullPaths = calculateFinalPaths(ctx, isCyclic)
-    const paths = ctx.dedupePeers
-      ? calculateFinalPaths(ctx, isCyclic, findAmbiguousPeers(ctx, fullPaths))
-      : fullPaths
-    rebuildPeerNodes(ctx, paths)
+  const isCyclic = getCyclicPeerPredicate(ctx)
+  if (isCyclic != null) {
+    if (!ctx.dedupePeers) propagateCyclicPeerContexts(ctx, isCyclic)
+    rebuildPeerNodes(ctx, calculateFinalPaths(ctx, isCyclic))
   }
   ctx.peerNodes.clear()
-}
-
-function findAmbiguousPeers<Pkg extends PartialResolvedPackage> (
-  ctx: FinalizeContext<Pkg>,
-  fullPaths: Map<NodeId, DepPath>
-): Set<string> {
-  const pathsByPeer = new Map<string, DepPath>()
-  const ambiguousPeers = new Set<string>()
-  for (const { resolvedNode } of ctx.peerNodes.values()) {
-    for (const peer of resolvedNode.allResolvedPeers.values()) {
-      const entry = getFlatPeerPath(ctx, fullPaths, peer)
-      if (entry == null) continue
-      const [key, path] = entry
-      const previous = pathsByPeer.get(key)
-      if (previous == null) pathsByPeer.set(key, path)
-      else if (previous !== path) ambiguousPeers.add(key)
-    }
-  }
-  return ambiguousPeers
-}
-
-function getFlatPeerPath<Pkg extends PartialResolvedPackage> (
-  ctx: FinalizeContext<Pkg>,
-  fullPaths: Map<NodeId, DepPath>,
-  peer: NodeId
-): [string, DepPath] | undefined {
-  const owner = getPeerCacheOwner(ctx.peersCacheOwnerByNodeId, peer)
-  const pkg = ctx.dependenciesTree.get(owner)?.resolvedPackage
-  const path = fullPaths.get(owner) ?? ctx.pathsByNodeId.get(owner)
-  if (pkg != null && path != null) return [flatPeerKey(pkg), path]
-  return undefined
-}
-
-function flatPeerKey (pkg: Parameters<typeof peerIdOfResolvedPackage>[0]): string {
-  const { name, version } = peerIdOfResolvedPackage(pkg)
-  return `${name}@${version}`
 }
 
 function rebuildPeerNodes<Pkg extends PartialResolvedPackage> (ctx: FinalizeContext<Pkg>, finalPaths: Map<NodeId, DepPath>): void {
@@ -104,8 +63,7 @@ function updateOccurrencePaths<Pkg extends PartialResolvedPackage> (ctx: Finaliz
 
 function calculateFinalPaths<Pkg extends PartialResolvedPackage> (
   ctx: FinalizeContext<Pkg>,
-  isCyclic: (nodeId: NodeId, alias: string, peerId: NodeId) => boolean,
-  ambiguousPeers?: Set<string>
+  isCyclic: (nodeId: NodeId, alias: string, peerId: NodeId) => boolean
 ): Map<NodeId, DepPath> {
   const finalPaths = new Map<NodeId, DepPath>()
   function peerIdOf (nodeId: NodeId, alias: string, peer: NodeId): PeerId {
@@ -114,7 +72,7 @@ function calculateFinalPaths<Pkg extends PartialResolvedPackage> (
       return { name: alias, version: linkPathToPeerVersion(peer.slice(5)) }
     }
     const pkg = ctx.dependenciesTree.get(peer)?.resolvedPackage
-    if (pkg != null && (isCyclic(nodeId, alias, peer) || (ambiguousPeers != null && !ambiguousPeers.has(flatPeerKey(pkg))))) {
+    if (pkg != null && (ctx.dedupePeers || isCyclic(nodeId, alias, peer))) {
       return peerIdOfResolvedPackage(pkg)
     }
     return finalPaths.get(peer) ?? ctx.pathsByNodeId.get(peer)!
@@ -143,6 +101,7 @@ function* getPeerFinalizationOrder<Pkg extends PartialResolvedPackage> (
     if (visited.has(nodeId)) continue
     visited.add(nodeId)
     pending.push([nodeId, true])
+    if (ctx.dedupePeers) continue
     for (const owner of getFullPeerPathTargets(ctx, nodeId, isCyclic).reverse()) pending.push([owner, false])
   }
 }

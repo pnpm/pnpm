@@ -94,7 +94,6 @@ pub(super) struct PendingPeerEdge {
 struct FinalPeerContext<'a> {
     scc_of: &'a HashMap<NodeId, usize>,
     cyclic_peer_names: &'a HashSet<String>,
-    ambiguous_peers: Option<&'a HashSet<PeerId>>,
 }
 
 impl Walker<'_> {
