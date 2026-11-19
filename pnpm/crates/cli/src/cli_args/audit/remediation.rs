@@ -1,9 +1,9 @@
 use super::{
     Arc, AuditAdvisory, AuditArgs, AuditError, AuditFixObserver, AuditOutcome, AuditReport,
     BTreeMap, Config, FixContext, FixMethod, GuardExhaustionPolicy, PackageVersionGuard,
-    PackageVersionGuardDecision, PackageVersionGuardFuture, RangeSpecStyle, Reporter,
-    ResolutionObserver, ResolvedPackageHint, State, Version, VulnerabilityGuard,
-    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
+    PackageVersionGuardDecision, PackageVersionGuardFuture, RangeSpecStyle, ReleaseAgeExclusions,
+    Reporter, ResolutionObserver, ResolvedPackageHint, State, Version, VulnerabilityGuard,
+    filter_advisories_for_fix, fix::fix_override, fix_with_update, format_fix_with_update_output,
     interactive_select, print_command_output, prune_ignored_ghsas, sanitize_inline,
     satisfies_including_prerelease,
 };
@@ -131,15 +131,12 @@ impl AuditArgs {
         let Some(filtered) = self.select_advisories(filtered, range_spec_style)? else {
             return Ok(AuditOutcome::Clean);
         };
+        let release_age_exclusions =
+            ReleaseAgeExclusions::from_skip_additions_flag(self.no_add_release_age_exclusions);
         match fix_method {
             FixMethod::Override => {
-                let output = fix_override(
-                    &filtered,
-                    context.settings_dir,
-                    state.config,
-                    context.publish_infos,
-                )
-                .await?;
+                let output =
+                    fix_override(&filtered, state.config, context, release_age_exclusions).await?;
                 print_command_output(&output);
                 Ok(AuditOutcome::Clean)
             }
@@ -150,6 +147,7 @@ impl AuditArgs {
                     context.lockfile_dir,
                     context.settings_dir,
                     context.publish_infos,
+                    release_age_exclusions,
                 )
                 .await?;
                 let mut output = format_fix_with_update_output(&fixed, &remaining, &filtered);
