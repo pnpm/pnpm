@@ -318,7 +318,7 @@ fn migrate_with_hook(
         workspace,
         ".pnpmfile.cjs",
         &format!(
-            "module.exports = {{ hooks: {{ updateConfig (config) {{\n{hook}\n  return config;\n}} }} }}"
+            "module.exports = {{ hooks: {{ updateConfig (config) {{\n{hook}\n  return config;\n}} }} }}",
         ),
     );
     let output = Command::cargo_bin("pnpm")

@@ -63,7 +63,7 @@ impl CatalogArgs {
         dir: &Path,
     ) -> miette::Result<()> {
         match self.command {
-            CatalogSubcommand::Migrate => migrate(config, pre_hook_config, dir).await,
+            CatalogSubcommand::Migrate => Box::pin(migrate(config, pre_hook_config, dir)).await,
         }
     }
 }
