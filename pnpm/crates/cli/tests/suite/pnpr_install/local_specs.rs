@@ -174,3 +174,46 @@ fn install_and_ci_with_pnpr_and_frozen_store_fall_back_locally_for_file_specs() 
 
     drop(root);
 }
+
+#[test]
+fn ci_fix_lockfile_ignore_manifest_check_with_pnpr_uses_repair_loader_before_local_fallback() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"app","version":"1.0.0","dependencies":{"is-positive":"1.0.0"}}"#,
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut broken: serde_json::Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read lockfile"))
+            .expect("parse lockfile");
+    for snapshot in broken["snapshots"]
+        .as_object_mut()
+        .expect("snapshots")
+        .values_mut()
+    {
+        snapshot["transitivePeerDependencies"] = serde_json::json!("broken metadata");
+    }
+    fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize broken lockfile"))
+        .expect("write broken lockfile");
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["ci", "--fix-lockfile", "--ignore-manifest-check", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/is-positive/package.json").exists());
+
+    drop((root, mock_instance));
+}

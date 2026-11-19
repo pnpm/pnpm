@@ -1,5 +1,5 @@
 use super::{
-    InstallFamilySelection, Lockfile, PnprLink, Reporter, State, pnpr_catalogs,
+    InstallFamilySelection, Lockfile, MaybeLazyLockfile, PnprLink, Reporter, State, pnpr_catalogs,
     pnpr_local_specs::{check_no_local_lockfile_specs_for_pnpr, check_no_local_specs_for_pnpr},
     pnpr_lockfile_dir, resolve_projects_for_pnpr,
 };
@@ -97,11 +97,31 @@ pub(crate) async fn uses_pnpr_server(
         return Ok(false);
     }
     if link.lockfile.ignore_manifest_check
-        && check_no_local_lockfile_specs_for_pnpr(state.config, state.lockfile.get()?).is_err()
+        && check_no_local_lockfile_specs_for_pnpr(state.config, peek_previous_wanted(state, link)?)
+            .is_err()
     {
         return Ok(false);
     }
     Ok(true)
+}
+
+fn peek_previous_wanted<'a>(
+    state: &'a State,
+    link: &PnprLink<'_>,
+) -> miette::Result<Option<&'a Lockfile>> {
+    if !link.use_state_lockfile {
+        return Ok(None);
+    }
+    let lockfile_source = if link.lockfile.fix {
+        MaybeLazyLockfile::Repair(&state.lockfile)
+    } else {
+        MaybeLazyLockfile::Lazy(&state.lockfile)
+    };
+    match lockfile_source.get() {
+        Ok(lockfile) => Ok(lockfile),
+        Err(_) if !link.lockfile.frozen => Ok(None),
+        Err(error) => Err(miette::Report::new(error).wrap_err("load the lockfile")),
+    }
 }
 
 /// The pnpmfile hooks this install runs, unless the run disabled them.
