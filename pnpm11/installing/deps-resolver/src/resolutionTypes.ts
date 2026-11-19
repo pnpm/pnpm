@@ -1,4 +1,5 @@
 import type { CatalogResolver } from '@pnpm/catalogs.resolver'
+import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import type { LockfileObject, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
@@ -135,6 +136,7 @@ export interface ResolutionContext extends RegistryContext {
   force: boolean
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
+  parsedOverrides?: VersionOverride[]
   overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   engineStrict: boolean
   nodeVersion?: string

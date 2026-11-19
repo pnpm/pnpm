@@ -307,6 +307,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
             pick_lowest_direct: false,
             time_based: false,
         },
+        parsed_overrides: None,
     }
 }
 

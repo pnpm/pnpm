@@ -36,6 +36,9 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 /// injection, the overrides, or the removal.
 pub(super) struct ManifestTransforms {
     pub parsed_overrides: Option<Vec<pnpm_config_parse_overrides::VersionOverride>>,
+    /// `parsed_overrides` in the form the resolver attributes missing
+    /// versions with.
+    pub override_entries: Option<Arc<[pnpm_resolving_deps_resolver::OverrideEntry]>>,
     pub resolved_overrides: Option<IndexMap<String, String>>,
     pub package_extensions_checksum: Option<String>,
     pub versions_overrider: Option<Arc<VersionsOverrider>>,
@@ -74,6 +77,7 @@ pub(super) fn build_manifest_transforms(
     let effective_importer_manifests = transforms.apply_to_all(importer_manifests);
     Ok(ManifestTransforms {
         resolved_overrides: parsed_overrides.as_deref().map(resolved_overrides_map),
+        override_entries: parsed_overrides.as_deref().map(override_entries),
         package_extensions_checksum: super::compute_package_extensions_checksum(config),
         parsed_overrides,
         versions_overrider,
@@ -322,4 +326,18 @@ fn remove_ignored_dependencies(manifest: &mut Value, ignored: &[String]) {
             }
         }
     }
+}
+
+fn override_entries(
+    overrides: &[pnpm_config_parse_overrides::VersionOverride],
+) -> Arc<[pnpm_resolving_deps_resolver::OverrideEntry]> {
+    overrides
+        .iter()
+        .map(|entry| pnpm_resolving_deps_resolver::OverrideEntry {
+            selector: entry.selector.clone(),
+            name: entry.target_pkg.name.clone(),
+            selector_range: entry.target_pkg.bare_specifier.clone(),
+            new_bare_specifier: entry.new_bare_specifier.clone(),
+        })
+        .collect()
 }

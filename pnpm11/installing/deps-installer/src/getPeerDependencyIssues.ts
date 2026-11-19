@@ -113,7 +113,7 @@ function createResolveOptions ({ ctx, lockfileDir, opts, preferredVersions }: {
 function createOverrideHooks (
   opts: ListMissingPeersOptions,
   lockfileDir: string
-): Pick<Parameters<typeof resolveDependencies>[1], 'hooks' | 'overrideBareSpecifier'> {
+): Pick<Parameters<typeof resolveDependencies>[1], 'hooks' | 'overrideBareSpecifier' | 'parsedOverrides'> {
   const overrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
   return {
     hooks: {
@@ -127,6 +127,7 @@ function createOverrideHooks (
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
       }),
     },
+    parsedOverrides: overrides,
     overrideBareSpecifier: createDependencyOverrider(overrides, lockfileDir, opts.catalogs),
   }
 }
