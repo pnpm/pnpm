@@ -303,10 +303,9 @@ fn audit_fix_override_writes_age_exclude_when_patched_version_is_within_the_wind
         "minimumReleaseAge: 10000000\nminimumReleaseAgeExclude: [existing@1.0.0]\n",
     );
 
-    let output =
-        pacquet_cmd(&workspace, ["audit", "--fix", "--frozen-minimum-release-age-exclude"])
-            .output()
-            .expect("run audit with frozen exclusions");
+    let output = pacquet_cmd(&workspace, ["audit", "--fix", "--no-add-release-age-exclusions"])
+        .output()
+        .expect("run audit without adding age exclusions");
     assert_success(&output);
     let manifest_path = workspace.join("pnpm-workspace.yaml");
     let manifest = fs::read_to_string(&manifest_path).expect("read workspace manifest");
@@ -1053,7 +1052,7 @@ fn audit_fix_update_moves_to_a_non_vulnerable_version() {
 }
 
 #[test]
-fn audit_fix_update_respects_frozen_minimum_release_age_exclusions() {
+fn audit_fix_update_skips_adding_release_age_exclusions() {
     const PKG: &str = "@pnpm.e2e/bravo-dep";
     let CommandTempCwd {
         workspace, npmrc_info, root: _root, ..
@@ -1062,7 +1061,7 @@ fn audit_fix_update_respects_frozen_minimum_release_age_exclusions() {
     fs::write(
         workspace.join("package.json"),
         format!(
-            r#"{{"name":"audit-frozen","version":"1.0.0","dependencies":{{"{PKG}":"~1.0.0"}}}}"#,
+            r#"{{"name":"audit-no-age-exclusions","version":"1.0.0","dependencies":{{"{PKG}":"~1.0.0"}}}}"#,
         ),
     )
     .expect("write package.json");
@@ -1101,12 +1100,10 @@ fn audit_fix_update_respects_frozen_minimum_release_age_exclusions() {
     let manifest_path = workspace.join("pnpm-workspace.yaml");
     let manifest = fs::read_to_string(&manifest_path).expect("read workspace manifest");
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    let output = pacquet_cmd(
-        &workspace,
-        ["audit", "--fix", "update", "--frozen-minimum-release-age-exclude"],
-    )
-    .output()
-    .expect("run audit with frozen exclusions");
+    let output =
+        pacquet_cmd(&workspace, ["audit", "--fix", "update", "--no-add-release-age-exclusions"])
+            .output()
+            .expect("run audit without adding age exclusions");
     assert_eq!(output.status.code(), Some(1), "{}", stdout(&output));
     let stderr = stderr(&output);
     assert!(stderr.contains("ERR_PNPM_NO_MATURE_MATCHING_VERSION"), "{stderr}");
@@ -1117,12 +1114,10 @@ fn audit_fix_update_respects_frozen_minimum_release_age_exclusions() {
 
     let non_strict_manifest = format!("{manifest}\nminimumReleaseAgeStrict: false\n");
     fs::write(&manifest_path, &non_strict_manifest).expect("disable strict release age");
-    let output = pacquet_cmd(
-        &workspace,
-        ["audit", "--fix", "update", "--frozen-minimum-release-age-exclude"],
-    )
-    .output()
-    .expect("run audit with frozen exclusions in non-strict mode");
+    let output =
+        pacquet_cmd(&workspace, ["audit", "--fix", "update", "--no-add-release-age-exclusions"])
+            .output()
+            .expect("run audit without adding age exclusions in non-strict mode");
     assert_success(&output);
     assert_eq!(fs::read_to_string(&manifest_path).unwrap(), non_strict_manifest);
     let lockfile = fs::read_to_string(&lockfile_path).unwrap();

@@ -132,7 +132,7 @@ impl AuditArgs {
             return Ok(AuditOutcome::Clean);
         };
         let release_age_exclusions =
-            ReleaseAgeExclusions::from_frozen_flag(self.frozen_minimum_release_age_exclude);
+            ReleaseAgeExclusions::from_skip_additions_flag(self.no_add_release_age_exclusions);
         match fix_method {
             FixMethod::Override => {
                 let output =

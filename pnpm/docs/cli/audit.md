@@ -61,7 +61,7 @@ Use `--fix=update` to fix vulnerabilities by updating the vulnerable packages in
 
 When [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) would block the minimum patched version, `--fix` adds it to [`minimumReleaseAgeExclude`](../settings/dependency-resolution.md#minimumreleaseageexclude) in `pnpm-workspace.yaml` so it can be installed.
 
-### --frozen-minimum-release-age-exclude
+### --no-add-release-age-exclusions
 
 Skip automatic additions to `minimumReleaseAgeExclude` for both fix methods and interactive fixes. The release age policy can still block recently published patches unless an existing exclusion allows them. If the resolver selects a patch that the age policy blocks, `--fix=update` can exit with `ERR_PNPM_NO_MATURE_MATCHING_VERSION`. With `--fix=update`, the update still follows [`minimumReleaseAgeExcludePrune`](../settings/dependency-resolution.md#minimumreleaseageexcludeprune).
 

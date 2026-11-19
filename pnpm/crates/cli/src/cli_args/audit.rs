@@ -100,7 +100,7 @@ pub struct AuditArgs {
     pub fix: Option<String>,
     /// Skip automatic additions to minimumReleaseAgeExclude during audit fixes.
     #[clap(long)]
-    pub frozen_minimum_release_age_exclude: bool,
+    pub no_add_release_age_exclusions: bool,
     /// Show vulnerabilities and select which ones to fix interactively.
     #[clap(short = 'i', long)]
     pub interactive: bool,
@@ -140,8 +140,8 @@ pub(crate) enum ReleaseAgeExclusions {
 }
 
 impl ReleaseAgeExclusions {
-    fn from_frozen_flag(frozen: bool) -> Self {
-        if frozen { Self::SkipAdditions } else { Self::AddForPatches }
+    fn from_skip_additions_flag(skip_additions: bool) -> Self {
+        if skip_additions { Self::SkipAdditions } else { Self::AddForPatches }
     }
 }
 
