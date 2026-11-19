@@ -80,7 +80,6 @@ docs = ['gamma>=1.0.0,<2.0.0']
         .assert()
         .success();
 
-    // Updating all dependencies updates the extra in place while preserving `[project.optional-dependencies]`.
     pacquet_in(root.path())
         .arg("update")
         .assert()
