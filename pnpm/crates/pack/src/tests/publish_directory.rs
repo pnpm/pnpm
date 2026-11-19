@@ -114,6 +114,7 @@ fn invalid_publish_config_directory_fails_before_prepack_scripts() {
 #[test]
 fn packs_valid_relative_publish_config_directories() {
     for (directory, rel_dir) in [
+        ("./", "."),
         ("dist", "dist"),
         ("./dist", "dist"),
         ("./build/dist/", "build/dist"),
@@ -125,11 +126,13 @@ fn packs_valid_relative_publish_config_directories() {
             "version": "1.0.0",
             "publishConfig": { "directory": directory },
         }));
-        touch(
-            dir.path(),
-            &format!("{rel_dir}/package.json"),
-            &serde_json::to_string(&json!({ "name": "pkg", "version": "1.0.0" })).unwrap(),
-        );
+        if rel_dir != "." {
+            touch(
+                dir.path(),
+                &format!("{rel_dir}/package.json"),
+                &serde_json::to_string(&json!({ "name": "pkg", "version": "1.0.0" })).unwrap(),
+            );
+        }
         touch(dir.path(), &format!("{rel_dir}/index.js"), "module.exports = 1;\n");
 
         let result = api::<SilentReporter, Host>(&opts)

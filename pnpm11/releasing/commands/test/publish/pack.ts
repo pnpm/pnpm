@@ -2411,11 +2411,13 @@ describe('publishConfig.directory containment', () => {
       version: '1.0.0',
       publishConfig: { directory },
     })
-    fs.mkdirSync(relDir, { recursive: true })
-    fs.writeFileSync(path.join(relDir, 'package.json'), JSON.stringify({
-      name: 'valid-publish-dir',
-      version: '1.0.0',
-    }))
+    if (relDir !== '.') {
+      fs.mkdirSync(relDir, { recursive: true })
+      fs.writeFileSync(path.join(relDir, 'package.json'), JSON.stringify({
+        name: 'valid-publish-dir',
+        version: '1.0.0',
+      }))
+    }
     fs.writeFileSync(path.join(relDir, 'index.js'), 'module.exports = 1\n')
 
     await pack.handler({
