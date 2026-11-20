@@ -170,7 +170,7 @@ fn install_warns_why_it_recreates_the_modules_dir() {
             "will be recreated. This modules directory was created using a different node-linker value.",
         ],
     );
-    assert!(!report.contains("Run \"pnpm install\" to recreate"), "{report}");
+    assert!(!report.contains(r#"Run "pnpm install" to recreate"#), "{report}");
 
     drop((root, mock_instance));
 }
