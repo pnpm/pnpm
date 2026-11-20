@@ -108,7 +108,7 @@ fn version_flags_do_not_modify_the_project_directory() {
             .expect("set directory timestamp");
 
         let output = test_command(pacquet, root.path())
-            .args(&args)
+            .with_args(&args)
             .output()
             .expect("run version flag");
         assert!(output.status.success(), "{args:?}: {output:?}");
@@ -207,8 +207,8 @@ fn version_flag_switches_to_project_package_manager_version() {
         .expect("write package.json");
 
     let output = test_command(pacquet, root.path())
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["--version"])
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["--version"])
         .output()
         .expect("run pacquet --version");
     dbg!(&output);
@@ -234,8 +234,8 @@ fn unknown_option_goes_to_the_pinned_pnpm() {
         ["--only-the-pinned-pnpm-knows", "install"],
     ] {
         let output = test_command(pacquet_in(&workspace), root.path())
-            .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-            .args(args)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(args)
             .output()
             .expect("run pacquet with an unknown option");
         dbg!(&output);
@@ -270,8 +270,8 @@ fn unknown_option_stays_rejected_for_commands_that_do_not_switch() {
         &["add", "-gE", "is-positive", "--only-the-pinned-pnpm-knows"],
     ] {
         let output = test_command(pacquet_in(&workspace), root.path())
-            .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-            .args(args)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(args)
             .output()
             .expect("run pacquet with an unknown option");
         dbg!(&output);
@@ -291,7 +291,7 @@ fn unknown_option_is_rejected_without_a_pin_to_switch_to() {
     fs::write(workspace.join("package.json"), r#"{"name":"project"}"#).expect("write package.json");
 
     let output = test_command(pacquet, root.path())
-        .args(["install", "--only-the-pinned-pnpm-knows"])
+        .with_args(["install", "--only-the-pinned-pnpm-knows"])
         .output()
         .expect("run pacquet install with an unknown option");
     dbg!(&output);
@@ -321,8 +321,8 @@ fn version_flag_switches_to_the_pinned_version_under_the_hoisted_node_linker() {
         .expect("write pnpm-workspace.yaml");
 
     let output = test_command(pacquet, root.path())
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["--version"])
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["--version"])
         .output()
         .expect("run pacquet --version");
     dbg!(&output);
@@ -356,8 +356,8 @@ fn version_flag_reuses_the_pinned_engine_when_node_version_names_another_major()
     .expect("write pnpm-workspace.yaml");
 
     let output = test_command(pacquet_in(&workspace), root.path())
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["--version"])
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["--version"])
         .output()
         .expect("run pacquet --version");
     dbg!(&output);
@@ -365,9 +365,9 @@ fn version_flag_reuses_the_pinned_engine_when_node_version_names_another_major()
     assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
 
     let output = test_command(pacquet_in(&workspace), root.path())
-        .env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:9/")
-        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
-        .args(["--version"])
+        .with_env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:9/")
+        .with_env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .with_args(["--version"])
         .output()
         .expect("run pacquet --version against an unreachable registry");
     dbg!(&output);
@@ -397,8 +397,8 @@ fn version_flag_installs_the_pinned_engine_for_the_host_when_supported_architect
     .expect("write pnpm-workspace.yaml");
 
     let output = test_command(pacquet_in(&workspace), root.path())
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["--version"])
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["--version"])
         .output()
         .expect("run pacquet --version");
     dbg!(&output);
@@ -406,9 +406,9 @@ fn version_flag_installs_the_pinned_engine_for_the_host_when_supported_architect
     assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
 
     let output = test_command(pacquet_in(&workspace), root.path())
-        .env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:9/")
-        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
-        .args(["--version"])
+        .with_env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:9/")
+        .with_env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .with_args(["--version"])
         .output()
         .expect("run pacquet --version against an unreachable registry");
     dbg!(&output);
@@ -435,8 +435,8 @@ fn version_flag_reinstalls_a_pinned_engine_slot_missing_the_host_binary() {
     .expect("write package.json");
     let run = || {
         test_command(pacquet_in(&workspace), root.path())
-            .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-            .args(["--version"])
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(["--version"])
             .output()
             .expect("run pacquet --version")
     };
@@ -517,13 +517,12 @@ fn child_pnpm_selects_the_version_for_its_own_directory() {
     ",
     )
     .expect("write child version script");
-    let mut command = test_command(pacquet, root.path());
-    command
-        .current_dir(&project_a)
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["exec", "node"])
-        .arg(&version_script)
-        .arg(&project_b);
+    let mut command = test_command(pacquet, root.path())
+        .with_current_dir(&project_a)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["exec", "node"])
+        .with_arg(&version_script)
+        .with_arg(&project_b);
     let output = output_within(&mut command, STALL_DEADLINE);
     dbg!(&output);
     assert!(output.status.success(), "child pnpm should succeed");
@@ -554,8 +553,8 @@ fn version_flag_records_a_pinned_package_manager_it_does_not_need_to_switch_to()
     .expect("write package.json");
 
     let output = test_command(pacquet, root.path())
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["--version"])
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["--version"])
         .output()
         .expect("run pacquet --version");
     dbg!(&output);
@@ -630,8 +629,8 @@ fn version_flag_records_the_minimum_release_age_exclude_in_a_project_without_a_w
     fs::remove_file(workspace.join("pnpm-workspace.yaml")).expect("remove pnpm-workspace.yaml");
 
     let output = version_command(root.path(), &workspace, mock_instance.url())
-        .env("PNPM_CONFIG_MINIMUM_RELEASE_AGE", (60 * 24 * 365 * 100).to_string())
-        .env("PNPM_CONFIG_MINIMUM_RELEASE_AGE_STRICT", "false")
+        .with_env("PNPM_CONFIG_MINIMUM_RELEASE_AGE", (60 * 24 * 365 * 100).to_string())
+        .with_env("PNPM_CONFIG_MINIMUM_RELEASE_AGE_STRICT", "false")
         .output()
         .expect("run pacquet --version");
     dbg!(&output);
@@ -667,10 +666,10 @@ fn a_global_command_does_not_record_the_minimum_release_age_exclude_in_the_proje
     )
     .expect("join PATH");
     let output = test_command(command, root.path())
-        .env("PNPM_HOME", &pnpm_home)
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .env("PATH", path)
-        .args(["root", "-g"])
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PATH", path)
+        .with_args(["root", "-g"])
         .output()
         .expect("run pacquet root -g");
     assert!(output.status.success(), "pacquet root -g should succeed");
@@ -722,8 +721,8 @@ fn version_flag_reports_a_pin_it_cannot_record() {
     let output = workspace_rejects_writes(&workspace)
         .then(|| {
             test_command(pacquet, root.path())
-                .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-                .args(["--version"])
+                .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+                .with_args(["--version"])
                 .output()
                 .expect("run pacquet --version")
         });
@@ -764,7 +763,7 @@ fn version_flag_succeeds_when_the_project_pins_another_package_manager() {
         .expect("write package.json");
 
     let output = test_command(pacquet, root.path())
-        .arg("--version")
+        .with_arg("--version")
         .output()
         .expect("run pacquet --version");
 
@@ -781,7 +780,7 @@ fn help_flag_succeeds_when_the_project_pins_another_package_manager() {
         .expect("write package.json");
 
     let output = test_command(pacquet, root.path())
-        .arg("--help")
+        .with_arg("--help")
         .output()
         .expect("run pacquet --help");
 
@@ -806,8 +805,8 @@ fn switching_runs_the_native_binary_of_the_pinned_pnpm_without_its_shell_shim() 
     write_dev_engine_pin(&workspace, "9.3.0");
     let with_version = || {
         test_command(pacquet_in(&workspace), root.path())
-            .env("PNPM_CONFIG_REGISTRY", registry)
-            .args(["with", "9.3.0", "--version"])
+            .with_env("PNPM_CONFIG_REGISTRY", registry)
+            .with_args(["with", "9.3.0", "--version"])
             .output()
             .expect("run pacquet with 9.3.0 --version")
     };
@@ -964,18 +963,19 @@ fn assert_version_switch_case(
     };
     let mut cmd = test_command(base_cmd, &case_dir);
     if case.registry_from_user_npmrc {
-        cmd.env("PNPM_CONFIG_NPMRC_AUTH_FILE", case_dir.join(".npmrc"));
+        cmd = cmd.with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", case_dir.join(".npmrc"));
     } else {
-        cmd.env("PNPM_CONFIG_REGISTRY", registry_url);
+        cmd = cmd.with_env("PNPM_CONFIG_REGISTRY", registry_url);
     }
-    cmd.env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
-        .env("HTTPS_PROXY", "http://127.0.0.1:9/")
-        .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
-        .env("NO_PROXY", "127.0.0.1,localhost")
-        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
-        .args(case.cli_args);
+    cmd = cmd
+        .with_env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+        .with_env("HTTPS_PROXY", "http://127.0.0.1:9/")
+        .with_env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
+        .with_env("NO_PROXY", "127.0.0.1,localhost")
+        .with_env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .with_args(case.cli_args);
     if let Some((k, v)) = case.env_extra {
-        cmd.env(k, v);
+        cmd = cmd.with_env(k, v);
     }
     let output = cmd.output().expect("run pnpm version switch");
     let cli_args = case.cli_args;
@@ -1112,13 +1112,13 @@ fn v11_switches_up_to_head_binary_from_local_registry() {
             .join(format!("outer-runner-{idx}"));
         fs::create_dir_all(&runner_root).expect("create outer runner root");
         let output = test_command(base_cmd, &runner_root)
-            .env("PNPM_CONFIG_REGISTRY", registry.url())
-            .env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
-            .env("HTTPS_PROXY", "http://127.0.0.1:9/")
-            .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
-            .env("NO_PROXY", "127.0.0.1,localhost")
-            .env("PNPM_CONFIG_FETCH_RETRIES", "0")
-            .arg("--version")
+            .with_env("PNPM_CONFIG_REGISTRY", registry.url())
+            .with_env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+            .with_env("HTTPS_PROXY", "http://127.0.0.1:9/")
+            .with_env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
+            .with_env("NO_PROXY", "127.0.0.1,localhost")
+            .with_env("PNPM_CONFIG_FETCH_RETRIES", "0")
+            .with_arg("--version")
             .output()
             .expect("run outer CLI --version switching to HEAD");
         assert!(
@@ -1230,8 +1230,9 @@ fn version_command(root: &Path, workspace: &Path, registry: &str) -> Command {
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .without_ambient_pnpm_config();
-    let mut command = test_command(command, root);
-    command.env("PNPM_CONFIG_REGISTRY", registry).arg("--version");
+    let command = test_command(command, root)
+        .with_env("PNPM_CONFIG_REGISTRY", registry)
+        .with_arg("--version");
     command
 }
 
@@ -1245,12 +1246,13 @@ fn pacquet_in(workspace: &Path) -> Command {
 }
 
 fn test_command(mut command: Command, root: &Path) -> Command {
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
-    command.env_remove("COREPACK_ROOT");
-    command.env_remove("pnpm_config_pm_on_fail");
-    command.env_remove("PNPM_CONFIG_PM_ON_FAIL");
+    command = command
+        .with_env("PNPM_HOME", root.join("pnpm-home"))
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
+        .without_env("COREPACK_ROOT")
+        .without_env("pnpm_config_pm_on_fail")
+        .without_env("PNPM_CONFIG_PM_ON_FAIL");
     command
 }
 
@@ -1262,11 +1264,11 @@ fn test_command(mut command: Command, root: &Path) -> Command {
 
 fn pacquet_version(workspace: &Path, args: &[&str]) -> std::process::Output {
     use assert_cmd::cargo::CommandCargoExt as _;
-    let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    command
-        .current_dir(workspace)
-        .arg("version")
-        .args(args);
+    let mut command = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_arg("version")
+        .with_args(args);
     command.output().expect("run pacquet version")
 }
 
@@ -1299,8 +1301,8 @@ fn init_git(dir: &Path) {
         vec!["config", "tag.gpgSign", "false"],
     ] {
         let status = Command::new("git")
-            .args(&args)
-            .current_dir(dir)
+            .with_args(&args)
+            .with_current_dir(dir)
             .status()
             .expect("run git");
         assert!(status.success(), "git {args:?} should succeed");
@@ -1310,8 +1312,8 @@ fn init_git(dir: &Path) {
 fn git_commit_all(dir: &Path, message: &str) {
     for args in [vec!["add", "."], vec!["commit", "-q", "-m", message, "--no-gpg-sign"]] {
         let status = Command::new("git")
-            .args(&args)
-            .current_dir(dir)
+            .with_args(&args)
+            .with_current_dir(dir)
             .status()
             .expect("run git");
         assert!(status.success(), "git {args:?} should succeed");
@@ -1320,8 +1322,8 @@ fn git_commit_all(dir: &Path, message: &str) {
 
 fn git_stdout(dir: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
-        .args(args)
-        .current_dir(dir)
+        .with_args(args)
+        .with_current_dir(dir)
         .output()
         .expect("run git");
     assert!(output.status.success(), "git {args:?} should succeed");
@@ -1542,8 +1544,10 @@ fn write_two_package_workspace(workspace: &Path) -> (PathBuf, PathBuf) {
 
 fn pacquet_recursive_version(workspace: &Path, args: &[&str]) -> std::process::Output {
     use assert_cmd::cargo::CommandCargoExt as _;
-    let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    command.current_dir(workspace).args(args);
+    let mut command = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_args(args);
     command.output().expect("run pacquet -r version")
 }
 
@@ -1734,8 +1738,8 @@ fn version_recursive_json_prints_empty_array_when_no_pending_changes() {
         .expect("write pnpm-workspace.yaml");
 
     let output = test_command(pacquet, root.path())
-        .current_dir(&workspace)
-        .args(["version", "-r", "--json"])
+        .with_current_dir(&workspace)
+        .with_args(["version", "-r", "--json"])
         .output()
         .expect("run pacquet version -r --json");
     assert!(output.status.success());
@@ -1754,9 +1758,9 @@ fn version_recursive_json_prints_applied_releases_when_pending_changes() {
         .expect("write change intent");
 
     let output = test_command(pacquet, root.path())
-        .env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1")
-        .current_dir(&workspace)
-        .args(["version", "-r", "--json", "--no-git-checks"])
+        .with_env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1")
+        .with_current_dir(&workspace)
+        .with_args(["version", "-r", "--json", "--no-git-checks"])
         .output()
         .expect("run pacquet version -r --json");
     assert!(output.status.success(), "{}", stderr_of(&output));
@@ -1865,11 +1869,11 @@ fn release_inputs(workspace: &Path) -> BTreeMap<PathBuf, String> {
 /// tests in `change.rs`.
 fn pacquet_version_assuming_published(workspace: &Path, args: &[&str]) -> std::process::Output {
     use assert_cmd::cargo::CommandCargoExt as _;
-    let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    command
-        .current_dir(workspace)
-        .env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1")
-        .args(args);
+    let mut command = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1")
+        .with_args(args);
     command.output().expect("run pacquet version")
 }
 

@@ -838,7 +838,7 @@ fn global_fallback_preserves_quoted_shebang_arguments() {
     fs::create_dir_all(&cwd).unwrap();
 
     let output = shim_command(&root, &cwd, "tool", target.to_str().unwrap())
-        .arg("forwarded with spaces")
+        .with_arg("forwarded with spaces")
         .output()
         .unwrap();
 
@@ -868,7 +868,7 @@ fn global_fallback_prefers_the_sibling_interpreter() {
     fs::create_dir_all(&cwd).unwrap();
 
     let output = shim_command(&root, &cwd, "tool", target.to_str().unwrap())
-        .arg("--flag")
+        .with_arg("--flag")
         .output()
         .unwrap();
 
@@ -911,13 +911,13 @@ fn a_shim_runs_a_target_that_is_a_hard_link_of_it() {
         .join(format!("global/node_modules/pnpm/pnpm{}", std::env::consts::EXE_SUFFIX));
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     #[cfg(unix)]
-    let mut command = shim_command(&root, &cwd, "pnpm", target.to_str().unwrap());
+    let command = shim_command(&root, &cwd, "pnpm", target.to_str().unwrap());
     #[cfg(windows)]
     let mut command = windows_shim_command(&root, &cwd, "pnpm", &target);
     fs::hard_link(command.get_program(), &target).unwrap();
 
     let output = command
-        .arg("--version")
+        .with_arg("--version")
         .output()
         .unwrap();
 

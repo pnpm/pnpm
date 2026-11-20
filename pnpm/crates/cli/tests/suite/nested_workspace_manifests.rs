@@ -1,4 +1,5 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
@@ -33,9 +34,9 @@ fn write_workspace_with_nested_manifest(workspace: &Path, extra_settings: &str) 
 fn install(workspace: &Path, args: &[&str]) -> String {
     let output = Command::cargo_bin("pnpm")
         .unwrap()
-        .current_dir(workspace)
-        .args(args)
-        .arg("install")
+        .with_current_dir(workspace)
+        .with_args(args)
+        .with_arg("install")
         .assert()
         .success();
     String::from_utf8_lossy(&output.get_output().stdout).into_owned()

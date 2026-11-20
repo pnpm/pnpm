@@ -10,6 +10,7 @@
 //! Repos that need a *host* identity (a `codeload.github.com` archive
 //! URL, `gitHosted: true`) can't be modeled this way; those resolve to
 //! a tarball and are covered at the resolver level instead.
+use command_extra::CommandExtra;
 
 use std::{
     fmt::Write as _,
@@ -279,8 +280,8 @@ fn quote_config_value(value: &str) -> String {
 /// environment by skipping.
 fn git(cwd: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+        .with_args(args)
+        .with_current_dir(cwd)
         .output()
         .unwrap_or_else(|err| panic!("run `git {}`: {err}", args.join(" ")));
     assert!(
@@ -314,7 +315,7 @@ impl GitCommandLog {
         let log = bin_dir.join("acquisitions.log");
         let ls_remote_log = bin_dir.join("ls-remote.log");
         let output = Command::new("sh")
-            .args(["-c", "command -v git"])
+            .with_args(["-c", "command -v git"])
             .output()
             .unwrap();
         assert!(output.status.success(), "locate git: {output:?}");

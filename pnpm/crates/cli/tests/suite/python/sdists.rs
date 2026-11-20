@@ -14,6 +14,7 @@ use super::{
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use std::fs;
 
 /// The `getsentry/sentry` and `marimo-team/marimo` case of item 5 of
@@ -39,12 +40,12 @@ async fn a_release_with_only_a_source_distribution_is_built_and_replayed_offline
         approve(root.path(), "alpha");
 
         pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
 
         python(root.path())
-            .args(["-c", "import alpha, helper"])
+            .with_args(["-c", "import alpha, helper"])
             .assert()
             .success();
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -56,11 +57,11 @@ async fn a_release_with_only_a_source_distribution_is_built_and_replayed_offline
 
         pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
         pacquet_in(root.path())
-            .args(["install", "--offline", "--frozen-lockfile"])
+            .with_args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();
         python(root.path())
-            .args(["-c", "import alpha, helper"])
+            .with_args(["-c", "import alpha, helper"])
             .assert()
             .success();
         assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
@@ -112,12 +113,12 @@ async fn a_source_distribution_without_a_manifest_is_read_from_the_wheel_it_buil
     approve(root.path(), "alpha");
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     python(root.path())
-        .args(["-c", "import alpha, helper"])
+        .with_args(["-c", "import alpha, helper"])
         .assert()
         .success();
 }
@@ -136,7 +137,7 @@ async fn a_source_distribution_is_not_built_without_its_own_approval() {
     project(root.path(), &server.url(), &["alpha>=1"]);
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "requires approval of pkg:pypi/alpha under allowBuilds",
     );
     assert!(!root.path().join("pylock.toml").exists(), "a refused build published a lockfile");
@@ -163,7 +164,7 @@ async fn a_wheel_is_taken_over_the_source_distribution_of_its_own_release() {
     project(root.path(), &server.url(), &["alpha>=1"]);
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -188,7 +189,7 @@ async fn a_resolution_failure_says_what_the_index_offered() {
     project(root.path(), &server.url(), &["alpha>=1"]);
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "No index pnpm reads publishes a distribution named alpha",
     );
     missing.assert_async().await;
@@ -198,7 +199,7 @@ async fn a_resolution_failure_says_what_the_index_offered() {
     project(root.path(), &server.url(), &["beta>=1"]);
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "beta publishes 1 releases (1.0), none of which publishes a wheel this interpreter \
          installs or a source distribution pnpm can build",
     );
@@ -208,7 +209,7 @@ async fn a_resolution_failure_says_what_the_index_offered() {
     project(root.path(), &server.url(), &["gamma>=2"]);
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "gamma is offered at 1.0, and this project's requirements select none of them",
     );
 }
@@ -243,7 +244,7 @@ async fn one_release_pins_the_wheel_an_environment_takes_beside_the_archive_the_
     );
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -252,7 +253,7 @@ async fn one_release_pins_the_wheel_an_environment_takes_beside_the_archive_the_
     assert!(lock.contains(&format!(r#"name = "alpha-1.0-{tag}.whl""#)), "no wheel was pinned");
     assert!(lock.contains("[packages.sdist]"), "no source distribution was pinned");
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }
@@ -280,12 +281,12 @@ async fn a_source_distribution_whose_entries_are_dot_prefixed_builds() {
     approve(root.path(), "alpha");
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     python(root.path())
-        .args(["-c", "import alpha, helper"])
+        .with_args(["-c", "import alpha, helper"])
         .assert()
         .success();
 }

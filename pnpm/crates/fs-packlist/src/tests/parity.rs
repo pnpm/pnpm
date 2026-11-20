@@ -6,6 +6,7 @@ use super::{
     touch,
     write,
 };
+use command_extra::CommandExtra;
 use proptest::{
     arbitrary::any,
     collection,
@@ -119,11 +120,11 @@ impl PersistentOracle {
     fn spawn() -> Self {
         let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tests/parity.mjs");
         let mut child = Command::new("node")
-            .arg(script)
-            .arg("--stdio")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .with_arg(script)
+            .with_arg("--stdio")
+            .with_stdin(Stdio::piped())
+            .with_stdout(Stdio::piped())
+            .with_stderr(Stdio::inherit())
             .spawn()
             .expect("spawn node parity.mjs --stdio");
         let stdin = child.stdin.take().expect("oracle stdin");
@@ -1032,12 +1033,12 @@ fn copy_tree_without_node_modules(src: &Path, dst: &Path) {
 fn run_npm_pack_dry_run(cwd: &Path, pkg_dirs: &[&Path]) -> BTreeMap<String, Vec<String>> {
     let npm_bin = if cfg!(windows) { "npm.cmd" } else { "npm" };
     let output = Command::new(npm_bin)
-        .arg("pack")
-        .arg("--dry-run")
-        .arg("--json")
-        .arg("--ignore-scripts")
-        .args(pkg_dirs)
-        .current_dir(cwd)
+        .with_arg("pack")
+        .with_arg("--dry-run")
+        .with_arg("--json")
+        .with_arg("--ignore-scripts")
+        .with_args(pkg_dirs)
+        .with_current_dir(cwd)
         .output()
         .expect("spawn npm pack --dry-run --json");
     assert!(
@@ -1159,10 +1160,10 @@ fn file_selection_matches_typescript_packlist() {
         fixtures.push(dir);
     }
     let mut oracle = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tests/parity.mjs"))
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .with_arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tests/parity.mjs"))
+        .with_stdin(Stdio::piped())
+        .with_stdout(Stdio::piped())
+        .with_stderr(Stdio::piped())
         .spawn()
         .unwrap();
     oracle.stdin

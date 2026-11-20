@@ -5,6 +5,7 @@ use super::{
     get_current_branch,
     is_head_detached,
 };
+use command_extra::CommandExtra;
 use std::{
     fs,
     io,
@@ -166,7 +167,7 @@ fn repo_with_fifo_head() -> TempDir {
 #[cfg(unix)]
 fn make_fifo(path: &std::path::Path) {
     let status = std::process::Command::new("mkfifo")
-        .arg(path)
+        .with_arg(path)
         .status()
         .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed");

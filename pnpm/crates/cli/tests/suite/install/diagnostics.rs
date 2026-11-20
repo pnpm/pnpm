@@ -12,11 +12,10 @@ fn required_engine_mismatch_warns_on_fresh_and_frozen_install() {
     for reporter in ["--reporter=append-only", "--reporter=ndjson"] {
         let fixture = CommandTempCwd::init().add_mocked_registry();
         super::write_required_incompatible_engine_fixture(&fixture.workspace, false);
-        let mut command = fixture.pacquet;
-        command.args(["install", reporter]);
+        let mut command = fixture.pacquet.with_args(["install", reporter]);
         for frozen in [false, true] {
             if frozen {
-                command.arg("--frozen-lockfile");
+                command = command.with_arg("--frozen-lockfile");
             }
             let output = command.assert().success();
             let combined = format!(

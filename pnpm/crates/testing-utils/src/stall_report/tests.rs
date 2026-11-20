@@ -1,4 +1,5 @@
 use super::output_within;
+use command_extra::CommandExtra;
 use std::{
     panic,
     process::Command,
@@ -21,8 +22,8 @@ const LONG_RUNNING: &str = "setTimeout(() => {}, 120000)";
 #[test]
 fn a_command_that_finishes_returns_its_output() {
     let output = output_within(
-        Command::new("node")
-            .args(["-e", "process.stdout.write('out'); process.stderr.write('err')"]),
+        &mut Command::new("node")
+            .with_args(["-e", "process.stdout.write('out'); process.stderr.write('err')"]),
         Duration::from_mins(1),
     );
     assert!(output.status.success());
@@ -75,7 +76,7 @@ fn spawn_grandchild_script(parent: Parent) -> String {
 
 fn stall_message(script: &str) -> String {
     let panic = panic::catch_unwind(|| {
-        output_within(Command::new("node").args(["-e", script]), Duration::from_secs(5))
+        output_within(&mut Command::new("node").with_args(["-e", script]), Duration::from_secs(5))
     })
     .expect_err("the command must fail past its deadline");
     panic

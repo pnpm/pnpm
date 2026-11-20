@@ -1,5 +1,6 @@
 //! Keep the pnpm processes a test spawns free of the ambient pnpm
 //! configuration.
+use command_extra::CommandExtra;
 
 use std::{
     ffi::OsString,
@@ -32,18 +33,16 @@ pub trait CommandTestExt {
 impl CommandTestExt for Command {
     fn without_ambient_pnpm_config(mut self) -> Self {
         for name in ambient_pnpm_config_vars() {
-            self.env_remove(name);
+            self = self.without_env(name);
         }
         if let Some(path) = std::env::var_os("PNPM_TEST_NPMRC_AUTH_FILE") {
-            self.env("PNPM_CONFIG_NPMRC_AUTH_FILE", path);
+            self = self.with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", path);
         }
-        self.env("PNPM_CONFIG_CI", "false");
         // No test may reach the registry for pnpm's own `latest` tag or
         // record the check in the developer's state directory, which the
         // suites leave un-isolated. The tests that cover the notifier turn
         // it back on themselves.
-        self.env("PNPM_CONFIG_UPDATE_NOTIFIER", "false");
-        self
+        self.with_env("PNPM_CONFIG_CI", "false").with_env("PNPM_CONFIG_UPDATE_NOTIFIER", "false")
     }
 }
 

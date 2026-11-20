@@ -49,14 +49,15 @@ const PLAIN_FILE_REL: &str = concat!(
 fn pnpm_with_umask(dir: &Path, umask: libc::mode_t, args: &[&str]) {
     let pnpm = Command::cargo_bin("pnpm").expect("find the pnpm binary");
     // Set the mask before exec without a `pre_exec` hook.
-    let mut command = Command::new("/bin/sh").with_current_dir(dir).without_ambient_pnpm_config();
-    command
-        .arg("-c")
-        .arg(r#"umask "$1" || exit; shift; exec "$@""#)
-        .arg("sh")
-        .arg(format!("{umask:o}"))
-        .arg(pnpm.get_program())
-        .args(args);
+    let mut command = Command::new("/bin/sh")
+        .with_current_dir(dir)
+        .without_ambient_pnpm_config()
+        .with_arg("-c")
+        .with_arg(r#"umask "$1" || exit; shift; exec "$@""#)
+        .with_arg("sh")
+        .with_arg(format!("{umask:o}"))
+        .with_arg(pnpm.get_program())
+        .with_args(args);
     let output = command.output().expect("run pnpm");
     assert!(
         output.status.success(),

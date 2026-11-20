@@ -32,6 +32,7 @@ use crate::{
     },
     path_util::lexical_normalize,
 };
+use command_extra::CommandExtra;
 use std::{
     io,
     path::{
@@ -248,9 +249,9 @@ fn posix_shim_header_runs_on_without_a_platform_file_under_errexit() {
     );
 
     let output = std::process::Command::new("/bin/sh")
-        .arg("-e")
-        .arg("-c")
-        .arg(&script)
+        .with_arg("-e")
+        .with_arg("-c")
+        .with_arg(&script)
         .output()
         .expect("run the header's platform detection");
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
@@ -289,10 +290,10 @@ fn posix_shim_header_normalizes_windows_backslash_paths_without_echo_escapes() {
     ] {
         let script = format!("{run_helper}link=\"$1\"\n{conversion}printf '%s' \"$basedir\"");
         let output = std::process::Command::new("/bin/sh")
-            .arg("-c")
-            .arg(&script)
-            .arg("sh")
-            .arg(link)
+            .with_arg("-c")
+            .with_arg(&script)
+            .with_arg("sh")
+            .with_arg(link)
             .output()
             .expect("run the header's basedir conversion");
         assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
@@ -985,8 +986,8 @@ fn shim_execution_ignores_helpers_from_the_callers_path() {
 fn shim_execution_normalizes_a_bare_name() {
     let tmp = tempfile::tempdir().unwrap();
     let bin_dir = plant_shimmed_tool(tmp.path());
-    let mut command = std::process::Command::new("sh");
-    command.arg("tsc-link").current_dir(&bin_dir);
+    let mut command =
+        std::process::Command::new("sh").with_arg("tsc-link").with_current_dir(&bin_dir);
     assert_shim_reaches_its_target(tmp.path(), &mut command);
 }
 
@@ -1154,11 +1155,11 @@ fn run_platform_branch(
     );
 
     let output = std::process::Command::new("/bin/sh")
-        .arg("-c")
-        .arg(&script)
-        .env("version_file", &version_file)
-        .env("system_converter", system_converter)
-        .env("PATH", callers_path)
+        .with_arg("-c")
+        .with_arg(&script)
+        .with_env("version_file", &version_file)
+        .with_env("system_converter", system_converter)
+        .with_env("PATH", callers_path)
         .output()
         .expect("run the header's platform branch");
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
@@ -1204,7 +1205,7 @@ fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
         .expect("make the shim executable");
 
     let status = Command::new(&shim)
-        .args(["-c", "kill -9 $$"])
+        .with_args(["-c", "kill -9 $$"])
         .status()
         .expect("run the target through the shim");
 
@@ -1233,8 +1234,8 @@ fn shim_execution_skips_node_modules_and_relative_path_entries_when_the_default_
     let callers_path = std::env::var("PATH").unwrap_or_default();
     let run = |path: String, cwd: &Path| {
         let output = std::process::Command::new(bin_dir.join("tsc-link"))
-            .env("PATH", path)
-            .current_dir(cwd)
+            .with_env("PATH", path)
+            .with_current_dir(cwd)
             .output()
             .expect("run the shim");
         String::from_utf8_lossy(&output.stdout).trim_end().to_owned()
@@ -1298,7 +1299,7 @@ fn shim_execution_keeps_the_default_path_helpers_when_path_lacks_them() {
     std::os::unix::fs::symlink(node, node_dir.join("node")).unwrap();
 
     let output = std::process::Command::new(bin_dir.join("tsc-link"))
-        .env("PATH", &node_dir)
+        .with_env("PATH", &node_dir)
         .output()
         .expect("run the shim");
 
@@ -1326,16 +1327,17 @@ fn a_windows_sh_shim_picks_the_node_path_form_when_it_runs() {
     write_sh_node_path(&mut block, &node_path, true);
 
     let run = |msys: &str, inherited: Option<&str>| {
-        let mut command = std::process::Command::new("/bin/sh");
-        command
-            .arg("-c")
-            .arg(format!(r#"{block}printf '%s' "$NODE_PATH""#))
-            .env("msys", msys)
-            .env_remove("NODE_PATH");
-        if let Some(inherited) = inherited {
-            command.env("NODE_PATH", inherited);
+        let command = std::process::Command::new("/bin/sh")
+            .with_arg("-c")
+            .with_arg(format!(r#"{block}printf '%s' "$NODE_PATH""#))
+            .with_env("msys", msys)
+            .without_env("NODE_PATH");
+        let output = match inherited {
+            Some(inherited) => command.with_env("NODE_PATH", inherited),
+            None => command,
         }
-        let output = command.output().expect("run the NODE_PATH block");
+        .output()
+        .expect("run the NODE_PATH block");
         assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
         String::from_utf8(output.stdout).unwrap()
     };
@@ -1509,7 +1511,7 @@ fn a_shim_run_through_a_symlinked_package_dir_names_its_target_physically() {
     write_executable(&shim, &generate_sh_shim(&target, &shim, Some(&runtime), &[], None));
 
     let output = std::process::Command::new("node_modules/vite/node_modules/.bin/esbuild")
-        .current_dir(&root)
+        .with_current_dir(&root)
         .output()
         .unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);

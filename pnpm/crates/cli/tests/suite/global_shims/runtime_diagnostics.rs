@@ -10,6 +10,7 @@ use super::{
     Path,
     windows_shim_command,
 };
+use command_extra::CommandExtra;
 
 #[test]
 fn failed_runtime_download_explains_global_mirror_configuration() {
@@ -75,11 +76,11 @@ fn check_runtime_download_diagnostics(workspace_dir_env: Option<&str>) {
     #[cfg(windows)]
     let mut command = windows_shim_command(&root, &project, "node", Path::new("pkg:node"));
     if let Some(name) = workspace_dir_env {
-        command.env(name, &project);
+        command = command.with_env(name, &project);
     }
     let output = command
-        .env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":"always"}"#)
-        .arg("--version")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":"always"}"#)
+        .with_arg("--version")
         .output()
         .unwrap();
 

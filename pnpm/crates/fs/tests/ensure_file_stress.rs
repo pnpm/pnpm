@@ -9,6 +9,7 @@
 //! ([`concurrent_writers_of_same_path_do_not_swap_the_inode`])
 //! exercises the lock; this suite exercises the unprotected
 //! filesystem-only path.
+use command_extra::CommandExtra;
 
 use sha2::{
     Digest,
@@ -53,8 +54,8 @@ fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::Exi
             let target_path = Arc::clone(&target_path);
             thread::spawn(move || {
                 Command::new(WORKER_BIN)
-                    .arg(&*content_path)
-                    .arg(&*target_path)
+                    .with_arg(&*content_path)
+                    .with_arg(&*target_path)
                     .status()
                     .expect("spawn cafs_stress_worker")
             })

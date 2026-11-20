@@ -17,8 +17,7 @@ fn should_cat_index_of_installed_package() {
         .assert()
         .success();
 
-    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
+    let pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
     let output = pacquet2
         .with_args(["cat-index", "@pnpm.e2e/hello-world-js-bin-parent"])
         .output()
@@ -46,8 +45,7 @@ fn should_cat_index_of_npm_alias() {
         .assert()
         .success();
 
-    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
+    let pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
     let output = pacquet2
         .with_args(["cat-index", alias_spec])
         .output()
@@ -100,8 +98,7 @@ fn should_cat_index_with_dir_pointing_to_workspace_project() {
         .success();
 
     let project_dir_arg = project_dir.to_string_lossy().into_owned();
-    let mut pacquet2 = Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
+    let pacquet2 = Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
     let output = pacquet2
         .with_args(["--dir", project_dir_arg.as_str(), "cat-index", dependency])
         .output()

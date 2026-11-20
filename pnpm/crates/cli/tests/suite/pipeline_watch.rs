@@ -149,7 +149,7 @@ fn watch_agent_refuses_a_zero_poll_interval() {
     let result = Command::cargo_bin("pnpm")
         .unwrap()
         .without_ambient_pnpm_config()
-        .args(["pipeline", "--watch", "--repo", "unused", "--interval", "0"])
+        .with_args(["pipeline", "--watch", "--repo", "unused", "--interval", "0"])
         .assert()
         .failure();
     let error = String::from_utf8_lossy(&result.get_output().stderr);

@@ -59,11 +59,7 @@ impl CommandTempCwd<()> {
             .with_current_dir(&workspace)
             .without_ambient_pnpm_config();
         let pnpm = match read_v11_bundle_path() {
-            Some(bundle) => {
-                let mut command = Command::new("node");
-                command.arg(bundle);
-                command
-            }
+            Some(bundle) => Command::new("node").with_arg(bundle),
             None => Command::new("pnpm"),
         }
         .with_current_dir(&workspace)

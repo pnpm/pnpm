@@ -906,8 +906,8 @@ fn concurrent_installs_build_one_shared_slot() {
         .map(|project| {
             pacquet(project)
                 .with_arg("install")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::piped())
+                .with_stdout(std::process::Stdio::null())
+                .with_stderr(std::process::Stdio::piped())
                 .spawn()
                 .expect("spawn an install")
         })

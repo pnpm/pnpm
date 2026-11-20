@@ -3,6 +3,7 @@ use super::{
     ScriptRuntime,
     generate_pwsh_shim,
 };
+use command_extra::CommandExtra;
 use std::{
     fs,
     path::Path,
@@ -71,9 +72,9 @@ fn pwsh_shim_runs_unicode_target_under_windows_powershell() {
 
     for exit_code in [0, 7] {
         let output = Command::new("powershell.exe")
-            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
-            .arg(&shim)
-            .args(["argument with spaces", &exit_code.to_string()])
+            .with_args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
+            .with_arg(&shim)
+            .with_args(["argument with spaces", &exit_code.to_string()])
             .output()
             .unwrap();
         eprintln!("exit {exit_code}: {output:?}");

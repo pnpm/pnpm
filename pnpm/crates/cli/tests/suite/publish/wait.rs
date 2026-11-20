@@ -170,10 +170,10 @@ fn stage_ignores_configured_wait_defaults() {
                 let config_dir = config_home.join("pnpm");
                 fs::create_dir_all(&config_dir).unwrap();
                 fs::write(config_dir.join("config.yaml"), "publishWaitTimeout: 3000\n").unwrap();
-                command.env("XDG_CONFIG_HOME", config_home);
+                command = command.with_env("XDG_CONFIG_HOME", config_home);
             }
             "environment" => {
-                command.env("PNPM_CONFIG_PUBLISH_WAIT_TIMEOUT", "3000");
+                command = command.with_env("PNPM_CONFIG_PUBLISH_WAIT_TIMEOUT", "3000");
             }
             _ => unreachable!(),
         }

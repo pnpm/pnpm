@@ -518,12 +518,12 @@ fn frozen_install_replays_a_cached_cyclic_alias_peer_snapshot() {
 
 fn run_node_with_package_map(workspace: &Path, script: &Path) -> std::process::Output {
     Command::new("node")
-        .arg(format!(
+        .with_arg(format!(
             "--experimental-package-map={}",
             workspace.join("node_modules/.package-map.json").display(),
         ))
-        .arg(script)
-        .current_dir(workspace)
+        .with_arg(script)
+        .with_current_dir(workspace)
         .output()
         .expect("run Node.js")
 }
@@ -544,7 +544,7 @@ fn root_dependency_dir(workspace: &Path, name: &str) -> std::path::PathBuf {
 
 fn node_major() -> u32 {
     let output = Command::new("node")
-        .arg("--version")
+        .with_arg("--version")
         .output()
         .expect("run node --version");
     assert!(output.status.success(), "node --version should succeed");
@@ -1202,11 +1202,11 @@ fn peer_variants_with_distinct_peers_are_nested_for_node_resolution() {
     fixture.run(["install"]);
 
     let output = Command::new("node")
-        .arg("-e")
-        .arg(
+        .with_arg("-e")
+        .with_arg(
             r"const path = require('node:path'); const fs = require('node:fs'); for (const project of ['a', 'b']) { const projectDir = path.resolve('packages', project); const abcDir = path.dirname(require.resolve('@pnpm.e2e/abc-optional-peers-meta-only/package.json', { paths: [projectDir] })); const peerManifest = require.resolve('@pnpm.e2e/peer-a/package.json', { paths: [abcDir] }); process.stdout.write(`${project}:${JSON.parse(fs.readFileSync(peerManifest, 'utf8')).version}\n`); }",
         )
-        .current_dir(&fixture.workspace)
+        .with_current_dir(&fixture.workspace)
         .output()
         .expect("run Node.js module resolution");
     assert!(output.status.success(), "Node.js resolution failed: {output:?}");
@@ -1253,11 +1253,11 @@ fn identical_peer_bindings_share_one_copy_under_a_conflicting_host() {
         assert_eq!(read_pkg_version(&workspace, &format!("{host}/node_modules/@pnpm/y")), "1.0.0");
 
         let output = Command::new("node")
-            .arg("-e")
-            .arg(
+            .with_arg("-e")
+            .with_arg(
                 r"const fs = require('node:fs'); const path = require('node:path'); const version = (request, from) => JSON.parse(fs.readFileSync(require.resolve(`${request}/package.json`, { paths: [from] }), 'utf8')).version; const host = path.dirname(require.resolve('@pnpm.e2e/has-has-y-peer-only-as-peer-and-y/package.json')); const client = path.dirname(require.resolve('@pnpm.e2e/has-y-peer/package.json', { paths: [host] })); process.stdout.write(`host:${version('@pnpm/y', host)} client:${version('@pnpm/y', client)} shared:${client === path.dirname(require.resolve('@pnpm.e2e/has-y-peer/package.json'))}\n`);",
             )
-            .current_dir(&workspace)
+            .with_current_dir(&workspace)
             .output()
             .expect("run Node.js module resolution");
         assert!(output.status.success(), "{install}: Node.js resolution failed: {output:?}");

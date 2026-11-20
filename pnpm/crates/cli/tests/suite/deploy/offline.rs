@@ -39,10 +39,10 @@ fn offline_deploy_reuses_source_lockfile_without_metadata() {
                 .with_args(["install", "--offline", "--frozen-lockfile"])
                 .assert()
                 .success();
-            let mut deploy = pacquet_cmd(workspace);
-            deploy.args(["--filter=.", "deploy", "out", "--offline", "--frozen-lockfile"]);
+            let mut deploy = pacquet_cmd(workspace)
+                .with_args(["--filter=.", "deploy", "out", "--offline", "--frozen-lockfile"]);
             if mode == "legacy" {
-                deploy.arg("--legacy");
+                deploy = deploy.with_arg("--legacy");
             }
             deploy.assert().success();
             assert_eq!(deployed_package_version(&workspace.join("out"), alias), "100.1.0");
@@ -78,7 +78,7 @@ fn offline_legacy_deploy_reuses_registry_dependencies_of_workspace_projects() {
         .success();
     fs::rename(workspace.join("packages"), workspace.join("source-packages")).unwrap();
     std::process::Command::new("node")
-        .current_dir(workspace.join("out"))
-        .args(["-p", "require(require.resolve('@pnpm.e2e/pkg-with-1-dep/package.json', { paths: [require.resolve('lib/package.json')] })).version"])
+        .with_current_dir(workspace.join("out"))
+        .with_args(["-p", "require(require.resolve('@pnpm.e2e/pkg-with-1-dep/package.json', { paths: [require.resolve('lib/package.json')] })).version"])
         .assert().success().stdout("100.0.0\n");
 }

@@ -1065,7 +1065,7 @@ fn devengines_runtime_range_does_not_replace_the_running_node_version() {
 
 fn running_node_major() -> u64 {
     let output = Command::new("node")
-        .arg("--version")
+        .with_arg("--version")
         .output()
         .expect("run node --version");
     assert!(output.status.success(), "node --version must succeed");

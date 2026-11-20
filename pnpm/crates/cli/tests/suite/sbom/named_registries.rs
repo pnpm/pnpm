@@ -3,6 +3,7 @@ use super::{
     run_sbom_json,
     run_sbom_json_from_store,
 };
+use command_extra::CommandExtra;
 use serde_json::{
     Value,
     json,
@@ -307,8 +308,8 @@ fn sbom_fails_without_leaking_credentials_when_named_registry_url_is_malformed()
     let workspace = write_named_registries_fixture(WorkspaceRegistries::MalformedSecretUrl);
     for format in ["cyclonedx", "spdx"] {
         for extra_args in [&["--lockfile-only"][..], &[][..]] {
-            let mut cmd = pacquet(workspace.path(), ["sbom", "--sbom-format", format]);
-            cmd.args(extra_args);
+            let mut cmd =
+                pacquet(workspace.path(), ["sbom", "--sbom-format", format]).with_args(extra_args);
             let output = cmd.output().expect("run pacquet sbom");
             assert!(
                 !output.status.success(),
@@ -332,7 +333,7 @@ fn sbom_omits_tarball_url_without_leaking_credentials_when_default_registry_is_m
     let workspace = write_named_registries_fixture(WorkspaceRegistries::Declared);
     for format in ["cyclonedx", "spdx"] {
         let output = pacquet(workspace.path(), ["sbom", "--sbom-format", format])
-            .env(
+            .with_env(
                 "PNPM_CONFIG_REGISTRY",
                 "https://default-user:default-token@npm.default.example.com:bad/",
             )

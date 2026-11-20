@@ -361,9 +361,9 @@ fn setup_registry()
 }
 
 fn pacquet_in(dir: &Path, args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>) -> Command {
-    let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    command.current_dir(dir);
-    command.args(args);
+    let mut command =
+        Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(dir);
+    command = command.with_args(args);
     command
 }
 

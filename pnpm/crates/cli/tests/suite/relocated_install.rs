@@ -122,9 +122,9 @@ fn copied_workspace_is_up_to_date_after_one_state_write() {
             .success();
         let copy = workspace.with_file_name("copy");
         Command::new("cp")
-            .arg("-Rp")
-            .arg(&workspace)
-            .arg(&copy)
+            .with_arg("-Rp")
+            .with_arg(&workspace)
+            .with_arg(&copy)
             .assert()
             .success();
         let bin = copy.join("node_modules/.bin/hello-world-js-bin");
@@ -241,9 +241,9 @@ fn transplanted_node_modules_is_not_up_to_date() {
         .success();
     let checkout = workspace.with_file_name("checkout");
     Command::new("cp")
-        .arg("-Rp")
-        .arg(&workspace)
-        .arg(&checkout)
+        .with_arg("-Rp")
+        .with_arg(&workspace)
+        .with_arg(&checkout)
         .assert()
         .success();
     fs::write(
@@ -305,9 +305,9 @@ fn a_moved_patched_workspace_is_up_to_date_until_its_patch_is_edited() {
 
     let copy = workspace.with_file_name("copy");
     Command::new("cp")
-        .arg("-R")
-        .arg(&workspace)
-        .arg(&copy)
+        .with_arg("-R")
+        .with_arg(&workspace)
+        .with_arg(&copy)
         .assert()
         .success();
     let first = pacquet_in(&copy)

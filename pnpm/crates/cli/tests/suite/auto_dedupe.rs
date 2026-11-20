@@ -322,10 +322,10 @@ fn partial_change_discovers_a_new_candidate_and_updates_existing_consumers() {
             importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "low", DEP),
             "100.0.0",
         );
-        let mut command = pnpm_at(&workspace.join("high"));
-        command.args(["add", &format!("{DEP}@100.1.0"), "--auto-dedupe"]);
+        let mut command = pnpm_at(&workspace.join("high"))
+            .with_args(["add", &format!("{DEP}@100.1.0"), "--auto-dedupe"]);
         if lockfile_only {
-            command.arg("--lockfile-only");
+            command = command.with_arg("--lockfile-only");
         }
         command.assert().success();
         if !lockfile_only {

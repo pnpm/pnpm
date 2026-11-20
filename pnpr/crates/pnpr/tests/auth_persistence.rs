@@ -4,6 +4,7 @@
 //! account on the next container redeploy.
 //!
 //! [#11974]: https://github.com/pnpm/pnpm/issues/11974
+use command_extra::CommandExtra;
 
 use axum::{
     body::{
@@ -241,7 +242,7 @@ async fn unreadable_auth_database_fails_startup() {
 #[tokio::test]
 async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
     if Command::new("htpasswd")
-        .arg("-h")
+        .with_arg("-h")
         .output()
         .is_err()
     {
@@ -270,10 +271,10 @@ async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
 
     // `htpasswd -v` (verify-only) exits 0 when the password matches.
     let status = Command::new("htpasswd")
-        .args(["-v", "-b"])
-        .arg(&htpasswd)
-        .arg("alice")
-        .arg("compat-secret")
+        .with_args(["-v", "-b"])
+        .with_arg(&htpasswd)
+        .with_arg("alice")
+        .with_arg("compat-secret")
         .status()
         .expect("spawn htpasswd");
     assert!(
@@ -283,10 +284,10 @@ async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
 
     // And a wrong password should be rejected by the same tool.
     let status = Command::new("htpasswd")
-        .args(["-v", "-b"])
-        .arg(&htpasswd)
-        .arg("alice")
-        .arg("wrong-password")
+        .with_args(["-v", "-b"])
+        .with_arg(&htpasswd)
+        .with_arg("alice")
+        .with_arg("wrong-password")
         .status()
         .expect("spawn htpasswd");
     assert!(

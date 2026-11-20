@@ -4,8 +4,9 @@
 //! must really die from the signal, which no thread inside the test can
 //! stand in for. Windows has no SIGINT delivery to a child; `kill` there is
 //! `TerminateProcess`, against which no cleanup can run.
-
 #![cfg(unix)]
+
+use command_extra::CommandExtra;
 
 use std::{
     fs,
@@ -35,7 +36,7 @@ fn a_sigint_mid_write_removes_the_staged_temp_file() {
     let root = tempdir().expect("create tempdir");
     let target = root.path().join("lock.yaml");
     let mut writer = Command::new(HOLDER_BIN)
-        .arg(&target)
+        .with_arg(&target)
         .spawn()
         .expect("spawn atomic_write_holder");
 
@@ -65,7 +66,7 @@ fn a_replacement_of_an_owner_only_file_is_staged_owner_only() {
     fs::write(&target, "private").expect("seed the target");
     fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).expect("make it owner-only");
     let mut writer = Command::new(HOLDER_BIN)
-        .arg(&target)
+        .with_arg(&target)
         .spawn()
         .expect("spawn atomic_write_holder");
 

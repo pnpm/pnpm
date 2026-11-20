@@ -67,8 +67,8 @@ fn legacy_deploy_includes_nested_linked_dependencies() {
 
     fs::rename(workspace.join("packages/lib"), workspace.join("source-lib")).unwrap();
     Command::new("node")
-        .current_dir(workspace.join("deployed"))
-        .arg("index.js")
+        .with_current_dir(workspace.join("deployed"))
+        .with_arg("index.js")
         .assert()
         .success()
         .stdout("nested leaf\n");
@@ -129,8 +129,8 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
 
     fs::rename(workspace.join("packages/app"), workspace.join("source-app")).unwrap();
     Command::new("node")
-        .current_dir(workspace.join("deployed"))
-        .arg("index.js")
+        .with_current_dir(workspace.join("deployed"))
+        .with_arg("index.js")
         .assert()
         .success()
         .stdout(format!("{}\n", names.join(",")));
@@ -165,8 +165,8 @@ fn legacy_deploy_resolves_a_workspace_path_from_the_selected_project() {
 
     fs::rename(workspace.join("packages/lib"), workspace.join("source-lib")).unwrap();
     Command::new("node")
-        .current_dir(workspace.join("deployed"))
-        .arg("index.js")
+        .with_current_dir(workspace.join("deployed"))
+        .with_arg("index.js")
         .assert()
         .success()
         .stdout("lib\n");
@@ -409,8 +409,8 @@ fn legacy_deploy_injects_workspace_peers_of_workspace_dependencies() {
     );
     fs::rename(workspace.join("packages"), workspace.join("source-packages")).unwrap();
     Command::new("node")
-        .current_dir(&deploy_dir)
-        .arg("index.js")
+        .with_current_dir(&deploy_dir)
+        .with_arg("index.js")
         .assert()
         .success()
         .stdout("workspace peer workspace foo\n");

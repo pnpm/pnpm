@@ -3,6 +3,7 @@
 //! state, so the tests exercise the pure renderers and the file editor
 //! directly (with a `tempfile` config file) instead of through
 //! `add_dir_to_posix_env_path`.
+use command_extra::CommandExtra;
 
 use super::{
     AddDirToEnvPathOpts,
@@ -152,8 +153,8 @@ fn posix_settings_move_the_dir_to_the_start_of_path() {
         ("/usr/bin", "/home/user/.pnpm/bin:/usr/bin"),
     ] {
         let output = std::process::Command::new("/bin/sh")
-            .args(["-c", &script])
-            .env("PATH", inherited)
+            .with_args(["-c", &script])
+            .with_env("PATH", inherited)
             .output()
             .expect("run /bin/sh");
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

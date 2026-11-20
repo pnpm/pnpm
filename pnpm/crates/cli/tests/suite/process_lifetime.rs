@@ -168,7 +168,7 @@ fn node_executable() -> &'static std::path::Path {
     static NODE: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
     NODE.get_or_init(|| {
         let output = Command::new("node")
-            .args(["-p", "process.execPath"])
+            .with_args(["-p", "process.execPath"])
             .output()
             .expect("ask node for its executable");
         let path = String::from_utf8(output.stdout).expect("node prints its path as UTF-8");

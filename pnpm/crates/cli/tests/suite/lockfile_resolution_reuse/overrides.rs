@@ -84,7 +84,7 @@ fn check_catalog_range_update(configured_trust: bool, trust_flag: Option<&str>, 
 
     let mut command = pacquet_at(&workspace).with_arg("install");
     if let Some(flag) = trust_flag {
-        command.arg(flag);
+        command = command.with_arg(flag);
     }
     let assertion = command.assert();
     if !succeeds {

@@ -6,6 +6,7 @@ use super::super::{
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use std::fs;
 
 #[tokio::test]
@@ -67,14 +68,14 @@ async fn rejected_releases_cannot_replace_index_dependencies_with_direct_wheels(
         .await;
         project(root.path(), &server.url(), &["alpha", "conflict<2"]);
         pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
-        python(root.path()).args(["-c", "import alpha, helper.origin; import importlib.metadata as m; assert alpha.VERSION == '1.0'; assert helper.origin.SOURCE == 'index'; assert m.distribution('helper').read_text('direct_url.json') is None"]).assert().success();
+        python(root.path()).with_args(["-c", "import alpha, helper.origin; import importlib.metadata as m; assert alpha.VERSION == '1.0'; assert helper.origin.SOURCE == 'index'; assert m.distribution('helper').read_text('direct_url.json') is None"]).assert().success();
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         assert!(!lock.contains(&url), "{lock}");
         pacquet_in(root.path())
-            .args(["install", "--offline", "--frozen-lockfile"])
+            .with_args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();
         artifact.assert_async().await;
@@ -105,10 +106,10 @@ async fn rejected_extras_cannot_leave_direct_source_provenance_on_index_wheels()
     .await;
     project(root.path(), &server.url(), &["alpha[helpers]", "conflict<2"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
-    python(root.path()).args(["-c", "import alpha, helper; import importlib.metadata as m; assert alpha.VERSION == '1.0'; assert m.distribution('helper').read_text('direct_url.json') is None"]).assert().success();
+    python(root.path()).with_args(["-c", "import alpha, helper; import importlib.metadata as m; assert alpha.VERSION == '1.0'; assert m.distribution('helper').read_text('direct_url.json') is None"]).assert().success();
     artifact.assert_async().await;
 }
 
@@ -122,7 +123,7 @@ async fn unhashed_public_http_wheels_are_rejected_before_downloading() {
         &["alpha @ http://example.test/alpha-1.0-py3-none-any.whl"],
     );
     super::super::assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "public HTTP require a sha256 hash",
     );
 }
@@ -142,12 +143,12 @@ async fn requirements_files_accept_direct_wheel_requirements() {
     fs::remove_file(root.path().join("pyproject.toml")).unwrap();
     fs::write(root.path().join("requirements.txt"), format!("alpha @ {url}\n")).unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
-    python(root.path()).args(["-c", "import alpha; import importlib.metadata as m, json; assert json.loads(m.distribution('alpha').read_text('direct_url.json'))['url'].endswith('/alpha-1.0-py3-none-any.whl')"]).assert().success();
+    python(root.path()).with_args(["-c", "import alpha; import importlib.metadata as m, json; assert json.loads(m.distribution('alpha').read_text('direct_url.json'))['url'].endswith('/alpha-1.0-py3-none-any.whl')"]).assert().success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     assert!(

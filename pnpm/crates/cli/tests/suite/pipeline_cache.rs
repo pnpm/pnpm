@@ -1,4 +1,5 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{
     fs,
@@ -20,28 +21,29 @@ fn configured_environment_changes_invalidate_task_outputs() {
     fs::write(project.path().join(".pnpmfile.cjs"), r"module.exports = { hooks: { updateConfig(config) { const fs = require('fs'); const file = require('path').join(__dirname, 'hook-count'); fs.appendFileSync(file, 'called\n'); config.extraEnv = { ...config.extraEnv, BUILD_MODE: process.env.PIPELINE_TEST_MODE }; return config; } } }").unwrap();
     let storage = tempfile::tempdir().unwrap();
     let command = || {
-        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-        command
-            .current_dir(project.path())
-            .env("XDG_CACHE_HOME", storage.path())
-            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        let command = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(project.path())
+            .with_env("XDG_CACHE_HOME", storage.path())
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
         command
     };
     for (index, value) in ["one", "two", "two"].into_iter().enumerate() {
         fs::write(project.path().join("pnpm-workspace.yaml"), String::from("packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: ['src/**']\n    outputs: ['out/**']\n    env: [BUILD_MODE]\n")).unwrap();
         if index == 0 {
             command()
-                .env("PIPELINE_TEST_MODE", value)
-                .env("BUILD_MODE", "ambient")
-                .arg("install")
+                .with_env("PIPELINE_TEST_MODE", value)
+                .with_env("BUILD_MODE", "ambient")
+                .with_arg("install")
                 .assert()
                 .success();
         }
         fs::write(project.path().join("hook-count"), "").unwrap();
         let result = command()
-            .env("PIPELINE_TEST_MODE", value)
-            .env("BUILD_MODE", "ambient")
-            .args(["pipeline", "--full"])
+            .with_env("PIPELINE_TEST_MODE", value)
+            .with_env("BUILD_MODE", "ambient")
+            .with_args(["pipeline", "--full"])
             .assert()
             .success();
         let output = String::from_utf8_lossy(&result.get_output().stdout);
@@ -51,8 +53,8 @@ fn configured_environment_changes_invalidate_task_outputs() {
     }
     for reporter in ["ndjson", "silent"] {
         let result = command()
-            .env("PIPELINE_TEST_MODE", "two")
-            .args(["pipeline", "--full", "--reporter", reporter])
+            .with_env("PIPELINE_TEST_MODE", "two")
+            .with_args(["pipeline", "--full", "--reporter", reporter])
             .assert()
             .success();
         let output = String::from_utf8_lossy(&result.get_output().stdout);
@@ -92,9 +94,9 @@ fn dry_run_prints_the_graph_without_executing_workspace_code() {
     let result = Command::cargo_bin("pnpm")
         .unwrap()
         .without_ambient_pnpm_config()
-        .current_dir(project.path())
-        .env("XDG_CONFIG_HOME", project.path().join("config"))
-        .args(["pipeline", "--full", "--dry-run", "--json"])
+        .with_current_dir(project.path())
+        .with_env("XDG_CONFIG_HOME", project.path().join("config"))
+        .with_args(["pipeline", "--full", "--dry-run", "--json"])
         .assert()
         .success();
     let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
@@ -127,22 +129,23 @@ fn empty_selection_dry_run_prints_empty_graph_without_a_report() {
         .join("pnpm")
         .join("pipeline");
     let command = || {
-        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-        command
-            .current_dir(project.path())
-            .env("XDG_CACHE_HOME", storage.path())
-            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        let command = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(project.path())
+            .with_env("XDG_CACHE_HOME", storage.path())
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
         command
     };
     let result = command()
-        .args(["pipeline", "--full", "--dry-run", "--json"])
+        .with_args(["pipeline", "--full", "--dry-run", "--json"])
         .assert()
         .success();
     let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
     assert_eq!(document, serde_json::json!({"tasks": []}));
     assert!(!report_root.exists());
     let result = command()
-        .args(["pipeline", "--full", "--dry-run"])
+        .with_args(["pipeline", "--full", "--dry-run"])
         .assert()
         .success();
     assert_eq!(
@@ -181,8 +184,8 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
     repo.write_file("packages/independent/input", "independent");
     repo.write_file("packages/producer/a-unreadable-input", "source");
     Command::new("git")
-        .current_dir(&workspace)
-        .args([
+        .with_current_dir(&workspace)
+        .with_args([
             "-c",
             "protocol.file.allow=always",
             "submodule",
@@ -198,15 +201,16 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
     fs::remove_file(workspace.join("packages/producer/a-unreadable-input")).unwrap();
     fs::create_dir(workspace.join("packages/producer/a-unreadable-input")).unwrap();
     let command = || {
-        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-        command
-            .current_dir(&workspace)
-            .env("XDG_CACHE_HOME", root.path().join("cache"))
-            .env("XDG_CONFIG_HOME", root.path().join("config"));
+        let command = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(&workspace)
+            .with_env("XDG_CACHE_HOME", root.path().join("cache"))
+            .with_env("XDG_CONFIG_HOME", root.path().join("config"));
         command
     };
     command()
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     for (index, value) in ["one", "two", "two", "absent", "absent"].into_iter().enumerate() {
@@ -214,15 +218,15 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
             fs::remove_dir(workspace.join("packages/producer/vendor")).unwrap();
         } else if value == "absent" {
             Command::new("git")
-                .current_dir(&workspace)
-                .args(["submodule", "deinit", "-f", "--", "packages/producer/vendor"])
+                .with_current_dir(&workspace)
+                .with_args(["submodule", "deinit", "-f", "--", "packages/producer/vendor"])
                 .assert()
                 .success();
         } else {
             fs::write(workspace.join("packages/producer/vendor/input"), value).unwrap();
         }
         command()
-            .args(["pipeline", "--full"])
+            .with_args(["pipeline", "--full"])
             .assert()
             .success();
         for name in ["producer", "consumer"] {
@@ -259,8 +263,8 @@ fn projects_rooted_in_submodules_bypass_task_caching() {
     repo.write_file("packages/consumer/package.json", &serde_json::json!({"name":"consumer","version":"1.0.0","dependencies":{"producer":"workspace:*"},"scripts":{"build":script.replace("'input'", "'../producer/out/result'")}}).to_string());
     let workspace = root.path().join("workspace-src");
     Command::new("git")
-        .current_dir(&workspace)
-        .args([
+        .with_current_dir(&workspace)
+        .with_args([
             "-c",
             "protocol.file.allow=always",
             "submodule",
@@ -274,21 +278,22 @@ fn projects_rooted_in_submodules_bypass_task_caching() {
         .success();
     let _ = repo.commit("workspace with submodule package");
     let command = || {
-        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-        command
-            .current_dir(&workspace)
-            .env("XDG_CACHE_HOME", root.path().join("cache"))
-            .env("XDG_CONFIG_HOME", root.path().join("config"));
+        let command = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(&workspace)
+            .with_env("XDG_CACHE_HOME", root.path().join("cache"))
+            .with_env("XDG_CONFIG_HOME", root.path().join("config"));
         command
     };
     command()
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     for (index, value) in ["one", "one", "two", "two"].into_iter().enumerate() {
         fs::write(workspace.join("packages/producer/input"), value).unwrap();
         command()
-            .args(["pipeline", "--full"])
+            .with_args(["pipeline", "--full"])
             .assert()
             .success();
         for name in ["producer", "consumer"] {
@@ -327,8 +332,8 @@ fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
     )
     .unwrap();
     Command::new("git")
-        .current_dir(project)
-        .args(["add", "-A"])
+        .with_current_dir(project)
+        .with_args(["add", "-A"])
         .assert()
         .success();
     let inputs = pnpm_testing_utils::git_repo::unignored_files(project);
@@ -352,8 +357,8 @@ fn no_cache_runs_tasks_without_hashing_their_inputs() {
     fs::create_dir(project.path().join("dir")).unwrap();
     fs::write(project.path().join("dir/input"), "source").unwrap();
     Command::new("git")
-        .current_dir(project.path())
-        .args(["add", "-A"])
+        .with_current_dir(project.path())
+        .with_args(["add", "-A"])
         .assert()
         .success();
     fs::remove_file(project.path().join("dir/input")).unwrap();
@@ -361,19 +366,20 @@ fn no_cache_runs_tasks_without_hashing_their_inputs() {
     symlink(outside.path(), project.path().join("dir")).unwrap();
     let storage = tempfile::tempdir().unwrap();
     let command = || {
-        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-        command
-            .current_dir(project.path())
-            .env("XDG_CACHE_HOME", storage.path())
-            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        let command = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(project.path())
+            .with_env("XDG_CACHE_HOME", storage.path())
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
         command
     };
     command()
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     command()
-        .args(["pipeline", "--full", "--no-cache"])
+        .with_args(["pipeline", "--full", "--no-cache"])
         .assert()
         .success();
     assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "shared text");
@@ -381,7 +387,7 @@ fn no_cache_runs_tasks_without_hashing_their_inputs() {
     // The symlinked directory a tracked input sits under is still refused,
     // which is what makes the run above evidence that nothing was hashed.
     command()
-        .args(["pipeline", "--full"])
+        .with_args(["pipeline", "--full"])
         .assert()
         .failure();
     assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), "x");
@@ -396,20 +402,21 @@ fn symlinked_inputs_are_hashed_as_link_targets() {
     symlinked_input_project(project.path(), "    outputs: ['out/**']\n");
     let storage = tempfile::tempdir().unwrap();
     let command = || {
-        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-        command
-            .current_dir(project.path())
-            .env("XDG_CACHE_HOME", storage.path())
-            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        let command = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(project.path())
+            .with_env("XDG_CACHE_HOME", storage.path())
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
         command
     };
     command()
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let run = |expected_runs: &str, expected_hit: bool| {
         let result = command()
-            .args(["pipeline", "--full"])
+            .with_args(["pipeline", "--full"])
             .assert()
             .success();
         let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
@@ -445,22 +452,26 @@ fn a_project_outside_a_work_tree_runs_its_tasks_without_the_cache() {
     .unwrap();
     let storage = tempfile::tempdir().unwrap();
     let command = || {
-        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-        command
-            .current_dir(project.path())
-            .env("XDG_CACHE_HOME", storage.path())
-            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        let command = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(project.path())
+            .with_env("XDG_CACHE_HOME", storage.path())
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
         command
     };
     command()
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     // The task's default inputs are `git ls-files`, which a project outside
     // a work tree cannot answer. The task must still run: it is excluded
     // from the cache, and the exclusion is reported rather than silent.
     let run = |args: &[&str], expected_runs: &str| {
-        let result = command().args(args).assert().success();
+        let result = command()
+            .with_args(args)
+            .assert()
+            .success();
         let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
         assert!(output.contains("Cannot enumerate the tracked files"), "{output}");
         assert!(!output.contains("restored from cache"), "{output}");
@@ -478,14 +489,16 @@ fn run_pipeline_cmd(
     extra_env: &[(&str, &str)],
     args: &[&str],
 ) -> String {
-    let mut cmd = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-    cmd.current_dir(workspace)
-        .env("XDG_CACHE_HOME", storage.join("cache"))
-        .env("XDG_CONFIG_HOME", storage.join("config"));
+    let mut cmd = Command::cargo_bin("pnpm")
+        .unwrap()
+        .without_ambient_pnpm_config()
+        .with_current_dir(workspace)
+        .with_env("XDG_CACHE_HOME", storage.join("cache"))
+        .with_env("XDG_CONFIG_HOME", storage.join("config"));
     for (key, val) in extra_env {
-        cmd.env(key, val);
+        cmd = cmd.with_env(key, val);
     }
-    let result = cmd.args(args).assert().success();
+    let result = cmd.with_args(args).assert().success();
     String::from_utf8_lossy(&result.get_output().stdout).into_owned()
 }
 
@@ -767,8 +780,8 @@ fn git_branch_lockfile_fallback_and_detached_head_invalidate_task_cache() {
     let _ = repo.commit("shared lockfile before branch checkout");
 
     Command::new("git")
-        .current_dir(&workspace)
-        .args(["checkout", "-b", "feat/new-branch"])
+        .with_current_dir(&workspace)
+        .with_args(["checkout", "-b", "feat/new-branch"])
         .assert()
         .success();
     assert!(!workspace.join("pnpm-lock.feat!new-branch.yaml").exists());
@@ -787,8 +800,8 @@ fn git_branch_lockfile_fallback_and_detached_head_invalidate_task_cache() {
     fs::rename(&shared_lock, workspace.join("pnpm-lock.feat!new-branch.yaml")).unwrap();
     let _ = repo.commit("branch lockfile committed");
     Command::new("git")
-        .current_dir(&workspace)
-        .args(["checkout", "--detach", "HEAD"])
+        .with_current_dir(&workspace)
+        .with_args(["checkout", "--detach", "HEAD"])
         .assert()
         .success();
 

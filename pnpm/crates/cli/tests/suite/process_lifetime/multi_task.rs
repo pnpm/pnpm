@@ -61,8 +61,8 @@ fn leftovers_of_a_finished_script_survive_a_recursive_run() {
 
     let mut run = pacquet
         .with_args(["--workspace-concurrency=1", "--no-sort", "-r", "run", "build"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child(&mut run);
@@ -93,8 +93,8 @@ fn leftovers_of_the_script_a_bail_follows_survive_it() {
 
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "--no-sort", "-r", "run", "build"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child(&mut run);
@@ -130,8 +130,12 @@ fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
     let mut run = pacquet
         .with_env("TRACE", "pacquet::process_tracker=debug")
         .with_args(["--workspace-concurrency=3", "--no-sort", "-r", "run", "build"])
-        .stdout(log.try_clone().expect("share the pnpm log"))
-        .stderr(log)
+        .with_stdout(
+            log.try_clone()
+                .expect("share the pnpm log")
+                .into(),
+        )
+        .with_stderr(log.into())
         .spawn()
         .expect("spawn pacquet");
     let report = || bail_report(&workspace, &log_path);
@@ -225,7 +229,7 @@ fn bail_report(workspace: &Path, log_path: &Path) -> String {
         .collect();
     let log = fs::read_to_string(log_path).unwrap_or_else(|error| format!("<{error}>"));
     let processes = std::process::Command::new("ps")
-        .args(["-A", "-o", "pid,ppid,pgid,stat,command"])
+        .with_args(["-A", "-o", "pid,ppid,pgid,stat,command"])
         .output()
         .map(|output| {
             String::from_utf8_lossy(&output.stdout)

@@ -38,10 +38,9 @@ fn assert_relinked_bins(linker: &str, optimistic: &str) {
     ] {
         write_bins(root, &bin);
         let lockfile = fs::read(root.join("pnpm-lock.yaml")).ok();
-        let mut install = pnpm(root);
-        install.args(["install", "--offline", "--ignore-scripts"]);
+        let mut install = pnpm(root).with_args(["install", "--offline", "--ignore-scripts"]);
         if lockfile.is_some() {
-            install.arg("--frozen-lockfile");
+            install = install.with_arg("--frozen-lockfile");
         }
         install.assert().success();
         if let Some(lockfile) = lockfile {
@@ -58,21 +57,21 @@ fn assert_relinked_bins(linker: &str, optimistic: &str) {
     }
     write_bins(root, &json!({"a-one": "one.js", "a-two": "two.js"}));
     pnpm(root)
-        .args(["install", "--offline", "--ignore-scripts"])
+        .with_args(["install", "--offline", "--ignore-scripts"])
         .assert()
         .success();
     assert_installed_bins(&root.join("node_modules/.bin"), &["a-one", "a-two"]);
 
     write_bins(root, &json!({"a-one": "one.js"}));
     pnpm(root)
-        .args(["install", "--offline", "--ignore-scripts"])
+        .with_args(["install", "--offline", "--ignore-scripts"])
         .assert()
         .success();
     assert_installed_bins(&root.join("node_modules/.bin"), &["a-one"]);
 
     write_bins(root, &Value::Null);
     pnpm(root)
-        .args(["install", "--force", "--offline", "--ignore-scripts"])
+        .with_args(["install", "--force", "--offline", "--ignore-scripts"])
         .assert()
         .success();
     assert_installed_bins(&root.join("node_modules/.bin"), &[]);
@@ -101,7 +100,7 @@ fn assert_dedicated_lockfiles_relink(linker: &str, optimistic: &str) {
     for command in ["a-one", "a-renamed"] {
         write_bins(root, &json!({ command: "one.js" }));
         pnpm(root)
-            .args(["install", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         for pkg in ["packages/b", "packages/c"] {
@@ -141,21 +140,21 @@ fn hoisted_workspace_package_prunes_removed_bins_from_root() {
 
         write_bins(root, &json!({"a-one": "one.js", "a-two": "two.js"}));
         pnpm(root)
-            .args(["install", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         assert_installed_bins(&root.join("node_modules/.bin"), &["a-one", "a-two"]);
 
         write_bins(root, &json!({"a-renamed": "two.js"}));
         pnpm(root)
-            .args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         assert_installed_bins(&root.join("node_modules/.bin"), &["a-renamed"]);
 
         write_bins(root, &Value::Null);
         pnpm(root)
-            .args(["install", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         assert_installed_bins(&root.join("node_modules/.bin"), &[]);
@@ -178,14 +177,14 @@ fn symlinked_workspace_project_retains_and_prunes_bins_under_both_linkers() {
 
         write_bins(root, &json!({"a-one": "one.js", "a-two": "two.js"}));
         pnpm(root)
-            .args(["install", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         assert_installed_bins(&external_b.join("node_modules/.bin"), &["a-one", "a-two"]);
 
         write_bins(root, &json!({"a-renamed": "two.js"}));
         pnpm(root)
-            .args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         assert_installed_bins(&external_b.join("node_modules/.bin"), &["a-renamed"]);
@@ -199,13 +198,13 @@ fn filtered_installs_keep_unselected_workspace_bins_stale() {
         let root = &fixture.workspace;
         write_bins(root, &json!({"a-one": "one.js"}));
         pnpm(root)
-            .args(["install", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         write_bins(root, &json!({"a-one": "one.js", "a-two": "two.js"}));
         for consumer in ["b", "c", "root"] {
             pnpm(root)
-                .args([
+                .with_args([
                     "--filter",
                     consumer,
                     "install",
@@ -218,7 +217,7 @@ fn filtered_installs_keep_unselected_workspace_bins_stale() {
             assert_bin(root, consumer, "a-two", "two");
         }
         pnpm(root)
-            .args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         let state_path = root.join("node_modules/.pnpm-workspace-state-v1.json");
@@ -230,7 +229,7 @@ fn filtered_installs_keep_unselected_workspace_bins_stale() {
         fs::write(&state_path, state.to_string()).unwrap();
         fs::remove_dir_all(root.join("node_modules/.bin")).unwrap();
         pnpm(root)
-            .args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
+            .with_args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
             .assert()
             .success();
         assert_bin(root, "root", "a-two", "two");
@@ -278,7 +277,7 @@ fn pnpm(root: &Path) -> Command {
 
 fn assert_bin(root: &Path, consumer: &str, name: &str, output: &str) {
     pnpm(root)
-        .args(["--filter", consumer, "--config.verify-deps-before-run=error", "exec", name])
+        .with_args(["--filter", consumer, "--config.verify-deps-before-run=error", "exec", name])
         .assert()
         .success()
         .stdout(format!("{output}\n"));

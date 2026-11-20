@@ -30,7 +30,7 @@ fn dlx_and_create_run_in_cli_directory() {
 }
 
 fn assert_bin_runs_in_selected_directory(command: &str, dir_flag: DirFlag, shell_mode: bool) {
-    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let invoker = workspace.join("invoker");
     let target = workspace.join("target");
     let fixture = root.path().join("fixture");
@@ -59,15 +59,15 @@ fn assert_bin_runs_in_selected_directory(command: &str, dir_flag: DirFlag, shell
     };
     let shell_flag: &[&str] = if shell_mode { &["-c"] } else { &[] };
     pacquet
-        .current_dir(&invoker)
-        .env("PNPM_CONFIG_OFFLINE", "true")
-        .env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
-        .env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
-        .args(flags)
-        .arg(command)
-        .args(shell_flag)
-        .arg(format!("create-cwd-fixture@file:{}", fixture.display()))
-        .args(["--sentinel", "value", "--dir=unchanged"])
+        .with_current_dir(&invoker)
+        .with_env("PNPM_CONFIG_OFFLINE", "true")
+        .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
+        .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
+        .with_args(flags)
+        .with_arg(command)
+        .with_args(shell_flag)
+        .with_arg(format!("create-cwd-fixture@file:{}", fixture.display()))
+        .with_args(["--sentinel", "value", "--dir=unchanged"])
         .assert()
         .success();
 
@@ -100,10 +100,10 @@ fn dlx_sets_package_manager_environment() {
         std::fs::canonicalize(pacquet.get_program()).expect("resolve pnpm binary");
     let expected_cwd = std::fs::canonicalize(&workspace).expect("resolve working directory");
     for name in ["npm_execpath", "npm_node_execpath", "NODE", "INIT_CWD"] {
-        pacquet.env_remove(name);
+        pacquet = pacquet.without_env(name);
     }
     let output = pacquet
-        .args([
+        .with_args([
             "dlx",
             "--package=@foo/touch-file-one-bin",
             "node",
@@ -128,7 +128,7 @@ fn dlx_sets_package_manager_environment() {
 
 #[test]
 fn dlx_clears_inherited_node_environment_without_node_on_path() {
-    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let node = which::which("node").expect("find node");
     let empty_path = workspace.join("empty-path");
     std::fs::create_dir(&empty_path).expect("create empty PATH directory");
@@ -137,11 +137,11 @@ fn dlx_clears_inherited_node_environment_without_node_on_path() {
     std::fs::write(fixture.join("package.json"), r#"{"name":"env-fixture","version":"1.0.0"}"#)
         .expect("write package manifest");
     let output = pacquet
-        .env("PATH", &empty_path)
-        .env("NODE", "/stale/node")
-        .env("npm_node_execpath", "/stale/node")
-        .arg("dlx").arg(format!("--package=file:{}", fixture.display())).arg(node)
-        .args(["-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .with_env("PATH", &empty_path)
+        .with_env("NODE", "/stale/node")
+        .with_env("npm_node_execpath", "/stale/node")
+        .with_arg("dlx").with_arg(format!("--package=file:{}", fixture.display())).with_arg(node)
+        .with_args(["-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
         .assert().success().get_output().stdout.clone();
     let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
     assert_eq!(env, serde_json::json!({}));
@@ -150,7 +150,7 @@ fn dlx_clears_inherited_node_environment_without_node_on_path() {
 
 #[test]
 fn dlx_does_not_resolve_node_from_dlx_bin() {
-    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let expected_node = which::which("node").expect("find real node");
     let fixture = workspace.join("node-bin-pkg");
     let fixture_bin = fixture.join("bin");
@@ -162,7 +162,7 @@ fn dlx_does_not_resolve_node_from_dlx_bin() {
     .expect("write manifest");
     std::fs::write(fixture_bin.join("fake.js"), "console.log('fake')").expect("write bin");
     let output = pacquet
-        .args([
+        .with_args([
             "dlx",
             &format!("--package=file:{}", fixture.display()),
             expected_node.to_str().unwrap(),
@@ -197,9 +197,9 @@ fn dlx_errors_when_no_command_given() {
 
         let mut command = pacquet;
         if let Some(reporter) = reporter {
-            command.arg(reporter);
+            command = command.with_arg(reporter);
         }
-        command.arg("dlx");
+        command = command.with_arg("dlx");
         let output = command.output().expect("spawn pacquet dlx");
         let stderr = String::from_utf8_lossy(&output.stderr);
         eprintln!("STDERR:\n{stderr}\n");
@@ -324,9 +324,9 @@ fn dlx_does_not_reuse_the_cache_across_node_majors() {
             .with_env("PATH", &path)
             .with_env("FAKE_NODE_VERSION", node_version)
             .with_env("REAL_NODE", &real_node)
-            .arg("dlx")
-            .arg(format!("--package=file:{}", fixture.display()))
-            .args(["node", "-e", ""])
+            .with_arg("dlx")
+            .with_arg(format!("--package=file:{}", fixture.display()))
+            .with_args(["node", "-e", ""])
             .assert()
             .success();
     }
@@ -613,13 +613,13 @@ fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
 #[test]
 fn dlx_provisions_a_package_manager_by_name() {
     for spec in ["yarn@4.9.2", "yarn@tool:4.9.2"] {
-        let CommandTempCwd { mut pacquet, root, npmrc_info, .. } =
+        let CommandTempCwd { pacquet, root, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
 
         let registry_arg = format!("--config.registry={}", npmrc_info.mock_instance.url());
         let output = pacquet
-            .env("YARN_IGNORE_PATH", "1")
-            .args([registry_arg.as_str(), "dlx", spec, "--version"])
+            .with_env("YARN_IGNORE_PATH", "1")
+            .with_args([registry_arg.as_str(), "dlx", spec, "--version"])
             .output()
             .expect("run pacquet dlx");
         dbg!(spec, &output);
@@ -644,16 +644,16 @@ fn dlx_recovers_ignored_builds() {
         } = CommandTempCwd::init().add_mocked_registry();
         let caller_yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
             .expect("read caller settings");
-        pacquet.env_remove("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
-        pacquet
-            .env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
-            .env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
-            .args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"]);
+        pacquet = pacquet.without_env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
+        pacquet = pacquet
+            .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+            .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
+            .with_args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"]);
         if cached {
             pacquet.assert().success();
         }
         if approve {
-            pacquet.env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS", "1");
+            pacquet = pacquet.with_env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS", "1");
         }
         pacquet.assert().success();
         let cache_entry = std::fs::read_dir(npmrc_info.cache_dir.join("dlx"))
@@ -674,7 +674,7 @@ fn dlx_recovers_ignored_builds() {
                     .expect("read cache approvals")
                     .contains("allowBuilds:"),
             );
-            pacquet.env_remove("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
+            pacquet = pacquet.without_env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
             pacquet.assert().success();
             assert!(artifact.exists());
         }

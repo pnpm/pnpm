@@ -1,4 +1,5 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_store_dir::{
     StoreDir,
     StoreIndex,
@@ -33,7 +34,7 @@ fn make_the_store_row_hold_another_package(store_dir: &Path) {
 #[test]
 fn install_fails_when_the_store_holds_another_package() {
     let CommandTempCwd {
-        mut pacquet,
+        pacquet,
         workspace,
         root: _root,
         npmrc_info,
@@ -41,17 +42,16 @@ fn install_fails_when_the_store_holds_another_package() {
     } = CommandTempCwd::init().add_mocked_registry();
 
     pacquet
-        .arg("add")
-        .arg("is-odd@3.0.1")
+        .with_arg("add")
+        .with_arg("is-odd@3.0.1")
         .assert()
         .success();
     make_the_store_row_hold_another_package(&npmrc_info.store_dir);
     fs::remove_dir_all(workspace.join("node_modules")).expect("drop the materialized modules");
 
-    let mut reinstall = std::process::Command::cargo_bin("pnpm").unwrap();
-    reinstall.current_dir(&workspace);
+    let reinstall = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
     let output = reinstall
-        .arg("install")
+        .with_arg("install")
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
@@ -62,7 +62,7 @@ fn install_fails_when_the_store_holds_another_package() {
 #[test]
 fn strict_store_pkg_content_check_false_downgrades_the_failure_to_a_warning() {
     let CommandTempCwd {
-        mut pacquet,
+        pacquet,
         workspace,
         root: _root,
         npmrc_info,
@@ -70,8 +70,8 @@ fn strict_store_pkg_content_check_false_downgrades_the_failure_to_a_warning() {
     } = CommandTempCwd::init().add_mocked_registry();
 
     pacquet
-        .arg("add")
-        .arg("is-odd@3.0.1")
+        .with_arg("add")
+        .with_arg("is-odd@3.0.1")
         .assert()
         .success();
     make_the_store_row_hold_another_package(&npmrc_info.store_dir);
@@ -82,10 +82,9 @@ fn strict_store_pkg_content_check_false_downgrades_the_failure_to_a_warning() {
     yaml.push_str("strictStorePkgContentCheck: false\n");
     fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
 
-    let mut reinstall = std::process::Command::cargo_bin("pnpm").unwrap();
-    reinstall.current_dir(&workspace);
+    let reinstall = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
     let output = reinstall
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);

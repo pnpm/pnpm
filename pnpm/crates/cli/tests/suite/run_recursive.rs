@@ -697,9 +697,9 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
             "run",
             "build",
         ])
-        .env("HOLD_MS", hold_ms.to_string())
-        .stdout(Stdio::null())
-        .stderr(fs::File::create(&stderr_path).expect("create the run output"))
+        .with_env("HOLD_MS", hold_ms.to_string())
+        .with_stdout(Stdio::null())
+        .with_stderr(fs::File::create(&stderr_path).expect("create the run output").into())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child_with_deadline(&mut run, cancellation_deadline);

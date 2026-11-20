@@ -31,8 +31,9 @@ fn pinning_fixture(served_pnpm_version: &str) -> CommandTempCwd<AddMockedRegistr
     let mut fixture =
         CommandTempCwd::init().add_mocked_registry_with_pnpm_version(served_pnpm_version);
     let registry = fixture.npmrc_info.mock_instance.url();
-    fixture.pacquet.env("PNPM_CONFIG_REGISTRY", registry);
-    fixture.pacquet.env("PNPM_CONFIG_CACHE_DIR", &fixture.npmrc_info.cache_dir);
+    fixture.pacquet = fixture.pacquet.with_env("PNPM_CONFIG_REGISTRY", registry);
+    fixture.pacquet =
+        fixture.pacquet.with_env("PNPM_CONFIG_CACHE_DIR", &fixture.npmrc_info.cache_dir);
     fixture
 }
 
@@ -125,7 +126,7 @@ fn an_unreachable_registry_pins_the_running_pnpm() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
     // The connect to `0.0.0.0:1` fails at once on every OS rather than
     // waiting out the lookup's timeout.
-    pacquet.env("PNPM_CONFIG_REGISTRY", "http://0.0.0.0:1/");
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", "http://0.0.0.0:1/");
     pacquet
         .with_arg("init")
         .assert()
@@ -148,7 +149,7 @@ fn offline_pins_the_running_pnpm_without_a_lookup() {
         npmrc_info,
         ..
     } = pinning_fixture(LATEST_PNPM);
-    pacquet.env("PNPM_CONFIG_OFFLINE", "true");
+    pacquet = pacquet.with_env("PNPM_CONFIG_OFFLINE", "true");
     pacquet
         .with_arg("init")
         .assert()

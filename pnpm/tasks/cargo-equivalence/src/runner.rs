@@ -3,6 +3,7 @@ use crate::workspaces::{
     Workspace,
 };
 use cargo_lock::Lockfile;
+use command_extra::CommandExtra;
 use std::{
     fs,
     path::{
@@ -145,16 +146,16 @@ fn enable_cargo_support(directory: &Path) -> Result<(), String> {
 }
 
 fn resolve_with_cargo(cargo: &Path, directory: &Path) -> Result<(), String> {
-    run_command(Command::new(cargo).current_dir(directory).arg("generate-lockfile"))
+    run_command(&mut Command::new(cargo).with_current_dir(directory).with_arg("generate-lockfile"))
 }
 
 fn resolve_with_pnpm(pnpm: &Path, directory: &Path) -> Result<(), String> {
     run_command(
-        Command::new(pnpm)
-            .current_dir(directory)
-            .env("PNPM_CONFIG_CACHE_DIR", directory.join(".cache"))
-            .env("PNPM_CONFIG_STORE_DIR", directory.join(".store"))
-            .args(["install", "--lockfile-only", "--no-frozen-lockfile"]),
+        &mut Command::new(pnpm)
+            .with_current_dir(directory)
+            .with_env("PNPM_CONFIG_CACHE_DIR", directory.join(".cache"))
+            .with_env("PNPM_CONFIG_STORE_DIR", directory.join(".store"))
+            .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"]),
     )
 }
 
@@ -175,9 +176,9 @@ fn accepts_locked(
     fs::copy(&lockfile, directory.join("Cargo.lock"))
         .map_err(|error| format!("copy {lockfile:?}: {error}"))?;
     let refused = command_outcome(
-        Command::new(cargo)
-            .current_dir(&directory)
-            .args(["metadata", "--locked", "--format-version", "1"]),
+        &mut Command::new(cargo)
+            .with_current_dir(&directory)
+            .with_args(["metadata", "--locked", "--format-version", "1"]),
     )?;
     Ok(match refused {
         None => Finding::Agree,

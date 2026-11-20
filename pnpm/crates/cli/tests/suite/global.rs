@@ -93,13 +93,13 @@ fn run_global_prompt(
     answer: &str,
 ) -> std::process::Output {
     without_colors(with_global_env(Command::new("python3"), workspace, pnpm_home))
-        .env("CI", "false")
-        .env_remove("GITHUB_ACTION")
-        .env("PNPM_TEST_MINIMUM_RELEASE_AGE_ANSWER", answer)
-        .arg("-c")
-        .arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
-        .arg(env!("CARGO_BIN_EXE_pnpm"))
-        .args(args)
+        .with_env("CI", "false")
+        .without_env("GITHUB_ACTION")
+        .with_env("PNPM_TEST_MINIMUM_RELEASE_AGE_ANSWER", answer)
+        .with_arg("-c")
+        .with_arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
+        .with_arg(env!("CARGO_BIN_EXE_pnpm"))
+        .with_args(args)
         .output()
         .expect("run the interactive global command in a pseudo-terminal")
 }
@@ -483,8 +483,8 @@ fn global_bin_resolves_hoisted_dependencies() {
         .success();
 
     let output = Command::new(pnpm_home.join("bin/bin-requires-hoisted-dep"))
-        .current_dir(&workspace)
-        .env_remove("NODE_PATH")
+        .with_current_dir(&workspace)
+        .without_env("NODE_PATH")
         .output()
         .expect("run the installed global bin");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

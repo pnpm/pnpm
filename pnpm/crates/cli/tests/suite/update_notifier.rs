@@ -51,7 +51,7 @@ fn fixture() -> Fixture {
         npmrc_info,
         ..
     } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(NEWER_PNPM);
-    pacquet.env("PNPM_CONFIG_UPDATE_NOTIFIER", "true");
+    pacquet = pacquet.with_env("PNPM_CONFIG_UPDATE_NOTIFIER", "true");
     let state_dir = root.path().join("pnpm-state");
     Fixture { pacquet, state_dir, workspace, root, npmrc_info }
 }
@@ -131,7 +131,7 @@ fn update_notifier_off_skips_the_check_entirely() {
         npmrc_info,
     } = fixture();
     // Drop the fixture's opt-in so the workspace manifest is what decides.
-    pacquet.env_remove("PNPM_CONFIG_UPDATE_NOTIFIER");
+    pacquet = pacquet.without_env("PNPM_CONFIG_UPDATE_NOTIFIER");
     append_to_workspace_yaml(&workspace, "updateNotifier: false\n");
 
     let output = install(pacquet, &state_dir);

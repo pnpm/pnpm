@@ -5,6 +5,7 @@
 //! Covering Windows means a different way to allocate a console, not a
 //! port of this file.
 #![cfg(unix)]
+use command_extra::CommandExtra;
 
 use crate::_utils::{
     append_workspace_yaml_key,
@@ -36,19 +37,19 @@ fn approval_prints_the_version_list_once_and_persists_excludes() {
     append_workspace_yaml_key(&workspace, "minimumReleaseAgeStrict", true);
 
     let output = without_colors(Command::new("python3").without_ambient_pnpm_config())
-        .env("CI", "false")
-        .env_remove("GITHUB_ACTION")
-        .arg("-c")
-        .arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
-        .arg(pacquet.get_program())
-        .args([
+        .with_env("CI", "false")
+        .without_env("GITHUB_ACTION")
+        .with_arg("-c")
+        .with_arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
+        .with_arg(pacquet.get_program())
+        .with_args([
             "add",
             "@pnpm.e2e/bravo-dep@1.0.0",
             "@pnpm.e2e/hello-world-js-bin@1.0.0",
             "--reporter=append-only",
             "--ignore-scripts",
         ])
-        .current_dir(&workspace)
+        .with_current_dir(&workspace)
         .output()
         .expect("run interactive install in a pseudo-terminal");
     let stdout = String::from_utf8(output.stdout).expect("terminal output is UTF-8");

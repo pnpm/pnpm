@@ -484,11 +484,10 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
             .iter()
             .enumerate()
             .map(|(worker, dir)| {
-                let mut command = pacquet(dir);
-                command
-                    .args(["install", "--frozen-lockfile"])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::piped());
+                let mut command = pacquet(dir)
+                    .with_args(["install", "--frozen-lockfile"])
+                    .with_stdout(Stdio::null())
+                    .with_stderr(Stdio::piped());
                 let child = command.spawn().expect("spawn concurrent GVS install");
                 (worker, child)
             })

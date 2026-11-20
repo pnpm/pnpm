@@ -13,9 +13,9 @@ fn create_errors_when_no_name_given() {
 
         let mut command = pacquet;
         if let Some(reporter) = reporter {
-            command.arg(reporter);
+            command = command.with_arg(reporter);
         }
-        command.arg("create");
+        command = command.with_arg("create");
         let output = command.output().expect("spawn pacquet create");
         let stderr = String::from_utf8_lossy(&output.stderr);
         eprintln!("STDERR:\n{stderr}\n");

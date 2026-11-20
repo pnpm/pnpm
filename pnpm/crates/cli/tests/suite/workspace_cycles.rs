@@ -1,4 +1,5 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
@@ -37,12 +38,11 @@ fn recursive_install(workspace: &Path) -> Command {
 }
 
 fn install_command(workspace: &Path, recursive: bool) -> Command {
-    let mut install = Command::cargo_bin("pnpm").unwrap();
-    install.current_dir(workspace);
+    let mut install = Command::cargo_bin("pnpm").unwrap().with_current_dir(workspace);
     if recursive {
-        install.arg("--recursive");
+        install = install.with_arg("--recursive");
     }
-    install.arg("install");
+    install = install.with_arg("install");
     install
 }
 
@@ -155,10 +155,11 @@ fn adding_a_dependency_to_one_project_reports_no_cycles() {
         CommandTempCwd::init().add_mocked_registry();
     write_cyclic_workspace(&workspace, "");
 
-    let mut add = Command::cargo_bin("pnpm").unwrap();
-    add.current_dir(workspace.join("packages/project-1"));
+    let add = Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(workspace.join("packages/project-1"));
     let output = add
-        .args(["add", "is-odd@3.0.1"])
+        .with_args(["add", "is-odd@3.0.1"])
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);

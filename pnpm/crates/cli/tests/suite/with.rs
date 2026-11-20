@@ -155,7 +155,7 @@ fn with_version_downloads_and_runs_the_specified_pnpm_version() {
 
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
         .output()
         .expect("run pacquet with a specified pnpm version");
     dbg!(&output);
@@ -183,7 +183,7 @@ fn with_version_ignores_the_package_manager_pin_and_uses_the_requested_version()
 
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
         .output()
         .expect("run pacquet with a specified pnpm version");
     dbg!(&output);
@@ -216,7 +216,7 @@ fn with_version_does_not_record_minimum_release_age_excludes_in_the_project() {
 
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
         .output()
         .expect("run pacquet with a specified pnpm version");
     dbg!(&output);
@@ -248,11 +248,13 @@ fn with_current_requires_a_command() {
 }
 
 fn test_command(command: Command, root: &Path) -> Command {
-    let mut command = command.without_ambient_pnpm_config();
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
-    command.env_remove("COREPACK_ROOT");
+    let mut command = command
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_HOME", root.join("pnpm-home"));
+    command = command
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
+        .without_env("COREPACK_ROOT");
     command
 }
 
@@ -323,7 +325,7 @@ fn a_held_engine_lock_installs_the_engine_privately() {
 
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
         .output()
         .expect("run pacquet with a specified pnpm version");
     dbg!(&output);
@@ -375,10 +377,10 @@ fn concurrent_engine_installs_all_succeed_on_a_cold_cache() {
         let pacquet = Command::cargo_bin("pnpm").expect("find the pnpm binary");
         children.push(
             test_command(pacquet, root.path())
-                .current_dir(&workspace)
-                .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
+                .with_current_dir(&workspace)
+                .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+                .with_stdout(std::process::Stdio::piped())
+                .with_stderr(std::process::Stdio::piped())
                 .spawn()
                 .expect("spawn a concurrent engine install"),
         );

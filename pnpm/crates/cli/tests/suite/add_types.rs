@@ -297,10 +297,9 @@ fn save_types_environment_setting_and_cli_override() {
         let _package = serve_package(&mut server, "example", &json!({}));
         let _types = serve_package(&mut server, "@types/example", &json!({}));
         setup(&workspace, &server.url());
-        let mut command = add(&workspace, &["example"]);
-        command.env("PNPM_CONFIG_SAVE_TYPES", "true");
+        let mut command = add(&workspace, &["example"]).with_env("PNPM_CONFIG_SAVE_TYPES", "true");
         if disabled {
-            command.arg("--no-save-types");
+            command = command.with_arg("--no-save-types");
         }
         command.assert().success();
         assert_eq!(

@@ -2,6 +2,7 @@
 //! across every pnpm process that shares a slot pool, a task outside any
 //! limited group runs regardless, and a script's own nested `pnpm run`
 //! rides the slot its parent holds.
+use command_extra::CommandExtra;
 
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -87,18 +88,18 @@ fn state_dir(workspace: &Path) -> PathBuf {
 
 fn pnpm_run(pacquet: &Command, script: &str) -> Command {
     let workspace = pacquet.get_current_dir().expect("workspace dir");
-    let mut command = Command::new(pacquet.get_program());
-    command.current_dir(workspace);
-    for (name, value) in pacquet.get_envs() {
-        match value {
-            Some(value) => command.env(name, value),
-            None => command.env_remove(name),
-        };
-    }
-    command.env("PNPM_CONFIG_STATE_DIR", state_dir(workspace));
-    command.env("MARKER_DIR", workspace);
-    command.env("HOLD_MS", HOLD.as_millis().to_string());
-    command.args(["run", script]);
+    let mut command = Command::new(pacquet.get_program()).with_current_dir(workspace);
+    command = pacquet
+        .get_envs()
+        .fold(command, |command, (name, value)| match value {
+            Some(value) => command.with_env(name, value),
+            None => command.without_env(name),
+        });
+    command = command
+        .with_env("PNPM_CONFIG_STATE_DIR", state_dir(workspace))
+        .with_env("MARKER_DIR", workspace)
+        .with_env("HOLD_MS", HOLD.as_millis().to_string())
+        .with_args(["run", script]);
     command
 }
 
@@ -108,7 +109,7 @@ fn hold(pacquet: &Command) -> Command {
 
 fn releasable_holder(pacquet: &Command) -> Child {
     hold(pacquet)
-        .env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
+        .with_env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
         .spawn()
         .expect("spawn the holding run")
 }
@@ -183,11 +184,11 @@ fn tasks_within_the_limit_do_not_wait() {
     write_project(&workspace, Path::new(pacquet.get_program()), 2);
 
     let mut first = hold(&pacquet)
-        .env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
+        .with_env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
         .spawn()
         .expect("spawn the first run");
     let mut second = hold(&pacquet)
-        .env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
+        .with_env("HOLD_MS", RELEASE_TIMEOUT.as_millis().to_string())
         .spawn()
         .expect("spawn the second run");
     wait_for_holders(&workspace, 2);
@@ -231,7 +232,7 @@ fn a_waiting_task_reports_who_holds_the_slots() {
     let mut holder = releasable_holder(&pacquet);
     wait_for_holders(&workspace, 1);
     let mut waiting = hold(&pacquet)
-        .stdout(Stdio::piped())
+        .with_stdout(Stdio::piped())
         .spawn()
         .expect("spawn the waiting run");
     let mut stdout = BufReader::new(waiting.stdout.take().expect("capture the waiting run stdout"));
@@ -317,10 +318,10 @@ fn fail_queued_run(child: &mut Child, reader: thread::JoinHandle<()>, message: &
 
 fn queued_run(pacquet: &Command, script: &str, run_id: &str, order_log: &Path) -> Child {
     pnpm_run(pacquet, script)
-        .env("RUN_ID", run_id)
-        .env("ORDER_LOG", order_log)
-        .env("HOLD_MS", "10")
-        .stdout(Stdio::piped())
+        .with_env("RUN_ID", run_id)
+        .with_env("ORDER_LOG", order_log)
+        .with_env("HOLD_MS", "10")
+        .with_stdout(Stdio::piped())
         .spawn()
         .expect("spawn a queued run")
 }
@@ -415,7 +416,7 @@ fn a_nested_task_uses_the_slot_its_parent_holds() {
     write_project(&workspace, Path::new(pacquet.get_program()), 1);
 
     pnpm_run(&pacquet, "outer")
-        .env("HOLD_MS", "10")
+        .with_env("HOLD_MS", "10")
         .assert()
         .success();
 
@@ -436,16 +437,16 @@ fn stdout_has_elapsed(stdout: &str) -> bool {
 
 fn tasks_status_cmd(pacquet: &Command) -> Command {
     let workspace = pacquet.get_current_dir().expect("workspace dir");
-    let mut command = Command::new(pacquet.get_program());
-    command.current_dir(workspace);
-    for (name, value) in pacquet.get_envs() {
-        match value {
-            Some(value) => command.env(name, value),
-            None => command.env_remove(name),
-        };
-    }
-    command.env("PNPM_CONFIG_STATE_DIR", state_dir(workspace));
-    command.args(["tasks", "status"]);
+    let mut command = Command::new(pacquet.get_program()).with_current_dir(workspace);
+    command = pacquet
+        .get_envs()
+        .fold(command, |command, (name, value)| match value {
+            Some(value) => command.with_env(name, value),
+            None => command.without_env(name),
+        });
+    command = command
+        .with_env("PNPM_CONFIG_STATE_DIR", state_dir(workspace))
+        .with_args(["tasks", "status"]);
     command
 }
 
@@ -481,7 +482,7 @@ fn tasks_status_prints_the_wait_list() {
     assert!(elapsed_lines >= 2, "running and waiting both need elapsed time: {stdout}");
 
     let idle = tasks_status_cmd(&pacquet)
-        .arg("missing")
+        .with_arg("missing")
         .output()
         .expect("list a missing group");
     let idle_out = String::from_utf8(idle.stdout).expect("stdout utf8");
@@ -500,7 +501,7 @@ fn workspace_path_cannot_inject_process_stamp_metadata() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
     let workspace = workspace.join("project\ncmd forged\nsince 1");
     fs::create_dir(&workspace).expect("create workspace with newlines");
-    pacquet.current_dir(&workspace);
+    pacquet = pacquet.with_current_dir(&workspace);
     write_project(&workspace, Path::new(pacquet.get_program()), 1);
     let mut holder = releasable_holder(&pacquet);
     wait_for_holders(&workspace, 1);
@@ -567,19 +568,18 @@ fn pipeline_tasks_of_one_group_share_its_slots() {
     .expect("write pnpm-workspace.yaml");
 
     let pnpm = |args: &[&str]| {
-        let mut command = Command::new(pacquet.get_program());
-        command.current_dir(&workspace);
-        for (name, value) in pacquet.get_envs() {
-            match value {
-                Some(value) => command.env(name, value),
-                None => command.env_remove(name),
-            };
-        }
-        command
-            .env("PNPM_CONFIG_STATE_DIR", state_dir(&workspace))
-            .env("MARKER_DIR", &workspace)
-            .env("HOLD_MS", HOLD.as_millis().to_string())
-            .args(args);
+        let mut command = Command::new(pacquet.get_program()).with_current_dir(&workspace);
+        command = pacquet
+            .get_envs()
+            .fold(command, |command, (name, value)| match value {
+                Some(value) => command.with_env(name, value),
+                None => command.without_env(name),
+            });
+        command = command
+            .with_env("PNPM_CONFIG_STATE_DIR", state_dir(&workspace))
+            .with_env("MARKER_DIR", &workspace)
+            .with_env("HOLD_MS", HOLD.as_millis().to_string())
+            .with_args(args);
         command
     };
     // The pipeline installs with a frozen lockfile, so write one first.

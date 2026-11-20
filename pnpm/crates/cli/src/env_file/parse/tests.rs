@@ -1,4 +1,5 @@
 use super::parse;
+use command_extra::CommandExtra;
 use std::{
     collections::BTreeMap,
     io::Write,
@@ -15,9 +16,9 @@ fn parse_with_node(inputs: &[String]) -> Vec<BTreeMap<String, String>> {
 const inputs = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
 process.stdout.write(JSON.stringify(inputs.map((input) => parseEnv(input))));";
     let mut child = Command::new("node")
-        .args(["-e", script])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
+        .with_args(["-e", script])
+        .with_stdin(Stdio::piped())
+        .with_stdout(Stdio::piped())
         .spawn()
         .expect("spawn node");
     let stdin = serde_json::to_vec(inputs).expect("serialize inputs");

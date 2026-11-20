@@ -3,6 +3,7 @@ use crate::{
     seed_storage::seed_runtime_storage,
     workspace_root,
 };
+use command_extra::CommandExtra;
 use std::{
     env,
     fs,
@@ -142,7 +143,6 @@ pub fn pnpr_command_with_home(
         eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
     }
     let public_url = public_url.map_or_else(|| port_to_url(port), str::to_string);
-    let mut cmd = command_without_pnpr_env(bin);
     // Front pnpr with the registry-mock config from `pnpr/.fixtures/config.yaml`
     // (the fixture namespace served from local hosted storage, everything else
     // proxied through the pattern-less npmjs upstream). We pin the runtime bits
@@ -155,18 +155,19 @@ pub fn pnpr_command_with_home(
     let registries = config.and_then(|config| config.registries);
     let config = runtime_mock_config(database.as_deref(), yaml)
         .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
-    cmd.arg("--config")
-        .arg(config)
-        .arg("--storage")
-        .arg(storage)
-        .arg("--cache")
-        .arg(crate::runtime_cache())
-        .arg("--packument-ttl")
-        .arg("31536000")
-        .arg("--listen")
-        .arg(format!("127.0.0.1:{port}"))
-        .arg("--public-url")
-        .arg(public_url.trim_end_matches('/'));
+    let cmd = command_without_pnpr_env(bin)
+        .with_arg("--config")
+        .with_arg(config)
+        .with_arg("--storage")
+        .with_arg(storage)
+        .with_arg("--cache")
+        .with_arg(crate::runtime_cache())
+        .with_arg("--packument-ttl")
+        .with_arg("31536000")
+        .with_arg("--listen")
+        .with_arg(format!("127.0.0.1:{port}"))
+        .with_arg("--public-url")
+        .with_arg(public_url.trim_end_matches('/'));
     if let Some(registries) = registries {
         import_registries(&cmd, registries);
     }
@@ -196,21 +197,21 @@ pub fn import_registries(serve: &Command, document: &Path) {
 
 /// Run `pnpr <kind> import <file>` the way `serve` runs `pnpr`.
 fn import(serve: &Command, kind: &str, file: &Path) {
-    let mut import = Command::new(serve.get_program());
-    for (name, value) in serve.get_envs() {
-        match value {
-            Some(value) => import.env(name, value),
-            None => import.env_remove(name),
-        };
-    }
-    if let Some(dir) = serve.get_current_dir() {
-        import.current_dir(dir);
-    }
+    let import = serve
+        .get_envs()
+        .fold(Command::new(serve.get_program()), |import, (name, value)| match value {
+            Some(value) => import.with_env(name, value),
+            None => import.without_env(name),
+        });
+    let import = match serve.get_current_dir() {
+        Some(dir) => import.with_current_dir(dir),
+        None => import,
+    };
     let output = import
-        .args(serve.get_args())
-        .arg(kind)
-        .arg("import")
-        .arg(file)
+        .with_args(serve.get_args())
+        .with_arg(kind)
+        .with_arg("import")
+        .with_arg(file)
         .output()
         .unwrap_or_else(|err| panic!("spawn `pnpr {kind} import` for {file:?}: {err}"));
     assert!(
@@ -228,14 +229,14 @@ fn import(serve: &Command, kind: &str, file: &Path) {
 /// reconfigure the mock. The arguments the caller adds are the only thing
 /// allowed to.
 fn command_without_pnpr_env(bin: &Path) -> Command {
-    let mut cmd = Command::new(bin);
-    for (name, _) in env::vars_os() {
-        let key = name.to_string_lossy().to_ascii_uppercase();
-        if key.starts_with("PNPR_") {
-            cmd.env_remove(&name);
-        }
-    }
-    cmd
+    env::vars_os()
+        .map(|(name, _)| name)
+        .filter(|name| {
+            name.to_string_lossy()
+                .to_ascii_uppercase()
+                .starts_with("PNPR_")
+        })
+        .fold(Command::new(bin), CommandExtra::without_env)
 }
 
 /// Pin the database beside the fixture build's hosted store.

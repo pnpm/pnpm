@@ -169,9 +169,9 @@ fn add_crate_detaching_workspace_registry_keeps_private_registry_source() {
 
 fn read_cargo_dep_identity(manifest_path: &Path) -> (String, Option<String>, Option<String>) {
     let output = std::process::Command::new("cargo")
-        .current_dir(manifest_path.parent().unwrap())
-        .args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
-        .arg(manifest_path)
+        .with_current_dir(manifest_path.parent().unwrap())
+        .with_args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
+        .with_arg(manifest_path)
         .output()
         .expect("run cargo metadata");
     let stderr = String::from_utf8_lossy(&output.stderr);

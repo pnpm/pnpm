@@ -5,6 +5,7 @@ use super::{
     generate_cmd_shim,
 };
 use crate::shim::end_replaced_cmd_shim_batch;
+use command_extra::CommandExtra;
 use std::{
     fs,
     path::{
@@ -231,8 +232,8 @@ impl ReplacingShim {
     fn run_replacing_with(&self, replacement: &str) -> Output {
         fs::write(self.root.path().join("new-shim.txt"), replacement).unwrap();
         let output = cmd_in_own_console()
-            .args(["/d", "/c", "shim.cmd", "/d", "/c", "replace.cmd"])
-            .current_dir(self.root.path())
+            .with_args(["/d", "/c", "shim.cmd", "/d", "/c", "replace.cmd"])
+            .with_current_dir(self.root.path())
             .output()
             .unwrap();
         eprintln!("{output:?}");

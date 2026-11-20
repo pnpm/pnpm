@@ -1,6 +1,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 #![expect(clippy::print_stderr, reason = "developer tool, not part of the pnpm binary")]
+use command_extra::CommandExtra;
 
 mod cli_args;
 mod fixtures;
@@ -164,8 +165,8 @@ async fn spawn_registry(opts: SpawnRegistry<'_>) -> Option<pnpm_registry_mock::M
     match opts.registry_mode {
         RegistryMode::Verdaccio => {
             verify::ensure_program("just")
-                .arg("install")
-                .pipe(verify::executor("just install"));
+                .with_arg("install")
+                .pipe_mut(verify::executor("just install"));
             pnpm_registry_mock::MockInstanceOptions {
                 client: &reqwest::Client::default(),
                 port: opts.spawned_registry_port,

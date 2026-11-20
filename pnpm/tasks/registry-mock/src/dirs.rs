@@ -1,3 +1,4 @@
+use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use std::{
     path::{
@@ -13,9 +14,9 @@ pub fn workspace_root() -> &'static Path {
     static WORKSPACE_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
         let output = env!("CARGO")
             .pipe(Command::new)
-            .arg("locate-project")
-            .arg("--workspace")
-            .arg("--message-format=plain")
+            .with_arg("locate-project")
+            .with_arg("--workspace")
+            .with_arg("--message-format=plain")
             .output()
             .expect("cargo locate-project");
         assert!(

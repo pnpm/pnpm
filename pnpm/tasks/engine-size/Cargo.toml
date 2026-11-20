@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { workspace = true }
+command-extra = { workspace = true }
 object = { workspace = true }
 rustc-demangle = { workspace = true }
 serde = { workspace = true }

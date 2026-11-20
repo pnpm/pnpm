@@ -1,6 +1,7 @@
 //! Unit tests for the pure summary rendering and the alias-script writer.
 //! The full `setup` flow installs the CLI globally and edits the user's
 //! shell config, so it is exercised on a real host rather than here.
+use command_extra::CommandExtra;
 
 use super::{
     ConfigFileChangeType,
@@ -369,8 +370,8 @@ fn alias_scripts_run_the_pnpm_beside_them() {
 
     for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
         let output = std::process::Command::new(bin_dir.join(name))
-            .args(["add", "foo"])
-            .env("PATH", format!("{}:/usr/bin:/bin", decoy_dir.display()))
+            .with_args(["add", "foo"])
+            .with_env("PATH", format!("{}:/usr/bin:/bin", decoy_dir.display()))
             .output()
             .expect("run the alias script");
 
@@ -411,8 +412,8 @@ fn alias_scripts_follow_a_symlink_when_the_default_path_lacks_readlink() {
         std::os::unix::fs::symlink(&alias, link_dir.join(name)).expect("link the alias");
 
         let output = std::process::Command::new(link_dir.join(name))
-            .args(["add", "foo"])
-            .env("PATH", "/usr/bin:/bin")
+            .with_args(["add", "foo"])
+            .with_env("PATH", "/usr/bin:/bin")
             .output()
             .expect("run the alias script");
 

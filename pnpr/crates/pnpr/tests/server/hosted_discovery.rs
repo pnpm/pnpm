@@ -26,6 +26,7 @@ use super::{
     to_bytes,
 };
 use crate::tokens::issue_token;
+use command_extra::CommandExtra;
 
 #[tokio::test]
 async fn search_paginates_across_hosted_and_upstream_sources() {
@@ -601,7 +602,7 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
 #[test]
 fn pipeline_viewer_renders_publisher_data_as_text() {
     let output = std::process::Command::new("node")
-        .args(["--test", concat!(env!("CARGO_MANIFEST_DIR"), "/tests/pipeline_ui.mjs")])
+        .with_args(["--test", concat!(env!("CARGO_MANIFEST_DIR"), "/tests/pipeline_ui.mjs")])
         .output()
         .unwrap();
     assert!(

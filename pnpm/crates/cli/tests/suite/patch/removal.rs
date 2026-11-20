@@ -12,6 +12,7 @@ use super::{
     setup_patch_remove_project,
 };
 use assert_cmd::assert::OutputAssertExt;
+use command_extra::CommandExtra;
 
 #[test]
 fn patch_remove_removes_patch_file_manifest_entry_and_reinstalls() {
@@ -308,7 +309,7 @@ fn legacy_deploy_honors_allow_unused_patches_overrides() {
     .assert()
     .success();
     pacquet(&workspace, ["--filter=app", "deploy", "--legacy", "env-deploy"])
-        .env("PNPM_CONFIG_ALLOW_UNUSED_PATCHES", "true")
+        .with_env("PNPM_CONFIG_ALLOW_UNUSED_PATCHES", "true")
         .assert()
         .success();
 

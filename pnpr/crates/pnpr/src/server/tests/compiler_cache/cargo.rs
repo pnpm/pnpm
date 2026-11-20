@@ -1,3 +1,4 @@
+use command_extra::CommandExtra;
 use serde_json::Value;
 use std::{
     net::TcpListener as StdTcpListener,
@@ -110,7 +111,7 @@ impl Drop for CompilerSession {
         if let Err(error) = self
             .command("sccache")
             .into_std()
-            .arg("--stop-server")
+            .with_arg("--stop-server")
             .output()
         {
             eprintln!("could not stop test sccache server: {error}");

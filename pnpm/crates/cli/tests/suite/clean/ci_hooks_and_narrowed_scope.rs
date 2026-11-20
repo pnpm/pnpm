@@ -407,8 +407,8 @@ fn ci_dedicated_workspace_carries_verified_lockfile_into_install() {
         .expect("find pnpm binary")
         .with_current_dir(&workspace)
         .without_ambient_pnpm_config()
-        .env("TAMPER_LOCK", "1")
-        .arg("ci")
+        .with_env("TAMPER_LOCK", "1")
+        .with_arg("ci")
         .output()
         .expect("run pnpm ci");
     assert!(ci_out.status.success(), "{ci_out:?}");

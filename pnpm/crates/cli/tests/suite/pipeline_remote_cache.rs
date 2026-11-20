@@ -3,6 +3,7 @@ use base64::{
     Engine as _,
     engine::general_purpose::STANDARD as BASE64,
 };
+use command_extra::CommandExtra;
 use p256::{
     SecretKey,
     pkcs8::{
@@ -74,12 +75,13 @@ fn workspace(root: &Path) -> PathBuf {
 /// `pnpm` in `project` with a local cache and global config of its own under
 /// `machine`, as a separate machine would have.
 fn pnpm_on_machine(project: &Path, machine: &Path, runs: &Path) -> Command {
-    let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
-    command
-        .current_dir(project)
-        .env("XDG_CACHE_HOME", machine.join("cache"))
-        .env("XDG_CONFIG_HOME", machine.join("config"))
-        .env("RUN_LOG", runs);
+    let command = Command::cargo_bin("pnpm")
+        .unwrap()
+        .without_ambient_pnpm_config()
+        .with_current_dir(project)
+        .with_env("XDG_CACHE_HOME", machine.join("cache"))
+        .with_env("XDG_CONFIG_HOME", machine.join("config"))
+        .with_env("RUN_LOG", runs);
     command
 }
 
@@ -91,11 +93,10 @@ fn cache_token_key(cache: &TurborepoCache) -> String {
 
 /// [`pnpm_on_machine`] on a machine that names `cache` in its environment.
 fn pnpm_with_cache(project: &Path, machine: &Path, runs: &Path, cache: &TurborepoCache) -> Command {
-    let mut command = pnpm_on_machine(project, machine, runs);
-    command
-        .env("PNPM_REMOTE_CACHE_URL", cache.url())
-        .env("PNPM_REMOTE_CACHE_TEAM", TEAM)
-        .env(format!("pnpm_config_{}", cache_token_key(cache)), TOKEN);
+    let command = pnpm_on_machine(project, machine, runs)
+        .with_env("PNPM_REMOTE_CACHE_URL", cache.url())
+        .with_env("PNPM_REMOTE_CACHE_TEAM", TEAM)
+        .with_env(format!("pnpm_config_{}", cache_token_key(cache)), TOKEN);
     command
 }
 
@@ -129,11 +130,11 @@ fn a_task_published_from_one_machine_is_restored_on_another() {
     )
     .unwrap();
     pnpm_on_machine(&project, &builder, &runs)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let built = pnpm_on_machine(&project, &builder, &runs)
-        .args(["pipeline", "--full"])
+        .with_args(["pipeline", "--full"])
         .assert()
         .success();
     let output = combined_output(built.get_output());
@@ -154,8 +155,8 @@ fn a_task_published_from_one_machine_is_restored_on_another() {
     fs::remove_dir_all(project.join("out")).unwrap();
     let consumer = root.path().join("consumer");
     let restored = pnpm_with_cache(&project, &consumer, &runs, &cache)
-        .env("PNPM_REMOTE_CACHE_TRUSTED_KEYS", format!(r#"{{"{KEY_ID}":"{public_key}"}}"#))
-        .args(["pipeline", "--full"])
+        .with_env("PNPM_REMOTE_CACHE_TRUSTED_KEYS", format!(r#"{{"{KEY_ID}":"{public_key}"}}"#))
+        .with_args(["pipeline", "--full"])
         .assert()
         .success();
     let output = combined_output(restored.get_output());
@@ -167,8 +168,11 @@ fn a_task_published_from_one_machine_is_restored_on_another() {
     let (_, other_public_key) = key_pair(9);
     let untrusting = root.path().join("untrusting");
     let rejected = pnpm_with_cache(&project, &untrusting, &runs, &cache)
-        .env("PNPM_REMOTE_CACHE_TRUSTED_KEYS", format!(r#"{{"{KEY_ID}":"{other_public_key}"}}"#))
-        .args(["pipeline", "--full"])
+        .with_env(
+            "PNPM_REMOTE_CACHE_TRUSTED_KEYS",
+            format!(r#"{{"{KEY_ID}":"{other_public_key}"}}"#),
+        )
+        .with_args(["pipeline", "--full"])
         .assert()
         .success();
     let output = combined_output(rejected.get_output());
@@ -185,12 +189,12 @@ fn a_remote_cache_without_trusted_keys_is_off() {
     fs::write(&runs, "").unwrap();
     let machine = root.path().join("machine");
     pnpm_on_machine(&project, &machine, &runs)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     let result = pnpm_with_cache(&project, &machine, &runs, &cache)
-        .args(["pipeline", "--full"])
+        .with_args(["pipeline", "--full"])
         .assert()
         .success();
 
@@ -213,12 +217,12 @@ fn a_run_report_needs_the_organization_to_record_it_under() {
     fs::write(&runs, "").unwrap();
     let machine = root.path().join("machine");
     pnpm_on_machine(&project, &machine, &runs)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     let result = pnpm_on_machine(&project, &machine, &runs)
-        .args(["pipeline", "--full", "--report-to", "http://127.0.0.1:9"])
+        .with_args(["pipeline", "--full", "--report-to", "http://127.0.0.1:9"])
         .assert()
         .success();
 
@@ -244,12 +248,12 @@ fn publishing_dependency_builds_does_not_publish_tasks() {
     )
     .unwrap();
     pnpm_on_machine(&project, &builder, &runs)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     pnpm_with_cache(&project, &builder, &runs, &cache)
-        .args(["pipeline", "--full"])
+        .with_args(["pipeline", "--full"])
         .assert()
         .success();
 

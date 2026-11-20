@@ -2,6 +2,7 @@ use super::{
     find_workspace_inventory,
     find_workspace_inventory_with,
 };
+use command_extra::CommandExtra;
 use pnpm_fs::symlink_dir as symlink;
 use pretty_assertions::assert_eq;
 use std::fs;
@@ -327,14 +328,14 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
     }
     fs::write(directory.join("Cargo.toml"), "[workspace]\n").unwrap();
     let output = std::process::Command::new("sh")
-        .args(["-c", r#"ulimit -n 64; exec "$@""#, "sh"])
-        .arg(std::env::current_exe().unwrap())
-        .args(["--exact", "--nocapture"])
-        .arg(format!(
+        .with_args(["-c", r#"ulimit -n 64; exec "$@""#, "sh"])
+        .with_arg(std::env::current_exe().unwrap())
+        .with_args(["--exact", "--nocapture"])
+        .with_arg(format!(
             "{}::discovers_deep_trees_with_a_small_handle_limit",
             module_path!().split_once("::").unwrap().1,
         ))
-        .env(ROOT_ENV, workspace.path())
+        .with_env(ROOT_ENV, workspace.path())
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");

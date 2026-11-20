@@ -1,13 +1,12 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::fs;
 
 #[test]
 fn frozen_injected_installs_reuse_unchanged_hardlinks_and_refresh_replacements() {
     for global_store in [false, true] {
-        let CommandTempCwd {
-            mut pacquet, root: _root, workspace, ..
-        } = CommandTempCwd::init();
+        let CommandTempCwd { pacquet, root: _root, workspace, .. } = CommandTempCwd::init();
         fs::write(
             workspace.join("package.json"),
             serde_json::json!({
@@ -25,14 +24,14 @@ fn frozen_injected_installs_reuse_unchanged_hardlinks_and_refresh_replacements()
         fs::write(source.join("package.json"), r#"{"name":"library","version":"1.0.0"}"#).unwrap();
         fs::write(source.join("index.js"), "original").unwrap();
         pacquet
-            .args(["install", "--offline", "--ignore-scripts", "--no-frozen-lockfile"])
+            .with_args(["install", "--offline", "--ignore-scripts", "--no-frozen-lockfile"])
             .assert()
             .success();
         let target = fs::canonicalize(workspace.join("node_modules/library")).unwrap();
         assert_ne!(target, fs::canonicalize(&source).unwrap());
         let original = same_file::Handle::from_path(&target).unwrap();
         let repeated = crate::_utils::pacquet_in(&workspace)
-            .args(["install", "--offline", "--frozen-lockfile", "--reporter=ndjson"])
+            .with_args(["install", "--offline", "--frozen-lockfile", "--reporter=ndjson"])
             .assert()
             .success();
         let stderr = String::from_utf8_lossy(&repeated.get_output().stderr);
@@ -50,7 +49,7 @@ fn frozen_injected_installs_reuse_unchanged_hardlinks_and_refresh_replacements()
         fs::rename(source.join("replacement.js"), source.join("index.js")).unwrap();
         assert_eq!(fs::read_to_string(target.join("index.js")).unwrap(), "original");
         crate::_utils::pacquet_in(&workspace)
-            .args(["install", "--offline", "--frozen-lockfile"])
+            .with_args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();
         assert_eq!(fs::read_to_string(target.join("index.js")).unwrap(), "modified");

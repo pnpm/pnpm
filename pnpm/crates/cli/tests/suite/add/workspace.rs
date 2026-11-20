@@ -585,7 +585,7 @@ fn the_env_var_drives_the_saved_workspace_range() {
             .expect("find the pnpm binary")
             .with_current_dir(&app_dir)
             .with_args(["add", &format!("{LIB}@workspace:^1.0.0"), "--lockfile-only"])
-            .env("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL", value)
+            .with_env("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL", value)
             .assert()
             .success();
 

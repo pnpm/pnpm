@@ -1,3 +1,4 @@
+use command_extra::CommandExtra;
 use pnpr_fixtures::read_packument;
 
 use super::{
@@ -823,8 +824,8 @@ fn cold_mock_cleanup_preserves_server_metadata_and_empties_the_configured_cache(
         |_| temp.path().to_path_buf(),
     );
     let status = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(command)
+        .with_arg("-c")
+        .with_arg(command)
         .status()
         .unwrap();
     assert!(status.success());

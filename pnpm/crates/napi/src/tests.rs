@@ -2,14 +2,15 @@ use crate::read_config::{
     ReadConfigOptions,
     read_config,
 };
+use command_extra::CommandExtra;
 
 #[test]
 fn addon_entry_point_configures_rayon_pool() {
     const CHILD: &str = "PNPM_NAPI_RAYON_POOL_TEST_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "tests::addon_entry_point_configures_rayon_pool"])
-            .env(CHILD, "1")
+            .with_args(["--exact", "tests::addon_entry_point_configures_rayon_pool"])
+            .with_env(CHILD, "1")
             .output()
             .unwrap();
         assert!(output.status.success(), "{output:?}");

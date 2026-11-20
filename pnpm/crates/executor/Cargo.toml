@@ -41,6 +41,7 @@ windows-sys = { workspace = true, features = [
 ] }
 
 [dev-dependencies]
+command-extra = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 

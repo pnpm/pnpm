@@ -101,12 +101,11 @@ fn deploy_resolves_relative_file_overrides_from_the_source_workspace() {
         ("legacy", Some("--legacy")),
     ] {
         let target = output.join(mode);
-        let mut deploy = pacquet_cmd(source);
-        deploy.args(["--filter=.", "deploy"]);
+        let mut deploy = pacquet_cmd(source).with_args(["--filter=.", "deploy"]);
         if let Some(extra) = extra {
-            deploy.arg(extra);
+            deploy = deploy.with_arg(extra);
         }
-        deploy.arg(&target);
+        deploy = deploy.with_arg(&target);
         deploy.assert().success();
     }
 
@@ -114,8 +113,8 @@ fn deploy_resolves_relative_file_overrides_from_the_source_workspace() {
     fs::rename(&sdk, root.join("sdk-away")).unwrap();
     for mode in ["default", "shared", "legacy"] {
         Command::new("node")
-            .current_dir(output.join(mode))
-            .args(["-e", "if (require('repro-sdk') !== 42) process.exit(1)"])
+            .with_current_dir(output.join(mode))
+            .with_args(["-e", "if (require('repro-sdk') !== 42) process.exit(1)"])
             .assert()
             .success();
     }

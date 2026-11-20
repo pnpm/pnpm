@@ -472,7 +472,7 @@ fn add_can_disable_progress_output() {
             ..
         } = CommandTempCwd::init().add_mocked_registry();
         if let Some((key, value)) = env {
-            pacquet.env(key, value);
+            pacquet = pacquet.with_env(key, value);
         }
         if workspace_config {
             append_workspace_yaml_key(&workspace, "progress", false);

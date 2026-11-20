@@ -341,12 +341,12 @@ fn pacquet_in(workspace: &Path) -> Command {
 }
 
 fn run(command: Command, root: &Path, args: &[&str]) -> Output {
-    let mut command = command;
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
+    let command = command
+        .with_env("PNPM_HOME", root.join("pnpm-home"))
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"));
     command
-        .args(args)
+        .with_args(args)
         .output()
         .expect("run pacquet")
 }

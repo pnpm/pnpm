@@ -3,6 +3,7 @@ use super::{
     generate_wasm_shim,
     json,
 };
+use command_extra::CommandExtra;
 use std::{
     fs,
     process::Command,
@@ -37,9 +38,9 @@ fn javascript_launcher_preserves_arguments_and_relocates() {
     fs::rename(&root, &moved).unwrap();
     let moved = dunce::canonicalize(moved).unwrap();
     let output = Command::new("node")
-        .arg(moved.join(".bin/tool"))
-        .args(["a b", "$(false)", "'quoted'"])
-        .env_remove("NODE_PATH")
+        .with_arg(moved.join(".bin/tool"))
+        .with_args(["a b", "$(false)", "'quoted'"])
+        .without_env("NODE_PATH")
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -77,7 +78,7 @@ fn malformed_runtime_arguments_fail_without_executing_the_target() {
     let runtime = ScriptRuntime { prog: Some("node".into()), args: " 'unterminated".into() };
     fs::write(&shim, generate_wasm_shim(&target, &shim, Some(&runtime), &[], None)).unwrap();
     let output = Command::new("node")
-        .arg(&shim)
+        .with_arg(&shim)
         .output()
         .unwrap();
     assert!(!output.status.success());

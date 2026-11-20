@@ -220,7 +220,7 @@ fn rebuild_pending_runs_the_deferred_work_and_empties_the_list() {
     } = CommandTempCwd::init().add_mocked_registry();
     rebuild
         .with_current_dir(&workspace)
-        .arg("rebuild")
+        .with_arg("rebuild")
         .assert()
         .success();
 

@@ -8,6 +8,7 @@ use crate::{
     cli_args::TargetKind,
     verify::executor,
 };
+use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use std::{
     fs,
@@ -42,12 +43,12 @@ impl WorkEnv {
     }
     pub(super) fn resolve_revision(repository: &Path, revision: &str) -> String {
         let output = Command::new("git")
-            .current_dir(repository)
-            .arg("rev-parse")
-            .arg(revision)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .with_current_dir(repository)
+            .with_arg("rev-parse")
+            .with_arg(revision)
+            .with_stdin(Stdio::null())
+            .with_stdout(Stdio::piped())
+            .with_stderr(Stdio::inherit())
             .output()
             .expect("git rev-parse");
         assert!(output.status.success());
@@ -186,11 +187,11 @@ impl WorkEnv {
         eprintln!("Building {revision:?}...");
         let bin = WorkEnv::cli_bin_name(&revision_repo);
         Command::new("cargo")
-            .current_dir(&revision_repo)
-            .arg("build")
-            .arg("--release")
-            .arg(format!("--bin={bin}"))
-            .pipe(executor("cargo build"));
+            .with_current_dir(&revision_repo)
+            .with_arg("build")
+            .with_arg("--release")
+            .with_arg(format!("--bin={bin}"))
+            .pipe_mut(executor("cargo build"));
         WorkEnv::remove_sibling_client_binary(&revision_repo, bin);
     }
     /// Reuse the client built by this revision's pnpr target, retaining its binary name.
@@ -251,12 +252,12 @@ impl WorkEnv {
         eprintln!("Building {revision:?} (client + pnpr)...");
         let bin = WorkEnv::cli_bin_name(&revision_repo);
         Command::new("cargo")
-            .current_dir(&revision_repo)
-            .arg("build")
-            .arg("--release")
-            .arg(format!("--bin={bin}"))
-            .arg("--bin=pnpr")
-            .pipe(executor("cargo build"));
+            .with_current_dir(&revision_repo)
+            .with_arg("build")
+            .with_arg("--release")
+            .with_arg(format!("--bin={bin}"))
+            .with_arg("--bin=pnpr")
+            .pipe_mut(executor("cargo build"));
         WorkEnv::remove_sibling_client_binary(&revision_repo, bin);
     }
     pub(super) fn build_pnpm(&self, revision: &str) {
@@ -280,9 +281,9 @@ impl WorkEnv {
 
         eprintln!("Installing pnpm deps for {revision:?}...");
         Command::new("pnpm")
-            .current_dir(&revision_repo)
-            .arg("install")
-            .pipe(executor("pnpm install"));
+            .with_current_dir(&revision_repo)
+            .with_arg("install")
+            .pipe_mut(executor("pnpm install"));
 
         eprintln!("Compiling pnpm for {revision:?}...");
         // `pnpm run compile-only` rather than `pnpm run compile`,
@@ -294,9 +295,9 @@ impl WorkEnv {
         // `pnpm/dist/pnpm.{mjs,cjs}`, i.e. everything the install
         // script actually needs.
         Command::new("pnpm")
-            .current_dir(&revision_repo)
-            .arg("run")
-            .arg("compile-only")
-            .pipe(executor("pnpm run compile-only"));
+            .with_current_dir(&revision_repo)
+            .with_arg("run")
+            .with_arg("compile-only")
+            .pipe_mut(executor("pnpm run compile-only"));
     }
 }

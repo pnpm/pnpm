@@ -75,14 +75,14 @@ fn pkg_get_single_and_recursive_do_not_leak_synthetic_runtime_dependencies() {
     );
 
     let single_get = command(&pacquet)
-        .args(["pkg", "get", "devDependencies"])
+        .with_args(["pkg", "get", "devDependencies"])
         .output()
         .expect("run pnpm pkg get devDependencies");
     assert!(single_get.status.success(), "{}", String::from_utf8_lossy(&single_get.stderr));
     assert_eq!(String::from_utf8_lossy(&single_get.stdout), "");
 
     let recursive_get = command(&pacquet)
-        .args(["-r", "pkg", "get"])
+        .with_args(["-r", "pkg", "get"])
         .output()
         .expect("run pnpm -r pkg get");
     assert!(recursive_get.status.success(), "{}", String::from_utf8_lossy(&recursive_get.stderr));
@@ -115,7 +115,7 @@ fn pkg_set_and_delete_preserve_runtime_and_empty_dependency_objects() {
         &["pkg", "delete", "devDependencies"],
     ] {
         let output = command(&pacquet)
-            .args(args)
+            .with_args(args)
             .output()
             .expect("run pnpm pkg");
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -159,7 +159,7 @@ fn recursive_pkg_fix_repairs_invalid_dependencies_alongside_runtime() {
     );
 
     let output = command(&pacquet)
-        .args(["-r", "pkg", "fix"])
+        .with_args(["-r", "pkg", "fix"])
         .output()
         .expect("run pnpm -r pkg fix");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

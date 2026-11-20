@@ -316,9 +316,9 @@ fn node_version_at(dir: &Path) -> String {
     let node_output = Command::new("node")
         .without_ambient_pnpm_config()
         .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
-        .env("PNPM_SHIM_BYPASS", "1")
-        .arg("--version")
-        .current_dir(dir)
+        .with_env("PNPM_SHIM_BYPASS", "1")
+        .with_arg("--version")
+        .with_current_dir(dir)
         .output()
         .expect("run node --version");
     assert!(node_output.status.success(), "node --version must succeed");

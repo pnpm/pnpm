@@ -6,6 +6,7 @@ use super::{
     collect_output_files,
     fs_ops::replace_output_file,
 };
+use command_extra::CommandExtra;
 use pnpm_config::TaskSettings;
 #[cfg(unix)]
 use pnpm_crypto_hash::{
@@ -413,14 +414,14 @@ fn inputs_outside_a_work_tree_are_uncacheable() {
 fn inputs_in_bare_git_repo_are_uncacheable() {
     let repo_dir = tempfile::tempdir().unwrap();
     let init = std::process::Command::new("git")
-        .args(["init", "--bare"])
-        .current_dir(repo_dir.path())
+        .with_args(["init", "--bare"])
+        .with_current_dir(repo_dir.path())
         .output()
         .unwrap();
     assert!(init.status.success());
     let bare_check = std::process::Command::new("git")
-        .args(["rev-parse", "--is-bare-repository"])
-        .current_dir(repo_dir.path())
+        .with_args(["rev-parse", "--is-bare-repository"])
+        .with_current_dir(repo_dir.path())
         .output()
         .unwrap();
     assert!(bare_check.status.success() && bare_check.stdout.trim_ascii() == b"true");
@@ -619,7 +620,7 @@ fn additive_input_globs_skip_fifos_without_blocking() {
     fs::create_dir(project.join(".runtime")).unwrap();
     fs::write(project.join(".runtime/config.json"), "v1").unwrap();
     let fifo_status = std::process::Command::new("mkfifo")
-        .arg(project.join(".runtime/daemon.pipe"))
+        .with_arg(project.join(".runtime/daemon.pipe"))
         .status()
         .unwrap();
     assert!(fifo_status.success());

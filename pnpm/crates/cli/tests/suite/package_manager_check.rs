@@ -87,7 +87,7 @@ fn a_package_manager_field_with_an_integrity_hash_matches_the_running_version() 
     } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     let pinned = format!("pnpm@{}+sha256.123456789", pnpm_config::PNPM_VERSION);
     write_manifest(&workspace, &serde_json::json!({ "packageManager": pinned }));
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(pacquet, root.path(), &["install"]);
 
@@ -229,7 +229,7 @@ fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
         ..
     } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     write_dev_engines_package_manager(&workspace, "pnpm", pnpm_config::PNPM_VERSION, None);
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
 
@@ -257,7 +257,7 @@ fn a_package_yaml_project_records_the_pinned_package_manager() {
             pnpm_config::PNPM_VERSION,
         ),
     );
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
 
@@ -315,7 +315,7 @@ fn adding_a_pin_to_an_up_to_date_project_records_the_package_manager() {
         &workspace,
         &serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
     );
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
     assert_success(&run(pacquet, root.path(), &["install"]));
 
     write_manifest(
@@ -327,8 +327,8 @@ fn adding_a_pin_to_an_up_to_date_project_records_the_package_manager() {
             },
         }),
     );
-    let mut pinned = pacquet_at(&workspace);
-    pinned.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    let pinned =
+        pacquet_at(&workspace).with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
     let output = run(pinned, root.path(), &["install"]);
 
     assert_success(&output);
@@ -653,15 +653,15 @@ fn pacquet_at(workspace: &Path) -> Command {
 }
 
 fn run(command: Command, root: &Path, args: &[&str]) -> Output {
-    let mut command = command;
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
+    let mut command = command
+        .with_env("PNPM_HOME", root.join("pnpm-home"))
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"));
     // These checks run `exec node`, which resolves `node` from `PATH`. A
     // context-aware global shim there would honour the deliberately
     // unsatisfiable `devEngines.runtime` pin these fixtures declare and
     // fail to fetch it, instead of running the node the test expects.
-    command.env("PNPM_SHIM_BYPASS", "1");
+    command = command.with_env("PNPM_SHIM_BYPASS", "1");
     // The pnpm and npm settings these checks read are already gone:
     // `CommandTempCwd::init` strips the inherited ones, and an explicit
     // `env` on the command overrides that removal. `COREPACK_ROOT` is not
@@ -675,10 +675,10 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
         .iter()
         .any(|name| name.eq_ignore_ascii_case("COREPACK_ROOT"))
     {
-        command.env_remove("COREPACK_ROOT");
+        command = command.without_env("COREPACK_ROOT");
     }
     let output = command
-        .args(args)
+        .with_args(args)
         .output()
         .expect("run pacquet");
     dbg!(&output);
@@ -779,7 +779,7 @@ fn a_mixed_add_writes_the_declaration_with_the_dependency() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(&workspace, &serde_json::json!({}));
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(
         pacquet,
@@ -814,7 +814,7 @@ fn a_failed_add_leaves_the_declaration_unwritten() {
     } = CommandTempCwd::init().add_mocked_registry();
     let original = serde_json::json!({ "name": "project", "version": "1.0.0" });
     write_manifest(&workspace, &original);
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(
         pacquet,

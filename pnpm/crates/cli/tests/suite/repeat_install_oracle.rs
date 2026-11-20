@@ -14,6 +14,7 @@
 //!
 //! Right after an install, every gate it satisfied reports the tree up to
 //! date without installing again.
+use command_extra::CommandExtra;
 
 pub use _utils::*;
 pub use inputs::Input;
@@ -680,11 +681,11 @@ where
     }
     pacquet_in(cwd)
         .without_ambient_pnpm_config()
-        .current_dir(cwd)
-        .env("PNPM_CONFIG_REGISTRY", fixture.registry.mock_instance.url())
-        .env("XDG_CONFIG_HOME", fixture.workspace.with_file_name("xdg-config"))
-        .arg("--reporter=ndjson")
-        .args(args)
+        .with_current_dir(cwd)
+        .with_env("PNPM_CONFIG_REGISTRY", fixture.registry.mock_instance.url())
+        .with_env("XDG_CONFIG_HOME", fixture.workspace.with_file_name("xdg-config"))
+        .with_arg("--reporter=ndjson")
+        .with_args(args)
         .output()
         .expect("run pnpm")
 }
@@ -1468,21 +1469,22 @@ fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
 
     let run_in_ci = |v11_bundle: Option<&OsStr>, args: &[&str]| {
         let command = if let Some(bundle) = v11_bundle {
-            let mut cmd = Command::new("node");
-            cmd.arg(bundle).arg("--config.confirm-modules-purge=false");
+            let cmd = Command::new("node")
+                .with_arg(bundle)
+                .with_arg("--config.confirm-modules-purge=false");
             cmd
         } else {
             pacquet_in(scenario.workspace())
         };
         command
             .without_ambient_pnpm_config()
-            .current_dir(scenario.workspace())
-            .env("CI", "true")
-            .env("PNPM_CONFIG_CI", "true")
-            .env("PNPM_CONFIG_REGISTRY", scenario.fixture.registry.mock_instance.url())
-            .env("XDG_CONFIG_HOME", scenario.fixture.workspace.with_file_name("xdg-config"))
-            .arg("--reporter=ndjson")
-            .args(args)
+            .with_current_dir(scenario.workspace())
+            .with_env("CI", "true")
+            .with_env("PNPM_CONFIG_CI", "true")
+            .with_env("PNPM_CONFIG_REGISTRY", scenario.fixture.registry.mock_instance.url())
+            .with_env("XDG_CONFIG_HOME", scenario.fixture.workspace.with_file_name("xdg-config"))
+            .with_arg("--reporter=ndjson")
+            .with_args(args)
             .output()
             .expect("run pnpm in CI")
     };

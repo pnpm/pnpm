@@ -10,6 +10,7 @@ use base64::{
         URL_SAFE_NO_PAD,
     },
 };
+use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use serde_json::json;
 use sha2::{
@@ -270,7 +271,7 @@ async fn a_repository_cannot_name_a_mirror() {
 
     pacquet_in(root.path())
         .with_env("XDG_CONFIG_HOME", root.path().join(".config"))
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert_eq!(selected_python(root.path()), "3.13.95");
@@ -291,8 +292,8 @@ async fn a_repository_cannot_name_a_mirror() {
 /// file the run would ignore it in.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn pacquet_with_python_mirror(root: &Path, mirror: &str) -> Command {
-    let mut command = pacquet_in(root);
-    command.env("PNPM_CONFIG_TOOLS", format!(r#"{{"python":{{"mirror":"{mirror}"}}}}"#));
+    let command = pacquet_in(root)
+        .with_env("PNPM_CONFIG_TOOLS", format!(r#"{{"python":{{"mirror":"{mirror}"}}}}"#));
     command
 }
 
@@ -391,7 +392,7 @@ fn repeated_install_excludes_configured_stores_and_caches_from_native_discovery(
     )
     .unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline"])
+        .with_args(["install", "--offline"])
         .assert()
         .success();
     for relative in ["store/v11/crates/cached", "cache/unpacked-project"] {
@@ -406,7 +407,7 @@ fn repeated_install_excludes_configured_stores_and_caches_from_native_discovery(
         .unwrap();
     }
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
 }
@@ -428,12 +429,12 @@ async fn discovers_independent_python_projects_and_ignores_environment_manifests
         .unwrap();
     }
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     for directory in ["app-one", "app-two"] {
         python(&root.path().join(directory))
-            .args(["-c", "import alpha"])
+            .with_args(["-c", "import alpha"])
             .assert()
             .success();
         assert!(
@@ -471,11 +472,11 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
     .await;
     project(root.path(), &server.url(), &["alpha[speed]>=1"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import alpha, beta; assert beta.VERSION == '1.0'"])
+        .with_args(["-c", "import alpha, beta; assert beta.VERSION == '1.0'"])
         .assert()
         .success();
     let command = root
@@ -514,15 +515,15 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
     drop(server);
     pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import alpha, beta"])
+        .with_args(["-c", "import alpha, beta"])
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["exec", "python", "-c", "import alpha, beta"])
+        .with_args(["exec", "python", "-c", "import alpha, beta"])
         .assert()
         .success();
     let replayed_lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -539,7 +540,7 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
 #[cfg(unix)]
 fn interpreter_shim_source(version: &str) -> String {
     let interpreter = Command::new("python3")
-        .args(["-c", "import sys; print(sys.executable)"])
+        .with_args(["-c", "import sys; print(sys.executable)"])
         .output()
         .unwrap();
     let interpreter = String::from_utf8(interpreter.stdout).unwrap();
@@ -672,7 +673,7 @@ async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     };
 
     install()
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert_eq!(selected_python(root.path()), "3.13.99");
@@ -690,7 +691,7 @@ async fn installs_an_interpreter_no_machine_has_and_reuses_it() {
     pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
     fs::remove_dir_all(root.path().join("cache")).unwrap();
     install()
-        .args(["install", "--offline"])
+        .with_args(["install", "--offline"])
         .assert()
         .success();
     assert_eq!(selected_python(root.path()), "3.13.99");
@@ -714,7 +715,7 @@ async fn an_unpublished_minor_pin_installs_a_version_the_project_accepts() {
     fs::write(root.path().join(".python-version"), "3.12\n").unwrap();
 
     let output = pacquet_with_python_mirror(root.path(), &mirror)
-        .arg("install")
+        .with_arg("install")
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -742,7 +743,7 @@ async fn a_pin_the_project_refuses_installs_a_version_it_accepts() {
     fs::write(root.path().join(".python-version"), "3.13.93\n").unwrap();
 
     let output = pacquet_with_python_mirror(root.path(), &mirror)
-        .arg("install")
+        .with_arg("install")
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -781,7 +782,7 @@ async fn refuses_an_interpreter_the_release_does_not_name() {
     )
     .unwrap();
     assert_failure_contains(
-        pacquet_with_python_mirror(root.path(), &mirror).arg("install"),
+        &mut pacquet_with_python_mirror(root.path(), &mirror).with_arg("install"),
         "is not the one the release names",
     );
     assert!(
@@ -809,16 +810,16 @@ async fn an_interpreter_is_installed_only_where_the_install_may_download() {
     )
     .unwrap();
     assert_failure_contains(
-        pacquet_with_python_mirror(root.path(), &mirror)
-            .args(["install", "--runtime-on-fail=error"]),
+        &mut pacquet_with_python_mirror(root.path(), &mirror)
+            .with_args(["install", "--runtime-on-fail=error"]),
         "no Python interpreter for",
     );
     assert_failure_contains(
-        pacquet_with_python_mirror(root.path(), &mirror).args(["install", "--offline"]),
+        &mut pacquet_with_python_mirror(root.path(), &mirror).with_args(["install", "--offline"]),
         "no Python interpreter for",
     );
     pacquet_with_python_mirror(root.path(), &mirror)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert_eq!(selected_python(root.path()), "3.13.98");
@@ -839,10 +840,9 @@ async fn an_interpreter_the_project_rejects_installs_it_only_under_runtime_on_fa
     )
     .unwrap();
     let install = |mode: &str| {
-        let mut command = pacquet_in(root.path());
-        command.args(["install", "--offline"]);
+        let mut command = pacquet_in(root.path()).with_args(["install", "--offline"]);
         if !mode.is_empty() {
-            command.arg(format!("--runtime-on-fail={mode}"));
+            command = command.with_arg(format!("--runtime-on-fail={mode}"));
         }
         command
     };
@@ -881,8 +881,8 @@ async fn an_install_that_bypasses_the_range_still_takes_the_requested_version() 
     .unwrap();
     fs::write(root.path().join(".python-version"), "3.88\n").unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--runtime-on-fail=ignore"])
-        .env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()))
+        .with_args(["install", "--offline", "--runtime-on-fail=ignore"])
+        .with_env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()))
         .assert()
         .success();
     assert_eq!(selected_python(root.path()), "3.88.1");
@@ -908,10 +908,9 @@ async fn selects_an_interpreter_the_project_accepts_and_its_python_version_file_
             ),
         )
         .unwrap();
-        let mut command = pacquet_in(root.path());
-        command
-            .args(["install", "--offline"])
-            .env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()));
+        let command = pacquet_in(root.path())
+            .with_args(["install", "--offline"])
+            .with_env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()));
         command
     };
 
@@ -945,8 +944,8 @@ async fn selects_an_interpreter_the_project_accepts_and_its_python_version_file_
     // The empty PATH entry below names the directory the install runs in,
     // which is the workspace this one is planted in.
     interpreter_shim(root.path(), "python3", "3.13.99");
-    let mut planted = install("==3.13.99");
-    planted.env("PATH", format!(":{}:{}", bin.display(), std::env::var("PATH").unwrap()));
+    let mut planted = install("==3.13.99")
+        .with_env("PATH", format!(":{}:{}", bin.display(), std::env::var("PATH").unwrap()));
     assert_failure_contains(&mut planted, "no Python interpreter for");
 
     // A configured interpreter is the only one, so nothing is searched for.
@@ -1004,8 +1003,8 @@ async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
     )
     .unwrap();
     let install = |args: &[&str], kernel: &str| {
-        let mut command = pacquet_in(root.path());
-        command.args(args).env("PNPM_TEST_KERNEL_RELEASE", kernel);
+        let command =
+            pacquet_in(root.path()).with_args(args).with_env("PNPM_TEST_KERNEL_RELEASE", kernel);
         command
     };
     install(&["install"], "1.0.0").assert().success();
@@ -1031,7 +1030,7 @@ async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
     install(&["install", "--offline", "--frozen-lockfile"], "1.0.1").assert().success();
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 
@@ -1063,7 +1062,7 @@ async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
         "{relocked}",
     );
     python(root.path())
-        .args(["-c", "import alpha, beta"])
+        .with_args(["-c", "import alpha, beta"])
         .assert()
         .success();
 }
@@ -1089,12 +1088,12 @@ async fn installs_a_release_whose_requires_python_does_not_parse() {
     project(root.path(), &server.url(), &["alpha==1.0"]);
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     python(root.path())
-        .args(["-c", "import alpha; assert alpha.VERSION == '1.0'"])
+        .with_args(["-c", "import alpha; assert alpha.VERSION == '1.0'"])
         .assert()
         .success();
 }
@@ -1106,7 +1105,7 @@ async fn add_updates_pyproject_and_lockfile_without_creating_node_metadata() {
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &[]);
     pacquet_in(root.path())
-        .args(["add", "pypi:alpha@>=1", "--save-dev"])
+        .with_args(["add", "pypi:alpha@>=1", "--save-dev"])
         .assert()
         .success();
     let manifest: toml::Value =
@@ -1120,15 +1119,18 @@ async fn add_updates_pyproject_and_lockfile_without_creating_node_metadata() {
     );
     assert!(!root.path().join("Cargo.toml").exists());
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile", "--prod"])
+        .with_args(["install", "--offline", "--frozen-lockfile", "--prod"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import importlib.util; assert importlib.util.find_spec('alpha') is None"])
+        .with_args([
+            "-c",
+            "import importlib.util; assert importlib.util.find_spec('alpha') is None",
+        ])
         .assert()
         .success();
 }
@@ -1141,7 +1143,7 @@ async fn add_accepts_a_pypi_purl() {
     project(root.path(), &server.url(), &[]);
     root.path()
         .pipe(pacquet_in)
-        .args(["add", "pkg:pypi/Alpha@1.0"])
+        .with_args(["add", "pkg:pypi/Alpha@1.0"])
         .assert()
         .success();
     let updated = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
@@ -1150,7 +1152,7 @@ async fn add_accepts_a_pypi_purl() {
     assert_eq!(manifest["project"]["dependencies"][0].as_str(), Some("alpha==1.0"));
     root.path()
         .pipe(python)
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }
@@ -1202,7 +1204,7 @@ async fn python_index_and_wheel_requests_carry_the_credential_held_for_their_ori
     )
     .unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     index.assert_async().await;
@@ -1211,7 +1213,7 @@ async fn python_index_and_wheel_requests_carry_the_credential_held_for_their_ori
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
     assert!(!lock.contains("index-token"), "the credential reached the lockfile:\n{lock}");
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }
@@ -1241,7 +1243,7 @@ async fn python_index_credentials_survive_unusual_characters() {
         )
         .unwrap();
         pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -1251,7 +1253,7 @@ async fn python_index_credentials_survive_unusual_characters() {
         // would pass on a lockfile carrying the whole credential.
         assert!(!lock.contains(&encoded), "the encoded credential leaked into the lockfile");
         python(root.path())
-            .args(["-c", "import alpha"])
+            .with_args(["-c", "import alpha"])
             .assert()
             .success();
     }
@@ -1283,11 +1285,11 @@ async fn installs_a_wheel_whose_filename_compresses_several_tags() {
         .await;
     project(root.path(), &server.url(), &["alpha"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
     index.assert_async().await;
@@ -1310,11 +1312,11 @@ async fn installs_a_wheel_whose_tag_fields_disagree_with_its_filename() {
                 .await;
         project(root.path(), &server.url(), &["alpha"]);
         pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
         python(root.path())
-            .args(["-c", "import alpha"])
+            .with_args(["-c", "import alpha"])
             .assert()
             .success();
     }
@@ -1327,7 +1329,7 @@ async fn caches_python_index_as_raw_json_and_reuses_it_offline() {
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let cache = fs::read_dir(root.path().join("cache/python-index-v3"))
@@ -1340,7 +1342,7 @@ async fn caches_python_index_as_raw_json_and_reuses_it_offline() {
     dbg!(&cached);
     assert!(cached["body"]["files"].is_array(), "metadata was not stored as a JSON object");
     pacquet_in(root.path())
-        .args(["add", "pypi:alpha", "--offline"])
+        .with_args(["add", "pypi:alpha", "--offline"])
         .assert()
         .success();
 }
@@ -1362,7 +1364,7 @@ async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_fail
         }
         project(root.path(), &server.url(), &["alpha", "beta", "gamma"]);
         pacquet_in(root.path())
-            .args(["install", "--lockfile-only"])
+            .with_args(["install", "--lockfile-only"])
             .assert()
             .success();
         for request in initial_requests {
@@ -1373,11 +1375,10 @@ async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_fail
         let sibling_finished = Arc::new(AtomicBool::new(false));
         let downloads =
             mock_wheel_downloads(&mut server, archives, fail, &rendezvous, &sibling_finished).await;
-        let mut command = pacquet_in(root.path());
-        command
-            .env("PNPM_CONFIG_STORE_DIR", root.path().join("cold-store"))
-            .env("PNPM_CONFIG_NETWORK_CONCURRENCY", "2")
-            .args(["install", "--frozen-lockfile"]);
+        let mut command = pacquet_in(root.path())
+            .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("cold-store"))
+            .with_env("PNPM_CONFIG_NETWORK_CONCURRENCY", "2")
+            .with_args(["install", "--frozen-lockfile"]);
         assert_frozen_install_outcome(&mut command, root.path(), fail);
         assert!(sibling_finished.load(Ordering::SeqCst), "returned before sibling body finished");
         let after = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -1397,7 +1398,7 @@ fn assert_frozen_install_outcome(command: &mut Command, root: &Path, fail: bool)
     }
     command.assert().success();
     python(root)
-        .args(["-c", "import alpha, beta, gamma"])
+        .with_args(["-c", "import alpha, beta, gamma"])
         .assert()
         .success();
 }
@@ -1491,10 +1492,10 @@ async fn wheel_scripts_rewrite_placeholder_shebangs_and_record_the_installed_byt
         serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &scripts))]).await;
     project(root.path(), &server.url(), &["alpha"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
-    python(root.path()).args(["-c", r#"
+    python(root.path()).with_args(["-c", r#"
 import base64, csv, hashlib, sys, sysconfig
 from pathlib import Path
 scripts = Path(sysconfig.get_path('scripts'))
@@ -1526,9 +1527,9 @@ fn python_add_reports_unsupported_and_conflicting_save_flags() {
         let root = tempfile::tempdir().unwrap();
         project(root.path(), "https://unused.invalid", &[]);
         assert_failure_contains(
-            pacquet_in(root.path())
-                .args(["add", "pypi:alpha"])
-                .args(flags),
+            &mut pacquet_in(root.path())
+                .with_args(["add", "pypi:alpha"])
+                .with_args(flags),
             expected,
         );
     }
@@ -1546,7 +1547,7 @@ fn invalid_python_save_prefix_is_rejected_before_manifest_parsing_or_interpreter
         let manifest = root.path().join("pyproject.toml");
         fs::write(&manifest, contents).unwrap();
         assert_failure_contains(
-            pacquet_in(root.path()).args(["add", "pypi:alpha", "--save-prefix=^"]),
+            &mut pacquet_in(root.path()).with_args(["add", "pypi:alpha", "--save-prefix=^"]),
             "Python --save-prefix must be >=, ~=, or ==",
         );
         assert_eq!(fs::read_to_string(manifest).unwrap(), contents);
@@ -1557,7 +1558,7 @@ fn invalid_python_save_prefix_is_rejected_before_manifest_parsing_or_interpreter
 
 fn python_add_failure(root: &Path) -> String {
     let result = pacquet_in(root)
-        .args(["add", "pypi:alpha", "-w"])
+        .with_args(["add", "pypi:alpha", "-w"])
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&result.get_output().stderr).into_owned();
@@ -1619,10 +1620,9 @@ async fn add_supports_empty_and_populated_inline_python_tables() {
             serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
         project(root.path(), &server.url(), &[]);
         fs::write(root.path().join("pyproject.toml"), manifest).unwrap();
-        let mut command = pacquet_in(root.path());
-        command.args(["add", "pypi:alpha", "--save-exact"]);
+        let mut command = pacquet_in(root.path()).with_args(["add", "pypi:alpha", "--save-exact"]);
         if development {
-            command.arg("--save-dev");
+            command = command.with_arg("--save-dev");
         }
         command.assert().success();
         let updated = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
@@ -1632,7 +1632,7 @@ async fn add_supports_empty_and_populated_inline_python_tables() {
             if development { ("dependency-groups", "dev") } else { ("project", "dependencies") };
         assert_eq!(parsed[table][key][0].as_str(), Some("alpha==1.0"));
         python(root.path())
-            .args(["-c", "import alpha"])
+            .with_args(["-c", "import alpha"])
             .assert()
             .success();
     }
@@ -1646,7 +1646,7 @@ async fn add_pins_bare_requirements_and_preserves_unrelated_manifest_text() {
     project(root.path(), &server.url(), &[]);
     fs::write(root.path().join("pyproject.toml"), "# keep this comment\n[project]\nname = 'app' # original quoting\nversion = '1.0'\n\n[tool.example]\nsetting = 'preserve'\n").unwrap();
     pacquet_in(root.path())
-        .args(["add", "pypi:alpha", "--save-exact"])
+        .with_args(["add", "pypi:alpha", "--save-exact"])
         .assert()
         .success();
     let text = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
@@ -1655,7 +1655,7 @@ async fn add_pins_bare_requirements_and_preserves_unrelated_manifest_text() {
     assert!(text.contains("[tool.example]\nsetting = 'preserve'"));
     assert!(text.contains("alpha==1.0"));
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
 }
@@ -1687,7 +1687,7 @@ async fn installs_node_cargo_and_python_through_the_real_coordinator() {
     .unwrap();
     fs::write(root.path().join("package.json"), r#"{"name":"mixed-app","version":"1.0.0","dependencies":{"local-node":"link:./node-package"},"scripts":{"python-check":"python -c \"import alpha\""}}"#).unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert!(
@@ -1703,12 +1703,12 @@ async fn installs_node_cargo_and_python_through_the_real_coordinator() {
     assert!(root.path().join("Cargo.lock").exists());
     assert!(root.path().join("pylock.toml").exists());
     Command::new("cargo")
-        .current_dir(root.path())
-        .args(["check", "--offline", "--locked"])
+        .with_current_dir(root.path())
+        .with_args(["check", "--offline", "--locked"])
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["run", "python-check"])
+        .with_args(["run", "python-check"])
         .assert()
         .success();
 }
@@ -1726,19 +1726,19 @@ async fn installs_the_projects_own_package_from_its_source_tree() {
     let source = root.path().join("my_app/__init__.py");
     fs::write(&source, "def main():\n    print('first')\n").unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     // The environment directory holds no modules of its own, so an import
     // that succeeds there is one the installed package provides.
     python(root.path())
-        .current_dir(root.path().join(".venv"))
-        .args(["-c", "import alpha, my_app"])
+        .with_current_dir(root.path().join(".venv"))
+        .with_args(["-c", "import alpha, my_app"])
         .assert()
         .success();
     python(root.path())
-        .args([
+        .with_args([
             "-c",
             "import importlib.metadata as m; d = m.distribution('my-app'); assert d.version == '1.2.3', d.version; assert 'alpha>=1' in m.requires('my-app'), m.requires('my-app'); assert d.read_text('INSTALLER').strip() == 'pnpm'; import json; assert json.loads(d.read_text('direct_url.json'))['dir_info']['editable']; assert [entry.value for entry in m.entry_points(group='pnpm_demo')] == ['my_app:main']",
         ])
@@ -1786,25 +1786,25 @@ async fn installs_the_package_of_a_src_layout_project_and_none_for_a_virtual_one
         fs::write(path.join(module).join("__init__.py"), "VALUE = 'source'\n").unwrap();
     }
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     for (directory, module) in [("packaged", "packaged"), ("declared", "declared")] {
         let project = root.path().join(directory);
         python(&project)
-            .current_dir(project.join(".venv"))
-            .args(["-c", &format!("import {module}; assert {module}.VALUE == 'source'")])
+            .with_current_dir(project.join(".venv"))
+            .with_args(["-c", &format!("import {module}; assert {module}.VALUE == 'source'")])
             .assert()
             .success();
     }
     python(&root.path().join("packaged"))
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
     // A project no build backend builds has no package to install.
     python(&root.path().join("virtual"))
-        .args(["-c", "import importlib.metadata as m; m.distribution('virtual')"])
+        .with_args(["-c", "import importlib.metadata as m; m.distribution('virtual')"])
         .assert()
         .failure();
 }
@@ -1827,12 +1827,12 @@ async fn a_dynamic_version_comes_from_the_backend() {
     fs::write(root.path().join("app/__init__.py"), "VALUE = 'source'\n").unwrap();
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     python(root.path())
-        .args(["-c", "import importlib.metadata as m; print(m.version('app'))"])
+        .with_args(["-c", "import importlib.metadata as m; print(m.version('app'))"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "0.0.1\r\n" } else { "0.0.1\n" });
@@ -1849,7 +1849,7 @@ async fn disabled_python_and_tool_only_pyprojects_do_not_probe_an_interpreter() 
     fs::write(root.path().join("pyproject.toml"), "this is not TOML").unwrap();
     fs::write(root.path().join("package.json"), "{}").unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     fs::write(
@@ -1859,7 +1859,7 @@ async fn disabled_python_and_tool_only_pyprojects_do_not_probe_an_interpreter() 
     .unwrap();
     fs::write(root.path().join("pyproject.toml"), "[tool.ruff]\nline-length = 100\n").unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert!(!root.path().join("pylock.toml").exists());
@@ -1899,7 +1899,7 @@ async fn locks_every_declared_platform_into_one_lockfile() {
     );
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -1953,11 +1953,11 @@ async fn locks_every_declared_platform_into_one_lockfile() {
     );
 
     python(root.path())
-        .args(["-c", "import alpha, gamma"])
+        .with_args(["-c", "import alpha, gamma"])
         .assert()
         .success();
     let beta = python(root.path())
-        .args(["-c", "import beta"])
+        .with_args(["-c", "import beta"])
         .assert();
     if cfg!(windows) {
         beta.success();
@@ -1967,12 +1967,12 @@ async fn locks_every_declared_platform_into_one_lockfile() {
 
     pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
     python(root.path())
-        .args(["-c", "import alpha, gamma"])
+        .with_args(["-c", "import alpha, gamma"])
         .assert()
         .success();
 }
@@ -1988,7 +1988,7 @@ async fn refuses_an_interpreter_none_of_the_declared_environments_stand_for() {
     add_python_settings(root.path(), "  versions:\n    - '3.9'\n");
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "is not one of the environments this project locks for",
     );
 }
@@ -2016,7 +2016,7 @@ async fn rejects_a_platform_it_cannot_resolve_for() {
         add_supported_architectures(root.path(), &[platform]);
 
         assert_failure_contains(
-            pacquet_in(root.path()).args(["install", "--runtime-on-fail=error"]),
+            &mut pacquet_in(root.path()).with_args(["install", "--runtime-on-fail=error"]),
             expected,
         );
     }
@@ -2054,7 +2054,7 @@ async fn reports_a_platform_it_cannot_resolve_python_for() {
         fs::write(root.path().join("pnpm-workspace.yaml"), workspace).unwrap();
 
         let result = pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
         let mut output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
@@ -2078,7 +2078,7 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
     add_supported_architectures(root.path(), &[platform, platform, triple]);
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -2097,7 +2097,7 @@ async fn locks_one_environment_per_platform_however_it_is_named() {
     project(root.path(), &server.url(), &["alpha>=1"]);
     add_supported_architectures(root.path(), &[triple]);
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
@@ -2325,7 +2325,7 @@ async fn build_backend_writes_do_not_modify_shared_wheel_files() {
         fs::write(&workspace, format!("{settings}\npackageImportMethod: {method}\n")).unwrap();
         fs::write(root.path().join("backend-mutation"), "not run").unwrap();
         pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
         assert_eq!(
@@ -2333,15 +2333,15 @@ async fn build_backend_writes_do_not_modify_shared_wheel_files() {
             "VERSION = 'modified by backend'",
         );
         python(root.path())
-            .args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
+            .with_args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
             .assert()
             .success();
         pacquet_in(root.path())
-            .args(["install", "--offline", "--frozen-lockfile"])
+            .with_args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();
         python(root.path())
-            .args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
+            .with_args(["-c", "import alpha; assert alpha.VERSION == '1.0', alpha.VERSION"])
             .assert()
             .success();
     }
@@ -2406,18 +2406,18 @@ async fn a_workspace_project_is_built_from_its_source_instead_of_the_index() {
     );
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     let app = root.path().join("packages/app");
     python(&app)
-        .args(["-c", "import mylib; print(mylib.MARKER)"])
+        .with_args(["-c", "import mylib; print(mylib.MARKER)"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "workspace mylib\r\n" } else { "workspace mylib\n" });
     python(&app)
-        .args(["-c", "import app; print(app.MARKER)"])
+        .with_args(["-c", "import app; print(app.MARKER)"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "workspace app\r\n" } else { "workspace app\n" });
@@ -2439,7 +2439,7 @@ async fn a_requirement_naming_a_workspace_project_is_not_taken_from_the_index() 
     python_project(&root.path().join("packages/app"), "app", "dependencies = ['mylib']");
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "names a project in this workspace",
     );
 }
@@ -2466,7 +2466,7 @@ async fn a_project_outside_the_declared_members_is_resolved_from_the_index() {
     .unwrap();
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -2487,7 +2487,7 @@ async fn a_source_pnpm_cannot_resolve_is_refused() {
     .unwrap();
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "does not support the index Python source",
     );
 }
@@ -2513,11 +2513,11 @@ async fn a_path_source_outside_the_discovered_projects_resolves() {
     .unwrap();
 
     pacquet_in(&workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(&workspace)
-        .args(["-c", "import lib; print(lib.MARKER)"])
+        .with_args(["-c", "import lib; print(lib.MARKER)"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "workspace lib\r\n" } else { "workspace lib\n" });
@@ -2542,12 +2542,12 @@ async fn an_inherited_path_source_resolves_against_the_workspace_root() {
     python_project(&root.path().join("vendor/lib"), "lib", "dependencies = []");
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let app = root.path().join("packages/app");
     python(&app)
-        .args(["-c", "import lib; print(lib.MARKER)"])
+        .with_args(["-c", "import lib; print(lib.MARKER)"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "workspace lib\r\n" } else { "workspace lib\n" });
@@ -2582,13 +2582,13 @@ async fn a_frozen_install_refuses_a_workspace_project_that_moved() {
     python_project(&app, "app", "dependencies = []");
     declare("../lib");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
     declare("../../elsewhere/lib");
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--frozen-lockfile"]),
+        &mut pacquet_in(root.path()).with_args(["install", "--frozen-lockfile"]),
         "frozen Python lockfile is missing or out of date",
     );
 }
@@ -2622,7 +2622,7 @@ async fn a_backend_building_another_distribution_is_refused() {
     python_project(root.path(), "app", "dependencies = []");
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "but its backend built `impostor`",
     );
 }
@@ -2637,7 +2637,7 @@ async fn a_lockfile_pinning_an_index_wheel_gives_way_to_a_workspace_project() {
     let _lib = serve(&mut server, "lib", &[("1.0", wheel("lib", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["lib"]);
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
     let locked = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -2661,7 +2661,7 @@ async fn a_lockfile_pinning_an_index_wheel_gives_way_to_a_workspace_project() {
     .unwrap();
 
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
     let locked = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -2708,7 +2708,7 @@ async fn a_backend_building_another_name_is_refused_without_a_declared_version()
     .unwrap();
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "but its backend built `impostor`",
     );
 }
@@ -2736,7 +2736,10 @@ async fn sources_disagreeing_about_editable_are_refused() {
     )
     .unwrap();
 
-    assert_failure_contains(pacquet_in(root.path()).arg("install"), "one editable, one not");
+    assert_failure_contains(
+        &mut pacquet_in(root.path()).with_arg("install"),
+        "one editable, one not",
+    );
 }
 
 /// A source pnpm applies everywhere must not be one the manifest narrowed
@@ -2762,7 +2765,7 @@ async fn a_source_narrowed_by_a_marker_is_refused() {
     .unwrap();
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "does not support the conditional Python source",
     );
 }
@@ -2789,7 +2792,10 @@ async fn a_path_source_naming_a_missing_directory_is_refused() {
     )
     .unwrap();
 
-    assert_failure_contains(pacquet_in(root.path()).arg("install"), "which is not a directory");
+    assert_failure_contains(
+        &mut pacquet_in(root.path()).with_arg("install"),
+        "which is not a directory",
+    );
 }
 
 /// A `..` after a symlink goes to the link's target on POSIX and to the
@@ -2821,7 +2827,10 @@ async fn a_path_source_stepping_out_of_a_symlink_is_refused() {
     )
     .unwrap();
 
-    assert_failure_contains(pacquet_in(root.path()).arg("install"), "whose `..` follows the link");
+    assert_failure_contains(
+        &mut pacquet_in(root.path()).with_arg("install"),
+        "whose `..` follows the link",
+    );
 }
 
 /// A `..` after a directory that is not there is an error on POSIX and
@@ -2845,7 +2854,7 @@ async fn a_path_source_stepping_out_of_a_missing_directory_is_refused() {
     )
     .unwrap();
 
-    assert_failure_contains(pacquet_in(root.path()).arg("install"), "which is not there");
+    assert_failure_contains(&mut pacquet_in(root.path()).with_arg("install"), "which is not there");
 }
 
 /// A build backend is code from the index that a build runs, so it is
@@ -2865,7 +2874,7 @@ async fn a_backend_nothing_approved_does_not_build_the_project() {
     python_project(root.path(), "app", "dependencies = []");
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "because the build requirement pkg:pypi/tinybackend is not approved to run",
     );
 }
@@ -2891,7 +2900,7 @@ async fn an_unapproved_backend_warns_when_builds_are_not_strict() {
     python_project(root.path(), "app", "dependencies = ['alpha>=1']");
 
     let output = pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -2899,11 +2908,11 @@ async fn an_unapproved_backend_warns_when_builds_are_not_strict() {
     assert!(output.status.success());
     assert!(stdout.contains("is not approved to run"), "{stdout}");
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import app"])
+        .with_args(["-c", "import app"])
         .assert()
         .failure();
 }
@@ -2927,7 +2936,7 @@ async fn a_workspace_project_an_included_group_requires_is_still_local() {
     .unwrap();
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -2956,7 +2965,7 @@ async fn a_requirement_the_backend_asks_for_is_approved_too() {
     python_project(root.path(), "app", "dependencies = []");
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "because the build requirement pkg:pypi/helper is not approved to run",
     );
 }
@@ -2998,11 +3007,11 @@ async fn a_backend_finds_the_executables_of_its_requirements_on_the_path() {
     python_project(root.path(), "app", "dependencies = []");
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import app; print(app.MARKER)"])
+        .with_args(["-c", "import app; print(app.MARKER)"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "workspace app\r\n" } else { "workspace app\n" });
@@ -3024,7 +3033,7 @@ async fn a_workspace_project_as_a_build_requirement_is_refused() {
     .unwrap();
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "which is a project in its workspace",
     );
 }
@@ -3046,7 +3055,7 @@ async fn a_wheel_built_for_another_interpreter_is_refused() {
     python_project(root.path(), "app", "dependencies = []");
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "which this interpreter does not install",
     );
 }
@@ -3070,11 +3079,11 @@ async fn a_build_requirement_a_marker_excludes_is_not_refused() {
     fs::write(root.path().join("src/app/__init__.py"), "MARKER = 'built'\n").unwrap();
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import app; print(app.MARKER)"])
+        .with_args(["-c", "import app; print(app.MARKER)"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "built\r\n" } else { "built\n" });
@@ -3104,7 +3113,7 @@ async fn a_default_build_requirement_naming_a_workspace_project_is_refused() {
     .unwrap();
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "which is a project in its workspace",
     );
 }
@@ -3130,7 +3139,7 @@ async fn a_backend_asking_for_a_workspace_project_is_refused() {
     python_project(root.path(), "app", "dependencies = []");
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "which is a project in its workspace",
     );
 }
@@ -3155,11 +3164,11 @@ async fn an_allow_builds_key_names_the_distribution_however_it_is_written() {
     python_project(root.path(), "app", "dependencies = []");
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import app; print(app.MARKER)"])
+        .with_args(["-c", "import app; print(app.MARKER)"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "workspace app\r\n" } else { "workspace app\n" });
@@ -3185,7 +3194,7 @@ async fn an_allow_builds_key_naming_no_ecosystem_approves_no_python_build() {
     python_project(root.path(), "app", "dependencies = []");
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "pkg:pypi/tinybackend is not approved to run",
     );
 }
@@ -3219,7 +3228,7 @@ async fn wheel_package_import_methods_control_sharing() {
     let settings = fs::read_to_string(&workspace).unwrap();
     fs::write(&workspace, format!("{settings}\npackageImportMethod: hardlink\n")).unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let first = installed_module(root.path(), "alpha");
@@ -3237,7 +3246,7 @@ async fn wheel_package_import_methods_control_sharing() {
         .canonicalize()
         .unwrap();
     python(root.path())
-        .arg(&first_raw)
+        .with_arg(&first_raw)
         .assert()
         .success()
         .stdout(if cfg!(windows) { "raw\r\n" } else { "raw\n" });
@@ -3251,7 +3260,7 @@ async fn wheel_package_import_methods_control_sharing() {
         .canonicalize()
         .unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     let second = installed_module(root.path(), "alpha");
@@ -3290,14 +3299,14 @@ async fn wheel_package_import_methods_control_sharing() {
         .unwrap(),
     );
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile", "--package-import-method=copy"])
+        .with_args(["install", "--offline", "--frozen-lockfile", "--package-import-method=copy"])
         .assert()
         .success();
     let overridden = installed_module(root.path(), "alpha");
     eprintln!("CLI copy override must create an independent file");
     assert!(!same_file::is_same_file(&first, &overridden).unwrap());
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile", "--package-import-method=auto"])
+        .with_args(["install", "--offline", "--frozen-lockfile", "--package-import-method=auto"])
         .assert()
         .success();
     #[cfg(target_os = "linux")]
@@ -3317,7 +3326,7 @@ async fn wheel_package_import_methods_control_sharing() {
         )
         .unwrap();
         pacquet_in(root.path())
-            .args(["install", "--offline", "--frozen-lockfile"])
+            .with_args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();
         let private = installed_module(root.path(), "alpha");
@@ -3334,7 +3343,7 @@ async fn wheel_package_import_methods_control_sharing() {
 
 fn installed_module(root: &Path, name: &str) -> PathBuf {
     let output = python(root)
-        .args(["-c", &format!("import {name}; print({name}.__file__)")])
+        .with_args(["-c", &format!("import {name}; print({name}.__file__)")])
         .output()
         .unwrap();
     eprintln!("Python module lookup: {output:?}");
@@ -3365,7 +3374,7 @@ async fn deferred_wheel_files_cannot_replace_generated_record() {
     let settings = fs::read_to_string(&workspace).unwrap();
     fs::write(&workspace, format!("{settings}\npackageImportMethod: hardlink\n")).unwrap();
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "Python package file collision",
     );
     eprintln!("failed environment must not be published");
@@ -3379,7 +3388,7 @@ async fn update_bumps_python_dependencies() {
     let _mocks = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1.0,<2.0"]);
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
     let initial_lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -3399,7 +3408,7 @@ async fn update_bumps_python_dependencies() {
 
     // In-range `pnpm update` bumps within `>=1.0,<2.0` to `>=1.5,<2.0` and locks `1.5`.
     pacquet_in(root.path())
-        .args(["update", "--lockfile-only"])
+        .with_args(["update", "--lockfile-only"])
         .assert()
         .success();
     let pyproject = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
@@ -3415,7 +3424,7 @@ async fn update_bumps_python_dependencies() {
 
     // `pnpm update --latest pypi:alpha` bumps across major to `>=2.0` and locks `2.0`.
     pacquet_in(root.path())
-        .args(["update", "--latest", "pypi:alpha", "--lockfile-only"])
+        .with_args(["update", "--latest", "pypi:alpha", "--lockfile-only"])
         .assert()
         .success();
     let pyproject = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
@@ -3433,7 +3442,7 @@ async fn update_keeps_python_operators_over_save_settings() {
         let _beta = serve(&mut server, "beta", &[("1.0", wheel("beta", "1.0", "", &[]))]).await;
         project(root.path(), &server.url(), &["alpha~=1.0", "beta>=1.0"]);
         pacquet_in(root.path())
-            .args(["install", "--lockfile-only"])
+            .with_args(["install", "--lockfile-only"])
             .assert()
             .success();
         let workspace = root.path().join("pnpm-workspace.yaml");
@@ -3453,7 +3462,7 @@ async fn update_keeps_python_operators_over_save_settings() {
         .await;
 
         pacquet_in(root.path())
-            .args(["update", "--latest", "--lockfile-only"])
+            .with_args(["update", "--latest", "--lockfile-only"])
             .assert()
             .success();
 

@@ -1,3 +1,4 @@
+use command_extra::CommandExtra;
 pub(crate) use peer_heavy::seed_peer_heavy_registry;
 
 mod scripts;
@@ -343,7 +344,7 @@ impl WorkEnv {
         if populate_proxy_cache {
             eprintln!("Populating proxy registry cache...");
             Command::new("bash")
-                .arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
+                .with_arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
                 .pipe_mut(executor("install.bash"));
         }
     }
@@ -434,26 +435,25 @@ impl WorkEnv {
     }
 
     fn run_hyperfine(&self, cleanup_command: &str) {
-        let mut command = Command::new("hyperfine");
-        command
-            .current_dir(self.root())
-            .arg("--prepare")
-            .arg(cleanup_command);
+        let mut command = Command::new("hyperfine")
+            .with_current_dir(self.root())
+            .with_arg("--prepare")
+            .with_arg(cleanup_command);
 
         self.options.hyperfine_options.append_to(&mut command);
 
         for id in self.benchmarked_ids() {
-            command
-                .arg("--command-name")
-                .arg(id.to_string())
-                .arg(self.bash_command(id));
+            command = command
+                .with_arg("--command-name")
+                .with_arg(id.to_string())
+                .with_arg(self.bash_command(id));
         }
 
-        command
-            .arg("--export-json")
-            .arg(self.root().join("BENCHMARK_REPORT.json"))
-            .arg("--export-markdown")
-            .arg(self.root().join("BENCHMARK_REPORT.md"));
+        command = command
+            .with_arg("--export-json")
+            .with_arg(self.root().join("BENCHMARK_REPORT.json"))
+            .with_arg("--export-markdown")
+            .with_arg(self.root().join("BENCHMARK_REPORT.md"));
 
         executor("hyperfine")(&mut command);
     }
@@ -466,19 +466,19 @@ impl WorkEnv {
         for round in 0..SYSCALL_COUNT_ROUNDS {
             for id in self.benchmarked_ids() {
                 Command::new("bash")
-                    .current_dir(self.root())
-                    .arg("-c")
-                    .arg(cleanup_command)
+                    .with_current_dir(self.root())
+                    .with_arg("-c")
+                    .with_arg(cleanup_command)
                     .pipe_mut(executor("syscall count cleanup"));
                 eprintln!("Counting syscalls for {id}, round {round}...");
                 Command::new("strace")
-                    .current_dir(self.root())
-                    .arg("--follow-forks")
-                    .arg("--summary-only")
-                    .arg("--output")
-                    .arg(self.syscall_counts_path(id, round))
-                    .arg("bash")
-                    .arg(self.script_path(id))
+                    .with_current_dir(self.root())
+                    .with_arg("--follow-forks")
+                    .with_arg("--summary-only")
+                    .with_arg("--output")
+                    .with_arg(self.syscall_counts_path(id, round))
+                    .with_arg("bash")
+                    .with_arg(self.script_path(id))
                     .pipe_mut(executor("strace install"));
             }
         }
@@ -492,7 +492,7 @@ impl WorkEnv {
         for id in self.benchmarked_ids() {
             eprintln!("Pre-warming the install state for {id}...");
             Command::new("bash")
-                .arg(self.script_path(id))
+                .with_arg(self.script_path(id))
                 .pipe_mut(executor("install.bash"));
         }
     }
@@ -512,9 +512,9 @@ impl WorkEnv {
         let scenario =
             self.options.selection.scenario.expect("scenario set when prewarm_caches() is reached");
         Command::new("bash")
-            .current_dir(self.root())
-            .arg("-c")
-            .arg(cleanup_command)
+            .with_current_dir(self.root())
+            .with_arg("-c")
+            .with_arg(cleanup_command)
             .pipe_mut(executor("prewarm cleanup"));
         for id in self.benchmarked_ids() {
             if scenario.uses_cargo_workspace_fixture() {
@@ -522,7 +522,7 @@ impl WorkEnv {
             }
             eprintln!("Pre-warming caches for {id}...");
             Command::new("bash")
-                .arg(self.prewarm_script_path(id))
+                .with_arg(self.prewarm_script_path(id))
                 .pipe_mut(executor(PREWARM_SCRIPT));
             if scenario.uses_cargo_workspace_fixture() {
                 cargo_workspace::verify_materialized_crates(&self.bench_dir(id));
@@ -535,13 +535,13 @@ impl WorkEnv {
     fn install_for_lockfile_comparison(&self, cleanup_command: &str) {
         eprintln!("Verifying peer-heavy lockfile parity...");
         Command::new("bash")
-            .current_dir(self.root())
-            .arg("-c")
-            .arg(cleanup_command)
+            .with_current_dir(self.root())
+            .with_arg("-c")
+            .with_arg(cleanup_command)
             .pipe_mut(executor("lockfile comparison cleanup"));
         for id in self.target_ids() {
             Command::new("bash")
-                .arg(self.script_path(id))
+                .with_arg(self.script_path(id))
                 .pipe_mut(executor("lockfile comparison install"));
         }
     }

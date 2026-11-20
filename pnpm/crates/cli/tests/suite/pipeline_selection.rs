@@ -2,6 +2,7 @@ use assert_cmd::{
     assert::Assert,
     prelude::*,
 };
+use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     command_env::CommandTestExt,
     git_repo::GitRepoFixture,
@@ -18,11 +19,11 @@ fn pipeline(project: &Path, config_home: &Path, args: &[&str]) -> Assert {
     Command::cargo_bin("pnpm")
         .unwrap()
         .without_ambient_pnpm_config()
-        .current_dir(project)
-        .env("XDG_CONFIG_HOME", config_home)
-        .env("XDG_CACHE_HOME", config_home.join("cache"))
-        .arg("pipeline")
-        .args(args)
+        .with_current_dir(project)
+        .with_env("XDG_CONFIG_HOME", config_home)
+        .with_env("XDG_CACHE_HOME", config_home.join("cache"))
+        .with_arg("pipeline")
+        .with_args(args)
         .assert()
         .success()
 }

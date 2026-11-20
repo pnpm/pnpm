@@ -17,6 +17,7 @@ use super::{
     safe_read_package_json_from_dir,
     tempdir,
 };
+use command_extra::CommandExtra;
 
 #[cfg(unix)]
 #[test]
@@ -66,10 +67,13 @@ fn new_manifests_use_normal_file_creation_permissions() {
 #[cfg(unix)]
 fn check_manifest_creation_with_controlled_umask() {
     let output = std::process::Command::new("sh")
-        .args(["-c", r#"umask 022; exec "$@""#, "manifest-permissions-test"])
-        .arg(std::env::current_exe().unwrap())
-        .args(["--exact", "tests::manifests::new_manifests_use_normal_file_creation_permissions"])
-        .env("PNPM_TEST_MANIFEST_CREATION_UMASK", "022")
+        .with_args(["-c", r#"umask 022; exec "$@""#, "manifest-permissions-test"])
+        .with_arg(std::env::current_exe().unwrap())
+        .with_args([
+            "--exact",
+            "tests::manifests::new_manifests_use_normal_file_creation_permissions",
+        ])
+        .with_env("PNPM_TEST_MANIFEST_CREATION_UMASK", "022")
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");

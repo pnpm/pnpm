@@ -93,8 +93,8 @@ fn config_dependency_install_waits_for_the_store_operation_lock() {
     let output_path = workspace.join("config-dependency-lock.ndjson");
     let mut install = pacquet_at(&workspace)
         .with_args(["--reporter=ndjson", "--loglevel=debug", "install"])
-        .stdout(Stdio::null())
-        .stderr(fs::File::create(&output_path).expect("create install output"))
+        .with_stdout(Stdio::null())
+        .with_stderr(fs::File::create(&output_path).expect("create install output").into())
         .spawn()
         .expect("spawn install");
     _utils::wait_for_child_output(

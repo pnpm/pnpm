@@ -1,4 +1,5 @@
 use crate::_utils::pacquet_in;
+use command_extra::CommandExtra;
 
 use assert_cmd::prelude::*;
 use std::{
@@ -15,28 +16,28 @@ const OUTDATED_LOCKFILE: &str = "lockfileVersion: '9.0'\nimporters:\n  .:\n    d
 const EMPTY_LOCKFILE: &str = "lockfileVersion: '9.0'\nimporters:\n  .: {}\n";
 
 fn pacquet_in_ci(workspace: &Path) -> Command {
-    let mut command = pacquet_without_ci(workspace);
-    command.env("CI", "true");
+    let command = pacquet_without_ci(workspace).with_env("CI", "true");
     command
 }
 
 fn pacquet_in_github_actions(workspace: &Path) -> Command {
-    let mut command = pacquet_without_ci(workspace);
-    command.env("GITHUB_ACTIONS", "true");
+    let command = pacquet_without_ci(workspace).with_env("GITHUB_ACTIONS", "true");
     command
 }
 
 fn pacquet_in_aws_codebuild(workspace: &Path) -> Command {
-    let mut command = pacquet_without_ci(workspace);
-    command.env("CODEBUILD_BUILD_ARN", "arn:aws:codebuild:us-east-1:000000000000:build/project:1");
+    let command = pacquet_without_ci(workspace)
+        .with_env(
+            "CODEBUILD_BUILD_ARN",
+            "arn:aws:codebuild:us-east-1:000000000000:build/project:1",
+        );
     command
 }
 
 fn pacquet_without_ci(workspace: &Path) -> Command {
-    let mut command = pacquet_in(workspace);
-    command.env_remove("PNPM_CONFIG_CI").env_remove("NODE");
+    let mut command = pacquet_in(workspace).without_env("PNPM_CONFIG_CI").without_env("NODE");
     for name in pnpm_config::CI_ENV_VARS {
-        command.env_remove(name);
+        command = command.without_env(name);
     }
     command
 }
@@ -79,7 +80,7 @@ fn ci_rejects_an_outdated_lockfile_by_default() {
         let lockfile_path = workspace.join("pnpm-lock.yaml");
 
         let assert = command_in_ci(workspace)
-            .arg("install")
+            .with_arg("install")
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -96,9 +97,9 @@ fn ci_rejects_an_outdated_lockfile_by_default() {
     let root = outdated_lockfile_project();
     let workspace = root.path();
     pacquet_in(workspace)
-        .env("CI", "true")
-        .env("PNPM_CONFIG_CI", "false")
-        .arg("install")
+        .with_env("CI", "true")
+        .with_env("PNPM_CONFIG_CI", "false")
+        .with_arg("install")
         .assert()
         .success();
 }
@@ -110,9 +111,9 @@ fn ci_values_enable_the_default_in_github_actions() {
         let workspace = root.path();
 
         let assert = pacquet_without_ci(workspace)
-            .env("CI", ci_value)
-            .env("GITHUB_ACTIONS", "true")
-            .arg("install")
+            .with_env("CI", ci_value)
+            .with_env("GITHUB_ACTIONS", "true")
+            .with_arg("install")
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -129,9 +130,9 @@ fn ci_false_disables_the_default_in_github_actions() {
     let workspace = root.path();
 
     pacquet_without_ci(workspace)
-        .env("CI", "false")
-        .env("GITHUB_ACTIONS", "true")
-        .arg("install")
+        .with_env("CI", "false")
+        .with_env("GITHUB_ACTIONS", "true")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -146,7 +147,7 @@ fn workspace_manifest_cannot_disable_ci_detection() {
         .expect("write workspace manifest");
 
     let assert = pacquet_in_ci(workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -166,7 +167,7 @@ fn ci_honors_explicit_prefer_frozen_lockfile_values() {
     let frozen_root = outdated_lockfile_project();
     let frozen_workspace = frozen_root.path();
     let assert = pacquet_in_ci(frozen_workspace)
-        .args(["install", "--prefer-frozen-lockfile"])
+        .with_args(["install", "--prefer-frozen-lockfile"])
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -183,7 +184,7 @@ fn ci_honors_explicit_prefer_frozen_lockfile_values() {
     let mutable_root = outdated_lockfile_project();
     let mutable_workspace = mutable_root.path();
     pacquet_in_ci(mutable_workspace)
-        .args(["install", "--no-prefer-frozen-lockfile"])
+        .with_args(["install", "--no-prefer-frozen-lockfile"])
         .assert()
         .success();
     assert_lockfile_was_updated(mutable_workspace);
@@ -194,8 +195,8 @@ fn ci_honors_configured_prefer_frozen_lockfile_values() {
     let frozen_root = outdated_lockfile_project();
     let frozen_workspace = frozen_root.path();
     let assert = pacquet_in_ci(frozen_workspace)
-        .env("PNPM_CONFIG_PREFER_FROZEN_LOCKFILE", "true")
-        .arg("install")
+        .with_env("PNPM_CONFIG_PREFER_FROZEN_LOCKFILE", "true")
+        .with_arg("install")
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -212,8 +213,8 @@ fn ci_honors_configured_prefer_frozen_lockfile_values() {
     let mutable_root = outdated_lockfile_project();
     let mutable_workspace = mutable_root.path();
     pacquet_in_ci(mutable_workspace)
-        .env("PNPM_CONFIG_PREFER_FROZEN_LOCKFILE", "false")
-        .arg("install")
+        .with_env("PNPM_CONFIG_PREFER_FROZEN_LOCKFILE", "false")
+        .with_arg("install")
         .assert()
         .success();
     assert_lockfile_was_updated(mutable_workspace);
@@ -229,7 +230,7 @@ fn ci_honors_pnpmfile_prefer_frozen_lockfile_values() {
     )
     .expect("write updateConfig hook");
     let assert = pacquet_in_ci(frozen_workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -252,7 +253,7 @@ fn ci_honors_pnpmfile_prefer_frozen_lockfile_values() {
     )
     .expect("write updateConfig hook");
     pacquet_in_ci(mutable_workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert_lockfile_was_updated(mutable_workspace);
@@ -265,7 +266,7 @@ fn ci_honors_workspace_manifest_prefer_frozen_lockfile_values() {
     fs::write(frozen_workspace.join("pnpm-workspace.yaml"), "preferFrozenLockfile: true\n")
         .expect("write pnpm-workspace.yaml");
     let assert = pacquet_in_ci(frozen_workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -281,7 +282,7 @@ fn ci_honors_workspace_manifest_prefer_frozen_lockfile_values() {
     fs::write(mutable_workspace.join("pnpm-workspace.yaml"), "preferFrozenLockfile: false\n")
         .expect("write pnpm-workspace.yaml");
     pacquet_in_ci(mutable_workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert_lockfile_was_updated(mutable_workspace);
@@ -293,7 +294,7 @@ fn explicit_frozen_lockfile_values_take_priority_over_prefer_flags() {
         let frozen_root = outdated_lockfile_project();
         let frozen_workspace = frozen_root.path();
         let assert = pacquet_in_ci(frozen_workspace)
-            .args(["install", prefer_arg, "--frozen-lockfile"])
+            .with_args(["install", prefer_arg, "--frozen-lockfile"])
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -307,7 +308,7 @@ fn explicit_frozen_lockfile_values_take_priority_over_prefer_flags() {
         let mutable_root = outdated_lockfile_project();
         let mutable_workspace = mutable_root.path();
         pacquet_in_ci(mutable_workspace)
-            .args(["install", prefer_arg, "--no-frozen-lockfile"])
+            .with_args(["install", prefer_arg, "--no-frozen-lockfile"])
             .assert()
             .success();
         assert_lockfile_was_updated(mutable_workspace);
@@ -320,8 +321,8 @@ fn configured_frozen_lockfile_values_take_priority_over_prefer_flags() {
         let frozen_root = outdated_lockfile_project();
         let frozen_workspace = frozen_root.path();
         let assert = pacquet_in_ci(frozen_workspace)
-            .env("PNPM_CONFIG_FROZEN_LOCKFILE", "true")
-            .args(["install", prefer_arg])
+            .with_env("PNPM_CONFIG_FROZEN_LOCKFILE", "true")
+            .with_args(["install", prefer_arg])
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -335,8 +336,8 @@ fn configured_frozen_lockfile_values_take_priority_over_prefer_flags() {
         let mutable_root = outdated_lockfile_project();
         let mutable_workspace = mutable_root.path();
         pacquet_in_ci(mutable_workspace)
-            .env("PNPM_CONFIG_FROZEN_LOCKFILE", "false")
-            .args(["install", prefer_arg])
+            .with_env("PNPM_CONFIG_FROZEN_LOCKFILE", "false")
+            .with_args(["install", prefer_arg])
             .assert()
             .success();
         assert_lockfile_was_updated(mutable_workspace);
@@ -351,7 +352,7 @@ fn dotted_frozen_lockfile_setting_rejects_an_outdated_lockfile() {
         let root = outdated_lockfile_project();
         let workspace = root.path();
         let assert = pacquet_without_ci(workspace)
-            .args(["install", token])
+            .with_args(["install", token])
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -375,7 +376,7 @@ fn ci_install_without_a_nonempty_lockfile_generates_one() {
         }
 
         pacquet_in_ci(workspace)
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
 
@@ -393,7 +394,7 @@ fn ci_install_with_a_semantically_empty_lockfile_updates_it() {
         .expect("write semantically empty lockfile");
 
     pacquet_in_ci(workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 

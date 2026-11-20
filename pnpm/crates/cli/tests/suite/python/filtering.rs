@@ -8,6 +8,7 @@ use super::{
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use std::{
     fs,
     path::Path,
@@ -57,7 +58,7 @@ async fn a_filter_selects_python_projects_by_the_distribution_they_declare() {
     requirements_project(root.path(), "b", &["beta"]);
 
     pacquet_in(root.path())
-        .args(["install", "--filter", "a", "--fail-if-no-match"])
+        .with_args(["install", "--filter", "a", "--fail-if-no-match"])
         .assert()
         .success();
 
@@ -65,7 +66,7 @@ async fn a_filter_selects_python_projects_by_the_distribution_they_declare() {
     assert!(!installed(root.path(), "b"), "b was not selected");
     assert!(!root.path().join("b/.venv").exists(), "b was not selected");
     python(&root.path().join("a"))
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }
@@ -82,7 +83,7 @@ async fn a_recursive_install_without_a_filter_installs_every_python_project() {
     requirements_project(root.path(), "b", &["beta"]);
 
     pacquet_in(root.path())
-        .args(["install", "--recursive"])
+        .with_args(["install", "--recursive"])
         .assert()
         .success();
 
@@ -100,7 +101,8 @@ async fn a_filter_that_selects_no_project_at_all_ends_the_install() {
     requirements_project(root.path(), "a", &["alpha"]);
 
     assert_no_projects_matched(
-        pacquet_in(root.path()).args(["install", "--filter", "missing", "--fail-if-no-match"]),
+        &mut pacquet_in(root.path())
+            .with_args(["install", "--filter", "missing", "--fail-if-no-match"]),
     );
     assert!(!installed(root.path(), "a"));
 }
@@ -131,7 +133,7 @@ async fn a_filter_scopes_a_python_project_by_the_npm_project_in_its_directory() 
     .unwrap();
 
     pacquet_in(root.path())
-        .args(["install", "--filter", "web"])
+        .with_args(["install", "--filter", "web"])
         .assert()
         .success();
 
@@ -141,11 +143,12 @@ async fn a_filter_scopes_a_python_project_by_the_npm_project_in_its_directory() 
     // The distribution the project declares does not name that directory:
     // the npm project in it does.
     assert_no_projects_matched(
-        pacquet_in(root.path()).args(["install", "--filter", "webapp", "--fail-if-no-match"]),
+        &mut pacquet_in(root.path())
+            .with_args(["install", "--filter", "webapp", "--fail-if-no-match"]),
     );
 
     pacquet_in(root.path())
-        .args(["install", "--filter", "api"])
+        .with_args(["install", "--filter", "api"])
         .assert()
         .success();
     assert!(installed(root.path(), "api"));
@@ -169,20 +172,20 @@ async fn a_filtered_install_links_the_workspace_sources_the_selected_project_dec
     );
 
     pacquet_in(root.path())
-        .args(["install", "--filter", "app"])
+        .with_args(["install", "--filter", "app"])
         .assert()
         .success();
 
     assert!(installed(root.path(), "packages/app"));
     assert!(!installed(root.path(), "packages/mylib"), "mylib was not selected");
     python(&root.path().join("packages/app"))
-        .args(["-c", "import mylib; print(mylib.MARKER)"])
+        .with_args(["-c", "import mylib; print(mylib.MARKER)"])
         .assert()
         .success()
         .stdout(if cfg!(windows) { "workspace mylib\r\n" } else { "workspace mylib\n" });
 
     pacquet_in(root.path())
-        .args(["install", "--filter", "app..."])
+        .with_args(["install", "--filter", "app..."])
         .assert()
         .success();
     assert!(installed(root.path(), "packages/mylib"));
@@ -199,7 +202,7 @@ async fn a_filtered_add_writes_the_requirement_to_the_selected_project_only() {
     requirements_project(root.path(), "b", &[]);
 
     pacquet_in(root.path())
-        .args(["add", "--filter", "a", "pypi:alpha"])
+        .with_args(["add", "--filter", "a", "pypi:alpha"])
         .assert()
         .success();
 
@@ -231,7 +234,7 @@ async fn a_production_filter_does_not_follow_a_development_source() {
     );
 
     pacquet_in(root.path())
-        .args(["install", "--filter-prod", "app..."])
+        .with_args(["install", "--filter-prod", "app..."])
         .assert()
         .success();
 
@@ -239,7 +242,7 @@ async fn a_production_filter_does_not_follow_a_development_source() {
     assert!(!installed(root.path(), "packages/tool"), "only a dependency group requires it");
 
     pacquet_in(root.path())
-        .args(["install", "--filter", "app..."])
+        .with_args(["install", "--filter", "app..."])
         .assert()
         .success();
     assert!(installed(root.path(), "packages/tool"));
@@ -266,7 +269,7 @@ async fn a_production_filter_follows_a_source_a_backend_may_require() {
     fs::write(root.path().join("packages/app/requirements.txt"), "tool\n").unwrap();
 
     pacquet_in(root.path())
-        .args(["install", "--filter-prod", "app..."])
+        .with_args(["install", "--filter-prod", "app..."])
         .assert()
         .success();
 
@@ -291,7 +294,7 @@ async fn a_recursive_add_leaves_the_workspace_root_alone() {
     requirements_project(root.path(), "a", &[]);
 
     pacquet_in(root.path())
-        .args(["add", "--recursive", "pypi:alpha"])
+        .with_args(["add", "--recursive", "pypi:alpha"])
         .assert()
         .success();
 
@@ -327,7 +330,7 @@ async fn a_filter_follows_the_source_a_project_declares_over_its_roots() {
     );
 
     pacquet_in(root.path())
-        .args(["install", "--filter", "app..."])
+        .with_args(["install", "--filter", "app..."])
         .assert()
         .success();
 
@@ -358,7 +361,7 @@ async fn a_filter_does_not_reach_a_project_outside_the_declared_workspace() {
     );
 
     pacquet_in(root.path())
-        .args(["install", "--filter", "app..."])
+        .with_args(["install", "--filter", "app..."])
         .assert()
         .success();
 

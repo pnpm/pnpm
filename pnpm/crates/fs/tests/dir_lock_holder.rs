@@ -1,5 +1,6 @@
 //! Cross-process tests for [`pnpm_fs::DirLock`]: what a waiter sees of a
 //! holder in another process, alive and killed.
+use command_extra::CommandExtra;
 
 use pnpm_fs::DirLock;
 use std::{
@@ -29,9 +30,9 @@ const NEVER_ABANDONED: Duration = Duration::from_mins(1);
 /// Start a holder process and return once it holds the lock at `path`.
 fn spawn_holder(path: &Path) -> Child {
     let mut holder = Command::new(HOLDER_BIN)
-        .arg(path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
+        .with_arg(path)
+        .with_stdin(Stdio::piped())
+        .with_stdout(Stdio::piped())
         .spawn()
         .expect("spawn dir_lock_holder");
     let mut reply = String::new();

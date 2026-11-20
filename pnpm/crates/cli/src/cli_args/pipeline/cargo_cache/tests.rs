@@ -7,6 +7,7 @@ use Fingerprint::{
     Invalidated,
     Kept,
 };
+use command_extra::CommandExtra;
 use std::{
     collections::BTreeMap,
     env,
@@ -19,8 +20,8 @@ fn project() -> tempfile::TempDir {
     let project = tempfile::tempdir().unwrap();
     assert!(
         Command::new("git")
-            .arg("init")
-            .arg(project.path())
+            .with_arg("init")
+            .with_arg(project.path())
             .output()
             .unwrap()
             .status
@@ -224,8 +225,8 @@ fn source_configuration_and_environment_changes_select_different_snapshots() {
     .unwrap();
     assert!(
         Command::new("cargo")
-            .current_dir(root.path())
-            .args(["generate-lockfile", "--offline"])
+            .with_current_dir(root.path())
+            .with_args(["generate-lockfile", "--offline"])
             .output()
             .unwrap()
             .status
@@ -332,8 +333,8 @@ fn restoration_falls_back_to_copy_on_tmpfs() {
     let second_worktree = tempfile::tempdir_in("/dev/shm").unwrap();
     assert!(
         Command::new("git")
-            .arg("init")
-            .arg(second_worktree.path())
+            .with_arg("init")
+            .with_arg(second_worktree.path())
             .output()
             .unwrap()
             .status

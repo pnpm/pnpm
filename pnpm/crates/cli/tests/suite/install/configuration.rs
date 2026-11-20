@@ -361,7 +361,7 @@ fn fresh_isolated_install_allows_required_incompatible_engine_without_strict_mod
 #[test]
 fn store_dir_cli_option_overrides_config_and_resolves_from_dir() {
     let CommandTempCwd {
-        mut pacquet,
+        pacquet,
         root,
         workspace,
         npmrc_info,
@@ -382,10 +382,10 @@ fn store_dir_cli_option_overrides_config_and_resolves_from_dir() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     pacquet
-        .current_dir(root.path())
-        .arg("--dir")
-        .arg(&workspace)
-        .args(["install", "--store-dir", "cli-store"])
+        .with_current_dir(root.path())
+        .with_arg("--dir")
+        .with_arg(&workspace)
+        .with_args(["install", "--store-dir", "cli-store"])
         .assert()
         .success();
 

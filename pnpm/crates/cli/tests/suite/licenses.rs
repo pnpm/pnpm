@@ -1,4 +1,5 @@
 use crate::_utils;
+use command_extra::CommandExtra;
 
 use _utils::{
     enable_gvs_in_workspace_yaml,
@@ -118,7 +119,7 @@ snapshots:
     .expect("write zeta manifest");
 
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses");
     assert!(
@@ -140,7 +141,7 @@ snapshots:
     assert_eq!(report["Zlib"][0]["homepage"], "https://github.com/example/alpha#readme");
 
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list"])
+        .with_args(["licenses", "list"])
         .output()
         .expect("run licenses");
     assert!(
@@ -161,7 +162,7 @@ fn licenses_requires_a_lockfile() {
     fs::write(project.path().join("package.json"), "{}").expect("write manifest");
 
     let output = pacquet_in(project.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses");
     assert!(!output.status.success());
@@ -186,7 +187,7 @@ fn licenses_renders_empty_results_in_the_requested_format() {
         (vec!["licenses", "list", "--prod"], "No licenses in packages found\n"),
     ] {
         let output = pacquet_in(project.path())
-            .args(arguments)
+            .with_args(arguments)
             .output()
             .expect("run licenses");
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -210,10 +211,10 @@ fn licenses_renders_empty_results_when_no_recursive_projects_match() {
             .expect("write project manifest");
 
         for (json, expected) in [(false, "No licenses in packages found\n"), (true, "{}\n")] {
-            let mut command = pacquet_in(workspace.path());
-            command.args(["--filter", "no-such-pkg", "--recursive", "licenses", "list"]);
+            let mut command = pacquet_in(workspace.path())
+                .with_args(["--filter", "no-such-pkg", "--recursive", "licenses", "list"]);
             if json {
-                command.arg("--json");
+                command = command.with_arg("--json");
             }
             let output = command.output().expect("run licenses");
             assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -246,7 +247,7 @@ fn licenses_does_not_use_root_dependencies_for_an_unrecorded_workspace_project()
     .expect("write package manifest");
 
     let output = pacquet_in(&project)
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -258,7 +259,7 @@ fn licenses_does_not_use_root_dependencies_for_an_unrecorded_workspace_project()
     );
 
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--dev"])
+        .with_args(["licenses", "list", "--dev"])
         .output()
         .expect("run licenses for dev dependencies");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -304,18 +305,18 @@ fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
     )
     .expect("write package.json");
 
-    let mut pacquet = pacquet;
+    let pacquet = pacquet;
     pacquet
-        .env("XDG_CONFIG_HOME", &config_home)
-        .arg("install")
+        .with_env("XDG_CONFIG_HOME", &config_home)
+        .with_arg("install")
         .assert()
         .success();
 
     for subcommand in ["list", "ls"] {
-        let mut licenses_command = pacquet_in(&workspace);
+        let licenses_command = pacquet_in(&workspace);
         let output = licenses_command
-            .env("XDG_CONFIG_HOME", &config_home)
-            .args(["licenses", subcommand, "--json"])
+            .with_env("XDG_CONFIG_HOME", &config_home)
+            .with_args(["licenses", subcommand, "--json"])
             .output()
             .expect("spawn pacquet licenses");
         assert!(
@@ -537,7 +538,7 @@ snapshots:
 /// The `MIT` group of `pnpm licenses list --json` run with `args` in `dir`.
 fn listed_mit_packages(dir: &Path, args: &[&str]) -> Vec<Value> {
     let output = pacquet_in(dir)
-        .args(args)
+        .with_args(args)
         .output()
         .expect("run licenses");
     assert!(
@@ -651,7 +652,7 @@ snapshots:
 
     let listed = |dir: &str, args: &[&str]| -> Vec<(String, String)> {
         let output = pacquet_in(&workspace.path().join(dir))
-            .args(args)
+            .with_args(args)
             .output()
             .expect("run licenses");
         assert!(
@@ -725,7 +726,7 @@ fn licenses_lists_all_valid_copies_of_a_collapsed_hoisted_variant() {
         },
     }).to_string()).expect("write modules manifest");
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -772,7 +773,7 @@ fn licenses_lists_distinct_isolated_peer_installations_of_one_version() {
         .expect("write manifest");
     }
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -876,7 +877,7 @@ publicHoistPattern:
     .expect("write .modules.yaml");
 
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses");
     assert!(
@@ -969,7 +970,7 @@ hoistedLocations:
     .expect("write .modules.yaml");
 
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses");
     assert!(
@@ -1062,7 +1063,7 @@ snapshots:
     .expect("write .modules.yaml");
 
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

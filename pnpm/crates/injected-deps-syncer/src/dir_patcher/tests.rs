@@ -8,6 +8,7 @@ use super::{
     inode_map::file_id,
     publish_edits,
 };
+use command_extra::CommandExtra;
 use pnpm_fs::LinkFailure;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
@@ -34,7 +35,7 @@ fn create_file(path: &std::path::Path, content: &str) {
 fn create_fifo(path: &std::path::Path) {
     fs::create_dir_all(path.parent().expect("fifo has a parent")).expect("create parent");
     let status = std::process::Command::new("mkfifo")
-        .arg(path)
+        .with_arg(path)
         .status()
         .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed for {path:?}");

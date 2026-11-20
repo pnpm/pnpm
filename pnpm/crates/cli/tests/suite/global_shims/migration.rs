@@ -27,8 +27,8 @@ fn native_shim_preserves_non_shell_identifier_environment_variables() {
     let printenv = which::which("printenv").expect("the test needs `printenv` on PATH");
 
     let output = shim_command(&root, root.path(), "node", printenv.to_str().unwrap())
-        .arg("TEST-VAR")
-        .env("TEST-VAR", "123")
+        .with_arg("TEST-VAR")
+        .with_env("TEST-VAR", "123")
         .output()
         .unwrap();
 
@@ -171,11 +171,11 @@ fn legacy_dispatcher_rejects_a_shim_from_another_directory() {
     let foreign_shim = install_legacy_shim(&foreign_bin, "tool", "/bin/true");
 
     let output = Command::new(dispatcher_bin.join(".pnpm-shim-v1"))
-        .arg("--shim")
-        .arg("tool")
-        .arg(&foreign_shim)
-        .arg("/bin/true")
-        .arg("--")
+        .with_arg("--shim")
+        .with_arg("tool")
+        .with_arg(&foreign_shim)
+        .with_arg("/bin/true")
+        .with_arg("--")
         .output()
         .unwrap();
 

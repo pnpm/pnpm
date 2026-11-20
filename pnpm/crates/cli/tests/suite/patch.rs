@@ -564,7 +564,7 @@ fn patch_workflow_runs_with_default_ndjson_and_silent_reporters() {
 
         let mut patch_cmd = pacquet(&workspace, ["patch", "is-positive@1.0.0"]);
         if let Some(reporter) = reporter {
-            patch_cmd.arg(reporter);
+            patch_cmd = patch_cmd.with_arg(reporter);
         }
         patch_cmd.assert().success();
 
@@ -574,7 +574,7 @@ fn patch_workflow_runs_with_default_ndjson_and_silent_reporters() {
         let mut patch_commit_cmd =
             pacquet(&workspace, ["patch-commit", edit_dir.to_str().expect("utf8 edit dir")]);
         if let Some(reporter) = reporter {
-            patch_commit_cmd.arg(reporter);
+            patch_commit_cmd = patch_commit_cmd.with_arg(reporter);
         }
         patch_commit_cmd.assert().success();
 
@@ -585,7 +585,7 @@ fn patch_workflow_runs_with_default_ndjson_and_silent_reporters() {
 
         let mut patch_remove_cmd = pacquet(&workspace, ["patch-remove", "is-positive@1.0.0"]);
         if let Some(reporter) = reporter {
-            patch_remove_cmd.arg(reporter);
+            patch_remove_cmd = patch_remove_cmd.with_arg(reporter);
         }
         patch_remove_cmd.assert().success();
 

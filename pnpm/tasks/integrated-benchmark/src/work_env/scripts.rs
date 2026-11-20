@@ -12,6 +12,7 @@ use crate::{
     fixtures::LOCKFILE,
     verify::executor,
 };
+use command_extra::CommandExtra;
 use itertools::Itertools;
 use os_display::Quotable;
 use pipe_trait::Pipe;
@@ -86,24 +87,24 @@ pub(super) fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &
         // them first.
         eprintln!("Resetting worktree at {revision_repo:?}...");
         Command::new("git")
-            .current_dir(revision_repo)
-            .arg("reset")
-            .arg("--hard")
-            .pipe(executor("git reset --hard"));
+            .with_current_dir(revision_repo)
+            .with_arg("reset")
+            .with_arg("--hard")
+            .pipe_mut(executor("git reset --hard"));
     }
 
     eprintln!("Checking out {commit:?}...");
     Command::new("git")
-        .current_dir(revision_repo)
-        .arg("checkout")
-        .arg(commit)
-        .pipe(executor("git checkout"));
+        .with_current_dir(revision_repo)
+        .with_arg("checkout")
+        .with_arg(commit)
+        .pipe_mut(executor("git checkout"));
 
     eprintln!("List of branches:");
     Command::new("git")
-        .current_dir(revision_repo)
-        .arg("branch")
-        .pipe(executor("git branch"));
+        .with_current_dir(revision_repo)
+        .with_arg("branch")
+        .pipe_mut(executor("git branch"));
 }
 /// Prepare the clone and fetch the commit. Reports whether HEAD already
 /// existed, so the caller can reset tracked build outputs before checkout.
@@ -113,28 +114,28 @@ pub(super) fn prepare_bench_repo(repository: &Path, revision_repo: &Path, commit
         if !had_existing_git {
             eprintln!("Initializing a git repository at {revision_repo:?}...");
             Command::new("git")
-                .current_dir(revision_repo)
-                .arg("init")
-                .arg(revision_repo)
-                .arg("--initial-branch=__blank__")
-                .pipe(executor("git init"));
+                .with_current_dir(revision_repo)
+                .with_arg("init")
+                .with_arg(revision_repo)
+                .with_arg("--initial-branch=__blank__")
+                .pipe_mut(executor("git init"));
         }
 
         eprintln!("Fetching {commit} from {repository:?}...");
         Command::new("git")
-            .current_dir(revision_repo)
-            .arg("fetch")
-            .arg(repository)
-            .arg(commit)
-            .pipe(executor("git fetch"));
+            .with_current_dir(revision_repo)
+            .with_arg("fetch")
+            .with_arg(repository)
+            .with_arg(commit)
+            .pipe_mut(executor("git fetch"));
     } else {
         eprintln!("Cloning {repository:?} to {revision_repo:?}...");
         Command::new("git")
-            .arg("clone")
-            .arg("--no-checkout")
-            .arg(repository)
-            .arg(revision_repo)
-            .pipe(executor("git clone"));
+            .with_arg("clone")
+            .with_arg("--no-checkout")
+            .with_arg(repository)
+            .with_arg(revision_repo)
+            .pipe_mut(executor("git clone"));
     }
 
     had_existing_git

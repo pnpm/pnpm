@@ -12,6 +12,7 @@ use super::{
     sanitize_env_key,
     stamp_package,
 };
+use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::{
@@ -538,8 +539,8 @@ fn package_manager_environment_preserves_native_node_paths() {
         None,
     );
     let output = Command::new("/bin/sh")
-        .args(["-c", r#"printf '%s\n' "$NODE" "$npm_node_execpath""#])
-        .envs(env)
+        .with_args(["-c", r#"printf '%s\n' "$NODE" "$npm_node_execpath""#])
+        .with_envs(env)
         .output()
         .expect("spawn shell");
     assert!(output.status.success());

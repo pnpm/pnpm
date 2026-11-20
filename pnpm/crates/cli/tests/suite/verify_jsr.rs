@@ -1,6 +1,7 @@
 //! Registry routing for `@jsr/*` lockfile entries during supply-chain policy
 //! verification, the shape reported in
 //! [pnpm/pnpm#14649](https://github.com/pnpm/pnpm/issues/14649).
+use command_extra::CommandExtra;
 
 use crate::_utils::{
     flatten_report,
@@ -66,7 +67,7 @@ fn a_jsr_lockfile_entry_is_verified_against_the_jsr_registry() {
     let root = jsr_project();
 
     let assert = pacquet_in(root.path())
-        .args(["install", "--frozen-lockfile", "--offline"])
+        .with_args(["install", "--frozen-lockfile", "--offline"])
         .assert()
         .failure();
 

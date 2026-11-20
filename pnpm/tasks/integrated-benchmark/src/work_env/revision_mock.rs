@@ -1,4 +1,5 @@
 //! How the benchmark launches a revision's mocks and pnpr server.
+use command_extra::CommandExtra;
 
 use super::{
     PnprServerPaths,
@@ -33,15 +34,15 @@ pub(super) fn served_revision_mock_origin(registry: &RevisionMockRegistry, cold:
     format!("http://localhost:{port}")
 }
 
-pub(super) fn spawn_revision_mock(mut command: Command, bench_dir: &Path, cold: bool) -> Child {
+pub(super) fn spawn_revision_mock(command: Command, bench_dir: &Path, cold: bool) -> Child {
     let stdout = File::create(bench_dir.join("revision-mock.stdout.log"))
         .expect("create revision mock stdout log");
     let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
         .expect("create revision mock stderr log");
     command
-        .stdin(Stdio::null())
-        .stdout(stdout)
-        .stderr(stderr)
+        .with_stdin(Stdio::null())
+        .with_stdout(stdout.into())
+        .with_stderr(stderr.into())
         .spawn()
         .expect(if cold { "spawn cold revision mock" } else { "spawn revision mock" })
 }
@@ -49,26 +50,25 @@ pub(super) fn spawn_revision_mock(mut command: Command, bench_dir: &Path, cold: 
 /// The command that serves one benchmark's pnpr server. A server whose
 /// registries live in the database gets [`pnpr_benchmark_public_url`].
 pub(super) fn pnpr_server_command(paths: &PnprServerPaths<'_>) -> Command {
-    let mut command = Command::new(paths.binary);
-    command
-        .arg("--config")
-        .arg(paths.config)
-        .arg("--listen")
-        .arg(format!("127.0.0.1:{}", paths.port))
-        .arg("--storage")
-        .arg(paths.storage)
+    let command = Command::new(paths.binary)
+        .with_arg("--config")
+        .with_arg(paths.config)
+        .with_arg("--listen")
+        .with_arg(format!("127.0.0.1:{}", paths.port))
+        .with_arg("--storage")
+        .with_arg(paths.storage)
         // The resolver resolves against the registry the client
         // sends, caching packuments in its own store. A long TTL keeps
         // those cached packuments authoritative across the run, the
         // same value the registry-mock pins for the same reason.
-        .arg("--packument-ttl")
-        .arg("31536000");
-    if paths.registries.is_some() {
-        command
-            .arg("--public-url")
-            .arg(pnpr_benchmark_public_url(paths.port));
+        .with_arg("--packument-ttl")
+        .with_arg("31536000");
+    if paths.registries.is_none() {
+        return command;
     }
     command
+        .with_arg("--public-url")
+        .with_arg(pnpr_benchmark_public_url(paths.port))
 }
 
 /// The `--public-url` of a cold mock's warm origin: the latency proxy in

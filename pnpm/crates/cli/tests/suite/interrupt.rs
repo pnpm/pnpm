@@ -932,7 +932,7 @@ fn is_running(pid: libc::pid_t) -> bool {
 /// from a running process.
 fn is_zombie(pid: libc::pid_t) -> bool {
     let state = Command::new("ps")
-        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .with_args(["-o", "stat=", "-p", &pid.to_string()])
         .output()
         .expect("run ps");
     state.stdout.trim_ascii_start().first() == Some(&b'Z')

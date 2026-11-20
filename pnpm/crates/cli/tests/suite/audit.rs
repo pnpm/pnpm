@@ -15,9 +15,7 @@ use std::{
 
 #[test]
 fn audit_json_posts_bulk_request_and_exits_on_vulnerability() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
@@ -43,8 +41,8 @@ fn audit_json_posts_bulk_request_and_exits_on_vulnerability() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
-        .arg("--json")
+        .with_arg("audit")
+        .with_arg("--json")
         .output()
         .expect("run pacquet audit");
 
@@ -61,15 +59,13 @@ fn audit_json_posts_bulk_request_and_exits_on_vulnerability() {
 
 #[test]
 fn audit_no_vulnerabilities_exits_successfully() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(&mut registry, "{}").create();
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -80,9 +76,7 @@ fn audit_no_vulnerabilities_exits_successfully() {
 
 #[test]
 fn audit_dev_reports_only_dev_dependencies() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
@@ -101,9 +95,9 @@ fn audit_dev_reports_only_dev_dependencies() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
-        .arg("--dev")
-        .arg("--json")
+        .with_arg("audit")
+        .with_arg("--dev")
+        .with_arg("--json")
         .output()
         .expect("run pacquet audit");
 
@@ -117,9 +111,7 @@ fn audit_dev_reports_only_dev_dependencies() {
 
 #[test]
 fn audit_exits_zero_when_every_vulnerability_is_below_audit_level() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -136,9 +128,9 @@ fn audit_exits_zero_when_every_vulnerability_is_below_audit_level() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
-        .arg("--audit-level")
-        .arg("high")
+        .with_arg("audit")
+        .with_arg("--audit-level")
+        .with_arg("high")
         .output()
         .expect("run pacquet audit");
 
@@ -149,9 +141,7 @@ fn audit_exits_zero_when_every_vulnerability_is_below_audit_level() {
 
 #[test]
 fn audit_json_filters_advisories_by_audit_level() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -185,10 +175,10 @@ fn audit_json_filters_advisories_by_audit_level() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
-        .arg("--json")
-        .arg("--audit-level")
-        .arg("high")
+        .with_arg("audit")
+        .with_arg("--json")
+        .with_arg("--audit-level")
+        .with_arg("high")
         .output()
         .expect("run pacquet audit");
 
@@ -203,9 +193,7 @@ fn audit_json_filters_advisories_by_audit_level() {
 
 #[test]
 fn audit_ignore_registry_errors_keeps_exit_code_zero() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
@@ -216,8 +204,8 @@ fn audit_ignore_registry_errors_keeps_exit_code_zero() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
-        .arg("--ignore-registry-errors")
+        .with_arg("audit")
+        .with_arg("--ignore-registry-errors")
         .output()
         .expect("run pacquet audit");
 
@@ -233,9 +221,7 @@ fn audit_ignore_registry_errors_keeps_exit_code_zero() {
 
 #[test]
 fn audit_json_ignore_registry_errors_keeps_stdout_parseable() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
@@ -246,9 +232,9 @@ fn audit_json_ignore_registry_errors_keeps_stdout_parseable() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
-        .arg("--json")
-        .arg("--ignore-registry-errors")
+        .with_arg("audit")
+        .with_arg("--json")
+        .with_arg("--ignore-registry-errors")
         .output()
         .expect("run pacquet audit");
 
@@ -275,9 +261,7 @@ fn audit_json_ignore_registry_errors_keeps_stdout_parseable() {
 
 #[test]
 fn audit_sends_auth_token() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
@@ -293,7 +277,7 @@ fn audit_sends_auth_token() {
     );
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -304,9 +288,7 @@ fn audit_sends_auth_token() {
 
 #[test]
 fn audit_omits_authorization_header_without_credentials() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
@@ -318,7 +300,7 @@ fn audit_omits_authorization_header_without_credentials() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -328,9 +310,7 @@ fn audit_omits_authorization_header_without_credentials() {
 
 #[test]
 fn audit_endpoint_not_exists_reports_dedicated_error() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
@@ -341,7 +321,7 @@ fn audit_endpoint_not_exists_reports_dedicated_error() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -353,15 +333,13 @@ fn audit_endpoint_not_exists_reports_dedicated_error() {
 
 #[test]
 fn audit_invalid_json_reports_bad_response() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(&mut registry, "not json <html>").create();
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -374,15 +352,13 @@ fn audit_invalid_json_reports_bad_response() {
 
 #[test]
 fn audit_unexpected_json_body_reports_bad_response() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(&mut registry, "[]").create();
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -394,9 +370,7 @@ fn audit_unexpected_json_body_reports_bad_response() {
 
 #[test]
 fn audit_ignores_configured_ghsas_in_text_report() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -417,9 +391,9 @@ fn audit_ignores_configured_ghsas_in_text_report() {
     );
 
     let output = pacquet
-        .arg("audit")
-        .arg("--audit-level")
-        .arg("moderate")
+        .with_arg("audit")
+        .with_arg("--audit-level")
+        .with_arg("moderate")
         .output()
         .expect("run pacquet");
 
@@ -436,9 +410,7 @@ fn audit_ignores_configured_ghsas_in_text_report() {
 
 #[test]
 fn audit_keeps_reporting_advisories_that_are_not_ignored() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -470,7 +442,7 @@ fn audit_keeps_reporting_advisories_that_are_not_ignored() {
     );
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -484,9 +456,7 @@ fn audit_keeps_reporting_advisories_that_are_not_ignored() {
 
 #[test]
 fn audit_ignores_configured_ghsas_in_json_report() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -517,8 +487,8 @@ fn audit_ignores_configured_ghsas_in_json_report() {
     );
 
     let output = pacquet
-        .arg("audit")
-        .arg("--json")
+        .with_arg("audit")
+        .with_arg("--json")
         .output()
         .expect("run pacquet audit");
 
@@ -533,9 +503,7 @@ fn audit_ignores_configured_ghsas_in_json_report() {
 
 #[test]
 fn audit_level_info_includes_info_advisories() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -545,9 +513,9 @@ fn audit_level_info_includes_info_advisories() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
-        .arg("--audit-level")
-        .arg("info")
+        .with_arg("audit")
+        .with_arg("--audit-level")
+        .with_arg("info")
         .output()
         .expect("run pacquet audit");
 
@@ -560,9 +528,7 @@ fn audit_level_info_includes_info_advisories() {
 
 #[test]
 fn audit_reports_the_lowest_non_deprecated_published_patch() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -581,7 +547,7 @@ fn audit_reports_the_lowest_non_deprecated_published_patch() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -597,9 +563,7 @@ fn audit_reports_the_lowest_non_deprecated_published_patch() {
 
 #[test]
 fn audit_reports_the_published_patch_when_the_time_map_has_an_unpublished_marker() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -615,7 +579,7 @@ fn audit_reports_the_published_patch_when_the_time_map_has_an_unpublished_marker
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -628,9 +592,7 @@ fn audit_reports_the_published_patch_when_the_time_map_has_an_unpublished_marker
 
 #[test]
 fn audit_reports_no_patched_version_when_none_was_published() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -646,7 +608,7 @@ fn audit_reports_no_patched_version_when_none_was_published() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -666,9 +628,7 @@ fn audit_reports_no_patched_version_when_none_was_published() {
 
 #[test]
 fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
@@ -678,7 +638,7 @@ fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
     write_audit_workspace(&workspace, &registry.url(), "");
 
     let output = pacquet
-        .arg("audit")
+        .with_arg("audit")
         .output()
         .expect("run pacquet audit");
 
@@ -689,14 +649,12 @@ fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
 
 #[test]
 fn audit_rejects_unknown_subcommands() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     write_minimal_manifest(&workspace);
 
     let output = pacquet
-        .arg("audit")
-        .arg("unknown")
+        .with_arg("audit")
+        .with_arg("unknown")
         .output()
         .expect("run pacquet audit");
 
@@ -707,9 +665,7 @@ fn audit_rejects_unknown_subcommands() {
 
 #[test]
 fn audit_filter_audits_only_the_selected_projects() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(&mut registry, "{}")
         .match_body(Matcher::Json(serde_json::json!({ "minimist": ["1.2.0"] })))
@@ -717,9 +673,9 @@ fn audit_filter_audits_only_the_selected_projects() {
     write_two_project_audit_workspace(&workspace, &registry.url());
 
     let output = pacquet
-        .arg("audit")
-        .arg("--filter")
-        .arg("project-b")
+        .with_arg("audit")
+        .with_arg("--filter")
+        .with_arg("project-b")
         .output()
         .expect("run pacquet audit");
 
@@ -729,17 +685,15 @@ fn audit_filter_audits_only_the_selected_projects() {
 
 #[test]
 fn audit_filter_matching_no_project_skips_the_audit() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(&mut registry, "{}").expect(0).create();
     write_two_project_audit_workspace(&workspace, &registry.url());
 
     let output = pacquet
-        .arg("audit")
-        .arg("--filter")
-        .arg("no-such-project")
+        .with_arg("audit")
+        .with_arg("--filter")
+        .with_arg("no-such-project")
         .output()
         .expect("run pacquet audit");
 
@@ -754,9 +708,7 @@ fn audit_filter_matching_no_project_skips_the_audit() {
 
 #[test]
 fn audit_filter_fails_when_a_selected_project_is_missing_from_the_lockfile() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(&mut registry, "{}").expect(0).create();
     write_two_project_audit_workspace(&workspace, &registry.url());
@@ -766,9 +718,9 @@ fn audit_filter_fails_when_a_selected_project_is_missing_from_the_lockfile() {
         .expect("write project package.json");
 
     let output = pacquet
-        .arg("audit")
-        .arg("--filter")
-        .arg("project-c")
+        .with_arg("audit")
+        .with_arg("--filter")
+        .with_arg("project-c")
         .output()
         .expect("run pacquet audit");
 

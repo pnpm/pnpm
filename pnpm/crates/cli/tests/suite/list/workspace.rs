@@ -390,8 +390,8 @@ fn changed_files_ignore_pattern_is_respected() {
 
     let git = |args: &[&str]| {
         let output = Command::new("git")
-            .args(args)
-            .current_dir(&workspace)
+            .with_args(args)
+            .with_current_dir(&workspace)
             .output()
             .expect("spawn git");
         assert!(

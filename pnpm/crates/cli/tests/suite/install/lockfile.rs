@@ -177,8 +177,7 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
     fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize broken lockfile"))
         .expect("write broken lockfile");
 
-    let mut command = new_pacquet_command(&workspace);
-    command.env("CI", "true");
+    let command = new_pacquet_command(&workspace).with_env("CI", "true");
     command
         .with_args(["install", "--fix-lockfile", "--lockfile-only"])
         .assert()

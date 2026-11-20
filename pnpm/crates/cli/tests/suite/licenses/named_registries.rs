@@ -1,4 +1,5 @@
 use super::pacquet_in;
+use command_extra::CommandExtra;
 use serde_json::{
     Value,
     json,
@@ -172,7 +173,7 @@ fn plant_pkg(workspace: &Path, slot: &str, pkg_name: &str, manifest: &Value) {
 fn licenses_list_json_separates_named_registries_and_strips_version_prefixes() {
     let workspace = write_licenses_named_registries_fixture();
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses list --json");
     assert!(
@@ -212,7 +213,7 @@ fn licenses_list_json_separates_named_registries_and_strips_version_prefixes() {
 fn licenses_list_table_and_long_display_named_registry_aliases() {
     let workspace = write_licenses_named_registries_fixture();
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--long"])
+        .with_args(["licenses", "list", "--long"])
         .output()
         .expect("run licenses list --long");
     assert!(
@@ -299,7 +300,7 @@ snapshots:
     .expect("write .modules.yaml without hoistedLocations");
 
     let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+        .with_args(["licenses", "list", "--json"])
         .output()
         .expect("run licenses list --json");
     assert!(

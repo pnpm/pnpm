@@ -6,6 +6,7 @@ use super::{
     select_shell,
     use_shell_emulator,
 };
+use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
 use std::{
     ffi::OsString,
@@ -157,8 +158,8 @@ fn cmd_exe_script_shell_uses_d_s_c_and_verbatim_args_on_windows() {
 fn run_in_sh(command: &str) -> std::process::Output {
     let shell = select_shell(None, false).expect("select_shell");
     std::process::Command::new(&shell.program)
-        .args(&shell.args)
-        .arg(script_body(&shell, command).as_ref())
+        .with_args(&shell.args)
+        .with_arg(script_body(&shell, command).as_ref())
         .output()
         .expect("run sh")
 }

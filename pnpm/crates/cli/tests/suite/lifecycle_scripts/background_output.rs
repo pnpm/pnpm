@@ -41,7 +41,7 @@ fn install_finishes_while_a_prepare_script_leaves_a_process_holding_its_output()
     let background =
         fs::read_to_string(workspace.join("background.pid")).expect("read background pid");
     Command::new("kill")
-        .arg(background.trim())
+        .with_arg(background.trim())
         .status()
         .expect("kill background process");
 

@@ -92,12 +92,12 @@ fn relative_path_peer_is_auto_installed_from_its_declaring_directory() {
         .unwrap();
         }
         let consumer = workspace.join("examples");
+        pacquet = pacquet
+            .with_current_dir(&consumer)
+            .with_args(["install", "--offline", "--ignore-scripts", "--store-dir"])
+            .with_arg(root.path().join("store"));
         pacquet
-            .current_dir(&consumer)
-            .args(["install", "--offline", "--ignore-scripts", "--store-dir"])
-            .arg(root.path().join("store"));
-        pacquet
-            .args([
+            .with_args([
                 "--lockfile-only",
                 "--no-frozen-lockfile",
                 "--config.preferFrozenLockfile=false",
@@ -184,9 +184,9 @@ fn relative_path_peer_uses_each_importers_directory_when_discovery_is_cached() {
             fs::write(project.join("package.json"), manifest.to_string()).unwrap();
             fs::write(project.join("index.js"), source).unwrap();
         }
-        pacquet
-            .args(["install", "--offline", "--store-dir"])
-            .arg(root.path().join("store"));
+        pacquet = pacquet
+            .with_args(["install", "--offline", "--store-dir"])
+            .with_arg(root.path().join("store"));
         pacquet.assert().success();
         pacquet
             .with_arg("--frozen-lockfile")

@@ -103,12 +103,13 @@ fn freeze_mtime(_dir: &Path) -> Option<std::time::SystemTime> {
 }
 
 fn isolated(mut command: Command, root: &Path) -> Command {
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
-    command.env_remove("COREPACK_ROOT");
+    command = command
+        .with_env("PNPM_HOME", root.join("pnpm-home"))
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
+        .without_env("COREPACK_ROOT");
     // The project is never installed, so `run` and `exec` would otherwise
     // spawn an install, which does open the store.
-    command.env("pnpm_config_verify_deps_before_run", "false");
+    command = command.with_env("pnpm_config_verify_deps_before_run", "false");
     command
 }

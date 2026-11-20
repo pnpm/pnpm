@@ -24,19 +24,19 @@ fn edits_and_runs_json5_without_creating_json() {
     let path = workspace.join("package.json5");
     fs::write(&path, "// project\n{ name: 'fixture', version: '1.0.0', scripts: { probe: 'echo json5-probe' }, }\n").unwrap();
     command(&pacquet)
-        .args(["version", "patch", "--no-git-tag-version"])
+        .with_args(["version", "patch", "--no-git-tag-version"])
         .assert()
         .success();
     command(&pacquet)
-        .args(["pkg", "set", "custom.keep=true", "--json"])
+        .with_args(["pkg", "set", "custom.keep=true", "--json"])
         .assert()
         .success();
     command(&pacquet)
-        .args(["set-script", "other", "echo other"])
+        .with_args(["set-script", "other", "echo other"])
         .assert()
         .success();
     let output = command(&pacquet)
-        .args(["run", "probe"])
+        .with_args(["run", "probe"])
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
@@ -67,7 +67,7 @@ fn add_update_remove_preserve_json5_comments() {
     let path = workspace.join("package.json5");
     fs::write(&path, "// project\n{ name: 'fixture', version: '1.0.0', }\n").unwrap();
     command(&pacquet)
-        .args(["add", "@pnpm.e2e/foo@1.0.0", "--lockfile-only"])
+        .with_args(["add", "@pnpm.e2e/foo@1.0.0", "--lockfile-only"])
         .assert()
         .success();
     assert_eq!(
@@ -75,7 +75,7 @@ fn add_update_remove_preserve_json5_comments() {
         json!({"@pnpm.e2e/foo": "1.0.0"}),
     );
     command(&pacquet)
-        .args(["update", "@pnpm.e2e/foo@2.0.0", "--lockfile-only"])
+        .with_args(["update", "@pnpm.e2e/foo@2.0.0", "--lockfile-only"])
         .assert()
         .success();
     assert_eq!(
@@ -83,7 +83,7 @@ fn add_update_remove_preserve_json5_comments() {
         json!({"@pnpm.e2e/foo": "2.0.0"}),
     );
     command(&pacquet)
-        .args(["remove", "@pnpm.e2e/foo", "--lockfile-only"])
+        .with_args(["remove", "@pnpm.e2e/foo", "--lockfile-only"])
         .assert()
         .success();
     assert_eq!(
@@ -113,7 +113,7 @@ fn workspace_discovery_runs_one_preferred_manifest_per_directory() {
     fs::write(project.join("package.yaml"), "name: yaml\nscripts:\n  probe: echo YAML-WRONG\n")
         .unwrap();
     let output = command(&pacquet)
-        .args(["-r", "run", "probe"])
+        .with_args(["-r", "run", "probe"])
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
@@ -121,7 +121,7 @@ fn workspace_discovery_runs_one_preferred_manifest_per_directory() {
     assert!(stdout.contains("JSON5-SELECTED"), "{stdout}");
     assert!(!stdout.contains("YAML-WRONG"), "{stdout}");
     command(&pacquet)
-        .args(["--filter", "foo", "pkg", "set", "version=2.0.0"])
+        .with_args(["--filter", "foo", "pkg", "set", "version=2.0.0"])
         .assert()
         .success();
     assert_eq!(PackageManifest::from_path(path).unwrap().value()["version"], "2.0.0");
@@ -140,7 +140,7 @@ fn install_runs_json5_project_hooks() {
     )
     .unwrap();
     command(&pacquet)
-        .args(["install", "--offline"])
+        .with_args(["install", "--offline"])
         .assert()
         .success();
     assert_eq!(fs::read_to_string(workspace.join("hook-ran")).unwrap(), "yes");
@@ -172,7 +172,7 @@ fn assert_packed_manifest(basename: &str, extra: &str, ignored: bool) {
         fs::write(workspace.join(".npmignore"), "package.json5\npackage.yaml\n").unwrap();
     }
     command(&pacquet)
-        .args(["pack", "--ignore-scripts"])
+        .with_args(["pack", "--ignore-scripts"])
         .assert()
         .success();
     let file = fs::File::open(workspace.join("json5-fixture-1.0.0.tgz")).unwrap();

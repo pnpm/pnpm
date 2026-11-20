@@ -359,7 +359,7 @@ fn apply_mutation(workspace: &Path, tarball: &Path, mutation: &str) {
         "fifo" => {
             fs::remove_file(tarball).expect("remove tarball");
             let status = std::process::Command::new("mkfifo")
-                .arg(tarball)
+                .with_arg(tarball)
                 .status()
                 .expect("run mkfifo");
             assert!(status.success(), "mkfifo failed");

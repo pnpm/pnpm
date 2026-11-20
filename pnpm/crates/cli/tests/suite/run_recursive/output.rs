@@ -82,8 +82,8 @@ fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
 
     let git = |args: &[&str]| {
         let output = std::process::Command::new("git")
-            .args(args)
-            .current_dir(&workspace)
+            .with_args(args)
+            .with_current_dir(&workspace)
             .output()
             .expect("spawn git");
         assert!(

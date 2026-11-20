@@ -1,3 +1,4 @@
+use command_extra::CommandExtra;
 mod rules;
 
 use super::{
@@ -53,11 +54,11 @@ async fn package_routes_cover_transitive_dependencies_and_offline_resolution() {
     add_python_registry(root.path(), &format!("{}/simple/", extra.url()), &["alpha"]);
     write_index_credentials(root.path(), &extra.url(), "extra-user:extra-secret");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import alpha, beta; assert alpha.VERSION == '1.0'"])
+        .with_args(["-c", "import alpha, beta; assert alpha.VERSION == '1.0'"])
         .assert()
         .success();
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -66,17 +67,17 @@ async fn package_routes_cover_transitive_dependencies_and_offline_resolution() {
     assert!(!lock.contains("extra-secret"));
     fs::remove_file(root.path().join("pylock.toml")).unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline"])
+        .with_args(["install", "--offline"])
         .assert()
         .success();
     unused.assert_async().await;
     add_python_settings(root.path(), "  constraints: ['alpha>=2']\n");
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--frozen-lockfile"]),
+        &mut pacquet_in(root.path()).with_args(["install", "--frozen-lockfile"]),
         "overrides or constraints changed",
     );
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "Python dependency resolution failed",
     );
 }
@@ -99,7 +100,7 @@ async fn selected_registry_errors_do_not_fall_back_to_another_index() {
         .await;
     project(root.path(), &primary.url(), &["alpha"]);
     add_python_registry(root.path(), &format!("{}/simple/", extra.url()), &["alpha"]);
-    assert_failure_contains(pacquet_in(root.path()).arg("install"), "403 Forbidden");
+    assert_failure_contains(&mut pacquet_in(root.path()).with_arg("install"), "403 Forbidden");
     unused.assert_async().await;
     denied.assert_async().await;
 }
@@ -122,7 +123,7 @@ async fn an_index_credential_does_not_travel_to_an_index_on_another_origin() {
     add_python_registry(root.path(), &format!("{}/simple/", extra.url()), &["beta"]);
     write_index_credentials(root.path(), &primary.url(), "parent:secret");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     beta.last()
@@ -157,37 +158,37 @@ async fn authenticated_index_caches_do_not_cross_credential_identities() {
     add_python_registry(root.path(), &format!("{}/simple/", extra.url()), &["alpha"]);
     write_index_credentials(root.path(), &extra.url(), "user:alice-secret");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let alice_npmrc = fs::read_to_string(root.path().join(".npmrc")).unwrap();
     write_index_credentials(root.path(), &extra.url(), "user:bob-secret");
     fs::remove_file(root.path().join("pylock.toml")).unwrap();
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--offline"]),
+        &mut pacquet_in(root.path()).with_args(["install", "--offline"]),
         "not cached for offline resolution",
     );
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import alpha; assert alpha.VERSION == '2.0'"])
+        .with_args(["-c", "import alpha; assert alpha.VERSION == '2.0'"])
         .assert()
         .success();
     fs::remove_file(root.path().join("pylock.toml")).unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline"])
+        .with_args(["install", "--offline"])
         .assert()
         .success();
     fs::write(root.path().join(".npmrc"), &alice_npmrc).unwrap();
     fs::remove_file(root.path().join("pylock.toml")).unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline"])
+        .with_args(["install", "--offline"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import alpha; assert alpha.VERSION == '1.0'"])
+        .with_args(["-c", "import alpha; assert alpha.VERSION == '1.0'"])
         .assert()
         .success();
 }
@@ -198,7 +199,7 @@ fn an_index_may_not_carry_its_own_credentials() {
     project(root.path(), "http://localhost:1", &["alpha"]);
     add_python_registry(root.path(), "http://alice:private-secret@localhost:1/simple/", &["alpha"]);
     let output = pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .failure()
         .get_output()
@@ -251,11 +252,11 @@ async fn missing_private_packages_never_fall_back_to_the_default_index() {
         project(root.path(), &public.url(), &[if transitive { "alpha" } else { "beta" }]);
         add_python_registry(root.path(), &format!("{}/simple/", private.url()), &["beta"]);
         assert_failure_contains(
-            pacquet_in(root.path()).arg("install"),
+            &mut pacquet_in(root.path()).with_arg("install"),
             "Python dependency resolution failed",
         );
         assert_failure_contains(
-            pacquet_in(root.path()).args(["install", "--offline"]),
+            &mut pacquet_in(root.path()).with_args(["install", "--offline"]),
             "Python dependency resolution failed",
         );
         missing.assert_async().await;
@@ -277,7 +278,7 @@ async fn incompatible_private_versions_never_fall_back_to_the_default_index() {
     project(root.path(), &public.url(), &["alpha>=2"]);
     add_python_registry(root.path(), &format!("{}/simple/", private.url()), &["alpha"]);
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "Python dependency resolution failed",
     );
     unused.assert_async().await;
@@ -292,14 +293,14 @@ async fn package_route_changes_invalidate_frozen_lockfiles() {
     project(root.path(), &public.url(), &["alpha"]);
     add_python_registry(root.path(), &format!("{}/simple/", private.url()), &["alpha"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let path = root.path().join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&path).unwrap();
     fs::write(path, yaml.replace(r#"packages: ["alpha"]"#, r#"packages: ["beta"]"#)).unwrap();
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--frozen-lockfile"]),
+        &mut pacquet_in(root.path()).with_args(["install", "--frozen-lockfile"]),
         "Python index changed",
     );
 }
@@ -324,11 +325,11 @@ async fn isolated_build_dependencies_use_registry_claims() {
     python_project(root.path(), "app", "dependencies = []");
     add_python_registry(root.path(), &format!("{}/simple/", private.url()), &["tinybackend"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import app"])
+        .with_args(["-c", "import app"])
         .assert()
         .success();
     unused.assert_async().await;

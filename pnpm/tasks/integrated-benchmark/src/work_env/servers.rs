@@ -39,6 +39,7 @@ use crate::{
         mbps_to_bytes_per_sec,
     },
 };
+use command_extra::CommandExtra;
 use pnpm_registry_mock::pick_unused_port;
 use std::{
     collections::HashMap,
@@ -187,9 +188,9 @@ impl WorkEnv {
         );
         self.apply_serve_timing(&mut command);
         let process = command
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .with_stdin(Stdio::null())
+            .with_stdout(Stdio::null())
+            .with_stderr(Stdio::null())
             .spawn()
             .expect("spawn cold mock warm origin");
         let origin = PnprServer { process, latency_proxy, origin: None };
@@ -331,9 +332,9 @@ impl WorkEnv {
             pnpm_registry_mock::import_registries(&command, registries);
         }
         command
-            .stdin(Stdio::null())
-            .stdout(stdout)
-            .stderr(stderr)
+            .with_stdin(Stdio::null())
+            .with_stdout(stdout.into())
+            .with_stderr(stderr.into())
             .spawn()
             .expect("spawn pnpr server")
     }

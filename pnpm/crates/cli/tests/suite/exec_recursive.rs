@@ -571,8 +571,8 @@ fn recursive_exec_diff_selector_selects_changed_projects() {
     write_workspace(&workspace, &["project-1", "project-2"]);
     let git = |args: &[&str]| {
         let output = std::process::Command::new("git")
-            .args(args)
-            .current_dir(&workspace)
+            .with_args(args)
+            .with_current_dir(&workspace)
             .output()
             .expect("spawn git");
         assert!(
@@ -737,9 +737,9 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
     let mut run = pacquet
         .with_args(["--workspace-concurrency=3", "--no-sort", "--report-summary", "-r", "exec"])
         .with_args(probe)
-        .env("HOLD_MS", hold_ms.to_string())
-        .stdout(Stdio::null())
-        .stderr(fs::File::create(&stderr_path).expect("create the exec output"))
+        .with_env("HOLD_MS", hold_ms.to_string())
+        .with_stdout(Stdio::null())
+        .with_stderr(fs::File::create(&stderr_path).expect("create the exec output").into())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child(&mut run);

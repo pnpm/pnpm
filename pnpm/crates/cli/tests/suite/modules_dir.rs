@@ -271,8 +271,8 @@ fn assert_symlinked_bins_load_plugins_per_project(
         assert!(stdout.contains("project-2: plugin loaded"), "{args:?}: {stdout}");
     }
     let direct = Command::new(&bin)
-        .current_dir(workspace.join("project-2"))
-        .env_remove("NODE_PATH")
+        .with_current_dir(workspace.join("project-2"))
+        .without_env("NODE_PATH")
         .output()
         .expect("run the bin");
     assert_eq!(String::from_utf8_lossy(&direct.stdout).trim_end(), "project-2: missing");
@@ -426,8 +426,8 @@ fn set_extend_node_path(workspace: &Path, from: &str, to: &str) {
 fn run_tool(project_dir: &Path) -> Output {
     let shim = if cfg!(windows) { "vendor/.bin/tool.cmd" } else { "vendor/.bin/tool" };
     Command::new(project_dir.join(shim))
-        .current_dir(project_dir)
-        .env_remove("NODE_PATH")
+        .with_current_dir(project_dir)
+        .without_env("NODE_PATH")
         .output()
         .expect("run the tool shim")
 }

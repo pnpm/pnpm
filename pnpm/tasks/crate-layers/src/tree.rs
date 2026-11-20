@@ -1,3 +1,4 @@
+use command_extra::CommandExtra;
 use std::{
     collections::BTreeSet,
     fs,
@@ -104,9 +105,9 @@ pub fn git(root: &Path, args: &[&str]) -> Result<String, String> {
 /// when asked for `-z` output, in any encoding.
 pub fn git_bytes(root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(args)
+        .with_arg("-C")
+        .with_arg(root)
+        .with_args(args)
         .output()
         .map_err(|error| format!("run git {args:?}: {error}"))?;
     if !output.status.success() {

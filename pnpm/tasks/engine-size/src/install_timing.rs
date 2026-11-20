@@ -1,4 +1,5 @@
 //! Wall-clock timings of the stripped probe installing a fixture.
+use command_extra::CommandExtra;
 
 use crate::cli_args::CliArgs;
 use serde::Serialize;
@@ -188,17 +189,16 @@ fn reaches_registry(setting: &str) -> bool {
 }
 
 fn install(probe: &Path, project: &Path, env: &[EnvChange]) -> Result<Duration, String> {
-    let mut command = Command::new(probe);
-    for (name, value) in env {
-        match value {
-            Some(value) => command.env(name, value),
-            None => command.env_remove(name),
-        };
-    }
+    let command = env
+        .iter()
+        .fold(Command::new(probe), |command, (name, value)| match value {
+            Some(value) => command.with_env(name, value),
+            None => command.without_env(name),
+        });
     let start = Instant::now();
     let status = command
-        .arg(project)
-        .arg("--frozen-lockfile")
+        .with_arg(project)
+        .with_arg("--frozen-lockfile")
         .status()
         .map_err(|error| format!("run {}: {error}", probe.display()))?;
     let elapsed = start.elapsed();

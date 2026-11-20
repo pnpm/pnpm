@@ -182,7 +182,7 @@ fn rebuild_removes_optional_dependency_whose_build_failed() {
     } = CommandTempCwd::init().add_mocked_registry();
     rebuild
         .with_current_dir(&workspace)
-        .arg("rebuild")
+        .with_arg("rebuild")
         .assert()
         .success();
 
@@ -360,7 +360,7 @@ fn frozen_install_warns_about_an_optional_dependency_that_cannot_be_fetched() {
     fs::write(&lockfile_path, corrupted).expect("write the corrupted lockfile");
 
     let assert = pacquet_in(&workspace)
-        .args(["install", "--frozen-lockfile", "--config.fetch-retries=0"])
+        .with_args(["install", "--frozen-lockfile", "--config.fetch-retries=0"])
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
@@ -432,11 +432,10 @@ fn frozen_install_with_unresolved_optional_dependency(has_required_dependency: b
         }
         // The test environment pins `PNPM_CONFIG_CI=false`; the bare
         // `install` relies on `CI=true` turning the frozen default on.
-        let mut command = pacquet_in(&workspace);
-        command
-            .env_remove("PNPM_CONFIG_CI")
-            .env("CI", "true")
-            .args(frozen);
+        let mut command = pacquet_in(&workspace)
+            .without_env("PNPM_CONFIG_CI")
+            .with_env("CI", "true")
+            .with_args(frozen);
         let assert = command.assert().success();
         let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
         if has_required_dependency {

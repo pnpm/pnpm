@@ -8,6 +8,7 @@ use crate::_utils::{
     resolve_node_modules_package,
     write_manifest_value,
 };
+use command_extra::CommandExtra;
 use pnpm_lockfile::{
     BoundProviders,
     Lockfile,
@@ -322,11 +323,11 @@ fn check_frozen_deploy(fixture: &WorkspaceFixture, deployed: &Path, expected_pee
 
 fn frozen_install_deployed(fixture: &WorkspaceFixture, deployed: &Path) -> Output {
     pacquet_in(deployed)
-        .env("PNPM_CONFIG_REGISTRY", fixture.registry.mock_instance.url())
-        .env("PNPM_CONFIG_STORE_DIR", &fixture.registry.store_dir)
-        .env("PNPM_CONFIG_CACHE_DIR", &fixture.registry.cache_dir)
-        .env("XDG_CONFIG_HOME", fixture.workspace.with_file_name("xdg-config"))
-        .args(["--reporter=ndjson", "install", "--frozen-lockfile"])
+        .with_env("PNPM_CONFIG_REGISTRY", fixture.registry.mock_instance.url())
+        .with_env("PNPM_CONFIG_STORE_DIR", &fixture.registry.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &fixture.registry.cache_dir)
+        .with_env("XDG_CONFIG_HOME", fixture.workspace.with_file_name("xdg-config"))
+        .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
         .output()
         .expect("run frozen install in deployed directory")
 }

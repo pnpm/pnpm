@@ -3,6 +3,7 @@ use crate::cli_args::{
     Lto,
     workspace_root,
 };
+use command_extra::CommandExtra;
 use std::{
     path::{
         Path,
@@ -41,20 +42,21 @@ pub fn build_probe(
 ) -> Result<ProbeBinaries, String> {
     let BuildSite { target_dir, target, out_dir } = *site;
     eprintln!("info: building {PROBE_BIN} with lto = {}", lto.as_str());
-    let mut command = cargo();
-    command
-        .current_dir(workspace_root())
-        .args(["build", "--locked", "--release"]);
-    if args.report.no_default_features {
-        command.arg("--no-default-features");
-    }
+    let command = cargo()
+        .with_current_dir(workspace_root())
+        .with_args(["build", "--locked", "--release"]);
+    let command = if args.report.no_default_features {
+        command.with_arg("--no-default-features")
+    } else {
+        command
+    };
     let status = command
-        .args(["--package", PROBE_PACKAGE, "--target", target])
-        .arg("--target-dir")
-        .arg(target_dir)
-        .env("CARGO_PROFILE_RELEASE_LTO", lto.as_str())
-        .env("CARGO_PROFILE_RELEASE_STRIP", "false")
-        .env("CARGO_PROFILE_RELEASE_DEBUG", "false")
+        .with_args(["--package", PROBE_PACKAGE, "--target", target])
+        .with_arg("--target-dir")
+        .with_arg(target_dir)
+        .with_env("CARGO_PROFILE_RELEASE_LTO", lto.as_str())
+        .with_env("CARGO_PROFILE_RELEASE_STRIP", "false")
+        .with_env("CARGO_PROFILE_RELEASE_DEBUG", "false")
         .status()
         .map_err(|error| format!("run cargo: {error}"))?;
     if !status.success() {
@@ -75,8 +77,8 @@ pub fn build_probe(
 /// The target triple the probe is built for, from `rustc -vV`.
 pub fn host_target() -> Result<String, String> {
     let output = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
-        .current_dir(workspace_root())
-        .arg("-vV")
+        .with_current_dir(workspace_root())
+        .with_arg("-vV")
         .output()
         .map_err(|error| format!("run rustc: {error}"))?;
     String::from_utf8_lossy(&output.stdout)
@@ -92,7 +94,7 @@ fn cargo() -> Command {
 
 fn strip(program: &Path, binary: &Path) -> Result<(), String> {
     let status = Command::new(program)
-        .arg(binary)
+        .with_arg(binary)
         .status()
         .map_err(|error| format!("run {}: {error}", program.display()))?;
     if status.success() {

@@ -941,7 +941,7 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
 /// here whether or not the validation runs.
 #[test]
 fn invalid_peer_dependency_specification_fails_install() {
-    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -954,7 +954,7 @@ fn invalid_peer_dependency_specification_fails_install() {
     .expect("write package.json");
 
     let output = pacquet
-        .arg("install")
+        .with_arg("install")
         .output()
         .expect("run pnpm install");
 

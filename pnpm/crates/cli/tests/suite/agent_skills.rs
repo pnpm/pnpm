@@ -39,7 +39,7 @@ fn pnpm(workspace: &Path) -> Command {
         "CODEX_SANDBOX",
         "AI_AGENT",
     ] {
-        command.env_remove(var);
+        command = command.without_env(var);
     }
     command.with_current_dir(workspace)
 }

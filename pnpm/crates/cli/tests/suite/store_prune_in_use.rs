@@ -130,7 +130,7 @@ fn blob_paths_of_rows(store_dir: &StoreDir, keys: &[String]) -> Vec<PathBuf> {
 fn prune(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["store", "prune"])
-        .env_remove("PRUNE_TEST_MODULES_DIR")
+        .without_env("PRUNE_TEST_MODULES_DIR")
         .output()
         .expect("run store prune");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -369,7 +369,7 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
     enable_gvs_in_workspace_yaml(&workspace, "");
     pacquet_at(&workspace)
         .with_args(["install", "--reporter=silent"])
-        .env_remove("PRUNE_TEST_MODULES_DIR")
+        .without_env("PRUNE_TEST_MODULES_DIR")
         .assert()
         .success();
     let store = StoreDir::new(store_dir);

@@ -60,6 +60,7 @@ tokio = { workspace = true }
 napi-build = { workspace = true }
 
 [dev-dependencies]
+command-extra = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
 pnpm-testing-utils = { workspace = true }

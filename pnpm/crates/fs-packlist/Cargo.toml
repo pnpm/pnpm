@@ -20,6 +20,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+command-extra = { workspace = true }
 pnpm-fs = { workspace = true }
 proptest = { workspace = true }
 serde = { workspace = true }

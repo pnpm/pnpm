@@ -6,6 +6,7 @@ use super::{
 use crate::shim::is_relocatable_shim;
 #[cfg(unix)]
 use crate::shim::is_sh_shim_basedir_anchor_current;
+use command_extra::CommandExtra;
 
 #[test]
 fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
@@ -61,8 +62,8 @@ fn relative_node_path_segments_are_sh_escaped() {
     write_executable(&shim, &generate_sh_shim(&target, &shim, None, &node_path, Some(root)));
 
     let output = Command::new(&shim)
-        .current_dir(root)
-        .env_remove("NODE_PATH")
+        .with_current_dir(root)
+        .without_env("NODE_PATH")
         .output()
         .unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -96,8 +97,8 @@ fn shell_metacharacters_in_target_and_node_path_are_literal() {
     write_executable(&shim, &generate_sh_shim(&target, &shim, None, &node_path, None));
 
     let output = Command::new(&shim)
-        .current_dir(root)
-        .env_remove("NODE_PATH")
+        .with_current_dir(root)
+        .without_env("NODE_PATH")
         .output()
         .unwrap();
 

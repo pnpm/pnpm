@@ -17,8 +17,8 @@ use std::{
 
 fn git(root: &Path, args: &[&str]) {
     let output = Command::new("git")
-        .current_dir(root)
-        .args(args)
+        .with_current_dir(root)
+        .with_args(args)
         .output()
         .unwrap();
     assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
@@ -84,8 +84,8 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     fs::write(first_worktree.join("pnpm-workspace.yaml"), "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    cargoTargetDir: target\n").unwrap();
     assert!(
         Command::new("cargo")
-            .current_dir(&first_worktree)
-            .args(["generate-lockfile", "--offline"])
+            .with_current_dir(&first_worktree)
+            .with_args(["generate-lockfile", "--offline"])
             .status()
             .unwrap()
             .success(),
@@ -151,8 +151,8 @@ fn dependent_cargo_tasks_keep_build_snapshots() {
         fs::write(dir.join("src/main.rs"), "fn main() {}\n").unwrap();
         assert!(
             Command::new("cargo")
-                .current_dir(&dir)
-                .args(["generate-lockfile", "--offline"])
+                .with_current_dir(&dir)
+                .with_args(["generate-lockfile", "--offline"])
                 .status()
                 .unwrap()
                 .success(),

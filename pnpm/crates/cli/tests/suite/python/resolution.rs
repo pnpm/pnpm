@@ -6,6 +6,7 @@ use super::{
     wheel,
 };
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use std::{
     fs,
     sync::{
@@ -41,10 +42,11 @@ async fn identical_projects_share_one_fresh_registry_resolution() {
         for name in ["one", "two", "three"] {
             member(root.path(), name, &["demo"]);
         }
-        let mut command = pacquet_in(root.path());
-        command.env("PNPM_CONFIG_WORKSPACE_CONCURRENCY", "3").arg("install");
+        let mut command = pacquet_in(root.path())
+            .with_env("PNPM_CONFIG_WORKSPACE_CONCURRENCY", "3")
+            .with_arg("install");
         if lockfile_only {
-            command.arg("--lockfile-only");
+            command = command.with_arg("--lockfile-only");
         }
         command.assert().success();
         let expected = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -68,12 +70,12 @@ async fn identical_projects_share_one_fresh_registry_resolution() {
         }
         index.assert_async().await;
         pacquet_in(root.path())
-            .args(["install", "--lockfile-only", "--frozen-lockfile"])
+            .with_args(["install", "--lockfile-only", "--frozen-lockfile"])
             .assert()
             .success();
         fs::remove_file(root.path().join("two/pylock.toml")).unwrap();
         pacquet_in(root.path())
-            .args(["install", "--lockfile-only", "--frozen-lockfile"])
+            .with_args(["install", "--lockfile-only", "--frozen-lockfile"])
             .assert()
             .failure();
     }
@@ -98,10 +100,9 @@ async fn project_preparation_replenishes_concurrent_slots() {
         let finished = Arc::new(AtomicBool::new(false));
         let downloads =
             mock_wheel_downloads(&mut server, archives, fail, &rendezvous, &finished).await;
-        let mut command = pacquet_in(root.path());
-        command
-            .env("PNPM_CONFIG_WORKSPACE_CONCURRENCY", "2")
-            .args(["install", "--lockfile-only"]);
+        let mut command = pacquet_in(root.path())
+            .with_env("PNPM_CONFIG_WORKSPACE_CONCURRENCY", "2")
+            .with_args(["install", "--lockfile-only"]);
         if fail {
             command.assert().failure();
             assert!(!root.path().join("pylock.toml").exists(), "published a failed plan");
@@ -143,7 +144,7 @@ async fn different_resolution_inputs_do_not_share_a_fresh_lockfile() {
         };
         fs::write(&manifest, contents).unwrap();
         pacquet_in(root.path())
-            .args(["install", "--lockfile-only"])
+            .with_args(["install", "--lockfile-only"])
             .assert()
             .success();
         let first = fs::read_to_string(root.path().join("pylock.toml")).unwrap();

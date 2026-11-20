@@ -490,10 +490,10 @@ fn trusted_auth_env_warning_reaches_stderr() {
     for token in [None, Some(""), Some("dummy-token")] {
         let mut command = install_command(&workspace, root.path())
             .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
-            .with_args(["install", "--ignore-scripts", "--reporter=append-only"]);
-        command.env_remove("PNPM_TEST_AUTH_TOKEN");
+            .with_args(["install", "--ignore-scripts", "--reporter=append-only"])
+            .without_env("PNPM_TEST_AUTH_TOKEN");
         if let Some(token) = token {
-            command.env("PNPM_TEST_AUTH_TOKEN", token);
+            command = command.with_env("PNPM_TEST_AUTH_TOKEN", token);
         }
         let output = command.output().unwrap();
         assert!(!output.status.success());
@@ -518,8 +518,8 @@ fn config_warnings_reach_stderr_when_the_config_fails_to_load() {
         .expect("write auth file");
     let mut command = install_command(&workspace, root.path())
         .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
-        .with_args(["install", "--ignore-scripts"]);
-    command.env_remove("PNPM_TEST_AUTH");
+        .with_args(["install", "--ignore-scripts"])
+        .without_env("PNPM_TEST_AUTH");
 
     let output = command.output().expect("run pnpm install");
 
@@ -545,8 +545,8 @@ fn npmrc_warnings_reach_stderr_when_the_json_auth_setting_is_malformed() {
     let mut command = install_command(&workspace, root.path())
         .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
         .with_env("pnpm_config__auth", "{")
-        .with_args(["install", "--ignore-scripts"]);
-    command.env_remove("PNPM_TEST_AUTH_TOKEN");
+        .with_args(["install", "--ignore-scripts"])
+        .without_env("PNPM_TEST_AUTH_TOKEN");
 
     let output = command.output().expect("run pnpm install");
 

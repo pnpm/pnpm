@@ -450,10 +450,9 @@ fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
         fs::remove_file(marker).expect("clear the marker");
     }
 
-    let mut negated = Command::cargo_bin("pnpm").unwrap();
-    negated.current_dir(&workspace);
+    let negated = Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
     negated
-        .args(["-r", "--no-include-workspace-root", "run", "build"])
+        .with_args(["-r", "--no-include-workspace-root", "run", "build"])
         .assert()
         .success();
     assert!(!markers[0].exists(), "--no-include-workspace-root must override the setting");
@@ -807,8 +806,8 @@ fn recursive_run_diff_selector_selects_changed_projects() {
     );
     let git = |args: &[&str]| {
         let output = std::process::Command::new("git")
-            .args(args)
-            .current_dir(&workspace)
+            .with_args(args)
+            .with_current_dir(&workspace)
             .output()
             .expect("spawn git");
         assert!(

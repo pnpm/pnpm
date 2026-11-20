@@ -2,6 +2,7 @@
 //! script, and `pnpm pm <name>` as the way to force the built-in anyway
 //! (<https://pnpm.io/scripts#built-in-command-and-script-name-conflicts>).
 //! `clean` has its own coverage in `clean.rs`.
+use command_extra::CommandExtra;
 
 use assert_cmd::cargo::CommandCargoExt;
 use pnpm_testing_utils::{
@@ -46,9 +47,11 @@ fn workspace_with_member_scripts(workspace: &Path, scripts: &serde_json::Value) 
 }
 
 fn run(workspace: &Path, args: &[&str]) -> std::process::Output {
-    let mut command =
-        Command::cargo_bin("pnpm").expect("find the pnpm binary").without_ambient_pnpm_config();
-    command.current_dir(workspace).args(args);
+    let mut command = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .without_ambient_pnpm_config()
+        .with_current_dir(workspace)
+        .with_args(args);
     command.output().expect("spawn pnpm")
 }
 
@@ -192,6 +195,7 @@ mod scripts {
         workspace_with_member_scripts,
     };
     use assert_cmd::cargo::CommandCargoExt;
+    use command_extra::CommandExtra;
     use pnpm_testing_utils::command_env::CommandTestExt;
     use std::process::Command;
 
@@ -265,13 +269,13 @@ mod scripts {
             &workspace,
             &serde_json::json!({ "setup": "echo setup-script-executed" }),
         );
-        let mut command =
-            Command::cargo_bin("pnpm").expect("find the pnpm binary").without_ambient_pnpm_config();
-        command
-            .current_dir(&workspace)
-            .env("HOME", root.path())
-            .env("PNPM_HOME", root.path().join("pnpm-home"))
-            .args(["--dir", "packages/a", "setup"]);
+        let mut command = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .without_ambient_pnpm_config()
+            .with_current_dir(&workspace)
+            .with_env("HOME", root.path())
+            .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+            .with_args(["--dir", "packages/a", "setup"]);
 
         let output = command.output().expect("spawn pnpm");
         let stdout = String::from_utf8_lossy(&output.stdout);

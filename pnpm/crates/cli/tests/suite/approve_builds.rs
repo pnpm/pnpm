@@ -41,12 +41,12 @@ fn approve_builds_requires_an_exact_file_selector() {
     let settings = harness.workspace.join("pnpm-workspace.yaml");
     fs::write(&settings, "enableGlobalVirtualStore: false\n").expect("write settings");
     pacquet(&harness.workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .failure();
     let original_settings = fs::read(&settings).expect("read settings after install");
     let rejected = pacquet(&harness.workspace)
-        .args(["approve-builds", "fixture"])
+        .with_args(["approve-builds", "fixture"])
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
@@ -54,7 +54,7 @@ fn approve_builds_requires_an_exact_file_selector() {
     assert!(stderr.contains("fixture@file:../fixture"), "{stderr}");
     assert_eq!(fs::read(&settings).expect("read settings after rejection"), original_settings);
     pacquet(&harness.workspace)
-        .args(["approve-builds", "fixture@file:../fixture"])
+        .with_args(["approve-builds", "fixture@file:../fixture"])
         .assert()
         .success();
     assert!(harness.workspace.join("node_modules/fixture/built").is_file());
@@ -109,7 +109,7 @@ fn install_and_rebuild_refresh_privately_hoisted_bins_for_transitive_dependents(
     .expect("write build policy");
 
     pacquet(&harness.workspace)
-        .args(["install", "--ignore-scripts"])
+        .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
     Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
@@ -118,7 +118,7 @@ fn install_and_rebuild_refresh_privately_hoisted_bins_for_transitive_dependents(
         .stdout("placeholder\n");
 
     pacquet(&harness.workspace)
-        .arg("rebuild")
+        .with_arg("rebuild")
         .assert()
         .success();
     Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
@@ -132,7 +132,7 @@ fn install_and_rebuild_refresh_privately_hoisted_bins_for_transitive_dependents(
 
     fs::remove_dir_all(harness.workspace.join("node_modules")).expect("remove node_modules");
     pacquet(&harness.workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -191,7 +191,7 @@ fn assert_rebuild_refreshes_replaced_bin(linker: &str, nested: bool) {
     )
     .expect("write build policy");
     pacquet(&harness.workspace)
-        .args(["install", "--ignore-scripts"])
+        .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
     let initial_bin = harness.workspace.join(if nested {
@@ -209,12 +209,12 @@ fn assert_rebuild_refreshes_replaced_bin(linker: &str, nested: bool) {
             .stdout("placeholder\n");
     }
     pacquet(&harness.workspace)
-        .args(["rebuild"])
+        .with_args(["rebuild"])
         .assert()
         .success();
     if !nested {
         pacquet(&harness.workspace)
-            .args(["exec", "tool"])
+            .with_args(["exec", "tool"])
             .assert()
             .success()
             .stdout("built binary\n");

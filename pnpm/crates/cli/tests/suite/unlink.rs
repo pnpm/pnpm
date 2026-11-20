@@ -312,8 +312,9 @@ fn unlink_restores_registry_package_in_lockfile() {
         "the link override should make node_modules/{PKG} a symlink before unlink",
     );
 
-    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    unlink.current_dir(&workspace);
+    let unlink = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace);
     unlink
         .with_args(["unlink", PKG])
         .assert()
@@ -353,8 +354,9 @@ fn recursive_unlink_with_dedicated_lockfiles_reinstalls_each_project() {
     const PKG: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
     let (first, second) = scaffold_dedicated_link_workspace(&workspace, PKG);
 
-    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    unlink.current_dir(&workspace);
+    let unlink = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace);
     unlink
         .with_args(["-r", "unlink", PKG])
         .assert()
@@ -399,8 +401,9 @@ fn filtered_unlink_with_dedicated_lockfiles_reinstalls_only_selected_project() {
     const PKG: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
     let (first, second) = scaffold_dedicated_link_workspace(&workspace, PKG);
 
-    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    unlink.current_dir(&workspace);
+    let unlink = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace);
     unlink
         .with_args(["--filter", "first", "unlink", PKG])
         .assert()
@@ -436,8 +439,9 @@ fn write_local_package(workspace: &Path, dir: &str, name: &str) {
 }
 
 fn run_pnpm(workspace: &Path, args: &[&str]) {
-    let mut command = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    command.current_dir(workspace);
+    let command = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(workspace);
     command
         .with_args(args)
         .assert()
@@ -576,8 +580,9 @@ fn failed_selection_keeps_link_override() {
     fs::create_dir_all(&member).expect("create member dir");
     write_manifest(&member, &serde_json::json!({ "name": "app", "version": "1.0.0" }));
 
-    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    unlink.current_dir(&workspace);
+    let unlink = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace);
     unlink
         .with_args(["--filter", "missing", "--fail-if-no-match", "unlink"])
         .assert()

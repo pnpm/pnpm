@@ -3,6 +3,7 @@ use super::{
     platform::validate_windows_kernel_version,
 };
 use crate::shared_side_effects::platform::parse_macos_product_version;
+use command_extra::CommandExtra;
 use pnpm_lockfile::PackageKey;
 use std::collections::HashMap;
 
@@ -138,7 +139,7 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
         let fifo = store.path().join("fifo");
         assert!(
             std::process::Command::new("mkfifo")
-                .arg(&fifo)
+                .with_arg(&fifo)
                 .status()
                 .unwrap()
                 .success(),

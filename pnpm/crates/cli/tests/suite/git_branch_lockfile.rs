@@ -387,12 +387,12 @@ fn merging_with_nothing_to_merge_still_rejects_an_outdated_lockfile() {
 
 fn git(work: &Path, args: &[&str]) {
     let status = std::process::Command::new("git")
-        .args(args)
-        .current_dir(work)
-        .env("GIT_AUTHOR_NAME", "test")
-        .env("GIT_AUTHOR_EMAIL", "test@example.com")
-        .env("GIT_COMMITTER_NAME", "test")
-        .env("GIT_COMMITTER_EMAIL", "test@example.com")
+        .with_args(args)
+        .with_current_dir(work)
+        .with_env("GIT_AUTHOR_NAME", "test")
+        .with_env("GIT_AUTHOR_EMAIL", "test@example.com")
+        .with_env("GIT_COMMITTER_NAME", "test")
+        .with_env("GIT_COMMITTER_EMAIL", "test@example.com")
         .status()
         .expect("run git");
     assert!(status.success(), "git {args:?} failed");

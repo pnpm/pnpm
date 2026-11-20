@@ -1009,12 +1009,13 @@ mod shell_emulator {
             .expect("write argument recorder");
 
             if streamed {
-                pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
+                pacquet =
+                    pacquet.with_args(["--recursive", "--include-workspace-root", "--stream"]);
             }
-            pacquet
-                .args(["run", "record"])
-                .args(args)
-                .env("PNPM_QUOTING_TEST", "expanded");
+            pacquet = pacquet
+                .with_args(["run", "record"])
+                .with_args(args)
+                .with_env("PNPM_QUOTING_TEST", "expanded");
             pacquet.assert().success();
 
             let recorded: Vec<String> = serde_json::from_slice(
@@ -1184,7 +1185,7 @@ fn run_with_a_missing_script_shell_names_it() {
         .expect("write pnpm-workspace.yaml");
 
         if streamed {
-            pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
+            pacquet = pacquet.with_args(["--recursive", "--include-workspace-root", "--stream"]);
         }
         let output = pacquet
             .with_args(["run", "build"])

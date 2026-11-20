@@ -2,6 +2,7 @@
 //! `/-/pnpr/v0/admin/registry-revisions`):
 //! writes, versions, revisions, who may make a change, the changes pnpr
 //! refuses, and how replicas follow the stored graph.
+use command_extra::CommandExtra;
 
 use axum::{
     body::{
@@ -1028,11 +1029,11 @@ async fn import_check_exits_with_code_1_while_the_file_differs() {
         .unwrap();
     let check = |file: &Path| {
         std::process::Command::new(env!("CARGO_BIN_EXE_pnpr"))
-            .arg("--config")
-            .arg(config_path(dir.path()))
-            .args(["registries", "import", "--check"])
-            .arg(file)
-            .env_remove("PNPR_CONFIG")
+            .with_arg("--config")
+            .with_arg(config_path(dir.path()))
+            .with_args(["registries", "import", "--check"])
+            .with_arg(file)
+            .without_env("PNPR_CONFIG")
             .output()
             .unwrap()
     };

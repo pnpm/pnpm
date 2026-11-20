@@ -51,6 +51,7 @@ yaml_serde = { workspace = true }
 libc = { workspace = true }
 
 [dev-dependencies]
+command-extra = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 
 dunce = { workspace = true }

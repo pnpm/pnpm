@@ -6,6 +6,7 @@ use crate::{
     pnpr_command,
     port_to_url::port_to_url,
 };
+use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use reqwest::Client;
 use std::{
@@ -101,9 +102,9 @@ impl MockInstanceOptions<'_> {
             File::create(stderr).expect("create file for stderr").into()
         });
         let process = pnpr_command(port, public_url)
-            .stdin(Stdio::null())
-            .stdout(stdout)
-            .stderr(stderr)
+            .with_stdin(Stdio::null())
+            .with_stdout(stdout)
+            .with_stderr(stderr)
             .spawn()
             .expect("spawn pnpr");
         if let Some(tx) = pid_tx {

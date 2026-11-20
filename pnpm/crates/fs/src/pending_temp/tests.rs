@@ -3,6 +3,7 @@ use super::{
     remove_pending_temp_files,
     track_temp_file,
 };
+use command_extra::CommandExtra;
 use std::{
     fs,
     sync::{
@@ -106,10 +107,13 @@ fn die_from_signal_does_not_dump_core() {
     let temp = dir.path().join(".pnpm-lock.yaml.123.2.tmp");
     fs::write(&temp, "partial lockfile").expect("stage temp file");
 
-    let mut command = Command::new(env::current_exe().expect("test binary path"));
-    command
-        .args(["--exact", "pending_temp::tests::die_from_signal_does_not_dump_core", "--nocapture"])
-        .env(CHILD_TEMP_ENV, &temp);
+    let mut command = Command::new(env::current_exe().expect("test binary path"))
+        .with_args([
+            "--exact",
+            "pending_temp::tests::die_from_signal_does_not_dump_core",
+            "--nocapture",
+        ])
+        .with_env(CHILD_TEMP_ENV, &temp);
     // SAFETY: `getrlimit`, `setrlimit`, and `prctl` are async-signal-safe and
     // use a stack local that outlives the call. Both attributes survive `exec`.
     unsafe {

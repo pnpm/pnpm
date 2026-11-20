@@ -54,8 +54,8 @@ fn from_git_sets_the_version_from_the_latest_matching_tag() {
     git_commit_all(&workspace, "init");
 
     let status = Command::new("git")
-        .args(["tag", "v1.5.0"])
-        .current_dir(&workspace)
+        .with_args(["tag", "v1.5.0"])
+        .with_current_dir(&workspace)
         .status()
         .expect("tag first version");
     assert!(status.success());
@@ -63,8 +63,8 @@ fn from_git_sets_the_version_from_the_latest_matching_tag() {
     fs::write(workspace.join("new-file.txt"), "new commit").expect("write new file");
     git_commit_all(&workspace, "new commit");
     let status = Command::new("git")
-        .args(["tag", "v2.3.4"])
-        .current_dir(&workspace)
+        .with_args(["tag", "v2.3.4"])
+        .with_current_dir(&workspace)
         .status()
         .expect("tag latest version");
     assert!(status.success());
@@ -104,8 +104,8 @@ fn from_git_rejects_a_malformed_version_tag() {
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
     git_commit_all(&workspace, "init");
     let status = Command::new("git")
-        .args(["tag", "v-release-2.3.4"])
-        .current_dir(&workspace)
+        .with_args(["tag", "v-release-2.3.4"])
+        .with_current_dir(&workspace)
         .status()
         .expect("tag malformed version");
     assert!(status.success());
@@ -134,8 +134,8 @@ fn from_git_respects_tag_version_prefix() {
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
     git_commit_all(&workspace, "init");
     let status = Command::new("git")
-        .args(["tag", "release-4.5.6"])
-        .current_dir(&workspace)
+        .with_args(["tag", "release-4.5.6"])
+        .with_current_dir(&workspace)
         .status()
         .expect("tag custom prefix version");
     assert!(status.success());
@@ -157,8 +157,8 @@ fn from_git_handles_tag_starting_with_dash() {
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
     git_commit_all(&workspace, "init");
     let status = Command::new("git")
-        .args(["update-ref", "refs/tags/-1.2.3", "HEAD"])
-        .current_dir(&workspace)
+        .with_args(["update-ref", "refs/tags/-1.2.3", "HEAD"])
+        .with_current_dir(&workspace)
         .status()
         .expect("create tag starting with dash");
     assert!(status.success());
@@ -383,10 +383,11 @@ fn pacquet_version_with_env(
     let mut command = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
-        .without_ambient_pnpm_config();
-    command.arg("version").args(args);
+        .without_ambient_pnpm_config()
+        .with_arg("version")
+        .with_args(args);
     for (key, value) in env {
-        command.env(key, value);
+        command = command.with_env(key, value);
     }
     command.output().expect("run pacquet version")
 }
@@ -482,8 +483,8 @@ fn from_git_uses_tag_version_prefix_from_workspace_yaml() {
     git_commit_all(&workspace, "init");
 
     let status = Command::new("git")
-        .args(["tag", "release-1.5.0"])
-        .current_dir(&workspace)
+        .with_args(["tag", "release-1.5.0"])
+        .with_current_dir(&workspace)
         .status()
         .expect("tag first version");
     assert!(status.success());

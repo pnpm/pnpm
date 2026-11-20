@@ -19,7 +19,7 @@ use tempfile::TempDir;
 /// that may have started the test run: rustup sets `RUSTUP_TOOLCHAIN` for
 /// what it runs, which the shims leave to rustup.
 fn isolated(mut command: Command, root: &TempDir, cwd: &Path) -> Command {
-    command.env_remove("RUSTUP_TOOLCHAIN");
+    command = command.without_env("RUSTUP_TOOLCHAIN");
     command
         .without_ambient_pnpm_config()
         .with_current_dir(cwd)

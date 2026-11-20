@@ -69,8 +69,7 @@ use tempfile::TempDir;
 /// config cleared.
 #[must_use]
 pub fn v11_in(bundle: &OsStr, workspace: &Path) -> Command {
-    let mut command = Command::new("node");
-    command.arg(bundle);
+    let command = Command::new("node").with_arg(bundle);
     command.with_current_dir(workspace).without_ambient_pnpm_config()
 }
 
@@ -174,8 +173,7 @@ pub fn assert_child_output_stays_absent(child: &mut Child, path: &Path, unexpect
 /// asserts on the styling. [`without_colors`] is the counterpart.
 #[must_use]
 pub fn with_colors(mut command: Command) -> Command {
-    command.env_remove("NO_COLOR");
-    command.env("FORCE_COLOR", "1");
+    command = command.without_env("NO_COLOR").with_env("FORCE_COLOR", "1");
     command
 }
 
@@ -183,9 +181,10 @@ pub fn with_colors(mut command: Command) -> Command {
 /// [`with_colors`] for why a test pins this.
 #[must_use]
 pub fn without_colors(mut command: Command) -> Command {
-    command.env_remove("FORCE_COLOR");
-    command.env_remove("CLICOLOR_FORCE");
-    command.env("NO_COLOR", "1");
+    command = command
+        .without_env("FORCE_COLOR")
+        .without_env("CLICOLOR_FORCE")
+        .with_env("NO_COLOR", "1");
     command
 }
 
@@ -410,10 +409,10 @@ impl WorkspaceFixture {
             .expect("find the pnpm binary")
             .with_current_dir(cwd)
             .without_ambient_pnpm_config()
-            .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
-            .env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
-            .arg("--reporter=ndjson")
-            .args(args)
+            .with_env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
+            .with_env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
+            .with_arg("--reporter=ndjson")
+            .with_args(args)
             .output()
             .expect("run pacquet")
     }
@@ -424,11 +423,11 @@ impl WorkspaceFixture {
         Arg: AsRef<OsStr>,
     {
         v11_in(bundle, cwd)
-            .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
-            .env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
-            .arg("--config.confirm-modules-purge=false")
-            .arg("--reporter=ndjson")
-            .args(args)
+            .with_env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
+            .with_env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
+            .with_arg("--config.confirm-modules-purge=false")
+            .with_arg("--reporter=ndjson")
+            .with_args(args)
             .output()
             .expect("run the pnpm v11 bundle")
     }

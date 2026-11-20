@@ -62,10 +62,10 @@ fn hoisted_no_runtime_installs_can_be_repeated_and_restore_the_runtime() {
     let wanted = fs::read(workspace.join("pnpm-lock.yaml")).unwrap();
 
     for extra in [None, None, Some("--force"), Some("--prod")] {
-        let mut install = command(&workspace);
-        install.args(["install", "--no-runtime", "--frozen-lockfile"]);
+        let mut install =
+            command(&workspace).with_args(["install", "--no-runtime", "--frozen-lockfile"]);
         if let Some(extra) = extra {
-            install.arg(extra);
+            install = install.with_arg(extra);
         }
         install.assert().success();
         assert!(!workspace.join("node_modules/node").exists());

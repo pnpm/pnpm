@@ -145,18 +145,17 @@ impl Session {
     fn start(command: &Command, workspace: &Path) -> Self {
         let script = workspace.join("shell.js");
         std::fs::write(&script, SHELL).expect("write shell.js");
-        let mut shell = Command::new(super::node_executable());
-        shell
-            .current_dir(workspace)
-            .arg(script)
-            .arg(command.get_program())
-            .args(command.get_args());
-        for (name, value) in command.get_envs() {
-            match value {
-                Some(value) => shell.env(name, value),
-                None => shell.env_remove(name),
-            };
-        }
+        let mut shell = Command::new(super::node_executable())
+            .with_current_dir(workspace)
+            .with_arg(script)
+            .with_arg(command.get_program())
+            .with_args(command.get_args());
+        shell = command
+            .get_envs()
+            .fold(shell, |shell, (name, value)| match value {
+                Some(value) => shell.with_env(name, value),
+                None => shell.without_env(name),
+            });
         let terminal = Terminal::open();
         let mut shell = terminal.spawn_foreground(shell);
         wait_for_start(&workspace.join("started.txt"), &mut shell);
