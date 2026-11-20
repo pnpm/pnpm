@@ -381,10 +381,13 @@ preferredManifestFormat: json5
 This lets a project keep a commented `package.json5` as its real manifest next
 to a `package.json` stub for tools that do not read JSON5.
 
-The setting applies to workspace projects only. Dependencies, such as `link:`
-and `file:` targets and packages fetched from git, are always read in the
-default order. The setting is read from `pnpm-workspace.yaml` only. pnpm
-ignores it in the global `config.yaml`.
+The setting applies to workspace projects only. It does not change how pnpm
+reads the manifests of dependencies, such as `link:` and `file:` targets and
+packages fetched from git.
+
+pnpm reads the setting from `pnpm-workspace.yaml` only. It ignores the setting
+in the global `config.yaml`, and an `updateConfig` hook can read it but not
+change it.
 
 ### failIfNoMatch
 

@@ -16,6 +16,7 @@ use crate::cli_args::deps_tree::{
     DependencyStatus,
 };
 use pnpm_network_web_auth::OpenUrl;
+use pnpm_package_manifest::ManifestFormat;
 use pretty_assertions::assert_eq;
 use serde_json::{
     Value,
@@ -280,7 +281,13 @@ fn human_output_roots_the_tree_at_the_project_funding() {
 fn open_package_funding_opens_the_only_source() {
     let root = tempfile::tempdir().expect("create temp dir");
     let projects = [shared_url_project(root.path())];
-    open_package_funding::<RecordingBrowser>("a", None, root.path(), &projects).expect("open a");
+    open_package_funding::<RecordingBrowser>(
+        "a",
+        None,
+        (root.path(), ManifestFormat::default()),
+        &projects,
+    )
+    .expect("open a");
     assert_eq!(opened_urls(), ["https://example.com/shared"]);
 }
 
@@ -289,16 +296,33 @@ fn open_package_funding_picks_a_source_with_which() {
     let root = tempfile::tempdir().expect("create temp dir");
     let projects = [shared_url_project(root.path())];
 
-    open_package_funding::<RecordingBrowser>("b@2", None, root.path(), &projects).expect("list b");
+    open_package_funding::<RecordingBrowser>(
+        "b@2",
+        None,
+        (root.path(), ManifestFormat::default()),
+        &projects,
+    )
+    .expect("list b");
     assert_eq!(opened_urls(), Vec::<String>::new());
 
     let second = NonZeroUsize::new(2);
-    open_package_funding::<RecordingBrowser>("b", second, root.path(), &projects).expect("open b");
+    open_package_funding::<RecordingBrowser>(
+        "b",
+        second,
+        (root.path(), ManifestFormat::default()),
+        &projects,
+    )
+    .expect("open b");
     assert_eq!(opened_urls(), ["https://example.com/b"]);
 
     let out_of_range = NonZeroUsize::new(3);
-    open_package_funding::<RecordingBrowser>("b", out_of_range, root.path(), &projects)
-        .expect("list b");
+    open_package_funding::<RecordingBrowser>(
+        "b",
+        out_of_range,
+        (root.path(), ManifestFormat::default()),
+        &projects,
+    )
+    .expect("list b");
     assert_eq!(opened_urls(), Vec::<String>::new());
 }
 
@@ -312,8 +336,13 @@ fn open_package_funding_uses_the_newest_installed_version() {
         installed(root.path(), &json!({ "name": "wrapper", "version": "1.0.0" }), vec![new]);
     let projects = [project(root.path(), json!({ "name": "root" }), vec![old, wrapper])];
 
-    open_package_funding::<RecordingBrowser>("dup", None, root.path(), &projects)
-        .expect("open dup");
+    open_package_funding::<RecordingBrowser>(
+        "dup",
+        None,
+        (root.path(), ManifestFormat::default()),
+        &projects,
+    )
+    .expect("open dup");
     assert_eq!(opened_urls(), ["https://example.com/1.10.0"]);
 }
 
@@ -348,8 +377,13 @@ fn open_package_funding_ignores_a_skipped_newer_version() {
     let projects =
         [project(root.path(), json!({ "name": "root" }), vec![installed_version, wrapper])];
 
-    open_package_funding::<RecordingBrowser>("dup", None, root.path(), &projects)
-        .expect("open dup");
+    open_package_funding::<RecordingBrowser>(
+        "dup",
+        None,
+        (root.path(), ManifestFormat::default()),
+        &projects,
+    )
+    .expect("open dup");
     assert_eq!(opened_urls(), ["https://example.com/1.0.0"]);
 }
 
@@ -381,8 +415,13 @@ fn linked_project_funding_is_read_from_any_project_manifest() {
         report["dependencies"]["linked"],
         json!({ "version": "1.0.0", "funding": { "url": "https://example.com/linked" } }),
     );
-    open_package_funding::<RecordingBrowser>("linked", None, root.path(), &projects)
-        .expect("open linked");
+    open_package_funding::<RecordingBrowser>(
+        "linked",
+        None,
+        (root.path(), ManifestFormat::default()),
+        &projects,
+    )
+    .expect("open linked");
     assert_eq!(opened_urls(), ["https://example.com/linked"]);
 }
 
@@ -391,8 +430,26 @@ fn open_package_funding_reads_a_directory() {
     let root = tempfile::tempdir().expect("create temp dir");
     fs::write(root.path().join("package.json"), r#"{"funding":"https://example.com/here"}"#)
         .expect("write package.json");
-    open_package_funding::<RecordingBrowser>(".", None, root.path(), &[]).expect("open .");
+    open_package_funding::<RecordingBrowser>(
+        ".",
+        None,
+        (root.path(), ManifestFormat::default()),
+        &[],
+    )
+    .expect("open .");
     assert_eq!(opened_urls(), ["https://example.com/here"]);
+}
+
+#[test]
+fn open_package_funding_reads_the_preferred_manifest_of_a_directory() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    fs::write(root.path().join("package.json"), r#"{"funding":"https://example.com/stub"}"#)
+        .expect("write package.json");
+    fs::write(root.path().join("package.yaml"), "funding: https://example.com/real\n")
+        .expect("write package.yaml");
+    open_package_funding::<RecordingBrowser>(".", None, (root.path(), ManifestFormat::Yaml), &[])
+        .expect("open .");
+    assert_eq!(opened_urls(), ["https://example.com/real"]);
 }
 
 #[test]
@@ -414,8 +471,13 @@ fn funding_urls_are_printed_and_opened_without_credentials() {
     let expected =
         ["root@1.0.0", "└── https://example.com/fund", "    └── plain@1.0.0, secret@1.0.0", ""];
     assert_eq!(render_human(&FundingReport::build(&projects[0])), expected.join("\n"));
-    open_package_funding::<RecordingBrowser>("secret", None, root.path(), &projects)
-        .expect("open secret");
+    open_package_funding::<RecordingBrowser>(
+        "secret",
+        None,
+        (root.path(), ManifestFormat::default()),
+        &projects,
+    )
+    .expect("open secret");
     assert_eq!(opened_urls(), ["https://example.com/fund"]);
 }
 
@@ -427,8 +489,13 @@ fn open_package_funding_fails_without_a_valid_source() {
     let projects = [project(root.path(), json!({ "name": "root" }), vec![unfunded])];
 
     for spec in ["plain", "missing"] {
-        let error = open_package_funding::<RecordingBrowser>(spec, None, root.path(), &projects)
-            .expect_err("no funding to open");
+        let error = open_package_funding::<RecordingBrowser>(
+            spec,
+            None,
+            (root.path(), ManifestFormat::default()),
+            &projects,
+        )
+        .expect_err("no funding to open");
         assert_eq!(error.to_string(), format!("No valid funding method available for: {spec}"));
     }
     assert_eq!(opened_urls(), Vec::<String>::new());

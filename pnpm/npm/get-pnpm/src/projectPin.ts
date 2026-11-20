@@ -18,8 +18,15 @@ export interface ProjectPin {
   lockedVersion?: string
 }
 
-/** The basenames pnpm reads a project manifest from, in the order it tries them. */
+/** The basenames pnpm reads a project manifest from, in the order it tries them by default. */
 const MANIFEST_NAMES = ['package.json', 'package.json5', 'package.yaml']
+
+/** The manifest basename of each `preferredManifestFormat` value. */
+const MANIFEST_NAME_OF_FORMAT = new Map([
+  ['json', 'package.json'],
+  ['json5', 'package.json5'],
+  ['yaml', 'package.yaml'],
+])
 
 /**
  * The pnpm version that the project `dir` belongs to pins, read the way pnpm
@@ -30,6 +37,9 @@ const MANIFEST_NAMES = ['package.json', 'package.json5', 'package.yaml']
  * - The workspace root and the projects its `packages` patterns match read
  *   the pin of the root's manifest. Any other project reads its own.
  * - When that manifest pins nothing, the pin of the other one applies.
+ * - A directory with several manifests reads the one the workspace's
+ *   `preferredManifestFormat` selects, or else the first of `package.json`,
+ *   `package.json5`, and `package.yaml`.
  * - `devEngines.packageManager` takes precedence over `packageManager`, which
  *   pnpm reads only as an exact version.
  * - A range pin comes with the version the lockfile already settled on, which
@@ -50,9 +60,11 @@ export function readProjectPin (dir: string, opts: { root?: string } = {}): Proj
   const root = opts.root == null ? undefined : path.resolve(opts.root)
   const workspaceDir = findUp(start, root, (candidate) => fs.existsSync(path.join(candidate, 'pnpm-workspace.yaml')))
   const projectDir = findUp(start, root, (candidate) => MANIFEST_NAMES.some((name) => fs.existsSync(path.join(candidate, name))))
-  const sources = pinSources(workspaceDir, projectDir)
-  const primary = pinOf(readManifest(sources.primary.manifestDir))
-  if (primary == null) return pinOf(readManifest(sources.fallbackManifestDir))
+  const workspace = workspaceDir == null ? undefined : readWorkspaceManifest(workspaceDir)
+  const sources = pinSources(workspaceDir, workspace, projectDir)
+  const manifestNames = manifestNamesFor(workspace)
+  const primary = pinOf(readManifest(sources.primary.manifestDir, manifestNames))
+  if (primary == null) return pinOf(readManifest(sources.fallbackManifestDir, manifestNames))
   if (semver.valid(primary.spec) != null || sources.primary.lockfileDir == null) return primary
   const lockedVersion = lockedPnpmVersion(sources.primary.lockfileDir, primary.spec)
   return lockedVersion == null ? primary : { ...primary, lockedVersion }
@@ -63,9 +75,12 @@ interface PinSources {
   fallbackManifestDir?: string
 }
 
-function pinSources (workspaceDir: string | undefined, projectDir: string | undefined): PinSources {
-  if (workspaceDir == null) return { primary: { manifestDir: projectDir, lockfileDir: projectDir } }
-  const workspace = readWorkspaceManifest(workspaceDir)
+function pinSources (
+  workspaceDir: string | undefined,
+  workspace: Record<string, unknown> | undefined,
+  projectDir: string | undefined
+): PinSources {
+  if (workspaceDir == null || workspace == null) return { primary: { manifestDir: projectDir, lockfileDir: projectDir } }
   if (projectDir == null || isWorkspaceProject(workspaceDir, workspace, projectDir)) {
     const lockfileDir = typeof workspace.lockfileDir === 'string' ? path.resolve(workspaceDir, workspace.lockfileDir) : workspaceDir
     return { primary: { manifestDir: workspaceDir, lockfileDir }, fallbackManifestDir: projectDir }
@@ -98,14 +113,21 @@ function isWorkspaceProject (workspaceDir: string, workspace: Record<string, unk
   return !excludes.some((pattern) => matches(pattern, { dot: true })) && patterns.filter((pattern) => !pattern.startsWith('!')).some((pattern) => matches(pattern))
 }
 
+/** The manifest basenames in the order the workspace's `preferredManifestFormat` sets. */
+function manifestNamesFor (workspace: Record<string, unknown> | undefined): string[] {
+  const format = workspace?.preferredManifestFormat
+  const preferred = typeof format === 'string' ? MANIFEST_NAME_OF_FORMAT.get(format) : undefined
+  return preferred == null ? MANIFEST_NAMES : [preferred, ...MANIFEST_NAMES.filter((name) => name !== preferred)]
+}
+
 interface Manifest {
   path: string
   value: Record<string, unknown>
 }
 
-function readManifest (dir: string | undefined): Manifest | undefined {
+function readManifest (dir: string | undefined, manifestNames: string[]): Manifest | undefined {
   if (dir == null) return undefined
-  for (const name of MANIFEST_NAMES) {
+  for (const name of manifestNames) {
     const manifestPath = path.join(dir, name)
     const content = readOptionalFile(manifestPath)
     if (content == null) continue

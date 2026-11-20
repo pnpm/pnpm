@@ -12,6 +12,7 @@
 /// - `frozenLockfile` refuses to record a version the lockfile does not.
 /// - `packages` says whether the project belongs to the workspace whose root
 ///   holds the pin.
+/// - `preferredManifestFormat` says which manifest declares the pin.
 /// - `ci`, `color`, `loglevel`, and `reporter` shape the warnings the checks
 ///   raise.
 ///
@@ -27,6 +28,7 @@ pub const PIN_DECISION_SETTINGS: &[&str] = &[
     "loglevel",
     "packages",
     "pmOnFail",
+    "preferredManifestFormat",
     "reporter",
     "runtimeOnFail",
 ];

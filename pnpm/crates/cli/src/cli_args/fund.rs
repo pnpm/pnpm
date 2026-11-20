@@ -59,7 +59,12 @@ impl FundArgs {
     ) -> miette::Result<()> {
         let projects = load_projects(config, dir, recursive)?;
         if let Some(spec) = &self.package {
-            return open::open_package_funding::<Sys>(spec, self.which, dir, &projects);
+            return open::open_package_funding::<Sys>(
+                spec,
+                self.which,
+                (dir, config.preferred_manifest_format),
+                &projects,
+            );
         }
         let reports: Vec<FundingReport> = projects
             .iter()

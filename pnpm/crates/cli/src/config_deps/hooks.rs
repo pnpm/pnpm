@@ -389,6 +389,12 @@ fn manifest_catalogs_value(root_dir: &Path) -> Result<Value> {
 const HIDDEN_FROM_HOOKS: [&str; 3] =
     ["globalPackagesConfig", "macosBackup", "symlinkedLockfileTargetDirs"];
 
+/// Settings a hook may read but not change. Which manifest a project uses
+/// belongs to `pnpm-workspace.yaml`, so a machine-local pnpmfile cannot make
+/// one developer read a different file than the rest, and every command reads
+/// the same manifest before and after the hooks run.
+const READ_ONLY_FOR_HOOKS: [&str; 1] = ["preferredManifestFormat"];
+
 /// Seed the hook input with the values pnpm resolves outside
 /// [`WorkspaceSettings`], so a hook can read and extend them. They are
 /// read back out of the delta rather than through `apply_to`.

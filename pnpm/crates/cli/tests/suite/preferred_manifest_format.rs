@@ -266,3 +266,37 @@ fn deploy_installs_the_manifest_it_writes() {
     assert!(deploy_dir.join("node_modules/lib").exists());
     drop((root, npmrc_info));
 }
+
+#[test]
+fn package_manager_checks_read_the_preferred_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    append_to_workspace_yaml(&workspace, "preferredManifestFormat: json5\n");
+    fs::write(workspace.join("package.json"), STUB_JSON).unwrap();
+    fs::write(
+        workspace.join("package.json5"),
+        "// real\n{ name: 'fixture', version: '1.0.0', packageManager: 'yarn@4.0.0' }\n",
+    )
+    .unwrap();
+    let output = command(&pacquet)
+        .with_arg("install")
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "{output:?}");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("This project is configured to use yarn"),
+        "{output:?}",
+    );
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name": "stub", "version": "0.0.0", "packageManager": "yarn@4.0.0"}"#,
+    )
+    .unwrap();
+    fs::write(workspace.join("package.json5"), "// real\n{ name: 'fixture', version: '1.0.0' }\n")
+        .unwrap();
+    command(&pacquet)
+        .with_arg("install")
+        .assert()
+        .success();
+    drop(root);
+}

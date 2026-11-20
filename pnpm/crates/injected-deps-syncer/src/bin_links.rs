@@ -9,7 +9,7 @@ use pnpm_cmd_shim::{
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts,
-    find_workspace_projects_no_check,
+    find_workspace_project_manifests,
 };
 use std::{
     collections::HashSet,
@@ -125,20 +125,25 @@ fn relink_project_bins(
     if !has_bins && stale_bin_names.is_empty() {
         return Ok(());
     }
-    let projects = find_workspace_projects_no_check(
+    // Only the project directories are used, so no manifest is read and the
+    // order they would be read in does not matter.
+    let projects = find_workspace_project_manifests(
         opts.workspace_dir,
         &FindWorkspaceProjectsOpts {
             patterns: None,
             ignored_directories: opts.settings.ignored_directories.clone(),
-            // Only the project directories are used, not their manifests.
             ..Default::default()
         },
     )
     .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
     let link_options = workspace_link_options(opts);
-    for project in projects {
+    let project_dirs = projects
+        .into_iter()
+        .filter(|project| project.candidates.iter().any(|candidate| candidate.is_file()))
+        .map(|project| project.root_dir);
+    for root_dir in project_dirs {
         relink_single_project_bins(
-            &project.root_dir,
+            &root_dir,
             opts.settings.modules_dir_name,
             &link_options,
             stale_bin_names,

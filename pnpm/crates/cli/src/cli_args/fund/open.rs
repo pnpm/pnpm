@@ -28,10 +28,10 @@ use std::{
 pub fn open_package_funding<Sys: OpenUrl>(
     spec: &str,
     which: Option<NonZeroUsize>,
-    dir: &Path,
+    (dir, manifest_format): (&Path, ManifestFormat),
     projects: &[ProjectDependencies],
 ) -> miette::Result<()> {
-    let funding = package_funding(spec, dir, projects);
+    let funding = package_funding(spec, (dir, manifest_format), projects);
     let sources = funding
         .as_ref()
         .map(funding_sources)
@@ -56,12 +56,14 @@ pub fn open_package_funding<Sys: OpenUrl>(
 /// The `funding` field of the package `spec` names: the project in a
 /// directory for a path, else the newest installed version of a package
 /// name. Like `npm fund`, a version in `spec` is ignored.
-fn package_funding(spec: &str, dir: &Path, projects: &[ProjectDependencies]) -> Option<Value> {
+fn package_funding(
+    spec: &str,
+    (dir, manifest_format): (&Path, ManifestFormat),
+    projects: &[ProjectDependencies],
+) -> Option<Value> {
     if is_directory_spec(spec) {
         let manifest =
-            safe_read_project_manifest_from_dir(&dir.join(spec), ManifestFormat::default())
-                .ok()
-                .flatten()?;
+            safe_read_project_manifest_from_dir(&dir.join(spec), manifest_format).ok().flatten()?;
         return manifest.get("funding").cloned();
     }
     let name = parse_wanted_dependency(spec).alias.unwrap_or_else(|| spec.to_string());

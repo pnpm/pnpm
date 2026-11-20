@@ -1095,6 +1095,24 @@ async fn update_config_hook_cannot_read_or_change_macos_backup_policy() {
 }
 
 #[tokio::test]
+async fn update_config_hook_reads_but_cannot_change_the_preferred_manifest_format() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "preferredManifestFormat: json5\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { if (config.preferredManifestFormat !== 'json5') throw new Error('format not visible'); config.preferredManifestFormat = 'yaml'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.preferred_manifest_format, pnpm_config::ManifestFormat::Json5);
+}
+
+#[tokio::test]
 async fn update_config_hook_cannot_read_or_change_the_symlinked_lockfile_dirs() {
     let root = tempfile::tempdir().expect("workspace tempdir");
     fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");

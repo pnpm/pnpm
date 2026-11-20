@@ -1,5 +1,5 @@
 {
-  "description": "Shared pin-decision settings list and matrix cases for pnpm v11 (TypeScript) and pnpm v12 (Rust). Covered by pnpm/tasks#222.",
+  "description": "Shared pin-decision settings list and matrix cases for pnpm v11 (TypeScript) and pnpm v12 (Rust). PIN_DECISION_SETTINGS_V12_ONLY lists the settings only pnpm v12 has. Covered by pnpm/tasks#222.",
   "PIN_DECISION_SETTINGS": [
     "ci",
     "color",
@@ -13,6 +13,7 @@
     "reporter",
     "runtimeOnFail"
   ],
+  "PIN_DECISION_SETTINGS_V12_ONLY": ["preferredManifestFormat"],
   "cases": [
     {
       "id": "pm-global-yaml-readable-command-switch",
