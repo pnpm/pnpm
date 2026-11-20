@@ -43,7 +43,7 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
         // Filtered upfront. See the comment on the `entries` builder.
         DependencyGroup::Peer => unreachable!("peers are filtered out before this point"),
     };
-    let resolved_key = entry.spec.version.resolved_key(entry.name).map(|key| key.without_peer());
+    let resolved_key = spec.version.resolved_key(name).map(|key| key.without_peer());
     let (version, linked_from) =
         version_and_linked_from(entry, resolved_key.as_ref(), graph.packages);
     let latest = resolved_key

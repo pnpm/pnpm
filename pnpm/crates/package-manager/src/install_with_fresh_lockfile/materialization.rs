@@ -367,8 +367,9 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
 }
 
 /// The `latest` dist-tag of each direct dependency whose resolution read
-/// it off registry metadata, when it differs from the resolved version.
-/// Walks the importers' direct dependencies only, never the whole graph.
+/// it off registry metadata, when it is a valid version other than the
+/// resolved one. Walks the importers' direct dependencies only, never the
+/// whole graph.
 fn collect_latest_versions(
     graph: &super::resolution::ResolvedGraph,
 ) -> Option<pnpm_deps_restorer::LatestVersions> {
@@ -379,7 +380,10 @@ fn collect_latest_versions(
         let (Some(latest), Some(name_ver)) = (&package.latest, &package.name_ver) else {
             continue;
         };
-        if name_ver.suffix.to_string() == *latest {
+        if !latest
+            .parse::<node_semver::Version>()
+            .is_ok_and(|latest| latest != name_ver.suffix)
+        {
             continue;
         }
         if let Ok(key) = dep_path.as_str().parse::<pnpm_lockfile::PackageKey>() {
