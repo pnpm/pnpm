@@ -223,6 +223,15 @@ fn the_probe_install_gets_the_effective_script_shell() {
             format!("--config.script-shell={}", anchored.display()),
         ],
     );
+    let backslashed = Config { script_shell: Some(r"tools\sh".to_owned()), ..Config::default() };
+    let anchored = std::path::absolute(r"tools\sh").expect("make the shell path absolute");
+    assert_eq!(
+        shell_settings(&backslashed),
+        [
+            "--config.shell-emulator=false".to_owned(),
+            format!("--config.script-shell={}", anchored.display()),
+        ],
+    );
     let bare = Config { script_shell: Some("bash".to_owned()), ..Config::default() };
     assert_eq!(
         shell_settings(&bare),
