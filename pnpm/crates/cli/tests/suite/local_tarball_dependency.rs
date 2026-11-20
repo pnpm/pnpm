@@ -214,7 +214,7 @@ fn frozen_install_skips_deleted_tarballs_in_unsupported_optional_dependencies() 
 }
 
 #[test]
-fn frozen_install_force_verifies_tarballs_in_unsupported_optional_dependencies() {
+fn frozen_install_verifies_tarballs_in_unsupported_optional_dependencies_when_reevaluating() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -254,7 +254,7 @@ fn frozen_install_force_verifies_tarballs_in_unsupported_optional_dependencies()
 
     fs::remove_file(&tarball).expect("remove tarball");
 
-    for flag in ["--force", "--reinstall"] {
+    for flag in ["--force", "--reinstall", "--ignore-platform-checks"] {
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)
@@ -268,63 +268,6 @@ fn frozen_install_force_verifies_tarballs_in_unsupported_optional_dependencies()
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(stderr.contains("ERR_PNPM_TARBALL_READ_LOCAL_TARBALL"));
     }
-
-    drop((root, mock_instance));
-}
-
-#[test]
-fn frozen_install_ignore_platform_checks_verifies_tarballs_in_unsupported_optional_dependencies() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-
-    let tarball = workspace.join("pkg-from-tarball-1.0.0.tgz");
-    fs::write(
-        &tarball,
-        tarball_entries(&[
-            (
-                "package/package.json",
-                br#"{"name":"pkg-from-tarball","version":"1.0.0","os":["nonexistent-os"]}"#,
-            ),
-            ("package/index.js", b"module.exports = 'first'\n"),
-        ]),
-    )
-    .expect("write initial tarball");
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({
-            "name": "root",
-            "version": "1.0.0",
-            "optionalDependencies": { "pkg-from-tarball": "file:./pkg-from-tarball-1.0.0.tgz" },
-        })
-        .to_string(),
-    )
-    .expect("write package.json");
-
-    pacquet
-        .with_arg("install")
-        .assert()
-        .success();
-
-    fs::remove_file(&tarball).expect("remove tarball");
-
-    let output = Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .with_args(["install", "--frozen-lockfile", "--ignore-platform-checks"])
-        .output()
-        .expect("run ignore-platform-checks frozen install");
-    assert!(
-        !output.status.success(),
-        "--ignore-platform-checks must verify previously skipped optional tarballs",
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_TARBALL_READ_LOCAL_TARBALL"));
 
     drop((root, mock_instance));
 }
