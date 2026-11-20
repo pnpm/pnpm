@@ -394,6 +394,7 @@ These settings are configured in `pnpm-workspace.yaml` as well, but are document
 * [disallowWorkspaceCycles](./workspaces.md#disallowworkspacecycles)
 * [workspaceConcurrency](./workspaces.md#workspaceconcurrency)
 * [ignoreWorkspaceRootCheck](./workspaces.md#ignoreworkspacerootcheck)
+* [preferredManifestFormat](./workspaces.md#preferredmanifestformat)
 * [failIfNoMatch](./workspaces.md#failifnomatch)
 
 ### Settings documented elsewhere

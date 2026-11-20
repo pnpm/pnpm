@@ -74,15 +74,15 @@ pub(in super::super) fn patch_commit<'a>(
     let config = ctx.prepared_config();
     Ok(Box::pin(async move {
         let config = config.await?;
-        let manifest_path = &project_manifest_path(dir, config.preferred_manifest_format);
+        let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
         let state = State::init(
-            manifest_path.to_path_buf(),
-            installed_project_config(config, manifest_path),
+            manifest_path.clone(),
+            installed_project_config(config, &manifest_path),
             false,
         )
         .wrap_err("initialize the state")?;
         if let Some(patched_dependencies) = Box::pin(args.run::<CliReporter>(dir, state)).await? {
-            Box::pin(run_reresolving_install(dir, manifest_path, config, patched_dependencies))
+            Box::pin(run_reresolving_install(dir, &manifest_path, config, patched_dependencies))
                 .await?;
         }
         Ok(())
@@ -97,15 +97,12 @@ pub(in super::super) fn patch_remove<'a>(
     let config = ctx.prepared_config();
     Ok(Box::pin(async move {
         let config = config.await?;
-        let manifest_path = &project_manifest_path(dir, config.preferred_manifest_format);
-        let state = State::init(
-            manifest_path.to_path_buf(),
-            patch_state_config(config, manifest_path),
-            false,
-        )
-        .wrap_err("initialize the state")?;
+        let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
+        let state =
+            State::init(manifest_path.clone(), patch_state_config(config, &manifest_path), false)
+                .wrap_err("initialize the state")?;
         let patched_dependencies = Box::pin(args.run(dir, state)).await?;
-        Box::pin(run_reresolving_install(dir, manifest_path, config, patched_dependencies)).await?;
+        Box::pin(run_reresolving_install(dir, &manifest_path, config, patched_dependencies)).await?;
         Ok(())
     }))
 }

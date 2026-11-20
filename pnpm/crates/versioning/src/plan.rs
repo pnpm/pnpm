@@ -49,9 +49,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct WorkspaceProject {
     pub root_dir: PathBuf,
-    /// The manifest file this project was read from — carried from
-    /// discovery so the release stamps the file the workspace actually
-    /// uses, rather than re-deriving precedence and risking a different one.
+    /// The manifest file discovery read this project from. The release
+    /// stamps the version into this file, so it cannot pick a different
+    /// manifest than the workspace uses.
     pub manifest_path: PathBuf,
     pub name: Option<String>,
     pub version: Option<String>,
