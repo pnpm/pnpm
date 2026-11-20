@@ -274,6 +274,7 @@ impl InstallShape {
                 frozen: self.frozen_lockfile,
                 prefer_frozen: self.prefer_frozen_lockfile,
                 ignore_manifest_check: options.ignore_package_manifest == Some(true),
+                ignore_settings_check: options.ignore_lockfile_settings_checks == Some(true),
                 disable_optimistic_repeat: mode.disable_optimistic_repeat_install(),
                 // The repeat-install fast path keys off `package.json` mtimes
                 // by default. NAPI installs use caller-supplied manifests

@@ -120,6 +120,7 @@ fn install_options() -> InstallOptions {
         hoist_workspace_packages: None,
         enable_modules_dir: None,
         ignore_package_manifest: None,
+        ignore_lockfile_settings_checks: None,
         node_version: None,
         engine_strict: None,
         minimum_release_age: None,

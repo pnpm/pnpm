@@ -90,6 +90,10 @@ pub struct InstallOptions {
     /// pnpm's `pnpm fetch` semantics: the frozen path, no post-import
     /// linking, and no project lifecycle scripts.
     pub ignore_package_manifest: Option<bool>,
+    /// Do not compare the settings the lockfile records with the current
+    /// ones, so a mismatch neither fails a frozen install nor makes the
+    /// install resolve again.
+    pub ignore_lockfile_settings_checks: Option<bool>,
     pub node_version: Option<String>,
     pub engine_strict: Option<bool>,
     pub minimum_release_age: Option<u32>,

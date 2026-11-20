@@ -50,6 +50,10 @@ impl RunExecution<'_> {
             &self.workspace.dirs.workspace_root,
             self.owned.projects.pnpmfile_hook_override.take(),
         )?;
+        if self.install.lockfile_policy.ignore_settings_check {
+            self.owned.projects.pnpmfile_hook_override = pnpmfile_hook;
+            return Ok(());
+        }
         let pre_hook_checksum = pnpm_hooks::current_pnpmfile_checksum(
             pnpmfile_hook.as_ref(),
             lockfile.pnpmfile_checksum.as_deref(),

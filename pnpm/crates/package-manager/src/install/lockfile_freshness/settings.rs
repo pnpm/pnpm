@@ -35,6 +35,9 @@ pub(super) async fn check_settings(
         return parse_overrides(lockfile.overrides.as_ref(), inputs.catalogs);
     }
     let parsed_overrides = parse_config_overrides(inputs.config, inputs.catalogs)?;
+    if inputs.scope.ignore_settings_check {
+        return Ok(parsed_overrides);
+    }
     let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
         inputs.pnpmfile_hook,
         lockfile.pnpmfile_checksum.as_deref(),

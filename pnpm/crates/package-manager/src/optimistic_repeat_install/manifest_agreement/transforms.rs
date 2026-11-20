@@ -112,14 +112,7 @@ impl ManifestTransforms {
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: self.hook.as_ref(),
-            scope: crate::install::FreshnessScope {
-                ignore_manifest_check: false,
-                allow_missing_dependency_free_importers: false,
-                frozen_lockfile: false,
-                prune_stale_importers: false,
-                patches_only: false,
-                locked_registries: None,
-            },
+            scope: crate::install::FreshnessScope::default(),
         };
         block_on_hooks(crate::install::hooked_importer_directory_manifests(
             wanted,

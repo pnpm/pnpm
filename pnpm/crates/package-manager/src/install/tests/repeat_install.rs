@@ -139,6 +139,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             // trust_lockfile=false so verification would normally run.
             // The optimistic short-circuit must beat it.
             trust: false,
@@ -422,6 +423,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: true,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -521,6 +523,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -678,6 +681,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,

@@ -243,6 +243,14 @@ export interface InstallOptions extends SharedEngineOptions {
    */
   ignorePackageManifest?: boolean
   /**
+   * Do not compare the `settings` recorded in `pnpm-lock.yaml` with the
+   * current configuration. A mismatch no longer fails a frozen install with
+   * `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` and no longer makes the install
+   * resolve again. The current `overrides` still apply to the project
+   * manifests, so a changed override still makes them outdated.
+   */
+  ignoreLockfileSettingsChecks?: boolean
+  /**
    * The pnpm home directory the default store location is resolved under
    * when no `storeDir` is configured (`<pnpmHomeDir>/store`, with pnpm's
    * same-volume fallback). An explicit `storeDir` — passed here or set by

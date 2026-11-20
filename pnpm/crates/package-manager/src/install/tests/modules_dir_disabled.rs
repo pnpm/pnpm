@@ -68,6 +68,7 @@ async fn install(
             frozen,
             prefer_frozen: Some(frozen),
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,

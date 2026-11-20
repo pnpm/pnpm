@@ -76,13 +76,13 @@ export function assertPnprCompatibleWithStore (opts: Pick<SingleProjectInstallOp
 }
 
 export function assertFrozenPnprPnpmfileChecksum (
-  opts: Pick<SingleProjectInstallOptions, 'ignorePnpmfile'>,
+  opts: Pick<SingleProjectInstallOptions, 'ignoreLockfileSettingsChecks' | 'ignorePnpmfile'>,
   existingPnpmfileChecksum: string | undefined,
   currentPnpmfileChecksum: string | undefined
 ): void {
   // The server skips the pnpmfile comparison a local frozen install makes,
   // and a frozen install must not rewrite the recorded checksum.
-  if (!opts.ignorePnpmfile && existingPnpmfileChecksum !== currentPnpmfileChecksum) {
+  if (!opts.ignorePnpmfile && !opts.ignoreLockfileSettingsChecks && existingPnpmfileChecksum !== currentPnpmfileChecksum) {
     throw new LockfileConfigMismatchError('pnpmfileChecksum')
   }
 }

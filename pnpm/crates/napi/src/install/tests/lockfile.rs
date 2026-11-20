@@ -1,5 +1,6 @@
 use super::{
-    EngineMode, HashMap, NodeApiProject, TestRegistry, install_options, run_install_inner,
+    EngineMode, HashMap, NodeApiProject, TestRegistry, install_options, install_options_for,
+    run_install_inner,
 };
 
 /// The lockfile must record `overrides` in declaration order — the
@@ -158,4 +159,38 @@ fn lockfile_version(lockfile: &str) -> Option<&str> {
                 .trim_end_matches(',')
                 .trim_matches(['\'', '"'])
         })
+}
+
+#[test]
+fn ignore_lockfile_settings_checks_keeps_a_lockfile_with_mismatched_settings() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut options = install_options_for(
+        temp_dir.path(),
+        "project",
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    let lockfile_path = temp_dir.path().join("project/pnpm-lock.yaml");
+    options.auto_install_peers = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("seed install");
+    let seeded = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
+
+    options.auto_install_peers = Some(false);
+    options.frozen_lockfile = Some(true);
+    let error = run_install_inner(&options, None, EngineMode::Install(None))
+        .expect_err("a frozen install rejects the mismatched settings");
+    eprintln!("{error}");
+    assert!(error.reason.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"));
+
+    options.ignore_lockfile_settings_checks = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None))
+        .expect("a frozen install ignoring the settings check");
+
+    options.frozen_lockfile = None;
+    run_install_inner(&options, None, EngineMode::Install(None))
+        .expect("an install ignoring the settings check");
+    assert_eq!(
+        std::fs::read_to_string(&lockfile_path).expect("read lockfile"),
+        seeded,
+        "the install must reuse the lockfile instead of resolving again",
+    );
 }

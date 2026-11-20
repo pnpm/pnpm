@@ -131,10 +131,8 @@ async fn workspace_manifests_satisfy(
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
                 allow_missing_dependency_free_importers: true,
-                frozen_lockfile: false,
                 prune_stale_importers: true,
-                patches_only: false,
-                locked_registries: None,
+                ..FreshnessScope::default()
             },
         },
     )
@@ -260,10 +258,12 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
 
 /// Which importers a freshness check may reason about, and how
 /// strictly. See [`check_lockfile_freshness`] for what each one admits.
-#[derive(Clone, Copy)]
+#[derive(Default, Clone, Copy)]
 pub(crate) struct FreshnessScope<'a> {
     /// Skip the per-importer specifier gate entirely.
     pub(crate) ignore_manifest_check: bool,
+    /// See [`crate::InstallLockfilePolicy::ignore_settings_check`].
+    pub(crate) ignore_settings_check: bool,
     /// Treat a project with no importer entry and no dependencies as
     /// satisfied rather than missing.
     pub(crate) allow_missing_dependency_free_importers: bool,
