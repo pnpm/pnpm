@@ -80,7 +80,8 @@ fn collect_direct_build_keys(
             continue;
         }
         let allow_key = allow_build_key_from_ignored_build(&dep_path);
-        if ignored_keys.contains(&allow_key) && !approved.contains(&allow_key) {
+        let is_non_registry = allow_key == pnpm_deps_restorer::normalize_build_dep_path(&dep_path);
+        if is_non_registry && ignored_keys.contains(&allow_key) && !approved.contains(&allow_key) {
             approved.push(allow_key);
         }
     }

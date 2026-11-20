@@ -58,8 +58,12 @@ function collectApprovedDirectBuildKeys (
   for (const [alias, version] of Object.entries(directDeps)) {
     if (allowBuilds[alias] === false) continue
     const depPath = dp.refToRelative(version, alias)
-    if (depPath != null && !isBuildExplicitlyDisallowed(depPath, allowBuild) && ignoredBuilds.has(depPath)) {
-      approvedKeys.add(allowBuildKeyFromIgnoredBuild(depPath))
+    if (depPath == null || isBuildExplicitlyDisallowed(depPath, allowBuild) || !ignoredBuilds.has(depPath)) {
+      continue
+    }
+    const allowKey = allowBuildKeyFromIgnoredBuild(depPath)
+    if (allowKey === dp.getPkgIdWithPatchHash(depPath)) {
+      approvedKeys.add(allowKey)
     }
   }
   return approvedKeys

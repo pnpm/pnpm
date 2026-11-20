@@ -5,11 +5,16 @@ use pnpm_testing_utils::{
     bin::CommandTempCwd, command_env::CommandTestExt, fixtures::tarball_entries,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, os::unix::fs::PermissionsExt, path::Path, process::Command};
+use std::{fs, path::Path, process::Command};
 
 fn write_executable(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write executable script");
-    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("chmod executable script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755))
+            .expect("chmod executable script");
+    }
 }
 
 fn build_postinstall_cli_tarball(name: &str, bin_name: &str) -> Vec<u8> {
@@ -53,11 +58,23 @@ fn write_local_cli_dir(dir: &Path, name: &str, message: &str) {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn dlx_pnx_and_create_ignore_untrusted_workspace_execution_settings() {
     let CommandTempCwd { root, npmrc_info, .. } = CommandTempCwd::init().add_mocked_registry();
     let repo_dir = root.path().join("untrusted-repo");
+    let xdg_config = root.path().join("user-xdg");
     fs::create_dir_all(repo_dir.join("node_modules/.bin")).expect("create repo bin dir");
+    fs::create_dir_all(xdg_config.join("pnpm")).expect("create user xdg pnpm dir");
+    fs::write(
+        xdg_config.join("pnpm/config.yaml"),
+        format!(
+            "cacheDir: '{}'\nstoreDir: '{}'\n",
+            npmrc_info.cache_dir.display(),
+            npmrc_info.store_dir.display(),
+        ),
+    )
+    .expect("write user global cache and store defaults");
 
     let hook_marker = root.path().join("pwned-hook");
     let shell_marker = root.path().join("pwned-shell");
@@ -92,42 +109,35 @@ storeDir: ./evil-store
     )
     .expect("write untrusted pnpm-workspace.yaml");
 
-    pacquet_in(&repo_dir, &npmrc_info)
-        .with_args(["dlx", "@foo/touch-file-one-bin"])
+    let run_isolated = |program: &Path, args: &[&str]| {
+        Command::new(program)
+            .with_current_dir(&repo_dir)
+            .without_ambient_pnpm_config()
+            .with_env("XDG_CONFIG_HOME", &xdg_config)
+            .with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url())
+            .with_env("PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE", "false")
+            .with_args(args)
+    };
+    let pnpm_cmd = Command::cargo_bin("pnpm").expect("find pnpm binary");
+    let pnpm_bin = Path::new(pnpm_cmd.get_program());
+
+    run_isolated(pnpm_bin, &["dlx", "@foo/touch-file-one-bin"]).assert().success();
+    run_isolated(pnpm_bin, &["dlx", "--package=@foo/touch-file-one-bin", "-c", "echo shell-ok"])
         .assert()
         .success();
 
-    pacquet_in(&repo_dir, &npmrc_info)
-        .with_args(["dlx", "--package=@foo/touch-file-one-bin", "-c", "echo shell-ok"])
-        .assert()
-        .success();
-
-    let hijack = pacquet_in(&repo_dir, &npmrc_info)
-        .with_args(["dlx", "--package=@foo/touch-file-one-bin", "-c", "hijack-cmd"])
-        .output()
-        .expect("run dlx shell command checking workspace bin isolation");
+    let hijack =
+        run_isolated(pnpm_bin, &["dlx", "--package=@foo/touch-file-one-bin", "-c", "hijack-cmd"])
+            .output()
+            .expect("run dlx shell command checking workspace bin isolation");
     assert!(!hijack.status.success(), "workspace node_modules/.bin must not be on PATH");
 
-    let pnpm_cmd = Command::cargo_bin("pnpm").expect("find pnpm binary");
     let pnx_bin = root.path().join("pnx");
-    fs::hard_link(pnpm_cmd.get_program(), &pnx_bin)
-        .or_else(|_| fs::copy(pnpm_cmd.get_program(), &pnx_bin).map(|_| ()))
+    fs::hard_link(pnpm_bin, &pnx_bin)
+        .or_else(|_| fs::copy(pnpm_bin, &pnx_bin).map(|_| ()))
         .expect("create pnx binary alias");
-    Command::new(&pnx_bin)
-        .with_current_dir(&repo_dir)
-        .without_ambient_pnpm_config()
-        .with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url())
-        .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
-        .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
-        .with_env("PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE", "false")
-        .with_arg("@foo/touch-file-one-bin")
-        .assert()
-        .success();
-
-    pacquet_in(&repo_dir, &npmrc_info)
-        .with_args(["create", "touch-file-one-bin"])
-        .assert()
-        .success();
+    run_isolated(&pnx_bin, &["@foo/touch-file-one-bin"]).assert().success();
+    run_isolated(pnpm_bin, &["create", "touch-file-one-bin"]).assert().success();
 
     assert!(!hook_marker.exists(), "untrusted pnpmfile / globalPnpmfile must never execute");
     assert!(!shell_marker.exists(), "untrusted scriptShell must never execute");
@@ -138,6 +148,7 @@ storeDir: ./evil-store
     drop((root, npmrc_info));
 }
 
+#[cfg(unix)]
 #[test]
 fn dlx_preserves_user_global_config_and_explicit_policies() {
     let CommandTempCwd { root, npmrc_info, .. } = CommandTempCwd::init().add_mocked_registry();
@@ -349,6 +360,12 @@ fn dlx_resolves_relative_local_directory_and_tarball_specs_against_caller_cwd() 
     );
     assert_eq!(run_in(&dir_b, "../dir-a/pkg"), "from-a");
     assert_eq!(run_in(&dir_a, "./dlx-tool.tgz"), "from-tarball");
+    #[cfg(windows)]
+    {
+        assert_eq!(run_in(&dir_a, r".\pkg"), "from-a");
+        assert_eq!(run_in(&dir_b, r"..\dir-a\pkg"), "from-a");
+        assert_eq!(run_in(&dir_a, r".\dlx-tool.tgz"), "from-tarball");
+    }
 
     drop((root, npmrc_info));
 }
@@ -412,6 +429,80 @@ fn dlx_and_create_run_postinstall_for_direct_url_and_local_tarball_specs() {
         String::from_utf8_lossy(&create_built.stderr),
     );
     assert_eq!(String::from_utf8_lossy(&create_built.stdout).trim(), "BUILT_OK");
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn dlx_recovers_unbuilt_cached_url_pkg_and_skips_aliased_registry_indirect_builds() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let mut server = mockito::Server::new();
+    let dlx_tgz = build_postinstall_cli_tarball("dlx-hit-tool", "dlx-hit-tool");
+    let _mock = server
+        .mock("GET", "/dlx-hit-tool.tgz")
+        .with_status(200)
+        .with_body(dlx_tgz)
+        .create();
+    let dlx_url = format!("{}/dlx-hit-tool.tgz", server.url());
+
+    let first = pacquet_in(&workspace, &npmrc_info)
+        .with_args(["dlx", dlx_url.as_str()])
+        .output()
+        .expect("populate dlx URL cache");
+    assert!(first.status.success(), "stderr: {}", String::from_utf8_lossy(&first.stderr));
+    assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), "BUILT_OK");
+
+    let cache_entry = fs::read_dir(npmrc_info.cache_dir.join("dlx"))
+        .expect("read dlx cache")
+        .next()
+        .expect("single cache entry")
+        .expect("dir entry")
+        .path()
+        .join("pkg");
+    let pkg_dir = cache_entry.join("node_modules/dlx-hit-tool");
+    fs::remove_file(pkg_dir.join("built.txt")).expect("remove built.txt");
+    let modules_dir = cache_entry.join("node_modules");
+    let mut modules =
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir)
+            .expect("read .modules.yaml")
+            .expect("existing .modules.yaml");
+    modules.ignored_builds =
+        Some(std::iter::once(format!("dlx-hit-tool@{dlx_url}").into()).collect());
+    pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir, modules)
+        .expect("simulate pre-upgrade unbuilt cache entry");
+
+    let hit = pacquet_in(&workspace, &npmrc_info)
+        .with_args(["dlx", dlx_url.as_str()])
+        .output()
+        .expect("run dlx on unbuilt cached URL entry");
+    assert!(hit.status.success(), "stderr: {}", String::from_utf8_lossy(&hit.stderr));
+    assert_eq!(String::from_utf8_lossy(&hit.stdout).trim(), "BUILT_OK");
+
+    pacquet_in(&workspace, &npmrc_info)
+        .with_args([
+            "dlx",
+            "--package=my-alias@npm:@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+            "--package=@foo/touch-file-one-bin",
+            "touch-file-one-bin",
+        ])
+        .assert()
+        .success();
+    let mut found_aliased = false;
+    for entry in fs::read_dir(npmrc_info.cache_dir.join("dlx")).expect("read dlx cache") {
+        let candidate = entry.expect("entry").path().join(
+            "pkg/node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+        );
+        if candidate.is_dir() {
+            found_aliased = true;
+            assert!(
+                !candidate.join("generated-by-postinstall.js").exists(),
+                "aliased registry dep must not gain package-wide build approval",
+            );
+        }
+    }
+    assert!(found_aliased, "expected aliased registry package in dlx cache");
 
     drop((root, npmrc_info));
 }

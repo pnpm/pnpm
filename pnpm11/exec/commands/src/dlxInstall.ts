@@ -32,6 +32,7 @@ export async function getOrPrepareDlxCache (ctx: DlxInstallContext, cache: DlxCa
   if (!cache.cacheExists) {
     return installIntoDlxCache(ctx, cache)
   }
+  await rebuildDirectNonRegistryPackages(ctx, cache.cachedDir)
   await promptApproveDlxBuilds({
     cachedDir: cache.cachedDir,
     allowBuilds: ctx.allowBuilds,
@@ -73,6 +74,9 @@ async function rebuildDirectNonRegistryPackages (ctx: DlxInstallContext, cachedD
   })
   if (approvedKeys.length === 0) return
   const buildOpts = createDlxAddOptions(ctx, cachedDir)
+  // Global virtual store slots include build approval in their content hash, so
+  // building a newly approved package stages and links a new slot via install
+  // (matching `approve-builds` in `@pnpm/building.commands`).
   if (ctx.enableGlobalVirtualStore) {
     await install.handler({
       ...buildOpts,

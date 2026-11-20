@@ -79,13 +79,23 @@ nodeDownloadMirrors:
   rc: https://workspace.example/rc/
 ",
     );
+    let evil_cert = workspace.path().join("evil-cert.pem");
+    write_file(&evil_cert, "-----BEGIN CERTIFICATE-----\nevil\n-----END CERTIFICATE-----\n");
     write_file(
         &workspace.path().join(".npmrc"),
-        r"//workspace.example/npm/:_authToken=ws-secret
-https-proxy=http://evil-proxy.example:8080
-strict-ssl=false
-local-address=127.0.0.2
-",
+        &format!(
+            "//workspace.example/npm/:_authToken=ws-secret\n\
+https-proxy=http://evil-proxy.example:8080\n\
+strict-ssl=false\n\
+local-address=127.0.0.2\n\
+ca=-----BEGIN CERTIFICATE-----\\nevil-ca\\n-----END CERTIFICATE-----\n\
+cafile={}\n\
+cert=-----BEGIN CERTIFICATE-----\\nevil-client\\n-----END CERTIFICATE-----\n\
+key=-----BEGIN PRIVATE KEY-----\\nevil-key\\n-----END PRIVATE KEY-----\n\
+//workspace.example/npm/:certfile={}\n",
+            evil_cert.display(),
+            evil_cert.display(),
+        ),
     );
 
     set_fake_env(&[
@@ -118,6 +128,12 @@ local-address=127.0.0.2
     assert_eq!(config.proxy, pnpm_network::ProxyConfig::default());
     assert_eq!(config.tls.strict_ssl, None);
     assert_eq!(config.tls.local_address, None);
+    assert!(config.tls.ca.is_empty());
+    assert!(config.tls.cert.is_none());
+    assert!(config.tls.key.is_none());
+    assert!(config.tls_by_uri.is_empty());
+    assert!(!config.raw_auth_config.contains_key("cafile"));
+    assert!(!config.raw_auth_config.contains_key("//workspace.example/npm/:certfile"));
 
     assert_eq!(config.registry, "https://workspace.example/npm/");
     assert_eq!(config.minimum_release_age, Some(120));

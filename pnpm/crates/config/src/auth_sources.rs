@@ -143,15 +143,29 @@ fn is_trusted_auth_file<Sys: GetCurrentDir>(
     })
 }
 
+fn is_dlx_stripped_npmrc_key(key: &str) -> bool {
+    matches!(
+        key,
+        "https-proxy"
+            | "http-proxy"
+            | "proxy"
+            | "no-proxy"
+            | "noproxy"
+            | "strict-ssl"
+            | "local-address"
+            | "ca"
+            | "cafile"
+            | "cert"
+            | "key",
+    ) || [":ca", ":cafile", ":cert", ":certfile", ":key", ":keyfile"]
+        .iter()
+        .any(|suffix| key.ends_with(suffix))
+}
+
 fn clear_dlx_untrusted_project_npmrc(auth: &mut NpmrcAuth) {
     auth.proxy = crate::npmrc_auth::NpmrcProxy::default();
-    auth.tls.strict_ssl = None;
-    auth.tls.local_address = None;
-    for key in
-        ["https-proxy", "http-proxy", "proxy", "no-proxy", "noproxy", "strict-ssl", "local-address"]
-    {
-        auth.raw_ini_config.remove(key);
-    }
+    auth.tls = crate::npmrc_auth::NpmrcTls::default();
+    auth.raw_ini_config.retain(|key, _| !is_dlx_stripped_npmrc_key(key));
 }
 
 impl Config {

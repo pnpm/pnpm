@@ -779,9 +779,58 @@ test('dlx runs postinstall on direct tarball URLs and keys the cache by ignoreSc
     expect(fs.readFileSync(builtOut, 'utf8')).toBe('BUILT_OK')
 
     expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(3)
+
+    const hitCacheDir = path.resolve('cache-hit')
+    const hitOpts = {
+      ...baseOpts,
+      cacheDir: hitCacheDir,
+      enableGlobalVirtualStore: false,
+    }
+    const initialHitOut = path.join(projectDir, 'hit-initial.txt')
+    await dlx.handler(hitOpts, [tarballUrl, initialHitOut])
+    expect(fs.readFileSync(initialHitOut, 'utf8')).toBe('BUILT_OK')
+
+    const cachedEntry = path.join(hitCacheDir, 'dlx', fs.readdirSync(path.join(hitCacheDir, 'dlx'))[0], 'pkg')
+    const cachedPkgReal = fs.realpathSync(path.join(cachedEntry, 'node_modules/dlx-url-tool'))
+    fs.rmSync(path.join(cachedPkgReal, 'built.txt'))
+    const modulesYamlPath = path.join(cachedEntry, 'node_modules/.modules.yaml')
+    const modulesRaw = JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')) as Record<string, unknown>
+    modulesRaw.ignoredBuilds = [`dlx-url-tool@${tarballUrl}`]
+    fs.writeFileSync(modulesYamlPath, JSON.stringify(modulesRaw, null, 2))
+
+    const recoveredHitOut = path.join(projectDir, 'hit-recovered.txt')
+    await dlx.handler(hitOpts, [tarballUrl, recoveredHitOut])
+    expect(fs.readFileSync(recoveredHitOut, 'utf8')).toBe('BUILT_OK')
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
+})
+
+test('dlx does not turn an aliased registry package into a package-wide build approval', async () => {
+  prepareEmpty()
+
+  const cacheDir = path.resolve('cache')
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir,
+    dlxCacheMaxAge: Infinity,
+    package: [
+      'my-alias@npm:@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+      'shx@0.3.4',
+    ],
+  }, ['shx', 'touch', 'aliased-ran'])
+
+  expect(fs.existsSync('aliased-ran')).toBe(true)
+  const cachedPkg = path.join(
+    cacheDir,
+    'dlx',
+    fs.readdirSync(path.join(cacheDir, 'dlx'))[0],
+    'pkg/node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  expect(fs.existsSync(cachedPkg)).toBe(false)
 })
 
 test('dlx resolves relative local directory and tarball specs against invocation dir', async () => {

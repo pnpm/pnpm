@@ -948,5 +948,4 @@ fn dlx_allow_build_negation_skips_postinstall_and_prompt() {
     drop(root);
 }
 
-#[cfg(unix)]
 mod isolation_and_specs;

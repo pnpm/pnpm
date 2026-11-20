@@ -1045,4 +1045,17 @@ fn resolve_local_package_spec_anchors_dot_relative_specs_against_caller_dir() {
         resolve_local_package_spec("http://127.0.0.1:8080/my-cli.tgz", caller),
         "http://127.0.0.1:8080/my-cli.tgz",
     );
+    #[cfg(windows)]
+    {
+        let win_caller = Path::new(r"C:\caller\sub");
+        assert_eq!(resolve_local_package_spec(r".\my-cli", win_caller), r"C:\caller\sub\my-cli");
+        assert_eq!(
+            resolve_local_package_spec(r"..\my-cli.tgz", win_caller),
+            r"C:\caller\my-cli.tgz",
+        );
+        assert_eq!(
+            resolve_local_package_spec(r"my-alias@file:.\my-cli", win_caller),
+            r"my-alias@file:C:\caller\sub\my-cli",
+        );
+    }
 }

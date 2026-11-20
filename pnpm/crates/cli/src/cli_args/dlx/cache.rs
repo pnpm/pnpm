@@ -84,19 +84,26 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         )
         .await?;
     }
+    approve_and_rebuild_cached_builds::<Reporter>(config, prepare_dir, &manifest_path).await
+}
+
+async fn approve_and_rebuild_cached_builds<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    cache_dir: &Path,
+    manifest_path: &Path,
+) -> miette::Result<()> {
     let config = direct_builds::rebuild_direct_non_registry_packages::<Reporter>(
         config,
-        prepare_dir,
-        &manifest_path,
+        cache_dir,
+        manifest_path,
     )
     .await?;
     crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
         config,
-        prepare_dir,
-        crate::cli_args::approve_builds::ApprovalStore::Workspace(prepare_dir),
+        cache_dir,
+        crate::cli_args::approve_builds::ApprovalStore::Workspace(cache_dir),
     )
-    .await?;
-    Ok(())
+    .await
 }
 
 mod direct_builds;
@@ -376,12 +383,9 @@ pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
                 &parsed_allow_build,
                 supported_architectures,
             )?;
-            crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
-                config,
-                &cached_dir,
-                crate::cli_args::approve_builds::ApprovalStore::Workspace(&cached_dir),
-            )
-            .await?;
+            let manifest_path = cached_dir.join("package.json");
+            approve_and_rebuild_cached_builds::<Reporter>(config, &cached_dir, &manifest_path)
+                .await?;
             Ok(cached_dir)
         }
         _ => {
