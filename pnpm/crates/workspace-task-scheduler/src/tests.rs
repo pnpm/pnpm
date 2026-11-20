@@ -19,6 +19,8 @@ use std::{
 
 const WORKSPACE_DIR: &str = "/workspace";
 
+mod requested_projects;
+
 fn dir(name: &str) -> PathBuf {
     Path::new(WORKSPACE_DIR).join(name)
 }
@@ -132,6 +134,7 @@ fn build_graph(
                 .collect()
         },
         task_name,
+        requested_projects: None,
         tasks: task_settings,
         is_selector_task: |_| false,
     })
@@ -194,6 +197,7 @@ fn build_selector_graph(
                 .collect()
         },
         task_name,
+        requested_projects: None,
         tasks: task_settings,
         is_selector_task: |name| name.starts_with('/') && name.ends_with('/'),
     })
