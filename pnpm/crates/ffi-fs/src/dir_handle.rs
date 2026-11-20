@@ -282,9 +282,6 @@ pub fn set_mode_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result<()
     if changed == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
 }
 
-/// `openat`'s variadic mode argument is read only for a flag set that
-/// creates, so it is passed only then: supplying it otherwise would read
-/// a register the call does not set.
 /// Link the entry `from` to the new name `to`, both inside `parent`.
 ///
 /// The counterpart of [`rename_at`], which moves a name: this one adds a
@@ -353,9 +350,6 @@ fn entry_kind(mode: libc::mode_t) -> EntryKind {
     }
 }
 
-/// A timestamp as the entry reports it, clamped to what [`SystemTime`] can
-/// name: a time before the epoch, which only a corrupt or hand-written
-/// inode carries, reads as the epoch rather than failing the whole call.
 /// Whether the calling user may write to and search `path`.
 ///
 /// Asked of the effective user, which is who a write would be permitted
@@ -386,6 +380,9 @@ const EFFECTIVE_IDS: libc::c_int = libc::AT_EACCESS;
 #[cfg(target_os = "android")]
 const EFFECTIVE_IDS: libc::c_int = 0;
 
+/// A timestamp as the entry reports it, clamped to what [`SystemTime`] can
+/// name: a time before the epoch, which only a corrupt or hand-written
+/// inode carries, reads as the epoch rather than failing the whole call.
 fn entry_time(seconds: libc::time_t, nanoseconds: libc::c_long) -> SystemTime {
     let Ok(seconds) = u64::try_from(seconds) else {
         return SystemTime::UNIX_EPOCH;
@@ -396,6 +393,9 @@ fn entry_time(seconds: libc::time_t, nanoseconds: libc::c_long) -> SystemTime {
         .unwrap_or(SystemTime::UNIX_EPOCH)
 }
 
+/// `openat`'s variadic mode argument is read only for a flag set that
+/// creates, so it is passed only then: supplying it otherwise would read
+/// a register the call does not set.
 fn open_at(
     parent: &File,
     name: &CString,

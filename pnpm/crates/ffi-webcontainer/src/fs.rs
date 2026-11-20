@@ -7,7 +7,10 @@
 
 use pnpm_webcontainer_sys::pnpm_fs as sys;
 use std::{
-    fs::File,
+    fs::{
+        File,
+        TryLockError,
+    },
     io,
     path::Path,
 };
@@ -106,14 +109,10 @@ pub fn open_lock(path: &Path) -> io::Result<File> {
     })
 }
 
-/// Try to hold a host lease on `file` until every handle to it is closed,
-/// and report the host's `errno`: `0` for success, `EAGAIN` for a lease
-/// another holder has.
+/// Try to hold a host lease on `file` until every handle to it is closed.
 ///
-/// The `errno` is returned rather than an [`io::Error`] because the one
-/// caller branches on `EAGAIN` before it has an error to build.
-#[must_use]
-pub fn try_lock(file: &File, exclusivity: Exclusivity) -> i32 {
+/// A lease another holder has fails with [`TryLockError::WouldBlock`].
+pub fn try_lock(file: &File, exclusivity: Exclusivity) -> Result<(), TryLockError> {
     use std::os::fd::AsRawFd as _;
 
     let exclusive = match exclusivity {
@@ -122,7 +121,12 @@ pub fn try_lock(file: &File, exclusivity: Exclusivity) -> i32 {
     };
     // SAFETY: the `&File` keeps the descriptor open for the whole call, and
     // the host takes both arguments by value.
-    unsafe { sys::try_lock(file.as_raw_fd(), exclusive) }
+    let errno = unsafe { sys::try_lock(file.as_raw_fd(), exclusive) };
+    match check(errno) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::WouldBlock => Err(TryLockError::WouldBlock),
+        Err(error) => Err(TryLockError::Error(error)),
+    }
 }
 
 /// Apply the database's permissions atomically as its `SQLite` sidecar

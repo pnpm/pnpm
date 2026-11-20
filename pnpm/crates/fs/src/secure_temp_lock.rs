@@ -95,11 +95,6 @@ fn android_user_lock_root(home: Option<std::ffi::OsString>) -> PathBuf {
 #[cfg(windows)]
 fn user_lock_root() -> io::Result<PathBuf> {
     pnpm_ffi_fs::local_app_data_directory()
-        .map_err(|result| {
-            io::Error::other(format!(
-                "failed to resolve the local application data directory: HRESULT {result:#x}",
-            ))
-        })
 }
 
 /// Open a lock file without following symlinks on Unix, then verify that the
