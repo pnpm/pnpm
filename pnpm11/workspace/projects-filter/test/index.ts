@@ -1338,7 +1338,39 @@ test('selects projects whose dependencies an override points at a changed catalo
 
   expect(await select({})).toStrictEqual([otherDir])
   expect(await select({ lib: 'catalog:local' })).toStrictEqual([appDir, otherDir])
-  expect(await select({ 'other>lib': '^2.0.0', 'app>lib': 'catalog:local' })).toStrictEqual([appDir])
+  expect(await select({ 'other>lib': '^2.0.0' })).toStrictEqual([otherDir])
+})
+
+test('selects a project whose catalog dependency a range-scoped override starts to match', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const workspaceDir = temporaryDirectory()
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+
+  const appDir = path.join(workspaceDir, 'packages/app') as ProjectRootDir
+  const writeWorkspaceManifest = (lib: string) => fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:\n  - 'packages/*'\ncatalogs:\n  local:\n    lib: ${lib}\n`
+  )
+  await writeWorkspaceManifest('1.0.0')
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '-m', 'initial commit', '--no-gpg-sign'], { cwd: workspaceDir })
+  await writeWorkspaceManifest('2.0.0')
+
+  const projects: BaseProject[] = [
+    { rootDir: appDir, manifest: { name: 'app', version: '1.0.0', dependencies: { lib: 'catalog:local' } } },
+  ]
+  const catalogs = { local: { lib: '2.0.0' } }
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(projects, [{ diff: 'HEAD' }], {
+    catalogs,
+    overrides: { overrides: { 'lib@^2': '3.0.0' }, catalogs, lockfileDir: workspaceDir },
+    workspaceDir,
+  })
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([appDir])
 })
 
 test('selects projects using catalog dependencies when workspace is nested in a repository subdirectory', async () => {

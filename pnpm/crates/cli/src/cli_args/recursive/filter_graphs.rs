@@ -12,8 +12,8 @@ use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions, ProjectDependencies, ProjectSelector,
 };
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, DependencyRewriter, ProjectGraph, create_projects_graph,
-    rewritten_dependencies,
+    BaseProject, CreateProjectsGraphOptions, DependencyGroups, DependencyRewriter, GraphProject,
+    ProjectGraph, create_projects_graph,
 };
 use std::path::Path;
 
@@ -99,9 +99,13 @@ pub(super) fn selector_filter_options(
     Ok(options)
 }
 
-/// Each project's dependencies with the overrides applied, keyed by root
-/// directory, for finding the projects that use a changed catalog entry.
-/// `None` when no overrides are configured.
+/// Each project's declared dependencies plus every dependency the
+/// overrides rewrite them to, keyed by root directory, for finding the
+/// projects that use a changed catalog entry. `None` when no overrides are
+/// configured.
+///
+/// Both lists count: a range-scoped override can stop or start applying
+/// when the catalog entry it is matched against changes.
 pub(crate) fn overridden_project_dependencies(
     graph: &ProjectGraph<GraphPkg<'_>>,
     config: &Config,
@@ -117,9 +121,29 @@ pub(crate) fn overridden_project_dependencies(
     Ok(Some(
         graph
             .iter()
-            .map(|(dir, node)| {
-                (dir.clone(), rewritten_dependencies(&node.package, false, Some(&rewriter)))
-            })
+            .map(|(dir, node)| (dir.clone(), declared_and_rewritten(node.package, &rewriter)))
             .collect(),
     ))
 }
+
+/// Every group is kept apart rather than merged, so a rewritten entry is
+/// not replaced by a namesake from another group.
+fn declared_and_rewritten(
+    project: GraphPkg<'_>,
+    rewriter: &dyn DependencyRewriter,
+) -> Vec<(String, String)> {
+    let mut groups = project.dependency_groups(false);
+    rewriter.rewrite_dependencies(&project, &mut groups);
+    let DependencyGroups { peer, dev, optional, prod } = groups;
+    let mut dependencies = project.merged_dependencies(false);
+    dependencies.extend(
+        peer.into_iter()
+            .chain(dev.into_iter().flatten())
+            .chain(optional)
+            .chain(prod),
+    );
+    dependencies
+}
+
+#[cfg(test)]
+mod tests;

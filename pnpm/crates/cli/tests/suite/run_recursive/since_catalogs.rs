@@ -15,30 +15,33 @@ fn git(cwd: &Path, args: &[&str]) {
     );
 }
 
-/// A `[<since>]` selector selects a project whose dependency an override
-/// points at a changed catalog entry, though its manifest declares a plain
-/// range.
-#[test]
-fn diff_selector_selects_projects_using_a_changed_catalog_through_overrides() {
+/// Commit a workspace of `app`, which declares `lib: <app_lib>`, and
+/// `other`, change the `local` catalog's `lib` from `lib_before` to
+/// `lib_after`, run `-r --filter [HEAD~1] run build`, and return whether
+/// each of `app` and `other` ran.
+fn run_after_catalog_change(
+    app_lib: &str,
+    overrides: &str,
+    (lib_before, lib_after): (&str, &str),
+) -> (bool, bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let mut app = build_writes_marker("app");
-    app["dependencies"] = json!({ "lib": "^1.0.0" });
+    app["dependencies"] = json!({ "lib": app_lib });
     write_workspace(&workspace, &[("app", app), ("other", build_writes_marker("other"))]);
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let packages = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
     let write_catalog = |lib: &str| {
-        let settings =
-            format!("overrides:\n  lib: 'catalog:local'\ncatalogs:\n  local:\n    lib: {lib}\n");
+        let settings = format!("overrides:\n{overrides}catalogs:\n  local:\n    lib: {lib}\n");
         fs::write(&workspace_yaml, format!("{packages}{settings}"))
             .expect("write pnpm-workspace.yaml");
     };
-    write_catalog("^1.0.0");
+    write_catalog(lib_before);
     git(&workspace, &["init", "--initial-branch=main"]);
     git(&workspace, &["config", "user.email", "x@y.z"]);
     git(&workspace, &["config", "user.name", "xyz"]);
     git(&workspace, &["add", "."]);
     git(&workspace, &["commit", "-m", "base", "--no-gpg-sign"]);
-    write_catalog("^1.1.0");
+    write_catalog(lib_after);
     git(&workspace, &["commit", "-am", "bump the catalog", "--no-gpg-sign"]);
 
     pacquet
@@ -46,11 +49,19 @@ fn diff_selector_selects_projects_using_a_changed_catalog_through_overrides() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("app/ran.txt").exists(),
-        "app resolves lib through the changed catalog entry",
-    );
-    assert!(!workspace.join("other/ran.txt").exists(), "other uses no changed catalog entry");
-
+    let ran = (workspace.join("app/ran.txt").exists(), workspace.join("other/ran.txt").exists());
     drop(root);
+    ran
+}
+
+#[test]
+fn diff_selector_selects_projects_using_a_changed_catalog_through_overrides() {
+    let ran = run_after_catalog_change("^1.0.0", "  lib: 'catalog:local'\n", ("^1.0.0", "^1.1.0"));
+    assert_eq!(ran, (true, false));
+}
+
+#[test]
+fn diff_selector_selects_a_catalog_dependency_a_range_scoped_override_starts_to_match() {
+    let ran = run_after_catalog_change("catalog:local", "  lib@^2: 3.0.0\n", ("1.0.0", "2.0.0"));
+    assert_eq!(ran, (true, false));
 }

@@ -270,10 +270,9 @@ export function createOverridesApplier (overrides: ProjectsGraphOverrides | unde
 
 /**
  * Applies `overrides` as {@link createOverridesApplier} does, except that an
- * override whose value is a `catalog:` reference writes the reference, not
- * the catalog entry's specifier. The rewritten dependencies name the catalog
- * entries they resolve through. A convergence override still writes the
- * entry's version, which it needs to match declared ranges.
+ * override whose value is a `catalog:` reference writes that reference, so
+ * the rewritten dependencies name the catalog entries they resolve through.
+ * A convergence override still writes the entry's version.
  */
 export function createCatalogReferenceOverridesApplier (
   overrides: ProjectsGraphOverrides | undefined

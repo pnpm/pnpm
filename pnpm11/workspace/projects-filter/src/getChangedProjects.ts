@@ -30,8 +30,8 @@ export interface GetChangedProjectsOptions {
   allProjects?: Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>
   useGlobDirFiltering?: boolean
   /**
-   * The changed-catalog check applies these to each manifest first. A
-   * dependency that an override points at a catalog entry uses that entry.
+   * A project also uses a catalog entry that these overrides point one of
+   * its dependencies at.
    */
   overrides?: ProjectsGraphOverrides
 }
@@ -191,7 +191,10 @@ async function applyCatalogChangesToProjects (params: ApplyCatalogChangesParams)
       continue
     }
     if (params.projectChangeTypes.get(project.rootDir) === 'source') continue
-    if (projectUsesChangedCatalogs(applyOverrides(project.manifest, project.rootDir), changedCatalogs)) {
+    if (
+      projectUsesChangedCatalogs(project.manifest, changedCatalogs) ||
+      projectUsesChangedCatalogs(applyOverrides(project.manifest, project.rootDir), changedCatalogs)
+    ) {
       params.projectChangeTypes.set(project.rootDir, 'source')
     }
   }

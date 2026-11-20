@@ -5,9 +5,6 @@ use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
 use std::{collections::HashMap, fs, path::Path};
 use tempfile::TempDir;
 
-/// `app` declares `lib: ^1.0.0` and `project_dependencies` stands for an
-/// override that points `lib` at `catalog:local`. `other` declares a
-/// `catalog:local` dependency that the overrides drop.
 #[test]
 fn selects_projects_by_the_given_project_dependencies() {
     let workspace = TempDir::new().expect("create tempdir");

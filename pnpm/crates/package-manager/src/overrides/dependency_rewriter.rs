@@ -25,12 +25,10 @@ pub fn overrides_dependency_rewriter(
     build_overrides_rewriter(config, catalogs, workspace_dir, CatalogValues::Dereference)
 }
 
-/// [`overrides_dependency_rewriter`] for finding the projects that use a
-/// changed catalog entry. An override whose value is a `catalog:` reference
-/// rewrites the dependency to that reference, not to the entry's specifier,
-/// so the rewritten dependencies name the catalog entries they resolve
-/// through. A convergence override still writes the entry's version, which
-/// it needs to match declared ranges.
+/// [`overrides_dependency_rewriter`], except that an override whose value
+/// is a `catalog:` reference writes that reference, so the rewritten
+/// dependencies name the catalog entries they resolve through. A
+/// convergence override still writes the entry's version.
 pub fn overrides_catalog_reference_rewriter(
     config: &Config,
     catalogs: &Catalogs,

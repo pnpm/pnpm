@@ -55,10 +55,8 @@ pub struct FilterWorkspaceProjectsOptions {
     /// `changedFilesIgnorePattern`: glob patterns of changed files a
     /// `[<since>]` selector ignores.
     pub changed_files_ignore_pattern: Vec<String>,
-    /// Each project's dependencies, keyed by root directory, that a
-    /// `[<since>]` selector checks for changed catalog entries. Set it when
-    /// the dependencies the install resolves differ from the declared ones,
-    /// for example under overrides. `None` checks the dependencies each
+    /// The dependencies a `[<since>]` selector checks for changed catalog
+    /// entries, keyed by root directory. `None` checks the dependencies each
     /// graph node declares.
     pub project_dependencies: Option<ProjectDependencies>,
 }
