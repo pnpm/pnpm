@@ -310,7 +310,7 @@ impl WatchdogProcess {
         match &self.address {
             #[cfg(target_os = "linux")]
             WatchdogAddress::Pidfd(pinned) => {
-                pinned.exited(Waiting::Poll, Reaping::Take) == Some(false)
+                pinned.exited(Waiting::Poll, Reaping::Take).is_some_and(|exited| !exited)
             }
             WatchdogAddress::Pid => matches!(self.child.try_wait(), Ok(None)),
             #[cfg(target_os = "linux")]
