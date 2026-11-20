@@ -547,6 +547,9 @@ fn run_project_runtime_pin(
     if name != "node" {
         return run_runtime_from_store(state_dir, name, version_spec, args);
     }
+    if node_semver::Version::parse(version_spec).is_err() {
+        return run_runtime_from_store(state_dir, name, version_spec, args);
+    }
     let result = select_global_runtime(state_dir, name, version_spec);
     match result {
         Ok(bin) => exec_program(&bin, args),
