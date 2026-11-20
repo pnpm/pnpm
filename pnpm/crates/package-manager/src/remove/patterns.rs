@@ -49,7 +49,8 @@ pub fn expand_remove_patterns(available: &[String], package_names: &[String]) ->
     let matcher = pnpm_matcher::create_matcher(package_names);
     let missing_exact = package_names
         .iter()
-        .filter(|name| !is_remove_pattern(name) && !available.contains(name));
+        .filter(|name| !is_remove_pattern(name))
+        .filter(|name| !available.contains(name));
     let matched = available
         .iter()
         .filter(|name| matcher.matches(name));
@@ -66,6 +67,7 @@ pub fn missing_selected_dependencies<'a>(
 ) -> Vec<&'a String> {
     package_names
         .iter()
-        .filter(|name| !is_remove_pattern(name) && !available_lookup.contains(name.as_str()))
+        .filter(|name| !is_remove_pattern(name))
+        .filter(|name| !available_lookup.contains(name.as_str()))
         .collect()
 }
