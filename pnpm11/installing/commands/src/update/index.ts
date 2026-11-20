@@ -60,6 +60,8 @@ const RC_OPTION_NAMES = [
   'shared-workspace-lockfile',
   'side-effects-cache-readonly',
   'side-effects-cache',
+  'minimum-release-age',
+  'minimum-release-age-exclude',
   'store-dir',
   'trust-lockfile',
   'trust-policy',
@@ -161,6 +163,8 @@ dependencies is not found inside the workspace',
     name: '--no-save',
   },
   OPTIONS.globalDir,
+  OPTIONS.minimumReleaseAge,
+  OPTIONS.minimumReleaseAgeExclude,
   ...UNIVERSAL_OPTIONS,
 ]
 

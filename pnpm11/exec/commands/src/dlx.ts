@@ -6,7 +6,7 @@ import {
   resolveFromCatalog,
 } from '@pnpm/catalogs.resolver'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
-import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
+import { OPTIONS, OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
@@ -42,6 +42,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'cpu',
       'ignore-scripts',
       'libc',
+      'minimum-release-age',
+      'minimum-release-age-exclude',
       'os',
     ], types),
     'shell-mode': Boolean,
@@ -74,6 +76,8 @@ export function help (): string {
             name: '--shell-mode',
             shortAlias: '-c',
           },
+          OPTIONS.minimumReleaseAge,
+          OPTIONS.minimumReleaseAgeExclude,
         ],
       },
       OUTPUT_OPTIONS,

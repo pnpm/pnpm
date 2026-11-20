@@ -98,6 +98,8 @@ const RC_OPTION_NAMES = [
   'side-effects-cache-readonly',
   'side-effects-cache',
   'store-dir',
+  'minimum-release-age',
+  'minimum-release-age-exclude',
   'strict-peer-dependencies',
   'trust-lockfile',
   'trust-policy',
@@ -200,6 +202,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
     description: 'A list of package names that are allowed to run postinstall scripts during installation. Prefix a name with ! to deny its scripts instead',
     name: '--allow-build',
   },
+  OPTIONS.minimumReleaseAge,
+  OPTIONS.minimumReleaseAgeExclude,
 ]
 
 export function help (): string {

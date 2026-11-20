@@ -66,6 +66,8 @@ const RC_OPTION_NAMES = [
   'side-effects-cache',
   'store-dir',
   'strict-peer-dependencies',
+  'minimum-release-age',
+  'minimum-release-age-exclude',
   'trust-lockfile',
   'trust-policy',
   'trust-policy-exclude',
@@ -163,6 +165,8 @@ export type InstallCommandOptions = Pick<Config,
 | 'saveCatalogName'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'sideEffectsCacheRead'
 | 'sideEffectsCacheWrite'
 | 'sort'

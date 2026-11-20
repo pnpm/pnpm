@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { normalizeRegistryKey } from '@pnpm/config.pick-registry-for-package'
+import { coerceExcludeToArray } from '@pnpm/config.version-policy'
 import type { RegistriesByScope, TrustPolicy } from '@pnpm/types'
 
 import type { CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
@@ -47,7 +48,9 @@ export function snapshotVerifierPolicy (
       .digest('hex'),
     registriesRouting: hashRegistriesRouting(opts.registriesByScope),
     minimumReleaseAge: opts.minimumReleaseAge ?? 0,
-    minimumReleaseAgeExclude: sortUniquePatterns(opts.minimumReleaseAgeExclude),
+    minimumReleaseAgeExclude: sortUniquePatterns(
+      opts.minimumReleaseAgeExclude == null ? undefined : coerceExcludeToArray(opts.minimumReleaseAgeExclude)
+    ),
     trustPolicy: opts.trustPolicy ?? null,
     trustPolicyExclude: sortUniquePatterns(opts.trustPolicyExclude),
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter ?? null,
