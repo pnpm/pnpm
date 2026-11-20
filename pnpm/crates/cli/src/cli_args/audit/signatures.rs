@@ -31,14 +31,16 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// One installed package to check, already routed to the registry it was
 /// installed from.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct SignaturePackage {
+    pub name: String,
+    pub version: String,
+    pub registry: String,
+    pub package_id: String,
     pub integrity: Option<String>,
     /// Whether `integrity` is the hash of the package's tar, which no
     /// registry signature covers directly.
     pub pins_tar: bool,
-    pub name: String,
-    pub registry: String,
-    pub version: String,
 }
 
 /// A package that failed (or lacks) signature verification. JSON-serialized
@@ -221,7 +223,7 @@ fn process_version(
         return;
     };
     let dist = version.and_then(|version| version.dist.as_ref());
-    let resolved = dist.and_then(|dist| dist.tarball.clone());
+    let resolved = dist.and_then(|dist| dist.tarball.as_deref());
     let raw_signatures = dist.and_then(|dist| dist.signatures.as_ref());
 
     let Some(signatures) = parse_signatures(raw_signatures) else {
@@ -250,7 +252,7 @@ fn process_version(
         pkg,
         &signed,
         packument.time.get(&pkg.version).and_then(serde_json::Value::as_str),
-        resolved.as_deref(),
+        resolved,
         &signatures,
         keys,
     ) {
@@ -327,7 +329,7 @@ fn verify_package_signatures(
     Some(issue(
         pkg,
         Some(integrity.to_string()),
-        resolved.map(str::to_string),
+        resolved,
         Some(most_telling_failure(pkg, &failures)),
     ))
 }
@@ -349,16 +351,16 @@ fn most_telling_failure(pkg: &SignaturePackage, failures: &[String]) -> String {
 fn issue(
     pkg: &SignaturePackage,
     integrity: Option<String>,
-    resolved: Option<String>,
+    resolved: Option<&str>,
     reason: Option<String>,
 ) -> SignatureIssue {
     SignatureIssue {
         name: pkg.name.clone(),
-        registry: pkg.registry.clone(),
+        registry: redact_url_credentials(&pkg.registry),
         version: pkg.version.clone(),
         integrity,
         reason,
-        resolved,
+        resolved: resolved.map(redact_url_credentials),
     }
 }
 

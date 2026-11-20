@@ -1,9 +1,12 @@
 pub(crate) use fix::{
-    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
+    AuditFixObserver, PublishInfoLookup, VulnerabilityGuard, fetch_publish_times,
     filter_advisories_for_fix, fix_with_update, format_fix_with_update_output,
     ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
-pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
+pub(crate) use importers::{LockedPackageRegistry, locked_package_registries};
+pub(crate) use paths::{
+    AuditPathIndex, PathInfo, build_audit_path_index, package_semver, package_version,
+};
 pub(crate) use render::{
     blue, bold, color_severity, green, red, render_json_report, render_text_report,
 };
@@ -14,7 +17,7 @@ pub(crate) use report::{
 pub(crate) use request::{
     AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include, classify_graph,
     empty_packages, empty_snapshots, env_roots, importer_roots, lockfile_to_audit_request,
-    root_included,
+    root_included, walk_reachable,
 };
 pub(crate) use version_ranges::{
     infer_patched_versions, is_range_subset, min_version_from_range, patched_range_for_style,
@@ -35,7 +38,7 @@ use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]
 use dialoguer::MultiSelect;
-use importers::{select_audited_importers, signature_packages};
+use importers::{load_audited_lockfiles, signature_packages};
 use jiff::Timestamp;
 
 use miette::{Diagnostic, IntoDiagnostic};
@@ -46,7 +49,7 @@ use pnpm_config::{AuditLevel as ConfigAuditLevel, Config};
 use pnpm_lockfile::{
     EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PeerEdgeGraph,
     PeerEdgeOptions, PeerSatisfactionEdges, PkgName, ResolvedDependencyMap, SnapshotEntry,
-    SpecifierAndResolution, pick_registry_for_package,
+    SpecifierAndResolution,
 };
 use pnpm_network::{encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
@@ -130,7 +133,7 @@ struct FixContext<'a> {
     audit_level: ConfigAuditLevel,
     lockfile_dir: &'a std::path::Path,
     settings_dir: &'a std::path::Path,
-    publish_infos: &'a HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &'a HashMap<String, PublishInfoLookup>,
 }
 
 #[derive(Clone, Copy)]
@@ -238,21 +241,11 @@ impl AuditArgs {
         let settings_dir =
             state.config.workspace_dir.clone().unwrap_or_else(|| lockfile_dir.clone());
 
-        let Some(mut report) =
+        let Some((report, publish_infos)) =
             self.fetch_report(&state, include, audit_level, &lockfile_dir).await?
         else {
             return Ok(AuditOutcome::Clean);
         };
-        // The inferred patched range is syntactic: verify a published version
-        // actually satisfies it before the report and any fix flow can claim
-        // one. The fetched publish-time maps are reused by the fix flows for
-        // the age-gate exclusion check.
-        let publish_infos = correct_inferred_patched_versions(
-            &mut report,
-            state.config,
-            state.http_client.as_ref(),
-        )
-        .await;
 
         if let Some(fix_method) = fix_method {
             return self.run_fix::<Reporter>(
@@ -336,19 +329,11 @@ impl AuditArgs {
         include: Include,
         audit_level: ConfigAuditLevel,
         lockfile_dir: &std::path::Path,
-    ) -> miette::Result<Option<AuditReport>> {
-        let lockfile = state.lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let Some(lockfile) = lockfile else {
-            return Err(AuditError::NoLockfile.into());
-        };
-        let Some(lockfile) = select_audited_importers(state, lockfile)? else {
+    ) -> miette::Result<Option<(AuditReport, HashMap<String, PublishInfoLookup>)>> {
+        let Some((lockfile, env_lockfile)) = load_audited_lockfiles(state, lockfile_dir)? else {
             return Ok(None);
         };
         let lockfile = lockfile.as_ref();
-        let env_lockfile = EnvLockfile::read(lockfile_dir)
-            .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
         match audit(
             lockfile,
             env_lockfile.as_ref(),
@@ -358,7 +343,17 @@ impl AuditArgs {
         )
         .await
         {
-            Ok(report) => Ok(Some(report)),
+            Ok(mut report) => {
+                let publish_infos = correct_inferred_patched_versions(
+                    &mut report,
+                    lockfile,
+                    env_lockfile.as_ref(),
+                    include,
+                    state,
+                )
+                .await;
+                Ok(Some((report, publish_infos)))
+            }
             Err(err) if self.ignore_registry_errors => {
                 pnpm_diagnostics::eprintln!("{err}");
                 let _ = std::io::stderr().flush();

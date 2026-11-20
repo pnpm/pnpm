@@ -13,7 +13,7 @@ use super::{
     DependencyGroup, Deserialize, FixContext, HashMap, HashSet, IntoDiagnostic, Lockfile,
     MultiSelect, PackageVersionGuard, Range, RangeSpecStyle, ReleaseAgeExclusions, Reporter,
     ResolutionObserver, State, Timestamp, Update, Version, blue, color_severity,
-    encode_package_name, green, normalize_ghsa_id, parse_packument_timestamp, red,
+    encode_package_name, green, normalize_ghsa_id, package_semver, parse_packument_timestamp, red,
     satisfies_including_prerelease, send_with_retry, severity_name, severity_number,
 };
 use pnpm_network::{normalize_registry_url, redact_url_credentials};
@@ -148,6 +148,19 @@ fn append_override_age_excludes(
     Ok(())
 }
 
+/// Outcome of looking up a package's packument publish info during advisory
+/// patched-range validation.
+#[derive(Debug, Clone)]
+pub(crate) enum PublishInfoLookup {
+    Resolved(PackumentPublishInfo),
+    /// Packument fetch failed or returned malformed JSON; age-gate exclusions
+    /// fail open so a genuinely fresh fix remains installable.
+    Unavailable,
+    /// Multiple registries or an undeclared named-registry prefix serve the
+    /// package name, so no single packument can authorize an age-gate bypass.
+    AmbiguousOrigin,
+}
+
 /// The packument publish info of one package: the `time` map plus the set of
 /// deprecated versions.
 #[derive(Debug, Clone)]
@@ -270,7 +283,7 @@ fn publish_timestamps(time: HashMap<String, serde_json::Value>) -> Option<HashMa
 /// Ports the publish-time lookup of pnpm's `createMinimumReleaseAgeExcludes`.
 fn resolve_minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
-    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
     minimum_release_age: u64,
 ) -> miette::Result<Vec<String>> {
     // On overflow leave the cutoff uncomputable, as `PickPolicy::from_config`
@@ -292,11 +305,11 @@ fn resolve_minimum_release_age_excludes(
 /// patched range to — is younger than `cutoff`. A version published at or
 /// before the cutoff doesn't need a bypass, and a version whose publish time
 /// is unknown keeps its entry so a genuinely fresh fix stays installable. An
-/// advisory the packument offers no fix for gets no entry. Ports pnpm's
-/// `createMinimumReleaseAgeExcludes`.
+/// advisory the packument offers no fix for, or whose registry origin is
+/// ambiguous, gets no entry. Ports pnpm's `createMinimumReleaseAgeExcludes`.
 pub(crate) fn minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
-    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
     cutoff: Timestamp,
 ) -> miette::Result<Vec<String>> {
     let specs: Vec<String> = advisories
@@ -307,8 +320,12 @@ pub(crate) fn minimum_release_age_excludes(
                 .strip_prefix(">=")
                 .and_then(|version| version.trim().parse::<Version>().ok())?;
             let name = advisory.module_name.trim();
-            let Some(info) = publish_infos.get(name).and_then(Option::as_ref) else {
-                return Some(format!("{name}@{min}"));
+            let info = match publish_infos.get(name) {
+                Some(PublishInfoLookup::Resolved(info)) => info,
+                Some(PublishInfoLookup::AmbiguousOrigin) => return None,
+                Some(PublishInfoLookup::Unavailable) | None => {
+                    return Some(format!("{name}@{min}"));
+                }
             };
             let range = patched.parse::<Range>().ok()?;
             let (key, lowest) = info.lowest_non_deprecated_version(&range)?;

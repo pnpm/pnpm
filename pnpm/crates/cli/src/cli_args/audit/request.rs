@@ -58,6 +58,7 @@ pub(crate) struct GraphImporter {
 pub(crate) struct AuditGraph<'a> {
     pub(crate) importers: Vec<GraphImporter>,
     pub(crate) snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    pub(crate) packages: &'a HashMap<PackageKey, PackageMetadata>,
     /// The peer-satisfaction edges a walk over only some groups leaves out,
     /// and a dependency-type classification always does.
     pub(crate) peer_satisfaction_edges: PeerSatisfactionEdges,
@@ -69,7 +70,7 @@ impl<'a> AuditGraph<'a> {
         importers: Vec<GraphImporter>,
         listed_by_every_importer: HashSet<PackageKey>,
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
-        packages: &HashMap<PackageKey, PackageMetadata>,
+        packages: &'a HashMap<PackageKey, PackageMetadata>,
     ) -> Self {
         let peer_satisfaction_edges = PeerSatisfactionEdges::of_graph(&PeerEdgeGraph {
             importers: importers
@@ -85,7 +86,7 @@ impl<'a> AuditGraph<'a> {
             snapshots,
             packages,
         });
-        Self { importers, snapshots, peer_satisfaction_edges }
+        Self { importers, snapshots, packages, peer_satisfaction_edges }
     }
 }
 
@@ -272,7 +273,7 @@ impl AuditRequestBuilder {
                 .get(&key)
                 .copied()
                 .unwrap_or(DepClass { dev_only: false, optional_only: false });
-            self.register_occurrence(&key, class);
+            self.register_occurrence(&key, graph.packages, class);
             stack.extend(
                 graph
                     .children(&key, include)
@@ -282,8 +283,13 @@ impl AuditRequestBuilder {
         }
     }
 
-    pub(crate) fn register_occurrence(&mut self, key: &PackageKey, class: DepClass) {
-        let Some(version) = package_version(key) else { return };
+    pub(crate) fn register_occurrence(
+        &mut self,
+        key: &PackageKey,
+        packages: &HashMap<PackageKey, PackageMetadata>,
+        class: DepClass,
+    ) {
+        let Some(version) = package_version(key, Some(packages)) else { return };
         let name = key.name.to_string();
         let version_states = self.states_by_name.entry(name.clone()).or_default();
         let Some(state) = version_states.get_mut(&version) else {

@@ -996,6 +996,8 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
+mod dependency_sources;
+
 mod signatures;
 
 mod fixes;

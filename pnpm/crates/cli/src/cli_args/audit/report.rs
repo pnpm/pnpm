@@ -24,6 +24,15 @@ pub(crate) enum AuditError {
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_PACKAGES))]
     NoPackages,
 
+    #[display(
+        "Cannot audit signatures of package \"{package_key}\": its registry prefix '{registry_name}:' is not declared by the registries setting."
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_MISSING_NAMED_REGISTRY),
+        help("Add a registries entry with \"prefix: {registry_name}\" to pnpm-workspace.yaml.")
+    )]
+    MissingNamedRegistry { package_key: String, registry_name: String },
+
     #[display("No pnpm-lock.yaml found after update: Cannot report fixed vulnerabilities")]
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_LOCKFILE))]
     NoLockfileAfterUpdate,

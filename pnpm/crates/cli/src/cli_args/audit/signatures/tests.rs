@@ -30,6 +30,7 @@ fn package() -> SignaturePackage {
         integrity: Some("sha512-abc".to_string()),
         pins_tar: false,
         name: "foo".to_string(),
+        package_id: "foo@1.0.0".to_string(),
         registry: "https://registry.example.com/".to_string(),
         version: "1.0.0".to_string(),
     }

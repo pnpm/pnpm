@@ -548,11 +548,11 @@ fn audit_signatures_rejects_extra_subcommand_argument() {
     assert!(stderr(&output).contains("Unknown audit subcommand: signatures extra"));
 }
 
-fn signing_key() -> p256::ecdsa::SigningKey {
+pub(super) fn signing_key() -> p256::ecdsa::SigningKey {
     p256::ecdsa::SigningKey::from_slice(&[0x42; 32]).expect("valid P-256 scalar")
 }
 
-fn public_key_b64(key: &p256::ecdsa::SigningKey) -> String {
+pub(super) fn public_key_b64(key: &p256::ecdsa::SigningKey) -> String {
     use base64::Engine as _;
     use p256::pkcs8::EncodePublicKey;
     let der = key
@@ -562,14 +562,14 @@ fn public_key_b64(key: &p256::ecdsa::SigningKey) -> String {
     base64::engine::general_purpose::STANDARD.encode(der.as_bytes())
 }
 
-fn sign_b64(key: &p256::ecdsa::SigningKey, message: &str) -> String {
+pub(super) fn sign_b64(key: &p256::ecdsa::SigningKey, message: &str) -> String {
     use base64::Engine as _;
     use p256::ecdsa::{Signature, signature::Signer};
     let signature: Signature = key.sign(message.as_bytes());
     base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes())
 }
 
-fn keys_mock(registry: &mut mockito::Server, public_key_b64: &str) -> mockito::Mock {
+pub(super) fn keys_mock(registry: &mut mockito::Server, public_key_b64: &str) -> mockito::Mock {
     registry
         .mock("GET", "/-/npm/v1/keys")
         .with_status(200)
@@ -583,11 +583,16 @@ fn keys_body(public_key_b64: &str) -> String {
     )
 }
 
-fn signatures_json(signature_b64: &str) -> String {
+pub(super) fn signatures_json(signature_b64: &str) -> String {
     format!(r#"[{{"keyid":"{SIGNATURE_KEYID}","sig":"{signature_b64}"}}]"#)
 }
 
-fn packument_body(name: &str, version: &str, integrity: &str, signatures_json: &str) -> String {
+pub(super) fn packument_body(
+    name: &str,
+    version: &str,
+    integrity: &str,
+    signatures_json: &str,
+) -> String {
     format!(
         r#"{{"name":"{name}","versions":{{"{version}":{{"name":"{name}","version":"{version}","dist":{{"integrity":"{integrity}","tarball":"https://example.com/{name}-{version}.tgz","signatures":{signatures_json}}}}}}},"time":{{"{version}":"2020-01-01T00:00:00.000Z"}}}}"#,
     )
